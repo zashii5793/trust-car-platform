@@ -11,13 +11,12 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDmQ1234567890abcdefghijklmnopqrst',
-    appId: '1:123456789012:web:abcdefg1234567890',
-    messagingSenderId: '123456789012',
+    apiKey: 'AIzaSyDZQ4UK6IXiUKNJ3u1Cjup4nIEmiV97O0Q',
+    appId: '1:31421119456:web:b4cb461b8951f19e80c985',
+    messagingSenderId: '31421119456',
     projectId: 'trust-car-platform',
     authDomain: 'trust-car-platform.firebaseapp.com',
-    databaseURL: 'https://trust-car-platform.firebaseio.com',
-    storageBucket: 'trust-car-platform.appspot.com',
-    measurementId: 'G-ABCD1234EF',
+    storageBucket: 'trust-car-platform.firebasestorage.app',
+    measurementId: 'G-ZFX8W1PF0N',
   );
 }
