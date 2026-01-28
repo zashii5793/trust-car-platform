@@ -286,6 +286,7 @@ class AppDropdownField<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<T>(
+      // ignore: deprecated_member_use
       value: value,
       items: items,
       onChanged: enabled ? onChanged : null,

@@ -10,15 +10,44 @@ import '../widgets/common/app_card.dart';
 import '../widgets/common/loading_indicator.dart';
 import 'add_maintenance_screen.dart';
 import 'export/export_dialog.dart';
+import 'vehicle_edit_screen.dart';
 
-class VehicleDetailScreen extends StatelessWidget {
+class VehicleDetailScreen extends StatefulWidget {
   final Vehicle vehicle;
 
   const VehicleDetailScreen({super.key, required this.vehicle});
 
+  @override
+  State<VehicleDetailScreen> createState() => _VehicleDetailScreenState();
+}
+
+class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
+  late Vehicle _vehicle;
+
+  @override
+  void initState() {
+    super.initState();
+    _vehicle = widget.vehicle;
+  }
+
   String _formatNumber(int number) {
     final formatter = NumberFormat('#,###');
     return formatter.format(number);
+  }
+
+  Future<void> _navigateToEdit() async {
+    final result = await Navigator.push<Vehicle>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VehicleEditScreen(vehicle: _vehicle),
+      ),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _vehicle = result;
+      });
+    }
   }
 
   @override
@@ -28,7 +57,7 @@ class VehicleDetailScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${vehicle.maker} ${vehicle.model}'),
+        title: Text('${_vehicle.maker} ${_vehicle.model}'),
         actions: [
           // PDF出力ボタン
           Consumer<MaintenanceProvider>(
@@ -41,7 +70,7 @@ class VehicleDetailScreen extends StatelessWidget {
                     : () {
                         showExportDialog(
                           context: context,
-                          vehicle: vehicle,
+                          vehicle: _vehicle,
                           records: provider.records,
                         );
                       },
@@ -50,9 +79,8 @@ class VehicleDetailScreen extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.edit_outlined),
-            onPressed: () {
-              showSuccessSnackBar(context, '編集機能は実装予定です');
-            },
+            tooltip: '編集',
+            onPressed: _navigateToEdit,
           ),
         ],
       ),
@@ -62,7 +90,7 @@ class VehicleDetailScreen extends StatelessWidget {
           children: [
             // 車両画像
             _VehicleImage(
-              imageUrl: vehicle.imageUrl,
+              imageUrl: _vehicle.imageUrl,
               isDark: isDark,
             ),
 
@@ -73,24 +101,24 @@ class VehicleDetailScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${vehicle.maker} ${vehicle.model}',
+                    '${_vehicle.maker} ${_vehicle.model}',
                     style: theme.textTheme.displayMedium,
                   ),
                   AppSpacing.verticalSm,
                   _InfoRow(
                     icon: Icons.calendar_today,
                     label: '年式',
-                    value: '${vehicle.year}年',
+                    value: '${_vehicle.year}年',
                   ),
                   _InfoRow(
                     icon: Icons.star_outline,
                     label: 'グレード',
-                    value: vehicle.grade,
+                    value: _vehicle.grade,
                   ),
                   _InfoRow(
                     icon: Icons.speed,
                     label: '走行距離',
-                    value: '${_formatNumber(vehicle.mileage)} km',
+                    value: '${_formatNumber(_vehicle.mileage)} km',
                   ),
                 ],
               ),
@@ -99,7 +127,7 @@ class VehicleDetailScreen extends StatelessWidget {
             const Divider(height: 1),
 
             // 統計情報
-            _StatisticsSection(vehicleId: vehicle.id),
+            _StatisticsSection(vehicleId: _vehicle.id),
 
             const Divider(height: 1),
 
@@ -119,7 +147,7 @@ class VehicleDetailScreen extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
-                              AddMaintenanceScreen(vehicleId: vehicle.id),
+                              AddMaintenanceScreen(vehicleId: _vehicle.id),
                         ),
                       );
                     },
@@ -131,7 +159,7 @@ class VehicleDetailScreen extends StatelessWidget {
             ),
 
             // 履歴一覧
-            _MaintenanceList(vehicleId: vehicle.id),
+            _MaintenanceList(vehicleId: _vehicle.id),
 
             AppSpacing.verticalLg,
           ],
@@ -143,7 +171,7 @@ class VehicleDetailScreen extends StatelessWidget {
             context,
             MaterialPageRoute(
               builder: (context) =>
-                  AddMaintenanceScreen(vehicleId: vehicle.id),
+                  AddMaintenanceScreen(vehicleId: _vehicle.id),
             ),
           );
         },

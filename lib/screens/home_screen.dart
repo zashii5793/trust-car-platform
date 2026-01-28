@@ -29,8 +29,34 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<VehicleProvider>(context, listen: false).listenToVehicles();
+      _initializeData();
     });
+  }
+
+  void _initializeData() {
+    final vehicleProvider = Provider.of<VehicleProvider>(context, listen: false);
+    vehicleProvider.listenToVehicles();
+
+    // 車両データの変更を監視して通知を生成
+    vehicleProvider.addListener(_onVehiclesChanged);
+  }
+
+  void _onVehiclesChanged() {
+    final vehicleProvider = Provider.of<VehicleProvider>(context, listen: false);
+    final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+
+    if (vehicleProvider.vehicles.isNotEmpty) {
+      // 各車両のメンテナンス履歴を取得して通知を生成
+      notificationProvider.generateRecommendations(
+        vehicles: vehicleProvider.vehicles,
+        maintenanceRecords: {},
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   @override

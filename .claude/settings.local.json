@@ -7,7 +7,11 @@
       "Bash(flutter analyze:*)",
       "Bash(git status:*)",
       "Bash(git init)",
-      "Bash(git add -A)"
+      "Bash(git add -A)",
+      "Bash(git commit:*)",
+      "Bash(flutter test:*)",
+      "Bash(git add:*)",
+      "Bash(flutter --version:*)"
     ]
   }
 }
