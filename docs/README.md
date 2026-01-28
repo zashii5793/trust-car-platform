@@ -352,6 +352,65 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 
 ---
 
+### 検証手段
+
+実装後の検証には以下の方法を使用する：
+
+**1. テストスイートの実行**
+```bash
+flutter test
+```
+- 単体テスト、ウィジェットテストを実行
+- 全テストがパスすることを確認
+
+**2. リンターによるチェック**
+```bash
+flutter analyze
+```
+- 静的解析でエラー・警告がないことを確認
+- コードスタイルの一貫性を維持
+
+**3. ビルド検証**
+```bash
+flutter build web
+```
+- ビルドが成功することを確認
+- コンパイルエラーがないことを検証
+
+**4. UIのスクリーンショット検証**
+- Claude in Chrome拡張機能を使用
+- 実際の画面表示を確認
+- レイアウト崩れや視覚的なバグを検出
+
+**5. 出力チェック用Bashコマンド**
+```bash
+# アプリを起動して動作確認
+flutter run -d chrome
+
+# 特定のテストのみ実行
+flutter test test/widget_test.dart
+
+# 詳細なログ出力
+flutter run -d chrome --verbose
+```
+
+**検証フロー**
+```
+コード変更
+    ↓
+flutter analyze（リンター）
+    ↓
+flutter test（テスト）
+    ↓
+flutter build web（ビルド）
+    ↓
+スクリーンショット検証（UI確認）
+    ↓
+コミット＆Push
+```
+
+---
+
 ## 🤝 コントリビューション
 
 このプロジェクトは現在プライベート開発中です。
