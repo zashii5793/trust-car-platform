@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -51,6 +52,10 @@ class AuthService {
         email: email,
         password: password,
       );
+
+      // ユーザードキュメントが存在しない場合は作成
+      await _createUserDocument(credential.user!);
+
       return credential;
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
@@ -131,10 +136,21 @@ class AuthService {
     final user = currentUser;
     if (user == null) return null;
 
-    final doc = await _firestore.collection('users').doc(user.uid).get();
-    if (!doc.exists) return null;
-
-    return AppUser.fromFirestore(doc);
+    try {
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+      if (!doc.exists) {
+        // ドキュメントが存在しない場合は作成
+        await _createUserDocument(user);
+        final newDoc = await _firestore.collection('users').doc(user.uid).get();
+        if (!newDoc.exists) return null;
+        return AppUser.fromFirestore(newDoc);
+      }
+      return AppUser.fromFirestore(doc);
+    } catch (e) {
+      // Firestoreエラー時はnullを返す（フリーズ防止）
+      debugPrint('getUserProfile error: $e');
+      return null;
+    }
   }
 
   /// ユーザー情報を更新
