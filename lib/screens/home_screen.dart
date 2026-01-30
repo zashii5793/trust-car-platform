@@ -42,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onVehiclesChanged() {
+    if (!mounted) return;
     final vehicleProvider = Provider.of<VehicleProvider>(context, listen: false);
     final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
 
@@ -56,6 +57,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    // Listenerを削除してメモリリークを防止
+    final vehicleProvider = Provider.of<VehicleProvider>(context, listen: false);
+    vehicleProvider.removeListener(_onVehiclesChanged);
     super.dispose();
   }
 
@@ -237,6 +241,16 @@ class _HomeScreenState extends State<HomeScreen> {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: () async {
+                // 全Providerのデータをクリア
+                final vehicleProvider = context.read<VehicleProvider>();
+                final maintenanceProvider = context.read<MaintenanceProvider>();
+                final notificationProvider = context.read<NotificationProvider>();
+
+                vehicleProvider.clear();
+                maintenanceProvider.clear();
+                notificationProvider.clear();
+
+                // 最後に認証をサインアウト
                 await authProvider.signOut();
               },
               icon: const Icon(Icons.logout),

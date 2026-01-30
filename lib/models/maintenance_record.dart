@@ -43,16 +43,49 @@ class MaintenanceRecord {
       id: doc.id,
       vehicleId: data['vehicleId'] ?? '',
       userId: data['userId'] ?? '',
-      type: MaintenanceType.values[data['type'] ?? 0],
+      type: _parseMaintenanceType(data['type']),
       title: data['title'] ?? '',
       description: data['description'],
       cost: data['cost'] ?? 0,
       shopName: data['shopName'],
-      date: (data['date'] as Timestamp).toDate(),
+      date: _parseTimestamp(data['date']),
       mileageAtService: data['mileageAtService'],
       imageUrls: List<String>.from(data['imageUrls'] ?? []),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      createdAt: _parseTimestamp(data['createdAt']),
     );
+  }
+
+  // Timestampを安全にパース（nullの場合は現在時刻を返す）
+  static DateTime _parseTimestamp(dynamic value) {
+    if (value == null) {
+      return DateTime.now();
+    }
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    return DateTime.now();
+  }
+
+  // MaintenanceTypeを安全にパース（範囲外や無効な値は repair を返す）
+  static MaintenanceType _parseMaintenanceType(dynamic value) {
+    if (value == null) {
+      return MaintenanceType.repair;
+    }
+    if (value is int && value >= 0 && value < MaintenanceType.values.length) {
+      return MaintenanceType.values[value];
+    }
+    // 文字列での保存にも対応
+    if (value is String) {
+      try {
+        return MaintenanceType.values.firstWhere(
+          (e) => e.name == value,
+          orElse: () => MaintenanceType.repair,
+        );
+      } catch (_) {
+        return MaintenanceType.repair;
+      }
+    }
+    return MaintenanceType.repair;
   }
 
   // Firestoreに保存するためのMap

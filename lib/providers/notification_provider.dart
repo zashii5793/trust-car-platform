@@ -100,6 +100,14 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// ログアウト時のクリーンアップ
+  void clear() {
+    _notifications = [];
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
+
   /// 特定の車両の通知を取得
   List<AppNotification> getNotificationsForVehicle(String vehicleId) {
     return _notifications.where((n) => n.vehicleId == vehicleId).toList();

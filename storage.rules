@@ -1,0 +1,54 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // ユーザーが認証済みかどうか
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // ファイルサイズ制限（5MB）
+    function isValidFileSize() {
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // 画像ファイルかどうか
+    function isImageFile() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    // ユーザーの車両画像
+    match /vehicles/{userId}/{vehicleId}/{fileName} {
+      // 自分のファイルのみ読み書き可能
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize()
+                   && isImageFile();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ユーザーのプロフィール画像
+    match /users/{userId}/profile/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize()
+                   && isImageFile();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // メンテナンス記録の添付ファイル
+    match /maintenance/{userId}/{recordId}/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // その他のファイルはデフォルトで拒否
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

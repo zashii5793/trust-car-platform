@@ -37,9 +37,20 @@ class Vehicle {
       grade: data['grade'] ?? '',
       mileage: data['mileage'] ?? 0,
       imageUrl: data['imageUrl'],
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      createdAt: _parseTimestamp(data['createdAt']),
+      updatedAt: _parseTimestamp(data['updatedAt']),
     );
+  }
+
+  // Timestampを安全にパース（nullの場合は現在時刻を返す）
+  static DateTime _parseTimestamp(dynamic value) {
+    if (value == null) {
+      return DateTime.now();
+    }
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    return DateTime.now();
   }
 
   // Firestoreに保存するためのMap

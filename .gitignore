@@ -43,3 +43,21 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Environment variables
+.env
+.env.*
+*.env
+
+# Firebase configuration (contains API keys)
+# lib/firebase_options.dart is auto-generated and may contain sensitive keys
+# For production, use environment variables instead
+
+# Secrets
+*.pem
+*.p12
+*.key
+*.keystore
+*.jks
+google-services.json
+GoogleService-Info.plist

@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ユーザーが認証済みかどうか
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // 自分自身のデータかどうか
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ドキュメントの所有者かどうか（userId フィールドで判定）
+    function isDocumentOwner() {
+      return isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // 作成時に自分のユーザーIDを設定しているか
+    function isCreatingOwnDocument() {
+      return isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // ユーザードキュメント
+    match /users/{userId} {
+      // 自分のデータのみ読み書き可能
+      allow read, write: if isOwner(userId);
+    }
+
+    // 車両データ
+    match /vehicles/{vehicleId} {
+      // 自分の車両のみ読み取り可能
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // 作成時は自分のユーザーIDを設定していること
+      allow create: if isCreatingOwnDocument();
+
+      // 更新・削除は所有者のみ
+      allow update, delete: if isDocumentOwner();
+    }
+
+    // メンテナンス記録
+    match /maintenance_records/{recordId} {
+      // 自分の記録のみ読み取り可能
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // 作成時は自分のユーザーIDを設定していること
+      allow create: if isCreatingOwnDocument();
+
+      // 更新・削除は所有者のみ
+      allow update, delete: if isDocumentOwner();
+    }
+
+    // 通知データ
+    match /notifications/{notificationId} {
+      // 自分の通知のみ読み取り可能
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // 作成時は自分のユーザーIDを設定していること
+      allow create: if isCreatingOwnDocument();
+
+      // 更新・削除は所有者のみ
+      allow update, delete: if isDocumentOwner();
+    }
+
+    // その他のドキュメントはデフォルトで拒否
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,13 +1,15 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/maintenance_record.dart';
 import '../services/firebase_service.dart';
 
 class MaintenanceProvider with ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
-  
+
   List<MaintenanceRecord> _records = [];
   bool _isLoading = false;
   String? _error;
+  StreamSubscription<List<MaintenanceRecord>>? _recordsSubscription;
 
   List<MaintenanceRecord> get records => _records;
   bool get isLoading => _isLoading;
@@ -15,7 +17,10 @@ class MaintenanceProvider with ChangeNotifier {
 
   // 特定車両の履歴をリスニング
   void listenToMaintenanceRecords(String vehicleId) {
-    _firebaseService.getVehicleMaintenanceRecords(vehicleId).listen(
+    // 既存のサブスクリプションをキャンセル
+    _recordsSubscription?.cancel();
+
+    _recordsSubscription = _firebaseService.getVehicleMaintenanceRecords(vehicleId).listen(
       (records) {
         _records = records;
         _error = null;
@@ -26,6 +31,27 @@ class MaintenanceProvider with ChangeNotifier {
         notifyListeners();
       },
     );
+  }
+
+  // リソースの解放
+  void stopListening() {
+    _recordsSubscription?.cancel();
+    _recordsSubscription = null;
+  }
+
+  // ログアウト時のクリーンアップ
+  void clear() {
+    stopListening();
+    _records = [];
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _recordsSubscription?.cancel();
+    super.dispose();
   }
 
   // 履歴を追加

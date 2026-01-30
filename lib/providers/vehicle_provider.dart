@@ -1,14 +1,16 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/vehicle.dart';
 import '../services/firebase_service.dart';
 
 class VehicleProvider with ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
-  
+
   List<Vehicle> _vehicles = [];
   Vehicle? _selectedVehicle;
   bool _isLoading = false;
   String? _error;
+  StreamSubscription<List<Vehicle>>? _vehiclesSubscription;
 
   List<Vehicle> get vehicles => _vehicles;
   Vehicle? get selectedVehicle => _selectedVehicle;
@@ -17,7 +19,10 @@ class VehicleProvider with ChangeNotifier {
 
   // 車両一覧をリスニング
   void listenToVehicles() {
-    _firebaseService.getUserVehicles().listen(
+    // 既存のサブスクリプションをキャンセル
+    _vehiclesSubscription?.cancel();
+
+    _vehiclesSubscription = _firebaseService.getUserVehicles().listen(
       (vehicles) {
         _vehicles = vehicles;
         _error = null;
@@ -28,6 +33,28 @@ class VehicleProvider with ChangeNotifier {
         notifyListeners();
       },
     );
+  }
+
+  // リソースの解放
+  void stopListening() {
+    _vehiclesSubscription?.cancel();
+    _vehiclesSubscription = null;
+  }
+
+  // ログアウト時のクリーンアップ
+  void clear() {
+    stopListening();
+    _vehicles = [];
+    _selectedVehicle = null;
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _vehiclesSubscription?.cancel();
+    super.dispose();
   }
 
   // 選択中の車両を設定
