@@ -8,7 +8,13 @@ import '../models/user.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  GoogleSignIn? _googleSignIn;
+
+  /// GoogleSignInを遅延初期化（テスト時の初期化エラー回避）
+  GoogleSignIn get googleSignIn {
+    _googleSignIn ??= GoogleSignIn();
+    return _googleSignIn!;
+  }
 
   /// 現在のユーザーを取得
   User? get currentUser => _auth.currentUser;
@@ -53,8 +59,12 @@ class AuthService {
         password: password,
       );
 
-      // ユーザードキュメントが存在しない場合は作成
-      await _createUserDocument(credential.user!);
+      // ユーザードキュメントが存在しない場合は作成（オフライン時は無視）
+      try {
+        await _createUserDocument(credential.user!);
+      } catch (e) {
+        debugPrint('signInWithEmail: _createUserDocument failed (may be offline): $e');
+      }
 
       return credential;
     } on FirebaseAuthException catch (e) {
@@ -66,7 +76,7 @@ class AuthService {
   Future<UserCredential?> signInWithGoogle() async {
     try {
       // Google サインインフローを開始
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
       if (googleUser == null) {
         // ユーザーがキャンセルした場合
@@ -108,7 +118,9 @@ class AuthService {
 
   /// サインアウト
   Future<void> signOut() async {
-    await _googleSignIn.signOut();
+    if (_googleSignIn != null) {
+      await _googleSignIn!.signOut();
+    }
     await _auth.signOut();
   }
 

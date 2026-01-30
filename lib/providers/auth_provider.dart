@@ -39,8 +39,13 @@ class AuthProvider with ChangeNotifier {
       _firebaseUser = user;
 
       if (user != null) {
-        // ユーザープロファイルを取得
-        _appUser = await _authService.getUserProfile();
+        // ユーザープロファイルを取得（失敗してもログインは成功扱い）
+        try {
+          _appUser = await _authService.getUserProfile();
+        } catch (e) {
+          debugPrint('AuthProvider: getUserProfile failed: $e');
+          _appUser = null;
+        }
       } else {
         _appUser = null;
       }
