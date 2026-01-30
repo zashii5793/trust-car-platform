@@ -3,6 +3,12 @@ import 'service_locator.dart';
 import '../../services/firebase_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/recommendation_service.dart';
+import '../../domain/repositories/vehicle_repository.dart';
+import '../../domain/repositories/maintenance_repository.dart';
+import '../../domain/repositories/auth_repository.dart';
+import '../../data/repositories/firebase_vehicle_repository.dart';
+import '../../data/repositories/firebase_maintenance_repository.dart';
+import '../../data/repositories/firebase_auth_repository.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -18,26 +24,21 @@ class Injection {
 
     final locator = ServiceLocator.instance;
 
-    // Services
+    // Services（レガシー：段階的に移行）
     locator.registerLazySingleton<FirebaseService>(() => FirebaseService());
     locator.registerLazySingleton<AuthService>(() => AuthService());
     locator.registerLazySingleton<RecommendationService>(() => RecommendationService());
 
-    // Repositories（将来的に実装）
-    // locator.registerLazySingleton<VehicleRepository>(
-    //   () => FirebaseVehicleRepository(locator.get<FirebaseService>()),
-    // );
-    // locator.registerLazySingleton<MaintenanceRepository>(
-    //   () => FirebaseMaintenanceRepository(locator.get<FirebaseService>()),
-    // );
-    // locator.registerLazySingleton<AuthRepository>(
-    //   () => FirebaseAuthRepository(locator.get<AuthService>()),
-    // );
-
-    // UseCases（将来的に実装）
-    // locator.register<GetUserVehicles>(
-    //   () => GetUserVehicles(locator.get<VehicleRepository>()),
-    // );
+    // Repositories
+    locator.registerLazySingleton<VehicleRepository>(
+      () => FirebaseVehicleRepository(),
+    );
+    locator.registerLazySingleton<MaintenanceRepository>(
+      () => FirebaseMaintenanceRepository(),
+    );
+    locator.registerLazySingleton<AuthRepository>(
+      () => FirebaseAuthRepository(),
+    );
 
     _initialized = true;
   }
