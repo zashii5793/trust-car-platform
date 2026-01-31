@@ -373,15 +373,6 @@ class PdfExportService {
 
   /// メンテナンスタイプの表示名
   String _getTypeDisplayName(MaintenanceType type) {
-    switch (type) {
-      case MaintenanceType.repair:
-        return '修理';
-      case MaintenanceType.inspection:
-        return '点検';
-      case MaintenanceType.partsReplacement:
-        return '消耗品交換';
-      case MaintenanceType.carInspection:
-        return '車検';
-    }
+    return type.displayName;
   }
 }

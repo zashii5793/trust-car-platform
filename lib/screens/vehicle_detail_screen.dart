@@ -386,36 +386,10 @@ class _MaintenanceRecordCard extends StatelessWidget {
 
   const _MaintenanceRecordCard({required this.record});
 
-  Color _getTypeColor(MaintenanceType type) {
-    switch (type) {
-      case MaintenanceType.repair:
-        return AppColors.maintenanceRepair;
-      case MaintenanceType.inspection:
-        return AppColors.maintenanceInspection;
-      case MaintenanceType.partsReplacement:
-        return AppColors.maintenanceParts;
-      case MaintenanceType.carInspection:
-        return AppColors.maintenanceCarInspection;
-    }
-  }
-
-  IconData _getTypeIcon(MaintenanceType type) {
-    switch (type) {
-      case MaintenanceType.repair:
-        return Icons.build;
-      case MaintenanceType.inspection:
-        return Icons.search;
-      case MaintenanceType.partsReplacement:
-        return Icons.settings;
-      case MaintenanceType.carInspection:
-        return Icons.verified;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final typeColor = _getTypeColor(record.type);
+    final typeColor = record.typeColor;
     final dateFormat = DateFormat('yyyy/MM/dd');
 
     return AppCard(
@@ -424,7 +398,7 @@ class _MaintenanceRecordCard extends StatelessWidget {
         leading: CircleAvatar(
           backgroundColor: typeColor,
           child: Icon(
-            _getTypeIcon(record.type),
+            record.typeIcon,
             color: Colors.white,
             size: 20,
           ),

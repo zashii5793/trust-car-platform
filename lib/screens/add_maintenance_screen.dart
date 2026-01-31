@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../models/maintenance_record.dart';
 import '../providers/maintenance_provider.dart';
 import '../services/firebase_service.dart';
-import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
@@ -25,10 +24,23 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   final _costController = TextEditingController();
   final _shopNameController = TextEditingController();
   final _mileageController = TextEditingController();
+  final _partNumberController = TextEditingController();
+  final _partManufacturerController = TextEditingController();
 
   MaintenanceType _selectedType = MaintenanceType.repair;
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
+  bool _showAllTypes = false;
+
+  // よく使うメンテナンスタイプ（初期表示）
+  static const _commonTypes = [
+    MaintenanceType.oilChange,
+    MaintenanceType.legalInspection12,
+    MaintenanceType.carInspection,
+    MaintenanceType.tireChange,
+    MaintenanceType.repair,
+    MaintenanceType.partsReplacement,
+  ];
 
   @override
   void dispose() {
@@ -37,6 +49,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     _costController.dispose();
     _shopNameController.dispose();
     _mileageController.dispose();
+    _partNumberController.dispose();
+    _partManufacturerController.dispose();
     super.dispose();
   }
 
@@ -69,6 +83,13 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
             ? null
             : int.parse(_mileageController.text),
         createdAt: DateTime.now(),
+        // Phase 1.5 追加フィールド
+        partNumber: _partNumberController.text.isEmpty
+            ? null
+            : _partNumberController.text,
+        partManufacturer: _partManufacturerController.text.isEmpty
+            ? null
+            : _partManufacturerController.text,
       );
 
       final success =
@@ -92,48 +113,20 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     }
   }
 
-  Color _getTypeColor(MaintenanceType type) {
-    switch (type) {
-      case MaintenanceType.repair:
-        return AppColors.maintenanceRepair;
-      case MaintenanceType.inspection:
-        return AppColors.maintenanceInspection;
-      case MaintenanceType.partsReplacement:
-        return AppColors.maintenanceParts;
-      case MaintenanceType.carInspection:
-        return AppColors.maintenanceCarInspection;
-    }
-  }
-
-  IconData _getTypeIcon(MaintenanceType type) {
-    switch (type) {
-      case MaintenanceType.repair:
-        return Icons.build;
-      case MaintenanceType.inspection:
-        return Icons.search;
-      case MaintenanceType.partsReplacement:
-        return Icons.settings;
-      case MaintenanceType.carInspection:
-        return Icons.verified;
-    }
-  }
-
-  String _getTypeDisplayName(MaintenanceType type) {
-    switch (type) {
-      case MaintenanceType.repair:
-        return '修理';
-      case MaintenanceType.inspection:
-        return '点検';
-      case MaintenanceType.partsReplacement:
-        return '消耗品交換';
-      case MaintenanceType.carInspection:
-        return '車検';
-    }
+  void _onTypeSelected(MaintenanceType type) {
+    setState(() {
+      _selectedType = type;
+      // タイプに応じてタイトルを自動設定（空の場合のみ）
+      if (_titleController.text.isEmpty) {
+        _titleController.text = type.displayName;
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final typesToShow = _showAllTypes ? MaintenanceType.values : _commonTypes;
 
     return Scaffold(
       appBar: AppBar(
@@ -150,42 +143,60 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // タイプ選択
-                Text(
-                  'メンテナンスタイプ',
-                  style: theme.textTheme.labelLarge,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'メンテナンスタイプ',
+                      style: theme.textTheme.labelLarge,
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _showAllTypes = !_showAllTypes;
+                        });
+                      },
+                      child: Text(_showAllTypes ? '簡易表示' : 'すべて表示'),
+                    ),
+                  ],
                 ),
                 AppSpacing.verticalXs,
-                Wrap(
-                  spacing: AppSpacing.xs,
-                  runSpacing: AppSpacing.xs,
-                  children: MaintenanceType.values.map((type) {
-                    final isSelected = _selectedType == type;
-                    final color = _getTypeColor(type);
-                    return ChoiceChip(
-                      label: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _getTypeIcon(type),
-                            size: 16,
-                            color: isSelected ? Colors.white : color,
+
+                if (_showAllTypes)
+                  // カテゴリ別表示
+                  ...MaintenanceType.groupedTypes.entries.map((entry) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: Text(
+                            entry.key,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
                           ),
-                          AppSpacing.horizontalXs,
-                          Text(_getTypeDisplayName(type)),
-                        ],
-                      ),
-                      selected: isSelected,
-                      selectedColor: color,
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() {
-                            _selectedType = type;
-                          });
-                        }
-                      },
+                        ),
+                        Wrap(
+                          spacing: AppSpacing.xs,
+                          runSpacing: AppSpacing.xs,
+                          children: entry.value.map((type) {
+                            return _buildTypeChip(type);
+                          }).toList(),
+                        ),
+                      ],
                     );
-                  }).toList(),
-                ),
+                  })
+                else
+                  // よく使うタイプのみ表示
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
+                    children: typesToShow.map((type) {
+                      return _buildTypeChip(type);
+                    }).toList(),
+                  ),
+
                 AppSpacing.verticalLg,
 
                 // タイトル
@@ -255,6 +266,35 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                 ),
                 AppSpacing.verticalMd,
 
+                // 部品情報（消耗品交換などで表示）
+                if (_selectedType.isPeriodicMaintenance) ...[
+                  Text(
+                    '部品情報（任意）',
+                    style: theme.textTheme.labelLarge,
+                  ),
+                  AppSpacing.verticalXs,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppTextField(
+                          controller: _partManufacturerController,
+                          labelText: 'メーカー',
+                          hintText: '例: WAKO\'S',
+                        ),
+                      ),
+                      AppSpacing.horizontalSm,
+                      Expanded(
+                        child: AppTextField(
+                          controller: _partNumberController,
+                          labelText: '品番',
+                          hintText: '例: E250',
+                        ),
+                      ),
+                    ],
+                  ),
+                  AppSpacing.verticalMd,
+                ],
+
                 // 説明
                 AppTextField.multiline(
                   controller: _descriptionController,
@@ -276,6 +316,31 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTypeChip(MaintenanceType type) {
+    final isSelected = _selectedType == type;
+    return ChoiceChip(
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            type.icon,
+            size: 16,
+            color: isSelected ? Colors.white : type.color,
+          ),
+          AppSpacing.horizontalXs,
+          Text(type.displayName),
+        ],
+      ),
+      selected: isSelected,
+      selectedColor: type.color,
+      onSelected: (selected) {
+        if (selected) {
+          _onTypeSelected(type);
+        }
+      },
     );
   }
 }

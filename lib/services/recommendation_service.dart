@@ -22,12 +22,12 @@ class MaintenanceRule {
 /// レコメンドサービス
 /// ルールベースでメンテナンス推奨を生成
 class RecommendationService {
-  /// メンテナンスルール定義
+  /// メンテナンスルール定義（Phase 1.5 更新）
   static const List<MaintenanceRule> _rules = [
     // エンジンオイル交換
     MaintenanceRule(
       name: 'エンジンオイル交換',
-      type: MaintenanceType.partsReplacement,
+      type: MaintenanceType.oilChange,
       intervalMonths: 6,
       intervalKm: 5000,
       description: 'エンジンの潤滑を保ち、摩耗を防ぐために定期的な交換が必要です。',
@@ -35,7 +35,7 @@ class RecommendationService {
     // オイルフィルター交換
     MaintenanceRule(
       name: 'オイルフィルター交換',
-      type: MaintenanceType.partsReplacement,
+      type: MaintenanceType.oilFilterChange,
       intervalMonths: 12,
       intervalKm: 10000,
       description: 'エンジンオイルの汚れを除去し、エンジンを保護します。',
@@ -43,15 +43,15 @@ class RecommendationService {
     // エアフィルター交換
     MaintenanceRule(
       name: 'エアフィルター交換',
-      type: MaintenanceType.partsReplacement,
+      type: MaintenanceType.airFilterChange,
       intervalMonths: 24,
       intervalKm: 20000,
       description: '燃費と加速性能を維持するために定期的な交換が推奨されます。',
     ),
-    // ブレーキパッド点検
+    // ブレーキパッド点検・交換
     MaintenanceRule(
       name: 'ブレーキパッド点検',
-      type: MaintenanceType.inspection,
+      type: MaintenanceType.brakePadChange,
       intervalMonths: 12,
       intervalKm: 10000,
       description: '安全のため定期的なブレーキパッドの点検が必要です。',
@@ -59,7 +59,7 @@ class RecommendationService {
     // タイヤローテーション
     MaintenanceRule(
       name: 'タイヤローテーション',
-      type: MaintenanceType.partsReplacement,
+      type: MaintenanceType.tireRotation,
       intervalMonths: 6,
       intervalKm: 5000,
       description: 'タイヤの均等な摩耗を促し、寿命を延ばします。',
@@ -67,7 +67,7 @@ class RecommendationService {
     // バッテリー点検
     MaintenanceRule(
       name: 'バッテリー点検',
-      type: MaintenanceType.inspection,
+      type: MaintenanceType.batteryChange,
       intervalMonths: 12,
       intervalKm: 15000,
       description: '突然の始動不良を防ぐために定期的な点検が必要です。',
@@ -75,18 +75,58 @@ class RecommendationService {
     // 冷却水交換
     MaintenanceRule(
       name: '冷却水交換',
-      type: MaintenanceType.partsReplacement,
+      type: MaintenanceType.coolantChange,
       intervalMonths: 24,
       intervalKm: 40000,
       description: 'エンジンのオーバーヒートを防ぎ、冷却システムを保護します。',
     ),
+    // ブレーキフルード交換
+    MaintenanceRule(
+      name: 'ブレーキフルード交換',
+      type: MaintenanceType.brakeFluidChange,
+      intervalMonths: 24,
+      intervalKm: 40000,
+      description: 'ブレーキの効きを維持するために定期的な交換が必要です。',
+    ),
+    // ATF/CVTフルード交換
+    MaintenanceRule(
+      name: 'ATF/CVTフルード交換',
+      type: MaintenanceType.transmissionFluidChange,
+      intervalMonths: 48,
+      intervalKm: 80000,
+      description: 'スムーズな変速を維持するために交換が推奨されます。',
+    ),
+    // エアコンフィルター交換
+    MaintenanceRule(
+      name: 'エアコンフィルター交換',
+      type: MaintenanceType.cabinFilterChange,
+      intervalMonths: 12,
+      intervalKm: 15000,
+      description: '車内の空気品質を保つために定期的な交換が推奨されます。',
+    ),
+    // ワイパー交換
+    MaintenanceRule(
+      name: 'ワイパー交換',
+      type: MaintenanceType.wiperChange,
+      intervalMonths: 12,
+      intervalKm: 0,
+      description: '視界確保のため、ゴムの劣化に応じて交換が必要です。',
+    ),
     // 12ヶ月法定点検
     MaintenanceRule(
-      name: '12ヶ月法定点検',
-      type: MaintenanceType.inspection,
+      name: '12ヶ月点検',
+      type: MaintenanceType.legalInspection12,
       intervalMonths: 12,
       intervalKm: 0, // 走行距離に関係なく実施
       description: '法律で定められた定期点検です。',
+    ),
+    // 24ヶ月法定点検
+    MaintenanceRule(
+      name: '24ヶ月点検',
+      type: MaintenanceType.legalInspection24,
+      intervalMonths: 24,
+      intervalKm: 0,
+      description: '法律で定められた定期点検です。車検時に実施することが多いです。',
     ),
   ];
 
@@ -103,6 +143,41 @@ class RecommendationService {
     final recommendations = <AppNotification>[];
     final now = DateTime.now();
 
+    // 車検日が設定されている場合はそれを使用
+    if (vehicle.inspectionExpiryDate != null) {
+      final inspectionNotification = _checkInspectionExpiryDate(
+        vehicle: vehicle,
+        userId: userId,
+        now: now,
+      );
+      if (inspectionNotification != null) {
+        recommendations.add(inspectionNotification);
+      }
+    } else {
+      // 車検日が未設定の場合は履歴から推測
+      final inspectionRecommendation = _checkCarInspection(
+        vehicle: vehicle,
+        records: records,
+        userId: userId,
+        now: now,
+      );
+      if (inspectionRecommendation != null) {
+        recommendations.add(inspectionRecommendation);
+      }
+    }
+
+    // 自賠責保険チェック
+    if (vehicle.insuranceExpiryDate != null) {
+      final insuranceNotification = _checkInsuranceExpiryDate(
+        vehicle: vehicle,
+        userId: userId,
+        now: now,
+      );
+      if (insuranceNotification != null) {
+        recommendations.add(insuranceNotification);
+      }
+    }
+
     // 各ルールをチェック
     for (final rule in _rules) {
       final recommendation = _checkRule(
@@ -117,17 +192,6 @@ class RecommendationService {
       }
     }
 
-    // 車検チェック
-    final inspectionRecommendation = _checkCarInspection(
-      vehicle: vehicle,
-      records: records,
-      userId: userId,
-      now: now,
-    );
-    if (inspectionRecommendation != null) {
-      recommendations.add(inspectionRecommendation);
-    }
-
     // 優先度でソート
     recommendations.sort((a, b) {
       final priorityCompare = b.priority.index.compareTo(a.priority.index);
@@ -136,6 +200,100 @@ class RecommendationService {
     });
 
     return recommendations;
+  }
+
+  /// 車検満了日からの通知生成（Phase 1.5 新機能）
+  AppNotification? _checkInspectionExpiryDate({
+    required Vehicle vehicle,
+    required String userId,
+    required DateTime now,
+  }) {
+    final daysUntil = vehicle.daysUntilInspection!;
+
+    NotificationPriority priority;
+    if (daysUntil <= 0) {
+      priority = NotificationPriority.high;
+    } else if (daysUntil <= 30) {
+      priority = NotificationPriority.high;
+    } else if (daysUntil <= 90) {
+      priority = NotificationPriority.medium;
+    } else if (daysUntil <= 180) {
+      priority = NotificationPriority.low;
+    } else {
+      return null;
+    }
+
+    String message;
+    if (daysUntil <= 0) {
+      message = '${vehicle.displayName}の車検期限が過ぎています！早急に車検を受けてください。';
+    } else if (daysUntil <= 7) {
+      message = '${vehicle.displayName}の車検期限まであと$daysUntil日です。すぐに予約してください。';
+    } else if (daysUntil <= 30) {
+      message = '${vehicle.displayName}の車検期限まであと$daysUntil日です。予約をお忘れなく。';
+    } else {
+      message = '${vehicle.displayName}の車検期限まであと約${(daysUntil / 30).round()}ヶ月です。';
+    }
+
+    return AppNotification(
+      id: '${vehicle.id}_inspection_expiry_${now.millisecondsSinceEpoch}',
+      userId: userId,
+      vehicleId: vehicle.id,
+      type: NotificationType.inspectionReminder,
+      title: '車検のお知らせ',
+      message: message,
+      priority: priority,
+      createdAt: now,
+      actionDate: vehicle.inspectionExpiryDate,
+      metadata: {
+        'inspectionExpiryDate': vehicle.inspectionExpiryDate!.toIso8601String(),
+        'daysUntilInspection': daysUntil,
+      },
+    );
+  }
+
+  /// 自賠責保険期限からの通知生成（Phase 1.5 新機能）
+  AppNotification? _checkInsuranceExpiryDate({
+    required Vehicle vehicle,
+    required String userId,
+    required DateTime now,
+  }) {
+    final daysUntil = vehicle.daysUntilInsuranceExpiry!;
+
+    if (daysUntil > 60) return null; // 60日以上先は通知不要
+
+    NotificationPriority priority;
+    if (daysUntil <= 0) {
+      priority = NotificationPriority.high;
+    } else if (daysUntil <= 14) {
+      priority = NotificationPriority.high;
+    } else if (daysUntil <= 30) {
+      priority = NotificationPriority.medium;
+    } else {
+      priority = NotificationPriority.low;
+    }
+
+    String message;
+    if (daysUntil <= 0) {
+      message = '${vehicle.displayName}の自賠責保険が期限切れです！';
+    } else {
+      message = '${vehicle.displayName}の自賠責保険期限まであと$daysUntil日です。';
+    }
+
+    return AppNotification(
+      id: '${vehicle.id}_insurance_expiry_${now.millisecondsSinceEpoch}',
+      userId: userId,
+      vehicleId: vehicle.id,
+      type: NotificationType.maintenanceRecommendation,
+      title: '自賠責保険のお知らせ',
+      message: message,
+      priority: priority,
+      createdAt: now,
+      actionDate: vehicle.insuranceExpiryDate,
+      metadata: {
+        'insuranceExpiryDate': vehicle.insuranceExpiryDate!.toIso8601String(),
+        'daysUntilExpiry': daysUntil,
+      },
+    );
   }
 
   /// 個別ルールのチェック
@@ -148,7 +306,9 @@ class RecommendationService {
   }) {
     // 該当するメンテナンス記録を検索
     final relevantRecords = records.where((r) {
-      // タイトルに含まれるキーワードで判定
+      // タイプで判定（優先）
+      if (r.type == rule.type) return true;
+      // タイトルに含まれるキーワードで判定（後方互換性）
       final titleLower = r.title.toLowerCase();
       final ruleNameLower = rule.name.toLowerCase();
       return titleLower.contains(ruleNameLower) ||
@@ -219,7 +379,7 @@ class RecommendationService {
     );
   }
 
-  /// 車検チェック
+  /// 車検チェック（履歴ベース、inspectionExpiryDate未設定時のフォールバック）
   AppNotification? _checkCarInspection({
     required Vehicle vehicle,
     required List<MaintenanceRecord> records,
@@ -249,7 +409,7 @@ class RecommendationService {
           type: NotificationType.inspectionReminder,
           title: '車検情報を登録してください',
           message:
-              '${vehicle.maker} ${vehicle.model}の車検履歴がありません。次回車検日を登録してください。',
+              '${vehicle.displayName}の車検満了日が未設定です。車両情報を編集して登録してください。',
           priority: NotificationPriority.medium,
           createdAt: now,
         );
@@ -285,13 +445,13 @@ class RecommendationService {
     String message;
     if (daysUntilInspection <= 0) {
       message =
-          '${vehicle.maker} ${vehicle.model}の車検期限が過ぎています。早急に車検を受けてください。';
+          '${vehicle.displayName}の車検期限が過ぎています。早急に車検を受けてください。';
     } else if (daysUntilInspection <= 30) {
       message =
-          '${vehicle.maker} ${vehicle.model}の車検期限まであと$daysUntilInspection日です。予約をお忘れなく。';
+          '${vehicle.displayName}の車検期限まであと$daysUntilInspection日です。予約をお忘れなく。';
     } else {
       message =
-          '${vehicle.maker} ${vehicle.model}の車検期限まであと約${(daysUntilInspection / 30).round()}ヶ月です。';
+          '${vehicle.displayName}の車検期限まであと約${(daysUntilInspection / 30).round()}ヶ月です。';
     }
 
     return AppNotification(
@@ -313,7 +473,7 @@ class RecommendationService {
 
   /// メッセージ生成
   String _generateMessage(MaintenanceRule rule, int daysUntilDue, Vehicle vehicle) {
-    final vehicleName = '${vehicle.maker} ${vehicle.model}';
+    final vehicleName = vehicle.displayName;
 
     if (daysUntilDue <= 0) {
       return '$vehicleNameの${rule.name}の時期を過ぎています。${rule.description}';
@@ -336,7 +496,12 @@ class RecommendationService {
       'タイヤローテーション': ['タイヤ', 'ローテーション'],
       'バッテリー点検': ['バッテリー'],
       '冷却水交換': ['冷却水', 'クーラント', 'LLC'],
-      '12ヶ月法定点検': ['法定点検', '12ヶ月点検', '1年点検'],
+      '12ヶ月点検': ['法定点検', '12ヶ月点検', '1年点検', '12ヵ月点検'],
+      '24ヶ月点検': ['24ヶ月点検', '2年点検', '24ヵ月点検'],
+      'ブレーキフルード交換': ['ブレーキフルード', 'ブレーキオイル'],
+      'ATF/CVTフルード交換': ['ATF', 'CVT', 'ミッションオイル'],
+      'エアコンフィルター交換': ['エアコンフィルター', 'キャビンフィルター'],
+      'ワイパー交換': ['ワイパー', 'ワイパーブレード'],
     };
 
     final ruleKeywords = keywords[ruleName];
