@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -5,12 +6,15 @@ import 'dart:typed_data';
 import '../models/vehicle.dart';
 import '../providers/vehicle_provider.dart';
 import '../services/firebase_service.dart';
+import '../services/vehicle_certificate_ocr_service.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
 import 'package:uuid/uuid.dart';
+import 'document_scanner_screen.dart';
+import 'vehicle_certificate_result_screen.dart';
 
 class VehicleRegistrationScreen extends StatefulWidget {
   const VehicleRegistrationScreen({super.key});
@@ -48,6 +52,10 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   Uint8List? _imageBytes;
   bool _isLoading = false;
   bool _showAdvancedFields = false;
+  bool _isOcrProcessing = false;
+
+  // OCRサービス
+  final _ocrService = VehicleCertificateOcrService();
 
   @override
   void dispose() {
@@ -61,7 +69,109 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     _modelCodeController.dispose();
     _colorController.dispose();
     _engineDisplacementController.dispose();
+    _ocrService.dispose();
     super.dispose();
+  }
+
+  /// 車検証をスキャンしてOCR処理
+  Future<void> _scanVehicleCertificate() async {
+    // カメラ/ギャラリーから画像を取得
+    final imageFile = await Navigator.push<File>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const DocumentScannerScreen(
+          documentType: DocumentType.vehicleCertificate,
+        ),
+      ),
+    );
+
+    if (imageFile == null || !mounted) return;
+
+    setState(() {
+      _isOcrProcessing = true;
+    });
+
+    try {
+      // OCR処理
+      final result = await _ocrService.extractFromImage(imageFile);
+
+      if (!mounted) return;
+
+      result.when(
+        success: (ocrData) async {
+          // 結果確認画面へ遷移
+          final registrationData = await Navigator.push<VehicleRegistrationData>(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VehicleCertificateResultScreen(
+                imageFile: imageFile,
+                ocrData: ocrData,
+              ),
+            ),
+          );
+
+          if (registrationData != null && mounted) {
+            // フォームにデータを反映
+            _applyOcrData(registrationData);
+          }
+        },
+        failure: (error) {
+          showErrorSnackBar(context, error.userMessage);
+        },
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isOcrProcessing = false;
+        });
+      }
+    }
+  }
+
+  /// OCRデータをフォームに反映
+  void _applyOcrData(VehicleRegistrationData data) {
+    setState(() {
+      if (data.maker.isNotEmpty) {
+        _makerController.text = data.maker;
+      }
+      if (data.model.isNotEmpty) {
+        _modelController.text = data.model;
+      }
+      if (data.year != null) {
+        _yearController.text = data.year.toString();
+      }
+      if (data.licensePlate != null) {
+        _licensePlateController.text = data.licensePlate!;
+      }
+      if (data.vinNumber != null) {
+        _vinNumberController.text = data.vinNumber!;
+      }
+      if (data.modelCode != null) {
+        _modelCodeController.text = data.modelCode!;
+      }
+      if (data.inspectionExpiryDate != null) {
+        _inspectionExpiryDate = data.inspectionExpiryDate;
+      }
+      if (data.engineDisplacement != null) {
+        _engineDisplacementController.text = data.engineDisplacement.toString();
+      }
+      if (data.fuelType != null) {
+        _selectedFuelType = data.fuelType;
+      }
+      if (data.color != null) {
+        _colorController.text = data.color!;
+      }
+
+      // 詳細フィールドにデータがある場合は展開
+      if (data.color != null ||
+          data.engineDisplacement != null ||
+          data.fuelType != null) {
+        _showAdvancedFields = true;
+      }
+    });
+
+    // 成功メッセージ
+    showSuccessSnackBar(context, '車検証の情報を読み取りました');
   }
 
   Future<void> _pickImage() async {
@@ -247,6 +357,10 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                           ),
                   ),
                 ),
+                AppSpacing.verticalMd,
+
+                // === 車検証スキャンボタン ===
+                _buildOcrScanButton(theme),
                 AppSpacing.verticalLg,
 
                 // === 基本情報セクション ===
@@ -689,6 +803,102 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           }).toList(),
         ),
       ],
+    );
+  }
+
+  /// 車検証スキャンボタン
+  Widget _buildOcrScanButton(ThemeData theme) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary.withValues(alpha: 0.1),
+            AppColors.secondary.withValues(alpha: 0.1),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _isOcrProcessing ? null : _scanVehicleCertificate,
+          borderRadius: AppSpacing.borderRadiusMd,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: _isOcrProcessing
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.document_scanner,
+                          color: AppColors.primary,
+                          size: 24,
+                        ),
+                ),
+                AppSpacing.horizontalMd,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '車検証をスキャン',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      AppSpacing.verticalXxs,
+                      Text(
+                        '車検証を撮影して自動入力',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'おすすめ',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: AppColors.secondary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                AppSpacing.horizontalSm,
+                Icon(
+                  Icons.chevron_right,
+                  color: AppColors.primary.withValues(alpha: 0.5),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
