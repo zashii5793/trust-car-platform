@@ -198,6 +198,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
       }
     }
 
+    if (!mounted) return;
+
     final picked = await showDatePicker(
       context: context,
       initialDate: currentDate ?? DateTime.now(),
@@ -699,9 +701,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.1),
+                        color: Colors.orange.withValues(alpha: 0.1),
                         borderRadius: AppSpacing.borderRadiusSm,
-                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
@@ -751,7 +753,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.2),
+              color: Colors.orange.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
@@ -789,7 +791,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           borderRadius: AppSpacing.borderRadiusSm,
           border: Border.all(
             color: isWarning
-                ? Colors.orange.withOpacity(0.5)
+                ? Colors.orange.withValues(alpha: 0.5)
                 : (isDark ? AppColors.darkTextTertiary : AppColors.border),
           ),
         ),
@@ -814,7 +816,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                     Text(
                       hint,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                        color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.6),
                       ),
                     ),
                 ],
