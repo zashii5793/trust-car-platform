@@ -216,15 +216,30 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
 
     try {
       final firebaseService = FirebaseService();
+
+      // ナンバープレート重複チェック
+      if (_licensePlateController.text.isNotEmpty) {
+        final exists = await Provider.of<VehicleProvider>(context, listen: false)
+            .isLicensePlateExists(_licensePlateController.text);
+        if (exists && mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          showErrorSnackBar(context, 'このナンバープレートは既に登録されています');
+          return;
+        }
+      }
+
       String? imageUrl;
 
       // 画像をアップロード
       if (_imageBytes != null) {
         final uuid = const Uuid().v4();
-        imageUrl = await firebaseService.uploadImageBytes(
+        final uploadResult = await firebaseService.uploadImageBytes(
           _imageBytes!,
           'vehicles/$uuid.jpg',
         );
+        imageUrl = uploadResult.getOrThrow();
       }
 
       // 車両データを作成

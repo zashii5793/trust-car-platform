@@ -2,18 +2,30 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/maintenance_record.dart';
 import '../services/firebase_service.dart';
+import '../core/error/app_error.dart';
 
+/// 整備記録状態管理Provider
+///
+/// エラーはAppError型で保持し、型安全なエラーハンドリングを実現
 class MaintenanceProvider with ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
 
   List<MaintenanceRecord> _records = [];
   bool _isLoading = false;
-  String? _error;
+  AppError? _error;
   StreamSubscription<List<MaintenanceRecord>>? _recordsSubscription;
 
   List<MaintenanceRecord> get records => _records;
   bool get isLoading => _isLoading;
-  String? get error => _error;
+
+  /// エラー（AppError型）
+  AppError? get error => _error;
+
+  /// エラーメッセージ（ユーザー向け）
+  String? get errorMessage => _error?.userMessage;
+
+  /// エラーがリトライ可能か
+  bool get isRetryable => _error?.isRetryable ?? false;
 
   // 特定車両の履歴をリスニング
   void listenToMaintenanceRecords(String vehicleId) {
@@ -27,7 +39,7 @@ class MaintenanceProvider with ChangeNotifier {
         notifyListeners();
       },
       onError: (error) {
-        _error = error.toString();
+        _error = mapFirebaseError(error);
         notifyListeners();
       },
     );
@@ -48,67 +60,85 @@ class MaintenanceProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// エラーをクリア
+  void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _recordsSubscription?.cancel();
     super.dispose();
   }
 
-  // 履歴を追加
+  /// 履歴を追加
   Future<bool> addMaintenanceRecord(MaintenanceRecord record) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    try {
-      await _firebaseService.addMaintenanceRecord(record);
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
+    final result = await _firebaseService.addMaintenanceRecord(record);
+
+    return result.when(
+      success: (_) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      },
+    );
   }
 
-  // 履歴を更新
+  /// 履歴を更新
   Future<bool> updateMaintenanceRecord(String recordId, MaintenanceRecord record) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    try {
-      await _firebaseService.updateMaintenanceRecord(recordId, record);
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
+    final result = await _firebaseService.updateMaintenanceRecord(recordId, record);
+
+    return result.when(
+      success: (_) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      },
+    );
   }
 
-  // 履歴を削除
+  /// 履歴を削除
   Future<bool> deleteMaintenanceRecord(String recordId) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    try {
-      await _firebaseService.deleteMaintenanceRecord(recordId);
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
+    final result = await _firebaseService.deleteMaintenanceRecord(recordId);
+
+    return result.when(
+      success: (_) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      },
+    );
   }
 
   // タイプ別の履歴を取得

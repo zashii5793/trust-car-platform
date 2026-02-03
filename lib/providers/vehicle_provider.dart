@@ -2,20 +2,32 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/vehicle.dart';
 import '../services/firebase_service.dart';
+import '../core/error/app_error.dart';
 
+/// 車両状態管理Provider
+///
+/// エラーはAppError型で保持し、型安全なエラーハンドリングを実現
 class VehicleProvider with ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
 
   List<Vehicle> _vehicles = [];
   Vehicle? _selectedVehicle;
   bool _isLoading = false;
-  String? _error;
+  AppError? _error;
   StreamSubscription<List<Vehicle>>? _vehiclesSubscription;
 
   List<Vehicle> get vehicles => _vehicles;
   Vehicle? get selectedVehicle => _selectedVehicle;
   bool get isLoading => _isLoading;
-  String? get error => _error;
+
+  /// エラー（AppError型）
+  AppError? get error => _error;
+
+  /// エラーメッセージ（ユーザー向け）
+  String? get errorMessage => _error?.userMessage;
+
+  /// エラーがリトライ可能か
+  bool get isRetryable => _error?.isRetryable ?? false;
 
   // 車両一覧をリスニング
   void listenToVehicles() {
@@ -29,7 +41,7 @@ class VehicleProvider with ChangeNotifier {
         notifyListeners();
       },
       onError: (error) {
-        _error = error.toString();
+        _error = mapFirebaseError(error);
         notifyListeners();
       },
     );
@@ -51,6 +63,12 @@ class VehicleProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// エラーをクリア
+  void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _vehiclesSubscription?.cancel();
@@ -63,63 +81,85 @@ class VehicleProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // 車両を追加
+  /// 車両を追加
   Future<bool> addVehicle(Vehicle vehicle) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    try {
-      await _firebaseService.addVehicle(vehicle);
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
+    final result = await _firebaseService.addVehicle(vehicle);
+
+    return result.when(
+      success: (_) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      },
+    );
   }
 
-  // 車両を更新
+  /// 車両を更新
   Future<bool> updateVehicle(String vehicleId, Vehicle vehicle) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    try {
-      await _firebaseService.updateVehicle(vehicleId, vehicle);
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
+    final result = await _firebaseService.updateVehicle(vehicleId, vehicle);
+
+    return result.when(
+      success: (_) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      },
+    );
   }
 
-  // 車両を削除
+  /// 車両を削除
   Future<bool> deleteVehicle(String vehicleId) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    try {
-      await _firebaseService.deleteVehicle(vehicleId);
-      if (_selectedVehicle?.id == vehicleId) {
-        _selectedVehicle = null;
-      }
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
+    final result = await _firebaseService.deleteVehicle(vehicleId);
+
+    return result.when(
+      success: (_) {
+        if (_selectedVehicle?.id == vehicleId) {
+          _selectedVehicle = null;
+        }
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      },
+    );
+  }
+
+  /// ナンバープレートの重複チェック
+  Future<bool> isLicensePlateExists(String licensePlate, {String? excludeVehicleId}) async {
+    final result = await _firebaseService.isLicensePlateExists(
+      licensePlate,
+      excludeVehicleId: excludeVehicleId,
+    );
+
+    return result.getOrElse(false);
   }
 }

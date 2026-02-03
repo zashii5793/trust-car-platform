@@ -5,7 +5,13 @@ import 'dart:io' as io;
 import 'dart:typed_data';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
+import '../core/error/app_error.dart';
+import '../core/result/result.dart';
 
+/// Firebaseサービス
+///
+/// すべてのメソッドは[Result]を返し、
+/// エラーハンドリングを一貫して行える
 class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -16,26 +22,27 @@ class FirebaseService {
 
   // === 車両関連 ===
 
-  // 車両を登録
-  Future<String> addVehicle(Vehicle vehicle) async {
+  /// 車両を登録
+  Future<Result<String, AppError>> addVehicle(Vehicle vehicle) async {
     try {
       final docRef = await _firestore.collection('vehicles').add(vehicle.toMap());
-      return docRef.id;
+      return Result.success(docRef.id);
     } catch (e) {
-      throw Exception('車両の登録に失敗しました: $e');
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
-  // 車両情報を更新
-  Future<void> updateVehicle(String vehicleId, Vehicle vehicle) async {
+  /// 車両情報を更新
+  Future<Result<void, AppError>> updateVehicle(String vehicleId, Vehicle vehicle) async {
     try {
       await _firestore.collection('vehicles').doc(vehicleId).update(vehicle.toMap());
+      return const Result.success(null);
     } catch (e) {
-      throw Exception('車両情報の更新に失敗しました: $e');
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
-  // ユーザーの車両一覧を取得
+  /// ユーザーの車両一覧を取得（Stream版は後方互換性のため維持）
   Stream<List<Vehicle>> getUserVehicles() {
     if (currentUserId == null) {
       return Stream.value([]);
@@ -51,50 +58,74 @@ class FirebaseService {
     });
   }
 
-  // 特定の車両を取得
-  Future<Vehicle?> getVehicle(String vehicleId) async {
+  /// 特定の車両を取得
+  Future<Result<Vehicle?, AppError>> getVehicle(String vehicleId) async {
     try {
       final doc = await _firestore.collection('vehicles').doc(vehicleId).get();
       if (doc.exists) {
-        return Vehicle.fromFirestore(doc);
+        return Result.success(Vehicle.fromFirestore(doc));
       }
-      return null;
+      return const Result.success(null);
     } catch (e) {
-      throw Exception('車両情報の取得に失敗しました: $e');
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
-  // 車両を削除
-  Future<void> deleteVehicle(String vehicleId) async {
+  /// 車両を削除
+  Future<Result<void, AppError>> deleteVehicle(String vehicleId) async {
     try {
       await _firestore.collection('vehicles').doc(vehicleId).delete();
+      return const Result.success(null);
     } catch (e) {
-      throw Exception('車両の削除に失敗しました: $e');
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// ナンバープレートの重複チェック
+  Future<Result<bool, AppError>> isLicensePlateExists(String licensePlate, {String? excludeVehicleId}) async {
+    try {
+      final query = _firestore
+          .collection('vehicles')
+          .where('userId', isEqualTo: currentUserId)
+          .where('licensePlate', isEqualTo: licensePlate);
+
+      final snapshot = await query.get();
+
+      // excludeVehicleIdがある場合は、そのIDを除外してチェック
+      if (excludeVehicleId != null) {
+        final exists = snapshot.docs.any((doc) => doc.id != excludeVehicleId);
+        return Result.success(exists);
+      }
+
+      return Result.success(snapshot.docs.isNotEmpty);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
   // === メンテナンス履歴関連 ===
 
-  // 履歴を追加
-  Future<String> addMaintenanceRecord(MaintenanceRecord record) async {
+  /// 履歴を追加
+  Future<Result<String, AppError>> addMaintenanceRecord(MaintenanceRecord record) async {
     try {
       final docRef = await _firestore.collection('maintenance_records').add(record.toMap());
-      return docRef.id;
+      return Result.success(docRef.id);
     } catch (e) {
-      throw Exception('履歴の登録に失敗しました: $e');
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
-  // 履歴を更新
-  Future<void> updateMaintenanceRecord(String recordId, MaintenanceRecord record) async {
+  /// 履歴を更新
+  Future<Result<void, AppError>> updateMaintenanceRecord(String recordId, MaintenanceRecord record) async {
     try {
       await _firestore.collection('maintenance_records').doc(recordId).update(record.toMap());
+      return const Result.success(null);
     } catch (e) {
-      throw Exception('履歴の更新に失敗しました: $e');
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
-  // 車両の履歴一覧を取得
+  /// 車両の履歴一覧を取得（Stream版は後方互換性のため維持）
   Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(String vehicleId) {
     return _firestore
         .collection('maintenance_records')
@@ -106,48 +137,85 @@ class FirebaseService {
     });
   }
 
-  // 履歴を削除
-  Future<void> deleteMaintenanceRecord(String recordId) async {
+  /// 履歴を削除
+  Future<Result<void, AppError>> deleteMaintenanceRecord(String recordId) async {
     try {
       await _firestore.collection('maintenance_records').doc(recordId).delete();
+      return const Result.success(null);
     } catch (e) {
-      throw Exception('履歴の削除に失敗しました: $e');
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
   // === 画像アップロード ===
 
-  // 画像をアップロード（ファイル版）
-  Future<String> uploadImage(io.File imageFile, String path) async {
+  /// 画像をアップロード（ファイル版）
+  Future<Result<String, AppError>> uploadImage(io.File imageFile, String path) async {
     try {
       final ref = _storage.ref().child(path);
       final uploadTask = await ref.putFile(imageFile);
       final downloadUrl = await uploadTask.ref.getDownloadURL();
-      return downloadUrl;
+      return Result.success(downloadUrl);
     } catch (e) {
-      throw Exception('画像のアップロードに失敗しました: $e');
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
-  // 画像をアップロード（バイト列版）- Web対応
-  Future<String> uploadImageBytes(Uint8List imageBytes, String path) async {
+  /// 画像をアップロード（バイト列版）- Web対応
+  Future<Result<String, AppError>> uploadImageBytes(Uint8List imageBytes, String path) async {
     try {
       final ref = _storage.ref().child(path);
       final uploadTask = await ref.putData(imageBytes);
       final downloadUrl = await uploadTask.ref.getDownloadURL();
-      return downloadUrl;
+      return Result.success(downloadUrl);
     } catch (e) {
-      throw Exception('画像のアップロードに失敗しました: $e');
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
-  // 複数画像をアップロード
-  Future<List<String>> uploadImages(List<io.File> imageFiles, String basePath) async {
-    List<String> urls = [];
-    for (int i = 0; i < imageFiles.length; i++) {
-      final url = await uploadImage(imageFiles[i], '$basePath/image_$i.jpg');
-      urls.add(url);
+  /// 複数画像をアップロード
+  Future<Result<List<String>, AppError>> uploadImages(List<io.File> imageFiles, String basePath) async {
+    try {
+      List<String> urls = [];
+      for (int i = 0; i < imageFiles.length; i++) {
+        final result = await uploadImage(imageFiles[i], '$basePath/image_$i.jpg');
+        final url = result.getOrThrow();
+        urls.add(url);
+      }
+      return Result.success(urls);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
     }
-    return urls;
+  }
+
+  // === 後方互換性のための非推奨メソッド ===
+  // Provider側の修正が完了するまで維持
+
+  /// @deprecated Use addVehicle instead
+  @Deprecated('Use addVehicle with Result pattern instead')
+  Future<String> addVehicleLegacy(Vehicle vehicle) async {
+    final result = await addVehicle(vehicle);
+    return result.getOrThrow();
+  }
+
+  /// @deprecated Use updateVehicle instead
+  @Deprecated('Use updateVehicle with Result pattern instead')
+  Future<void> updateVehicleLegacy(String vehicleId, Vehicle vehicle) async {
+    final result = await updateVehicle(vehicleId, vehicle);
+    result.getOrThrow();
+  }
+
+  /// @deprecated Use deleteVehicle instead
+  @Deprecated('Use deleteVehicle with Result pattern instead')
+  Future<void> deleteVehicleLegacy(String vehicleId) async {
+    final result = await deleteVehicle(vehicleId);
+    result.getOrThrow();
+  }
+
+  /// @deprecated Use uploadImageBytes instead
+  @Deprecated('Use uploadImageBytes with Result pattern instead')
+  Future<String> uploadImageBytesLegacy(Uint8List imageBytes, String path) async {
+    final result = await uploadImageBytes(imageBytes, path);
+    return result.getOrThrow();
   }
 }

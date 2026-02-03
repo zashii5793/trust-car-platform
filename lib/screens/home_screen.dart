@@ -153,10 +153,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (vehicleProvider.error != null) {
           return AppErrorState(
-            message: vehicleProvider.error!,
-            onRetry: () {
-              vehicleProvider.listenToVehicles();
-            },
+            message: vehicleProvider.errorMessage ?? 'エラーが発生しました',
+            onRetry: vehicleProvider.isRetryable
+                ? () {
+                    vehicleProvider.clearError();
+                    vehicleProvider.listenToVehicles();
+                  }
+                : null,
           );
         }
 

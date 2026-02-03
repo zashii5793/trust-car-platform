@@ -224,15 +224,34 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
 
     try {
       final firebaseService = FirebaseService();
+
+      // ナンバープレート重複チェック（変更があった場合のみ）
+      if (_licensePlateController.text.isNotEmpty &&
+          _licensePlateController.text != widget.vehicle.licensePlate) {
+        final exists = await Provider.of<VehicleProvider>(context, listen: false)
+            .isLicensePlateExists(
+          _licensePlateController.text,
+          excludeVehicleId: widget.vehicle.id,
+        );
+        if (exists && mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          showErrorSnackBar(context, 'このナンバープレートは既に登録されています');
+          return;
+        }
+      }
+
       String? imageUrl = widget.vehicle.imageUrl;
 
       // 新しい画像があればアップロード
       if (_newImageBytes != null) {
         final uuid = const Uuid().v4();
-        imageUrl = await firebaseService.uploadImageBytes(
+        final uploadResult = await firebaseService.uploadImageBytes(
           _newImageBytes!,
           'vehicles/$uuid.jpg',
         );
+        imageUrl = uploadResult.getOrThrow();
       }
 
       // 更新データを作成
