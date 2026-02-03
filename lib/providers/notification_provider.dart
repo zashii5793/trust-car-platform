@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/app_notification.dart';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
@@ -9,6 +10,7 @@ import '../services/firebase_service.dart';
 class NotificationProvider extends ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
   final RecommendationService _recommendationService = RecommendationService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   List<AppNotification> _notifications = [];
   bool _isLoading = false;
@@ -30,6 +32,43 @@ class NotificationProvider extends ChangeNotifier {
 
   /// エラーメッセージ
   String? get error => _error;
+
+  /// 車両リストから通知を生成（整備記録も自動取得）
+  Future<void> generateNotificationsForVehicles(List<Vehicle> vehicles) async {
+    final userId = _firebaseService.currentUserId;
+    if (userId == null || vehicles.isEmpty) return;
+
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      // 各車両の整備記録を取得
+      final maintenanceRecords = <String, List<MaintenanceRecord>>{};
+      for (final vehicle in vehicles) {
+        final snapshot = await _firestore
+            .collection('maintenance_records')
+            .where('vehicleId', isEqualTo: vehicle.id)
+            .orderBy('date', descending: true)
+            .limit(20) // 直近20件で十分
+            .get();
+
+        maintenanceRecords[vehicle.id] = snapshot.docs
+            .map((doc) => MaintenanceRecord.fromFirestore(doc))
+            .toList();
+      }
+
+      // レコメンドを生成
+      await generateRecommendations(
+        vehicles: vehicles,
+        maintenanceRecords: maintenanceRecords,
+      );
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 
   /// 車両リストからレコメンドを生成して通知を更新
   Future<void> generateRecommendations({

@@ -454,6 +454,10 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                     if (mileage == null || mileage < 0) {
                       return '正しい走行距離を入力してください';
                     }
+                    // 走行距離の上限チェック（200万kmを超えることはほぼない）
+                    if (mileage > 2000000) {
+                      return '走行距離が大きすぎます（200万km以下）';
+                    }
                     return null;
                   },
                 ),

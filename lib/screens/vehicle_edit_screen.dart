@@ -520,6 +520,14 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                       if (mileage == null || mileage < 0) {
                         return '正しい走行距離を入力してください';
                       }
+                      // 走行距離の上限チェック（200万kmを超えることはほぼない）
+                      if (mileage > 2000000) {
+                        return '走行距離が大きすぎます（200万km以下）';
+                      }
+                      // 走行距離の減少チェック（P0-3: 整合性チェック）
+                      if (mileage < widget.vehicle.mileage) {
+                        return '走行距離は前回(${widget.vehicle.mileage}km)より小さくできません';
+                      }
                       return null;
                     },
                   ),

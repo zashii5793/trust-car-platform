@@ -15,8 +15,13 @@ import 'invoice_result_screen.dart';
 
 class AddMaintenanceScreen extends StatefulWidget {
   final String vehicleId;
+  final int? currentVehicleMileage; // 現在の車両走行距離（整合性チェック用）
 
-  const AddMaintenanceScreen({super.key, required this.vehicleId});
+  const AddMaintenanceScreen({
+    super.key,
+    required this.vehicleId,
+    this.currentVehicleMileage,
+  });
 
   @override
   State<AddMaintenanceScreen> createState() => _AddMaintenanceScreenState();
@@ -352,6 +357,25 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   hintText: '例: 24500',
                   prefixIcon: const Icon(Icons.speed),
                   suffixText: 'km',
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return null; // 任意フィールド
+                    }
+                    final mileage = int.tryParse(value);
+                    if (mileage == null || mileage < 0) {
+                      return '正しい走行距離を入力してください';
+                    }
+                    // 走行距離の上限チェック
+                    if (mileage > 2000000) {
+                      return '走行距離が大きすぎます（200万km以下）';
+                    }
+                    // 現在の車両走行距離より大きい場合は警告（将来の記録は不可）
+                    if (widget.currentVehicleMileage != null &&
+                        mileage > widget.currentVehicleMileage!) {
+                      return '車両の現在走行距離(${widget.currentVehicleMileage}km)を超えています';
+                    }
+                    return null;
+                  },
                 ),
                 AppSpacing.verticalMd,
 

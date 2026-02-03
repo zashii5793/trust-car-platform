@@ -146,8 +146,10 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) =>
-                              AddMaintenanceScreen(vehicleId: _vehicle.id),
+                          builder: (context) => AddMaintenanceScreen(
+                            vehicleId: _vehicle.id,
+                            currentVehicleMileage: _vehicle.mileage,
+                          ),
                         ),
                       );
                     },
@@ -170,8 +172,10 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) =>
-                  AddMaintenanceScreen(vehicleId: _vehicle.id),
+              builder: (context) => AddMaintenanceScreen(
+                vehicleId: _vehicle.id,
+                currentVehicleMileage: _vehicle.mileage,
+              ),
             ),
           );
         },

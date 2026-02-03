@@ -48,10 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (vehicleProvider.vehicles.isNotEmpty) {
       // 各車両のメンテナンス履歴を取得して通知を生成
-      notificationProvider.generateRecommendations(
-        vehicles: vehicleProvider.vehicles,
-        maintenanceRecords: {},
-      );
+      notificationProvider.generateNotificationsForVehicles(vehicleProvider.vehicles);
     }
   }
 
@@ -282,6 +279,11 @@ class _VehicleCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    // 警告状態を判定
+    final hasInspectionWarning = vehicle.isInspectionExpired || vehicle.isInspectionDueSoon;
+    final hasInsuranceWarning = vehicle.isInsuranceDueSoon ||
+        (vehicle.daysUntilInsuranceExpiry != null && vehicle.daysUntilInsuranceExpiry! < 0);
+
     return AppCard(
       margin: AppSpacing.marginListItem,
       onTap: () {
@@ -296,65 +298,151 @@ class _VehicleCard extends StatelessWidget {
           ),
         );
       },
-      child: Row(
+      child: Column(
         children: [
-          // 車両画像
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkCard : AppColors.backgroundLight,
-              borderRadius: AppSpacing.borderRadiusSm,
-            ),
-            child: vehicle.imageUrl != null && vehicle.imageUrl!.isNotEmpty
-                ? ClipRRect(
-                    borderRadius: AppSpacing.borderRadiusSm,
-                    child: Image.network(
-                      vehicle.imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildPlaceholder(isDark),
-                    ),
-                  )
-                : _buildPlaceholder(isDark),
-          ),
-          AppSpacing.horizontalMd,
-          // 車両情報
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${vehicle.maker} ${vehicle.model}',
-                  style: theme.textTheme.headlineMedium,
+          Row(
+            children: [
+              // 車両画像
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkCard : AppColors.backgroundLight,
+                  borderRadius: AppSpacing.borderRadiusSm,
                 ),
-                AppSpacing.verticalXxs,
-                Text(
-                  '${vehicle.year}年 ${vehicle.grade}',
-                  style: theme.textTheme.bodyMedium,
-                ),
-                AppSpacing.verticalXxs,
-                Row(
+                child: vehicle.imageUrl != null && vehicle.imageUrl!.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: AppSpacing.borderRadiusSm,
+                        child: Image.network(
+                          vehicle.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _buildPlaceholder(isDark),
+                        ),
+                      )
+                    : _buildPlaceholder(isDark),
+              ),
+              AppSpacing.horizontalMd,
+              // 車両情報
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.speed,
-                      size: AppSpacing.iconSm,
-                      color: isDark
-                          ? AppColors.darkTextTertiary
-                          : AppColors.textTertiary,
-                    ),
-                    AppSpacing.horizontalXs,
                     Text(
-                      '${_formatMileage(vehicle.mileage)} km',
+                      '${vehicle.maker} ${vehicle.model}',
+                      style: theme.textTheme.headlineMedium,
+                    ),
+                    AppSpacing.verticalXxs,
+                    Text(
+                      '${vehicle.year}年 ${vehicle.grade}',
                       style: theme.textTheme.bodyMedium,
+                    ),
+                    AppSpacing.verticalXxs,
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.speed,
+                          size: AppSpacing.iconSm,
+                          color: isDark
+                              ? AppColors.darkTextTertiary
+                              : AppColors.textTertiary,
+                        ),
+                        AppSpacing.horizontalXs,
+                        Text(
+                          '${_formatMileage(vehicle.mileage)} km',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+              ),
+            ],
           ),
-          Icon(
-            Icons.chevron_right,
-            color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+          // 車検・保険警告バナー
+          if (hasInspectionWarning || hasInsuranceWarning) ...[
+            AppSpacing.verticalSm,
+            _buildWarningBanner(context, theme),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWarningBanner(BuildContext context, ThemeData theme) {
+    final warnings = <Widget>[];
+
+    // 車検警告
+    if (vehicle.isInspectionExpired) {
+      warnings.add(_buildWarningChip(
+        context,
+        icon: Icons.error,
+        label: '車検切れ',
+        color: AppColors.error,
+      ));
+    } else if (vehicle.isInspectionDueSoon) {
+      final days = vehicle.daysUntilInspection!;
+      warnings.add(_buildWarningChip(
+        context,
+        icon: Icons.warning_amber,
+        label: '車検 残り$days日',
+        color: days <= 7 ? AppColors.error : AppColors.warning,
+      ));
+    }
+
+    // 保険警告
+    final insuranceDays = vehicle.daysUntilInsuranceExpiry;
+    if (insuranceDays != null && insuranceDays < 0) {
+      warnings.add(_buildWarningChip(
+        context,
+        icon: Icons.error,
+        label: '自賠責切れ',
+        color: AppColors.error,
+      ));
+    } else if (vehicle.isInsuranceDueSoon) {
+      warnings.add(_buildWarningChip(
+        context,
+        icon: Icons.shield,
+        label: '保険 残り$insuranceDays日',
+        color: insuranceDays! <= 7 ? AppColors.error : AppColors.warning,
+      ));
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: warnings,
+    );
+  }
+
+  Widget _buildWarningChip(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
         ],
       ),
