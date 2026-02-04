@@ -450,6 +450,13 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
 
                   // === 基本情報セクション ===
                   _buildSectionHeader(theme, '基本情報', Icons.directions_car),
+                  AppSpacing.verticalXxs,
+                  Text(
+                    '* は必須項目です',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
                   AppSpacing.verticalSm,
 
                   // メーカー

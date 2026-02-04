@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/error/app_error.dart';
 
 /// ローディングインジケーター
 class AppLoadingIndicator extends StatelessWidget {
@@ -264,4 +265,50 @@ void showErrorSnackBar(BuildContext context, String message) {
       backgroundColor: AppColors.error,
     ),
   );
+}
+
+/// AppError対応のエラースナックバー（リトライ可能な場合はアクション付き）
+void showAppErrorSnackBar(
+  BuildContext context,
+  AppError error, {
+  VoidCallback? onRetry,
+}) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Row(
+        children: [
+          Icon(
+            _getErrorIcon(error),
+            color: Colors.white,
+          ),
+          AppSpacing.horizontalSm,
+          Expanded(child: Text(error.userMessage)),
+        ],
+      ),
+      backgroundColor: AppColors.error,
+      action: error.isRetryable && onRetry != null
+          ? SnackBarAction(
+              label: '再試行',
+              textColor: Colors.white,
+              onPressed: onRetry,
+            )
+          : null,
+      duration: error.isRetryable
+          ? const Duration(seconds: 5)
+          : const Duration(seconds: 3),
+    ),
+  );
+}
+
+IconData _getErrorIcon(AppError error) {
+  return switch (error) {
+    NetworkError() => Icons.wifi_off,
+    AuthError() => Icons.lock_outline,
+    ValidationError() => Icons.warning_amber,
+    NotFoundError() => Icons.search_off,
+    PermissionError() => Icons.block,
+    ServerError() => Icons.cloud_off,
+    CacheError() => Icons.storage,
+    UnknownError() => Icons.error_outline,
+  };
 }
