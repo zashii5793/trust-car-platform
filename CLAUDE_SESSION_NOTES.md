@@ -1,37 +1,32 @@
 # Claude開発セッションメモ
 
-## 現在の状態（2024-02-03）
+## 現在の状態（2024-02-04更新）
 
 ### 完了済み
 - **P0**: 車検・保険アラート、バリデーション強化、走行距離整合性チェック
 - **P1**: エラーハンドリング統一（Result<T,AppError>）、テスト追加、ナンバープレート重複チェック
+- **P2**: 必須項目明示、AppError対応エラースナックバー
 
-### 品質スコア: 8.5/10
+### 品質スコア: 9.0/10
 - テスト: 191件全パス
 - 静的解析: クリーン
 
 ### 最新コミット
 ```
+b5221cb feat: P2品質改善 - 必須項目明示、AppError対応スナックバー
 30ab7b3 feat: P1品質改善
 a0d016d feat: P0品質改善
 ```
 
 ---
 
-## 次回やること（P2）
+## 次回やること
 
-### 7. 必須項目の明示（0.5日）
-対象ファイル:
-- `lib/screens/vehicle_registration_screen.dart` (行400-470付近)
-- `lib/screens/vehicle_edit_screen.dart` (行430-510付近)
-修正: ラベルに`*`マークを追加、またはヘルパーテキスト追加
-
-### 8. 具体的エラーメッセージ（0.5日）
-対象: `lib/widgets/common/app_button.dart` の `showErrorSnackBar`
-修正: AppErrorの種類に応じたメッセージ表示
-
-### 9. AuthServiceテスト追加（1日）
+### P2-9. AuthServiceテスト追加（任意）
 新規: `test/services/auth_service_test.dart`
+
+### 新機能開発
+- docs/FEATURE_SPEC.md の「追加機能要望リスト」を参照
 
 ---
 
@@ -45,22 +40,10 @@ Read(file_path: "...", offset: 400, limit: 50)
 Grep(pattern: "...", output_mode: "files_with_matches")
 
 // 3. テスト: 出力最小化
-flutter test --reporter=compact 2>&1 | tail -3
+flutter test 2>&1 | tail -1
 
 // 4. 大きな分析は事前に別セッションで
 ```
-
----
-
-## 週間スケジュール目安
-
-| 曜日 | 作業 | 消費 |
-|------|------|------|
-| 月 | P2-7,8（必須項目、エラーメッセージ） | 0.5 |
-| 火 | P2-9（AuthServiceテスト） | 0.5 |
-| 水 | 設計・調査のみ | 0.3 |
-| 木 | 新機能実装 | 1.0 |
-| 金 | テスト・修正 | 0.5 |
 
 ---
 
@@ -74,13 +57,22 @@ lib/
 │   └── maintenance_provider.dart     # AppError対応済
 ├── screens/
 │   ├── home_screen.dart              # 警告バナー実装済
-│   ├── vehicle_registration_screen.dart
-│   └── vehicle_edit_screen.dart
+│   ├── vehicle_registration_screen.dart  # 必須項目表示済
+│   └── vehicle_edit_screen.dart          # 必須項目表示済
+├── widgets/common/loading_indicator.dart # showAppErrorSnackBar追加
 └── core/
     ├── error/app_error.dart
     └── result/result.dart
+
+docs/
+└── FEATURE_SPEC.md   # 機能仕様書（要望リスト含む）
 
 test/
 ├── services/firebase_service_test.dart  # 27テスト
 └── ...（合計191テスト）
 ```
+
+---
+
+## 機能仕様
+詳細は `docs/FEATURE_SPEC.md` を参照
