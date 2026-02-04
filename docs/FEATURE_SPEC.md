@@ -173,8 +173,84 @@ lib/
 
 ## 追加機能要望リスト（未実装）
 
-ここに今後の要望を追記してください:
+### 1. BtoBカスタムパーツマーケットプレイス（優先度: 高）
 
-1.
-2.
-3.
+**概要**: 企業がユーザーの車両に合ったカスタムパーツを提案・広告できるプラットフォーム
+
+#### 企業側機能
+- **企業アカウント登録**
+  - 会社情報（名前、住所、連絡先、業種）
+  - 取扱パーツカテゴリ
+  - 対応車種リスト
+- **パーツ/サービス登録**
+  - パーツ名、説明、価格帯
+  - 対応車種（メーカー/車種/年式）
+  - 画像、取り付け事例
+- **広告配信**
+  - ターゲット車種指定
+  - 表示期間設定
+  - 広告費用（課金モデル要検討）
+
+#### ユーザー側機能
+- **レコメンド表示**
+  - ホーム画面に自分の車に合ったパーツ提案
+  - 車両詳細画面にマッチするパーツ一覧
+- **問い合わせ機能**
+  - アプリ内メッセージ
+  - 電話/メール連携
+  - 見積もり依頼
+- **お気に入り保存**
+
+#### データモデル（案）
+```dart
+// 企業モデル
+class Company {
+  String id;
+  String name;
+  String address;
+  String phone;
+  String email;
+  List<String> categories;  // エアロ、マフラー、ホイール等
+  List<VehicleSpec> supportedVehicles;
+  bool isVerified;  // 認証済み企業
+}
+
+// パーツ/サービスモデル
+class PartListing {
+  String id;
+  String companyId;
+  String name;
+  String description;
+  int? priceFrom;
+  int? priceTo;
+  List<String> imageUrls;
+  List<VehicleSpec> compatibleVehicles;
+  String category;
+  bool isActive;
+}
+
+// 問い合わせモデル
+class Inquiry {
+  String id;
+  String userId;
+  String companyId;
+  String? partListingId;
+  String vehicleId;
+  String message;
+  InquiryStatus status;  // pending, replied, closed
+  DateTime createdAt;
+}
+```
+
+#### 実装優先順位
+1. 企業アカウント・パーツ登録（管理画面）
+2. ユーザー向けパーツ一覧・詳細表示
+3. 問い合わせ機能
+4. レコメンドアルゴリズム
+5. 課金・広告システム
+
+---
+
+### 2. （次の要望をここに）
+
+### 3. （次の要望をここに）
