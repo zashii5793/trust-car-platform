@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
+import 'core/di/injection.dart';
+import 'core/di/service_locator.dart';
+import 'services/firebase_service.dart';
+import 'services/auth_service.dart';
+import 'services/recommendation_service.dart';
 import 'providers/vehicle_provider.dart';
 import 'providers/maintenance_provider.dart';
 import 'providers/auth_provider.dart';
@@ -15,6 +20,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await Injection.init();
   runApp(const MyApp());
 }
 
@@ -25,10 +31,19 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => VehicleProvider()),
-        ChangeNotifierProvider(create: (_) => MaintenanceProvider()),
-        ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider(
+          authService: sl.get<AuthService>(),
+        )),
+        ChangeNotifierProvider(create: (_) => VehicleProvider(
+          firebaseService: sl.get<FirebaseService>(),
+        )),
+        ChangeNotifierProvider(create: (_) => MaintenanceProvider(
+          firebaseService: sl.get<FirebaseService>(),
+        )),
+        ChangeNotifierProvider(create: (_) => NotificationProvider(
+          firebaseService: sl.get<FirebaseService>(),
+          recommendationService: sl.get<RecommendationService>(),
+        )),
       ],
       child: MaterialApp(
         title: 'クルマ統合管理',

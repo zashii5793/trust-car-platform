@@ -8,9 +8,15 @@ import '../services/firebase_service.dart';
 
 /// 通知状態管理Provider
 class NotificationProvider extends ChangeNotifier {
-  final FirebaseService _firebaseService = FirebaseService();
-  final RecommendationService _recommendationService = RecommendationService();
+  final FirebaseService _firebaseService;
+  final RecommendationService _recommendationService;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  NotificationProvider({
+    required FirebaseService firebaseService,
+    required RecommendationService recommendationService,
+  })  : _firebaseService = firebaseService,
+        _recommendationService = recommendationService;
 
   List<AppNotification> _notifications = [];
   bool _isLoading = false;

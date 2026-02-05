@@ -9,7 +9,7 @@ import '../core/error/app_error.dart';
 ///
 /// エラーはAppError型で保持し、型安全なエラーハンドリングを実現
 class AuthProvider with ChangeNotifier {
-  final AuthService _authService = AuthService();
+  final AuthService _authService;
 
   User? _firebaseUser;
   AppUser? _appUser;
@@ -17,7 +17,8 @@ class AuthProvider with ChangeNotifier {
   AppError? _error;
   StreamSubscription<User?>? _authSubscription;
 
-  AuthProvider() {
+  AuthProvider({required AuthService authService})
+      : _authService = authService {
     _init();
   }
 

@@ -8,7 +8,10 @@ import '../core/error/app_error.dart';
 ///
 /// エラーはAppError型で保持し、型安全なエラーハンドリングを実現
 class VehicleProvider with ChangeNotifier {
-  final FirebaseService _firebaseService = FirebaseService();
+  final FirebaseService _firebaseService;
+
+  VehicleProvider({required FirebaseService firebaseService})
+      : _firebaseService = firebaseService;
 
   List<Vehicle> _vehicles = [];
   Vehicle? _selectedVehicle;
