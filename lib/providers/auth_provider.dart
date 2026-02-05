@@ -3,15 +3,18 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import '../models/user.dart';
+import '../core/error/app_error.dart';
 
 /// 認証状態を管理するプロバイダー
+///
+/// エラーはAppError型で保持し、型安全なエラーハンドリングを実現
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
 
   User? _firebaseUser;
   AppUser? _appUser;
   bool _isLoading = true;
-  String? _error;
+  AppError? _error;
   StreamSubscription<User?>? _authSubscription;
 
   AuthProvider() {
@@ -30,8 +33,14 @@ class AuthProvider with ChangeNotifier {
   /// ローディング中かどうか
   bool get isLoading => _isLoading;
 
-  /// エラーメッセージ
-  String? get error => _error;
+  /// エラー（AppError型）
+  AppError? get error => _error;
+
+  /// エラーメッセージ（ユーザー向け）
+  String? get errorMessage => _error?.userMessage;
+
+  /// エラーがリトライ可能か
+  bool get isRetryable => _error?.isRetryable ?? false;
 
   /// 初期化
   void _init() {
@@ -39,13 +48,14 @@ class AuthProvider with ChangeNotifier {
       _firebaseUser = user;
 
       if (user != null) {
-        // ユーザープロファイルを取得（失敗してもログインは成功扱い）
-        try {
-          _appUser = await _authService.getUserProfile();
-        } catch (e) {
-          debugPrint('AuthProvider: getUserProfile failed: $e');
-          _appUser = null;
-        }
+        final result = await _authService.getUserProfile();
+        result.when(
+          success: (profile) => _appUser = profile,
+          failure: (error) {
+            debugPrint('AuthProvider: getUserProfile failed: ${error.message}');
+            _appUser = null;
+          },
+        );
       } else {
         _appUser = null;
       }
@@ -61,26 +71,29 @@ class AuthProvider with ChangeNotifier {
     required String password,
     String? displayName,
   }) async {
-    try {
-      _isLoading = true;
-      _error = null;
-      notifyListeners();
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
 
-      await _authService.signUpWithEmail(
-        email: email,
-        password: password,
-        displayName: displayName,
-      );
+    final result = await _authService.signUpWithEmail(
+      email: email,
+      password: password,
+      displayName: displayName,
+    );
 
-      return true;
-    } catch (e) {
-      _error = e.toString().replaceAll('Exception: ', '');
-      notifyListeners();
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    _isLoading = false;
+
+    return result.when(
+      success: (_) {
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        notifyListeners();
+        return false;
+      },
+    );
   }
 
   /// メールアドレスでサインイン
@@ -88,79 +101,91 @@ class AuthProvider with ChangeNotifier {
     required String email,
     required String password,
   }) async {
-    try {
-      _isLoading = true;
-      _error = null;
-      notifyListeners();
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
 
-      await _authService.signInWithEmail(
-        email: email,
-        password: password,
-      );
+    final result = await _authService.signInWithEmail(
+      email: email,
+      password: password,
+    );
 
-      return true;
-    } catch (e) {
-      _error = e.toString().replaceAll('Exception: ', '');
-      notifyListeners();
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    _isLoading = false;
+
+    return result.when(
+      success: (_) {
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        notifyListeners();
+        return false;
+      },
+    );
   }
 
   /// Google でサインイン
   Future<bool> signInWithGoogle() async {
-    try {
-      _isLoading = true;
-      _error = null;
-      notifyListeners();
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
 
-      final result = await _authService.signInWithGoogle();
-      return result != null;
-    } catch (e) {
-      _error = e.toString().replaceAll('Exception: ', '');
-      notifyListeners();
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    final result = await _authService.signInWithGoogle();
+
+    _isLoading = false;
+
+    return result.when(
+      success: (credential) {
+        notifyListeners();
+        return credential != null;
+      },
+      failure: (error) {
+        _error = error;
+        notifyListeners();
+        return false;
+      },
+    );
   }
 
   /// パスワードリセットメールを送信
   Future<bool> sendPasswordResetEmail(String email) async {
-    try {
-      _isLoading = true;
-      _error = null;
-      notifyListeners();
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
 
-      await _authService.sendPasswordResetEmail(email);
-      return true;
-    } catch (e) {
-      _error = e.toString().replaceAll('Exception: ', '');
-      notifyListeners();
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    final result = await _authService.sendPasswordResetEmail(email);
+
+    _isLoading = false;
+
+    return result.when(
+      success: (_) {
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        notifyListeners();
+        return false;
+      },
+    );
   }
 
   /// サインアウト
   Future<void> signOut() async {
-    try {
-      _isLoading = true;
-      _error = null;
-      notifyListeners();
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
 
-      await _authService.signOut();
-    } catch (e) {
-      _error = e.toString().replaceAll('Exception: ', '');
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    final result = await _authService.signOut();
+
+    result.when(
+      success: (_) {},
+      failure: (error) => _error = error,
+    );
+
+    _isLoading = false;
+    notifyListeners();
   }
 
   /// ユーザープロファイルを更新
@@ -168,49 +193,61 @@ class AuthProvider with ChangeNotifier {
     String? displayName,
     String? photoUrl,
   }) async {
-    try {
-      _isLoading = true;
-      _error = null;
-      notifyListeners();
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
 
-      await _authService.updateUserProfile(
-        displayName: displayName,
-        photoUrl: photoUrl,
-      );
+    final result = await _authService.updateUserProfile(
+      displayName: displayName,
+      photoUrl: photoUrl,
+    );
 
-      // プロファイルを再取得
-      _appUser = await _authService.getUserProfile();
-      return true;
-    } catch (e) {
-      _error = e.toString().replaceAll('Exception: ', '');
-      notifyListeners();
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    _isLoading = false;
+
+    return result.when(
+      success: (_) async {
+        final profileResult = await _authService.getUserProfile();
+        profileResult.when(
+          success: (profile) => _appUser = profile,
+          failure: (_) {},
+        );
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        notifyListeners();
+        return false;
+      },
+    );
   }
 
   /// 通知設定を更新
   Future<bool> updateNotificationSettings(NotificationSettings settings) async {
-    try {
-      _isLoading = true;
-      _error = null;
-      notifyListeners();
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
 
-      await _authService.updateNotificationSettings(settings);
+    final result = await _authService.updateNotificationSettings(settings);
 
-      // プロファイルを再取得
-      _appUser = await _authService.getUserProfile();
-      return true;
-    } catch (e) {
-      _error = e.toString().replaceAll('Exception: ', '');
-      notifyListeners();
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    _isLoading = false;
+
+    return result.when(
+      success: (_) async {
+        final profileResult = await _authService.getUserProfile();
+        profileResult.when(
+          success: (profile) => _appUser = profile,
+          failure: (_) {},
+        );
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        notifyListeners();
+        return false;
+      },
+    );
   }
 
   /// エラーをクリア

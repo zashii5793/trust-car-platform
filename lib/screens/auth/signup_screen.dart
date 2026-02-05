@@ -48,7 +48,7 @@ class _SignupScreenState extends State<SignupScreen> {
         Navigator.of(context).pop();
         showSuccessSnackBar(context, 'アカウントを作成しました');
       } else {
-        showErrorSnackBar(context, authProvider.error ?? 'サインアップに失敗しました');
+        showErrorSnackBar(context, authProvider.errorMessage ?? 'サインアップに失敗しました');
       }
     }
   }
@@ -60,8 +60,8 @@ class _SignupScreenState extends State<SignupScreen> {
     if (mounted) {
       if (success) {
         Navigator.of(context).pop();
-      } else if (authProvider.error != null) {
-        showErrorSnackBar(context, authProvider.error!);
+      } else if (authProvider.errorMessage != null) {
+        showErrorSnackBar(context, authProvider.errorMessage!);
       }
     }
   }

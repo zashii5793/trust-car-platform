@@ -38,19 +38,35 @@ class VehicleProvider with ChangeNotifier {
       (vehicles) {
         _vehicles = vehicles;
         _error = null;
+        _retryCount = 0;
         notifyListeners();
       },
       onError: (error) {
         _error = mapFirebaseError(error);
         notifyListeners();
+        _scheduleRetry(() => listenToVehicles());
       },
     );
+  }
+
+  int _retryCount = 0;
+  static const int _maxRetries = 3;
+  Timer? _retryTimer;
+
+  void _scheduleRetry(VoidCallback action) {
+    if (_retryCount >= _maxRetries) return;
+    _retryTimer?.cancel();
+    final delay = Duration(seconds: 2 << _retryCount); // 2s, 4s, 8s
+    _retryCount++;
+    _retryTimer = Timer(delay, action);
   }
 
   // リソースの解放
   void stopListening() {
     _vehiclesSubscription?.cancel();
     _vehiclesSubscription = null;
+    _retryTimer?.cancel();
+    _retryCount = 0;
   }
 
   // ログアウト時のクリーンアップ
@@ -71,7 +87,7 @@ class VehicleProvider with ChangeNotifier {
 
   @override
   void dispose() {
-    _vehiclesSubscription?.cancel();
+    stopListening();
     super.dispose();
   }
 

@@ -11,6 +11,7 @@ import '../widgets/common/loading_indicator.dart';
 import 'add_maintenance_screen.dart';
 import 'export/export_dialog.dart';
 import 'vehicle_edit_screen.dart';
+import 'maintenance_stats_screen.dart';
 
 class VehicleDetailScreen extends StatefulWidget {
   final Vehicle vehicle;
@@ -127,7 +128,19 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
             const Divider(height: 1),
 
             // 統計情報
-            _StatisticsSection(vehicleId: _vehicle.id),
+            _StatisticsSection(
+              vehicleId: _vehicle.id,
+              onDetailsTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => MaintenanceStatsScreen(
+                      vehicleName: '${_vehicle.maker} ${_vehicle.model}',
+                    ),
+                  ),
+                );
+              },
+            ),
 
             const Divider(height: 1),
 
@@ -265,8 +278,9 @@ class _InfoRow extends StatelessWidget {
 
 class _StatisticsSection extends StatelessWidget {
   final String vehicleId;
+  final VoidCallback? onDetailsTap;
 
-  const _StatisticsSection({required this.vehicleId});
+  const _StatisticsSection({required this.vehicleId, this.onDetailsTap});
 
   @override
   Widget build(BuildContext context) {
@@ -277,25 +291,40 @@ class _StatisticsSection extends StatelessWidget {
 
         return Padding(
           padding: AppSpacing.paddingScreen,
-          child: Row(
+          child: Column(
             children: [
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.receipt_long,
-                  label: '総費用',
-                  value: '¥${NumberFormat('#,###').format(totalCost)}',
-                  color: AppColors.primary,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: _StatCard(
+                      icon: Icons.receipt_long,
+                      label: '総費用',
+                      value: '¥${NumberFormat('#,###').format(totalCost)}',
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  AppSpacing.horizontalMd,
+                  Expanded(
+                    child: _StatCard(
+                      icon: Icons.history,
+                      label: '履歴数',
+                      value: '$recordCount 件',
+                      color: AppColors.secondary,
+                    ),
+                  ),
+                ],
               ),
-              AppSpacing.horizontalMd,
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.history,
-                  label: '履歴数',
-                  value: '$recordCount 件',
-                  color: AppColors.secondary,
+              if (recordCount > 0 && onDetailsTap != null) ...[
+                AppSpacing.verticalSm,
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton.icon(
+                    onPressed: onDetailsTap,
+                    icon: const Icon(Icons.bar_chart, size: 18),
+                    label: const Text('統計の詳細を見る'),
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         );

@@ -3,8 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user.dart';
+import '../core/error/app_error.dart';
+import '../core/result/result.dart';
 
 /// 認証サービス
+///
+/// すべてのメソッドは[Result]を返し、
+/// エラーハンドリングを一貫して行える
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -23,7 +28,7 @@ class AuthService {
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   /// メールアドレスとパスワードでサインアップ
-  Future<UserCredential> signUpWithEmail({
+  Future<Result<UserCredential, AppError>> signUpWithEmail({
     required String email,
     required String password,
     String? displayName,
@@ -42,14 +47,16 @@ class AuthService {
       // Firestore にユーザードキュメントを作成
       await _createUserDocument(credential.user!, displayName: displayName);
 
-      return credential;
+      return Result.success(credential);
     } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
+      return Result.failure(_mapAuthError(e));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
   /// メールアドレスとパスワードでサインイン
-  Future<UserCredential> signInWithEmail({
+  Future<Result<UserCredential, AppError>> signInWithEmail({
     required String email,
     required String password,
   }) async {
@@ -66,21 +73,23 @@ class AuthService {
         debugPrint('signInWithEmail: _createUserDocument failed (may be offline): $e');
       }
 
-      return credential;
+      return Result.success(credential);
     } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
+      return Result.failure(_mapAuthError(e));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
   /// Google でサインイン
-  Future<UserCredential?> signInWithGoogle() async {
+  Future<Result<UserCredential?, AppError>> signInWithGoogle() async {
     try {
       // Google サインインフローを開始
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
       if (googleUser == null) {
         // ユーザーがキャンセルした場合
-        return null;
+        return const Result.success(null);
       }
 
       // Google 認証情報を取得
@@ -101,27 +110,37 @@ class AuthService {
         await _createUserDocument(userCredential.user!);
       }
 
-      return userCredential;
+      return Result.success(userCredential);
     } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
+      return Result.failure(_mapAuthError(e));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
   /// パスワードリセットメールを送信
-  Future<void> sendPasswordResetEmail(String email) async {
+  Future<Result<void, AppError>> sendPasswordResetEmail(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
+      return const Result.success(null);
     } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
+      return Result.failure(_mapAuthError(e));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
   /// サインアウト
-  Future<void> signOut() async {
-    if (_googleSignIn != null) {
-      await _googleSignIn!.signOut();
+  Future<Result<void, AppError>> signOut() async {
+    try {
+      if (_googleSignIn != null) {
+        await _googleSignIn!.signOut();
+      }
+      await _auth.signOut();
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
     }
-    await _auth.signOut();
   }
 
   /// ユーザードキュメントを Firestore に作成
@@ -144,9 +163,9 @@ class AuthService {
   }
 
   /// ユーザー情報を取得
-  Future<AppUser?> getUserProfile() async {
+  Future<Result<AppUser?, AppError>> getUserProfile() async {
     final user = currentUser;
-    if (user == null) return null;
+    if (user == null) return const Result.success(null);
 
     try {
       final doc = await _firestore.collection('users').doc(user.uid).get();
@@ -154,77 +173,78 @@ class AuthService {
         // ドキュメントが存在しない場合は作成
         await _createUserDocument(user);
         final newDoc = await _firestore.collection('users').doc(user.uid).get();
-        if (!newDoc.exists) return null;
-        return AppUser.fromFirestore(newDoc);
+        if (!newDoc.exists) return const Result.success(null);
+        return Result.success(AppUser.fromFirestore(newDoc));
       }
-      return AppUser.fromFirestore(doc);
+      return Result.success(AppUser.fromFirestore(doc));
     } catch (e) {
-      // Firestoreエラー時はnullを返す（フリーズ防止）
-      debugPrint('getUserProfile error: $e');
-      return null;
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
   /// ユーザー情報を更新
-  Future<void> updateUserProfile({
+  Future<Result<void, AppError>> updateUserProfile({
     String? displayName,
     String? photoUrl,
   }) async {
     final user = currentUser;
-    if (user == null) throw Exception('ユーザーがログインしていません');
-
-    final updates = <String, dynamic>{
-      'updatedAt': Timestamp.now(),
-    };
-
-    if (displayName != null) {
-      updates['displayName'] = displayName;
-      await user.updateDisplayName(displayName);
+    if (user == null) {
+      return const Result.failure(AppError.auth('User not logged in', type: AuthErrorType.sessionExpired));
     }
 
-    if (photoUrl != null) {
-      updates['photoUrl'] = photoUrl;
-      await user.updatePhotoURL(photoUrl);
-    }
+    try {
+      final updates = <String, dynamic>{
+        'updatedAt': Timestamp.now(),
+      };
 
-    await _firestore.collection('users').doc(user.uid).update(updates);
+      if (displayName != null) {
+        updates['displayName'] = displayName;
+        await user.updateDisplayName(displayName);
+      }
+
+      if (photoUrl != null) {
+        updates['photoUrl'] = photoUrl;
+        await user.updatePhotoURL(photoUrl);
+      }
+
+      await _firestore.collection('users').doc(user.uid).update(updates);
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
   }
 
   /// 通知設定を更新
-  Future<void> updateNotificationSettings(
+  Future<Result<void, AppError>> updateNotificationSettings(
       NotificationSettings settings) async {
     final user = currentUser;
-    if (user == null) throw Exception('ユーザーがログインしていません');
+    if (user == null) {
+      return const Result.failure(AppError.auth('User not logged in', type: AuthErrorType.sessionExpired));
+    }
 
-    await _firestore.collection('users').doc(user.uid).update({
-      'notificationSettings': settings.toMap(),
-      'updatedAt': Timestamp.now(),
-    });
+    try {
+      await _firestore.collection('users').doc(user.uid).update({
+        'notificationSettings': settings.toMap(),
+        'updatedAt': Timestamp.now(),
+      });
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
   }
 
-  /// Firebase Auth エラーをハンドリング
-  Exception _handleAuthException(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'user-not-found':
-        return Exception('このメールアドレスは登録されていません');
-      case 'wrong-password':
-        return Exception('パスワードが正しくありません');
-      case 'email-already-in-use':
-        return Exception('このメールアドレスは既に使用されています');
-      case 'weak-password':
-        return Exception('パスワードが弱すぎます。6文字以上で設定してください');
-      case 'invalid-email':
-        return Exception('メールアドレスの形式が正しくありません');
-      case 'user-disabled':
-        return Exception('このアカウントは無効化されています');
-      case 'too-many-requests':
-        return Exception('リクエストが多すぎます。しばらく待ってから再試行してください');
-      case 'operation-not-allowed':
-        return Exception('この操作は許可されていません');
-      case 'network-request-failed':
-        return Exception('ネットワークエラーが発生しました');
-      default:
-        return Exception('認証エラーが発生しました: ${e.message}');
-    }
+  /// Firebase Auth エラーを AppError に変換
+  AppError _mapAuthError(FirebaseAuthException e) {
+    return switch (e.code) {
+      'user-not-found' => const AppError.auth('User not found', type: AuthErrorType.userNotFound),
+      'wrong-password' || 'invalid-credential' => const AppError.auth('Invalid credentials', type: AuthErrorType.invalidCredentials),
+      'email-already-in-use' => const AppError.auth('Email already in use', type: AuthErrorType.emailAlreadyInUse),
+      'weak-password' => const AppError.auth('Weak password', type: AuthErrorType.weakPassword),
+      'invalid-email' => const AppError.auth('Invalid email', type: AuthErrorType.invalidCredentials),
+      'user-disabled' => const AppError.auth('User disabled', type: AuthErrorType.unknown),
+      'too-many-requests' => const AppError.auth('Too many requests', type: AuthErrorType.tooManyRequests),
+      'network-request-failed' => AppError.network(e.message ?? 'Network error'),
+      _ => AppError.auth(e.message ?? 'Auth error', type: AuthErrorType.unknown),
+    };
   }
 }

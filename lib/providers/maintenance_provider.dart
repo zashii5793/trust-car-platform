@@ -27,28 +27,50 @@ class MaintenanceProvider with ChangeNotifier {
   /// エラーがリトライ可能か
   bool get isRetryable => _error?.isRetryable ?? false;
 
+  String? _currentVehicleId;
+
   // 特定車両の履歴をリスニング
   void listenToMaintenanceRecords(String vehicleId) {
     // 既存のサブスクリプションをキャンセル
     _recordsSubscription?.cancel();
+    _currentVehicleId = vehicleId;
 
     _recordsSubscription = _firebaseService.getVehicleMaintenanceRecords(vehicleId).listen(
       (records) {
         _records = records;
         _error = null;
+        _retryCount = 0;
         notifyListeners();
       },
       onError: (error) {
         _error = mapFirebaseError(error);
         notifyListeners();
+        if (_currentVehicleId != null) {
+          _scheduleRetry(() => listenToMaintenanceRecords(_currentVehicleId!));
+        }
       },
     );
+  }
+
+  int _retryCount = 0;
+  static const int _maxRetries = 3;
+  Timer? _retryTimer;
+
+  void _scheduleRetry(VoidCallback action) {
+    if (_retryCount >= _maxRetries) return;
+    _retryTimer?.cancel();
+    final delay = Duration(seconds: 2 << _retryCount);
+    _retryCount++;
+    _retryTimer = Timer(delay, action);
   }
 
   // リソースの解放
   void stopListening() {
     _recordsSubscription?.cancel();
     _recordsSubscription = null;
+    _retryTimer?.cancel();
+    _retryCount = 0;
+    _currentVehicleId = null;
   }
 
   // ログアウト時のクリーンアップ
@@ -68,7 +90,7 @@ class MaintenanceProvider with ChangeNotifier {
 
   @override
   void dispose() {
-    _recordsSubscription?.cancel();
+    stopListening();
     super.dispose();
   }
 

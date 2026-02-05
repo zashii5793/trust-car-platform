@@ -38,7 +38,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     if (!success && mounted) {
-      showErrorSnackBar(context, authProvider.error ?? 'ログインに失敗しました');
+      showErrorSnackBar(context, authProvider.errorMessage ?? 'ログインに失敗しました');
     }
   }
 
@@ -46,8 +46,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.signInWithGoogle();
 
-    if (!success && mounted && authProvider.error != null) {
-      showErrorSnackBar(context, authProvider.error!);
+    if (!success && mounted && authProvider.errorMessage != null) {
+      showErrorSnackBar(context, authProvider.errorMessage!);
     }
   }
 
@@ -72,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (success) {
         showSuccessSnackBar(context, 'パスワードリセットメールを送信しました');
       } else {
-        showErrorSnackBar(context, authProvider.error ?? 'メール送信に失敗しました');
+        showErrorSnackBar(context, authProvider.errorMessage ?? 'メール送信に失敗しました');
       }
     }
   }

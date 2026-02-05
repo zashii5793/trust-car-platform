@@ -71,10 +71,25 @@ class FirebaseService {
     }
   }
 
-  /// 車両を削除
+  /// 車両を削除（関連する整備記録もカスケード削除）
   Future<Result<void, AppError>> deleteVehicle(String vehicleId) async {
     try {
-      await _firestore.collection('vehicles').doc(vehicleId).delete();
+      final batch = _firestore.batch();
+
+      // 関連する整備記録を取得して削除
+      final records = await _firestore
+          .collection('maintenance_records')
+          .where('vehicleId', isEqualTo: vehicleId)
+          .get();
+
+      for (final doc in records.docs) {
+        batch.delete(doc.reference);
+      }
+
+      // 車両本体を削除
+      batch.delete(_firestore.collection('vehicles').doc(vehicleId));
+
+      await batch.commit();
       return const Result.success(null);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -188,34 +203,4 @@ class FirebaseService {
     }
   }
 
-  // === 後方互換性のための非推奨メソッド ===
-  // Provider側の修正が完了するまで維持
-
-  /// @deprecated Use addVehicle instead
-  @Deprecated('Use addVehicle with Result pattern instead')
-  Future<String> addVehicleLegacy(Vehicle vehicle) async {
-    final result = await addVehicle(vehicle);
-    return result.getOrThrow();
-  }
-
-  /// @deprecated Use updateVehicle instead
-  @Deprecated('Use updateVehicle with Result pattern instead')
-  Future<void> updateVehicleLegacy(String vehicleId, Vehicle vehicle) async {
-    final result = await updateVehicle(vehicleId, vehicle);
-    result.getOrThrow();
-  }
-
-  /// @deprecated Use deleteVehicle instead
-  @Deprecated('Use deleteVehicle with Result pattern instead')
-  Future<void> deleteVehicleLegacy(String vehicleId) async {
-    final result = await deleteVehicle(vehicleId);
-    result.getOrThrow();
-  }
-
-  /// @deprecated Use uploadImageBytes instead
-  @Deprecated('Use uploadImageBytes with Result pattern instead')
-  Future<String> uploadImageBytesLegacy(Uint8List imageBytes, String path) async {
-    final result = await uploadImageBytes(imageBytes, path);
-    return result.getOrThrow();
-  }
 }
