@@ -7,6 +7,7 @@ import 'dart:io';
 import '../../models/vehicle.dart';
 import '../../models/maintenance_record.dart';
 import '../../services/pdf_export_service.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
@@ -43,7 +44,8 @@ class _ExportDialog extends StatefulWidget {
 }
 
 class _ExportDialogState extends State<_ExportDialog> {
-  final _pdfService = PdfExportService();
+  // Service (DI経由)
+  PdfExportService get _pdfService => sl.get<PdfExportService>();
   bool _isLoading = false;
   Uint8List? _pdfData;
 

@@ -164,13 +164,19 @@ lib/
 
 ---
 
-## 品質スコア: 9.5/10
+## 品質スコア: 7.5/10
 
 ### 完了した改善
 - [x] P0: 車検・保険アラート、バリデーション強化
 - [x] P1: エラーハンドリング統一、テスト追加
 - [x] P2: 必須項目明示、エラーメッセージ改善
 - [x] Phase 3: データ同期安定化、AuthService統一、統計画面
+- [x] Phase 3.5: アーキテクチャ統一（domain/data層削除）、全ProviderにDI適用
+
+### Phase 3.5で実施した改善
+- [x] 死んだdomain/data層を削除（二重管理解消）
+- [x] 全ProviderにServiceLocator経由のコンストラクタ注入適用
+- [x] CLAUDE.mdにアーキテクチャ方針を明記
 
 ### Phase 3で実施した改善
 - [x] Legacyメソッド削除（firebase_service.dart）

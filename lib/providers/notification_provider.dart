@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/app_notification.dart';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
@@ -10,7 +9,6 @@ import '../services/firebase_service.dart';
 class NotificationProvider extends ChangeNotifier {
   final FirebaseService _firebaseService;
   final RecommendationService _recommendationService;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   NotificationProvider({
     required FirebaseService firebaseService,
@@ -49,19 +47,17 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 各車両の整備記録を取得
+      // 各車両の整備記録を取得（FirebaseService経由）
       final maintenanceRecords = <String, List<MaintenanceRecord>>{};
       for (final vehicle in vehicles) {
-        final snapshot = await _firestore
-            .collection('maintenance_records')
-            .where('vehicleId', isEqualTo: vehicle.id)
-            .orderBy('date', descending: true)
-            .limit(20) // 直近20件で十分
-            .get();
-
-        maintenanceRecords[vehicle.id] = snapshot.docs
-            .map((doc) => MaintenanceRecord.fromFirestore(doc))
-            .toList();
+        final result = await _firebaseService.getMaintenanceRecordsForVehicle(
+          vehicle.id,
+          limit: 20, // 直近20件で十分
+        );
+        result.when(
+          success: (records) => maintenanceRecords[vehicle.id] = records,
+          failure: (_) => maintenanceRecords[vehicle.id] = [],
+        );
       }
 
       // レコメンドを生成

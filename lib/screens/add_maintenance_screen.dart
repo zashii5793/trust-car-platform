@@ -5,6 +5,7 @@ import '../models/maintenance_record.dart';
 import '../providers/maintenance_provider.dart';
 import '../services/firebase_service.dart';
 import '../services/invoice_ocr_service.dart';
+import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../widgets/common/app_button.dart';
@@ -43,8 +44,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   bool _showAllTypes = false;
   bool _isOcrProcessing = false;
 
-  // OCRサービス
-  final _invoiceOcrService = InvoiceOcrService();
+  // OCRサービス (DI経由)
+  InvoiceOcrService get _invoiceOcrService => sl.get<InvoiceOcrService>();
+  FirebaseService get _firebaseService => sl.get<FirebaseService>();
 
   // よく使うメンテナンスタイプ（初期表示）
   static const _commonTypes = [
@@ -154,12 +156,10 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     });
 
     try {
-      final firebaseService = FirebaseService();
-
       final record = MaintenanceRecord(
         id: '',
         vehicleId: widget.vehicleId,
-        userId: firebaseService.currentUserId ?? '',
+        userId: _firebaseService.currentUserId ?? '',
         type: _selectedType,
         title: _titleController.text,
         description: _descriptionController.text.isEmpty

@@ -152,6 +152,28 @@ class FirebaseService {
     });
   }
 
+  /// 車両の履歴一覧を取得（Future版、通知生成用）
+  Future<Result<List<MaintenanceRecord>, AppError>> getMaintenanceRecordsForVehicle(
+    String vehicleId, {
+    int limit = 20,
+  }) async {
+    try {
+      final snapshot = await _firestore
+          .collection('maintenance_records')
+          .where('vehicleId', isEqualTo: vehicleId)
+          .orderBy('date', descending: true)
+          .limit(limit)
+          .get();
+
+      final records = snapshot.docs
+          .map((doc) => MaintenanceRecord.fromFirestore(doc))
+          .toList();
+      return Result.success(records);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
   /// 履歴を削除
   Future<Result<void, AppError>> deleteMaintenanceRecord(String recordId) async {
     try {

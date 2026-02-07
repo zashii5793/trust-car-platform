@@ -50,12 +50,12 @@
 
 ## 3. 現在の品質評価（修正後）
 
-### 3.1 品質スコア: 7.0/10（修正前: 9.5/10）
+### 3.1 品質スコア: 7.5/10（Phase 3.5完了後）
 
 | 領域 | スコア | 根拠 |
 |------|--------|------|
 | コア層の品質 | 9/10 | Result型、AppError、モデル層は堅実 |
-| アーキテクチャ一貫性 | 5/10 | services/とdomain+data/の二重管理 |
+| アーキテクチャ一貫性 | 8/10 | Phase 3.5でdomain/data削除、services/に統一、全ProviderにDI適用 |
 | テストカバレッジ | 6/10 | 214件あるがProvider/UI層が欠落 |
 | 運用準備度 | 4/10 | CI/CD、インデックス、環境分離なし |
 
@@ -72,16 +72,19 @@
 | **screens/ (14個)** | **14** | **1件** | **ほぼ欠落** |
 | **services/ (PDF, 推奨)** | **2** | **0件** | **欠落** |
 
-### 3.3 アーキテクチャの課題
+### 3.3 アーキテクチャの現状（Phase 3.5完了後）
 
 ```
-現状（二重管理）:
-  Provider → FirebaseService（直接new）  ← 実際に使用
-  DI → Repository → Firestore           ← 登録されているが未使用
+現在の構成（Phase 3.5で統一済み）:
+  main.dart → Injection.init() → ServiceLocator
+                                      ↓
+  Provider（コンストラクタ注入）← Service（Result<T,AppError>）
+      ↓                                ↓
+    UI層（screens/）              Firebase SDK
 
-あるべき姿（どちらか一方）:
-  案A: Provider → DI → Repository → Firestore（DDD準拠）
-  案B: Provider → Service → Firestore（シンプル構成）
+残課題:
+  - Screen層で一部Serviceを直接new（OCR, PDF）→ DI経由に移行推奨
+  - NotificationProviderでFirestore直接アクセス → 修正推奨
 ```
 
 ---
@@ -107,29 +110,31 @@
 
 ## 5. 今後の計画
 
-### 5.1 技術的負債の解消（最優先）
+### 5.1 技術的負債の解消（Phase 3.5で一部完了）
 
-| 項目 | 内容 | 優先度 |
+| 項目 | 内容 | 状態 |
 |------|------|--------|
-| アーキテクチャ統一 | services/ と domain+data/ の二重管理を解消 | 高 |
-| DI適用 | Provider内のFirebaseService直接newを排除 | 高 |
-| Provider テスト | 4つのProviderのユニットテスト追加 | 高 |
-| CI/CD | GitHub Actions でテスト・解析の自動実行 | 中 |
-| Firestoreインデックス | 複合クエリ用のインデックス定義 | 中 |
+| アーキテクチャ統一 | domain/data層削除、services/に統一 | ✅ 完了 |
+| Provider DI適用 | 全ProviderにServiceLocator経由の注入 | ✅ 完了 |
+| Screen層DI適用 | OCR/PDFサービスをDI経由に移行 | 🔄 未着手 |
+| Provider テスト | 5つのProviderのユニットテスト追加 | 🔄 未着手 |
+| CI/CD | GitHub Actions でテスト・解析の自動実行 | 🔄 未着手 |
+| Firestoreインデックス | 複合クエリ用のインデックス定義 | 🔄 未着手 |
 
 ### 5.2 機能ロードマップ
 
-| Phase | 内容 | 依存 |
+| Phase | 内容 | 状態 |
 |-------|------|------|
-| **Phase 3.5** | 技術的負債解消 | - |
-| **Phase 4** | オフラインサポート、プッシュ通知 | Phase 3.5 |
-| **Phase 5** | BtoBカスタムパーツマーケットプレイス | Phase 4 |
+| **Phase 3.5** | アーキテクチャ統一、Provider DI | ✅ 完了 |
+| **Phase 3.6** | Screen層DI、Providerテスト | 🔄 進行中 |
+| **Phase 4** | オフラインサポート、プッシュ通知 | - |
+| **Phase 5** | BtoBカスタムパーツマーケットプレイス | - |
 
 ### 5.3 AI開発手法の改善計画
 
-| 改善 | 内容 |
-|------|------|
-| **CLAUDE.mdにアーキテクチャ方針明記** | 二重管理の再発防止 |
+| 改善 | 内容 | 状態 |
+|------|------|------|
+| **CLAUDE.mdにアーキテクチャ方針明記** | 二重管理の再発防止 | ✅ 完了 |
 | **批判的レビューの定期実施** | 各Phase完了時にエキスパート監査 |
 | **カバレッジマトリクス** | 層別のテスト状況を可視化 |
 | **コミット前チェックリスト** | DI使用、テスト有無、解析クリーンを確認 |

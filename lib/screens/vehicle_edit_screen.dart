@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import '../models/vehicle.dart';
 import '../providers/vehicle_provider.dart';
 import '../services/firebase_service.dart';
+import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../widgets/common/app_button.dart';
@@ -51,6 +52,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   bool _isLoading = false;
   bool _hasChanges = false;
   bool _showAdvancedFields = false;
+
+  // Service (DI経由)
+  FirebaseService get _firebaseService => sl.get<FirebaseService>();
 
   @override
   void initState() {
@@ -223,8 +227,6 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     });
 
     try {
-      final firebaseService = FirebaseService();
-
       // ナンバープレート重複チェック（変更があった場合のみ）
       if (_licensePlateController.text.isNotEmpty &&
           _licensePlateController.text != widget.vehicle.licensePlate) {
@@ -247,7 +249,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
       // 新しい画像があればアップロード
       if (_newImageBytes != null) {
         final uuid = const Uuid().v4();
-        final uploadResult = await firebaseService.uploadImageBytes(
+        final uploadResult = await _firebaseService.uploadImageBytes(
           _newImageBytes!,
           'vehicles/$uuid.jpg',
         );

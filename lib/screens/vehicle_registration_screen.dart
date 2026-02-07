@@ -7,6 +7,7 @@ import '../models/vehicle.dart';
 import '../providers/vehicle_provider.dart';
 import '../services/firebase_service.dart';
 import '../services/vehicle_certificate_ocr_service.dart';
+import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../widgets/common/app_button.dart';
@@ -54,8 +55,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   bool _showAdvancedFields = false;
   bool _isOcrProcessing = false;
 
-  // OCRサービス
-  final _ocrService = VehicleCertificateOcrService();
+  // OCRサービス (DI経由)
+  VehicleCertificateOcrService get _ocrService => sl.get<VehicleCertificateOcrService>();
+  FirebaseService get _firebaseService => sl.get<FirebaseService>();
 
   @override
   void dispose() {
@@ -215,8 +217,6 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     });
 
     try {
-      final firebaseService = FirebaseService();
-
       // ナンバープレート重複チェック
       if (_licensePlateController.text.isNotEmpty) {
         final exists = await Provider.of<VehicleProvider>(context, listen: false)
@@ -235,7 +235,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       // 画像をアップロード
       if (_imageBytes != null) {
         final uuid = const Uuid().v4();
-        final uploadResult = await firebaseService.uploadImageBytes(
+        final uploadResult = await _firebaseService.uploadImageBytes(
           _imageBytes!,
           'vehicles/$uuid.jpg',
         );
@@ -245,7 +245,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       // 車両データを作成
       final vehicle = Vehicle(
         id: '',
-        userId: firebaseService.currentUserId ?? '',
+        userId: _firebaseService.currentUserId ?? '',
         maker: _makerController.text,
         model: _modelController.text,
         year: int.parse(_yearController.text),

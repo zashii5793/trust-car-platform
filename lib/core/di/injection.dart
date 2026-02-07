@@ -3,6 +3,9 @@ import 'service_locator.dart';
 import '../../services/firebase_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/recommendation_service.dart';
+import '../../services/vehicle_certificate_ocr_service.dart';
+import '../../services/invoice_ocr_service.dart';
+import '../../services/pdf_export_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -18,10 +21,15 @@ class Injection {
 
     final locator = ServiceLocator.instance;
 
-    // Services
+    // Core Services
     locator.registerLazySingleton<FirebaseService>(() => FirebaseService());
     locator.registerLazySingleton<AuthService>(() => AuthService());
     locator.registerLazySingleton<RecommendationService>(() => RecommendationService());
+
+    // OCR & Export Services
+    locator.registerLazySingleton<VehicleCertificateOcrService>(() => VehicleCertificateOcrService());
+    locator.registerLazySingleton<InvoiceOcrService>(() => InvoiceOcrService());
+    locator.registerLazySingleton<PdfExportService>(() => PdfExportService());
 
     _initialized = true;
   }
