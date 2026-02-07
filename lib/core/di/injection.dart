@@ -6,6 +6,7 @@ import '../../services/recommendation_service.dart';
 import '../../services/vehicle_certificate_ocr_service.dart';
 import '../../services/invoice_ocr_service.dart';
 import '../../services/pdf_export_service.dart';
+import '../../services/push_notification_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -30,6 +31,9 @@ class Injection {
     locator.registerLazySingleton<VehicleCertificateOcrService>(() => VehicleCertificateOcrService());
     locator.registerLazySingleton<InvoiceOcrService>(() => InvoiceOcrService());
     locator.registerLazySingleton<PdfExportService>(() => PdfExportService());
+
+    // Push Notification Service
+    locator.registerLazySingleton<PushNotificationService>(() => PushNotificationService());
 
     _initialized = true;
   }

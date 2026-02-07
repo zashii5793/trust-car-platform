@@ -28,6 +28,10 @@ dependencies:
   path_provider: ^2.1.1
   # Phase 4: Offline Support
   connectivity_plus: ^6.0.3
+  # Phase 4: Push Notifications
+  firebase_messaging: ^16.1.1
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.10.1
   # Phase 2.0: OCR機能
   google_mlkit_text_recognition: ^0.14.0
   camera: ^0.11.0+2

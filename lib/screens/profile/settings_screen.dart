@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/user.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/di/service_locator.dart';
+import '../../services/push_notification_service.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
 
@@ -87,7 +89,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: const Text('プッシュ通知'),
                     subtitle: const Text('お知らせを受け取る'),
                     value: _notificationSettings.pushEnabled,
-                    onChanged: (value) {
+                    onChanged: (value) async {
+                      if (value) {
+                        // Request notification permission when enabling
+                        final pushService = sl.get<PushNotificationService>();
+                        final result = await pushService.requestPermission();
+                        final granted = result.getOrElse(false);
+                        if (!granted && mounted) {
+                          showErrorSnackBar(context, '通知の許可が必要です');
+                          return;
+                        }
+                      }
+                      if (!mounted) return;
                       setState(() {
                         _notificationSettings = _notificationSettings.copyWith(
                           pushEnabled: value,

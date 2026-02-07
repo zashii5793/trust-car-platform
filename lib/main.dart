@@ -8,6 +8,7 @@ import 'core/di/service_locator.dart';
 import 'services/firebase_service.dart';
 import 'services/auth_service.dart';
 import 'services/recommendation_service.dart';
+import 'services/push_notification_service.dart';
 import 'providers/vehicle_provider.dart';
 import 'providers/maintenance_provider.dart';
 import 'providers/auth_provider.dart';
@@ -30,6 +31,14 @@ void main() async {
   );
 
   await Injection.init();
+
+  // Initialize timezone for scheduled notifications
+  PushNotificationService.initializeTimezone();
+
+  // Initialize push notifications
+  final pushService = sl.get<PushNotificationService>();
+  await pushService.initialize();
+
   runApp(const MyApp());
 }
 
