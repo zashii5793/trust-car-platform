@@ -1,27 +1,27 @@
 # Claude開発セッションメモ
 
-## 現在の状態（2024-02-05更新）
+## 現在の状態（2024-02-07更新）
 
 ### 完了済み
 - **P0**: 車検・保険アラート、バリデーション強化、走行距離整合性チェック
 - **P1**: エラーハンドリング統一（Result<T,AppError>）、テスト追加、ナンバープレート重複チェック
 - **P2**: 必須項目明示、AppError対応エラースナックバー
 - **Phase 3**: データ同期安定化、AuthService統一、統計・可視化画面
-- **Phase 3.5**: 技術的負債解消（アーキテクチャ統一、DI適用）
+- **Phase 3.5**: 技術的負債解消（アーキテクチャ統一、全ProviderにDI適用）
+- **Phase 3.6**: DI完全化、Providerテスト追加
 
-### Phase 3.5 詳細
-- 死んだdomain/data層を削除（lib/domain/, lib/data/）
-- DI適用: main.dartでInjection.init()、全ProviderにServiceをコンストラクタ注入
-- CLAUDE.mdにアーキテクチャ方針を明記（二重管理の再発防止）
-- 品質スコアを9.5→7.0に下方修正（正直な評価）
-- 上長向けレポート作成（docs/REPORT_AI_DEV_STATUS.md）
+### Phase 3.6 詳細
+- 6 ServiceをすべてDIに登録（OCR, PDF含む）
+- Screen層の直接new排除（FirebaseService, OcrService, PdfService）
+- NotificationProviderのFirestore直接アクセス廃止
+- Providerテスト追加（3ファイル、79テスト）
+- ドキュメント整合性修正（品質スコア、Phase状態）
 
-### 品質スコア: 7.5/10（修正済み・正直な評価）
-- テスト: 214件全パス
+### 品質スコア: 8.0/10
+- テスト: 293件全パス（Providerテスト79件追加）
 - 静的解析: クリーン
-- アーキテクチャ: 統一済み（二重管理解消）
-- DI: 全Provider適用済み
-- 残課題: Providerテスト欠落、UI層テスト欠落、CI/CD未整備
+- アーキテクチャ: 完全統一（services層のみ、全DI適用）
+- 残課題: UI層テスト欠落、CI/CD未整備
 
 ---
 
@@ -62,35 +62,33 @@ flutter test 2>&1 | grep -oE '\+[0-9]+' | sort -t+ -k2 -n | tail -1
 
 ```
 lib/
-├── services/
-│   ├── firebase_service.dart    # Result<T,AppError>対応済、Legacy削除済
-│   └── auth_service.dart        # Result<T,AppError>対応済（Phase 3）
-├── providers/
-│   ├── vehicle_provider.dart    # AppError対応、再接続ロジック追加
-│   ├── maintenance_provider.dart # AppError対応、再接続ロジック追加
-│   └── auth_provider.dart       # AppError対応（Phase 3）
-├── screens/
-│   ├── home_screen.dart
-│   ├── vehicle_detail_screen.dart   # 統計リンク追加
-│   ├── maintenance_stats_screen.dart # 新規（Phase 3）
-│   ├── vehicle_registration_screen.dart
-│   └── vehicle_edit_screen.dart
-├── widgets/common/loading_indicator.dart
-└── core/
-    ├── error/app_error.dart
-    └── result/result.dart
-
-docs/
-├── FEATURE_SPEC.md          # 機能仕様書（要望リスト含む）
-└── DEVELOPMENT_WORKFLOW.md  # 開発ワークフロー（Phase 3新規）
-
-CLAUDE.md                    # AI開発ガイド（Phase 3新規）
+├── core/di/
+│   ├── injection.dart          # 6 Service登録（OCR, PDF含む）
+│   └── service_locator.dart    # ServiceLocator
+├── services/                   # すべてResult<T,AppError>対応
+│   ├── firebase_service.dart
+│   ├── auth_service.dart
+│   ├── recommendation_service.dart
+│   ├── vehicle_certificate_ocr_service.dart
+│   ├── invoice_ocr_service.dart
+│   └── pdf_export_service.dart
+├── providers/                  # すべてDI注入、テスト有
+│   ├── vehicle_provider.dart
+│   ├── maintenance_provider.dart
+│   ├── auth_provider.dart
+│   └── notification_provider.dart
+├── screens/                    # DI経由でService取得
+│   └── ...
+└── ...
 
 test/
-├── services/
-│   ├── firebase_service_test.dart  # 27テスト
-│   └── auth_service_test.dart      # 23テスト（Phase 3新規）
-└── ...（合計214テスト）
+├── providers/                  # 79テスト（Phase 3.6新規）
+│   ├── auth_provider_test.dart
+│   ├── vehicle_provider_test.dart
+│   ├── maintenance_provider_test.dart
+│   └── notification_provider_test.dart
+├── services/                   # 50テスト
+└── ...（合計293テスト）
 ```
 
 ---
