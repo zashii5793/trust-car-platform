@@ -5,11 +5,13 @@ import '../providers/vehicle_provider.dart';
 import '../providers/maintenance_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
+import '../providers/connectivity_provider.dart';
 import '../models/vehicle.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../widgets/common/app_card.dart';
 import '../widgets/common/loading_indicator.dart';
+import '../widgets/common/offline_banner.dart';
 import 'vehicle_registration_screen.dart';
 import 'vehicle_detail_screen.dart';
 import 'profile/profile_screen.dart';
@@ -66,6 +68,22 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('マイカー'),
         actions: [
+          // Offline status indicator
+          Consumer<ConnectivityProvider>(
+            builder: (context, connectivity, child) {
+              if (connectivity.isOffline) {
+                return const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: Icon(
+                    Icons.cloud_off,
+                    color: AppColors.warning,
+                    size: 20,
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
           // プロフィールアイコン
           IconButton(
             icon: const Icon(Icons.person_outline),
@@ -80,7 +98,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: _buildBody(),
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(child: _buildBody()),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(
