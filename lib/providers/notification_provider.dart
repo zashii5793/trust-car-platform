@@ -4,6 +4,7 @@ import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
 import '../services/recommendation_service.dart';
 import '../services/firebase_service.dart';
+import '../core/error/app_error.dart';
 
 /// 通知状態管理Provider
 class NotificationProvider extends ChangeNotifier {
@@ -18,7 +19,7 @@ class NotificationProvider extends ChangeNotifier {
 
   List<AppNotification> _notifications = [];
   bool _isLoading = false;
-  String? _error;
+  AppError? _error;
 
   /// 通知一覧
   List<AppNotification> get notifications => _notifications;
@@ -34,8 +35,14 @@ class NotificationProvider extends ChangeNotifier {
   /// ローディング状態
   bool get isLoading => _isLoading;
 
-  /// エラーメッセージ
-  String? get error => _error;
+  /// エラー
+  AppError? get error => _error;
+
+  /// エラーメッセージ（UI表示用）
+  String? get errorMessage => _error?.userMessage;
+
+  /// リトライ可能かどうか
+  bool get isRetryable => _error?.isRetryable ?? false;
 
   /// 車両リストから通知を生成（整備記録も自動取得）
   Future<void> generateNotificationsForVehicles(List<Vehicle> vehicles) async {
@@ -66,10 +73,16 @@ class NotificationProvider extends ChangeNotifier {
         maintenanceRecords: maintenanceRecords,
       );
     } catch (e) {
-      _error = e.toString();
+      _error = ServerError('通知の生成に失敗しました: $e');
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// エラーをクリア
+  void clearError() {
+    _error = null;
+    notifyListeners();
   }
 
   /// 車両リストからレコメンドを生成して通知を更新
@@ -107,7 +120,7 @@ class NotificationProvider extends ChangeNotifier {
 
       _notifications = allRecommendations;
     } catch (e) {
-      _error = e.toString();
+      _error = ServerError('レコメンドの生成に失敗しました: $e');
     } finally {
       _isLoading = false;
       notifyListeners();

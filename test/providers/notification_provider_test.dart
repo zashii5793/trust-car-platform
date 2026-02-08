@@ -138,8 +138,42 @@ void main() {
         expect(provider.notifications, isEmpty);
         expect(provider.isLoading, isFalse);
         expect(provider.error, isNull);
+        expect(provider.errorMessage, isNull);
+        expect(provider.isRetryable, isFalse);
         expect(provider.unreadCount, equals(0));
         expect(provider.highPriorityUnreadCount, equals(0));
+      });
+    });
+
+    group('Error Handling', () {
+      test('error is AppError type', () async {
+        // Create a mock that throws an exception
+        final throwingService = _MockFirebaseServiceThrowing();
+        provider = NotificationProvider(
+          firebaseService: throwingService,
+          recommendationService: mockRecommendationService,
+        );
+
+        await provider.generateNotificationsForVehicles([_createTestVehicle()]);
+
+        expect(provider.error, isA<AppError>());
+        expect(provider.errorMessage, isNotNull);
+      });
+
+      test('clearError clears the error', () async {
+        final throwingService = _MockFirebaseServiceThrowing();
+        provider = NotificationProvider(
+          firebaseService: throwingService,
+          recommendationService: mockRecommendationService,
+        );
+
+        await provider.generateNotificationsForVehicles([_createTestVehicle()]);
+        expect(provider.error, isNotNull);
+
+        provider.clearError();
+
+        expect(provider.error, isNull);
+        expect(provider.errorMessage, isNull);
       });
     });
 
@@ -434,6 +468,68 @@ class _MockFirebaseServiceNullUser implements FirebaseService {
     int limit = 20,
   }) async =>
       const Result.success([]);
+
+  @override
+  Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
+  @override
+  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(String vehicleId) =>
+      const Stream.empty();
+  @override
+  Future<Result<String, AppError>> addVehicle(Vehicle vehicle) async =>
+      const Result.success('id');
+  @override
+  Future<Result<void, AppError>> updateVehicle(String id, Vehicle vehicle) async =>
+      const Result.success(null);
+  @override
+  Future<Result<void, AppError>> deleteVehicle(String vehicleId) async =>
+      const Result.success(null);
+  @override
+  Future<Result<bool, AppError>> isLicensePlateExists(
+    String licensePlate, {
+    String? excludeVehicleId,
+  }) async =>
+      const Result.success(false);
+  @override
+  Future<Result<String, AppError>> addMaintenanceRecord(MaintenanceRecord record) async =>
+      const Result.success('id');
+  @override
+  Future<Result<void, AppError>> updateMaintenanceRecord(
+    String recordId,
+    MaintenanceRecord record,
+  ) async =>
+      const Result.success(null);
+  @override
+  Future<Result<void, AppError>> deleteMaintenanceRecord(String recordId) async =>
+      const Result.success(null);
+  @override
+  Future<Result<String, AppError>> uploadImageBytes(dynamic bytes, String path) async =>
+      const Result.success('url');
+  @override
+  Future<Result<Vehicle?, AppError>> getVehicle(String vehicleId) async =>
+      const Result.success(null);
+  @override
+  Future<Result<String, AppError>> uploadImage(dynamic imageFile, String path) async =>
+      const Result.success('url');
+  @override
+  Future<Result<List<String>, AppError>> uploadImages(
+    List<dynamic> imageFiles,
+    String basePath,
+  ) async =>
+      const Result.success([]);
+}
+
+// Helper mock for throwing exception case
+class _MockFirebaseServiceThrowing implements FirebaseService {
+  @override
+  String? get currentUserId => 'test-user-id';
+
+  @override
+  Future<Result<List<MaintenanceRecord>, AppError>> getMaintenanceRecordsForVehicle(
+    String vehicleId, {
+    int limit = 20,
+  }) async {
+    throw Exception('Test exception');
+  }
 
   @override
   Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
