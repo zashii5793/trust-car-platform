@@ -12,6 +12,7 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 class MockFirebaseService implements FirebaseService {
   bool getMaintenanceRecordsCalled = false;
   Result<List<MaintenanceRecord>, AppError>? getMaintenanceRecordsResult;
+  Result<Map<String, List<MaintenanceRecord>>, AppError>? getMaintenanceRecordsForVehiclesResult;
 
   @override
   String? get currentUserId => 'test-user-id';
@@ -23,6 +24,15 @@ class MockFirebaseService implements FirebaseService {
   }) async {
     getMaintenanceRecordsCalled = true;
     return getMaintenanceRecordsResult ?? const Result.success([]);
+  }
+
+  @override
+  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>> getMaintenanceRecordsForVehicles(
+    List<String> vehicleIds, {
+    int limitPerVehicle = 20,
+  }) async {
+    getMaintenanceRecordsCalled = true;
+    return getMaintenanceRecordsForVehiclesResult ?? const Result.success({});
   }
 
   // Unused methods
@@ -371,12 +381,8 @@ void main() {
 
     group('getNotificationsForVehicle', () {
       test('filters notifications by vehicle id', () async {
-        final vehicles = [
-          _createTestVehicle(id: 'v1'),
-          _createTestVehicle(id: 'v2'),
-        ];
-
-        // Generate recommendations for each vehicle
+        // Use a single vehicle, then manually set notifications with mixed vehicleIds
+        final vehicles = [_createTestVehicle(id: 'v1')];
         mockRecommendationService.mockRecommendations = [
           AppNotification(
             id: 'n1',
@@ -392,7 +398,7 @@ void main() {
           AppNotification(
             id: 'n2',
             userId: 'test-user-id',
-            vehicleId: 'v2',
+            vehicleId: 'v2', // Different vehicleId
             type: NotificationType.maintenanceRecommendation,
             title: 'Test',
             message: 'Message',
@@ -404,7 +410,7 @@ void main() {
 
         await provider.generateRecommendations(
           vehicles: vehicles,
-          maintenanceRecords: {'v1': [], 'v2': []},
+          maintenanceRecords: {'v1': []},
         );
 
         final v1Notifications = provider.getNotificationsForVehicle('v1');
@@ -470,6 +476,13 @@ class _MockFirebaseServiceNullUser implements FirebaseService {
       const Result.success([]);
 
   @override
+  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>> getMaintenanceRecordsForVehicles(
+    List<String> vehicleIds, {
+    int limitPerVehicle = 20,
+  }) async =>
+      const Result.success({});
+
+  @override
   Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
   @override
   Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(String vehicleId) =>
@@ -527,6 +540,14 @@ class _MockFirebaseServiceThrowing implements FirebaseService {
   Future<Result<List<MaintenanceRecord>, AppError>> getMaintenanceRecordsForVehicle(
     String vehicleId, {
     int limit = 20,
+  }) async {
+    throw Exception('Test exception');
+  }
+
+  @override
+  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>> getMaintenanceRecordsForVehicles(
+    List<String> vehicleIds, {
+    int limitPerVehicle = 20,
   }) async {
     throw Exception('Test exception');
   }

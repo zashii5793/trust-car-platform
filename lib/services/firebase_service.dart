@@ -184,6 +184,52 @@ class FirebaseService {
     }
   }
 
+  /// 複数車両の履歴を一括取得（N+1クエリ最適化）
+  /// Firestoreの制限（whereIn最大30件）を考慮してバッチ処理
+  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>> getMaintenanceRecordsForVehicles(
+    List<String> vehicleIds, {
+    int limitPerVehicle = 20,
+  }) async {
+    if (vehicleIds.isEmpty) {
+      return const Result.success({});
+    }
+
+    try {
+      final result = <String, List<MaintenanceRecord>>{};
+
+      // FirestoreのwhereIn制限（30件）に対応してバッチ処理
+      const batchSize = 30;
+      for (var i = 0; i < vehicleIds.length; i += batchSize) {
+        final batchIds = vehicleIds.skip(i).take(batchSize).toList();
+
+        final snapshot = await _firestore
+            .collection('maintenance_records')
+            .where('vehicleId', whereIn: batchIds)
+            .orderBy('date', descending: true)
+            .get();
+
+        // 車両IDごとにグループ化
+        for (final doc in snapshot.docs) {
+          final record = MaintenanceRecord.fromFirestore(doc);
+          result.putIfAbsent(record.vehicleId, () => []);
+          // limitPerVehicle件まで追加
+          if (result[record.vehicleId]!.length < limitPerVehicle) {
+            result[record.vehicleId]!.add(record);
+          }
+        }
+      }
+
+      // 取得できなかった車両IDには空リストを設定
+      for (final id in vehicleIds) {
+        result.putIfAbsent(id, () => []);
+      }
+
+      return Result.success(result);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
   // === 画像アップロード ===
 
   /// 画像をアップロード（ファイル版）

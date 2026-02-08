@@ -45,6 +45,7 @@ class NotificationProvider extends ChangeNotifier {
   bool get isRetryable => _error?.isRetryable ?? false;
 
   /// 車両リストから通知を生成（整備記録も自動取得）
+  /// バッチ取得でN+1クエリを最適化
   Future<void> generateNotificationsForVehicles(List<Vehicle> vehicles) async {
     final userId = _firebaseService.currentUserId;
     if (userId == null || vehicles.isEmpty) return;
@@ -54,18 +55,14 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 各車両の整備記録を取得（FirebaseService経由）
-      final maintenanceRecords = <String, List<MaintenanceRecord>>{};
-      for (final vehicle in vehicles) {
-        final result = await _firebaseService.getMaintenanceRecordsForVehicle(
-          vehicle.id,
-          limit: 20, // 直近20件で十分
-        );
-        result.when(
-          success: (records) => maintenanceRecords[vehicle.id] = records,
-          failure: (_) => maintenanceRecords[vehicle.id] = [],
-        );
-      }
+      // 全車両の整備記録を一括取得（N+1クエリ最適化）
+      final vehicleIds = vehicles.map((v) => v.id).toList();
+      final result = await _firebaseService.getMaintenanceRecordsForVehicles(
+        vehicleIds,
+        limitPerVehicle: 20,
+      );
+
+      final maintenanceRecords = result.getOrElse({});
 
       // レコメンドを生成
       await generateRecommendations(
