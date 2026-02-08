@@ -115,6 +115,14 @@ class MockFirebaseService implements FirebaseService {
   ) async =>
       const Result.success([]);
 
+  @override
+  Future<Result<String, AppError>> uploadProcessedImage(
+    dynamic imageBytes,
+    String path, {
+    required dynamic imageService,
+  }) async =>
+      const Result.success('http://example.com/image.jpg');
+
   void dispose() {
     _recordsController.close();
   }

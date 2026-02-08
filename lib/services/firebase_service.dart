@@ -271,4 +271,35 @@ class FirebaseService {
     }
   }
 
+  /// 画像をバリデーション・圧縮してアップロード（推奨）
+  /// [imageBytes] - 元画像のバイト列
+  /// [path] - Storageのパス
+  /// [imageService] - ImageProcessingServiceインスタンス
+  Future<Result<String, AppError>> uploadProcessedImage(
+    Uint8List imageBytes,
+    String path, {
+    required dynamic imageService,
+  }) async {
+    try {
+      // Validate and compress
+      final processResult = await imageService.processImage(imageBytes);
+      if (processResult.isFailure) {
+        return Result.failure(processResult.errorOrNull!);
+      }
+
+      final processedBytes = processResult.getOrThrow();
+
+      // Upload compressed image
+      final ref = _storage.ref().child(path);
+      final uploadTask = await ref.putData(
+        processedBytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      return Result.success(downloadUrl);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
 }

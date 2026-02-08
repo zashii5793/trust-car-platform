@@ -83,6 +83,13 @@ class MockFirebaseService implements FirebaseService {
     String basePath,
   ) async =>
       const Result.success([]);
+  @override
+  Future<Result<String, AppError>> uploadProcessedImage(
+    dynamic imageBytes,
+    String path, {
+    required dynamic imageService,
+  }) async =>
+      const Result.success('url');
 }
 
 // Mock RecommendationService
@@ -529,6 +536,13 @@ class _MockFirebaseServiceNullUser implements FirebaseService {
     String basePath,
   ) async =>
       const Result.success([]);
+  @override
+  Future<Result<String, AppError>> uploadProcessedImage(
+    dynamic imageBytes,
+    String path, {
+    required dynamic imageService,
+  }) async =>
+      const Result.success('url');
 }
 
 // Helper mock for throwing exception case
@@ -599,4 +613,11 @@ class _MockFirebaseServiceThrowing implements FirebaseService {
     String basePath,
   ) async =>
       const Result.success([]);
+  @override
+  Future<Result<String, AppError>> uploadProcessedImage(
+    dynamic imageBytes,
+    String path, {
+    required dynamic imageService,
+  }) async =>
+      const Result.success('url');
 }

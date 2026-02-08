@@ -7,6 +7,7 @@ import '../../services/vehicle_certificate_ocr_service.dart';
 import '../../services/invoice_ocr_service.dart';
 import '../../services/pdf_export_service.dart';
 import '../../services/push_notification_service.dart';
+import '../../services/image_processing_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -34,6 +35,9 @@ class Injection {
 
     // Push Notification Service
     locator.registerLazySingleton<PushNotificationService>(() => PushNotificationService());
+
+    // Image Processing Service
+    locator.registerLazySingleton<ImageProcessingService>(() => ImageProcessingService());
 
     _initialized = true;
   }
