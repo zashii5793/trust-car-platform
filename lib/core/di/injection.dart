@@ -3,6 +3,8 @@ import 'service_locator.dart';
 import '../error/app_error.dart';
 import '../logging/logging_service.dart';
 import '../logging/logging_service_impl.dart';
+import '../performance/performance_service.dart';
+import '../performance/performance_service_impl.dart';
 import '../../services/firebase_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/recommendation_service.dart';
@@ -34,6 +36,11 @@ class Injection {
     setAppErrorLogger((appError, {tag, stackTrace}) {
       loggingService.logAppError(appError, tag: tag, stackTrace: stackTrace);
     });
+
+    // Performance Service (register after LoggingService)
+    locator.registerLazySingleton<PerformanceService>(
+      () => PerformanceServiceImpl(loggingService: loggingService),
+    );
 
     // Core Services
     locator.registerLazySingleton<FirebaseService>(() => FirebaseService());
