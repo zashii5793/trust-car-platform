@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -5,6 +6,8 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'core/di/injection.dart';
 import 'core/di/service_locator.dart';
+import 'core/logging/crashlytics_wrapper.dart';
+import 'core/logging/logging_service.dart';
 import 'services/firebase_service.dart';
 import 'services/auth_service.dart';
 import 'services/recommendation_service.dart';
@@ -30,7 +33,13 @@ void main() async {
     cacheSizeBytes: 100 * 1024 * 1024, // 100MB
   );
 
+  // Initialize Crashlytics (only in release mode)
+  await _initializeCrashlytics();
+
   await Injection.init();
+
+  // Set up logging for auth state changes
+  _setupAuthLogging();
 
   // Initialize timezone for scheduled notifications
   PushNotificationService.initializeTimezone();
@@ -40,6 +49,39 @@ void main() async {
   await pushService.initialize();
 
   runApp(const MyApp());
+}
+
+/// Initialize Firebase Crashlytics for crash reporting
+Future<void> _initializeCrashlytics() async {
+  final crashlytics = CrashlyticsWrapper.instance;
+  final initialized = await crashlytics.initialize(enabled: !kDebugMode);
+
+  if (initialized) {
+    // Pass Flutter errors to Crashlytics
+    FlutterError.onError = crashlytics.flutterErrorHandler;
+
+    // Handle async errors
+    PlatformDispatcher.instance.onError = (error, stack) {
+      crashlytics.recordError(error, stack, fatal: true);
+      return true;
+    };
+  }
+}
+
+/// Set up logging for authentication state changes
+void _setupAuthLogging() {
+  final logger = sl.tryGet<LoggingService>();
+  if (logger == null) return;
+
+  final authService = sl.get<AuthService>();
+  authService.authStateChanges.listen((user) {
+    logger.setUserId(user?.uid);
+    if (user != null) {
+      logger.info('User signed in', tag: 'Auth');
+    } else {
+      logger.info('User signed out', tag: 'Auth');
+    }
+  });
 }
 
 class MyApp extends StatelessWidget {

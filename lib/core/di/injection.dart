@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'service_locator.dart';
+import '../error/app_error.dart';
+import '../logging/logging_service.dart';
+import '../logging/logging_service_impl.dart';
 import '../../services/firebase_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/recommendation_service.dart';
@@ -22,6 +25,15 @@ class Injection {
     if (_initialized) return;
 
     final locator = ServiceLocator.instance;
+
+    // Logging Service (register first for error logging)
+    locator.registerLazySingleton<LoggingService>(() => LoggingServiceImpl());
+
+    // Set up logging hook for app_error.dart
+    final loggingService = locator.get<LoggingService>();
+    setAppErrorLogger((appError, {tag, stackTrace}) {
+      loggingService.logAppError(appError, tag: tag, stackTrace: stackTrace);
+    });
 
     // Core Services
     locator.registerLazySingleton<FirebaseService>(() => FirebaseService());
@@ -47,6 +59,7 @@ class Injection {
   static void reset() {
     // ignore: invalid_use_of_visible_for_testing_member
     ServiceLocator.instance.reset();
+    setAppErrorLogger(null); // Clear logging hook
     _initialized = false;
   }
 }

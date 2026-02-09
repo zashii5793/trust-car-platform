@@ -192,7 +192,19 @@ final class UnknownError extends AppError {
 }
 
 /// Firebaseエラーを AppError に変換するヘルパー
-AppError mapFirebaseError(dynamic error) {
+///
+/// ログサービスが登録されている場合、自動的にエラーをログに記録する
+AppError mapFirebaseError(dynamic error, {StackTrace? stackTrace}) {
+  final appError = _mapFirebaseErrorInternal(error);
+
+  // Automatic logging if LoggingService is available
+  _logAppError(appError, stackTrace: stackTrace ?? StackTrace.current);
+
+  return appError;
+}
+
+/// Internal error mapping logic
+AppError _mapFirebaseErrorInternal(dynamic error) {
   final errorString = error.toString().toLowerCase();
 
   // Firebase Auth エラー
@@ -229,4 +241,25 @@ AppError mapFirebaseError(dynamic error) {
   }
 
   return AppError.unknown(error.toString(), originalError: error);
+}
+
+/// Callback for logging AppErrors
+///
+/// This is set by injection.dart to enable automatic error logging
+/// without creating circular dependencies.
+typedef AppErrorLogger = void Function(AppError appError, {String? tag, StackTrace? stackTrace});
+AppErrorLogger? _appErrorLogger;
+
+/// Set the error logger callback (called from injection.dart)
+void setAppErrorLogger(AppErrorLogger? logger) {
+  _appErrorLogger = logger;
+}
+
+/// Log AppError using the registered logger if available
+void _logAppError(AppError appError, {StackTrace? stackTrace}) {
+  try {
+    _appErrorLogger?.call(appError, tag: 'Firebase', stackTrace: stackTrace);
+  } catch (_) {
+    // Silently ignore if logging fails - don't break the error flow
+  }
 }
