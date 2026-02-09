@@ -31,9 +31,24 @@ Provider（コンストラクタ注入） ← Service（Result<T,AppError>）
 - **エラーハンドリング**: `Result<T, AppError>` パターン（Service層）
 - **状態管理**: Provider（コンストラクタでService注入）
 - **DI**: `ServiceLocator` 経由。Provider内で直接`new`しない
-- **テスト**: 変更時は必ずテスト実行、214件全パス維持
+- **テスト**: 変更時は必ずテスト実行、346件全パス維持
 - **静的解析**: `flutter analyze` クリーン維持
 - **言語**: UIテキストは日本語、コード・コメントは英語
+
+## Gitコミットルール（重要）
+
+- **改修前にコミット**: 新しい改修を始める前に、現在の変更をコミットする
+- **小さな単位でコミット**: 1つの機能・修正ごとにコミット
+- **コミットメッセージ形式**:
+  ```
+  <type>: <short description>
+
+  [optional body]
+
+  Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+  ```
+- **type**: feat, fix, test, docs, refactor, perf, ci
+- **プッシュ**: コミット後は必ず `git push origin main`
 
 ## 効率化ルール
 
