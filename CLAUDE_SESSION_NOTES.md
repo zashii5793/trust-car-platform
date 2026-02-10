@@ -41,7 +41,32 @@
 
 ---
 
-## 次回やること
+## 次回やること（優先）
+
+### 車検・点検情報システム拡張
+詳細: `docs/INSPECTION_SYSTEM_GAP_ANALYSIS.md`
+
+**モデル項目追加（明日実装予定）**
+1. **Vehicle拡張**
+   - 初年度登録日、駆動方式、ミッション種別、車両重量、乗車定員
+   - 任意保険情報（保険会社・証券番号・満了日）
+
+2. **MaintenanceRecord拡張**
+   - 担当スタッフ、合否結果、車検証更新記録
+   - 作業項目リスト（WorkItem）、使用部品リスト（Part）
+
+3. **新モデル追加**
+   - Invoice（請求書：部品代・工賃・諸費用・支払状況）
+   - Document（書類管理：車検証コピー・見積書PDF等）
+   - ServiceMenu（サービスメニュー管理）
+
+4. **MaintenanceType enum拡張**
+   - 板金・塗装（bodyRepair）
+   - ガラスコーティング（glassCoating）
+   - カーフィルム（carFilm）
+   - カスタム・ドレスアップ（customization）
+
+---
 
 ### 機能ロードマップ
 `docs/FEATURE_SPEC.md` の追加機能要望リストを参照

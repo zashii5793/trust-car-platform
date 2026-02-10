@@ -1,0 +1,56 @@
+# Claude Code - トークン消費を減らすため除外するファイル
+
+# ビルド成果物・生成ファイル
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.g.dart
+*.freezed.dart
+*.mocks.dart
+
+# プラットフォーム固有（通常編集しない）
+android/
+ios/
+macos/
+linux/
+windows/
+web/
+
+# 依存関係
+.pub-cache/
+.pub/
+
+# ドキュメント・API生成
+**/doc/api/
+
+# テストカバレッジ
+coverage/
+
+# IDE設定
+.idea/
+.vscode/
+*.iml
+
+# ログ・一時ファイル
+*.log
+.DS_Store
+
+# ロックファイル（大きい）
+pubspec.lock
+
+# 画像・アセット（大きい）
+assets/images/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+
+# フォント
+assets/fonts/
+*.ttf
+*.otf
+*.woff
+*.woff2
