@@ -1,6 +1,6 @@
 # Claude開発セッションメモ
 
-## 現在の状態（2024-02-09更新）
+## 現在の状態（2024-02-11更新）
 
 ### 完了済み
 - **P0**: 車検・保険アラート、バリデーション強化、走行距離整合性チェック
@@ -11,6 +11,7 @@
 - **Phase 3.6**: DI完全化、Providerテスト追加
 - **Phase 4**: オフラインサポート、プッシュ通知、E2Eテスト環境整備、CI/CD
 - **Phase 4.5**: パフォーマンス・品質改善（エキスパート分析に基づく）
+- **Phase 5 モデル拡張**: 車検・点検情報システム対応
 
 ### Phase 4.5 詳細（2024-02-09）
 - **Critical課題対応**
@@ -41,30 +42,51 @@
 
 ---
 
+### Phase 5 モデル拡張 詳細（2024-02-11）
+
+**Vehicle拡張** ✅
+- `DriveType` enum: FF/FR/4WD/MR/RR
+- `TransmissionType` enum: AT/MT/CVT/DCT/AMT
+- `VoluntaryInsurance` 埋め込みモデル（保険会社・証券番号・満了日・代理店）
+- 新フィールド: firstRegistrationDate, vehicleWeight, seatingCapacity
+
+**MaintenanceRecord拡張** ✅
+- 新サービスタイプ: bodyRepair, glassCoating, carFilm, customization等
+- `InspectionResult` enum: 合格/不合格/条件付合格
+- `WorkItem` サブモデル: 作業項目・工賃・作業時間
+- `Part` サブモデル: 部品番号・単価・数量
+- 担当スタッフ、車検証更新フラグ、金額内訳
+
+**新モデル** ✅
+- `Invoice`: 請求書（金額内訳・支払状況・期限管理）
+- `Document`: 書類管理（種別・ファイルURL・有効期限）
+- `ServiceMenu`: サービスメニュー（カテゴリ・料金・作業時間）
+
+テスト: 27件追加、全テスト合格
+
+---
+
 ## 次回やること（優先）
 
-### 車検・点検情報システム拡張
+### Phase 5 続き
 詳細: `docs/INSPECTION_SYSTEM_GAP_ANALYSIS.md`
 
-**モデル項目追加（明日実装予定）**
-1. **Vehicle拡張**
-   - 初年度登録日、駆動方式、ミッション種別、車両重量、乗車定員
-   - 任意保険情報（保険会社・証券番号・満了日）
+**残りの実装項目**
+1. **AppUser拡張**（中優先度）
+   - 顧客詳細情報（電話番号、住所、法人/個人区分等）
 
-2. **MaintenanceRecord拡張**
-   - 担当スタッフ、合否結果、車検証更新記録
-   - 作業項目リスト（WorkItem）、使用部品リスト（Part）
+2. **Service/Provider追加**
+   - InvoiceService / InvoiceProvider
+   - DocumentService / DocumentProvider
+   - ServiceMenuService / ServiceMenuProvider
 
-3. **新モデル追加**
-   - Invoice（請求書：部品代・工賃・諸費用・支払状況）
-   - Document（書類管理：車検証コピー・見積書PDF等）
-   - ServiceMenu（サービスメニュー管理）
+3. **画面追加**
+   - 請求書一覧・詳細画面
+   - 書類管理画面
+   - サービスメニュー選択画面
 
-4. **MaintenanceType enum拡張**
-   - 板金・塗装（bodyRepair）
-   - ガラスコーティング（glassCoating）
-   - カーフィルム（carFilm）
-   - カスタム・ドレスアップ（customization）
+4. **Firebase Rules更新**
+   - invoices, documents, serviceMenus コレクション追加
 
 ---
 
