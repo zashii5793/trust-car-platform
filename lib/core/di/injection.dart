@@ -13,6 +13,9 @@ import '../../services/invoice_ocr_service.dart';
 import '../../services/pdf_export_service.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/image_processing_service.dart';
+import '../../services/invoice_service.dart';
+import '../../services/document_service.dart';
+import '../../services/service_menu_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -57,6 +60,11 @@ class Injection {
 
     // Image Processing Service
     locator.registerLazySingleton<ImageProcessingService>(() => ImageProcessingService());
+
+    // Phase 5: Invoice, Document, ServiceMenu Services
+    locator.registerLazySingleton<InvoiceService>(() => InvoiceService());
+    locator.registerLazySingleton<DocumentService>(() => DocumentService());
+    locator.registerLazySingleton<ServiceMenuService>(() => ServiceMenuService());
 
     _initialized = true;
   }

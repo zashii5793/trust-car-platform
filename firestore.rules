@@ -63,6 +63,42 @@ service cloud.firestore {
       allow update, delete: if isDocumentOwner();
     }
 
+    // 請求書データ (Phase 5)
+    match /invoices/{invoiceId} {
+      // 自分の請求書のみ読み取り可能
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // 作成時は自分のユーザーIDを設定していること
+      allow create: if isCreatingOwnDocument();
+
+      // 更新・削除は所有者のみ
+      allow update, delete: if isDocumentOwner();
+    }
+
+    // 書類データ (Phase 5)
+    match /documents/{documentId} {
+      // 自分の書類のみ読み取り可能
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // 作成時は自分のユーザーIDを設定していること
+      allow create: if isCreatingOwnDocument();
+
+      // 更新・削除は所有者のみ
+      allow update, delete: if isDocumentOwner();
+    }
+
+    // サービスメニューデータ (Phase 5)
+    match /service_menus/{menuId} {
+      // 有効なメニューは認証済みユーザーなら誰でも読み取り可能
+      allow read: if isAuthenticated();
+
+      // 作成・更新・削除は管理者のみ（BtoBフェーズで実装予定）
+      // 現在は認証済みユーザーで自店舗のメニューのみ
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() &&
+        (resource.data.shopId == '' || resource.data.shopId == request.auth.uid);
+    }
+
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;
