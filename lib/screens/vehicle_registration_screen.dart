@@ -4,15 +4,18 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import '../models/vehicle.dart';
+import '../models/vehicle_master.dart';
 import '../providers/vehicle_provider.dart';
 import '../services/firebase_service.dart';
 import '../services/vehicle_certificate_ocr_service.dart';
+import '../services/vehicle_master_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
+import '../widgets/vehicle/vehicle_selector_fields.dart';
 import 'package:uuid/uuid.dart';
 import 'document_scanner_screen.dart';
 import 'vehicle_certificate_result_screen.dart';
@@ -28,11 +31,11 @@ class VehicleRegistrationScreen extends StatefulWidget {
 class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // 基本情報
-  final _makerController = TextEditingController();
-  final _modelController = TextEditingController();
+  // 基本情報 (選択式)
+  VehicleMaker? _selectedMaker;
+  VehicleModel? _selectedModel;
+  VehicleGrade? _selectedGrade;
   final _yearController = TextEditingController();
-  final _gradeController = TextEditingController();
   final _mileageController = TextEditingController();
 
   // Phase 1.5: 識別情報
@@ -58,13 +61,11 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   // OCRサービス (DI経由)
   VehicleCertificateOcrService get _ocrService => sl.get<VehicleCertificateOcrService>();
   FirebaseService get _firebaseService => sl.get<FirebaseService>();
+  VehicleMasterService get _masterService => sl.get<VehicleMasterService>();
 
   @override
   void dispose() {
-    _makerController.dispose();
-    _modelController.dispose();
     _yearController.dispose();
-    _gradeController.dispose();
     _mileageController.dispose();
     _licensePlateController.dispose();
     _vinNumberController.dispose();
@@ -131,14 +132,24 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   }
 
   /// OCRデータをフォームに反映
-  void _applyOcrData(VehicleRegistrationData data) {
+  Future<void> _applyOcrData(VehicleRegistrationData data) async {
+    // Try to match OCR maker name to master data
+    if (data.maker.isNotEmpty) {
+      final makersResult = await _masterService.getMakers();
+      makersResult.when(
+        success: (makers) {
+          final matchedMaker = _findMatchingMaker(makers, data.maker);
+          if (matchedMaker != null) {
+            _selectedMaker = matchedMaker;
+            // Try to load and match model
+            _loadAndMatchModel(data.model);
+          }
+        },
+        failure: (_) {},
+      );
+    }
+
     setState(() {
-      if (data.maker.isNotEmpty) {
-        _makerController.text = data.maker;
-      }
-      if (data.model.isNotEmpty) {
-        _modelController.text = data.model;
-      }
       if (data.year != null) {
         _yearController.text = data.year.toString();
       }
@@ -173,7 +184,48 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     });
 
     // 成功メッセージ
-    showSuccessSnackBar(context, '車検証の情報を読み取りました');
+    if (mounted) {
+      showSuccessSnackBar(context, '車検証の情報を読み取りました');
+    }
+  }
+
+  /// Find matching maker from OCR text
+  VehicleMaker? _findMatchingMaker(List<VehicleMaker> makers, String ocrText) {
+    final lowerText = ocrText.toLowerCase();
+    for (final maker in makers) {
+      if (maker.name.toLowerCase().contains(lowerText) ||
+          maker.nameEn.toLowerCase().contains(lowerText) ||
+          lowerText.contains(maker.name.toLowerCase()) ||
+          lowerText.contains(maker.nameEn.toLowerCase())) {
+        return maker;
+      }
+    }
+    return null;
+  }
+
+  /// Load models for maker and try to match OCR model name
+  Future<void> _loadAndMatchModel(String ocrModelName) async {
+    if (_selectedMaker == null || ocrModelName.isEmpty) return;
+
+    final modelsResult = await _masterService.getModelsForMaker(_selectedMaker!.id);
+    modelsResult.when(
+      success: (models) {
+        final lowerText = ocrModelName.toLowerCase();
+        for (final model in models) {
+          if (model.name.toLowerCase().contains(lowerText) ||
+              (model.nameEn?.toLowerCase().contains(lowerText) ?? false) ||
+              lowerText.contains(model.name.toLowerCase())) {
+            if (mounted) {
+              setState(() {
+                _selectedModel = model;
+              });
+            }
+            break;
+          }
+        }
+      },
+      failure: (_) {},
+    );
   }
 
   Future<void> _pickImage() async {
@@ -246,10 +298,10 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       final vehicle = Vehicle(
         id: '',
         userId: _firebaseService.currentUserId ?? '',
-        maker: _makerController.text,
-        model: _modelController.text,
+        maker: _selectedMaker?.name ?? '',
+        model: _selectedModel?.name ?? '',
         year: int.parse(_yearController.text),
-        grade: _gradeController.text,
+        grade: _selectedGrade?.name ?? '',
         mileage: int.parse(_mileageController.text),
         imageUrl: imageUrl,
         createdAt: DateTime.now(),
@@ -389,30 +441,40 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                 ),
                 AppSpacing.verticalSm,
 
-                // メーカー
-                AppTextField(
-                  controller: _makerController,
-                  labelText: 'メーカー *',
-                  hintText: '例: トヨタ',
-                  prefixIcon: const Icon(Icons.business),
+                // メーカー（選択式）
+                MakerSelectorField(
+                  selectedMaker: _selectedMaker,
+                  onChanged: (maker) {
+                    setState(() {
+                      _selectedMaker = maker;
+                      // Reset model and grade when maker changes
+                      _selectedModel = null;
+                      _selectedGrade = null;
+                    });
+                  },
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'メーカーを入力してください';
+                    if (value == null) {
+                      return 'メーカーを選択してください';
                     }
                     return null;
                   },
                 ),
                 AppSpacing.verticalMd,
 
-                // 車種
-                AppTextField(
-                  controller: _modelController,
-                  labelText: '車種 *',
-                  hintText: '例: RAV4',
-                  prefixIcon: const Icon(Icons.directions_car),
+                // 車種（選択式）
+                ModelSelectorField(
+                  makerId: _selectedMaker?.id,
+                  selectedModel: _selectedModel,
+                  onChanged: (model) {
+                    setState(() {
+                      _selectedModel = model;
+                      // Reset grade when model changes
+                      _selectedGrade = null;
+                    });
+                  },
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return '車種を入力してください';
+                    if (value == null) {
+                      return '車種を選択してください';
                     }
                     return null;
                   },
@@ -444,14 +506,17 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                     ),
                     AppSpacing.horizontalSm,
                     Expanded(
-                      child: AppTextField(
-                        controller: _gradeController,
-                        labelText: 'グレード *',
-                        hintText: '例: G',
-                        prefixIcon: const Icon(Icons.star_outline),
+                      child: GradeSelectorField(
+                        modelId: _selectedModel?.id,
+                        selectedGrade: _selectedGrade,
+                        onChanged: (grade) {
+                          setState(() {
+                            _selectedGrade = grade;
+                          });
+                        },
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'グレードを入力';
+                          if (value == null) {
+                            return 'グレードを選択';
                           }
                           return null;
                         },

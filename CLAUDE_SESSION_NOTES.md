@@ -1,6 +1,6 @@
 # Claude開発セッションメモ
 
-## 現在の状態（2024-02-11更新）
+## 現在の状態（2025-02-11更新）
 
 ### 完了済み
 - **P0**: 車検・保険アラート、バリデーション強化、走行距離整合性チェック
@@ -12,95 +12,111 @@
 - **Phase 4**: オフラインサポート、プッシュ通知、E2Eテスト環境整備、CI/CD
 - **Phase 4.5**: パフォーマンス・品質改善（エキスパート分析に基づく）
 - **Phase 5 モデル拡張**: 車検・点検情報システム対応
+- **Phase 5 Service/Provider**: Invoice, Document, ServiceMenu の Service/Provider追加
 
-### Phase 4.5 詳細（2024-02-09）
-- **Critical課題対応**
-  - NotificationProviderエラー型をAppError?に統一
-  - Firestoreキャッシュサイズを100MBに制限（メモリリーク防止）
-  - N+1クエリをバッチ取得に最適化（10+クエリ → 1-2クエリ）
+### Phase 5 詳細（2025-02-11）
 
-- **High課題対応**
-  - ImageProcessingService追加（バリデーション＋圧縮）
-    - サイズ上限: 10MB
-    - 形式チェック: JPEG/PNG/WebP（マジックバイト検出）
-    - 自動圧縮: 最大2000px、JPEG品質85%、目標500KB
-  - FirebaseServiceにuploadProcessedImage()追加
-  - Widgetテスト追加（LoginScreen 13件、AddMaintenanceScreen 4件）
+**モデル拡張** ✅
+- Vehicle: DriveType, TransmissionType, VoluntaryInsurance, etc.
+- MaintenanceRecord: InspectionResult, WorkItem, Part, 新サービスタイプ
+- 新モデル: Invoice, Document, ServiceMenu
 
-- **検証済み（問題なし）**
-  - Firebase Security Rules: firestore.rules, storage.rules適切に設定
-  - Stream購読ライフサイクル: 全Providerで適切なキャンセル・クリーンアップ
-  - エッジケーステスト: 140+テストでカバー
+**Service/Provider追加** ✅
+- InvoiceService / InvoiceProvider
+- DocumentService / DocumentProvider
+- ServiceMenuService / ServiceMenuProvider
+- injection.dart, firestore.rules 更新済み
 
-### 品質スコア: 9.0/10
-- テスト: 346件全パス（+36件）
-- 静的解析: クリーン（info警告1件のみ）
-- アーキテクチャ: 完全統一（services層のみ、全DI適用）
-- セキュリティ: Firebase Rules適切、画像バリデーション追加
-- パフォーマンス: N+1最適化、キャッシュサイズ制限
-- CI/CD: GitHub Actions設定済み
+テスト: 27件追加、全テスト合格、静的解析クリーン
 
 ---
 
-### Phase 5 モデル拡張 詳細（2024-02-11）
+## 企画書との整合性分析（2025-02-11）
 
-**Vehicle拡張** ✅
-- `DriveType` enum: FF/FR/4WD/MR/RR
-- `TransmissionType` enum: AT/MT/CVT/DCT/AMT
-- `VoluntaryInsurance` 埋め込みモデル（保険会社・証券番号・満了日・代理店）
-- 新フィールド: firstRegistrationDate, vehicleWeight, seatingCapacity
+### 方向性OK
+- 車両一元管理 ✅
+- 車検・法定点検管理 ✅
+- 証跡保存（PDF/写真）✅
+- 予測通知（基本）✅
+- 請求書管理 ✅
+- サービスメニュー ✅
 
-**MaintenanceRecord拡張** ✅
-- 新サービスタイプ: bodyRepair, glassCoating, carFilm, customization等
-- `InspectionResult` enum: 合格/不合格/条件付合格
-- `WorkItem` サブモデル: 作業項目・工賃・作業時間
-- `Part` サブモデル: 部品番号・単価・数量
-- 担当スタッフ、車検証更新フラグ、金額内訳
+### 課題（優先度順）
 
-**新モデル** ✅
-- `Invoice`: 請求書（金額内訳・支払状況・期限管理）
-- `Document`: 書類管理（種別・ファイルURL・有効期限）
-- `ServiceMenu`: サービスメニュー（カテゴリ・料金・作業時間）
+#### P0: 車両情報の選択式入力
+**問題**: メーカー/車種/グレードがテキスト入力 → 表記ゆれ発生
+**対応**:
+- VehicleMaster/ModelMaster/GradeMaster モデル作成
+- 初期データ投入（主要国産メーカー）
+- 車両登録画面を選択式に変更
 
-テスト: 27件追加、全テスト合格
+#### P1: AI提案機能（パーツ）
+**問題**: 企画書の核心機能が未実装
+**対応**:
+- パーツ互換性データベース設計
+- AI提案ロジック（車種×ライフスタイル×パーツ）
+- メリット・デメリット生成（LLM連携 or テンプレート）
+
+#### P1: BtoBマーケット基盤
+**問題**: 収益モデルの根幹が未実装
+**対応**:
+- Shop, PartListing, Inquiry モデル実装
+- 管理者ロール追加
+- 事業者認証フロー
+
+#### P2: SNS・コミュニティ
+**対応**:
+- Post, Comment, Like モデル
+- PartReview モデル
+- フィード画面
+
+#### P2: 車両購入レコメンド
+**対応**:
+- 外部API連携（中古車マーケット）
+
+#### P3: ドライブログ・マップ
+**対応**:
+- DriveSession, VisitedPlace モデル
+- マップUI（Google Maps）
 
 ---
 
 ## 次回やること（優先）
 
-### Phase 5 続き
-詳細: `docs/INSPECTION_SYSTEM_GAP_ANALYSIS.md`
+### 1. 車両マスタデータ導入（P0）
+```dart
+// 新規モデル
+class VehicleMaster {
+  final String makerId;
+  final String makerName;      // "トヨタ"
+  final String makerNameEn;    // "Toyota"
+}
 
-**残りの実装項目**
-1. **AppUser拡張**（中優先度）
-   - 顧客詳細情報（電話番号、住所、法人/個人区分等）
+class VehicleModelMaster {
+  final String modelId;
+  final String modelName;      // "プリウス"
+  final String? bodyType;      // "セダン", "SUV"
+  final int? productionStartYear;
+  final int? productionEndYear;
+}
 
-2. **Service/Provider追加**
-   - InvoiceService / InvoiceProvider
-   - DocumentService / DocumentProvider
-   - ServiceMenuService / ServiceMenuProvider
+class GradeMaster {
+  final String gradeId;
+  final String gradeName;      // "S", "G", "Z"
+  final FuelType? fuelType;
+  final DriveType? driveType;
+}
+```
 
-3. **画面追加**
-   - 請求書一覧・詳細画面
-   - 書類管理画面
-   - サービスメニュー選択画面
+### 2. BtoBマーケット基盤（P1）
+- Shop モデル（整備工場/販売店/パーツショップ）
+- PartListing モデル
+- Inquiry モデル
 
-4. **Firebase Rules更新**
-   - invoices, documents, serviceMenus コレクション追加
-
----
-
-### 機能ロードマップ
-`docs/FEATURE_SPEC.md` の追加機能要望リストを参照
-
-**Medium課題（残り）**
-- ドキュメント強化
-- ログ・モニタリング追加
-- パフォーマンス計測
-
-**Phase 5（収益化・拡張）**
-- B1: BtoBカスタムパーツマーケットプレイス
-- B3: 整備工場連携
+### 3. 画面追加
+- 請求書一覧・詳細画面
+- 書類管理画面
+- サービスメニュー選択画面
 
 ---
 
@@ -126,38 +142,30 @@ flutter test 2>&1 | grep -oE '\+[0-9]+' | sort -t+ -k2 -n | tail -1
 ```
 lib/
 ├── core/di/
-│   ├── injection.dart          # 8 Service登録（ImageProcessing含む）
-│   └── service_locator.dart    # ServiceLocator
+│   ├── injection.dart          # Service登録
+│   └── service_locator.dart
 ├── services/                   # すべてResult<T,AppError>対応
-│   ├── firebase_service.dart   # N+1最適化済み
+│   ├── firebase_service.dart
 │   ├── auth_service.dart
-│   ├── recommendation_service.dart
-│   ├── vehicle_certificate_ocr_service.dart
-│   ├── invoice_ocr_service.dart
-│   ├── pdf_export_service.dart
-│   ├── push_notification_service.dart
-│   └── image_processing_service.dart  # Phase 4.5新規
-├── providers/                  # すべてDI注入、テスト有
-│   ├── vehicle_provider.dart
-│   ├── maintenance_provider.dart
-│   ├── auth_provider.dart
-│   ├── notification_provider.dart  # エラー型統一済み
-│   └── connectivity_provider.dart
-├── widgets/common/
-│   └── offline_banner.dart
-├── screens/                    # DI経由でService取得
+│   ├── invoice_service.dart      # Phase 5
+│   ├── document_service.dart     # Phase 5
+│   ├── service_menu_service.dart # Phase 5
 │   └── ...
-└── ...
+├── providers/                  # すべてDI注入
+│   ├── vehicle_provider.dart
+│   ├── invoice_provider.dart     # Phase 5
+│   ├── document_provider.dart    # Phase 5
+│   ├── service_menu_provider.dart # Phase 5
+│   └── ...
+└── models/
+    ├── vehicle.dart              # Phase 5拡張済み
+    ├── maintenance_record.dart   # Phase 5拡張済み
+    ├── invoice.dart              # Phase 5新規
+    ├── document.dart             # Phase 5新規
+    └── service_menu.dart         # Phase 5新規
 
-test/
-├── providers/                  # 100+テスト
-├── services/                   # 70+テスト（ImageProcessing含む）
-├── screens/                    # 52テスト（Widget含む）
-└── ...（合計346テスト）
-
-integration_test/
-├── app_test.dart               # 基本ログインテスト
-└── e2e_full_test.dart          # フルジャーニーテスト
+test/models/
+└── phase5_models_test.dart     # 27テスト
 ```
 
 ---
