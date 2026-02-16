@@ -17,6 +17,7 @@ import '../../services/invoice_service.dart';
 import '../../services/document_service.dart';
 import '../../services/service_menu_service.dart';
 import '../../services/vehicle_master_service.dart';
+import '../../services/part_recommendation_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -69,6 +70,9 @@ class Injection {
 
     // Vehicle Master Service (for maker/model/grade selection)
     locator.registerLazySingleton<VehicleMasterService>(() => VehicleMasterService());
+
+    // Part Recommendation Service (AI-powered part suggestions)
+    locator.registerLazySingleton<PartRecommendationService>(() => PartRecommendationService());
 
     _initialized = true;
   }
