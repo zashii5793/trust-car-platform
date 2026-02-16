@@ -99,6 +99,71 @@ service cloud.firestore {
         (resource.data.shopId == '' || resource.data.shopId == request.auth.uid);
     }
 
+    // 店舗データ (BtoB Marketplace)
+    match /shops/{shopId} {
+      // アクティブな店舗は認証済みユーザーなら誰でも閲覧可能
+      allow read: if isAuthenticated();
+
+      // 店舗の作成・更新・削除は店舗オーナーまたは管理者のみ
+      // 現在はシード用に認証ユーザーに許可（本番では制限必要）
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
+    }
+
+    // パーツリスティングデータ (BtoB Marketplace)
+    match /part_listings/{listingId} {
+      // 有効なリスティングは認証済みユーザーなら誰でも閲覧可能
+      allow read: if isAuthenticated();
+
+      // リスティングの作成・更新・削除は店舗オーナーのみ
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() &&
+        resource.data.shopId == request.auth.uid;
+    }
+
+    // 問い合わせデータ (BtoB Marketplace)
+    match /inquiries/{inquiryId} {
+      // 問い合わせは当事者（ユーザーまたは店舗）のみ閲覧可能
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || resource.data.shopId == request.auth.uid);
+
+      // 作成時は自分のユーザーIDを設定していること
+      allow create: if isCreatingOwnDocument();
+
+      // 更新は当事者のみ
+      allow update: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || resource.data.shopId == request.auth.uid);
+
+      // 削除は不可（履歴保持）
+      allow delete: if false;
+
+      // 問い合わせ内のメッセージ
+      match /messages/{messageId} {
+        // メッセージは問い合わせの当事者のみ閲覧可能
+        allow read: if isAuthenticated();
+
+        // メッセージ作成は当事者のみ
+        allow create: if isAuthenticated();
+
+        // 更新は既読フラグのみ
+        allow update: if isAuthenticated();
+
+        // 削除は不可
+        allow delete: if false;
+      }
+    }
+
+    // 車両マスターデータ (読み取り専用)
+    match /vehicle_masters/{docType} {
+      allow read: if isAuthenticated();
+      allow write: if false;  // 管理者のみ（別途管理画面から更新）
+
+      match /items/{itemId} {
+        allow read: if isAuthenticated();
+        allow write: if false;
+      }
+    }
+
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;
