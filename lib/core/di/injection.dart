@@ -23,6 +23,7 @@ import '../../services/inquiry_service.dart';
 import '../../services/post_service.dart';
 import '../../services/follow_service.dart';
 import '../../services/vehicle_listing_service.dart';
+import '../../services/drive_log_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -89,6 +90,9 @@ class Injection {
 
     // Vehicle Listing Service (Purchase Recommendations)
     locator.registerLazySingleton<VehicleListingService>(() => VehicleListingService());
+
+    // Drive Log Service (Drive Log/Map features)
+    locator.registerLazySingleton<DriveLogService>(() => DriveLogService());
 
     _initialized = true;
   }

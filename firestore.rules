@@ -284,6 +284,81 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ==================== ドライブログ/マップ機能 ====================
+
+    // ドライブログ
+    match /drive_logs/{logId} {
+      // 公開ログは認証済みユーザーなら誰でも閲覧可能
+      // 非公開ログは所有者のみ
+      allow read: if isAuthenticated() &&
+        (resource.data.isPublic == true || resource.data.userId == request.auth.uid);
+
+      // 作成時は自分のユーザーIDを設定していること
+      allow create: if isCreatingOwnDocument();
+
+      // 更新・削除は所有者のみ
+      allow update, delete: if isDocumentOwner();
+    }
+
+    // ウェイポイント（GPSポイント）
+    match /drive_waypoints/{waypointId} {
+      // ウェイポイントは関連するドライブログの所有者のみアクセス可能
+      allow read, write: if isAuthenticated();
+    }
+
+    // ドライブログへのいいね
+    match /drive_log_likes/{likeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // スポット（観光地・立ち寄り地点）
+    match /spots/{spotId} {
+      // 公開スポットは認証済みユーザーなら誰でも閲覧可能
+      allow read: if isAuthenticated() &&
+        (resource.data.isPublic == true || resource.data.userId == request.auth.uid);
+
+      // 作成時は自分のユーザーIDを設定していること
+      allow create: if isCreatingOwnDocument();
+
+      // 更新・削除は所有者のみ
+      allow update, delete: if isDocumentOwner();
+    }
+
+    // スポット評価・レビュー
+    match /spot_ratings/{ratingId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+      // 自分のレビューのみ更新・削除可能
+      allow update, delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+    }
+
+    // スポットお気に入り
+    match /spot_favorites/{favoriteId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // スポット訪問記録
+    match /spot_visits/{visitId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+      // 自分の訪問記録のみ更新・削除可能
+      allow update, delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+    }
+
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;
