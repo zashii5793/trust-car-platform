@@ -164,6 +164,90 @@ service cloud.firestore {
       }
     }
 
+    // ==================== SNS/コミュニティ機能 ====================
+
+    // 投稿データ
+    match /posts/{postId} {
+      // 公開投稿は認証済みユーザーなら誰でも閲覧可能
+      // フォロワー限定・非公開は別途フィルタリング
+      allow read: if isAuthenticated();
+
+      // 作成時は自分のユーザーIDを設定していること
+      allow create: if isCreatingOwnDocument();
+
+      // 更新・削除は所有者のみ
+      allow update, delete: if isDocumentOwner();
+    }
+
+    // コメントデータ
+    match /comments/{commentId} {
+      // コメントは認証済みユーザーなら誰でも閲覧可能
+      allow read: if isAuthenticated();
+
+      // 作成時は自分のユーザーIDを設定していること
+      allow create: if isCreatingOwnDocument();
+
+      // 更新・削除は所有者のみ
+      allow update, delete: if isDocumentOwner();
+    }
+
+    // 投稿へのいいね
+    match /post_likes/{likeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+      allow update: if false;  // いいねの更新は不可
+    }
+
+    // コメントへのいいね
+    match /comment_likes/{likeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // フォロー関係
+    match /follows/{followId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.followerId == request.auth.uid;
+      allow delete: if isAuthenticated() &&
+        resource.data.followerId == request.auth.uid;
+      allow update: if false;  // フォロー関係の更新は不可
+    }
+
+    // ユーザープロフィール（SNS用）
+    match /user_profiles/{userId} {
+      // プロフィールは認証済みユーザーなら誰でも閲覧可能
+      allow read: if isAuthenticated();
+
+      // 更新は自分自身のみ
+      allow create, update: if isOwner(userId);
+      allow delete: if false;  // プロフィール削除は不可
+    }
+
+    // SNS通知
+    match /social_notifications/{notificationId} {
+      // 自分の通知のみ閲覧可能
+      allow read: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+
+      // 通知作成は認証済みユーザー（システム側で作成）
+      allow create: if isAuthenticated();
+
+      // 既読フラグの更新のみ許可
+      allow update: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+
+      allow delete: if false;
+    }
+
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;

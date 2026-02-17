@@ -20,6 +20,8 @@ import '../../services/vehicle_master_service.dart';
 import '../../services/part_recommendation_service.dart';
 import '../../services/shop_service.dart';
 import '../../services/inquiry_service.dart';
+import '../../services/post_service.dart';
+import '../../services/follow_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -79,6 +81,10 @@ class Injection {
     // BtoB Marketplace Services
     locator.registerLazySingleton<ShopService>(() => ShopService());
     locator.registerLazySingleton<InquiryService>(() => InquiryService());
+
+    // SNS/Community Services
+    locator.registerLazySingleton<PostService>(() => PostService());
+    locator.registerLazySingleton<FollowService>(() => FollowService());
 
     _initialized = true;
   }
