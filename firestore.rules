@@ -248,6 +248,42 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ==================== 車両購入レコメンド ====================
+
+    // 車両リスティング（販売情報）
+    match /vehicle_listings/{listingId} {
+      // アクティブなリスティングは認証済みユーザーなら誰でも閲覧可能
+      allow read: if isAuthenticated();
+
+      // 作成時は自分のユーザーIDを設定していること
+      allow create: if isCreatingOwnDocument();
+
+      // 更新は出品者のみ（sellerId）
+      allow update: if isAuthenticated() &&
+        resource.data.sellerId == request.auth.uid;
+
+      // 削除は出品者のみ
+      allow delete: if isAuthenticated() &&
+        resource.data.sellerId == request.auth.uid;
+    }
+
+    // お気に入り
+    match /listing_favorites/{favoriteId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // ユーザーの車両購入設定
+    match /vehicle_preferences/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId);
+      allow delete: if false;
+    }
+
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;
