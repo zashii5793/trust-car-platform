@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trust Car Platform — Pitch Deck</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --primary: #1a1a2e;
+    --accent: #e94560;
+    --accent2: #0f3460;
+    --gold: #f5a623;
+    --light: #f8f9fa;
+    --text: #2d2d2d;
+    --gray: #6c757d;
+    --gradient: linear-gradient(135deg, #1a1a2e 0%, #0f3460 50%, #16213e 100%);
+  }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: #0a0a0a;
+    color: var(--text);
+  }
+
+  .slide {
+    width: 1280px;
+    min-height: 720px;
+    margin: 0 auto 4px;
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  /* ===== SLIDE 1: COVER ===== */
+  .slide-cover {
+    background: var(--gradient);
+    color: white;
+    align-items: center;
+    text-align: center;
+    padding: 60px;
+  }
+
+  .slide-cover .logo-area {
+    margin-bottom: 40px;
+  }
+
+  .slide-cover .logo-icon {
+    font-size: 80px;
+    display: block;
+    margin-bottom: 16px;
+    filter: drop-shadow(0 0 20px rgba(233,69,96,0.6));
+  }
+
+  .slide-cover h1 {
+    font-size: 64px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    background: linear-gradient(90deg, #fff 0%, #f5a623 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 16px;
+  }
+
+  .slide-cover .tagline {
+    font-size: 28px;
+    font-weight: 300;
+    color: rgba(255,255,255,0.85);
+    margin-bottom: 48px;
+    letter-spacing: 2px;
+  }
+
+  .slide-cover .badges {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 24px;
+    padding: 8px 20px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.9);
+    backdrop-filter: blur(8px);
+  }
+
+  /* ===== SLIDE 2: PROBLEM ===== */
+  .slide-problem {
+    background: var(--light);
+    padding: 60px 80px;
+  }
+
+  .slide-label {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  .slide-title {
+    font-size: 48px;
+    font-weight: 900;
+    color: var(--primary);
+    line-height: 1.2;
+    margin-bottom: 48px;
+  }
+
+  .problem-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 28px;
+  }
+
+  .problem-card {
+    background: white;
+    border-radius: 16px;
+    padding: 32px 28px;
+    border-left: 4px solid var(--accent);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  }
+
+  .problem-card .icon {
+    font-size: 40px;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .problem-card h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 12px;
+  }
+
+  .problem-card p {
+    font-size: 14px;
+    color: var(--gray);
+    line-height: 1.7;
+  }
+
+  .stat-highlight {
+    font-size: 36px;
+    font-weight: 900;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* ===== SLIDE 3: SOLUTION ===== */
+  .slide-solution {
+    background: var(--gradient);
+    color: white;
+    padding: 60px 80px;
+  }
+
+  .slide-solution .slide-title { color: white; }
+  .slide-solution .slide-label { color: var(--gold); }
+
+  .value-pillars {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+  }
+
+  .pillar {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 20px;
+    padding: 40px 32px;
+    text-align: center;
+    backdrop-filter: blur(8px);
+    transition: transform 0.2s;
+  }
+
+  .pillar .pillar-icon {
+    font-size: 56px;
+    display: block;
+    margin-bottom: 20px;
+  }
+
+  .pillar h3 {
+    font-size: 28px;
+    font-weight: 900;
+    margin-bottom: 16px;
+    color: white;
+  }
+
+  .pillar-label {
+    display: inline-block;
+    background: var(--gold);
+    color: var(--primary);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 4px 12px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+  }
+
+  .pillar ul {
+    list-style: none;
+    text-align: left;
+  }
+
+  .pillar ul li {
+    font-size: 13px;
+    color: rgba(255,255,255,0.8);
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-left: 16px;
+    position: relative;
+  }
+
+  .pillar ul li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--gold);
+    font-size: 11px;
+  }
+
+  /* ===== SLIDE 4: FEATURES ===== */
+  .slide-features {
+    background: white;
+    padding: 60px 80px;
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+
+  .feature-card {
+    background: var(--light);
+    border-radius: 12px;
+    padding: 24px 20px;
+    text-align: center;
+    border-top: 3px solid transparent;
+    transition: all 0.2s;
+  }
+
+  .feature-card.safety { border-top-color: #28a745; }
+  .feature-card.fun { border-top-color: #007bff; }
+  .feature-card.unique { border-top-color: var(--accent); }
+  .feature-card.btob { border-top-color: var(--gold); }
+
+  .feature-card .ficon { font-size: 32px; margin-bottom: 12px; display: block; }
+  .feature-card h4 { font-size: 15px; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+  .feature-card p { font-size: 12px; color: var(--gray); line-height: 1.6; }
+
+  .feature-category {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .feature-category::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: currentColor;
+    opacity: 0.2;
+  }
+
+  /* ===== SLIDE 5: MARKET ===== */
+  .slide-market {
+    background: var(--primary);
+    color: white;
+    padding: 60px 80px;
+  }
+
+  .slide-market .slide-label { color: var(--gold); }
+  .slide-market .slide-title { color: white; }
+
+  .market-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: center;
+  }
+
+  .market-circles {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    height: 280px;
+  }
+
+  .market-circle {
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    text-align: center;
+  }
+
+  .tam {
+    width: 280px; height: 280px;
+    background: rgba(245,166,35,0.15);
+    border: 2px solid rgba(245,166,35,0.4);
+  }
+
+  .sam {
+    width: 200px; height: 200px;
+    background: rgba(15,52,96,0.8);
+    border: 2px solid rgba(15,52,96,1);
+  }
+
+  .som {
+    width: 120px; height: 120px;
+    background: var(--accent);
+    border: 2px solid var(--accent);
+  }
+
+  .market-circle .label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    opacity: 0.8;
+  }
+
+  .market-circle .value {
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  .market-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .market-stat {
+    border-left: 3px solid var(--gold);
+    padding-left: 20px;
+  }
+
+  .market-stat .num {
+    font-size: 40px;
+    font-weight: 900;
+    color: var(--gold);
+    line-height: 1;
+  }
+
+  .market-stat .desc {
+    font-size: 14px;
+    color: rgba(255,255,255,0.7);
+    margin-top: 4px;
+  }
+
+  /* ===== SLIDE 6: BUSINESS MODEL ===== */
+  .slide-biz {
+    background: var(--light);
+    padding: 60px 80px;
+  }
+
+  .biz-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 28px;
+  }
+
+  .biz-card {
+    background: white;
+    border-radius: 20px;
+    padding: 36px 28px;
+    text-align: center;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .biz-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+  }
+
+  .biz-card.phase1::before { background: #28a745; }
+  .biz-card.phase2::before { background: var(--accent2); }
+  .biz-card.phase3::before { background: var(--accent); }
+
+  .biz-phase {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gray);
+    margin-bottom: 12px;
+  }
+
+  .biz-card h3 {
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--primary);
+    margin-bottom: 12px;
+  }
+
+  .biz-card .price {
+    font-size: 36px;
+    font-weight: 900;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  .biz-card .price-sub {
+    font-size: 13px;
+    color: var(--gray);
+    margin-bottom: 20px;
+  }
+
+  .biz-card ul {
+    list-style: none;
+    text-align: left;
+  }
+
+  .biz-card ul li {
+    font-size: 13px;
+    color: var(--gray);
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .biz-card ul li::before { content: '✓'; color: #28a745; font-weight: 700; }
+
+  /* ===== SLIDE 7: ROADMAP ===== */
+  .slide-roadmap {
+    background: var(--gradient);
+    color: white;
+    padding: 60px 80px;
+  }
+
+  .slide-roadmap .slide-label { color: var(--gold); }
+  .slide-roadmap .slide-title { color: white; }
+
+  .roadmap-timeline {
+    display: flex;
+    gap: 0;
+    position: relative;
+    margin-top: 20px;
+  }
+
+  .roadmap-timeline::before {
+    content: '';
+    position: absolute;
+    top: 24px;
+    left: 0; right: 0;
+    height: 2px;
+    background: rgba(255,255,255,0.2);
+  }
+
+  .roadmap-phase {
+    flex: 1;
+    padding-top: 60px;
+    position: relative;
+    padding-right: 16px;
+  }
+
+  .roadmap-dot {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 14px;
+  }
+
+  .roadmap-dot.done { background: var(--gold); color: var(--primary); }
+  .roadmap-dot.active { background: var(--accent); color: white; box-shadow: 0 0 20px rgba(233,69,96,0.5); }
+  .roadmap-dot.future { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.5); }
+
+  .roadmap-phase .period {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+
+  .roadmap-phase h4 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: white;
+  }
+
+  .roadmap-phase ul {
+    list-style: none;
+  }
+
+  .roadmap-phase ul li {
+    font-size: 12px;
+    color: rgba(255,255,255,0.65);
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding-left: 12px;
+    position: relative;
+  }
+
+  .roadmap-phase ul li::before {
+    content: '·';
+    position: absolute;
+    left: 0;
+    color: var(--gold);
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  /* ===== SLIDE 8: TRACTION ===== */
+  .slide-traction {
+    background: white;
+    padding: 60px 80px;
+  }
+
+  .traction-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    margin-bottom: 40px;
+  }
+
+  .traction-num {
+    background: var(--light);
+    border-radius: 16px;
+    padding: 28px 20px;
+    text-align: center;
+  }
+
+  .traction-num .big {
+    font-size: 48px;
+    font-weight: 900;
+    color: var(--primary);
+    line-height: 1;
+  }
+
+  .traction-num .big span {
+    font-size: 24px;
+    color: var(--accent);
+  }
+
+  .traction-num .label {
+    font-size: 13px;
+    color: var(--gray);
+    margin-top: 8px;
+  }
+
+  .tech-stack {
+    background: var(--light);
+    border-radius: 16px;
+    padding: 28px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .tech-stack .stack-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--gray);
+    margin-right: 8px;
+  }
+
+  .tech-tag {
+    background: var(--primary);
+    color: white;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .tech-tag.flutter { background: #54c5f8; color: #0468d7; }
+  .tech-tag.firebase { background: #ffca28; color: #e65100; }
+  .tech-tag.dart { background: #0175c2; }
+  .tech-tag.ai { background: var(--accent); }
+
+  /* ===== SLIDE 9: TEAM & ASK ===== */
+  .slide-ask {
+    background: var(--gradient);
+    color: white;
+    padding: 60px 80px;
+    align-items: center;
+    text-align: center;
+  }
+
+  .slide-ask .slide-label { color: var(--gold); }
+
+  .ask-headline {
+    font-size: 56px;
+    font-weight: 900;
+    color: white;
+    margin-bottom: 16px;
+    line-height: 1.2;
+  }
+
+  .ask-sub {
+    font-size: 20px;
+    color: rgba(255,255,255,0.7);
+    margin-bottom: 48px;
+    font-weight: 300;
+  }
+
+  .ask-uses {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    margin-bottom: 48px;
+  }
+
+  .ask-use-item {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 16px;
+    padding: 28px 24px;
+    text-align: center;
+    min-width: 200px;
+    backdrop-filter: blur(8px);
+  }
+
+  .ask-use-item .pct {
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--gold);
+  }
+
+  .ask-use-item .pct-label {
+    font-size: 13px;
+    color: rgba(255,255,255,0.7);
+    margin-top: 8px;
+  }
+
+  .contact-line {
+    font-size: 16px;
+    color: rgba(255,255,255,0.6);
+  }
+
+  .contact-line strong { color: white; }
+
+  /* ===== PRINT / PAGE ===== */
+  @media print {
+    body { background: white; }
+    .slide { margin: 0; page-break-after: always; break-after: page; }
+    @page { size: 1280px 720px; margin: 0; }
+  }
+
+  /* Slide number */
+  .slide-number {
+    position: absolute;
+    bottom: 20px;
+    right: 28px;
+    font-size: 12px;
+    color: rgba(128,128,128,0.5);
+    font-weight: 500;
+  }
+
+  /* Print button */
+  .print-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: #1a1a2e;
+    color: white;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 999;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  }
+
+  .print-bar .title { font-size: 15px; font-weight: 700; color: #f5a623; }
+  .print-bar .subtitle { font-size: 12px; color: rgba(255,255,255,0.6); }
+
+  .print-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 0.5px;
+  }
+
+  .print-btn:hover { background: #c73652; }
+
+  .slides-container { padding-top: 52px; display: flex; flex-direction: column; gap: 4px; }
+
+  @media print { .print-bar { display: none; } .slides-container { padding-top: 0; gap: 0; } }
+</style>
+</head>
+<body>
+
+<div class="print-bar">
+  <div>
+    <div class="title">Trust Car Platform — Pitch Deck</div>
+    <div class="subtitle">印刷する際は「Ctrl+P → PDFに保存」→ 用紙サイズ「カスタム: 1280×720px」または「A4横」を推奨</div>
+  </div>
+  <button class="print-btn" onclick="window.print()">🖨 PDFとして保存</button>
+</div>
+
+<div class="slides-container">
+
+<!-- ===== SLIDE 1: COVER ===== -->
+<div class="slide slide-cover">
+  <div class="logo-area">
+    <span class="logo-icon">🚗</span>
+    <h1>Trust Car Platform</h1>
+    <p class="tagline">クルマをもっと安全に、楽しく、個性的に。</p>
+    <div class="badges">
+      <span class="badge">Flutter × Firebase</span>
+      <span class="badge">AI パーツ推奨</span>
+      <span class="badge">BtoB マーケットプレイス</span>
+      <span class="badge">SNS コミュニティ</span>
+      <span class="badge">2026 年リリース予定</span>
+    </div>
+  </div>
+  <div class="slide-number">1 / 9</div>
+</div>
+
+<!-- ===== SLIDE 2: PROBLEM ===== -->
+<div class="slide slide-problem">
+  <div class="slide-label">Problem</div>
+  <h2 class="slide-title">クルマのオーナーが<br>日々直面する3つの課題</h2>
+  <div class="problem-grid">
+    <div class="problem-card">
+      <span class="icon">⚠️</span>
+      <span class="stat-highlight">42%</span>
+      <h3>気づかない劣化・期限切れ</h3>
+      <p>車検・保険の期限を見落とす。オイル交換・タイヤ交換のタイミングを感覚で判断。整備記録が紙やレシートで散逸し、適切なメンテナンス時期を逃す。</p>
+    </div>
+    <div class="problem-card">
+      <span class="icon">🔍</span>
+      <span class="stat-highlight">68%</span>
+      <h3>パーツ選びの不安と手間</h3>
+      <p>自分の車に合うパーツが分からない。互換性確認に時間がかかる。整備工場への依頼コストが不透明で、信頼できる業者を見つけにくい。</p>
+    </div>
+    <div class="problem-card">
+      <span class="icon">🏝️</span>
+      <span class="stat-highlight">3,000万台</span>
+      <h3>クルマ体験の孤立化</h3>
+      <p>愛車を共有・自慢できる場所が少ない。ドライブの思い出が残らない。同じ車種・趣味を持つ仲間と繋がれない。購入検討時に信頼できる情報源がない。</p>
+    </div>
+  </div>
+  <div class="slide-number">2 / 9</div>
+</div>
+
+<!-- ===== SLIDE 3: SOLUTION ===== -->
+<div class="slide slide-solution">
+  <div class="slide-label">Solution</div>
+  <h2 class="slide-title" style="margin-bottom:40px;">1つのアプリで、3つの価値を実現</h2>
+  <div class="value-pillars">
+    <div class="pillar">
+      <span class="pillar-icon">🛡️</span>
+      <h3>安全</h3>
+      <span class="pillar-label">Safety First</span>
+      <ul>
+        <li>車検・保険期限を自動アラート</li>
+        <li>22種類のメンテナンス記録管理</li>
+        <li>OCRで車検証・請求書を自動入力</li>
+        <li>走行距離ベースのメンテ推奨</li>
+        <li>整備コスト統計・見える化</li>
+      </ul>
+    </div>
+    <div class="pillar">
+      <span class="pillar-icon">🎉</span>
+      <h3>楽しく</h3>
+      <span class="pillar-label">Joyful Driving</span>
+      <ul>
+        <li>ドライブログ・訪問地マップ</li>
+        <li>SNSで愛車を投稿・共有</li>
+        <li>同じ車種オーナーとつながる</li>
+        <li>整備記録をPDFでシェア</li>
+        <li>コミュニティ内パーツレビュー</li>
+      </ul>
+    </div>
+    <div class="pillar">
+      <span class="pillar-icon">✨</span>
+      <h3>個性的に</h3>
+      <span class="pillar-label">Be Unique</span>
+      <ul>
+        <li>AIが車種×ライフスタイルでパーツ提案</li>
+        <li>BtoBマーケットで整備工場と直接繋がる</li>
+        <li>カスタム履歴を一元管理</li>
+        <li>中古車購入レコメンド</li>
+        <li>パーツ互換性データベース</li>
+      </ul>
+    </div>
+  </div>
+  <div class="slide-number">3 / 9</div>
+</div>
+
+<!-- ===== SLIDE 4: FEATURES ===== -->
+<div class="slide slide-features">
+  <div class="slide-label">Product</div>
+  <h2 class="slide-title" style="margin-bottom:32px;">主要機能一覧</h2>
+  <div style="display:grid; grid-template-columns: repeat(4,1fr); gap:16px;">
+
+    <div class="feature-card safety">
+      <span class="ficon">📋</span>
+      <h4>車両情報管理</h4>
+      <p>メーカー・車種・年式・グレード・走行距離を一元管理。選択式入力で表記ゆれを解消。</p>
+    </div>
+    <div class="feature-card safety">
+      <span class="ficon">🔧</span>
+      <h4>整備記録</h4>
+      <p>22種類のメンテナンスタイプ。費用・工場・部品情報を記録し統計グラフで可視化。</p>
+    </div>
+    <div class="feature-card safety">
+      <span class="ficon">📷</span>
+      <h4>OCR自動入力</h4>
+      <p>車検証・請求書をカメラで撮影するだけで情報を自動抽出。入力ミスゼロ。</p>
+    </div>
+    <div class="feature-card safety">
+      <span class="ficon">🔔</span>
+      <h4>期限アラート</h4>
+      <p>車検・自賠責の期限を色分け表示＋プッシュ通知。見落としを完全防止。</p>
+    </div>
+
+    <div class="feature-card fun">
+      <span class="ficon">🗺️</span>
+      <h4>ドライブログ</h4>
+      <p>走行ルートと訪問スポットを自動記録。思い出のドライブを地図で振り返る。</p>
+    </div>
+    <div class="feature-card fun">
+      <span class="ficon">📱</span>
+      <h4>SNSコミュニティ</h4>
+      <p>愛車写真を投稿・フォロー・いいね。同じ車種オーナーと繋がれるカーSNS。</p>
+    </div>
+    <div class="feature-card fun">
+      <span class="ficon">📊</span>
+      <h4>統計・可視化</h4>
+      <p>年間整備コスト推移、月別支出、タイプ別内訳をグラフで確認。</p>
+    </div>
+    <div class="feature-card fun">
+      <span class="ficon">📄</span>
+      <h4>PDF出力</h4>
+      <p>整備記録をPDFエクスポート。売却時の整備履歴書として活用可能。</p>
+    </div>
+
+    <div class="feature-card unique">
+      <span class="ficon">🤖</span>
+      <h4>AIパーツ提案</h4>
+      <p>車種×走行距離×ライフスタイルからAIが最適なパーツをレコメンド。</p>
+    </div>
+    <div class="feature-card unique">
+      <span class="ficon">🏪</span>
+      <h4>BtoBマーケット</h4>
+      <p>整備工場・パーツ販売店に直接問い合わせ。透明性のある価格比較。</p>
+    </div>
+    <div class="feature-card unique">
+      <span class="ficon">🚙</span>
+      <h4>車両購入レコメンド</h4>
+      <p>条件・予算・ライフスタイルから最適な中古車を提案。</p>
+    </div>
+    <div class="feature-card btob">
+      <span class="ficon">🔐</span>
+      <h4>セキュア認証</h4>
+      <p>Google認証対応。Firebaseセキュリティでデータを完全保護。</p>
+    </div>
+  </div>
+  <div class="slide-number">4 / 9</div>
+</div>
+
+<!-- ===== SLIDE 5: MARKET ===== -->
+<div class="slide slide-market">
+  <div class="slide-label">Market Opportunity</div>
+  <h2 class="slide-title">巨大な国内カー市場</h2>
+  <div class="market-layout">
+    <div class="market-circles">
+      <div class="market-circle tam">
+        <span class="label">TAM</span>
+        <span class="value" style="color:rgba(245,166,35,0.9);font-size:14px;">国内自動車関連市場</span>
+        <span class="value" style="color:#f5a623;">約50兆円</span>
+      </div>
+      <div class="market-circle sam">
+        <span class="label" style="color:rgba(255,255,255,0.7);">SAM</span>
+        <span class="value" style="font-size:13px;">整備・カーSNS</span>
+        <span class="value" style="font-size:16px;color:#7fb3f5;">約2兆円</span>
+      </div>
+      <div class="market-circle som">
+        <span class="label" style="color:rgba(255,255,255,0.9);font-size:10px;">SOM</span>
+        <span class="value" style="font-size:13px;">初年度目標</span>
+      </div>
+    </div>
+    <div class="market-stats">
+      <div class="market-stat">
+        <div class="num">8,000万台</div>
+        <div class="desc">国内保有自動車台数（2024年）</div>
+      </div>
+      <div class="market-stat">
+        <div class="num">約6.5兆円</div>
+        <div class="desc">国内自動車整備市場規模（年間）</div>
+      </div>
+      <div class="market-stat">
+        <div class="num">67%</div>
+        <div class="desc">スマートフォン保有者のうちカー関連アプリ使用経験者</div>
+      </div>
+      <div class="market-stat">
+        <div class="num">BtoB × BtoC</div>
+        <div class="desc">整備工場・パーツ業者からの手数料収益 × サブスクモデル</div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-number">5 / 9</div>
+</div>
+
+<!-- ===== SLIDE 6: BUSINESS MODEL ===== -->
+<div class="slide slide-biz">
+  <div class="slide-label">Business Model</div>
+  <h2 class="slide-title">3フェーズ収益モデル</h2>
+  <div class="biz-grid">
+    <div class="biz-card phase1">
+      <div class="biz-phase">Phase 1 — 2026年前半</div>
+      <h3>フリーミアム</h3>
+      <div class="price">無料</div>
+      <div class="price-sub">基本機能は永続無料</div>
+      <ul>
+        <li>車両管理・整備記録</li>
+        <li>OCR自動入力（月5回）</li>
+        <li>アラート通知</li>
+        <li>SNS基本機能</li>
+      </ul>
+    </div>
+    <div class="biz-card phase2">
+      <div class="biz-phase">Phase 2 — 2026年後半</div>
+      <h3>プレミアム</h3>
+      <div class="price">¥480<span style="font-size:16px;">/月</span></div>
+      <div class="price-sub">プロオーナー向けプラン</div>
+      <ul>
+        <li>OCR無制限</li>
+        <li>PDF無制限出力</li>
+        <li>AIパーツ提案（フル機能）</li>
+        <li>広告非表示</li>
+      </ul>
+    </div>
+    <div class="biz-card phase3">
+      <div class="biz-phase">Phase 3 — 2027年〜</div>
+      <h3>BtoBマーケット</h3>
+      <div class="price">手数料<span style="font-size:16px;"> 3〜8%</span></div>
+      <div class="price-sub">整備工場・パーツ業者向け</div>
+      <ul>
+        <li>掲載・集客プラン</li>
+        <li>問い合わせ成約手数料</li>
+        <li>パーツ販売手数料</li>
+        <li>データインサイト提供</li>
+      </ul>
+    </div>
+  </div>
+  <div class="slide-number">6 / 9</div>
+</div>
+
+<!-- ===== SLIDE 7: ROADMAP ===== -->
+<div class="slide slide-roadmap">
+  <div class="slide-label">Roadmap</div>
+  <h2 class="slide-title" style="margin-bottom:20px;">開発ロードマップ</h2>
+  <div class="roadmap-timeline">
+    <div class="roadmap-phase">
+      <div class="roadmap-dot done">✓</div>
+      <div class="period">2025年〜2026年2月</div>
+      <h4>Phase 1-5 完了</h4>
+      <ul>
+        <li>コア機能実装（車両・整備・OCR）</li>
+        <li>認証・アラート・PDF出力</li>
+        <li>SNS・マーケット基盤モデル</li>
+        <li>ロギング・パフォーマンス監視</li>
+        <li>テスト434件全パス</li>
+      </ul>
+    </div>
+    <div class="roadmap-phase">
+      <div class="roadmap-dot active">●</div>
+      <div class="period">2026年 Q1</div>
+      <h4>Phase 6 ← 今ここ</h4>
+      <ul>
+        <li>車両マスタ（CSV投入）</li>
+        <li>メーカー/車種選択式UI</li>
+        <li>BtoBマーケット画面実装</li>
+        <li>Firestoreインデックス最適化</li>
+      </ul>
+    </div>
+    <div class="roadmap-phase">
+      <div class="roadmap-dot future">○</div>
+      <div class="period">2026年 Q2</div>
+      <h4>Phase 7</h4>
+      <ul>
+        <li>AIパーツ提案ロジック実装</li>
+        <li>SNSフィード画面</li>
+        <li>ドライブログ × マップUI</li>
+        <li>App Store / Google Play 申請</li>
+      </ul>
+    </div>
+    <div class="roadmap-phase">
+      <div class="roadmap-dot future">○</div>
+      <div class="period">2026年 Q3</div>
+      <h4>Phase 8</h4>
+      <ul>
+        <li>プレミアムプラン決済導入</li>
+        <li>整備工場パートナー開拓</li>
+        <li>車両購入レコメンド（外部API）</li>
+        <li>E2Eテスト・CI/CD強化</li>
+      </ul>
+    </div>
+    <div class="roadmap-phase">
+      <div class="roadmap-dot future">○</div>
+      <div class="period">2027年〜</div>
+      <h4>Phase 9+</h4>
+      <ul>
+        <li>BtoBマーケット本格展開</li>
+        <li>データインサイト事業</li>
+        <li>法人向けフリート管理</li>
+        <li>海外展開検討</li>
+      </ul>
+    </div>
+  </div>
+  <div class="slide-number">7 / 9</div>
+</div>
+
+<!-- ===== SLIDE 8: TRACTION ===== -->
+<div class="slide slide-traction">
+  <div class="slide-label">Traction & Technology</div>
+  <h2 class="slide-title" style="margin-bottom:32px;">開発進捗と技術基盤</h2>
+  <div class="traction-grid">
+    <div class="traction-num">
+      <div class="big">434<span>件</span></div>
+      <div class="label">自動テスト（全パス）</div>
+    </div>
+    <div class="traction-num">
+      <div class="big">9.0<span>/10</span></div>
+      <div class="label">コード品質スコア</div>
+    </div>
+    <div class="traction-num">
+      <div class="big">22<span>種</span></div>
+      <div class="label">整備タイプ対応</div>
+    </div>
+    <div class="traction-num">
+      <div class="big">19<span>個</span></div>
+      <div class="label">実装済みサービス</div>
+    </div>
+  </div>
+  <div class="tech-stack">
+    <span class="stack-label">Tech Stack:</span>
+    <span class="tech-tag flutter">Flutter 3</span>
+    <span class="tech-tag firebase">Firebase</span>
+    <span class="tech-tag dart">Dart</span>
+    <span class="tech-tag ai">ML Kit OCR</span>
+    <span class="tech-tag" style="background:#4285f4;">Google Auth</span>
+    <span class="tech-tag" style="background:#ff6d00;">Firebase Crashlytics</span>
+    <span class="tech-tag" style="background:#43a047;">Provider</span>
+    <span class="tech-tag" style="background:#6a1b9a;">Result&lt;T, AppError&gt;</span>
+  </div>
+  <div class="slide-number">8 / 9</div>
+</div>
+
+<!-- ===== SLIDE 9: ASK ===== -->
+<div class="slide slide-ask">
+  <div class="slide-label">The Ask</div>
+  <div class="ask-headline">Together, let's<br>reimagine car ownership.</div>
+  <p class="ask-sub">クルマのある生活を、もっとスマートに。もっと楽しく。</p>
+  <div class="ask-uses">
+    <div class="ask-use-item">
+      <div class="pct">40%</div>
+      <div class="pct-label">プロダクト開発<br>（機能実装・テスト）</div>
+    </div>
+    <div class="ask-use-item">
+      <div class="pct">30%</div>
+      <div class="pct-label">マーケティング<br>（ユーザー獲得）</div>
+    </div>
+    <div class="ask-use-item">
+      <div class="pct">20%</div>
+      <div class="pct-label">BtoBパートナー<br>開拓・営業</div>
+    </div>
+    <div class="ask-use-item">
+      <div class="pct">10%</div>
+      <div class="pct-label">インフラ・運用<br>（Firebase等）</div>
+    </div>
+  </div>
+  <p class="contact-line">
+    <strong>Trust Car Platform</strong> &nbsp;|&nbsp; Flutter × Firebase × AI &nbsp;|&nbsp; 2026 Launch
+  </p>
+  <div class="slide-number">9 / 9</div>
+</div>
+
+</div><!-- /slides-container -->
+</body>
+</html>
