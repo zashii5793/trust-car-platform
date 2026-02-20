@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import '../models/vehicle.dart';
+import '../models/vehicle_master.dart';
 import '../providers/vehicle_provider.dart';
 import '../services/firebase_service.dart';
 import '../core/di/service_locator.dart';
@@ -11,6 +12,7 @@ import '../core/constants/spacing.dart';
 import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
+import '../widgets/vehicle/vehicle_selector_fields.dart';
 import 'package:uuid/uuid.dart';
 
 /// 車両編集画面
@@ -26,11 +28,11 @@ class VehicleEditScreen extends StatefulWidget {
 class _VehicleEditScreenState extends State<VehicleEditScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // 基本情報
-  late TextEditingController _makerController;
-  late TextEditingController _modelController;
+  // 基本情報（選択式）
+  VehicleMaker? _selectedMaker;
+  VehicleModel? _selectedModel;
+  VehicleGrade? _selectedGrade;
   late TextEditingController _yearController;
-  late TextEditingController _gradeController;
   late TextEditingController _mileageController;
 
   // Phase 1.5: 識別情報
@@ -61,11 +63,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     super.initState();
     final v = widget.vehicle;
 
-    // 基本情報
-    _makerController = TextEditingController(text: v.maker);
-    _modelController = TextEditingController(text: v.model);
+    // 基本情報（テキストコントローラー）
     _yearController = TextEditingController(text: v.year.toString());
-    _gradeController = TextEditingController(text: v.grade);
     _mileageController = TextEditingController(text: v.mileage.toString());
 
     // Phase 1.5: 識別情報
@@ -96,11 +95,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
       _showAdvancedFields = true;
     }
 
-    // 変更検知
-    _makerController.addListener(_onFieldChanged);
-    _modelController.addListener(_onFieldChanged);
+    // 変更検知（テキストフィールドのみ）
     _yearController.addListener(_onFieldChanged);
-    _gradeController.addListener(_onFieldChanged);
     _mileageController.addListener(_onFieldChanged);
     _licensePlateController.addListener(_onFieldChanged);
     _vinNumberController.addListener(_onFieldChanged);
@@ -111,10 +107,10 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
 
   void _onFieldChanged() {
     final v = widget.vehicle;
-    final changed = _makerController.text != v.maker ||
-        _modelController.text != v.model ||
+    final changed = (_selectedMaker?.name ?? v.maker) != v.maker ||
+        (_selectedModel?.name ?? v.model) != v.model ||
+        (_selectedGrade?.name ?? v.grade) != v.grade ||
         _yearController.text != v.year.toString() ||
-        _gradeController.text != v.grade ||
         _mileageController.text != v.mileage.toString() ||
         _licensePlateController.text != (v.licensePlate ?? '') ||
         _vinNumberController.text != (v.vinNumber ?? '') ||
@@ -136,10 +132,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
 
   @override
   void dispose() {
-    _makerController.dispose();
-    _modelController.dispose();
     _yearController.dispose();
-    _gradeController.dispose();
     _mileageController.dispose();
     _licensePlateController.dispose();
     _vinNumberController.dispose();
@@ -260,10 +253,10 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
       final updatedVehicle = Vehicle(
         id: widget.vehicle.id,
         userId: widget.vehicle.userId,
-        maker: _makerController.text,
-        model: _modelController.text,
+        maker: _selectedMaker?.name ?? widget.vehicle.maker,
+        model: _selectedModel?.name ?? widget.vehicle.model,
         year: int.parse(_yearController.text),
-        grade: _gradeController.text,
+        grade: _selectedGrade?.name ?? widget.vehicle.grade,
         mileage: int.parse(_mileageController.text),
         imageUrl: imageUrl,
         createdAt: widget.vehicle.createdAt,
@@ -461,30 +454,40 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                   ),
                   AppSpacing.verticalSm,
 
-                  // メーカー
-                  AppTextField(
-                    controller: _makerController,
-                    labelText: 'メーカー *',
-                    hintText: '例: トヨタ',
-                    prefixIcon: const Icon(Icons.business),
+                  // メーカー（選択式）
+                  MakerSelectorField(
+                    selectedMaker: _selectedMaker,
+                    onChanged: (maker) {
+                      setState(() {
+                        _selectedMaker = maker;
+                        _selectedModel = null;
+                        _selectedGrade = null;
+                      });
+                      _onFieldChanged();
+                    },
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'メーカーを入力してください';
+                      if (value == null) {
+                        return 'メーカーを選択してください';
                       }
                       return null;
                     },
                   ),
                   AppSpacing.verticalMd,
 
-                  // 車種
-                  AppTextField(
-                    controller: _modelController,
-                    labelText: '車種 *',
-                    hintText: '例: RAV4',
-                    prefixIcon: const Icon(Icons.directions_car),
+                  // 車種（選択式）
+                  ModelSelectorField(
+                    makerId: _selectedMaker?.id,
+                    selectedModel: _selectedModel,
+                    onChanged: (model) {
+                      setState(() {
+                        _selectedModel = model;
+                        _selectedGrade = null;
+                      });
+                      _onFieldChanged();
+                    },
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return '車種を入力してください';
+                      if (value == null) {
+                        return '車種を選択してください';
                       }
                       return null;
                     },
@@ -516,14 +519,18 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                       ),
                       AppSpacing.horizontalSm,
                       Expanded(
-                        child: AppTextField(
-                          controller: _gradeController,
-                          labelText: 'グレード *',
-                          hintText: '例: G',
-                          prefixIcon: const Icon(Icons.star_outline),
+                        child: GradeSelectorField(
+                          modelId: _selectedModel?.id,
+                          selectedGrade: _selectedGrade,
+                          onChanged: (grade) {
+                            setState(() {
+                              _selectedGrade = grade;
+                            });
+                            _onFieldChanged();
+                          },
                           validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'グレードを入力';
+                            if (value == null) {
+                              return 'グレードを選択';
                             }
                             return null;
                           },
