@@ -1,0 +1,154 @@
+# Trust Car Platform - Vehicle Master Data
+# Format: type,id,parent_id,name,name_en,body_type,production_start_year,production_end_year,display_order,country
+# type: maker / model / grade
+# parent_id: maker_id (for model), model_id (for grade)
+# production_end_year: empty = currently produced
+# body_type: sedan / hatchback / suv / minivan / kei / coupe / wagon / convertible / truck / van
+#
+# --- HOW TO UPDATE ---
+# 1. Add a new row to this CSV
+# 2. Run: dart scripts/import_vehicle_master.dart
+# 3. Firestore is updated immediately
+# ----------------------
+
+type,id,parent_id,name,name_en,body_type,production_start_year,production_end_year,display_order,country
+
+# ==== MAKERS ====
+maker,toyota,,トヨタ,Toyota,,,1,JP
+maker,honda,,ホンダ,Honda,,,2,JP
+maker,nissan,,日産,Nissan,,,3,JP
+maker,mazda,,マツダ,Mazda,,,4,JP
+maker,subaru,,スバル,Subaru,,,5,JP
+maker,suzuki,,スズキ,Suzuki,,,6,JP
+maker,daihatsu,,ダイハツ,Daihatsu,,,7,JP
+maker,mitsubishi,,三菱,Mitsubishi,,,8,JP
+maker,lexus,,レクサス,Lexus,,,9,JP
+maker,other,,その他,Other,,,100,OTHER
+
+# ==== TOYOTA MODELS ====
+model,toyota_prius,toyota,プリウス,Prius,hatchback,1997,,1,
+model,toyota_rav4,toyota,RAV4,RAV4,suv,1994,,2,
+model,toyota_corolla,toyota,カローラ,Corolla,sedan,1966,,3,
+model,toyota_alphard,toyota,アルファード,Alphard,minivan,2002,,4,
+model,toyota_voxy,toyota,ヴォクシー,Voxy,minivan,2001,,5,
+model,toyota_crown,toyota,クラウン,Crown,sedan,1955,,6,
+model,toyota_harrier,toyota,ハリアー,Harrier,suv,1997,,7,
+model,toyota_yaris,toyota,ヤリス,Yaris,hatchback,2020,,8,
+model,toyota_aqua,toyota,アクア,Aqua,hatchback,2011,,9,
+model,toyota_sienta,toyota,シエンタ,Sienta,minivan,2003,,10,
+model,toyota_landcruiser,toyota,ランドクルーザー,Land Cruiser,suv,1951,,11,
+model,toyota_gr86,toyota,GR86,GR86,coupe,2012,,12,
+model,toyota_supra,toyota,スープラ,Supra,coupe,2019,,13,
+model,toyota_noah,toyota,ノア,Noah,minivan,2001,,14,
+model,toyota_roomy,toyota,ルーミー,Roomy,minivan,2016,,15,
+model,toyota_raize,toyota,ライズ,Raize,suv,2019,,16,
+model,toyota_c_hr,toyota,C-HR,C-HR,suv,2016,,17,
+model,toyota_other,toyota,その他,Other,,,100,
+
+# ==== HONDA MODELS ====
+model,honda_fit,honda,フィット,Fit,hatchback,2001,,1,
+model,honda_vezel,honda,ヴェゼル,Vezel,suv,2013,,2,
+model,honda_freed,honda,フリード,Freed,minivan,2008,,3,
+model,honda_stepwgn,honda,ステップワゴン,Step WGN,minivan,1996,,4,
+model,honda_nbox,honda,N-BOX,N-BOX,kei,2011,,5,
+model,honda_accord,honda,アコード,Accord,sedan,1976,,6,
+model,honda_civic,honda,シビック,Civic,sedan,1972,,7,
+model,honda_crv,honda,CR-V,CR-V,suv,1995,,8,
+model,honda_odyssey,honda,オデッセイ,Odyssey,minivan,1994,,9,
+model,honda_zr_v,honda,ZR-V,ZR-V,suv,2023,,10,
+model,honda_nwgn,honda,N-WGN,N-WGN,kei,2013,,11,
+model,honda_other,honda,その他,Other,,,100,
+
+# ==== NISSAN MODELS ====
+model,nissan_note,nissan,ノート,Note,hatchback,2004,,1,
+model,nissan_serena,nissan,セレナ,Serena,minivan,1991,,2,
+model,nissan_xtrail,nissan,エクストレイル,X-Trail,suv,2000,,3,
+model,nissan_leaf,nissan,リーフ,Leaf,hatchback,2010,,4,
+model,nissan_kicks,nissan,キックス,Kicks,suv,2020,,5,
+model,nissan_skyline,nissan,スカイライン,Skyline,sedan,1957,,6,
+model,nissan_fairladyz,nissan,フェアレディZ,Fairlady Z,coupe,1969,,7,
+model,nissan_gtr,nissan,GT-R,GT-R,coupe,2007,,8,
+model,nissan_dayz,nissan,デイズ,Dayz,kei,2013,,9,
+model,nissan_other,nissan,その他,Other,,,100,
+
+# ==== MAZDA MODELS ====
+model,mazda_cx5,mazda,CX-5,CX-5,suv,2012,,1,
+model,mazda_cx30,mazda,CX-30,CX-30,suv,2019,,2,
+model,mazda_mazda3,mazda,MAZDA3,Mazda3,hatchback,2003,,3,
+model,mazda_cx8,mazda,CX-8,CX-8,suv,2017,,4,
+model,mazda_roadster,mazda,ロードスター,MX-5 Miata,convertible,1989,,5,
+model,mazda_cx60,mazda,CX-60,CX-60,suv,2022,,6,
+model,mazda_mazda2,mazda,MAZDA2,Mazda2,hatchback,2002,,7,
+model,mazda_cx90,mazda,CX-90,CX-90,suv,2023,,8,
+model,mazda_other,mazda,その他,Other,,,100,
+
+# ==== SUBARU MODELS ====
+model,subaru_forester,subaru,フォレスター,Forester,suv,1997,,1,
+model,subaru_impreza,subaru,インプレッサ,Impreza,hatchback,1992,,2,
+model,subaru_levorg,subaru,レヴォーグ,Levorg,wagon,2014,,3,
+model,subaru_outback,subaru,アウトバック,Outback,wagon,1994,,4,
+model,subaru_xv,subaru,クロストレック,Crosstrek,suv,2012,,5,
+model,subaru_wrx,subaru,WRX S4,WRX,sedan,2014,,6,
+model,subaru_brz,subaru,BRZ,BRZ,coupe,2012,,7,
+model,subaru_other,subaru,その他,Other,,,100,
+
+# ==== SUZUKI MODELS ====
+model,suzuki_jimny,suzuki,ジムニー,Jimny,suv,1970,,1,
+model,suzuki_jimny_sierra,suzuki,ジムニーシエラ,Jimny Sierra,suv,1998,,2,
+model,suzuki_swift,suzuki,スイフト,Swift,hatchback,2000,,3,
+model,suzuki_hustler,suzuki,ハスラー,Hustler,kei,2014,,4,
+model,suzuki_spacia,suzuki,スペーシア,Spacia,kei,2013,,5,
+model,suzuki_alto,suzuki,アルト,Alto,kei,1979,,6,
+model,suzuki_solio,suzuki,ソリオ,Solio,minivan,2010,,7,
+model,suzuki_other,suzuki,その他,Other,,,100,
+
+# ==== DAIHATSU MODELS ====
+model,daihatsu_tanto,daihatsu,タント,Tanto,kei,2003,,1,
+model,daihatsu_move,daihatsu,ムーヴ,Move,kei,1995,,2,
+model,daihatsu_rocky,daihatsu,ロッキー,Rocky,suv,2019,,3,
+model,daihatsu_mira,daihatsu,ミラ,Mira,kei,1980,,4,
+model,daihatsu_taft,daihatsu,タフト,Taft,kei,2020,,5,
+model,daihatsu_wake,daihatsu,ウェイク,Wake,kei,2014,,6,
+model,daihatsu_other,daihatsu,その他,Other,,,100,
+
+# ==== MITSUBISHI MODELS ====
+model,mitsubishi_outlander,mitsubishi,アウトランダー,Outlander,suv,2001,,1,
+model,mitsubishi_delica,mitsubishi,デリカ,Delica,minivan,1968,,2,
+model,mitsubishi_eclipse,mitsubishi,エクリプスクロス,Eclipse Cross,suv,2017,,3,
+model,mitsubishi_ek,mitsubishi,eKワゴン,eK Wagon,kei,2001,,4,
+model,mitsubishi_rvr,mitsubishi,RVR,RVR,suv,2010,,5,
+model,mitsubishi_other,mitsubishi,その他,Other,,,100,
+
+# ==== LEXUS MODELS ====
+model,lexus_rx,lexus,RX,RX,suv,1998,,1,
+model,lexus_nx,lexus,NX,NX,suv,2014,,2,
+model,lexus_is,lexus,IS,IS,sedan,1999,,3,
+model,lexus_es,lexus,ES,ES,sedan,1989,,4,
+model,lexus_lx,lexus,LX,LX,suv,1996,,5,
+model,lexus_ux,lexus,UX,UX,suv,2018,,6,
+model,lexus_lc,lexus,LC,LC,coupe,2017,,7,
+model,lexus_ct,lexus,CT,CT,hatchback,2011,,8,
+model,lexus_other,lexus,その他,Other,,,100,
+
+# ==== OTHER ====
+model,other_other,other,その他,Other,,,100,
+
+# ==== GRADES (common grades shared across models) ====
+# These are "template" grades. VehicleMasterService uses commonGrades for all models.
+# To add model-specific grades, add rows with the model's id as parent_id.
+grade,grade_s,,S,S,,,1,
+grade,grade_g,,G,G,,,2,
+grade,grade_x,,X,X,,,3,
+grade,grade_z,,Z,Z,,,4,
+grade,grade_hybrid,,ハイブリッド,Hybrid,,,5,
+grade,grade_4wd,,4WD,4WD,,,6,
+grade,grade_turbo,,ターボ,Turbo,,,7,
+grade,grade_custom,,カスタム,Custom,,,8,
+grade,grade_l,,L,L,,,9,
+grade,grade_e,,E,E,,,10,
+grade,grade_f,,F,F,,,11,
+grade,grade_rs,,RS,RS,,,12,
+grade,grade_sport,,スポーツ,Sport,,,13,
+grade,grade_phev,,PHEV,PHEV,,,14,
+grade,grade_ev,,EV,EV,,,15,
+grade,grade_other,,その他,Other,,,100,
