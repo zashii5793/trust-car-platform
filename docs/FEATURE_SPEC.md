@@ -1,300 +1,336 @@
-# Trust Car Platform - 機能仕様書
+# Trust Car Platform — 機能仕様書
 
-## 概要
-Flutter製の車両管理アプリケーション。Firebase（Auth, Firestore, Storage）をバックエンドとして使用。
+> **最終更新**: 2026-02-21
 
 ---
 
-## コア機能
+## プロダクトビジョン
 
-### 1. 車両管理
+### 私たちが築きたい世界
 
-#### 1.1 車両登録
-- **基本情報**: メーカー、車種、年式、グレード、走行距離（すべて必須）
-- **識別情報**: ナンバープレート、車台番号、型式（任意）
-- **車検・保険**: 車検満了日、自賠責保険期限（任意だが推奨）
-- **詳細情報**: 車体色、排気量、燃料タイプ、購入日（任意）
-- **画像**: 車両写真（任意）
+> **キャッチコピー: 「クルマの未来を、ユーザーの手に。」**
+> **キャッチフレーズ: 「クルマをもっと安全に、楽しく、個性的に。」**
 
-#### 1.2 車検証OCRスキャン
-- カメラで車検証を撮影
-- ML Kit Text Recognitionで文字認識
-- 以下のフィールドを自動抽出:
-  - 車台番号、型式、車名
-  - 初度登録年月、車検満了日
-  - 所有者情報（住所・氏名）
-- 信頼度スコア表示
-- 確認後フォームに自動入力
+このアプリは **「あなただけのカーライフ・コンシェルジュ」** だ。
 
-#### 1.3 車両編集
-- 全フィールドの編集可能
-- 走行距離は減少不可（整合性チェック）
-- 変更検知（未保存警告）
+日本には8,000万台の自動車がある。しかし多くのオーナーは、車検期限を忘れ、整備記録を紛失し、
+パーツ選びに迷い、愛車への想いを共有する場所もない。
+
+Trust Car Platform は、**クルマを所有するすべての人が、安心・楽しさ・個性を享受できる世界**を実現する。
+
+### アプリの位置づけ
+
+```
+                    個人向け ←──────────────→ 法人向け
+                        │                         │
+  楽しさ・SNS           │   Trust Car Platform    │  BtoBマーケット
+  （コミュニティ）       │   「カーライフ・        │  （整備工場・業者）
+                        │    コンシェルジュ」      │
+  安心・管理            │                         │
+  （メンテナンス記録）   │                         │
+```
+
+**3つの価値軸:**
+
+| 価値軸 | ターゲット感情 | 具体的な解決 |
+|--------|-------------|------------|
+| **安全** | 「見落とさない安心」 | 車検/保険期限アラート、整備記録管理、OCR自動入力 |
+| **楽しく** | 「クルマのある生活の喜び」 | ドライブログ、SNSコミュニティ、愛車タイムライン |
+| **個性的に** | 「自分だけの一台への誇り」 | AIパーツ提案、BtoBマーケット、カスタム履歴 |
+
+### 競合との差別化
+
+- **単なる整備記録アプリではない** → SNS・コミュニティで「体験」を共有できる
+- **単なるSNSではない** → 実用的な車両管理機能が土台にある
+- **単なるパーツECではない** → 自分の車両データに基づくAI提案で「当たり前の互換確認」が不要
+
+---
+
+## 設計思想（最重要 — 全機能がこれに従う）
+
+### 「主役は常にユーザー」
+
+> **AIは「判断」しない。理由を添えて選択肢を整理するだけ。**
+
+これは UI/UX・機能実装の根幹となる原則。
+
+| 原則 | 意味 | 実装への影響 |
+|------|------|------------|
+| **AIは提案する、決めない** | 「これがベスト！」と断言しない。理由付きで複数の選択肢を並べ、ユーザーが選ぶ | PartRecommendationServiceは常に複数候補＋理由を返す |
+| **事業者は売り込まない** | BtoBの整備工場・業者はユーザーから興味アクションがあって初めて接触 | 広告的な押し付け表示をしない。ユーザー主導のフロー設計 |
+| **情報はフラットに** | ランキングや「イチオシ」ラベルで誘導しない。ユーザーが比較できる形で提供 | パーツ・業者一覧はフィルタ・ソート自由、プロモーション枠も透明に表示 |
+
+```dart
+// ❌ NG: AIが断言する
+"このパーツがあなたの車に最適です！今すぐ購入"
+
+// ✅ OK: 理由付きで選択肢を整理する
+"走行距離と車種から、以下の3つが候補です。
+ ・[A] 純正品 — 安心だが価格高め
+ ・[B] 社外品X — コスパ良し、口コミ評価高
+ ・[C] 社外品Y — 最安値、互換性は要確認"
+```
+
+---
+
+## ユーザーセグメント
+
+| セグメント | 特徴 | 主な利用機能 |
+|-----------|------|------------|
+| **一般カーオーナー** | 車検管理・整備記録を手軽に | アラート、記録管理、OCR |
+| **クルマ好き（カーマニア）** | 愛車を自慢・カスタムを楽しむ | SNS、ドライブログ、パーツ提案 |
+| **整備工場・業者（BtoB）** | ユーザーへの集客・パーツ販売 | マーケット掲載、問い合わせ管理 |
+
+---
+
+## 機能一覧
+
+### ✅ 実装済み
+
+#### 1. 認証
+- メール/パスワード登録・ログイン・パスワードリセット
+- Google認証（OAuth）
+
+#### 2. 車両管理
+- 車両CRUD（登録・表示・編集・削除）
+- 基本情報: メーカー、車種、年式、グレード、走行距離
+- 識別情報: ナンバープレート、車台番号、型式
+- 車検・保険情報: 車検満了日、自賠責保険期限
+- 詳細情報: 車体色、排気量、燃料タイプ、購入日、任意保険
+- 駆動方式（DriveType）、トランスミッション（TransmissionType）
+- 走行距離整合性チェック（減少禁止）
 - ナンバープレート重複チェック
+- 関連整備記録のカスケード削除
+- 車両写真アップロード（Firebase Storage）
 
-#### 1.4 車両削除
-- 確認ダイアログ表示
-- 関連する整備記録も削除
+#### 3. 整備記録管理
+- 整備記録CRUD
+- 22種類のメンテナンスタイプ対応
+- 費用・実施工場・走行距離・部品情報・メモ記録
+- 作業項目（WorkItem）・部品情報（Part）詳細記録
+- タイプ別フィルタリング
+- メンテナンス統計・可視化（年間コスト推移、月別、タイプ別、店舗別）
 
----
+#### 4. OCR自動入力
+- 車検証OCR（ML Kit Text Recognition）
+- 請求書/領収書OCR
 
-### 2. 整備記録管理
+#### 5. アラート・通知
+- 車検期限アラート（期限切れ/30日以内/7日以内で色分け）
+- 自賠責保険期限アラート
+- メンテナンス推奨通知
 
-#### 2.1 整備記録登録
-- **メンテナンスタイプ**: 22種類
-  - 定期点検系: オイル交換、フィルター交換、タイヤ交換など
-  - 法定系: 12ヶ月点検、車検
-  - 消耗品系: ブレーキパッド、バッテリー、ワイパーなど
-  - その他: 洗車、事故修理、カスタムなど
-- **必須**: タイトル、実施日、費用
-- **任意**: 実施工場、走行距離、部品情報、メモ
+#### 6. PDF出力
+- 整備記録のPDFエクスポート
 
-#### 2.2 請求書OCRスキャン
-- カメラで請求書/領収書を撮影
-- 以下を自動抽出:
-  - 日付、金額、店舗名
-  - 作業項目
-- メンテナンスタイプ自動推定
-- 確認後フォームに自動入力
+#### 7. 書類・請求書管理（Phase 5）
+- Invoice / Document / ServiceMenu モデル・Service・Provider
 
-#### 2.3 整備記録一覧
-- 日付降順表示
-- タイプ別フィルタリング可能
+#### 8. インフラ・品質基盤
+- オフラインサポート（Firestore永続化 100MB）
+- Firebase Crashlytics / Performance
+- LoggingService
+- CI/CD（GitHub Actions）
 
-#### 2.4 メンテナンス統計・可視化
-- **サマリー**: 総費用、履歴数、平均費用/回、種類数
-- **年間コスト推移**: 横棒グラフで年別比較
-- **月別コスト推移**: 直近12ヶ月の月別集計
-- **タイプ別内訳**: コスト・回数・割合を表示
-- **店舗別集計**: 利用店舗ごとの費用集計
+#### 9. SNS・BtoB・AI 基盤（モデル・Service層のみ、UI未実装）
+- Post/Comment/Follow、Shop/Inquiry/PartListing、PartRecommendationService
 
 ---
 
-### 3. アラート・通知
+### 🔲 未実装（優先度順）
 
-#### 3.1 車検・保険期限アラート
-- ホーム画面の車両カードに警告バナー表示
-- **車検**:
-  - 期限切れ: 赤色「車検切れ」
-  - 30日以内: オレンジ「車検 残りX日」
-  - 7日以内: 赤色
-- **自賠責保険**:
-  - 期限切れ: 赤色「自賠責切れ」
-  - 30日以内: オレンジ「保険 残りX日」
+#### P0: 車両マスタ（表記ゆれ解消）
 
-#### 3.2 レコメンド通知
-- 整備履歴から次回推奨時期を計算
-- オイル交換: 前回から5,000km or 6ヶ月
-- タイヤ交換: 前回から40,000km or 4年
-- その他各種メンテナンス
+**問題**: メーカー/車種/グレードがテキスト自由入力 → 表記ゆれ発生
+
+**設計方針（運用フロー）**:
+```
+新車発表
+  → CSV（vehicle_masters.csv）を更新
+  → scripts/import_vehicle_master.dart を実行
+  → Firestoreに投入
+  → アプリに即時反映
+```
+
+**Firestoreコレクション設計**:
+```
+vehicle_makers/{makerId}
+  - name: "トヨタ"
+  - nameEn: "Toyota"
+  - displayOrder: 1
+
+vehicle_models/{modelId}
+  - makerId: "toyota"
+  - name: "プリウス"
+  - bodyType: "セダン"          # セダン/SUV/軽/ミニバン/スポーツ/トラック
+  - productionStartYear: 1997
+  - productionEndYear: null     # 現行モデルはnull
+
+vehicle_grades/{gradeId}
+  - modelId: "prius"
+  - name: "Z"
+  - fuelType: "hybrid"          # gasoline/hybrid/ev/diesel/phev
+  - driveType: "fwd"            # fwd/rwd/awd/4wd
+  - startYear: 2023
+  - endYear: null               # 現行グレードはnull
+```
+
+**実装ファイル**:
+```
+models/vehicle_master.dart           # VehicleMaker / VehicleModel / VehicleGrade
+services/vehicle_master_service.dart # Firestore CRUD（injection.dart登録済み）
+scripts/import_vehicle_master.dart   # CSV→Firestore投入スクリプト（新規作成）
+data/vehicle_masters.csv            # 初期マスタデータ（新規作成）
+screens/ 車両登録・編集画面          # ドロップダウン選択式に改修
+```
 
 ---
 
-### 4. 認証
+#### P0: 「愛車タイムライン」UI
+**企画書で明示されているUI**。現在は「整備記録一覧（日付降順リスト）」止まり。
 
-#### 4.1 メール認証
-- 新規登録（メール + パスワード）
-- ログイン
-- パスワードリセット
+整備記録を時系列タイムライン形式で表示し、「この車と歩んだ歴史」を視覚的に体験できるUI。
 
-#### 4.2 Google認証
-- Googleアカウントでログイン
+---
+
+#### P0: ホーム画面「AIからの提案」セクション
+**企画書のモックアップに明示**。
+
+```
+ホーム画面の構成:
+  ├── マイカー情報カード（車検残日数、走行距離）
+  ├── 【AIからの提案】セクション  ← 未実装
+  │    ├── メンテナンス提案（理由付きで複数提示）
+  │    └── （将来）天気連動ドライブスポット提案
+  └── 最近の整備記録
+```
+
+**設計思想に従い**: 「○○が必要です！」ではなく「○○km走りました。以下の整備が候補です（理由）」という表示。
+
+---
+
+#### P1: BtoBマーケット画面
+**収益モデルの根幹**。モデル・Service層は実装済み。
+
+**収益モデル（企画書より）**:
+- **加盟料**: 整備工場・販売店からのプラットフォーム利用料
+- **広告・送客費**: カスタムパーツメーカーからの広告掲載料、ユーザー送客に応じた成果報酬
+
+**UI設計原則（「売り込まない」原則）**:
+- ユーザーが「この工場に興味あり」をタップして初めて接触
+- 業者からのプッシュ型アプローチは不可
+- 広告枠は「広告」と明示する
+
+```
+screens/marketplace/
+  shop_list_screen.dart     # 工場・業者一覧（フィルタ・ソート自由）
+  shop_detail_screen.dart   # 詳細・問い合わせ（ユーザー主導）
+  part_list_screen.dart     # パーツ一覧（車種フィルタ付き）
+  inquiry_screen.dart       # 問い合わせ送信
+```
+
+---
+
+#### P1: AIパーツ提案ロジック実装
+
+**設計思想に従い**:
+- 車種×走行距離×整備履歴からパーツ候補を複数スコアリング
+- 各候補に「推奨理由」「注意点」を必ずセットで表示
+- 「ベスト1」を押し付けない。ユーザーが比較して選ぶ形式
+
+```dart
+// PartRecommendation モデルのあるべき姿
+class PartRecommendation {
+  final String partName;
+  final List<String> reasons;    // 推奨理由（複数）
+  final List<String> cautions;   // 注意点・デメリット
+  final int confidenceScore;     // 信頼度（0-100）
+  // ❌ "isBest" や "isRecommended" フラグは持たない
+}
+```
+
+---
+
+#### P2: SNSフィード画面
+- 投稿一覧（フィード）、投稿作成（写真付き）、コメント・いいね
+- 同じ車種オーナーとのつながり
+
+#### P2: 車両購入レコメンド
+- 予算・条件・ライフスタイルから中古車を提案（外部API連携）
+
+#### P3: ドライブログ × マップUI
+- 走行ルート記録・訪問スポット・ドライブ履歴タイムライン
+- **マップUI方針**: Google Maps標準ではなく、企画書に描かれた独自スタイルのビジュアルマップを目指す
+  - 理由: Google Maps標準だと「それでいい」で終わりがち。アプリの世界観・個性が死ぬ
+  - 実装検討: flutter_map + カスタムスタイルタイル or Canvas描画によるオリジナルマップ
+  - ※ 実装コストが高いため P3 で詳細設計する
+
+#### 将来展望（企画書記載）
+- OBD-II連携（リアルタイム車両診断）
+- EV専用管理（充電履歴、航続距離管理）
+- 保険・ローン連携
+- 天気API連動ドライブスポット提案
 
 ---
 
 ## 技術仕様
 
 ### アーキテクチャ
+
 ```
-lib/
-├── core/
-│   ├── error/app_error.dart    # エラー型定義
-│   └── result/result.dart       # Result<T,E>型
-├── models/
-│   ├── vehicle.dart             # 車両モデル
-│   ├── maintenance_record.dart  # 整備記録モデル
-│   └── app_notification.dart    # 通知モデル
-├── services/
-│   ├── firebase_service.dart    # Firebase操作（Result対応）
-│   ├── auth_service.dart        # 認証
-│   ├── recommendation_service.dart
-│   ├── vehicle_certificate_ocr_service.dart
-│   └── invoice_ocr_service.dart
-├── providers/
-│   ├── vehicle_provider.dart    # AppError対応
-│   ├── maintenance_provider.dart
-│   └── notification_provider.dart
-└── screens/
-    ├── home_screen.dart         # 警告バナー付き
-    ├── vehicle_registration_screen.dart
-    ├── vehicle_edit_screen.dart
-    ├── add_maintenance_screen.dart
-    └── ...
+main.dart → Injection.init() → ServiceLocator
+                                      ↓
+Provider（コンストラクタ注入） ← Service（Result<T,AppError>）
+      ↓                                    ↓
+  UI層（screens/）                  Firebase SDK
 ```
+
+**重要な原則**:
+- Service層が正: `lib/services/` にFirebase操作を集約。domain/data層は存在しない
+- DIはServiceLocator: Provider内で`new`せず、コンストラクタ注入
+- 新Serviceの追加: `injection.dart`登録 → Provider引数追加 → main.dartのMultiProviderに追加
 
 ### エラーハンドリング
-- **Result<T, AppError>**: すべてのService層で統一
-- **AppError種類**:
-  - NetworkError（リトライ可）
-  - AuthError
-  - ValidationError
-  - NotFoundError
-  - PermissionError
-  - ServerError（リトライ可）
-  - CacheError（リトライ可）
-  - UnknownError
+- `Result<T, AppError>`: 全Service層で統一
+- AppError種類: NetworkError / AuthError / ValidationError / NotFoundError / PermissionError / ServerError / CacheError / UnknownError
+- UI表示: AppError → Snackbar で統一
 
-### バリデーション
+### バリデーション規約
 - 走行距離: 0〜200万km
 - 年式: 1900〜来年
-- 走行距離整合性: 減少禁止（編集時）
+- 走行距離整合性: 編集時に減少禁止
 - ナンバープレート: 重複禁止
 
----
+### テストカバレッジ（2026-02-21時点）
 
-## テスト
+| 層 | 件数 | 状態 |
+|---|---|---|
+| core/（Result, AppError等） | 67件 | ✅ |
+| models/ | 48件 | ✅ |
+| services/ | 96件 | ✅ |
+| providers/ + screens/ | 96件 | ✅ |
+| **合計** | **434件** | **全パス** |
 
-### カバレッジ
-- 合計: **434テスト**
-- モデル: 48テスト
-- Result/AppError: 67テスト
-- OCRサービス: 46テスト
-- Firebaseパターン: 27テスト
-- AuthService: 23テスト
-- LoggingService: 77テスト
-- PerformanceService: 50テスト
-- Provider/Screen: 96テスト
+### 技術スタック
 
----
-
-## 品質スコア: 9.0/10
-
-### 完了した改善
-- [x] P0: 車検・保険アラート、バリデーション強化
-- [x] P1: エラーハンドリング統一、テスト追加
-- [x] P2: 必須項目明示、エラーメッセージ改善
-- [x] Phase 3: データ同期安定化、AuthService統一、統計画面
-- [x] Phase 3.5: アーキテクチャ統一（domain/data層削除）、全ProviderにDI適用
-- [x] Phase 4: 画面テスト追加、テストカバレッジ強化
-- [x] Phase 4.5: ログ・モニタリング基盤（LoggingService + Crashlytics + PerformanceService）
-
-### Phase 4.5で実施した改善
-- [x] LoggingService実装（debug/info/warning/error/fatal、AppError統合）
-- [x] Firebase Crashlytics連携（本番エラー自動レポート）
-- [x] PerformanceService実装（Firebase Performance SDK + カスタム統計）
-- [x] 遅い操作の自動警告ログ（閾値: 1000ms）
-- [x] MetricsAggregator（avg, p50, p95, min, max統計）
-
-### Phase 4で実施した改善
-- [x] 画面テスト追加（LoginScreen, HomeScreen, AddMaintenanceScreen等）
-- [x] テスト数 346件 → 434件
-- [x] 全テスト100%パス維持
-
-### Phase 3.5で実施した改善
-- [x] 死んだdomain/data層を削除（二重管理解消）
-- [x] 全ProviderにServiceLocator経由のコンストラクタ注入適用
-- [x] CLAUDE.mdにアーキテクチャ方針を明記
-
-### Phase 3で実施した改善
-- [x] Legacyメソッド削除（firebase_service.dart）
-- [x] Streamリスナーにエラーリカバリー（指数バックオフ再接続）
-- [x] AuthServiceをResult<T,AppError>パターンに統一
-- [x] 車両削除時のカスケード削除（整備記録連動）
-- [x] AuthServiceテスト追加（23件）
-- [x] メンテナンス統計・可視化画面
-
-### 完了済みインフラ
-- [x] CI/CD構築（GitHub Actions: analyze, test, build Android/iOS）
-- [x] オフラインサポート（Firestore永続化100MB + ConnectivityProvider + OfflineBanner）
-- [x] Dependabot設定（週次自動更新）
-
-### 今後の改善候補
-- [ ] OCRエッジケーステスト強化
-- [ ] E2Eテスト整備
-- [ ] リリースビルド・ストアデプロイ設定
+| カテゴリ | 技術 |
+|---------|------|
+| フロントエンド | Flutter 3 / Dart |
+| バックエンド | Firebase（Auth, Firestore, Storage, Messaging, Crashlytics, Performance） |
+| 状態管理 | Provider（コンストラクタ注入） |
+| OCR | Google ML Kit Text Recognition |
+| DI | 独自ServiceLocator（get_it不使用） |
+| PDF出力 | pdf / printing |
+| 通知 | firebase_messaging + flutter_local_notifications |
 
 ---
 
-## 追加機能要望リスト（未実装）
+## ロードマップ
 
-### 1. BtoBカスタムパーツマーケットプレイス（優先度: 高）
-
-**概要**: 企業がユーザーの車両に合ったカスタムパーツを提案・広告できるプラットフォーム
-
-#### 企業側機能
-- **企業アカウント登録**
-  - 会社情報（名前、住所、連絡先、業種）
-  - 取扱パーツカテゴリ
-  - 対応車種リスト
-- **パーツ/サービス登録**
-  - パーツ名、説明、価格帯
-  - 対応車種（メーカー/車種/年式）
-  - 画像、取り付け事例
-- **広告配信**
-  - ターゲット車種指定
-  - 表示期間設定
-  - 広告費用（課金モデル要検討）
-
-#### ユーザー側機能
-- **レコメンド表示**
-  - ホーム画面に自分の車に合ったパーツ提案
-  - 車両詳細画面にマッチするパーツ一覧
-- **問い合わせ機能**
-  - アプリ内メッセージ
-  - 電話/メール連携
-  - 見積もり依頼
-- **お気に入り保存**
-
-#### データモデル（案）
-```dart
-// 企業モデル
-class Company {
-  String id;
-  String name;
-  String address;
-  String phone;
-  String email;
-  List<String> categories;  // エアロ、マフラー、ホイール等
-  List<VehicleSpec> supportedVehicles;
-  bool isVerified;  // 認証済み企業
-}
-
-// パーツ/サービスモデル
-class PartListing {
-  String id;
-  String companyId;
-  String name;
-  String description;
-  int? priceFrom;
-  int? priceTo;
-  List<String> imageUrls;
-  List<VehicleSpec> compatibleVehicles;
-  String category;
-  bool isActive;
-}
-
-// 問い合わせモデル
-class Inquiry {
-  String id;
-  String userId;
-  String companyId;
-  String? partListingId;
-  String vehicleId;
-  String message;
-  InquiryStatus status;  // pending, replied, closed
-  DateTime createdAt;
-}
-```
-
-#### 実装優先順位
-1. 企業アカウント・パーツ登録（管理画面）
-2. ユーザー向けパーツ一覧・詳細表示
-3. 問い合わせ機能
-4. レコメンドアルゴリズム
-5. 課金・広告システム
-
----
-
-### 2. （次の要望をここに）
-
-### 3. （次の要望をここに）
+| フェーズ | 時期 | 内容 |
+|---------|------|------|
+| Phase 1〜5 ✅ | 〜2026/02 | コア機能・アーキテクチャ・品質基盤 |
+| **Phase 6 ← 今ここ** | **2026/Q1** | **車両マスタ(P0)・愛車タイムライン・ホームAI提案セクション** |
+| Phase 7 | 2026/Q2 | BtoBマーケット画面・AIパーツ提案ロジック・SNSフィード |
+| Phase 8 | 2026/Q3 | プレミアムプラン決済・整備工場パートナー開拓 |
+| Phase 9+ | 2027〜 | BtoBマーケット本格展開・OBD-II連携・海外展開検討 |
