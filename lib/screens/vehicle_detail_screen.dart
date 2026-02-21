@@ -173,8 +173,8 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
               ),
             ),
 
-            // 履歴一覧
-            _MaintenanceList(vehicleId: _vehicle.id),
+            // 履歴タイムライン
+            _MaintenanceTimeline(vehicleId: _vehicle.id),
 
             AppSpacing.verticalLg,
           ],
@@ -374,10 +374,14 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _MaintenanceList extends StatelessWidget {
+// ---------------------------------------------------------------------------
+// Timeline: replaces the old flat list
+// ---------------------------------------------------------------------------
+
+class _MaintenanceTimeline extends StatelessWidget {
   final String vehicleId;
 
-  const _MaintenanceList({required this.vehicleId});
+  const _MaintenanceTimeline({required this.vehicleId});
 
   @override
   Widget build(BuildContext context) {
@@ -398,86 +402,484 @@ class _MaintenanceList extends StatelessWidget {
           );
         }
 
-        return ListView.separated(
+        final records = maintenanceProvider.records;
+
+        return ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          itemCount: maintenanceProvider.records.length,
-          separatorBuilder: (context, index) => AppSpacing.verticalXs,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
+          itemCount: records.length,
           itemBuilder: (context, index) {
-            final record = maintenanceProvider.records[index];
-            return _MaintenanceRecordCard(record: record);
+            return _TimelineItem(
+              record: records[index],
+              isFirst: index == 0,
+              isLast: index == records.length - 1,
+              onTap: () => _showMaintenanceDetailSheet(
+                context,
+                records[index],
+                maintenanceProvider,
+              ),
+            );
           },
         );
       },
     );
   }
+
+  /// Show the record detail as a modal BottomSheet.
+  void _showMaintenanceDetailSheet(
+    BuildContext context,
+    MaintenanceRecord record,
+    MaintenanceProvider provider,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => _MaintenanceDetailSheet(
+        record: record,
+        provider: provider,
+      ),
+    );
+  }
 }
 
-class _MaintenanceRecordCard extends StatelessWidget {
-  final MaintenanceRecord record;
+// ---------------------------------------------------------------------------
+// Single timeline row
+// ---------------------------------------------------------------------------
 
-  const _MaintenanceRecordCard({required this.record});
+class _TimelineItem extends StatelessWidget {
+  final MaintenanceRecord record;
+  final bool isFirst;
+  final bool isLast;
+  final VoidCallback onTap;
+
+  const _TimelineItem({
+    required this.record,
+    required this.isFirst,
+    required this.isLast,
+    required this.onTap,
+  });
+
+  static const double _lineWidth = 2.0;
+  static const double _leftColumnWidth = 48.0;
+  static const double _avatarRadius = 18.0;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final typeColor = record.typeColor;
+    final isDark = theme.brightness == Brightness.dark;
+    final lineColor = isDark ? AppColors.darkCard : AppColors.divider;
     final dateFormat = DateFormat('yyyy/MM/dd');
 
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: typeColor,
-          child: Icon(
-            record.typeIcon,
-            color: Colors.white,
-            size: 20,
-          ),
-        ),
-        title: Text(
-          record.title,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AppSpacing.verticalXxs,
-            Text(
-              dateFormat.format(record.date),
-              style: theme.textTheme.bodySmall,
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ---- Left: timeline line + icon ----
+          SizedBox(
+            width: _leftColumnWidth,
+            child: Column(
+              children: [
+                // Top segment of the line
+                SizedBox(
+                  width: _lineWidth,
+                  height: _avatarRadius + 4,
+                  child: isFirst
+                      ? const SizedBox.shrink()
+                      : ColoredBox(color: lineColor),
+                ),
+                // Icon circle
+                CircleAvatar(
+                  radius: _avatarRadius,
+                  backgroundColor: typeColor,
+                  child: Icon(
+                    record.typeIcon,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+                // Bottom segment of the line — stretches to fill remaining height
+                Expanded(
+                  child: isLast
+                      ? const SizedBox.shrink()
+                      : Center(
+                          child: SizedBox(
+                            width: _lineWidth,
+                            child: ColoredBox(color: lineColor),
+                          ),
+                        ),
+                ),
+              ],
             ),
-            Text(
-              '¥${NumberFormat('#,###').format(record.cost)}',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: typeColor,
+          ),
+
+          AppSpacing.horizontalSm,
+
+          // ---- Right: card ----
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(
+                top: AppSpacing.xs,
+                bottom: AppSpacing.md,
+              ),
+              child: GestureDetector(
+                onTap: onTap,
+                child: AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Date + type badge
+                      Row(
+                        children: [
+                          Text(
+                            dateFormat.format(record.date),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: isDark
+                                  ? AppColors.darkTextTertiary
+                                  : AppColors.textTertiary,
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.xs,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: typeColor.withValues(alpha: 0.12),
+                              borderRadius: AppSpacing.borderRadiusXs,
+                            ),
+                            child: Text(
+                              record.typeDisplayName,
+                              style: TextStyle(
+                                color: typeColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      AppSpacing.verticalXxs,
+                      // Title
+                      Text(
+                        record.title,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      AppSpacing.verticalXxs,
+                      // Cost
+                      Text(
+                        '¥${NumberFormat('#,###').format(record.cost)}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: typeColor,
+                        ),
+                      ),
+                      // Shop name (optional)
+                      if (record.shopName != null &&
+                          record.shopName!.isNotEmpty) ...[
+                        AppSpacing.verticalXxs,
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.store_outlined,
+                              size: 13,
+                              color: isDark
+                                  ? AppColors.darkTextTertiary
+                                  : AppColors.textTertiary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              record.shopName!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: isDark
+                                    ? AppColors.darkTextTertiary
+                                    : AppColors.textTertiary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Detail BottomSheet
+// ---------------------------------------------------------------------------
+
+class _MaintenanceDetailSheet extends StatelessWidget {
+  final MaintenanceRecord record;
+  final MaintenanceProvider provider;
+
+  const _MaintenanceDetailSheet({
+    required this.record,
+    required this.provider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final typeColor = record.typeColor;
+    final isDark = theme.brightness == Brightness.dark;
+    final dateFormat = DateFormat('yyyy年MM月dd日');
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, scrollController) {
+        return Column(
+          children: [
+            // Drag handle
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkCard : AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            // Scrollable content
+            Expanded(
+              child: ListView(
+                controller: scrollController,
+                padding: AppSpacing.paddingScreen,
+                children: [
+                  // Header: icon + title + date
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor: typeColor,
+                        child: Icon(
+                          record.typeIcon,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                      ),
+                      AppSpacing.horizontalMd,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              record.title,
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              dateFormat.format(record.date),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: isDark
+                                    ? AppColors.darkTextTertiary
+                                    : AppColors.textTertiary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  AppSpacing.verticalMd,
+
+                  // Cost (large)
+                  Text(
+                    '¥${NumberFormat('#,###').format(record.cost)}',
+                    style: theme.textTheme.displaySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: typeColor,
+                    ),
+                  ),
+
+                  AppSpacing.verticalMd,
+                  const Divider(),
+                  AppSpacing.verticalSm,
+
+                  // Shop name
+                  if (record.shopName != null && record.shopName!.isNotEmpty)
+                    _DetailRow(
+                      icon: Icons.store_outlined,
+                      label: '整備店',
+                      value: record.shopName!,
+                    ),
+
+                  // Mileage
+                  if (record.mileageAtService != null)
+                    _DetailRow(
+                      icon: Icons.speed_outlined,
+                      label: '施工時走行距離',
+                      value:
+                          '${NumberFormat('#,###').format(record.mileageAtService)} km',
+                    ),
+
+                  // Description
+                  if (record.description != null &&
+                      record.description!.isNotEmpty) ...[
+                    AppSpacing.verticalSm,
+                    Text(
+                      'メモ',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: isDark
+                            ? AppColors.darkTextTertiary
+                            : AppColors.textTertiary,
+                      ),
+                    ),
+                    AppSpacing.verticalXxs,
+                    Text(
+                      record.description!,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+
+                  // Work items
+                  if (record.workItems.isNotEmpty) ...[
+                    AppSpacing.verticalMd,
+                    Text(
+                      '作業内容',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: isDark
+                            ? AppColors.darkTextTertiary
+                            : AppColors.textTertiary,
+                      ),
+                    ),
+                    AppSpacing.verticalXxs,
+                    ...record.workItems.map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.xxs,
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.check_circle_outline, size: 16),
+                            AppSpacing.horizontalXs,
+                            Expanded(
+                              child: Text(
+                                item.name,
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
+                            Text(
+                              '¥${NumberFormat('#,###').format(item.laborCost)}',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  AppSpacing.verticalLg,
+
+                  // Delete button
+                  OutlinedButton.icon(
+                    onPressed: () => _confirmDelete(context),
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('この記録を削除'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                    ),
+                  ),
+
+                  AppSpacing.verticalMd,
+                ],
               ),
             ),
           ],
-        ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.xs,
-            vertical: AppSpacing.xxs,
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('記録を削除'),
+        content: const Text('この整備記録を削除します。この操作は取り消せません。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('キャンセル'),
           ),
-          decoration: BoxDecoration(
-            color: typeColor.withValues(alpha: 0.1),
-            borderRadius: AppSpacing.borderRadiusXs,
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('削除'),
           ),
-          child: Text(
-            record.typeDisplayName,
-            style: TextStyle(
-              color: typeColor,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      await provider.deleteMaintenanceRecord(record.id);
+      if (context.mounted) {
+        Navigator.pop(context); // close the sheet
+      }
+    }
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
           ),
-        ),
-        contentPadding: AppSpacing.paddingCard,
+          AppSpacing.horizontalXs,
+          SizedBox(
+            width: 120,
+            child: Text(label, style: theme.textTheme.bodySmall),
+          ),
+          Expanded(
+            child: Text(value, style: theme.textTheme.bodyMedium),
+          ),
+        ],
       ),
     );
   }
