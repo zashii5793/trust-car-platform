@@ -13,6 +13,7 @@ import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/vehicle/vehicle_selector_fields.dart';
+import '../services/vehicle_master_service.dart';
 import 'package:uuid/uuid.dart';
 
 /// 車両編集画面
@@ -32,8 +33,11 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   VehicleMaker? _selectedMaker;
   VehicleModel? _selectedModel;
   VehicleGrade? _selectedGrade;
+  bool _masterDataLoading = true; // マスタ逆引き完了まで true
   late TextEditingController _yearController;
   late TextEditingController _mileageController;
+
+  VehicleMasterService get _masterService => sl.get<VehicleMasterService>();
 
   // Phase 1.5: 識別情報
   late TextEditingController _licensePlateController;
@@ -103,6 +107,84 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     _modelCodeController.addListener(_onFieldChanged);
     _colorController.addListener(_onFieldChanged);
     _engineDisplacementController.addListener(_onFieldChanged);
+
+    // 既存車両データからマスタオブジェクトを逆引きしてセット
+    _initMasterSelections();
+  }
+
+  /// Resolve existing vehicle's maker/model/grade names to master objects.
+  /// Falls back gracefully: if a name is not found in master, leaves null
+  /// and the save path uses widget.vehicle values as fallback.
+  Future<void> _initMasterSelections() async {
+    final v = widget.vehicle;
+
+    // 1. メーカー逆引き
+    final makersResult = await _masterService.getMakers();
+    VehicleMaker? maker;
+    makersResult.when(
+      success: (makers) {
+        maker = makers.firstWhere(
+          (m) => m.name == v.maker || m.nameEn.toLowerCase() == v.maker.toLowerCase(),
+          orElse: () => makers.firstWhere(
+            (m) => m.id == v.maker.toLowerCase(),
+            orElse: () => throw StateError('not found'),
+          ),
+        );
+      },
+      failure: (_) {},
+    );
+
+    if (!mounted) return;
+
+    // 2. 車種逆引き（メーカーが見つかった場合のみ）
+    VehicleModel? model;
+    if (maker != null) {
+      final modelsResult = await _masterService.getModelsForMaker(maker!.id);
+      modelsResult.when(
+        success: (models) {
+          try {
+            model = models.firstWhere(
+              (m) => m.name == v.model || (m.nameEn?.toLowerCase() == v.model.toLowerCase()),
+            );
+          } catch (_) {}
+        },
+        failure: (_) {},
+      );
+    }
+
+    if (!mounted) return;
+
+    // 3. グレード逆引き（車種が見つかった場合のみ）
+    VehicleGrade? grade;
+    if (model != null) {
+      final gradesResult = await _masterService.getGradesForModel(model!.id);
+      gradesResult.when(
+        success: (grades) {
+          try {
+            grade = grades.firstWhere((g) => g.name == v.grade);
+          } catch (_) {
+            // マスタにないグレード（カスタム値）はその名前でGradeオブジェクトを作成
+            if (v.grade.isNotEmpty) {
+              grade = VehicleGrade(
+                id: 'custom_${v.grade}',
+                modelId: model!.id,
+                name: v.grade,
+              );
+            }
+          }
+        },
+        failure: (_) {},
+      );
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _selectedMaker = maker;
+      _selectedModel = model;
+      _selectedGrade = grade;
+      _masterDataLoading = false;
+    });
   }
 
   void _onFieldChanged() {
@@ -454,6 +536,24 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                   ),
                   AppSpacing.verticalSm,
 
+                  // マスタデータ読み込み中インジケーター
+                  if (_masterDataLoading) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 8),
+                          Text('車両情報を読み込み中...'),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   // メーカー（選択式）
                   MakerSelectorField(
                     selectedMaker: _selectedMaker,
@@ -466,7 +566,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                       _onFieldChanged();
                     },
                     validator: (value) {
-                      if (value == null) {
+                      // 逆引き失敗 or 読み込み中は既存値を使うため null でもOK
+                      if (value == null && _selectedMaker == null && !_masterDataLoading) {
                         return 'メーカーを選択してください';
                       }
                       return null;
@@ -486,7 +587,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                       _onFieldChanged();
                     },
                     validator: (value) {
-                      if (value == null) {
+                      if (value == null && _selectedModel == null && !_masterDataLoading) {
                         return '車種を選択してください';
                       }
                       return null;
@@ -529,7 +630,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                             _onFieldChanged();
                           },
                           validator: (value) {
-                            if (value == null) {
+                            if (value == null && _selectedGrade == null && !_masterDataLoading) {
                               return 'グレードを選択';
                             }
                             return null;
