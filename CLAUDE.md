@@ -38,9 +38,40 @@ Provider（コンストラクタ注入） ← Service（Result<T,AppError>）
 - **エラーハンドリング**: `Result<T, AppError>` パターン（Service層）
 - **状態管理**: Provider（コンストラクタでService注入）
 - **DI**: `ServiceLocator` 経由。Provider内で直接`new`しない
-- **テスト**: 変更時は必ずテスト実行、全件パス維持
+- **テスト**: 変更時は必ずテスト実行、全件パス維持（TDDルール参照）
 - **静的解析**: `flutter analyze` クリーン維持
 - **言語**: UIテキストは日本語、コード・コメントは英語
+
+## TDDルール（必須）
+
+### RED → GREEN → REFACTOR サイクル
+
+1. **RED** — 失敗するテストを先に書く（実装前に `flutter test` が赤になることを確認）
+2. **GREEN** — テストが通る最小限の実装を書く
+3. **REFACTOR** — テストを維持しながらコードを整理する
+
+**サイクルの省略禁止**: いきなりGREENから始めない。REDを確認してから実装する。
+
+### エッジケーステスト（必須項目）
+
+新しいServiceメソッドやロジックを追加する際は、以下のエッジケースを必ずテストに含める：
+
+| カテゴリ | テスト例 |
+|---------|---------|
+| 空値・null | 空文字 `''`、null、空リスト `[]` を渡したときの挙動 |
+| 境界値 | 0値、負数（`-1`）、最大値（`int.maxFinite`）、範囲上限の超過 |
+| 超長文字 | 10,000文字を超えるテキスト入力 |
+| 矛盾状態 | `endDate < startDate`、`rating: 0`（有効範囲外）など |
+| 存在しないID | 削除済みリソースへのアクセス、不正なID形式 |
+| 権限違反 | 他ユーザーのリソースへの操作（permission errorを期待） |
+
+各テストグループに `group('Edge Cases', ...)` を追加する形で整理する。
+
+### 承認フロー
+
+- Claudeが計画・変更案を提示したとき、承認は **`y`** のみでOK
+- NOの場合は曖昧にせず**具体的な対案**を提示すること（「〜ではなく〜にしてほしい」）
+- 承認なしに実装を開始しない（EnterPlanMode→承認→実装の順序を厳守）
 
 ## Gitコミットルール（重要）
 
@@ -56,6 +87,60 @@ Provider（コンストラクタ注入） ← Service（Result<T,AppError>）
   ```
 - **type**: feat, fix, test, docs, refactor, perf, ci
 - **プッシュ**: コミット後は必ず `git push origin main`
+
+## GitHub Issue/PRワークフロー（セッション引き継ぎ）
+
+### 作業開始時（必須）
+
+新しい機能・修正を始めるとき、最初にIssueを作成してセッションのコンテキストを記録する：
+
+```bash
+# Issue作成（作業開始前）
+gh issue create \
+  --title "feat: <機能名>" \
+  --body "## 目的\n<何をなぜ変えるか>\n\n## 実装方針\n<設計メモ>\n\n## チェックリスト\n- [ ] テスト作成（RED確認済み）\n- [ ] 実装\n- [ ] flutter analyze\n- [ ] flutter test" \
+  --label "enhancement"
+```
+
+### セッション引き継ぎ（コンテキスト復元）
+
+新しいセッションで前回の作業を再開するとき：
+
+```bash
+# 前回のIssueとPRを確認
+gh issue list --state open
+gh pr list --state open
+
+# 特定IssueのコメントでコンテキストをAIが読む
+gh issue view <番号> --comments
+```
+
+### 作業完了時
+
+```bash
+# PR作成
+gh pr create \
+  --title "feat: <機能名>" \
+  --body "## 概要\n- <変更内容>\n\n## テスト\n- [ ] 単体テスト追加\n- [ ] エッジケース確認\n- [ ] flutter analyze クリーン\n\nCloses #<issue番号>" \
+  --base main
+
+# IssueにAI作業ログを残す（次セッション引き継ぎ用）
+gh issue comment <番号> --body "## セッション記録 $(date '+%Y-%m-%d')\n\n### 完了\n- <完了したこと>\n\n### 次のセッションで継続\n- <未完了タスク>\n\n### 重要な判断事項\n- <設計上の決定記録>"
+```
+
+## AIクロスレビュー（オプション）
+
+Claudeのレビューに加えて外部AIツールでのセカンドオピニオンを取得できる：
+
+```bash
+# Codex CLI使用可能な場合（要: npm install -g @openai/codex）
+codex "Review this Flutter service for bugs and edge cases" < lib/services/post_service.dart
+
+# GitHub Copilot CLI使用可能な場合
+gh copilot suggest "What edge cases am I missing in this Dart code?"
+```
+
+注意: クロスレビューはオプション。必須ではない。
 
 ## 効率化ルール（コンテキスト節約）
 
