@@ -17,11 +17,13 @@ import 'invoice_result_screen.dart';
 class AddMaintenanceScreen extends StatefulWidget {
   final String vehicleId;
   final int? currentVehicleMileage; // 現在の車両走行距離（整合性チェック用）
+  final MaintenanceRecord? existingRecord; // null = 新規, non-null = 編集
 
   const AddMaintenanceScreen({
     super.key,
     required this.vehicleId,
     this.currentVehicleMileage,
+    this.existingRecord,
   });
 
   @override
@@ -44,6 +46,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   bool _showAllTypes = false;
   bool _isOcrProcessing = false;
 
+  bool get _isEditMode => widget.existingRecord != null;
+
   // OCRサービス (DI経由)
   InvoiceOcrService get _invoiceOcrService => sl.get<InvoiceOcrService>();
   FirebaseService get _firebaseService => sl.get<FirebaseService>();
@@ -57,6 +61,27 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     MaintenanceType.repair,
     MaintenanceType.partsReplacement,
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    final record = widget.existingRecord;
+    if (record != null) {
+      _selectedType = record.type;
+      _titleController.text = record.title;
+      _selectedDate = record.date;
+      _costController.text = record.cost.toString();
+      if (record.shopName != null) _shopNameController.text = record.shopName!;
+      if (record.mileageAtService != null) {
+        _mileageController.text = record.mileageAtService.toString();
+      }
+      if (record.partNumber != null) _partNumberController.text = record.partNumber!;
+      if (record.partManufacturer != null) {
+        _partManufacturerController.text = record.partManufacturer!;
+      }
+      if (record.description != null) _descriptionController.text = record.description!;
+    }
+  }
 
   @override
   void dispose() {
@@ -156,10 +181,11 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     });
 
     try {
+      final existing = widget.existingRecord;
       final record = MaintenanceRecord(
-        id: '',
+        id: existing?.id ?? '',
         vehicleId: widget.vehicleId,
-        userId: _firebaseService.currentUserId ?? '',
+        userId: existing?.userId ?? _firebaseService.currentUserId ?? '',
         type: _selectedType,
         title: _titleController.text,
         description: _descriptionController.text.isEmpty
@@ -172,8 +198,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
         mileageAtService: _mileageController.text.isEmpty
             ? null
             : int.parse(_mileageController.text),
-        createdAt: DateTime.now(),
-        // Phase 1.5 追加フィールド
+        createdAt: existing?.createdAt ?? DateTime.now(),
         partNumber: _partNumberController.text.isEmpty
             ? null
             : _partNumberController.text,
@@ -182,12 +207,20 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
             : _partManufacturerController.text,
       );
 
-      final success =
-          await Provider.of<MaintenanceProvider>(context, listen: false)
-              .addMaintenanceRecord(record);
+      final provider =
+          Provider.of<MaintenanceProvider>(context, listen: false);
+      final bool success;
+      if (_isEditMode) {
+        success = await provider.updateMaintenanceRecord(existing!.id, record);
+      } else {
+        success = await provider.addMaintenanceRecord(record);
+      }
 
       if (success && mounted) {
-        showSuccessSnackBar(context, 'メンテナンス履歴を追加しました');
+        showSuccessSnackBar(
+          context,
+          _isEditMode ? 'メンテナンス履歴を更新しました' : 'メンテナンス履歴を追加しました',
+        );
         Navigator.pop(context);
       }
     } catch (e) {
@@ -220,7 +253,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('メンテナンス履歴を追加'),
+        title: Text(_isEditMode ? 'メンテナンス履歴を編集' : 'メンテナンス履歴を追加'),
       ),
       body: AppLoadingOverlay(
         isLoading: _isLoading,
@@ -418,7 +451,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
 
                 // 保存ボタン
                 AppButton.primary(
-                  label: '保存する',
+                  label: _isEditMode ? '更新する' : '保存する',
                   onPressed: _saveRecord,
                   isFullWidth: true,
                   size: AppButtonSize.large,

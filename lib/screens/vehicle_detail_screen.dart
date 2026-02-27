@@ -121,6 +121,31 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                     label: '走行距離',
                     value: '${_formatNumber(_vehicle.mileage)} km',
                   ),
+                  if (_vehicle.inspectionExpiryDate != null)
+                    _InfoRow(
+                      icon: Icons.verified_outlined,
+                      label: '車検満了日',
+                      value: DateFormat('yyyy年MM月dd日')
+                          .format(_vehicle.inspectionExpiryDate!),
+                      valueColor: _vehicle.isInspectionExpired
+                          ? AppColors.error
+                          : _vehicle.isInspectionDueSoon
+                              ? AppColors.warning
+                              : null,
+                    ),
+                  if (_vehicle.insuranceExpiryDate != null)
+                    _InfoRow(
+                      icon: Icons.shield_outlined,
+                      label: '自賠責満了日',
+                      value: DateFormat('yyyy年MM月dd日')
+                          .format(_vehicle.insuranceExpiryDate!),
+                      valueColor: (_vehicle.daysUntilInsuranceExpiry != null &&
+                              _vehicle.daysUntilInsuranceExpiry! < 0)
+                          ? AppColors.error
+                          : _vehicle.isInsuranceDueSoon
+                              ? AppColors.warning
+                              : null,
+                    ),
                 ],
               ),
             ),
@@ -147,34 +172,17 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
             // 履歴セクション
             Padding(
               padding: AppSpacing.paddingScreen,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'メンテナンス履歴',
-                    style: theme.textTheme.headlineLarge,
-                  ),
-                  TextButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AddMaintenanceScreen(
-                            vehicleId: _vehicle.id,
-                            currentVehicleMileage: _vehicle.mileage,
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('追加'),
-                  ),
-                ],
+              child: Text(
+                'メンテナンス履歴',
+                style: theme.textTheme.headlineLarge,
               ),
             ),
 
             // 履歴タイムライン
-            _MaintenanceTimeline(vehicleId: _vehicle.id),
+            _MaintenanceTimeline(
+              vehicleId: _vehicle.id,
+              currentVehicleMileage: _vehicle.mileage,
+            ),
 
             AppSpacing.verticalLg,
           ],
@@ -237,11 +245,13 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final Color? valueColor;
 
   const _InfoRow({
     required this.icon,
     required this.label,
     required this.value,
+    this.valueColor,
   });
 
   @override
@@ -268,7 +278,11 @@ class _InfoRow extends StatelessWidget {
           ),
           Text(
             value,
-            style: theme.textTheme.bodyLarge,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: valueColor,
+              fontWeight:
+                  valueColor != null ? FontWeight.bold : null,
+            ),
           ),
         ],
       ),
@@ -380,8 +394,12 @@ class _StatCard extends StatelessWidget {
 
 class _MaintenanceTimeline extends StatelessWidget {
   final String vehicleId;
+  final int currentVehicleMileage;
 
-  const _MaintenanceTimeline({required this.vehicleId});
+  const _MaintenanceTimeline({
+    required this.vehicleId,
+    required this.currentVehicleMileage,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -421,6 +439,7 @@ class _MaintenanceTimeline extends StatelessWidget {
                 context,
                 records[index],
                 maintenanceProvider,
+                currentVehicleMileage,
               ),
             );
           },
@@ -434,6 +453,7 @@ class _MaintenanceTimeline extends StatelessWidget {
     BuildContext context,
     MaintenanceRecord record,
     MaintenanceProvider provider,
+    int currentVehicleMileage,
   ) {
     showModalBottomSheet<void>(
       context: context,
@@ -445,6 +465,7 @@ class _MaintenanceTimeline extends StatelessWidget {
       builder: (sheetContext) => _MaintenanceDetailSheet(
         record: record,
         provider: provider,
+        currentVehicleMileage: currentVehicleMileage,
       ),
     );
   }
@@ -629,10 +650,12 @@ class _TimelineItem extends StatelessWidget {
 class _MaintenanceDetailSheet extends StatelessWidget {
   final MaintenanceRecord record;
   final MaintenanceProvider provider;
+  final int currentVehicleMileage;
 
   const _MaintenanceDetailSheet({
     required this.record,
     required this.provider,
+    required this.currentVehicleMileage,
   });
 
   @override
@@ -796,14 +819,41 @@ class _MaintenanceDetailSheet extends StatelessWidget {
 
                   AppSpacing.verticalLg,
 
+                  // Edit button
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AddMaintenanceScreen(
+                              vehicleId: record.vehicleId,
+                              currentVehicleMileage: currentVehicleMileage,
+                              existingRecord: record,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('この記録を編集'),
+                    ),
+                  ),
+
+                  AppSpacing.verticalSm,
+
                   // Delete button
-                  OutlinedButton.icon(
-                    onPressed: () => _confirmDelete(context),
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('この記録を削除'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _confirmDelete(context),
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('この記録を削除'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                      ),
                     ),
                   ),
 
@@ -838,9 +888,13 @@ class _MaintenanceDetailSheet extends StatelessWidget {
     );
 
     if (confirmed == true && context.mounted) {
-      await provider.deleteMaintenanceRecord(record.id);
+      final success = await provider.deleteMaintenanceRecord(record.id);
       if (context.mounted) {
-        Navigator.pop(context); // close the sheet
+        if (success) {
+          Navigator.pop(context); // close the sheet only on success
+        } else {
+          showErrorSnackBar(context, '削除に失敗しました。再度お試しください。');
+        }
       }
     }
   }

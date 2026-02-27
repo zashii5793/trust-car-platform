@@ -2,71 +2,57 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../models/app_notification.dart';
+import '../../models/vehicle.dart';
+import '../../providers/maintenance_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../providers/vehicle_provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../vehicle_detail_screen.dart';
 
-/// 通知一覧画面
+/// 通知一覧（Scaffold なし — HomeScreen の AppBar に統合）
 class NotificationListScreen extends StatelessWidget {
   const NotificationListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('通知'),
-        actions: [
-          Consumer<NotificationProvider>(
-            builder: (context, provider, child) {
-              if (provider.unreadCount > 0) {
-                return TextButton(
-                  onPressed: () => provider.markAllAsRead(),
-                  child: const Text('すべて既読にする'),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-        ],
-      ),
-      body: Consumer<NotificationProvider>(
-        builder: (context, provider, child) {
-          if (provider.isLoading) {
-            return const AppLoadingCenter();
-          }
+    return Consumer<NotificationProvider>(
+      builder: (context, provider, child) {
+        if (provider.isLoading) {
+          return const AppLoadingCenter();
+        }
 
-          if (provider.notifications.isEmpty) {
-            return const AppEmptyState(
-              icon: Icons.notifications_none,
-              title: '通知はありません',
-              description: 'メンテナンスの推奨がある場合はここに表示されます',
-            );
-          }
-
-          return ListView.builder(
-            padding: AppSpacing.paddingScreen,
-            itemCount: provider.notifications.length,
-            itemBuilder: (context, index) {
-              final notification = provider.notifications[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                child: _NotificationCard(
-                  notification: notification,
-                  onTap: () {
-                    provider.markAsRead(notification.id);
-                    _showNotificationDetail(context, notification);
-                  },
-                  onDismiss: () {
-                    provider.removeNotification(notification.id);
-                  },
-                ),
-              );
-            },
+        if (provider.notifications.isEmpty) {
+          return const AppEmptyState(
+            icon: Icons.notifications_none,
+            title: '通知はありません',
+            description: 'メンテナンスの推奨がある場合はここに表示されます',
           );
-        },
-      ),
+        }
+
+        return ListView.builder(
+          padding: AppSpacing.paddingScreen,
+          itemCount: provider.notifications.length,
+          itemBuilder: (context, index) {
+            final notification = provider.notifications[index];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: _NotificationCard(
+                notification: notification,
+                onTap: () {
+                  provider.markAsRead(notification.id);
+                  _showNotificationDetail(context, notification);
+                },
+                onDismiss: () {
+                  provider.removeNotification(notification.id);
+                },
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -81,7 +67,7 @@ class NotificationListScreen extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) {
+      builder: (sheetContext) {
         return DraggableScrollableSheet(
           initialChildSize: 0.5,
           minChildSize: 0.3,
@@ -168,11 +154,19 @@ class NotificationListScreen extends StatelessWidget {
 
                   AppSpacing.verticalXl,
 
+                  // 車両詳細へ移動するボタン（vehicleId がある場合のみ）
+                  if (notification.vehicleId != null) ...[
+                    _VehicleNavigationButton(
+                      vehicleId: notification.vehicleId!,
+                    ),
+                    AppSpacing.verticalSm,
+                  ],
+
                   // 閉じるボタン
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => Navigator.pop(sheetContext),
                       child: const Text('閉じる'),
                     ),
                   ),
@@ -264,6 +258,55 @@ class NotificationListScreen extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 車両詳細への導線ボタン
+// ---------------------------------------------------------------------------
+
+class _VehicleNavigationButton extends StatelessWidget {
+  final String vehicleId;
+
+  const _VehicleNavigationButton({required this.vehicleId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<VehicleProvider>(
+      builder: (context, vehicleProvider, child) {
+        final Vehicle? vehicle = vehicleProvider.vehicles
+            .where((v) => v.id == vehicleId)
+            .firstOrNull;
+
+        if (vehicle == null) return const SizedBox.shrink();
+
+        return SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: () {
+              // Provider を pop 前に取得
+              final maintenanceProvider =
+                  Provider.of<MaintenanceProvider>(context, listen: false);
+              vehicleProvider.selectVehicle(vehicle);
+              maintenanceProvider.listenToMaintenanceRecords(vehicle.id);
+              Navigator.pop(context); // BottomSheet を閉じる
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => VehicleDetailScreen(vehicle: vehicle),
+                ),
+              );
+            },
+            icon: const Icon(Icons.directions_car),
+            label: Text('${vehicle.maker} ${vehicle.model} を確認する'),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Notification Card
+// ---------------------------------------------------------------------------
+
 class _NotificationCard extends StatelessWidget {
   final AppNotification notification;
   final VoidCallback onTap;
@@ -335,8 +378,9 @@ class _NotificationCard extends StatelessWidget {
                       ? '推奨日: ${dateFormat.format(notification.actionDate!)}'
                       : dateFormat.format(notification.createdAt),
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color:
-                        isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+                    color: isDark
+                        ? AppColors.darkTextTertiary
+                        : AppColors.textTertiary,
                   ),
                 ),
               ],

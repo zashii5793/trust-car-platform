@@ -38,65 +38,91 @@ class _HomeScreenState extends State<HomeScreen> {
   void _initializeData() {
     final vehicleProvider = Provider.of<VehicleProvider>(context, listen: false);
     vehicleProvider.listenToVehicles();
-
-    // 車両データの変更を監視して通知を生成
     vehicleProvider.addListener(_onVehiclesChanged);
   }
 
   void _onVehiclesChanged() {
     if (!mounted) return;
     final vehicleProvider = Provider.of<VehicleProvider>(context, listen: false);
-    final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+    final notificationProvider =
+        Provider.of<NotificationProvider>(context, listen: false);
 
     if (vehicleProvider.vehicles.isNotEmpty) {
-      // 各車両のメンテナンス履歴を取得して通知を生成
-      notificationProvider.generateNotificationsForVehicles(vehicleProvider.vehicles);
+      notificationProvider
+          .generateNotificationsForVehicles(vehicleProvider.vehicles);
     }
   }
 
   @override
   void dispose() {
-    // Listenerを削除してメモリリークを防止
     final vehicleProvider = Provider.of<VehicleProvider>(context, listen: false);
     vehicleProvider.removeListener(_onVehiclesChanged);
     super.dispose();
+  }
+
+  // ---- AppBar タイトル（タブ連動） ----
+  String get _appBarTitle {
+    switch (_currentIndex) {
+      case 0:
+        return 'マイカー';
+      case 1:
+        return '通知';
+      case 2:
+        return 'プロフィール';
+      default:
+        return 'マイカー';
+    }
+  }
+
+  // ---- AppBar アクション（タブ連動） ----
+  List<Widget> _buildAppBarActions() {
+    final actions = <Widget>[];
+
+    // オフラインアイコンは常に表示
+    actions.add(
+      Consumer<ConnectivityProvider>(
+        builder: (context, connectivity, child) {
+          if (connectivity.isOffline) {
+            return const Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: Icon(
+                Icons.cloud_off,
+                color: AppColors.warning,
+                size: 20,
+              ),
+            );
+          }
+          return const SizedBox.shrink();
+        },
+      ),
+    );
+
+    // 通知タブのみ「すべて既読」ボタンを表示
+    if (_currentIndex == 1) {
+      actions.add(
+        Consumer<NotificationProvider>(
+          builder: (context, provider, child) {
+            if (provider.unreadCount > 0) {
+              return TextButton(
+                onPressed: () => provider.markAllAsRead(),
+                child: const Text('すべて既読'),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        ),
+      );
+    }
+
+    return actions;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('マイカー'),
-        actions: [
-          // Offline status indicator
-          Consumer<ConnectivityProvider>(
-            builder: (context, connectivity, child) {
-              if (connectivity.isOffline) {
-                return const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: Icon(
-                    Icons.cloud_off,
-                    color: AppColors.warning,
-                    size: 20,
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-          // プロフィールアイコン
-          IconButton(
-            icon: const Icon(Icons.person_outline),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ProfileScreen(),
-                ),
-              );
-            },
-          ),
-        ],
+        title: Text(_appBarTitle),
+        actions: _buildAppBarActions(),
       ),
       body: Column(
         children: [
@@ -104,18 +130,21 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(child: _buildBody()),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const VehicleRegistrationScreen(),
-            ),
-          );
-        },
-        tooltip: '車両を登録',
-        child: const Icon(Icons.add),
-      ),
+      // FABは車両タブのみ表示
+      floatingActionButton: _currentIndex == 0
+          ? FloatingActionButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const VehicleRegistrationScreen(),
+                  ),
+                );
+              },
+              tooltip: '車両を登録',
+              child: const Icon(Icons.add),
+            )
+          : null,
       bottomNavigationBar: Consumer<NotificationProvider>(
         builder: (context, notificationProvider, child) {
           return BottomNavigationBar(
@@ -159,9 +188,9 @@ class _HomeScreenState extends State<HomeScreen> {
       case 0:
         return _buildVehicleList();
       case 1:
-        return _buildNotificationPlaceholder();
+        return const NotificationListScreen();
       case 2:
-        return _buildProfilePlaceholder();
+        return _buildProfileTab();
       default:
         return _buildVehicleList();
     }
@@ -215,11 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildNotificationPlaceholder() {
-    return const NotificationListScreen();
-  }
-
-  Widget _buildProfilePlaceholder() {
+  Widget _buildProfileTab() {
     final authProvider = context.read<AuthProvider>();
     final user = authProvider.firebaseUser;
     final theme = Theme.of(context);
@@ -258,24 +283,29 @@ class _HomeScreenState extends State<HomeScreen> {
             user?.email ?? '',
             style: theme.textTheme.bodyMedium,
           ),
+          AppSpacing.verticalLg,
+          // プロフィール詳細ボタン
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProfileScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.manage_accounts_outlined),
+              label: const Text('プロフィールを編集'),
+            ),
+          ),
           AppSpacing.verticalXxl,
           // ログアウトボタン
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () async {
-                // 全Providerのデータをクリア
-                final vehicleProvider = context.read<VehicleProvider>();
-                final maintenanceProvider = context.read<MaintenanceProvider>();
-                final notificationProvider = context.read<NotificationProvider>();
-
-                vehicleProvider.clear();
-                maintenanceProvider.clear();
-                notificationProvider.clear();
-
-                // 最後に認証をサインアウト
-                await authProvider.signOut();
-              },
+              onPressed: () => _confirmSignOut(context),
               icon: const Icon(Icons.logout),
               label: const Text('ログアウト'),
               style: OutlinedButton.styleFrom(
@@ -287,6 +317,39 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmSignOut(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('ログアウト'),
+        content: const Text('ログアウトしますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('ログアウト'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      final vehicleProvider = context.read<VehicleProvider>();
+      final maintenanceProvider = context.read<MaintenanceProvider>();
+      final notificationProvider = context.read<NotificationProvider>();
+      final authProvider = context.read<AuthProvider>();
+
+      vehicleProvider.clear();
+      maintenanceProvider.clear();
+      notificationProvider.clear();
+      await authProvider.signOut();
+    }
   }
 }
 
@@ -305,10 +368,11 @@ class _VehicleCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    // 警告状態を判定
-    final hasInspectionWarning = vehicle.isInspectionExpired || vehicle.isInspectionDueSoon;
+    final hasInspectionWarning =
+        vehicle.isInspectionExpired || vehicle.isInspectionDueSoon;
     final hasInsuranceWarning = vehicle.isInsuranceDueSoon ||
-        (vehicle.daysUntilInsuranceExpiry != null && vehicle.daysUntilInsuranceExpiry! < 0);
+        (vehicle.daysUntilInsuranceExpiry != null &&
+            vehicle.daysUntilInsuranceExpiry! < 0);
 
     return AppCard(
       margin: AppSpacing.marginListItem,
@@ -342,7 +406,8 @@ class _VehicleCard extends StatelessWidget {
                         child: Image.network(
                           vehicle.imageUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _buildPlaceholder(isDark),
+                          errorBuilder: (_, __, ___) =>
+                              _buildPlaceholder(isDark),
                         ),
                       )
                     : _buildPlaceholder(isDark),
@@ -384,7 +449,8 @@ class _VehicleCard extends StatelessWidget {
               ),
               Icon(
                 Icons.chevron_right,
-                color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+                color:
+                    isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
               ),
             ],
           ),
@@ -401,7 +467,6 @@ class _VehicleCard extends StatelessWidget {
   Widget _buildWarningBanner(BuildContext context, ThemeData theme) {
     final warnings = <Widget>[];
 
-    // 車検警告
     if (vehicle.isInspectionExpired) {
       warnings.add(_buildWarningChip(
         context,
@@ -419,7 +484,6 @@ class _VehicleCard extends StatelessWidget {
       ));
     }
 
-    // 保険警告
     final insuranceDays = vehicle.daysUntilInsuranceExpiry;
     if (insuranceDays != null && insuranceDays < 0) {
       warnings.add(_buildWarningChip(
