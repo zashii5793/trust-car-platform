@@ -32,6 +32,29 @@ class NotificationProvider extends ChangeNotifier {
       .where((n) => !n.isRead && n.priority == NotificationPriority.high)
       .length;
 
+  /// ホーム画面「AIからの提案」用：高・中優先度かつシステム通知を除外した上位3件
+  /// 優先度順（high → medium）にソート済み
+  List<AppNotification> get topSuggestions {
+    const priorityOrder = {
+      NotificationPriority.high: 0,
+      NotificationPriority.medium: 1,
+      NotificationPriority.low: 2,
+    };
+    final filtered = _notifications
+        .where(
+          (n) =>
+              n.type != NotificationType.system &&
+              (n.priority == NotificationPriority.high ||
+                  n.priority == NotificationPriority.medium),
+        )
+        .toList()
+      ..sort(
+        (a, b) => (priorityOrder[a.priority] ?? 2)
+            .compareTo(priorityOrder[b.priority] ?? 2),
+      );
+    return filtered.take(3).toList();
+  }
+
   /// ローディング状態
   bool get isLoading => _isLoading;
 

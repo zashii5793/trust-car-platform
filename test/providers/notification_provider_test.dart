@@ -467,6 +467,104 @@ void main() {
         );
       });
     });
+
+    group('topSuggestions', () {
+      test('returns empty list when no notifications', () {
+        expect(provider.topSuggestions, isEmpty);
+      });
+
+      test('returns only high and medium priority notifications', () async {
+        final vehicles = [_createTestVehicle()];
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: '1', priority: NotificationPriority.high),
+          _createTestNotification(id: '2', priority: NotificationPriority.medium),
+          _createTestNotification(id: '3', priority: NotificationPriority.low),
+        ];
+
+        await provider.generateNotificationsForVehicles(vehicles);
+
+        final suggestions = provider.topSuggestions;
+        expect(suggestions.length, equals(2));
+        expect(suggestions.any((n) => n.priority == NotificationPriority.low), isFalse);
+      });
+
+      test('excludes system type notifications', () async {
+        final vehicles = [_createTestVehicle()];
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: '1', priority: NotificationPriority.high),
+          AppNotification(
+            id: 'sys',
+            userId: 'test-user-id',
+            vehicleId: 'test-vehicle-id',
+            type: NotificationType.system,
+            title: 'System',
+            message: 'System message',
+            priority: NotificationPriority.high,
+            isRead: false,
+            createdAt: DateTime.now(),
+          ),
+        ];
+
+        await provider.generateNotificationsForVehicles(vehicles);
+
+        final suggestions = provider.topSuggestions;
+        expect(suggestions.length, equals(1));
+        expect(suggestions.any((n) => n.type == NotificationType.system), isFalse);
+      });
+
+      test('returns at most 3 items', () async {
+        final vehicles = [_createTestVehicle()];
+        mockRecommendationService.mockRecommendations = List.generate(
+          6,
+          (i) => _createTestNotification(
+            id: 'n$i',
+            priority: NotificationPriority.high,
+          ),
+        );
+
+        await provider.generateNotificationsForVehicles(vehicles);
+
+        expect(provider.topSuggestions.length, equals(3));
+      });
+
+      test('high priority appears before medium priority', () async {
+        final vehicles = [_createTestVehicle()];
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: 'med', priority: NotificationPriority.medium),
+          _createTestNotification(id: 'high', priority: NotificationPriority.high),
+        ];
+
+        await provider.generateRecommendations(
+          vehicles: vehicles,
+          maintenanceRecords: {'test-vehicle-id': []},
+        );
+
+        final suggestions = provider.topSuggestions;
+        expect(suggestions.first.priority, equals(NotificationPriority.high));
+      });
+
+      test('returns empty when only low priority or system notifications exist', () async {
+        final vehicles = [_createTestVehicle()];
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: '1', priority: NotificationPriority.low),
+          AppNotification(
+            id: 'sys',
+            userId: 'test-user-id',
+            vehicleId: 'test-vehicle-id',
+            type: NotificationType.system,
+            title: 'System',
+            message: 'System message',
+            priority: NotificationPriority.medium,
+            isRead: false,
+            createdAt: DateTime.now(),
+          ),
+        ];
+
+        await provider.generateNotificationsForVehicles(vehicles);
+
+        expect(provider.topSuggestions, isEmpty);
+      });
+    });
   });
 }
 

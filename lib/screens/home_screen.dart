@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/connectivity_provider.dart';
 import '../models/vehicle.dart';
+import '../models/app_notification.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../widgets/common/app_card.dart';
@@ -234,9 +235,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return ListView.builder(
           padding: AppSpacing.paddingScreen,
-          itemCount: vehicleProvider.vehicles.length,
+          itemCount: vehicleProvider.vehicles.length + 1, // +1 for suggestion header
           itemBuilder: (context, index) {
-            final vehicle = vehicleProvider.vehicles[index];
+            if (index == 0) {
+              return _AiSuggestionSection(
+                onSeeAll: () => setState(() => _currentIndex = 1),
+              );
+            }
+            final vehicle = vehicleProvider.vehicles[index - 1];
             return _VehicleCard(vehicle: vehicle);
           },
         );
@@ -545,6 +551,228 @@ class _VehicleCard extends StatelessWidget {
         Icons.directions_car,
         size: AppSpacing.iconLg,
         color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AIからの提案セクション（ホーム画面トップ）
+// ---------------------------------------------------------------------------
+
+class _AiSuggestionSection extends StatelessWidget {
+  final VoidCallback onSeeAll;
+
+  const _AiSuggestionSection({required this.onSeeAll});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<NotificationProvider>(
+      builder: (context, notificationProvider, child) {
+        final suggestions = notificationProvider.topSuggestions;
+
+        // 提案がなければセクション自体を非表示
+        if (suggestions.isEmpty) return const SizedBox.shrink();
+
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ---- ヘッダー ----
+            Padding(
+              padding: const EdgeInsets.only(
+                top: AppSpacing.xs,
+                bottom: AppSpacing.xs,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.lightbulb_outline,
+                    size: AppSpacing.iconSm,
+                    color: theme.colorScheme.primary,
+                  ),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    'メンテナンスの提案',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: onSeeAll,
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 0),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'すべて見る',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 16,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ---- 横スクロールカード ----
+            SizedBox(
+              height: 140,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: suggestions.length,
+                separatorBuilder: (_, __) => AppSpacing.horizontalSm,
+                itemBuilder: (context, index) {
+                  return _SuggestionCard(
+                    notification: suggestions[index],
+                    isDark: isDark,
+                  );
+                },
+              ),
+            ),
+
+            AppSpacing.verticalMd,
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 個別の提案カード
+// ---------------------------------------------------------------------------
+
+class _SuggestionCard extends StatelessWidget {
+  final AppNotification notification;
+  final bool isDark;
+
+  const _SuggestionCard({
+    required this.notification,
+    required this.isDark,
+  });
+
+  Color get _priorityColor {
+    switch (notification.priority) {
+      case NotificationPriority.high:
+        return AppColors.error;
+      case NotificationPriority.medium:
+        return AppColors.warning;
+      case NotificationPriority.low:
+        return AppColors.info;
+    }
+  }
+
+  IconData get _typeIcon {
+    switch (notification.type) {
+      case NotificationType.inspectionReminder:
+        return Icons.verified_outlined;
+      case NotificationType.partsReplacement:
+        return Icons.build_outlined;
+      case NotificationType.maintenanceRecommendation:
+        return Icons.directions_car_outlined;
+      case NotificationType.system:
+        return Icons.info_outline;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = _priorityColor;
+
+    return Container(
+      width: 200,
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(
+          color: color.withValues(alpha: 0.4),
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ---- アイコン + 優先度バッジ ----
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: color.withValues(alpha: 0.12),
+                child: Icon(_typeIcon, size: 15, color: color),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  notification.priority == NotificationPriority.high ? '要対応' : '推奨',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          AppSpacing.verticalXs,
+
+          // ---- タイトル ----
+          Text(
+            notification.title,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+
+          AppSpacing.verticalXxs,
+
+          // ---- メッセージ（理由）----
+          Expanded(
+            child: Text(
+              notification.message,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: isDark
+                    ? AppColors.darkTextTertiary
+                    : AppColors.textTertiary,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }
