@@ -9,6 +9,33 @@ Flutter製車両管理アプリ。Firebase（Auth, Firestore, Storage）バッ�
 - 重要な決定事項は `CLAUDE_SESSION_NOTES.md` に記録してください
 - いきなりコードを書かず、**計画→テスト→実装**の順序を意識してください
 
+## セッション開始時（必須チェック）
+
+**新しいセッションを始める前に、必ず以下を確認する：**
+
+```bash
+# オープンなClaudeタスクIssueを確認
+gh issue list --label "claude-task" --state open
+
+# Issueがある場合 → 詳細を読む
+gh issue view <番号> --comments
+```
+
+Issueがある場合の対応手順：
+1. `priority: high` ラベルのIssueを優先して選ぶ
+2. Issue内容（やること・受け入れ条件）を把握する
+3. 作業開始をコメントで宣言する：
+   ```bash
+   gh issue comment <番号> --body "作業を開始します。設計後に実装します。"
+   ```
+4. EnterPlanMode → 実装 → テスト
+5. 完了時にPRを作成してIssueを参照する：
+   ```bash
+   gh pr create --title "feat: <タスク名>" --body "Closes #<番号>"
+   ```
+
+Issueがない場合 → ユーザーの指示を待つ。
+
 ## アーキテクチャ方針（最重要 - 必ず従う）
 
 ```
