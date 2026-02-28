@@ -10,6 +10,7 @@ import '../widgets/common/app_card.dart';
 import '../widgets/common/loading_indicator.dart';
 import 'add_maintenance_screen.dart';
 import 'export/export_dialog.dart';
+import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
 import 'maintenance_stats_screen.dart';
 
@@ -75,6 +76,19 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                           records: provider.records,
                         );
                       },
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.build_circle_outlined),
+            tooltip: 'パーツ提案',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      PartRecommendationScreen(vehicle: _vehicle),
+                ),
               );
             },
           ),

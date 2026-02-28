@@ -17,6 +17,8 @@ import 'providers/maintenance_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/connectivity_provider.dart';
+import 'providers/part_recommendation_provider.dart';
+import 'services/part_recommendation_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'core/theme/app_theme.dart';
@@ -104,6 +106,9 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NotificationProvider(
           firebaseService: sl.get<FirebaseService>(),
           recommendationService: sl.get<RecommendationService>(),
+        )),
+        ChangeNotifierProvider(create: (_) => PartRecommendationProvider(
+          partRecommendationService: sl.get<PartRecommendationService>(),
         )),
       ],
       child: MaterialApp(
