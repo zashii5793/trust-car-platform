@@ -172,10 +172,10 @@ class MockInquiryService implements InquiryService {
       const Result.success(0);
 
   @override
-  Stream<List<Inquiry>> streamUserInquiries(String userId) => const Stream.empty();
+  Stream<List<Inquiry>> streamUserInquiries(String userId) => Stream.empty();
 
   @override
-  Stream<List<InquiryMessage>> streamMessages(String inquiryId) => const Stream.empty();
+  Stream<List<InquiryMessage>> streamMessages(String inquiryId) => Stream.empty();
 }
 
 // ---------------------------------------------------------------------------
