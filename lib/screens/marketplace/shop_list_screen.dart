@@ -54,22 +54,25 @@ class _ShopListScreenState extends State<ShopListScreen> {
                   tooltip: '再読み込み',
                   onPressed: () {
                     _searchController.clear();
+                    provider.clearFilters();
                     provider.loadShops();
                   },
                 ),
             ],
           ),
           body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _SearchBar(
                 controller: _searchController,
                 onChanged: _onSearchChanged,
               ),
-              _FilterBar(provider: provider),
+              _FilterRow(provider: provider),
+              if (!provider.isLoading && provider.shops.isNotEmpty)
+                _ResultCount(count: provider.shops.length),
               Expanded(child: _buildBody(provider)),
             ],
           ),
-          // FABなし: 業者への能動的なアクションは「問い合わせる」のみ
         );
       },
     );
@@ -145,7 +148,7 @@ class _SearchBar extends StatelessWidget {
         controller: controller,
         onChanged: onChanged,
         decoration: InputDecoration(
-          hintText: '工場名で検索',
+          hintText: '工場名・サービスで検索',
           prefixIcon: const Icon(Icons.search),
           suffixIcon: controller.text.isNotEmpty
               ? IconButton(
@@ -156,8 +159,10 @@ class _SearchBar extends StatelessWidget {
                   },
                 )
               : null,
+          filled: true,
           border: OutlineInputBorder(
             borderRadius: AppSpacing.borderRadiusMd,
+            borderSide: BorderSide.none,
           ),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
@@ -170,76 +175,231 @@ class _SearchBar extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// フィルタバー
+// フィルタ行（3つのDropdownChip）
 // ---------------------------------------------------------------------------
 
-class _FilterBar extends StatelessWidget {
+class _FilterRow extends StatelessWidget {
   final ShopProvider provider;
 
-  const _FilterBar({required this.provider});
+  const _FilterRow({required this.provider});
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.xs,
-        ),
+    final hasFilter = provider.selectedType != null ||
+        provider.selectedService != null ||
+        provider.selectedPrefecture != null;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      child: Row(
         children: [
-          // 全てリセット
-          if (provider.selectedType != null ||
-              provider.selectedService != null ||
-              provider.selectedPrefecture != null)
-            Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.xs),
-              child: ActionChip(
-                label: const Text('リセット'),
-                avatar: const Icon(Icons.clear, size: 16),
-                onPressed: provider.clearFilters,
+          _FilterDropdownChip<ShopType>(
+            label: '業種',
+            selected: provider.selectedType,
+            displayName: (t) => t.displayName,
+            options: ShopType.values,
+            onSelected: provider.selectType,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          _FilterDropdownChip<ServiceCategory>(
+            label: 'サービス',
+            selected: provider.selectedService,
+            displayName: (s) => s.displayName,
+            options: ServiceCategory.values,
+            onSelected: provider.selectService,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          _FilterDropdownChip<String>(
+            label: '地域',
+            selected: provider.selectedPrefecture,
+            displayName: (p) => p,
+            options: _prefectures,
+            onSelected: provider.selectPrefecture,
+          ),
+          if (hasFilter) ...[
+            const Spacer(),
+            TextButton.icon(
+              icon: const Icon(Icons.clear, size: 14),
+              label: const Text('リセット', style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
               ),
+              onPressed: provider.clearFilters,
             ),
-
-          // 業種フィルタ
-          ...ShopType.values.map((type) {
-            final isSelected = provider.selectedType == type;
-            return Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.xs),
-              child: FilterChip(
-                label: Text(type.displayName),
-                selected: isSelected,
-                onSelected: (_) => provider.selectType(isSelected ? null : type),
-              ),
-            );
-          }),
-
-          const SizedBox(width: AppSpacing.sm),
-
-          // サービスフィルタ（主要なもののみ）
-          ...const [
-            ServiceCategory.inspection,
-            ServiceCategory.maintenance,
-            ServiceCategory.repair,
-            ServiceCategory.tire,
-          ].map((service) {
-            final isSelected = provider.selectedService == service;
-            return Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.xs),
-              child: FilterChip(
-                label: Text(service.displayName),
-                selected: isSelected,
-                onSelected: (_) =>
-                    provider.selectService(isSelected ? null : service),
-              ),
-            );
-          }),
+          ],
         ],
       ),
     );
   }
 }
+
+/// DropdownChip: タップするとボトムシートでオプションを選択できる
+class _FilterDropdownChip<T> extends StatelessWidget {
+  final String label;
+  final T? selected;
+  final String Function(T) displayName;
+  final List<T> options;
+  final void Function(T?) onSelected;
+
+  const _FilterDropdownChip({
+    required this.label,
+    required this.selected,
+    required this.displayName,
+    required this.options,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isActive = selected != null;
+
+    return GestureDetector(
+      onTap: () => _showBottomSheet(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: isActive
+              ? theme.colorScheme.primary
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              isActive ? displayName(selected as T) : label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: isActive
+                    ? theme.colorScheme.onPrimary
+                    : theme.colorScheme.onSurfaceVariant,
+                fontWeight: isActive ? FontWeight.bold : null,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              Icons.arrow_drop_down,
+              size: 16,
+              color: isActive
+                  ? theme.colorScheme.onPrimary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.lg)),
+      ),
+      builder: (ctx) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.xs,
+              ),
+              child: Text(
+                '$labelを選択',
+                style: Theme.of(ctx).textTheme.titleMedium,
+              ),
+            ),
+            if (selected != null)
+              ListTile(
+                leading: const Icon(Icons.clear),
+                title: Text('$labelフィルタをクリア'),
+                onTap: () {
+                  onSelected(null);
+                  Navigator.pop(ctx);
+                },
+              ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: options.map((option) {
+                  final isCurrent = option == selected;
+                  return ListTile(
+                    leading: isCurrent
+                        ? Icon(
+                            Icons.check,
+                            color: Theme.of(ctx).colorScheme.primary,
+                          )
+                        : const SizedBox(width: 24),
+                    title: Text(displayName(option)),
+                    onTap: () {
+                      onSelected(option);
+                      Navigator.pop(ctx);
+                    },
+                  );
+                }).toList(),
+              ),
+            ),
+            SizedBox(height: MediaQuery.of(ctx).padding.bottom + AppSpacing.sm),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 件数表示
+// ---------------------------------------------------------------------------
+
+class _ResultCount extends StatelessWidget {
+  final int count;
+
+  const _ResultCount({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      child: Text(
+        '$count件の工場',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 都道府県リスト
+// ---------------------------------------------------------------------------
+
+const _prefectures = [
+  '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県',
+  '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県',
+  '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県',
+  '岐阜県', '静岡県', '愛知県', '三重県',
+  '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県', '和歌山県',
+  '鳥取県', '島根県', '岡山県', '広島県', '山口県',
+  '徳島県', '香川県', '愛媛県', '高知県',
+  '福岡県', '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県',
+];
 
 // ---------------------------------------------------------------------------
 // 工場カード
@@ -254,9 +414,10 @@ class _ShopCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final todayHours = shop.getTodayHours();
 
     return Card(
-      elevation: 2,
+      elevation: 1,
       shape: RoundedRectangleBorder(
         borderRadius: AppSpacing.borderRadiusMd,
       ),
@@ -284,6 +445,7 @@ class _ShopCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // 店名 + バッジ
                     Row(
                       children: [
                         Expanded(
@@ -296,86 +458,118 @@ class _ShopCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        // 認証バッジ
                         if (shop.isVerified)
                           const Padding(
                             padding: EdgeInsets.only(left: AppSpacing.xs),
                             child: Icon(
                               Icons.verified,
-                              size: 18,
+                              size: 16,
                               color: Colors.blue,
                             ),
                           ),
-                        // 広告ラベル（isFeaturedの場合）
                         if (shop.isFeatured && !shop.isVerified)
                           Padding(
                             padding: const EdgeInsets.only(left: AppSpacing.xs),
-                            child: Chip(
-                              label: const Text('広告'),
-                              labelStyle: const TextStyle(fontSize: 10),
-                              padding: EdgeInsets.zero,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                '広告',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontSize: 10,
+                                ),
+                              ),
                             ),
                           ),
                       ],
                     ),
-                    const SizedBox(height: AppSpacing.xs),
-                    // 業種
+                    const SizedBox(height: 2),
+                    // 業種 + 都道府県
                     Text(
-                      shop.type.displayName,
+                      [
+                        shop.type.displayName,
+                        if (shop.prefecture != null) shop.prefecture!,
+                      ].join(' · '),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.primary,
                       ),
                     ),
                     // サービス
                     if (shop.services.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.xs),
+                      const SizedBox(height: 2),
                       Text(
-                        shop.services.take(2).map((s) => s.displayName).join(' · '),
-                        style: theme.textTheme.bodySmall,
+                        shop.services
+                            .take(3)
+                            .map((s) => s.displayName)
+                            .join(' · '),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
                     const SizedBox(height: AppSpacing.xs),
+                    // 評価 + 営業状況
                     Row(
                       children: [
-                        // 評価
                         if (shop.rating != null) ...[
-                          const Icon(Icons.star, size: 14, color: Colors.amber),
+                          const Icon(Icons.star_rounded,
+                              size: 14, color: Colors.amber),
                           const SizedBox(width: 2),
                           Text(
-                            shop.rating!.toStringAsFixed(1),
-                            style: theme.textTheme.bodySmall,
+                            '${shop.rating!.toStringAsFixed(1)}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
+                          if (shop.reviewCount > 0) ...[
+                            const SizedBox(width: 2),
+                            Text(
+                              '(${shop.reviewCount}件)',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
                           const SizedBox(width: AppSpacing.xs),
                         ],
-                        // 営業中バッジ
-                        if (shop.isOpenNow)
+                        // 今日の営業時間
+                        if (todayHours != null) ...[
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.green.shade100,
+                              color: shop.isOpenNow
+                                  ? Colors.green.shade50
+                                  : Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              '営業中',
+                              shop.isOpenNow
+                                  ? '営業中 〜${todayHours.closeTime ?? ''}'
+                                  : (todayHours.isClosed
+                                      ? '本日定休'
+                                      : '本日${todayHours.openTime ?? ''}〜'),
                               style: theme.textTheme.labelSmall?.copyWith(
-                                color: Colors.green.shade800,
+                                color: shop.isOpenNow
+                                    ? Colors.green.shade700
+                                    : Colors.grey.shade600,
+                                fontSize: 10,
                               ),
                             ),
                           ),
+                        ],
                       ],
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: Colors.grey),
+              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
             ],
           ),
         ),
@@ -383,3 +577,4 @@ class _ShopCard extends StatelessWidget {
     );
   }
 }
+

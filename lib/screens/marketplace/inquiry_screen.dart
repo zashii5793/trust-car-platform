@@ -33,6 +33,17 @@ class _InquiryScreenState extends State<InquiryScreen> {
   final _messageController = TextEditingController();
 
   InquiryType _selectedType = InquiryType.estimate;
+  int _messageLength = 0;
+
+  static const _maxMessageLength = 500;
+
+  @override
+  void initState() {
+    super.initState();
+    _messageController.addListener(() {
+      setState(() => _messageLength = _messageController.text.length);
+    });
+  }
 
   @override
   void dispose() {
@@ -83,15 +94,19 @@ class _InquiryScreenState extends State<InquiryScreen> {
       builder: (context, provider, _) {
         return Scaffold(
           appBar: AppBar(
-            title: Text('${widget.shop.name}への問い合わせ'),
+            title: const Text('問い合わせ'),
           ),
           body: Form(
             key: _formKey,
             child: ListView(
               padding: AppSpacing.paddingScreen,
               children: [
-                // 問い合わせ種別
-                _InquiryTypeSelector(
+                // 送信先の工場ミニカード（誤送信防止）
+                _ShopMiniCard(shop: widget.shop),
+                AppSpacing.verticalMd,
+
+                // 問い合わせ種別（ChoiceChip）
+                _InquiryTypeChips(
                   selected: _selectedType,
                   onChanged: (type) => setState(() => _selectedType = type),
                 ),
@@ -115,44 +130,48 @@ class _InquiryScreenState extends State<InquiryScreen> {
                 ),
                 AppSpacing.verticalMd,
 
-                // 本文
+                // 本文（文字数カウンタ付き）
                 TextFormField(
                   controller: _messageController,
-                  decoration: const InputDecoration(
-                    labelText: '本文',
-                    hintText: 'お問い合わせ内容をご記入ください',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: 'お問い合わせ内容',
+                    hintText: '詳しい内容をご記入ください',
+                    border: const OutlineInputBorder(),
                     alignLabelWithHint: true,
+                    counterText: '$_messageLength / $_maxMessageLength',
+                    counterStyle: TextStyle(
+                      color: _messageLength >= _maxMessageLength
+                          ? Theme.of(context).colorScheme.error
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   maxLines: 6,
+                  maxLength: _maxMessageLength,
+                  buildCounter: (context,
+                          {required currentLength,
+                          required isFocused,
+                          maxLength}) =>
+                      null, // counterText に委譲するため null
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return '本文を入力してください';
+                      return 'お問い合わせ内容を入力してください';
                     }
                     return null;
                   },
                 ),
-                AppSpacing.verticalMd,
+                AppSpacing.verticalXs,
 
                 // 車両情報（vehicleId指定時のみ）
-                if (widget.vehicleId != null)
+                if (widget.vehicleId != null) ...[
+                  AppSpacing.verticalXs,
                   _VehicleInfoBadge(vehicleId: widget.vehicleId!),
+                ],
 
                 AppSpacing.verticalLg,
 
-                // 注意文
-                Container(
-                  padding: AppSpacing.paddingCard,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                    borderRadius: AppSpacing.borderRadiusSm,
-                  ),
-                  child: const Text(
-                    '返信まで数日かかる場合があります。\n'
-                    '緊急の場合は直接お電話ください。',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ),
+                // 注意文（アイコン付き）
+                _DisclaimerBox(),
+
                 AppSpacing.verticalXl,
               ],
             ),
@@ -183,14 +202,102 @@ class _InquiryScreenState extends State<InquiryScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// 問い合わせ種別セレクター
+// 送信先工場ミニカード（誤送信防止 + 安心感）
 // ---------------------------------------------------------------------------
 
-class _InquiryTypeSelector extends StatelessWidget {
+class _ShopMiniCard extends StatelessWidget {
+  final Shop shop;
+
+  const _ShopMiniCard({required this.shop});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: AppSpacing.paddingCard,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundImage:
+                shop.logoUrl != null ? NetworkImage(shop.logoUrl!) : null,
+            child: shop.logoUrl == null
+                ? const Icon(Icons.store, size: 20)
+                : null,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '送信先',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        shop.name,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (shop.isVerified)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 4),
+                        child: Icon(Icons.verified, size: 14, color: Colors.blue),
+                      ),
+                  ],
+                ),
+                Text(
+                  shop.type.displayName,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 問い合わせ種別（ChoiceChip）
+// ---------------------------------------------------------------------------
+
+class _InquiryTypeChips extends StatelessWidget {
   final InquiryType selected;
   final ValueChanged<InquiryType> onChanged;
 
-  const _InquiryTypeSelector({
+  // 主要な問い合わせ種別（画面に表示する順序）
+  static const _primaryTypes = [
+    InquiryType.estimate,
+    InquiryType.appointment,
+    InquiryType.serviceInquiry,
+    InquiryType.partInquiry,
+    InquiryType.vehiclePurchase,
+    InquiryType.vehicleSale,
+    InquiryType.general,
+  ];
+
+  const _InquiryTypeChips({
     required this.selected,
     required this.onChanged,
   });
@@ -201,28 +308,27 @@ class _InquiryTypeSelector extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '問い合わせ種別',
+          '問い合わせの種別',
           style: Theme.of(context).textTheme.titleSmall,
         ),
         const SizedBox(height: AppSpacing.sm),
-        DropdownButtonFormField<InquiryType>(
-          value: selected,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.sm,
-            ),
-          ),
-          items: InquiryType.values.map((type) {
-            return DropdownMenuItem(
-              value: type,
-              child: Text(type.displayName),
+        Wrap(
+          spacing: AppSpacing.xs,
+          runSpacing: AppSpacing.xs,
+          children: _primaryTypes.map((type) {
+            final isSelected = type == selected;
+            return ChoiceChip(
+              label: Text(type.displayName),
+              selected: isSelected,
+              onSelected: (_) => onChanged(type),
+              labelStyle: TextStyle(
+                fontSize: 12,
+                fontWeight:
+                    isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              visualDensity: VisualDensity.compact,
             );
           }).toList(),
-          onChanged: (type) {
-            if (type != null) onChanged(type);
-          },
         ),
       ],
     );
@@ -256,6 +362,46 @@ class _VehicleInfoBadge extends StatelessWidget {
             child: Text(
               '車両情報を添付して送信します',
               style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 注意文ボックス
+// ---------------------------------------------------------------------------
+
+class _DisclaimerBox extends StatelessWidget {
+  const _DisclaimerBox();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: AppSpacing.paddingCard,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: AppSpacing.borderRadiusSm,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.schedule,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              '通常1〜3営業日以内に返信いたします。\n緊急の場合は直接お電話ください。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ],
