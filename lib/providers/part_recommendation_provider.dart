@@ -89,6 +89,74 @@ class PartRecommendationProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // ---------------------------------------------------------------------------
+  // Browse (marketplace general listing) state
+  // ---------------------------------------------------------------------------
+
+  List<PartListing> _browseParts = [];
+  String _searchQuery = '';
+
+  List<PartListing> get browseParts => _browseParts;
+  String get searchQuery => _searchQuery;
+
+  /// マーケットプレイスのパーツ一覧を読み込む（車両指定なし）
+  ///
+  /// - query 指定時: タグ検索
+  /// - category 指定時: カテゴリフィルタ
+  /// - 両方 null: おすすめパーツ表示
+  Future<void> loadBrowseParts({
+    PartCategory? category,
+    String? query,
+  }) async {
+    _isLoading = true;
+    _searchQuery = query ?? '';
+    notifyListeners();
+
+    if (query != null && query.trim().isNotEmpty) {
+      final result = await _service.searchParts(
+        query.trim(),
+        category: category,
+      );
+      result.when(
+        success: (parts) {
+          _browseParts = parts;
+          _error = null;
+        },
+        failure: (err) {
+          _error = err;
+          _browseParts = [];
+        },
+      );
+    } else if (category != null) {
+      final result = await _service.getPartsByCategory(category, limit: 30);
+      result.when(
+        success: (parts) {
+          _browseParts = parts;
+          _error = null;
+        },
+        failure: (err) {
+          _error = err;
+          _browseParts = [];
+        },
+      );
+    } else {
+      final result = await _service.getFeaturedParts(limit: 20);
+      result.when(
+        success: (parts) {
+          _browseParts = parts;
+          _error = null;
+        },
+        failure: (err) {
+          _error = err;
+          _browseParts = [];
+        },
+      );
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
   /// カテゴリを選択してフィルタを適用する
   void selectCategory(PartCategory? category) {
     _selectedCategory = category;
@@ -99,9 +167,11 @@ class PartRecommendationProvider with ChangeNotifier {
   void clear() {
     _recommendations = [];
     _featuredParts = [];
+    _browseParts = [];
     _isLoading = false;
     _error = null;
     _selectedCategory = null;
+    _searchQuery = '';
     notifyListeners();
   }
 }

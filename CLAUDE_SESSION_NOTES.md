@@ -1,142 +1,107 @@
 # Claude開発セッションメモ
 
-> **最終更新**: 2026-02-21
+> **最終更新**: 2026-03-05
 
 ---
 
-## プロダクトビジョン（最重要）
+## 現在の状態（Phase 6.1 完了 → Phase 7 へ）
 
-> **キャッチコピー: 「クルマの未来を、ユーザーの手に。」**
-> **キャッチフレーズ: 「クルマをもっと安全に、楽しく、個性的に。」**
+### 直近の完了作業
 
-アプリ定義: **「あなただけのカーライフ・コンシェルジュ」**
+| 作業 | 状態 |
+|------|------|
+| BtoBマーケット 3画面UI大幅改善 | ✅ |
+| `part_list_screen.dart` 新規実装 | ✅ |
+| `PartRecommendationProvider.loadBrowseParts` 追加 | ✅ |
+| `REPORT_AI_DEV_STATUS.md` 更新 | ✅ |
+| `CLAUDE_SESSION_NOTES.md` 更新 | ✅ |
 
-コンセプト3本柱: **安全 / 楽しく / 個性的に**
+### ブランチ情報
 
-### 設計思想「主役は常にユーザー」（全実装がこれに従う）
-
-| 原則 | 実装への影響 |
-|------|------------|
-| AIは提案する、決めない | PartRecommendationは必ず複数候補＋理由を返す。「ベスト1」断言NG |
-| 事業者は売り込まない | BtoBはユーザー主導のフロー。プッシュ型表示NG |
-| 情報はフラットに | ランキング・イチオシラベルで誘導しない |
-
----
-
-## 現在の状態（Phase 6開始）
-
-### 完了済み（Phase 1〜5）
-- 認証（メール + Google）
-- 車両管理 CRUD・バリデーション
-- 整備記録 22タイプ・統計可視化
-- OCR（車検証・請求書）
-- アラート（車検/自賠責/メンテ推奨）
-- PDF出力
-- 書類管理（Invoice/Document/ServiceMenu）モデル・Service・Provider
-- SNS基盤（Post/Comment/Follow）モデル・Service — UI未実装
-- BtoBマーケット基盤（Shop/Inquiry/PartListing）モデル・Service — UI未実装
-- AI推奨基盤（PartRecommendationService）— UI未実装
-- 品質基盤（Crashlytics・Performance・LoggingService）
-- CI/CD（GitHub Actions）
-- テスト 434件全パス・静的解析クリーン
-
-### 今セッションの作業
-- ✅ 企画書HTML（docs/pitch_deck.html）作成・コミット
-- ✅ FEATURE_SPEC.md 全面見直し（ビジョン・設計思想・企画書反映）
-- ✅ CLAUDE_SESSION_NOTES.md 更新
-- ⬜ P0: 車両マスタ実装（CSV投入スクリプト＋モデル＋UI改修）
-
-### 企画書（新規事業_企画書.pdf）との主要差分（反映済み）
-- キャッチコピー: 「クルマの未来を、ユーザーの手に。」「自由を、あなたのガレージへ。」
-- 設計思想「主役は常にユーザー」「AIは判断しない」を明文化
-- 「愛車タイムライン」UI を P0 に追加
-- ホーム画面「AIからの提案」セクションを P0 に追加
-- BtoBの収益モデルを「加盟料＋広告・送客費」に修正
-- 将来展望（OBD-II連携・EV管理・保険ローン連携）を追記
+- **開発ブランチ**: `claude/continue-development-WYZZp`
+- **ベースブランチ**: `main`
 
 ---
 
-## 次回やること（優先順）
+## 重要な設計決定
 
-### P0-a: 車両マスタ（最優先）
+### アーキテクチャ（変更禁止）
+
 ```
-実装ファイル:
-  models/vehicle_master.dart           # VehicleMaker / VehicleModel / VehicleGrade
-  services/vehicle_master_service.dart # injection.dart登録済み（中身確認要）
-  scripts/import_vehicle_master.dart   # CSV→Firestore投入スクリプト（新規）
-  data/vehicle_masters.csv            # 国産主要メーカー初期データ（新規）
-  screens/vehicle_registration_screen.dart  # ドロップダウン選択式に改修
-  screens/vehicle_edit_screen.dart          # 同上
-
-運用フロー:
-  新車発表 → CSVに追記 → スクリプト実行 → Firestore即時反映
+main.dart → Injection.init() → ServiceLocator
+                                      ↓
+Provider（コンストラクタ注入）← Service（Result<T,AppError>）
+      ↓                                ↓
+  UI層（screens/）              Firebase SDK
 ```
 
-### P0-b: 愛車タイムライン UI（P0-aと同タイミング）
-```
-整備記録の時系列タイムライン表示
-screens/vehicle_detail_screen.dart を改修
-or 新規 screens/vehicle_timeline_screen.dart
-```
+- **DI必須**: Providerはコンストラクタ注入（`new`禁止）
+- **domain/data層は存在しない**: 再作成禁止
+- **新Serviceは必ず `injection.dart` に登録**
 
-### P0-c: ホーム画面「AIからの提案」セクション
-```
-設計思想に従い: 複数候補＋理由の表示。「ベスト1」断言NG
-screens/home_screen.dart に追加
-```
+### UIの設計原則
 
-### P1: BtoBマーケット画面（次フェーズ）
-### P1: AIパーツ提案ロジック（次フェーズ）
+- **売り込まない**: BtoBは業者からのプッシュ型アクション禁止
+- **AIは提案する、決めない**: 「ベスト1」「最適」ラベルを付けない
+- **広告は「広告」と明示**: `isFeatured` は「広告」ラベルで表示
 
 ---
 
-## 設計上の注意点
+## 未解決の設計議論
 
-### アーキテクチャ
-- `domain/data` 層は存在しない（過去削除済み）→ 再作成厳禁
-- Providerは必ずServiceLocator経由でコンストラクタ注入
-- 新Service追加: injection.dart → Provider → main.dartのMultiProvider
-
-### PartRecommendation の設計原則
-```dart
-// ❌ NG
-class PartRecommendation {
-  final bool isBest;  // これは持たない
-}
-
-// ✅ OK
-class PartRecommendation {
-  final String partName;
-  final List<String> reasons;   // 推奨理由（複数）
-  final List<String> cautions;  // 注意点・デメリット
-  final int confidenceScore;    // 0-100
-}
-```
-
-### 車両マスタの運用設計
-- Firestoreに `vehicle_makers` / `vehicle_models` / `vehicle_grades` コレクション
-- グレードは年式（startYear/endYear）で管理（モデルチェンジ対応）
-- 管理者がCSVを投入する運用フロー（管理者画面は将来）
+| 議論 | 選択肢 | 現状の方針 |
+|------|--------|-----------|
+| SNSフィードを優先するか、パーツ詳細を先にするか | 未決定 | 次セッションで判断 |
+| Firestoreインデックス定義タイミング | 開発中 / デプロイ前 | 未着手 |
 
 ---
 
-## 主要ファイルパス
+## 次セッションでやること（優先順）
+
+### P0（必須）
+- [ ] `marketplace screens` のテスト追加（4画面: shop_list/shop_detail/inquiry/part_list）
+- [ ] `PartRecommendationProvider.loadBrowseParts` のテスト追加
+
+### P1（推奨）
+- [ ] SNSフィード画面 `screens/sns/` 実装（Post一覧・投稿作成）
+- [ ] Firestoreインデックス定義 `firestore.indexes.json`
+
+### P2（余裕があれば）
+- [ ] `part_detail_screen.dart`（パーツ詳細: pros/cons・互換性詳細・問い合わせボタン）
+- [ ] ドライブログ画面 `screens/drive/`
+
+---
+
+## ファイル構成（重要ファイル）
 
 ```
 lib/
-├── core/di/injection.dart           # Service全登録
-├── services/vehicle_master_service.dart  # P0: 中身確認要
-├── providers/                       # 全Providerがコンストラクタ注入
-└── models/vehicle_master.dart       # P0: 要確認（存在するか？）
-
+  injection.dart                       ← DI登録場所
+  providers/
+    part_recommendation_provider.dart  ← loadBrowseParts を今回追加
+    shop_provider.dart
+  screens/marketplace/
+    shop_list_screen.dart              ← DropdownChip 3段フィルタ
+    shop_detail_screen.dart            ← ページドット・ExpansionTile・星評価
+    inquiry_screen.dart                ← ミニカード・ChoiceChip・文字数カウンタ
+    part_list_screen.dart              ← 今回新規実装
+  models/
+    part_listing.dart                  ← PartCategory(17種), CompatibilityLevel
+    shop.dart                          ← Shop, BusinessHours, ShopType, ServiceCategory
+  services/
+    part_recommendation_service.dart   ← getPartsByCategory, searchParts, getFeaturedParts
+    vehicle_master_service.dart        ← getMakers / getModelsForMaker / getGradesForModel
+  data/
+    vehicle_master_data.dart           ← 静的メーカーデータ（Firestoreフォールバック）
 docs/
-├── FEATURE_SPEC.md     # 機能仕様書（ビジョン・設計思想含む）★最重要
-├── pitch_deck.html     # 企画書HTMLピッチデッキ
-└── DEVELOPMENT_WORKFLOW.md
-
-scripts/
-└── import_vehicle_master.dart  # P0で作成予定
-
-data/
-└── vehicle_masters.csv        # P0で作成予定
+  FEATURE_SPEC.md                      ← 機能仕様（優先度付き）
+  REPORT_AI_DEV_STATUS.md              ← 今回更新済み。942テスト
 ```
+
+---
+
+## テスト状況
+
+- **合計**: 約942件（unit: 877, widget: 65）、47ファイル
+- **未テスト**: marketplace 4画面 + `loadBrowseParts`
+- 実行コマンド: `flutter test 2>&1 | tail -5`
