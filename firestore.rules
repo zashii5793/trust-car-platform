@@ -92,11 +92,12 @@ service cloud.firestore {
       // 有効なメニューは認証済みユーザーなら誰でも読み取り可能
       allow read: if isAuthenticated();
 
-      // 作成・更新・削除は管理者のみ（BtoBフェーズで実装予定）
-      // 現在は認証済みユーザーで自店舗のメニューのみ
-      allow create: if isAuthenticated();
+      // 作成は自店舗のメニューのみ（shopId == 自分のUID）
+      allow create: if isAuthenticated() &&
+        request.resource.data.shopId == request.auth.uid;
+      // 更新・削除は自店舗のメニューのみ
       allow update, delete: if isAuthenticated() &&
-        (resource.data.shopId == '' || resource.data.shopId == request.auth.uid);
+        resource.data.shopId == request.auth.uid;
     }
 
     // 店舗データ (BtoB Marketplace)
@@ -104,10 +105,10 @@ service cloud.firestore {
       // アクティブな店舗は認証済みユーザーなら誰でも閲覧可能
       allow read: if isAuthenticated();
 
-      // 店舗の作成・更新・削除は店舗オーナーまたは管理者のみ
-      // 現在はシード用に認証ユーザーに許可（本番では制限必要）
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated();
+      // 店舗の作成は shopId == 自分のUID の場合のみ（1ユーザー1店舗モデル）
+      allow create: if isAuthenticated() && shopId == request.auth.uid;
+      // 更新・削除は店舗オーナー（shopId == UID）のみ
+      allow update, delete: if isAuthenticated() && shopId == request.auth.uid;
     }
 
     // パーツリスティングデータ (BtoB Marketplace)
@@ -139,14 +140,19 @@ service cloud.firestore {
 
       // 問い合わせ内のメッセージ
       match /messages/{messageId} {
-        // メッセージは問い合わせの当事者のみ閲覧可能
-        allow read: if isAuthenticated();
+        // メッセージは送信者または受信者（inquiryの当事者）のみ閲覧可能
+        allow read: if isAuthenticated() &&
+          (resource.data.senderId == request.auth.uid ||
+           resource.data.receiverId == request.auth.uid);
 
-        // メッセージ作成は当事者のみ
-        allow create: if isAuthenticated();
+        // メッセージ作成は送信者が自分であること
+        allow create: if isAuthenticated() &&
+          request.resource.data.senderId == request.auth.uid;
 
-        // 更新は既読フラグのみ
-        allow update: if isAuthenticated();
+        // 更新は既読フラグのみ（受信者のみ）
+        allow update: if isAuthenticated() &&
+          resource.data.receiverId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'readAt']);
 
         // 削除は不可
         allow delete: if false;
@@ -302,8 +308,12 @@ service cloud.firestore {
 
     // ウェイポイント（GPSポイント）
     match /drive_waypoints/{waypointId} {
-      // ウェイポイントは関連するドライブログの所有者のみアクセス可能
-      allow read, write: if isAuthenticated();
+      // ウェイポイントは自分のデータのみアクセス可能（位置情報はプライバシー最優先）
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
     }
 
     // ドライブログへのいいね

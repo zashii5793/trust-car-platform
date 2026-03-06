@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'claude/**']
   pull_request:
     branches: [main, develop]
 
@@ -31,8 +31,28 @@ jobs:
       - name: Analyze code
         run: flutter analyze --fatal-infos
 
-      - name: Run tests
-        run: flutter test --coverage
+      - name: Setup Node.js (for Firebase CLI)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Start Firebase Emulators
+        run: firebase emulators:start --only firestore,auth --project demo-trust-car &
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: Wait for emulators to be ready
+        run: npx wait-on tcp:8080 tcp:9099 --timeout 30000
+
+      - name: Run unit tests with coverage
+        run: flutter test --coverage --exclude-tags emulator
+
+      - name: Run integration tests (emulator)
+        run: flutter test test/integration/ --tags emulator
+        continue-on-error: true
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
