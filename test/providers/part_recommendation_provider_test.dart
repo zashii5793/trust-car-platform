@@ -14,9 +14,12 @@ class MockPartRecommendationService implements PartRecommendationService {
   Result<List<PartRecommendation>, AppError>? recommendationsResult;
   Result<List<PartListing>, AppError>? featuredPartsResult;
   Result<List<PartListing>, AppError>? partsByCategoryResult;
+  Result<List<PartListing>, AppError>? searchPartsResult;
 
   Vehicle? lastVehicle;
   PartCategory? lastCategory;
+  String? lastSearchKeyword;
+  PartCategory? lastSearchCategory;
 
   @override
   Future<Result<List<PartRecommendation>, AppError>> getRecommendationsForVehicle(
@@ -40,16 +43,20 @@ class MockPartRecommendationService implements PartRecommendationService {
     int limit = 20,
     dynamic startAfter,
   }) async {
+    lastCategory = category;
     return partsByCategoryResult ?? const Result.success([]);
   }
 
-  // Unused
   @override
   Future<Result<List<PartListing>, AppError>> searchParts(
     String keyword, {
     PartCategory? category,
     int limit = 20,
-  }) async => const Result.success([]);
+  }) async {
+    lastSearchKeyword = keyword;
+    lastSearchCategory = category;
+    return searchPartsResult ?? const Result.success([]);
+  }
 
   @override
   Future<Result<PartListing, AppError>> getPartDetail(String partId) async =>
@@ -140,6 +147,14 @@ void main() {
 
       test('featuredParts is empty on init', () {
         expect(provider.featuredParts, isEmpty);
+      });
+
+      test('browseParts is empty on init', () {
+        expect(provider.browseParts, isEmpty);
+      });
+
+      test('searchQuery is empty string on init', () {
+        expect(provider.searchQuery, '');
       });
 
       test('isLoading is false on init', () {
@@ -302,20 +317,133 @@ void main() {
     // -----------------------------------------------------------------------
 
     group('clear', () {
-      test('resets all state', () async {
+      test('resets all state including browseParts and searchQuery', () async {
         mockService.recommendationsResult = Result.success([
           _makeRecommendation(),
         ]);
+        mockService.searchPartsResult = Result.success([
+          _makePart(id: 'bp1'),
+        ]);
         await provider.loadRecommendations(vehicle);
+        await provider.loadBrowseParts(query: 'タイヤ');
         provider.selectCategory(PartCategory.wheel);
 
         provider.clear();
 
         expect(provider.recommendations, isEmpty);
         expect(provider.featuredParts, isEmpty);
+        expect(provider.browseParts, isEmpty);
+        expect(provider.searchQuery, '');
         expect(provider.selectedCategory, isNull);
         expect(provider.error, isNull);
         expect(provider.isLoading, isFalse);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    // loadBrowseParts
+    // -----------------------------------------------------------------------
+
+    group('loadBrowseParts', () {
+      test('calls getFeaturedParts when no query and no category', () async {
+        mockService.featuredPartsResult = Result.success([
+          _makePart(id: 'fp1', isFeatured: true),
+          _makePart(id: 'fp2', isFeatured: true),
+        ]);
+
+        await provider.loadBrowseParts();
+
+        expect(provider.browseParts.length, 2);
+        expect(provider.error, isNull);
+        expect(mockService.lastSearchKeyword, isNull);
+        expect(mockService.lastCategory, isNull);
+      });
+
+      test('calls getPartsByCategory when category specified and no query', () async {
+        mockService.partsByCategoryResult = Result.success([
+          _makePart(id: 'c1', category: PartCategory.tire),
+          _makePart(id: 'c2', category: PartCategory.tire),
+        ]);
+
+        await provider.loadBrowseParts(category: PartCategory.tire);
+
+        expect(provider.browseParts.length, 2);
+        expect(mockService.lastCategory, PartCategory.tire);
+        expect(provider.error, isNull);
+      });
+
+      test('calls searchParts when query is specified', () async {
+        mockService.searchPartsResult = Result.success([
+          _makePart(id: 's1'),
+        ]);
+
+        await provider.loadBrowseParts(query: 'ブレーキ');
+
+        expect(provider.browseParts.length, 1);
+        expect(mockService.lastSearchKeyword, 'ブレーキ');
+        expect(provider.searchQuery, 'ブレーキ');
+      });
+
+      test('passes category to searchParts when both query and category specified', () async {
+        mockService.searchPartsResult = Result.success([_makePart()]);
+
+        await provider.loadBrowseParts(
+          query: 'ホイール',
+          category: PartCategory.wheel,
+        );
+
+        expect(mockService.lastSearchKeyword, 'ホイール');
+        expect(mockService.lastSearchCategory, PartCategory.wheel);
+      });
+
+      test('sets isLoading=true then false around async operation', () async {
+        final loadingStates = <bool>[];
+        provider.addListener(() => loadingStates.add(provider.isLoading));
+
+        await provider.loadBrowseParts();
+
+        expect(loadingStates, contains(true));
+        expect(provider.isLoading, isFalse);
+      });
+
+      test('sets error and clears browseParts on failure', () async {
+        mockService.featuredPartsResult =
+            Result.failure(AppError.server('サーバーエラー'));
+
+        await provider.loadBrowseParts();
+
+        expect(provider.error, isNotNull);
+        expect(provider.browseParts, isEmpty);
+      });
+
+      test('clears error on subsequent successful load', () async {
+        mockService.featuredPartsResult =
+            Result.failure(AppError.server('一時的なエラー'));
+        await provider.loadBrowseParts();
+        expect(provider.error, isNotNull);
+
+        mockService.featuredPartsResult = const Result.success([]);
+        await provider.loadBrowseParts();
+        expect(provider.error, isNull);
+      });
+
+      test('whitespace-only query is treated as empty (calls getFeaturedParts)', () async {
+        mockService.featuredPartsResult = Result.success([_makePart()]);
+
+        await provider.loadBrowseParts(query: '   ');
+
+        // trim()後が空文字なのでgetFeaturedPartsが呼ばれる
+        expect(provider.browseParts.length, 1);
+        expect(mockService.lastSearchKeyword, isNull);
+      });
+
+      test('searchQuery is updated with the provided query', () async {
+        await provider.loadBrowseParts(query: 'マフラー');
+        expect(provider.searchQuery, 'マフラー');
+
+        // queryなしで再ロードするとsearchQueryがリセットされる
+        await provider.loadBrowseParts();
+        expect(provider.searchQuery, '');
       });
     });
 

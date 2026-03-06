@@ -17,6 +17,7 @@ import 'vehicle_registration_screen.dart';
 import 'vehicle_detail_screen.dart';
 import 'profile/profile_screen.dart';
 import 'notifications/notification_list_screen.dart';
+import 'marketplace/marketplace_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -67,8 +68,10 @@ class _HomeScreenState extends State<HomeScreen> {
       case 0:
         return 'マイカー';
       case 1:
-        return '通知';
+        return 'マーケットプレイス';
       case 2:
+        return '通知';
+      case 3:
         return 'プロフィール';
       default:
         return 'マイカー';
@@ -99,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     // 通知タブのみ「すべて既読」ボタンを表示
-    if (_currentIndex == 1) {
+    if (_currentIndex == 2) {
       actions.add(
         Consumer<NotificationProvider>(
           builder: (context, provider, child) {
@@ -160,6 +163,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icon(Icons.directions_car),
                 label: 'マイカー',
               ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.store_outlined),
+                label: 'マーケット',
+              ),
               BottomNavigationBarItem(
                 icon: Badge(
                   isLabelVisible: notificationProvider.unreadCount > 0,
@@ -189,8 +196,10 @@ class _HomeScreenState extends State<HomeScreen> {
       case 0:
         return _buildVehicleList();
       case 1:
-        return const NotificationListScreen();
+        return const MarketplaceScreen();
       case 2:
+        return const NotificationListScreen();
+      case 3:
         return _buildProfileTab();
       default:
         return _buildVehicleList();
