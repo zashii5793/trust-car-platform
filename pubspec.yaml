@@ -29,7 +29,7 @@ dependencies:
   # Phase 4: Offline Support
   connectivity_plus: ^6.0.3
   # Phase 4: Push Notifications
-  firebase_messaging: ^16.1.1
+  firebase_messaging: ^16.1.2
   flutter_local_notifications: ^18.0.1
   timezone: ^0.10.1
   # Phase 2.0: OCR機能
