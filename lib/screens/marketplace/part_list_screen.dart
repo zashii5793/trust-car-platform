@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/part_listing.dart';
 import '../../models/vehicle.dart';
 import '../../providers/part_recommendation_provider.dart';
+import 'part_detail_screen.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
 
@@ -354,7 +355,18 @@ class _PartCard extends StatelessWidget {
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusMd),
-      child: Padding(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  PartDetailScreen(part: part, vehicle: vehicle),
+            ),
+          );
+        },
+        child: Padding(
         padding: AppSpacing.paddingCard,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,6 +492,7 @@ class _PartCard extends StatelessWidget {
             ),
             const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
           ],
+        ),
         ),
       ),
     );

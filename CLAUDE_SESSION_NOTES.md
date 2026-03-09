@@ -1,20 +1,22 @@
 # Claude開発セッションメモ
 
-> **最終更新**: 2026-03-05
+> **最終更新**: 2026-03-09
 
 ---
 
-## 現在の状態（Phase 6.1 完了 → Phase 7 へ）
+## 現在の状態（SNS機能実装完了 → P2へ）
 
 ### 直近の完了作業
 
 | 作業 | 状態 |
 |------|------|
-| BtoBマーケット 3画面UI大幅改善 | ✅ |
-| `part_list_screen.dart` 新規実装 | ✅ |
-| `PartRecommendationProvider.loadBrowseParts` 追加 | ✅ |
-| `REPORT_AI_DEV_STATUS.md` 更新 | ✅ |
-| `CLAUDE_SESSION_NOTES.md` 更新 | ✅ |
+| marketplace 4画面 ウィジェットテスト（56ケース） | ✅ |
+| ユーザーシナリオ統合テスト（3シナリオ47ケース） | ✅ |
+| `docs/ARCHITECTURE.md` 全面改訂 | ✅ |
+| `PostProvider` 実装（いいね楽観的更新・ページネーション） | ✅ |
+| `SnsFeedScreen` / `PostCreateScreen` 実装 | ✅ |
+| HomeScreen に「みんなの投稿」タブ追加（5タブ構成） | ✅ |
+| `PostProvider` 単体テスト（30ケース） | ✅ |
 
 ### ブランチ情報
 
@@ -45,30 +47,23 @@ Provider（コンストラクタ注入）← Service（Result<T,AppError>）
 - **AIは提案する、決めない**: 「ベスト1」「最適」ラベルを付けない
 - **広告は「広告」と明示**: `isFeatured` は「広告」ラベルで表示
 
----
+### SNS設計決定
 
-## 未解決の設計議論
-
-| 議論 | 選択肢 | 現状の方針 |
-|------|--------|-----------|
-| SNSフィードを優先するか、パーツ詳細を先にするか | 未決定 | 次セッションで判断 |
-| Firestoreインデックス定義タイミング | 開発中 / デプロイ前 | 未着手 |
+- SNSは独立した5番目のBottomNavigationBarタブ（index=2、通知=3、プロフィール=4）
+- いいねは楽観的更新（即時UI → Firestore同期 → 失敗時ロールバック）
+- SNSタブ内のFABは SnsFeedScreen 自身が管理
 
 ---
 
 ## 次セッションでやること（優先順）
 
-### P0（必須）
-- [ ] `marketplace screens` のテスト追加（4画面: shop_list/shop_detail/inquiry/part_list）
-- [ ] `PartRecommendationProvider.loadBrowseParts` のテスト追加
-
 ### P1（推奨）
-- [ ] SNSフィード画面 `screens/sns/` 実装（Post一覧・投稿作成）
-- [ ] Firestoreインデックス定義 `firestore.indexes.json`
+- [ ] `part_detail_screen.dart`（パーツ詳細: pros/cons・互換性詳細・問い合わせボタン）
+- [ ] SNSフィード画面 ウィジェットテスト
 
 ### P2（余裕があれば）
-- [ ] `part_detail_screen.dart`（パーツ詳細: pros/cons・互換性詳細・問い合わせボタン）
 - [ ] ドライブログ画面 `screens/drive/`
+- [ ] Firestoreインデックス定義 `firestore.indexes.json`
 
 ---
 
@@ -76,32 +71,39 @@ Provider（コンストラクタ注入）← Service（Result<T,AppError>）
 
 ```
 lib/
-  injection.dart                       ← DI登録場所
+  main.dart                           ← PostProvider を MultiProvider に追加済み
+  injection.dart                      ← DI登録場所（21サービス）
   providers/
-    part_recommendation_provider.dart  ← loadBrowseParts を今回追加
+    post_provider.dart                ← 今回追加
+    part_recommendation_provider.dart
     shop_provider.dart
-  screens/marketplace/
-    shop_list_screen.dart              ← DropdownChip 3段フィルタ
-    shop_detail_screen.dart            ← ページドット・ExpansionTile・星評価
-    inquiry_screen.dart                ← ミニカード・ChoiceChip・文字数カウンタ
-    part_list_screen.dart              ← 今回新規実装
+  screens/
+    home_screen.dart                  ← 5タブ構成（マイカー/マーケット/SNS/通知/プロフィール）
+    sns/
+      sns_feed_screen.dart            ← 今回追加
+      post_create_screen.dart         ← 今回追加
+    marketplace/
+      shop_list_screen.dart
+      shop_detail_screen.dart
+      inquiry_screen.dart
+      part_list_screen.dart
   models/
-    part_listing.dart                  ← PartCategory(17種), CompatibilityLevel
-    shop.dart                          ← Shop, BusinessHours, ShopType, ServiceCategory
+    post.dart                         ← PostCategory(9種), PostVisibility, PostMedia
+    part_listing.dart
+    shop.dart
   services/
-    part_recommendation_service.dart   ← getPartsByCategory, searchParts, getFeaturedParts
-    vehicle_master_service.dart        ← getMakers / getModelsForMaker / getGradesForModel
-  data/
-    vehicle_master_data.dart           ← 静的メーカーデータ（Firestoreフォールバック）
+    post_service.dart                 ← createPost/getFeed/likePost/unlikePost/deletePost
+    follow_service.dart
 docs/
-  FEATURE_SPEC.md                      ← 機能仕様（優先度付き）
-  REPORT_AI_DEV_STATUS.md              ← 今回更新済み。942テスト
+  ARCHITECTURE.md                     ← 保守用設計書（10セクション）
+  FEATURE_SPEC.md
+  REPORT_AI_DEV_STATUS.md
 ```
 
 ---
 
 ## テスト状況
 
-- **合計**: 約942件（unit: 877, widget: 65）、47ファイル
-- **未テスト**: marketplace 4画面 + `loadBrowseParts`
+- **合計**: 約972件（unit: ~900, widget: ~72）
+- 内訳増加: PostProvider 30ケース追加
 - 実行コマンド: `flutter test 2>&1 | tail -5`

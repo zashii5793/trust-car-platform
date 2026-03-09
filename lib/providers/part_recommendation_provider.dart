@@ -168,10 +168,45 @@ class PartRecommendationProvider with ChangeNotifier {
     _recommendations = [];
     _featuredParts = [];
     _browseParts = [];
+    _currentPartDetail = null;
     _isLoading = false;
     _error = null;
     _selectedCategory = null;
     _searchQuery = '';
     notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Part Detail state
+  // ---------------------------------------------------------------------------
+
+  PartListing? _currentPartDetail;
+
+  PartListing? get currentPartDetail => _currentPartDetail;
+
+  /// パーツ詳細を読み込む
+  ///
+  /// Returns true on success.
+  Future<bool> loadPartDetail(String partId) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    final result = await _service.getPartDetail(partId);
+
+    bool success = false;
+    result.when(
+      success: (part) {
+        _currentPartDetail = part;
+        success = true;
+      },
+      failure: (err) {
+        _error = err;
+      },
+    );
+
+    _isLoading = false;
+    notifyListeners();
+    return success;
   }
 }
