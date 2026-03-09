@@ -18,6 +18,7 @@ import 'vehicle_detail_screen.dart';
 import 'profile/profile_screen.dart';
 import 'notifications/notification_list_screen.dart';
 import 'marketplace/marketplace_screen.dart';
+import 'sns/sns_feed_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -70,8 +71,10 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return 'マーケットプレイス';
       case 2:
-        return '通知';
+        return 'みんなの投稿';
       case 3:
+        return '通知';
+      case 4:
         return 'プロフィール';
       default:
         return 'マイカー';
@@ -102,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     // 通知タブのみ「すべて既読」ボタンを表示
-    if (_currentIndex == 2) {
+    if (_currentIndex == 3) {
       actions.add(
         Consumer<NotificationProvider>(
           builder: (context, provider, child) {
@@ -134,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(child: _buildBody()),
         ],
       ),
-      // FABは車両タブのみ表示
+      // FABは車両タブのみ表示（SNSタブのFABはSnsFeedScreen内で管理）
       floatingActionButton: _currentIndex == 0
           ? FloatingActionButton(
               onPressed: () {
@@ -167,6 +170,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icon(Icons.store_outlined),
                 label: 'マーケット',
               ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.forum_outlined),
+                label: 'みんなの投稿',
+              ),
               BottomNavigationBarItem(
                 icon: Badge(
                   isLabelVisible: notificationProvider.unreadCount > 0,
@@ -198,8 +205,10 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return const MarketplaceScreen();
       case 2:
-        return const NotificationListScreen();
+        return const SnsFeedScreen();
       case 3:
+        return const NotificationListScreen();
+      case 4:
         return _buildProfileTab();
       default:
         return _buildVehicleList();
