@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:trust_car_platform/core/di/injection.dart';
 import 'package:trust_car_platform/core/di/service_locator.dart';
@@ -18,12 +19,15 @@ import 'package:trust_car_platform/screens/vehicle_detail_screen.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 
 // ---------------------------------------------------------------------------
-// Mock
+// Mock FirebaseService
 // ---------------------------------------------------------------------------
 
 class MockFirebaseService implements FirebaseService {
   final StreamController<List<MaintenanceRecord>> _recordsController =
       StreamController<List<MaintenanceRecord>>.broadcast();
+
+  bool deleteWasCalled = false;
+  String? lastDeletedId;
 
   @override
   String? get currentUserId => 'test-user-id';
@@ -38,7 +42,13 @@ class MockFirebaseService implements FirebaseService {
 
   void dispose() => _recordsController.close();
 
-  // --- Unused stubs ---
+  @override
+  Future<Result<void, AppError>> deleteMaintenanceRecord(
+      String recordId) async {
+    deleteWasCalled = true;
+    lastDeletedId = recordId;
+    return const Result.success(null);
+  }
 
   @override
   Future<Result<String, AppError>> addMaintenanceRecord(
@@ -48,11 +58,6 @@ class MockFirebaseService implements FirebaseService {
   @override
   Future<Result<void, AppError>> updateMaintenanceRecord(
           String recordId, MaintenanceRecord record) async =>
-      const Result.success(null);
-
-  @override
-  Future<Result<void, AppError>> deleteMaintenanceRecord(
-          String recordId) async =>
       const Result.success(null);
 
   @override
@@ -87,10 +92,10 @@ class MockFirebaseService implements FirebaseService {
           const Result.success({});
 
   @override
-  Future<Result<List<MaintenanceRecord>, AppError>> getMaintenanceRecordsForVehicle(
-          String vehicleId,
-          {int limit = 20}) async =>
-      const Result.success([]);
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getMaintenanceRecordsForVehicle(String vehicleId,
+              {int limit = 20}) async =>
+          const Result.success([]);
 
   @override
   Future<Result<String, AppError>> uploadImage(
@@ -115,7 +120,7 @@ class MockFirebaseService implements FirebaseService {
 }
 
 // ---------------------------------------------------------------------------
-// Test helpers
+// Test data factories
 // ---------------------------------------------------------------------------
 
 Vehicle _testVehicle() => Vehicle(
@@ -130,7 +135,7 @@ Vehicle _testVehicle() => Vehicle(
       updatedAt: DateTime(2023),
     );
 
-MaintenanceRecord _testRecord({
+MaintenanceRecord _record({
   String id = 'r1',
   String title = 'オイル交換',
   int cost = 5000,
@@ -138,6 +143,7 @@ MaintenanceRecord _testRecord({
   String? shopName,
   String? description,
   int? mileageAtService,
+  List<WorkItem> workItems = const [],
 }) =>
     MaintenanceRecord(
       id: id,
@@ -151,16 +157,25 @@ MaintenanceRecord _testRecord({
       shopName: shopName,
       description: description,
       mileageAtService: mileageAtService,
+      workItems: workItems,
     );
 
-Widget _buildScreen(
+// ---------------------------------------------------------------------------
+// Widget builders
+// ---------------------------------------------------------------------------
+
+/// VehicleDetailScreen 全体をテストするビルダー
+///
+/// ProviderをMaterialAppの外側に置くことで、Navigator.pushで遷移した
+/// 画面（MaintenanceStatsScreen等）からもProviderを参照できる。
+Widget _buildDetailScreen(
   Vehicle vehicle,
   MaintenanceProvider provider,
 ) {
-  return MaterialApp(
-    home: ChangeNotifierProvider<MaintenanceProvider>.value(
-      value: provider,
-      child: VehicleDetailScreen(vehicle: vehicle),
+  return ChangeNotifierProvider<MaintenanceProvider>.value(
+    value: provider,
+    child: MaterialApp(
+      home: VehicleDetailScreen(vehicle: vehicle),
     ),
   );
 }
@@ -171,7 +186,7 @@ Widget _buildScreen(
 
 void main() {
   late MockFirebaseService mockFirebase;
-  late MaintenanceProvider maintenanceProvider;
+  late MaintenanceProvider provider;
 
   setUpAll(() {
     final sl = ServiceLocator.instance;
@@ -182,265 +197,335 @@ void main() {
 
   setUp(() {
     mockFirebase = MockFirebaseService();
-    maintenanceProvider =
-        MaintenanceProvider(firebaseService: mockFirebase);
+    provider = MaintenanceProvider(firebaseService: mockFirebase);
   });
 
   tearDown(() {
-    maintenanceProvider.dispose();
+    provider.dispose();
     mockFirebase.dispose();
   });
 
-  tearDownAll(() {
-    Injection.reset();
-  });
+  tearDownAll(Injection.reset);
 
-  // -------------------------------------------------------------------------
-  group('VehicleDetailScreen - 基本表示', () {
-    testWidgets('車両名が AppBar に表示される', (tester) async {
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+  // =========================================================================
+  // 1. 基本表示テスト
+  // =========================================================================
+
+  group('基本表示', () {
+    testWidgets('車両名が AppBar とボディに表示される', (tester) async {
+      await tester.pumpWidget(_buildDetailScreen(_testVehicle(), provider));
       await tester.pump();
 
       expect(find.text('トヨタ ヴォクシー'), findsWidgets);
     });
 
-    testWidgets('履歴なし → 空状態を表示する', (tester) async {
-      maintenanceProvider.listenToMaintenanceRecords('v1');
+    testWidgets('統計セクション: 履歴 0 件のとき ¥0 と 0 件を表示', (tester) async {
+      provider.listenToMaintenanceRecords('v1');
+      await tester.pumpWidget(_buildDetailScreen(_testVehicle(), provider));
+      mockFirebase.emitRecords([]);
+      await tester.pumpAndSettle();
 
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      expect(find.text('¥0'), findsOneWidget);
+      expect(find.text('0 件'), findsOneWidget);
+    });
+
+    testWidgets('履歴なし → 空状態メッセージを表示', (tester) async {
+      provider.listenToMaintenanceRecords('v1');
+      await tester.pumpWidget(_buildDetailScreen(_testVehicle(), provider));
       mockFirebase.emitRecords([]);
       await tester.pumpAndSettle();
 
       expect(find.text('メンテナンス履歴がありません'), findsOneWidget);
     });
+
+    testWidgets('統計セクション: 1 件追加後に費用と件数が反映される', (tester) async {
+      provider.listenToMaintenanceRecords('v1');
+      await tester.pumpWidget(_buildDetailScreen(_testVehicle(), provider));
+      mockFirebase.emitRecords([_record(cost: 12000)]);
+      await tester.pumpAndSettle();
+
+      expect(find.text('¥12,000'), findsWidgets); // 統計カード + タイムライン
+      expect(find.text('1 件'), findsOneWidget);
+    });
   });
 
-  // -------------------------------------------------------------------------
+  // =========================================================================
+  // 2. タイムライン表示テスト（ビューポート内に収まる情報）
+  // =========================================================================
+
   group('タイムライン表示', () {
-    testWidgets('記録が1件あるとき、タイトルと費用が表示される', (tester) async {
-      maintenanceProvider.listenToMaintenanceRecords('v1');
+    testWidgets('記録タイトルがタイムラインに表示される', (tester) async {
+      provider.listenToMaintenanceRecords('v1');
+      await tester.pumpWidget(_buildDetailScreen(_testVehicle(), provider));
+      // タイムライン表示範囲を広げるためウィンドウを縦長に
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
-      mockFirebase.emitRecords([_testRecord()]);
+      mockFirebase.emitRecords([_record(title: 'エンジンオイル交換')]);
       await tester.pumpAndSettle();
 
-      // タイトルはカード内 + バッジ の両方に存在するので findsWidgets
-      expect(find.text('オイル交換'), findsWidgets);
-      // 費用は統計カード（総費用）とタイムラインカードの2箇所に表示される
-      expect(find.text('¥5,000'), findsWidgets);
+      expect(find.text('エンジンオイル交換'), findsWidgets); // カード + タイプバッジ
     });
 
-    testWidgets('複数記録がすべて表示される', (tester) async {
-      maintenanceProvider.listenToMaintenanceRecords('v1');
+    testWidgets('費用がタイムラインカードに表示される', (tester) async {
+      provider.listenToMaintenanceRecords('v1');
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
-      mockFirebase.emitRecords([
-        _testRecord(id: 'r1', title: 'オイル交換テスト', cost: 5000),
-        _testRecord(
-            id: 'r2',
-            title: '車検テスト',
-            cost: 80000,
-            type: MaintenanceType.carInspection),
-      ]);
+      await tester.pumpWidget(_buildDetailScreen(_testVehicle(), provider));
+      mockFirebase.emitRecords([_record(cost: 8800)]);
       await tester.pumpAndSettle();
 
-      expect(find.text('オイル交換テスト'), findsOneWidget);
-      expect(find.text('車検テスト'), findsOneWidget);
-    });
-
-    testWidgets('shopName があれば店舗名を表示する', (tester) async {
-      maintenanceProvider.listenToMaintenanceRecords('v1');
-
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
-      mockFirebase.emitRecords([
-        _testRecord(shopName: 'オートバックス新宿店'),
-      ]);
-      await tester.pumpAndSettle();
-
-      expect(find.text('オートバックス新宿店'), findsOneWidget);
-    });
-
-    testWidgets('shopName が null のとき店舗名アイコンを表示しない', (tester) async {
-      maintenanceProvider.listenToMaintenanceRecords('v1');
-
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
-      // shopName なし（デフォルト null）
-      mockFirebase.emitRecords([_testRecord()]);
-      await tester.pumpAndSettle();
-
-      // store_outlined アイコンはタイムラインカード上に存在しない
-      expect(
-        find.descendant(
-          of: find.byType(GestureDetector),
-          matching: find.byIcon(Icons.store_outlined),
-        ),
-        findsNothing,
-      );
+      // ¥8,800 が統計カード（総費用）とタイムラインカードの両方に表示
+      expect(find.text('¥8,800'), findsWidgets);
     });
 
     testWidgets('日付が yyyy/MM/dd 形式で表示される', (tester) async {
-      maintenanceProvider.listenToMaintenanceRecords('v1');
+      provider.listenToMaintenanceRecords('v1');
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
-      mockFirebase.emitRecords([_testRecord()]);
+      await tester.pumpWidget(_buildDetailScreen(_testVehicle(), provider));
+      mockFirebase.emitRecords([_record()]);
       await tester.pumpAndSettle();
 
       expect(find.text('2024/03/15'), findsOneWidget);
     });
-  });
 
-  // -------------------------------------------------------------------------
-  // BottomSheet 関連テスト
-  // GestureDetector（タイムラインカード）をタップして BottomSheet を開く。
-  // BottomSheet は showModalBottomSheet で表示されるが、Provider ツリーは
-  // _MaintenanceDetailSheet が直接 provider 引数を受け取るため問題なし。
-  // ただし DraggableScrollableSheet 内の削除ボタンが標準 800x600 の
-  // テスト画面では下方向に追い出されるため、各テスト前にスクロールする。
-  // ---------------------------------------------------------------------------
+    testWidgets('shopName があればタイムラインカードに店舗名を表示', (tester) async {
+      provider.listenToMaintenanceRecords('v1');
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-  group('詳細 BottomSheet', () {
-    /// カードをタップして BottomSheet を開く共通手順
-    Future<void> openSheet(WidgetTester tester) async {
-      await tester.tap(find.byType(GestureDetector).first);
-      await tester.pumpAndSettle();
-      // BottomSheet 内をスクロールして削除ボタンを可視領域に
-      await tester.drag(
-        find.byType(DraggableScrollableSheet),
-        const Offset(0, -300),
-      );
-      await tester.pumpAndSettle();
-    }
-
-    testWidgets('記録をタップすると BottomSheet が開く', (tester) async {
-      maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
-      mockFirebase.emitRecords([_testRecord()]);
+      await tester.pumpWidget(_buildDetailScreen(_testVehicle(), provider));
+      mockFirebase.emitRecords([_record(shopName: 'オートバックス')]);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byType(GestureDetector).first);
-      await tester.pumpAndSettle();
-
-      // BottomSheet が開いた証拠：タイトルが複数登場
-      expect(find.text('オイル交換'), findsAtLeastNWidgets(2));
+      expect(find.text('オートバックス'), findsOneWidget);
     });
 
-    testWidgets('BottomSheet に費用が表示される', (tester) async {
-      maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
-      mockFirebase.emitRecords([_testRecord(cost: 12500)]);
-      await tester.pumpAndSettle();
+    testWidgets('複数記録がすべてタイムラインに表示される', (tester) async {
+      provider.listenToMaintenanceRecords('v1');
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.tap(find.byType(GestureDetector).first);
-      await tester.pumpAndSettle();
-
-      expect(find.text('¥12,500'), findsAtLeastNWidgets(1));
-    });
-
-    testWidgets('BottomSheet に shopName が表示される', (tester) async {
-      maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
-      mockFirebase.emitRecords([_testRecord(shopName: 'トヨタカローラ')]);
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byType(GestureDetector).first);
-      await tester.pumpAndSettle();
-
-      expect(find.text('トヨタカローラ'), findsAtLeastNWidgets(1));
-    });
-
-    testWidgets('BottomSheet に mileageAtService が表示される', (tester) async {
-      maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
-      mockFirebase.emitRecords([_testRecord(mileageAtService: 15000)]);
-      await tester.pumpAndSettle();
-
-      // タップ（カードが画面外の場合も Flutter は警告のみで処理することがある）
-      await tester.tap(find.byType(GestureDetector).first, warnIfMissed: false);
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pump(const Duration(milliseconds: 300));
-
-      // BottomSheet が開いていれば 15,000 km が表示される
-      // 開いていなければ何もない（警告のみでスキップ）
-      final kmText = find.text('15,000 km');
-      if (kmText.evaluate().isEmpty) return;
-      expect(kmText, findsOneWidget);
-    });
-
-    testWidgets('BottomSheet に description が表示される', (tester) async {
-      maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester.pumpWidget(_buildDetailScreen(_testVehicle(), provider));
       mockFirebase.emitRecords([
-        _testRecord(description: '次回は10000km後に交換予定'),
+        _record(id: 'r1', title: 'オイル交換A'),
+        _record(id: 'r2', title: 'タイヤ交換B', type: MaintenanceType.tireChange),
       ]);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byType(GestureDetector).first, warnIfMissed: false);
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('オイル交換A'), findsWidgets);
+      expect(find.text('タイヤ交換B'), findsWidgets);
+    });
 
-      final descText = find.text('次回は10000km後に交換予定');
-      if (descText.evaluate().isEmpty) return;
-      expect(descText, findsOneWidget);
+    testWidgets('総費用は全記録の合計を表示する', (tester) async {
+      provider.listenToMaintenanceRecords('v1');
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildDetailScreen(_testVehicle(), provider));
+      mockFirebase.emitRecords([
+        _record(id: 'r1', cost: 3000),
+        _record(id: 'r2', cost: 7000),
+      ]);
+      await tester.pumpAndSettle();
+
+      // 合計 ¥10,000 が統計カードに表示
+      expect(find.text('¥10,000'), findsWidgets);
+      expect(find.text('2 件'), findsOneWidget);
     });
   });
 
-  // -------------------------------------------------------------------------
-  // BottomSheet open 確認（削除ロジック自体は MaintenanceProvider のテストでカバー済み）
-  // ---------------------------------------------------------------------------
+  // =========================================================================
+  // 3. BottomSheet 詳細表示テスト
+  //    タイムラインカードは大きな画面サイズで確実にビューポート内に収める
+  // =========================================================================
 
-  group('BottomSheet open 確認', () {
-    testWidgets('カードをタップすると BottomSheet が開く', (tester) async {
-      maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
-      mockFirebase.emitRecords([_testRecord()]);
+  group('詳細 BottomSheet', () {
+    /// 縦長画面 + タイムラインカードをタップして BottomSheet を開く
+    ///
+    /// find.byType(GestureDetector).first は AppBar の IconButton 等に含まれる
+    /// 内部 GestureDetector を誤って拾うため、レコードタイトルテキストをタップする。
+    Future<void> openBottomSheet(
+      WidgetTester tester, {
+      required MaintenanceRecord record,
+    }) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      provider.listenToMaintenanceRecords('v1');
+      await tester.pumpWidget(_buildDetailScreen(_testVehicle(), provider));
+      mockFirebase.emitRecords([record]);
       await tester.pumpAndSettle();
 
-      // GestureDetector（タイムラインカード）をタップ
-      await tester.tap(find.byType(GestureDetector).first);
-      // BottomSheet open アニメーションを進める
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pump(const Duration(milliseconds: 300));
+      // タイムラインカード内のレコードタイトルをタップして BottomSheet を開く
+      await tester.tap(find.text(record.title).first);
+      await tester.pumpAndSettle();
+    }
 
-      // BottomSheet が開いた証拠：
-      // カードのタイトルと BottomSheet ヘッダーの両方に「オイル交換」が表示
-      expect(find.text('オイル交換'), findsAtLeastNWidgets(2));
+    testWidgets('タイトルが BottomSheet に表示される', (tester) async {
+      await openBottomSheet(tester, record: _record(title: '車検2024'));
+
+      // BottomSheet が開くとタイトルが2か所に（カード + BottomSheet ヘッダー）
+      expect(find.text('車検2024'), findsAtLeastNWidgets(2));
     });
 
-    testWidgets('BottomSheet の背景タップで閉じる', (tester) async {
-      maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
-      mockFirebase.emitRecords([_testRecord()]);
+    testWidgets('費用が BottomSheet に大きく表示される', (tester) async {
+      await openBottomSheet(tester, record: _record(cost: 95000));
+
+      expect(find.text('¥95,000'), findsAtLeastNWidgets(1));
+    });
+
+    testWidgets('日付が BottomSheet ヘッダーに表示される', (tester) async {
+      await openBottomSheet(tester, record: _record());
+
+      // BottomSheet ヘッダーの日付: yyyy年MM月dd日 形式
+      expect(find.text('2024年03月15日'), findsOneWidget);
+    });
+
+    testWidgets('shopName が BottomSheet に表示される', (tester) async {
+      await openBottomSheet(
+          tester, record: _record(shopName: 'トヨタディーラー港区'));
+
+      expect(find.text('トヨタディーラー港区'), findsAtLeastNWidgets(1));
+    });
+
+    testWidgets('mileageAtService が BottomSheet に表示される', (tester) async {
+      await openBottomSheet(tester, record: _record(mileageAtService: 25000));
+
+      expect(
+        find.text('${NumberFormat('#,###').format(25000)} km'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('description が BottomSheet に表示される', (tester) async {
+      await openBottomSheet(
+          tester, record: _record(description: '次回5000km後に交換'));
+
+      // DraggableScrollableSheet でスクロール外に出る可能性があるため skipOffstage: false
+      expect(find.text('次回5000km後に交換', skipOffstage: false), findsOneWidget);
+    });
+
+    testWidgets('workItems が BottomSheet にリスト表示される', (tester) async {
+      await openBottomSheet(
+        tester,
+        record: _record(
+          workItems: [
+            const WorkItem(name: 'オイルフィルター交換', laborCost: 2000),
+            const WorkItem(name: 'ドレンパッキン', laborCost: 500),
+          ],
+        ),
+      );
+
+      expect(find.text('オイルフィルター交換', skipOffstage: false), findsOneWidget);
+      expect(find.text('ドレンパッキン', skipOffstage: false), findsOneWidget);
+    });
+
+    testWidgets('削除ボタンが BottomSheet に表示される', (tester) async {
+      await openBottomSheet(tester, record: _record());
+
+      expect(find.text('この記録を削除', skipOffstage: false), findsOneWidget);
+    });
+
+    testWidgets('shopName が null のとき店舗行を表示しない', (tester) async {
+      await openBottomSheet(tester, record: _record()); // shopName = null
+
+      // 整備店ラベルが存在しない
+      expect(find.text('整備店'), findsNothing);
+    });
+
+    testWidgets('mileageAtService が null のとき施工時走行距離行を表示しない',
+        (tester) async {
+      await openBottomSheet(tester, record: _record()); // mileageAtService = null
+
+      expect(find.text('施工時走行距離'), findsNothing);
+    });
+  });
+
+  // =========================================================================
+  // 4. 削除フロー テスト
+  // =========================================================================
+
+  group('削除フロー', () {
+    Future<void> openBottomSheetAndScrollToDelete(
+        WidgetTester tester, MaintenanceRecord record) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      provider.listenToMaintenanceRecords('v1');
+      await tester.pumpWidget(_buildDetailScreen(_testVehicle(), provider));
+      mockFirebase.emitRecords([record]);
       await tester.pumpAndSettle();
 
-      // BottomSheet を開く
-      await tester.tap(find.byType(GestureDetector).first);
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pump(const Duration(milliseconds: 300));
+      // タイムラインカード内のレコードタイトルをタップして BottomSheet を開く
+      await tester.tap(find.text(record.title).first);
+      await tester.pumpAndSettle();
 
-      // 開いていることを確認
-      expect(find.text('オイル交換'), findsAtLeastNWidgets(2));
+      // BottomSheet 内の ListView をスクロールして削除ボタンを表示する
+      // DraggableScrollableSheet は isScrollControlled:true で開かれるため、
+      // 最後の Scrollable が BottomSheet 内の ListView に対応する
+      await tester.scrollUntilVisible(
+        find.text('この記録を削除'),
+        200.0,
+        scrollable: find.byType(Scrollable).last,
+      );
+    }
 
-      // BarrierDismissible: 背景（ModalBarrier）をタップして閉じる
-      await tester.tapAt(const Offset(400, 100));
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pump(const Duration(milliseconds: 300));
+    testWidgets('削除ボタンをタップすると確認ダイアログが表示される', (tester) async {
+      await openBottomSheetAndScrollToDelete(tester, _record());
 
-      // BottomSheet が閉じた → タイトルはカード上の1件のみ
-      expect(find.text('オイル交換'), findsWidgets);
+      await tester.tap(find.text('この記録を削除'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.text('記録を削除'), findsOneWidget);
+      expect(find.text('キャンセル'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('削除'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('キャンセルを選ぶとダイアログが閉じ BottomSheet が残る', (tester) async {
+      await openBottomSheetAndScrollToDelete(tester, _record());
+
+      await tester.tap(find.text('この記録を削除'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('キャンセル'));
+      await tester.pumpAndSettle();
+
+      // ダイアログが閉じた
+      expect(find.byType(AlertDialog), findsNothing);
+      // BottomSheet はまだ開いている
+      expect(find.text('この記録を削除'), findsOneWidget);
+    });
+
+    testWidgets('削除を確定すると deleteMaintenanceRecord が呼ばれる', (tester) async {
+      final target = _record(id: 'target-id');
+      await openBottomSheetAndScrollToDelete(tester, target);
+
+      await tester.tap(find.text('この記録を削除'));
+      await tester.pumpAndSettle();
+
+      // 確認ダイアログの「削除」ボタンをタップ
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('削除'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Service の delete が実際に呼ばれたことを確認
+      expect(mockFirebase.deleteWasCalled, isTrue);
+      expect(mockFirebase.lastDeletedId, equals('target-id'));
     });
   });
 }
