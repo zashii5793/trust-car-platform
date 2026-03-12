@@ -19,6 +19,7 @@ import 'profile/profile_screen.dart';
 import 'notifications/notification_list_screen.dart';
 import 'marketplace/marketplace_screen.dart';
 import 'sns/sns_feed_screen.dart';
+import 'drive/drive_log_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -322,6 +323,23 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               icon: const Icon(Icons.manage_accounts_outlined),
               label: const Text('プロフィールを編集'),
+            ),
+          ),
+          AppSpacing.verticalSm,
+          // ドライブログボタン
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DriveLogScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.directions_car_outlined),
+              label: const Text('ドライブログ'),
             ),
           ),
           AppSpacing.verticalXxl,

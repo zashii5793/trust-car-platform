@@ -19,9 +19,11 @@ import 'providers/notification_provider.dart';
 import 'providers/connectivity_provider.dart';
 import 'providers/part_recommendation_provider.dart';
 import 'providers/post_provider.dart';
+import 'providers/drive_log_provider.dart';
 import 'providers/shop_provider.dart';
 import 'services/part_recommendation_service.dart';
 import 'services/post_service.dart';
+import 'services/drive_log_service.dart';
 import 'services/shop_service.dart';
 import 'services/inquiry_service.dart';
 import 'screens/home_screen.dart';
@@ -121,6 +123,9 @@ class MyApp extends StatelessWidget {
         )),
         ChangeNotifierProvider(create: (_) => PostProvider(
           postService: sl.get<PostService>(),
+        )),
+        ChangeNotifierProvider(create: (_) => DriveLogProvider(
+          driveLogService: sl.get<DriveLogService>(),
         )),
       ],
       child: MaterialApp(
