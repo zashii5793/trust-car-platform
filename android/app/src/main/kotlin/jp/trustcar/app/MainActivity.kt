@@ -1,4 +1,4 @@
-package com.example.trust_car_platform
+package jp.trustcar.app
 
 import io.flutter.embedding.android.FlutterActivity
 

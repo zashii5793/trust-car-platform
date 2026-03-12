@@ -55,7 +55,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '31421119456',
     projectId: 'trust-car-platform',
     storageBucket: 'trust-car-platform.firebasestorage.app',
-    iosBundleId: 'com.example.trustCarPlatform',
+    iosBundleId: 'jp.trustcar.app',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -64,6 +64,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '31421119456',
     projectId: 'trust-car-platform',
     storageBucket: 'trust-car-platform.firebasestorage.app',
-    iosBundleId: 'com.example.trustCarPlatform',
+    iosBundleId: 'jp.trustcar.app',
   );
 }

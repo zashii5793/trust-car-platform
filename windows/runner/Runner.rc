@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "trust_car_platform" "\0"
+            VALUE "CompanyName", "TrustCar" "\0"
+            VALUE "FileDescription", "TrustCar" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "trust_car_platform" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "trust_car_platform.exe" "\0"
-            VALUE "ProductName", "trust_car_platform" "\0"
+            VALUE "InternalName", "trustcar" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 TrustCar. All rights reserved." "\0"
+            VALUE "OriginalFilename", "trustcar.exe" "\0"
+            VALUE "ProductName", "TrustCar" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
