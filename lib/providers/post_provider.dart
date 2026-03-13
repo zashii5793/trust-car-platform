@@ -29,6 +29,8 @@ class PostProvider with ChangeNotifier {
 
   // ── いいね状態（ローカルキャッシュ）──────────────────────────────────────
   final Set<String> _likedPostIds = {};
+  // 処理中のいいねリクエスト（連続タップによるレースコンディション防止）
+  final Set<String> _pendingLikes = {};
 
   // ── Getters ───────────────────────────────────────────────────────────────
   List<Post> get feedPosts => _feedPosts;
@@ -156,9 +158,13 @@ class PostProvider with ChangeNotifier {
   // ── いいね ────────────────────────────────────────────────────────────────
 
   Future<void> toggleLike(String postId, String userId) async {
+    // 処理中のリクエストがある場合はスキップ（連続タップ防止）
+    if (_pendingLikes.contains(postId)) return;
+
     final isCurrentlyLiked = _likedPostIds.contains(postId);
 
-    // ローカル即時反映
+    // 処理中フラグを立てて楽観的更新
+    _pendingLikes.add(postId);
     if (isCurrentlyLiked) {
       _likedPostIds.remove(postId);
       _updateLocalLikeCount(postId, -1);
@@ -168,13 +174,13 @@ class PostProvider with ChangeNotifier {
     }
     notifyListeners();
 
-    // Firestore 同期（失敗してもローカル状態は維持）
+    // Firestore 同期
     final result = isCurrentlyLiked
         ? await _postService.unlikePost(postId: postId, userId: userId)
         : await _postService.likePost(postId: postId, userId: userId);
 
     result.onFailure((_) {
-      // ロールバック
+      // 失敗時はロールバック
       if (isCurrentlyLiked) {
         _likedPostIds.add(postId);
         _updateLocalLikeCount(postId, 1);
@@ -182,8 +188,11 @@ class PostProvider with ChangeNotifier {
         _likedPostIds.remove(postId);
         _updateLocalLikeCount(postId, -1);
       }
-      notifyListeners();
     });
+
+    // 完了後にフラグを解除
+    _pendingLikes.remove(postId);
+    notifyListeners();
   }
 
   void _updateLocalLikeCount(String postId, int delta) {
@@ -242,6 +251,7 @@ class PostProvider with ChangeNotifier {
     _submitError = null;
     _isSubmitting = false;
     _likedPostIds.clear();
+    _pendingLikes.clear();
     notifyListeners();
   }
 }

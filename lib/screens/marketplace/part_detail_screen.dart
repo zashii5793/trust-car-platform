@@ -23,85 +23,68 @@ class PartDetailScreen extends StatefulWidget {
 }
 
 class _PartDetailScreenState extends State<PartDetailScreen> {
-  PartListing? _detail;
-  bool _isLoading = true;
-  String? _errorMessage;
-
   @override
   void initState() {
     super.initState();
-    _loadDetail();
-  }
-
-  Future<void> _loadDetail() async {
-    final provider =
-        Provider.of<PartRecommendationProvider>(context, listen: false);
-    final result =
-        await provider.loadPartDetail(widget.part.id);
-    if (!mounted) return;
-    setState(() {
-      _isLoading = false;
-      if (result) {
-        _detail = provider.currentPartDetail;
-      } else {
-        _errorMessage = provider.errorMessage ?? 'パーツ情報の取得に失敗しました';
-      }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context
+          .read<PartRecommendationProvider>()
+          .loadPartDetail(widget.part.id);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final part = _detail ?? widget.part;
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    return Consumer<PartRecommendationProvider>(
+      builder: (context, provider, _) {
+        final part = provider.currentPartDetail ?? widget.part;
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(part.name),
-        actions: [
-          if (part.isFeatured)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Center(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                        color: AppColors.warning.withValues(alpha: 0.4)),
-                  ),
-                  child: const Text(
-                    '広告',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.warning,
-                      fontWeight: FontWeight.bold,
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(part.name),
+            actions: [
+              if (part.isFeatured)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                            color: AppColors.warning.withValues(alpha: 0.4)),
+                      ),
+                      child: const Text(
+                        '広告',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.warning,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-        ],
-      ),
-      body: _isLoading
-          ? const AppLoadingCenter(message: 'パーツ情報を読み込み中...')
-          : _errorMessage != null
-              ? AppErrorState(
-                  message: _errorMessage!,
-                  onRetry: () {
-                    setState(() {
-                      _isLoading = true;
-                      _errorMessage = null;
-                    });
-                    _loadDetail();
-                  },
-                )
-              : _buildBody(context, part, isDark),
-      bottomNavigationBar: _errorMessage == null
-          ? _InquiryBottomBar(part: part)
-          : null,
+            ],
+          ),
+          body: provider.isLoading
+              ? const AppLoadingCenter(message: 'パーツ情報を読み込み中...')
+              : provider.errorMessage != null
+                  ? AppErrorState(
+                      message: provider.errorMessage!,
+                      onRetry: () =>
+                          provider.loadPartDetail(widget.part.id),
+                    )
+                  : _buildBody(context, part, isDark),
+          bottomNavigationBar: provider.errorMessage == null
+              ? _InquiryBottomBar(part: part)
+              : null,
+        );
+      },
     );
   }
 
