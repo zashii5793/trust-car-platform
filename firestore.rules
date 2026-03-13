@@ -117,7 +117,8 @@ service cloud.firestore {
       allow read: if isAuthenticated();
 
       // リスティングの作成・更新・削除は店舗オーナーのみ
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.shopId == request.auth.uid;
       allow update, delete: if isAuthenticated() &&
         resource.data.shopId == request.auth.uid;
     }

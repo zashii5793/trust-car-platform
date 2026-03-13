@@ -7,6 +7,8 @@ import '../../core/di/service_locator.dart';
 import '../../services/push_notification_service.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../settings/privacy_policy_screen.dart';
+import '../settings/terms_of_service_screen.dart';
 
 /// 設定画面
 class SettingsScreen extends StatefulWidget {
@@ -205,7 +207,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: const Text('利用規約'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
-                      showSuccessSnackBar(context, '実装予定の機能です');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TermsOfServiceScreen(),
+                        ),
+                      );
                     },
                   ),
                   const Divider(height: 1),
@@ -213,7 +220,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: const Text('プライバシーポリシー'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
-                      showSuccessSnackBar(context, '実装予定の機能です');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PrivacyPolicyScreen(),
+                        ),
+                      );
                     },
                   ),
                 ],
