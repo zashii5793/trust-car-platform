@@ -1,12 +1,36 @@
 # Claude開発セッションメモ
 
-> **最終更新**: 2026-03-13
+> **最終更新**: 2026-03-15
 
 ---
 
-## 現在の状態（SNS/ドライブ/マーケット完了 → ローンチ準備フェーズ）
+## 現在の状態（テストカバレッジ拡充フェーズ）
 
-### 直近の完了作業（2026-03-13）
+### 直近の完了作業（2026-03-15）
+
+| 作業 | 状態 |
+|------|------|
+| Service テスト: PostService, DriveLogService (+100件) | ✅ |
+| Provider テスト: DriveLog, Invoice, Document, ServiceMenu (+120件) | ✅ |
+| Service テスト: PartRecommendation, Shop, Follow (+150件) | ✅ |
+| Service テスト: Document, Inquiry, Invoice, VehicleListing (+200件) | ✅ |
+| **Service カバレッジ: 15/19 (79%)** | ✅ |
+| **Provider カバレッジ: 12/12 (100%)** | ✅ |
+
+### 未テストのサービス（残り4件）
+
+| サービス | 理由 |
+|---------|------|
+| `recommendation_service.dart` | 複雑な優先度計算（Firebase依存） |
+| `service_menu_service.dart` | Provider テストで間接カバー済み |
+| `vehicle_master_service.dart` | データ取得のみ |
+| `pdf_export_service.dart` | PDF生成（外部ライブラリ依存） |
+
+---
+
+## 前回の状態（SNS/ドライブ/マーケット完了 → ローンチ準備フェーズ）
+
+### 完了作業（2026-03-13）
 
 | 作業 | 状態 |
 |------|------|
