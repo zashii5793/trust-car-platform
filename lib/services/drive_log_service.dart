@@ -202,6 +202,30 @@ class DriveLogService {
     }
   }
 
+  /// Get drive logs for a specific vehicle (used in vehicle timeline)
+  Future<Result<List<DriveLog>, AppError>> getVehicleDriveLogs({
+    required String vehicleId,
+    required String userId,
+    int limit = 30,
+  }) async {
+    try {
+      final snapshot = await _driveLogsRef
+          .where('userId', isEqualTo: userId)
+          .where('vehicleId', isEqualTo: vehicleId)
+          .orderBy('startTime', descending: true)
+          .limit(limit)
+          .get();
+
+      final logs = snapshot.docs
+          .map((doc) => DriveLog.fromMap(doc.data(), doc.id))
+          .toList();
+
+      return Result.success(logs);
+    } catch (e) {
+      return Result.failure(AppError.unknown('ドライブログの取得に失敗しました'));
+    }
+  }
+
   /// Get public drive logs (for feed)
   Future<Result<List<DriveLog>, AppError>> getPublicDriveLogs({
     int limit = 20,

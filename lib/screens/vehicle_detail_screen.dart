@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
+import '../models/drive_log.dart';
 import '../providers/maintenance_provider.dart';
+import '../services/drive_log_service.dart';
+import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../widgets/common/app_card.dart';
@@ -187,15 +190,14 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
             Padding(
               padding: AppSpacing.paddingScreen,
               child: Text(
-                'メンテナンス履歴',
+                '愛車の記録',
                 style: theme.textTheme.headlineLarge,
               ),
             ),
 
-            // 履歴タイムライン
-            _MaintenanceTimeline(
-              vehicleId: _vehicle.id,
-              currentVehicleMileage: _vehicle.mileage,
+            // 統合タイムライン（整備履歴 + ドライブログ）
+            _VehicleTimeline(
+              vehicle: _vehicle,
             ),
 
             AppSpacing.verticalLg,
@@ -403,38 +405,86 @@ class _StatCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Timeline: replaces the old flat list
+// Unified Vehicle Timeline (maintenance records + drive logs)
 // ---------------------------------------------------------------------------
 
-class _MaintenanceTimeline extends StatelessWidget {
-  final String vehicleId;
-  final int currentVehicleMileage;
+/// Timeline entry: either a maintenance record or a drive log
+sealed class _TimelineEntry {
+  DateTime get date;
+}
 
-  const _MaintenanceTimeline({
-    required this.vehicleId,
-    required this.currentVehicleMileage,
-  });
+class _MaintenanceEntry extends _TimelineEntry {
+  final MaintenanceRecord record;
+  _MaintenanceEntry(this.record);
+  @override
+  DateTime get date => record.date;
+}
+
+class _DriveEntry extends _TimelineEntry {
+  final DriveLog log;
+  _DriveEntry(this.log);
+  @override
+  DateTime get date => log.startTime;
+}
+
+class _VehicleTimeline extends StatefulWidget {
+  final Vehicle vehicle;
+
+  const _VehicleTimeline({required this.vehicle});
+
+  @override
+  State<_VehicleTimeline> createState() => _VehicleTimelineState();
+}
+
+class _VehicleTimelineState extends State<_VehicleTimeline> {
+  List<DriveLog> _driveLogs = [];
+  bool _driveLogsLoaded = false;
+
+  DriveLogService get _driveLogService => sl.get<DriveLogService>();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDriveLogs();
+  }
+
+  Future<void> _loadDriveLogs() async {
+    final result = await _driveLogService.getVehicleDriveLogs(
+      vehicleId: widget.vehicle.id,
+      userId: widget.vehicle.userId,
+    );
+    if (mounted) {
+      setState(() {
+        _driveLogs = result.getOrElse([]);
+        _driveLogsLoaded = true;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<MaintenanceProvider>(
       builder: (context, maintenanceProvider, child) {
-        if (maintenanceProvider.isLoading) {
+        if (maintenanceProvider.isLoading || !_driveLogsLoaded) {
           return const Padding(
             padding: EdgeInsets.all(AppSpacing.xl),
             child: AppLoadingCenter(),
           );
         }
 
-        if (maintenanceProvider.records.isEmpty) {
+        // Merge and sort all entries by date descending
+        final entries = <_TimelineEntry>[
+          ...maintenanceProvider.records.map(_MaintenanceEntry.new),
+          ..._driveLogs.map(_DriveEntry.new),
+        ]..sort((a, b) => b.date.compareTo(a.date));
+
+        if (entries.isEmpty) {
           return const AppEmptyState(
             icon: Icons.history,
-            title: 'メンテナンス履歴がありません',
-            description: '「履歴を追加」ボタンから追加できます',
+            title: '記録がありません',
+            description: '整備履歴や走行記録を追加してみましょう',
           );
         }
-
-        final records = maintenanceProvider.records;
 
         return ListView.builder(
           shrinkWrap: true,
@@ -443,26 +493,36 @@ class _MaintenanceTimeline extends StatelessWidget {
             horizontal: AppSpacing.md,
             vertical: AppSpacing.xs,
           ),
-          itemCount: records.length,
+          itemCount: entries.length,
           itemBuilder: (context, index) {
-            return _TimelineItem(
-              record: records[index],
-              isFirst: index == 0,
-              isLast: index == records.length - 1,
-              onTap: () => _showMaintenanceDetailSheet(
-                context,
-                records[index],
-                maintenanceProvider,
-                currentVehicleMileage,
-              ),
-            );
+            final entry = entries[index];
+            final isFirst = index == 0;
+            final isLast = index == entries.length - 1;
+
+            return switch (entry) {
+              _MaintenanceEntry(:final record) => _MaintenanceTimelineItem(
+                  record: record,
+                  isFirst: isFirst,
+                  isLast: isLast,
+                  onTap: () => _showMaintenanceDetailSheet(
+                    context,
+                    record,
+                    maintenanceProvider,
+                    widget.vehicle.mileage,
+                  ),
+                ),
+              _DriveEntry(:final log) => _DriveTimelineItem(
+                  log: log,
+                  isFirst: isFirst,
+                  isLast: isLast,
+                ),
+            };
           },
         );
       },
     );
   }
 
-  /// Show the record detail as a modal BottomSheet.
   void _showMaintenanceDetailSheet(
     BuildContext context,
     MaintenanceRecord record,
@@ -486,16 +546,17 @@ class _MaintenanceTimeline extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Single timeline row
+// Timeline rows
 // ---------------------------------------------------------------------------
 
-class _TimelineItem extends StatelessWidget {
+/// Maintenance record row
+class _MaintenanceTimelineItem extends StatelessWidget {
   final MaintenanceRecord record;
   final bool isFirst;
   final bool isLast;
   final VoidCallback onTap;
 
-  const _TimelineItem({
+  const _MaintenanceTimelineItem({
     required this.record,
     required this.isFirst,
     required this.isLast,
@@ -647,6 +708,186 @@ class _TimelineItem extends StatelessWidget {
                       ],
                     ],
                   ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Drive log timeline row
+// ---------------------------------------------------------------------------
+
+class _DriveTimelineItem extends StatelessWidget {
+  final DriveLog log;
+  final bool isFirst;
+  final bool isLast;
+
+  const _DriveTimelineItem({
+    required this.log,
+    required this.isFirst,
+    required this.isLast,
+  });
+
+  static const double _lineWidth = 2.0;
+  static const double _leftColumnWidth = 48.0;
+  static const double _avatarRadius = 18.0;
+  static const Color _driveColor = AppColors.info;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final lineColor = isDark ? AppColors.darkCard : AppColors.divider;
+    final dateFormat = DateFormat('yyyy/MM/dd');
+    final distanceStr = log.statistics.totalDistance > 0
+        ? '${log.statistics.totalDistance.toStringAsFixed(1)} km'
+        : null;
+    final durationMin = log.statistics.totalDuration ~/ 60;
+    final title = log.title ??
+        (log.startAddress != null
+            ? '${log.startAddress} 発'
+            : 'ドライブ記録');
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ---- Left: timeline line + icon ----
+          SizedBox(
+            width: _leftColumnWidth,
+            child: Column(
+              children: [
+                SizedBox(
+                  width: _lineWidth,
+                  height: _avatarRadius + 4,
+                  child: isFirst
+                      ? const SizedBox.shrink()
+                      : ColoredBox(color: lineColor),
+                ),
+                CircleAvatar(
+                  radius: _avatarRadius,
+                  backgroundColor: _driveColor,
+                  child: const Icon(
+                    Icons.directions_car_outlined,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+                Expanded(
+                  child: isLast
+                      ? const SizedBox.shrink()
+                      : Center(
+                          child: SizedBox(
+                            width: _lineWidth,
+                            child: ColoredBox(color: lineColor),
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+
+          AppSpacing.horizontalSm,
+
+          // ---- Right: card ----
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(
+                top: AppSpacing.xs,
+                bottom: AppSpacing.md,
+              ),
+              child: AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          dateFormat.format(log.startTime),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: isDark
+                                ? AppColors.darkTextTertiary
+                                : AppColors.textTertiary,
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xs,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _driveColor.withValues(alpha: 0.12),
+                            borderRadius: AppSpacing.borderRadiusXs,
+                          ),
+                          child: const Text(
+                            'ドライブ',
+                            style: TextStyle(
+                              color: _driveColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    AppSpacing.verticalXxs,
+                    Text(
+                      title,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (distanceStr != null || durationMin > 0) ...[
+                      AppSpacing.verticalXxs,
+                      Row(
+                        children: [
+                          if (distanceStr != null) ...[
+                            Icon(
+                              Icons.straighten,
+                              size: 13,
+                              color: isDark
+                                  ? AppColors.darkTextTertiary
+                                  : AppColors.textTertiary,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              distanceStr,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: isDark
+                                    ? AppColors.darkTextTertiary
+                                    : AppColors.textTertiary,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                          ],
+                          if (durationMin > 0) ...[
+                            Icon(
+                              Icons.timer_outlined,
+                              size: 13,
+                              color: isDark
+                                  ? AppColors.darkTextTertiary
+                                  : AppColors.textTertiary,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '$durationMin分',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: isDark
+                                    ? AppColors.darkTextTertiary
+                                    : AppColors.textTertiary,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
