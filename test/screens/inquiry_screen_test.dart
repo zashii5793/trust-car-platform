@@ -13,6 +13,8 @@ import 'package:trust_car_platform/models/shop.dart';
 import 'package:trust_car_platform/models/inquiry.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
+import 'package:trust_car_platform/models/user.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -141,21 +143,24 @@ class MockInquiryService implements InquiryService {
 
 class MockAuthService implements AuthService {
   @override
-  Stream<dynamic> get authStateChanges => const Stream.empty();
+  Stream<User?> get authStateChanges => const Stream.empty();
 
   @override
-  Future<Result<dynamic, AppError>> signUpWithEmail(
+  User? get currentUser => null;
+
+  @override
+  Future<Result<UserCredential, AppError>> signUpWithEmail(
           {required String email, required String password,
           String? displayName}) async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
-  Future<Result<dynamic, AppError>> signInWithEmail(
+  Future<Result<UserCredential, AppError>> signInWithEmail(
           {required String email, required String password}) async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
-  Future<Result<dynamic, AppError>> signInWithGoogle() async =>
+  Future<Result<UserCredential?, AppError>> signInWithGoogle() async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
@@ -167,7 +172,7 @@ class MockAuthService implements AuthService {
       const Result.success(null);
 
   @override
-  Future<Result<dynamic, AppError>> getUserProfile() async =>
+  Future<Result<AppUser?, AppError>> getUserProfile() async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
@@ -392,6 +397,8 @@ void main() {
     });
 
     testWidgets('免責事項ボックスが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       final shop = _testShop();
 
       await tester.pumpWidget(
@@ -400,11 +407,13 @@ void main() {
       await tester.pump();
 
       // "1〜3営業日" または "営業日" を含むテキスト
-      expect(find.textContaining('営業日'), findsWidgets);
+      expect(find.textContaining('営業日'), findsAtLeast(1));
     });
 
     group('Edge Cases', () {
       testWidgets('vehicleId 指定時に車両情報バッジが表示される', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(800, 2000));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
         final shop = _testShop();
 
         await tester.pumpWidget(
@@ -417,7 +426,7 @@ void main() {
         );
         await tester.pump();
 
-        expect(find.textContaining('車両情報'), findsWidgets);
+        expect(find.textContaining('車両情報'), findsAtLeast(1));
         expect(tester.takeException(), isNull);
       });
 

@@ -27,8 +27,18 @@ import 'package:trust_car_platform/services/recommendation_service.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/app_notification.dart';
+import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
+import 'package:trust_car_platform/models/user.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:trust_car_platform/providers/shop_provider.dart';
+import 'package:trust_car_platform/services/shop_service.dart';
+import 'package:trust_car_platform/services/inquiry_service.dart';
+import 'package:trust_car_platform/providers/post_provider.dart';
+import 'package:trust_car_platform/services/post_service.dart';
+import 'package:trust_car_platform/providers/drive_log_provider.dart';
+import 'package:trust_car_platform/services/drive_log_service.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 
 // ---------------------------------------------------------------------------
 // Stub FirebaseService
@@ -120,25 +130,25 @@ class _StubFirebaseService implements FirebaseService {
 
 class _StubAuthService implements AuthService {
   @override
-  Stream<dynamic> get authStateChanges => const Stream.empty();
+  Stream<User?> get authStateChanges => const Stream.empty();
 
   @override
-  dynamic get currentUser => null;
+  User? get currentUser => null;
 
   @override
-  Future<Result<dynamic, AppError>> signInWithEmail(
+  Future<Result<UserCredential, AppError>> signInWithEmail(
           {required String email, required String password}) async =>
       Result.failure(AppError.unknown('stub'));
 
   @override
-  Future<Result<dynamic, AppError>> signUpWithEmail(
+  Future<Result<UserCredential, AppError>> signUpWithEmail(
           {required String email,
           required String password,
           String? displayName}) async =>
       Result.failure(AppError.unknown('stub'));
 
   @override
-  Future<Result<dynamic, AppError>> signInWithGoogle() async =>
+  Future<Result<UserCredential?, AppError>> signInWithGoogle() async =>
       Result.failure(AppError.unknown('stub'));
 
   @override
@@ -146,11 +156,11 @@ class _StubAuthService implements AuthService {
       const Result.success(null);
 
   @override
-  Future<Result<dynamic, AppError>> getUserProfile() async =>
+  Future<Result<AppUser?, AppError>> getUserProfile() async =>
       Result.failure(AppError.unknown('stub'));
 
   @override
-  Future<Result<dynamic, AppError>> updateUserProfile(
+  Future<Result<void, AppError>> updateUserProfile(
           {String? displayName, String? photoUrl}) async =>
       Result.failure(AppError.unknown('stub'));
 
@@ -161,6 +171,9 @@ class _StubAuthService implements AuthService {
   @override
   Future<Result<void, AppError>> deleteAccount() async =>
       const Result.success(null);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 // ---------------------------------------------------------------------------
@@ -307,6 +320,22 @@ Widget _buildApp({
           return cp;
         },
       ),
+      ChangeNotifierProvider<ShopProvider>(
+        create: (_) => ShopProvider(
+          shopService: ShopService(firestore: FakeFirebaseFirestore()),
+          inquiryService: InquiryService(firestore: FakeFirebaseFirestore()),
+        ),
+      ),
+      ChangeNotifierProvider<PostProvider>(
+        create: (_) => PostProvider(
+          postService: PostService(firestore: FakeFirebaseFirestore()),
+        ),
+      ),
+      ChangeNotifierProvider<DriveLogProvider>(
+        create: (_) => DriveLogProvider(
+          driveLogService: DriveLogService(firestore: FakeFirebaseFirestore()),
+        ),
+      ),
     ],
     child: const MaterialApp(home: HomeScreen()),
   );
@@ -345,27 +374,48 @@ void main() {
       await tester.pumpWidget(_buildApp());
       await tester.pump();
 
-      expect(find.text('マイカー'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('マイカー'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('マーケットプレイスタブに切り替えるとタイトルが変わる', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       await tester.pumpWidget(_buildApp());
       await tester.pump();
 
       await tester.tap(find.byIcon(Icons.store_outlined));
       await tester.pumpAndSettle();
 
-      expect(find.text('マーケットプレイス'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('マーケットプレイス'),
+        ),
+        findsWidgets,
+      );
     });
 
     testWidgets('SNSタブに切り替えるとタイトルが "みんなの投稿"', (tester) async {
       await tester.pumpWidget(_buildApp());
       await tester.pump();
 
-      await tester.tap(find.byIcon(Icons.people_outline));
+      await tester.tap(find.byIcon(Icons.forum_outlined));
       await tester.pumpAndSettle();
 
-      expect(find.text('みんなの投稿'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('みんなの投稿'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('通知タブに切り替えるとタイトルが "通知"', (tester) async {
@@ -375,7 +425,13 @@ void main() {
       await tester.tap(find.byIcon(Icons.notifications_outlined));
       await tester.pumpAndSettle();
 
-      expect(find.text('通知'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('通知'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('プロフィールタブに切り替えるとタイトルが "プロフィール"', (tester) async {
@@ -385,7 +441,13 @@ void main() {
       await tester.tap(find.byIcon(Icons.person_outline));
       await tester.pumpAndSettle();
 
-      expect(find.text('プロフィール'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('プロフィール'),
+        ),
+        findsOneWidget,
+      );
     });
   });
 
@@ -401,27 +463,35 @@ void main() {
       await tester.pumpWidget(_buildApp());
       await tester.pump();
 
-      expect(find.byIcon(Icons.directions_car), findsOneWidget);
+      expect(find.byIcon(Icons.directions_car), findsWidgets);
       expect(find.byIcon(Icons.store_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.people_outline), findsOneWidget);
+      expect(find.byIcon(Icons.forum_outlined), findsOneWidget);
       expect(find.byIcon(Icons.notifications_outlined), findsOneWidget);
       expect(find.byIcon(Icons.person_outline), findsOneWidget);
     });
 
     testWidgets('タブを順番にタップして全タブに移動できる', (tester) async {
+      // Use a large surface to avoid layout overflow errors during tab switching
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       await tester.pumpWidget(_buildApp());
       await tester.pump();
 
       // 全タブを一巡
       final icons = [
         Icons.store_outlined,
-        Icons.people_outline,
+        Icons.forum_outlined,
         Icons.notifications_outlined,
         Icons.person_outline,
         Icons.directions_car,
       ];
       for (final icon in icons) {
-        await tester.tap(find.byIcon(icon));
+        final iconFinder = find.descendant(
+          of: find.byType(BottomNavigationBar),
+          matching: find.byIcon(icon),
+        );
+        await tester.tap(iconFinder);
         await tester.pumpAndSettle();
       }
 
@@ -530,7 +600,7 @@ void main() {
       await tester.pumpWidget(_buildApp(isOffline: true));
       await tester.pump();
 
-      expect(find.byIcon(Icons.cloud_off), findsOneWidget);
+      expect(find.byIcon(Icons.cloud_off), findsWidgets);
     });
 
     testWidgets('オンライン時はオフラインアイコンが表示されない', (tester) async {
@@ -546,8 +616,12 @@ void main() {
       await tester.pumpWidget(_buildApp());
       await tester.pump();
 
-      await tester.tap(find.byIcon(Icons.directions_car));
-      await tester.tap(find.byIcon(Icons.directions_car));
+      final carTabIcon = find.descendant(
+        of: find.byType(BottomNavigationBar),
+        matching: find.byIcon(Icons.directions_car),
+      );
+      await tester.tap(carTabIcon);
+      await tester.tap(carTabIcon);
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);

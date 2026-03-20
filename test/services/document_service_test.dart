@@ -59,13 +59,13 @@ void main() {
       expect(DocumentType.fromString('other'), DocumentType.other);
     });
 
-    test('fromString(null) は null を返す', () {
-      expect(DocumentType.fromString(null), isNull);
+    test('fromString(null) は other を返す', () {
+      expect(DocumentType.fromString(null), DocumentType.other);
     });
 
-    test('fromString 不明な文字列は null を返す', () {
-      expect(DocumentType.fromString(''), isNull);
-      expect(DocumentType.fromString('unknown'), isNull);
+    test('fromString 不明な文字列は other を返す', () {
+      expect(DocumentType.fromString(''), DocumentType.other);
+      expect(DocumentType.fromString('unknown'), DocumentType.other);
     });
 
     test('全 enum 値を往復変換できる', () {
@@ -213,7 +213,7 @@ void main() {
 
     test('31日後のとき false', () {
       final doc = _makeDocument(
-        expiryDate: DateTime.now().add(const Duration(days: 31)),
+        expiryDate: DateTime.now().add(const Duration(days: 31, hours: 12)),
       );
       expect(doc.isExpiringSoon, false);
     });

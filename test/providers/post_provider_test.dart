@@ -34,6 +34,7 @@ class MockPostService implements PostService {
     int limit = 20,
     PostCategory? category,
     dynamic startAfter,
+    String? makerId,
   }) async {
     getFeedCallCount++;
     lastCategory = category;

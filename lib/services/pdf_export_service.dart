@@ -27,6 +27,7 @@ class PdfExportService {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(40),
+        maxPages: 9999,
         header: (context) => _buildHeader(vehicle),
         footer: (context) => _buildFooter(context),
         build: (context) => [
@@ -38,8 +39,8 @@ class PdfExportService {
           _buildSummarySection(sortedRecords, totalCost, numberFormat),
           pw.SizedBox(height: 20),
 
-          // メンテナンス履歴テーブル
-          _buildMaintenanceTable(sortedRecords, dateFormat, numberFormat),
+          // メンテナンス履歴テーブル（スパニング対応のためテーブル直接配置）
+          ..._buildMaintenanceTableWidgets(sortedRecords, dateFormat, numberFormat),
         ],
       ),
     );
@@ -270,75 +271,82 @@ class PdfExportService {
   }
 
   /// メンテナンス履歴テーブル
+  // Legacy single-widget version (kept for reference)
+  // ignore: unused_element
   pw.Widget _buildMaintenanceTable(
     List<MaintenanceRecord> records,
     DateFormat dateFormat,
     NumberFormat numberFormat,
-  ) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Text(
-          'メンテナンス履歴',
-          style: pw.TextStyle(
-            fontSize: 14,
-            fontWeight: pw.FontWeight.bold,
-            color: PdfColors.blue800,
-          ),
-        ),
-        pw.SizedBox(height: 10),
-        pw.Table(
-          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
-          columnWidths: {
-            0: const pw.FlexColumnWidth(1.2), // 日付
-            1: const pw.FlexColumnWidth(1), // 種類
-            2: const pw.FlexColumnWidth(2), // タイトル
-            3: const pw.FlexColumnWidth(1.2), // 費用
-            4: const pw.FlexColumnWidth(1), // 走行距離
-          },
-          children: [
-            // ヘッダー
-            pw.TableRow(
-              decoration: const pw.BoxDecoration(color: PdfColors.blue800),
-              children: [
-                _buildTableHeader('日付'),
-                _buildTableHeader('種類'),
-                _buildTableHeader('内容'),
-                _buildTableHeader('費用'),
-                _buildTableHeader('走行距離'),
-              ],
-            ),
-            // データ行
-            ...records.asMap().entries.map((entry) {
-              final index = entry.key;
-              final record = entry.value;
-              final isEven = index % 2 == 0;
+  ) =>
+      pw.Column(children: _buildMaintenanceTableWidgets(records, dateFormat, numberFormat));
 
-              return pw.TableRow(
-                decoration: pw.BoxDecoration(
-                  color: isEven ? PdfColors.white : PdfColors.grey100,
-                ),
-                children: [
-                  _buildTableCell(dateFormat.format(record.date)),
-                  _buildTableCell(_getTypeDisplayName(record.type)),
-                  _buildTableCell(record.title),
-                  _buildTableCell(
-                    '¥${numberFormat.format(record.cost)}',
-                    alignment: pw.TextAlign.right,
-                  ),
-                  _buildTableCell(
-                    record.mileageAtService != null
-                        ? '${numberFormat.format(record.mileageAtService)} km'
-                        : '-',
-                    alignment: pw.TextAlign.right,
-                  ),
-                ],
-              );
-            }),
-          ],
+  /// テーブルをリストで返すことで MultiPage のスパニングに対応
+  List<pw.Widget> _buildMaintenanceTableWidgets(
+    List<MaintenanceRecord> records,
+    DateFormat dateFormat,
+    NumberFormat numberFormat,
+  ) {
+    return [
+      pw.Text(
+        'メンテナンス履歴',
+        style: pw.TextStyle(
+          fontSize: 14,
+          fontWeight: pw.FontWeight.bold,
+          color: PdfColors.blue800,
         ),
-      ],
-    );
+      ),
+      pw.SizedBox(height: 10),
+      pw.Table(
+        border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+        columnWidths: {
+          0: const pw.FlexColumnWidth(1.2), // 日付
+          1: const pw.FlexColumnWidth(1), // 種類
+          2: const pw.FlexColumnWidth(2), // タイトル
+          3: const pw.FlexColumnWidth(1.2), // 費用
+          4: const pw.FlexColumnWidth(1), // 走行距離
+        },
+        children: [
+          // ヘッダー
+          pw.TableRow(
+            decoration: const pw.BoxDecoration(color: PdfColors.blue800),
+            children: [
+              _buildTableHeader('日付'),
+              _buildTableHeader('種類'),
+              _buildTableHeader('内容'),
+              _buildTableHeader('費用'),
+              _buildTableHeader('走行距離'),
+            ],
+          ),
+          // データ行
+          ...records.asMap().entries.map((entry) {
+            final index = entry.key;
+            final record = entry.value;
+            final isEven = index % 2 == 0;
+
+            return pw.TableRow(
+              decoration: pw.BoxDecoration(
+                color: isEven ? PdfColors.white : PdfColors.grey100,
+              ),
+              children: [
+                _buildTableCell(dateFormat.format(record.date)),
+                _buildTableCell(_getTypeDisplayName(record.type)),
+                _buildTableCell(record.title),
+                _buildTableCell(
+                  '¥${numberFormat.format(record.cost)}',
+                  alignment: pw.TextAlign.right,
+                ),
+                _buildTableCell(
+                  record.mileageAtService != null
+                      ? '${numberFormat.format(record.mileageAtService)} km'
+                      : '-',
+                  alignment: pw.TextAlign.right,
+                ),
+              ],
+            );
+          }),
+        ],
+      ),
+    ];
   }
 
   /// テーブルヘッダーセル

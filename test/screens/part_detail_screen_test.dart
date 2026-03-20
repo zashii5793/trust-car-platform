@@ -10,6 +10,7 @@ import 'package:trust_car_platform/models/part_listing.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:trust_car_platform/widgets/common/loading_indicator.dart';
 
 // ---------------------------------------------------------------------------
 // Mock PartRecommendationService
@@ -35,7 +36,7 @@ PartListing _makePart({
   String id = 'part1',
   String name = 'スポーツエアフィルター',
   String description = '高性能エアフィルターです',
-  PartCategory category = PartCategory.airFilter,
+  PartCategory category = PartCategory.intake,
   int? priceFrom = 8000,
   int? priceTo,
   bool isPriceNegotiable = false,
@@ -203,10 +204,10 @@ void main() {
 
     testWidgets('カテゴリが基本情報テーブルに表示される', (tester) async {
       await tester
-          .pumpWidget(_buildApp(_makePart(category: PartCategory.airFilter)));
+          .pumpWidget(_buildApp(_makePart(category: PartCategory.intake)));
       await tester.pump();
 
-      expect(find.text(PartCategory.airFilter.displayName), findsOneWidget);
+      expect(find.text(PartCategory.intake.displayName), findsOneWidget);
     });
 
     testWidgets('問い合わせボタンが表示される', (tester) async {
@@ -252,12 +253,14 @@ void main() {
     });
 
     testWidgets('tagsが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
           _buildApp(_makePart(tags: ['スポーツ', '吸気系', 'インプレッサ対応'])));
       await tester.pump();
 
-      expect(find.text('スポーツ'), findsOneWidget);
-      expect(find.text('吸気系'), findsOneWidget);
+      expect(find.text('スポーツ'), findsAtLeast(1));
+      expect(find.text('吸気系'), findsAtLeast(1));
     });
 
     testWidgets('エラー時にエラー表示になる', (tester) async {

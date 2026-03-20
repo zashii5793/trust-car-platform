@@ -15,11 +15,26 @@ import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
 import 'package:trust_car_platform/screens/vehicle_detail_screen.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:trust_car_platform/models/drive_log.dart';
+import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 
 // ---------------------------------------------------------------------------
 // Mock
 // ---------------------------------------------------------------------------
+
+class MockDriveLogService extends DriveLogService {
+  MockDriveLogService() : super(firestore: FakeFirebaseFirestore());
+
+  @override
+  Future<Result<List<DriveLog>, AppError>> getVehicleDriveLogs({
+    required String vehicleId,
+    required String userId,
+    int limit = 30,
+  }) async =>
+      const Result.success([]);
+}
 
 class MockFirebaseService implements FirebaseService {
   final StreamController<List<MaintenanceRecord>> _recordsController =
@@ -178,6 +193,9 @@ void main() {
     if (!sl.isRegistered<FirebaseService>()) {
       sl.registerLazySingleton<FirebaseService>(() => MockFirebaseService());
     }
+    if (!sl.isRegistered<DriveLogService>()) {
+      sl.registerLazySingleton<DriveLogService>(() => MockDriveLogService());
+    }
   });
 
   setUp(() {
@@ -213,7 +231,7 @@ void main() {
       mockFirebase.emitRecords([]);
       await tester.pumpAndSettle();
 
-      expect(find.text('メンテナンス履歴がありません'), findsOneWidget);
+      expect(find.text('記録がありません'), findsOneWidget);
     });
   });
 

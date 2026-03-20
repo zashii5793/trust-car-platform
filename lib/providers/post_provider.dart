@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/post.dart';
 import '../services/post_service.dart';
 import '../core/error/app_error.dart';
+import '../core/result/result.dart';
 
 /// SNS 投稿フィード管理プロバイダー
 ///

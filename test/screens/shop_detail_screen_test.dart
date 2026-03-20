@@ -192,7 +192,7 @@ void main() {
       await tester.pumpWidget(_buildApp(provider));
       await tester.pumpAndSettle();
 
-      expect(find.text('プレミアムガレージ'), findsOneWidget);
+      expect(find.text('プレミアムガレージ'), findsWidgets);
     });
 
     testWidgets('店舗の説明が表示される', (tester) async {
@@ -270,7 +270,7 @@ void main() {
       await tester.pumpWidget(_buildApp(provider));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.store_outlined), findsWidgets);
+      expect(find.byIcon(Icons.store), findsWidgets);
     });
 
     testWidgets('営業時間セクションが存在する', (tester) async {

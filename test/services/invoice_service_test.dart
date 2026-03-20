@@ -244,7 +244,7 @@ void main() {
     test('8日後のとき false', () {
       final inv = _makeInvoice(
         paymentStatus: PaymentStatus.unpaid,
-        dueDate: DateTime.now().add(const Duration(days: 8)),
+        dueDate: DateTime.now().add(const Duration(days: 8, hours: 12)),
       );
       expect(inv.isDueSoon, false);
     });

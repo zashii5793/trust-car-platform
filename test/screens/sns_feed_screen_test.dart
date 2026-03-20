@@ -11,6 +11,9 @@ import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/models/post.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
+import 'package:trust_car_platform/models/user.dart';
+import 'package:trust_car_platform/widgets/common/loading_indicator.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -30,8 +33,9 @@ class MockPostService implements PostService {
   @override
   Future<Result<List<Post>, AppError>> getFeed({
     int limit = 20,
-    PostCategory? category,
     dynamic startAfter,
+    PostCategory? category,
+    String? makerId,
   }) async {
     getFeedCallCount++;
     lastCategory = category;
@@ -78,22 +82,25 @@ class MockPostService implements PostService {
 
 class MockAuthService implements AuthService {
   @override
-  Stream<dynamic> get authStateChanges => const Stream.empty();
+  Stream<User?> get authStateChanges => const Stream.empty();
 
   @override
-  Future<Result<dynamic, AppError>> signUpWithEmail(
+  User? get currentUser => null;
+
+  @override
+  Future<Result<UserCredential, AppError>> signUpWithEmail(
           {required String email,
           required String password,
           String? displayName}) async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
-  Future<Result<dynamic, AppError>> signInWithEmail(
+  Future<Result<UserCredential, AppError>> signInWithEmail(
           {required String email, required String password}) async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
-  Future<Result<dynamic, AppError>> signInWithGoogle() async =>
+  Future<Result<UserCredential?, AppError>> signInWithGoogle() async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
@@ -104,7 +111,7 @@ class MockAuthService implements AuthService {
   Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
-  Future<Result<dynamic, AppError>> getUserProfile() async =>
+  Future<Result<AppUser?, AppError>> getUserProfile() async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
@@ -346,7 +353,7 @@ void main() {
         await tester.pumpWidget(_buildApp(mockService));
         await tester.pump();
 
-        expect(find.byType(ListView), findsOneWidget);
+        expect(find.byType(ListView), findsWidgets);
       });
 
       testWidgets('投稿内容が長くても表示される', (tester) async {

@@ -257,8 +257,8 @@ class _PostHeader extends StatelessWidget {
                 : null,
             child: post.userPhotoUrl == null
                 ? Text(
-                    post.userDisplayName.isNotEmpty
-                        ? post.userDisplayName[0].toUpperCase()
+                    (post.userDisplayName?.isNotEmpty ?? false)
+                        ? post.userDisplayName![0].toUpperCase()
                         : '?',
                     style: TextStyle(
                       color: theme.colorScheme.primary,
@@ -274,7 +274,7 @@ class _PostHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  post.userDisplayName,
+                  post.userDisplayName ?? '',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),

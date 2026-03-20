@@ -69,6 +69,7 @@ class MockDocumentService implements DocumentService {
     String? description,
     DateTime? documentDate,
     DateTime? expiryDate,
+    bool? isArchived,
   }) async => updateResult;
 
   @override
@@ -113,7 +114,7 @@ class MockDocumentService implements DocumentService {
 Document _makeDoc({
   String id = 'doc1',
   String userId = 'user1',
-  DocumentType type = DocumentType.maintenanceReport,
+  DocumentType type = DocumentType.inspectionRecord,
   FileMimeType mimeType = FileMimeType.pdf,
   bool isArchived = false,
   DateTime? expiryDate,
@@ -240,7 +241,7 @@ void main() {
         final id = await provider.uploadDocument(
           fileBytes: Uint8List(0),
           fileName: 'test.pdf',
-          type: DocumentType.maintenanceReport,
+          type: DocumentType.inspectionRecord,
           title: 'テスト書類',
         );
 
@@ -256,7 +257,7 @@ void main() {
         final id = await provider.uploadDocument(
           fileBytes: Uint8List(0),
           fileName: 'test.pdf',
-          type: DocumentType.maintenanceReport,
+          type: DocumentType.inspectionRecord,
           title: 'テスト書類',
         );
 
@@ -269,7 +270,7 @@ void main() {
         final id = await provider.uploadDocument(
           fileBytes: Uint8List(0),
           fileName: 'test.pdf',
-          type: DocumentType.maintenanceReport,
+          type: DocumentType.inspectionRecord,
           title: 'テスト書類',
         );
 
@@ -367,27 +368,27 @@ void main() {
       test('指定した type の書類のみ返す', () async {
         provider.listenToDocuments();
         mockService.emitDocuments([
-          _makeDoc(id: 'd1', type: DocumentType.maintenanceReport),
-          _makeDoc(id: 'd2', type: DocumentType.carInspection),
-          _makeDoc(id: 'd3', type: DocumentType.maintenanceReport),
+          _makeDoc(id: 'd1', type: DocumentType.inspectionRecord),
+          _makeDoc(id: 'd2', type: DocumentType.inspectionCert),
+          _makeDoc(id: 'd3', type: DocumentType.inspectionRecord),
         ]);
         await Future.microtask(() {});
 
-        final filtered = provider.filterByType(DocumentType.maintenanceReport);
+        final filtered = provider.filterByType(DocumentType.inspectionRecord);
 
         expect(filtered.length, 2);
-        expect(filtered.every((d) => d.type == DocumentType.maintenanceReport),
+        expect(filtered.every((d) => d.type == DocumentType.inspectionRecord),
             true);
       });
 
       test('一致する type がなければ空リストを返す', () async {
         provider.listenToDocuments();
         mockService.emitDocuments([
-          _makeDoc(id: 'd1', type: DocumentType.maintenanceReport),
+          _makeDoc(id: 'd1', type: DocumentType.inspectionRecord),
         ]);
         await Future.microtask(() {});
 
-        final filtered = provider.filterByType(DocumentType.carInspection);
+        final filtered = provider.filterByType(DocumentType.inspectionCert);
         expect(filtered, isEmpty);
       });
     });
@@ -454,7 +455,7 @@ void main() {
       test('getDocumentsByType が失敗しても空リストで返る', () async {
         mockService.byTypeResult = Result.failure(AppError.network('failed'));
         final result =
-            await provider.getDocumentsByType(DocumentType.maintenanceReport);
+            await provider.getDocumentsByType(DocumentType.inspectionRecord);
         expect(result, isEmpty);
       });
 

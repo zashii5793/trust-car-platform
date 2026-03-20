@@ -112,7 +112,7 @@ void main() {
 
     test('車検まで7日 → high priority & メッセージに日数', () {
       final v = _makeVehicle(
-        inspectionExpiryDate: DateTime.now().add(const Duration(days: 7)),
+        inspectionExpiryDate: DateTime.now().add(const Duration(days: 7, hours: 12)),
       );
       final result = service.generateRecommendations(
         vehicle: v, records: [], userId: _userId,
@@ -139,7 +139,7 @@ void main() {
 
     test('車検まで31日 → medium priority', () {
       final v = _makeVehicle(
-        inspectionExpiryDate: DateTime.now().add(const Duration(days: 31)),
+        inspectionExpiryDate: DateTime.now().add(const Duration(days: 31, hours: 12)),
       );
       final result = service.generateRecommendations(
         vehicle: v, records: [], userId: _userId,
@@ -165,7 +165,7 @@ void main() {
 
     test('車検まで91日 → low priority', () {
       final v = _makeVehicle(
-        inspectionExpiryDate: DateTime.now().add(const Duration(days: 91)),
+        inspectionExpiryDate: DateTime.now().add(const Duration(days: 91, hours: 12)),
       );
       final result = service.generateRecommendations(
         vehicle: v, records: [], userId: _userId,
@@ -191,7 +191,7 @@ void main() {
 
     test('車検まで181日 → 通知なし', () {
       final v = _makeVehicle(
-        inspectionExpiryDate: DateTime.now().add(const Duration(days: 181)),
+        inspectionExpiryDate: DateTime.now().add(const Duration(days: 181, hours: 12)),
       );
       final result = service.generateRecommendations(
         vehicle: v, records: [], userId: _userId,
@@ -237,7 +237,7 @@ void main() {
   group('自賠責保険通知', () {
     test('保険期限 > 60日 → 通知なし', () {
       final v = _makeVehicle(
-        insuranceExpiryDate: DateTime.now().add(const Duration(days: 61)),
+        insuranceExpiryDate: DateTime.now().add(const Duration(days: 61, hours: 12)),
       );
       final result = service.generateRecommendations(
         vehicle: v, records: [], userId: _userId,
@@ -282,7 +282,7 @@ void main() {
 
     test('保険まで15日 → medium priority', () {
       final v = _makeVehicle(
-        insuranceExpiryDate: DateTime.now().add(const Duration(days: 15)),
+        insuranceExpiryDate: DateTime.now().add(const Duration(days: 15, hours: 12)),
       );
       final result = service.generateRecommendations(
         vehicle: v, records: [], userId: _userId,
@@ -293,7 +293,7 @@ void main() {
 
     test('保険まで31日 → low priority', () {
       final v = _makeVehicle(
-        insuranceExpiryDate: DateTime.now().add(const Duration(days: 31)),
+        insuranceExpiryDate: DateTime.now().add(const Duration(days: 31, hours: 12)),
       );
       final result = service.generateRecommendations(
         vehicle: v, records: [], userId: _userId,
@@ -341,11 +341,13 @@ void main() {
       expect(oilNotif.isEmpty, isTrue);
     });
 
-    test('オイル交換 100日前に実施 + 6ヶ月interval → 80日後期日 → medium priority', () {
+    test('オイル交換 100日前に実施 + 6ヶ月interval → 80日後期日 → low priority', () {
+      // mileageAtService をvehicle.mileageに合わせてkm判定を無効化
       final v = _makeVehicle();
       final record = _makeRecord(
         type: MaintenanceType.oilChange,
         doneAgo: const Duration(days: 100),
+        mileageAtService: 30000, // vehicle.mileage=30000 → km差ゼロ → 日付ベースのみ
       );
       final result = service.generateRecommendations(
         vehicle: v, records: [record], userId: _userId,
@@ -354,7 +356,8 @@ void main() {
         (n) => n.title.contains('エンジンオイル交換'),
         orElse: () => throw 'not found',
       );
-      expect(oilNotif.priority, NotificationPriority.medium);
+      // 100日前実施 + 180日interval = 80日後期日 → <=90 → low
+      expect(oilNotif.priority, NotificationPriority.low);
     });
 
     test('オイル交換 200日前に実施 → 期日超過 → high priority', () {
@@ -377,6 +380,7 @@ void main() {
       final record = _makeRecord(
         type: MaintenanceType.oilChange,
         doneAgo: const Duration(days: 5),
+        mileageAtService: 30000, // vehicle.mileage と同値にしてkmトリガー無効化
       );
       final result = service.generateRecommendations(
         vehicle: v, records: [record], userId: _userId,
@@ -502,16 +506,17 @@ void main() {
       // タイプは repair だがタイトルに "オイル交換" を含む
       final v = _makeVehicle(createdBefore: const Duration(days: 5));
       // 5日前のキーワードマッチ記録 → 175日後期日 → 通知なし（>90日）
-      // これは記録がない場合と比較してテスト
+      // mileageAtService をvehicle.mileageに合わせてkm判定を無効化
       final withRecord = _makeRecord(
         type: MaintenanceType.repair, // oilChange ではない
         title: 'オイル交換（title based）',
         doneAgo: const Duration(days: 5),
+        mileageAtService: 30000, // km差ゼロ → 日付ベースのみ
       );
       final resultWith = service.generateRecommendations(
         vehicle: v, records: [withRecord], userId: _userId,
       );
-      // 5日前の記録がある → 期日まで175日 → 通知なし
+      // 5日前の記録がある → 期日まで175日 → 通知なし（>90日）
       expect(
         resultWith.where((n) => n.title.contains('エンジンオイル交換')).isEmpty,
         isTrue,

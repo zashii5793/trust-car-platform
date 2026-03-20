@@ -259,7 +259,7 @@ void main() {
 
     test('車検まで31日のとき isInspectionDueSoon は false（境界値外）', () {
       final v = _make(
-        inspectionExpiryDate: DateTime.now().add(const Duration(days: 31)),
+        inspectionExpiryDate: DateTime.now().add(const Duration(days: 31, hours: 12)),
       );
       expect(v.isInspectionDueSoon, isFalse);
     });

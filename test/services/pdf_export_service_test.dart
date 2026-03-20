@@ -15,7 +15,6 @@
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/services/pdf_export_service.dart';
-import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
 import '../fixtures/test_data.dart';
 
@@ -29,13 +28,13 @@ void main() {
   // ── ヘルパー ──────────────────────────────────────────────────────────────
 
   // コスト計算ロジック（サービス内部と同じアルゴリズムをここで検証）
-  int _totalCost(List<MaintenanceRecord> records) =>
+  int totalCost(List<MaintenanceRecord> records) =>
       records.fold(0, (sum, r) => sum + r.cost);
 
-  double _averageCost(List<MaintenanceRecord> records) =>
-      records.isEmpty ? 0 : _totalCost(records) / records.length;
+  double averageCost(List<MaintenanceRecord> records) =>
+      records.isEmpty ? 0 : totalCost(records) / records.length;
 
-  bool _isSortedDescending(List<MaintenanceRecord> records) {
+  bool isSortedDescending(List<MaintenanceRecord> records) {
     for (int i = 0; i < records.length - 1; i++) {
       if (records[i].date.isBefore(records[i + 1].date)) return false;
     }
@@ -69,15 +68,6 @@ void main() {
 
     test('複数件の記録で PDF が生成される', () async {
       final vehicle = TestData.makeVehicle();
-      final records = makeVehicleList(0).isEmpty
-          ? List.generate(
-              5,
-              (i) => TestData.makeMaintenanceRecord(
-                id: 'maint-$i',
-                cost: (i + 1) * 1000,
-              ),
-            )
-          : <MaintenanceRecord>[];
       // 5件の記録でテスト
       final testRecords = List.generate(
         5,
@@ -135,7 +125,7 @@ void main() {
       final sorted = List<MaintenanceRecord>.from(records)
         ..sort((a, b) => b.date.compareTo(a.date));
 
-      expect(_isSortedDescending(sorted), isTrue);
+      expect(isSortedDescending(sorted), isTrue);
       expect(sorted.first.id, 'new');
       expect(sorted.last.id, 'old');
     });
@@ -167,12 +157,12 @@ void main() {
   // -------------------------------------------------------------------------
   group('コスト計算ロジック', () {
     test('空リスト → 総費用は 0', () {
-      expect(_totalCost([]), 0);
+      expect(totalCost([]), 0);
     });
 
     test('1件 → 総費用はその費用', () {
       final record = TestData.makeMaintenanceRecord(cost: 5000);
-      expect(_totalCost([record]), 5000);
+      expect(totalCost([record]), 5000);
     });
 
     test('複数件 → 費用が正しく合計される', () {
@@ -181,16 +171,16 @@ void main() {
         TestData.makeMaintenanceRecord(id: 'b', cost: 6800),
         TestData.makeMaintenanceRecord(id: 'c', cost: 12000),
       ];
-      expect(_totalCost(records), 22300);
+      expect(totalCost(records), 22300);
     });
 
     test('空リスト → 平均費用は 0 で除算エラーなし', () {
-      expect(_averageCost([]), 0);
+      expect(averageCost([]), 0);
     });
 
     test('1件 → 平均費用はその費用', () {
       final record = TestData.makeMaintenanceRecord(cost: 5000);
-      expect(_averageCost([record]), 5000.0);
+      expect(averageCost([record]), 5000.0);
     });
 
     test('3件 → 平均費用が正しく計算される', () {
@@ -199,7 +189,7 @@ void main() {
         TestData.makeMaintenanceRecord(id: 'b', cost: 6000),
         TestData.makeMaintenanceRecord(id: 'c', cost: 9000),
       ];
-      expect(_averageCost(records), 6000.0);
+      expect(averageCost(records), 6000.0);
     });
 
     test('費用0円の記録でもクラッシュしない', () {
@@ -207,8 +197,8 @@ void main() {
         TestData.makeMaintenanceRecord(id: 'a', cost: 0),
         TestData.makeMaintenanceRecord(id: 'b', cost: 5000),
       ];
-      expect(_totalCost(records), 5000);
-      expect(_averageCost(records), 2500.0);
+      expect(totalCost(records), 5000);
+      expect(averageCost(records), 2500.0);
     });
 
     test('大きな費用値（100万円）でもオーバーフローしない', () {
@@ -219,7 +209,7 @@ void main() {
           cost: 1000000, // 100万円
         ),
       );
-      expect(_totalCost(records), 10000000);
+      expect(totalCost(records), 10000000);
     });
   });
 
@@ -350,8 +340,8 @@ void main() {
         TestData.makeMaintenanceRecord(id: 'a', cost: 0),
         TestData.makeMaintenanceRecord(id: 'b', cost: 0),
       ];
-      expect(_totalCost(records), 0);
-      expect(_averageCost(records), 0.0);
+      expect(totalCost(records), 0);
+      expect(averageCost(records), 0.0);
     });
 
     test('走行距離がnullでもPDF生成できる', () async {

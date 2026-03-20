@@ -30,6 +30,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  VehicleProvider? _vehicleProvider;
 
   @override
   void initState() {
@@ -41,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _initializeData() {
     final vehicleProvider = Provider.of<VehicleProvider>(context, listen: false);
+    _vehicleProvider = vehicleProvider;
     vehicleProvider.listenToVehicles();
     vehicleProvider.addListener(_onVehiclesChanged);
   }
@@ -59,8 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    final vehicleProvider = Provider.of<VehicleProvider>(context, listen: false);
-    vehicleProvider.removeListener(_onVehiclesChanged);
+    _vehicleProvider?.removeListener(_onVehiclesChanged);
     super.dispose();
   }
 

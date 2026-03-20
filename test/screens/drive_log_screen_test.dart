@@ -9,6 +9,8 @@ import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/models/drive_log.dart';
+import 'package:trust_car_platform/models/user.dart';
+import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 
@@ -18,22 +20,22 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 
 class MockAuthService implements AuthService {
   @override
-  Stream<dynamic> get authStateChanges => const Stream.empty();
+  Stream<User?> get authStateChanges => const Stream.empty();
 
   @override
-  Future<Result<dynamic, AppError>> signUpWithEmail(
+  Future<Result<UserCredential, AppError>> signUpWithEmail(
           {required String email,
           required String password,
           String? displayName}) async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
-  Future<Result<dynamic, AppError>> signInWithEmail(
+  Future<Result<UserCredential, AppError>> signInWithEmail(
           {required String email, required String password}) async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
-  Future<Result<dynamic, AppError>> signInWithGoogle() async =>
+  Future<Result<UserCredential?, AppError>> signInWithGoogle() async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
@@ -41,11 +43,11 @@ class MockAuthService implements AuthService {
       const Result.success(null);
 
   @override
-  Future<Result<dynamic, AppError>> getUserProfile() async =>
+  Future<Result<AppUser?, AppError>> getUserProfile() async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
-  Future<Result<dynamic, AppError>> updateUserProfile(
+  Future<Result<void, AppError>> updateUserProfile(
           {String? displayName, String? photoUrl}) async =>
       Result.failure(AppError.unknown('not impl'));
 
@@ -59,7 +61,33 @@ class MockAuthService implements AuthService {
       const Result.success(null);
 
   @override
-  dynamic get currentUser => null;
+  User? get currentUser => null;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _FakeUser implements User {
+  @override
+  String get uid => 'test-uid';
+  @override
+  String? get displayName => 'Test User';
+  @override
+  String? get photoURL => null;
+  @override
+  String? get email => 'test@example.com';
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _LoggedInAuthProvider extends AuthProvider {
+  _LoggedInAuthProvider() : super(authService: MockAuthService());
+  @override
+  User? get firebaseUser => _FakeUser();
+  @override
+  bool get isAuthenticated => true;
+  @override
+  bool get isLoading => false;
 }
 
 class MockDriveLogService implements DriveLogService {
@@ -130,8 +158,8 @@ Widget _buildUnderTest({
 }) {
   return MultiProvider(
     providers: [
-      ChangeNotifierProvider(
-        create: (_) => AuthProvider(authService: MockAuthService()),
+      ChangeNotifierProvider<AuthProvider>(
+        create: (_) => _LoggedInAuthProvider(),
       ),
       ChangeNotifierProvider(
         create: (_) =>

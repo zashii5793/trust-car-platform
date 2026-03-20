@@ -6,7 +6,91 @@ import 'package:provider/provider.dart';
 import 'package:trust_car_platform/screens/notifications/notification_list_screen.dart';
 import 'package:trust_car_platform/providers/notification_provider.dart';
 import 'package:trust_car_platform/models/app_notification.dart';
+import 'dart:io' as io;
+import 'dart:typed_data';
 import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:trust_car_platform/core/result/result.dart';
+import 'package:trust_car_platform/models/maintenance_record.dart';
+import 'package:trust_car_platform/models/vehicle.dart';
+import 'package:trust_car_platform/providers/vehicle_provider.dart';
+import 'package:trust_car_platform/services/firebase_service.dart';
+
+// ---------------------------------------------------------------------------
+// Stub FirebaseService
+// ---------------------------------------------------------------------------
+
+class _StubFirebaseService implements FirebaseService {
+  @override
+  String? get currentUserId => null;
+
+  @override
+  Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
+
+  @override
+  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(String vehicleId) =>
+      const Stream.empty();
+
+  @override
+  Future<Result<String, AppError>> addVehicle(Vehicle vehicle) async =>
+      const Result.success('id');
+
+  @override
+  Future<Result<void, AppError>> updateVehicle(String vehicleId, Vehicle vehicle) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<void, AppError>> deleteVehicle(String vehicleId) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<Vehicle?, AppError>> getVehicle(String vehicleId) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<bool, AppError>> isLicensePlateExists(String licensePlate,
+          {String? excludeVehicleId}) async =>
+      const Result.success(false);
+
+  @override
+  Future<Result<String, AppError>> addMaintenanceRecord(MaintenanceRecord record) async =>
+      const Result.success('id');
+
+  @override
+  Future<Result<void, AppError>> updateMaintenanceRecord(String recordId, MaintenanceRecord record) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<void, AppError>> deleteMaintenanceRecord(String recordId) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>>
+      getMaintenanceRecordsForVehicles(List<String> vehicleIds,
+              {int limitPerVehicle = 20}) async =>
+          const Result.success({});
+
+  @override
+  Future<Result<List<MaintenanceRecord>, AppError>> getMaintenanceRecordsForVehicle(
+          String vehicleId, {int limit = 20}) async =>
+      const Result.success([]);
+
+  @override
+  Future<Result<String, AppError>> uploadImage(io.File imageFile, String path) async =>
+      const Result.success('url');
+
+  @override
+  Future<Result<String, AppError>> uploadImageBytes(Uint8List imageBytes, String path) async =>
+      const Result.success('url');
+
+  @override
+  Future<Result<List<String>, AppError>> uploadImages(List<io.File> imageFiles, String basePath) async =>
+      const Result.success([]);
+
+  @override
+  Future<Result<String, AppError>> uploadProcessedImage(Uint8List imageBytes, String path,
+          {required dynamic imageService}) async =>
+      const Result.success('url');
+}
 
 // ---------------------------------------------------------------------------
 // Mock NotificationProvider
@@ -155,8 +239,13 @@ AppNotification _makeNotification({
 }
 
 Widget _buildUnderTest(MockNotificationProvider provider) {
-  return ChangeNotifierProvider<NotificationProvider>.value(
-    value: provider,
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider<NotificationProvider>.value(value: provider),
+      ChangeNotifierProvider<VehicleProvider>(
+        create: (_) => VehicleProvider(firebaseService: _StubFirebaseService()),
+      ),
+    ],
     child: const MaterialApp(
       home: Scaffold(
         body: NotificationListScreen(),
@@ -259,10 +348,10 @@ void main() {
       await tester.pumpWidget(_buildUnderTest(provider));
       await tester.pump();
 
-      // Dismissible でスワイプ
+      // Dismissible でスワイプ（dismiss threshold を超える距離）
       await tester.drag(
         find.text('消耗品交換推奨'),
-        const Offset(-300, 0),
+        const Offset(-500, 0),
       );
       await tester.pumpAndSettle();
 

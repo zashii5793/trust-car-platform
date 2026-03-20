@@ -565,7 +565,7 @@ class _CompatibilityBadge extends StatelessWidget {
       case CompatibilityLevel.perfect:
         return Icons.check_circle_outline;
       case CompatibilityLevel.compatible:
-        return Icons.check_outline;
+        return Icons.check_circle_outlined;
       case CompatibilityLevel.conditional:
         return Icons.info_outline;
       case CompatibilityLevel.incompatible:

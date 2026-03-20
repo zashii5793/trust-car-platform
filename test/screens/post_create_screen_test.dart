@@ -11,6 +11,7 @@ import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/models/post.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -26,8 +27,9 @@ class MockPostService implements PostService {
   @override
   Future<Result<List<Post>, AppError>> getFeed({
     int limit = 20,
-    PostCategory? category,
     dynamic startAfter,
+    PostCategory? category,
+    String? makerId,
   }) async =>
       const Result.success([]);
 
@@ -74,10 +76,45 @@ class MockPostService implements PostService {
 
 class MockAuthService implements AuthService {
   @override
-  Stream<dynamic> get authStateChanges => const Stream.empty();
+  Stream<User?> get authStateChanges => const Stream.empty();
+
+  @override
+  User? get currentUser => null;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+/// ログイン済みを偽装する User スタブ（noSuchMethod で未使用メンバをスキップ）
+class _FakeUser implements User {
+  @override
+  String get uid => 'test-uid';
+
+  @override
+  String? get displayName => 'Test User';
+
+  @override
+  String? get photoURL => null;
+
+  @override
+  String? get email => 'test@example.com';
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+/// firebaseUser を非 null で返す AuthProvider サブクラス
+class _LoggedInAuthProvider extends AuthProvider {
+  _LoggedInAuthProvider() : super(authService: MockAuthService());
+
+  @override
+  User? get firebaseUser => _FakeUser();
+
+  @override
+  bool get isAuthenticated => true;
+
+  @override
+  bool get isLoading => false;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,12 +139,20 @@ Widget _buildApp(MockPostService mockPostService) {
       ChangeNotifierProvider(
         create: (_) => PostProvider(postService: mockPostService),
       ),
-      ChangeNotifierProvider(
-        create: (_) => AuthProvider(authService: MockAuthService()),
+      ChangeNotifierProvider<AuthProvider>(
+        create: (_) => _LoggedInAuthProvider(),
       ),
     ],
     child: const MaterialApp(home: PostCreateScreen()),
   );
+}
+
+/// 投稿作成画面は ListView を使うためデフォルトの 600px 高さだと下部ウィジェットが
+/// レンダリングされない。2000px に拡張して全アイテムをビルドする。
+Future<void> pumpApp(WidgetTester tester, MockPostService service) async {
+  await tester.binding.setSurfaceSize(const Size(800, 2000));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(_buildApp(service));
 }
 
 // ---------------------------------------------------------------------------
@@ -123,12 +168,12 @@ void main() {
     });
 
     testWidgets('画面タイトルが「投稿を作成」になっている', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
       expect(find.text('投稿を作成'), findsOneWidget);
     });
 
     testWidgets('カテゴリチップが全種表示される', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       for (final cat in PostCategory.values) {
         expect(find.text(cat.displayName), findsWidgets);
@@ -136,13 +181,13 @@ void main() {
     });
 
     testWidgets('本文テキストフィールドが表示される', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       expect(find.byType(TextFormField), findsOneWidget);
     });
 
     testWidgets('公開設定のラジオボタンが3種表示される', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       for (final vis in PostVisibility.values) {
         expect(find.text(vis.displayName), findsOneWidget);
@@ -150,13 +195,13 @@ void main() {
     });
 
     testWidgets('送信ボタンが表示される', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       expect(find.text('投稿する'), findsOneWidget);
     });
 
     testWidgets('本文なしで送信するとバリデーションエラーになる', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       await tester.tap(find.text('投稿する'));
       await tester.pump();
@@ -166,7 +211,7 @@ void main() {
     });
 
     testWidgets('空白のみで送信するとバリデーションエラーになる', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       await tester.enterText(find.byType(TextFormField), '   ');
       await tester.tap(find.text('投稿する'));
@@ -176,7 +221,7 @@ void main() {
     });
 
     testWidgets('本文を入力して送信するとcreatePostが呼ばれる', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       await tester.enterText(find.byType(TextFormField), 'テスト投稿です');
       await tester.tap(find.text('投稿する'));
@@ -187,7 +232,7 @@ void main() {
     });
 
     testWidgets('カテゴリを選択して投稿するとカテゴリが送信される', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       // 「メンテナンス」チップをタップ
       await tester.tap(
@@ -203,7 +248,7 @@ void main() {
     });
 
     testWidgets('公開設定を変更して投稿するとvisibilityが送信される', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       await tester.tap(find.text(PostVisibility.followers.displayName));
       await tester.pump();
@@ -216,13 +261,13 @@ void main() {
     });
 
     testWidgets('文字数カウンタが表示される', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       expect(find.textContaining('/ 1000'), findsOneWidget);
     });
 
     testWidgets('文字を入力すると文字数カウンタが更新される', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       await tester.enterText(find.byType(TextFormField), 'あいう'); // 3文字
       await tester.pump();
@@ -231,14 +276,14 @@ void main() {
     });
 
     testWidgets('AppBarに投稿ボタンが表示される', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       // AppBar の「投稿」テキストボタン
       expect(find.widgetWithText(TextButton, '投稿'), findsOneWidget);
     });
 
     testWidgets('AppBarの投稿ボタンからも送信できる', (tester) async {
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       await tester.enterText(find.byType(TextFormField), 'AppBarから投稿テスト');
       await tester.tap(find.widgetWithText(TextButton, '投稿'));
@@ -251,7 +296,7 @@ void main() {
       mockService.createResult =
           Result.failure(AppError.network('connection failed'));
 
-      await tester.pumpWidget(_buildApp(mockService));
+      await pumpApp(tester, mockService);
 
       await tester.enterText(find.byType(TextFormField), '失敗する投稿');
       await tester.tap(find.text('投稿する'));
@@ -264,7 +309,7 @@ void main() {
 
     group('Edge Cases', () {
       testWidgets('999文字の投稿は送信できる', (tester) async {
-        await tester.pumpWidget(_buildApp(mockService));
+        await pumpApp(tester, mockService);
 
         final longContent = 'あ' * 999;
         await tester.enterText(find.byType(TextFormField), longContent);
@@ -275,7 +320,7 @@ void main() {
       });
 
       testWidgets('デフォルトカテゴリは「一般」になっている', (tester) async {
-        await tester.pumpWidget(_buildApp(mockService));
+        await pumpApp(tester, mockService);
 
         await tester.enterText(find.byType(TextFormField), '一般投稿');
         await tester.tap(find.text('投稿する'));
@@ -285,7 +330,7 @@ void main() {
       });
 
       testWidgets('デフォルト公開設定は「全体公開」になっている', (tester) async {
-        await tester.pumpWidget(_buildApp(mockService));
+        await pumpApp(tester, mockService);
 
         await tester.enterText(find.byType(TextFormField), '公開投稿');
         await tester.tap(find.text('投稿する'));
@@ -295,7 +340,7 @@ void main() {
       });
 
       testWidgets('カテゴリを複数回変更しても最後に選んだものが送信される', (tester) async {
-        await tester.pumpWidget(_buildApp(mockService));
+        await pumpApp(tester, mockService);
 
         await tester.tap(
             find.text(PostCategory.drive.displayName).first);
@@ -312,7 +357,7 @@ void main() {
       });
 
       testWidgets('投稿説明テキストのヒントが表示される', (tester) async {
-        await tester.pumpWidget(_buildApp(mockService));
+        await pumpApp(tester, mockService);
 
         expect(find.textContaining('ハッシュタグ'), findsOneWidget);
       });
