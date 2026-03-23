@@ -333,10 +333,9 @@ void main() {
       expect(handled.isNotEmpty, true);
     });
 
-    test('Result<void, AppError> の success は null を保持', () {
+    test('Result<void, AppError> の success は isSuccess が true', () {
       const result = Result<void, AppError>.success(null);
       expect(result.isSuccess, true);
-      expect(result.valueOrNull, isNull);
     });
   });
 

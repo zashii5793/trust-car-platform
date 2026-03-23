@@ -240,19 +240,13 @@ void main() {
       result.when(
         success: (_) => fail('success should not be called'),
         failure: (error) {
-          error.when(
-            network: (_) => fail('wrong error type'),
-            auth: (_) => fail('wrong error type'),
-            validation: (msg, field) {
+          switch (error) {
+            case ValidationError(:final message, :final field):
               expect(field, 'followingId');
-              expect(msg, contains('自分自身'));
-            },
-            notFound: (_) => fail('wrong error type'),
-            permission: (_) => fail('wrong error type'),
-            server: (_) => fail('wrong error type'),
-            cache: (_) => fail('wrong error type'),
-            unknown: (_, __) => fail('wrong error type'),
-          );
+              expect(message, contains('自分自身'));
+            default:
+              fail('wrong error type: $error');
+          }
         },
       );
     });

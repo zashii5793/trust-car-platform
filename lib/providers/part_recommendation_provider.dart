@@ -169,6 +169,8 @@ class PartRecommendationProvider with ChangeNotifier {
     _featuredParts = [];
     _browseParts = [];
     _currentPartDetail = null;
+    _isDetailLoading = false;
+    _detailError = null;
     _isLoading = false;
     _error = null;
     _selectedCategory = null;
@@ -177,19 +179,24 @@ class PartRecommendationProvider with ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // Part Detail state
+  // Part Detail state (isolated from list loading state)
   // ---------------------------------------------------------------------------
 
   PartListing? _currentPartDetail;
+  bool _isDetailLoading = false;
+  AppError? _detailError;
 
   PartListing? get currentPartDetail => _currentPartDetail;
+  bool get isDetailLoading => _isDetailLoading;
+  String? get detailErrorMessage => _detailError?.userMessage;
 
   /// パーツ詳細を読み込む
   ///
   /// Returns true on success.
   Future<bool> loadPartDetail(String partId) async {
-    _isLoading = true;
-    _error = null;
+    _isDetailLoading = true;
+    _detailError = null;
+    _currentPartDetail = null;
     notifyListeners();
 
     final result = await _service.getPartDetail(partId);
@@ -201,11 +208,11 @@ class PartRecommendationProvider with ChangeNotifier {
         success = true;
       },
       failure: (err) {
-        _error = err;
+        _detailError = err;
       },
     );
 
-    _isLoading = false;
+    _isDetailLoading = false;
     notifyListeners();
     return success;
   }

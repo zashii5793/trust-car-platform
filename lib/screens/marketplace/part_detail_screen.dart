@@ -71,16 +71,16 @@ class _PartDetailScreenState extends State<PartDetailScreen> {
                 ),
             ],
           ),
-          body: provider.isLoading
+          body: provider.isDetailLoading
               ? const AppLoadingCenter(message: 'パーツ情報を読み込み中...')
-              : provider.errorMessage != null
+              : provider.detailErrorMessage != null
                   ? AppErrorState(
-                      message: provider.errorMessage!,
+                      message: provider.detailErrorMessage!,
                       onRetry: () =>
                           provider.loadPartDetail(widget.part.id),
                     )
                   : _buildBody(context, part, isDark),
-          bottomNavigationBar: provider.errorMessage == null
+          bottomNavigationBar: provider.detailErrorMessage == null
               ? _InquiryBottomBar(part: part)
               : null,
         );
