@@ -5,6 +5,8 @@ import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_text_field.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../settings/privacy_policy_screen.dart';
+import '../settings/terms_of_service_screen.dart';
 
 /// サインアップ画面
 class SignupScreen extends StatefulWidget {
@@ -232,11 +234,51 @@ class _SignupScreenState extends State<SignupScreen> {
                           ),
                           AppSpacing.verticalXxl,
 
-                          // 利用規約
-                          Text(
-                            '登録することで、利用規約とプライバシーポリシーに同意したことになります。',
-                            style: theme.textTheme.bodySmall,
+                          // 利用規約・プライバシーポリシー同意文（タップでリンク先へ）
+                          RichText(
                             textAlign: TextAlign.center,
+                            text: TextSpan(
+                              style: theme.textTheme.bodySmall,
+                              children: [
+                                const TextSpan(text: '登録することで、'),
+                                WidgetSpan(
+                                  child: GestureDetector(
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const TermsOfServiceScreen(),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '利用規約',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.primary,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const TextSpan(text: 'と'),
+                                WidgetSpan(
+                                  child: GestureDetector(
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const PrivacyPolicyScreen(),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'プライバシーポリシー',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.primary,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const TextSpan(text: 'に同意したことになります。'),
+                              ],
+                            ),
                           ),
                         ],
                       ),
