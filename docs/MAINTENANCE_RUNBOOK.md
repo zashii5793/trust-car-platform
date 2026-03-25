@@ -189,18 +189,192 @@ gcloud firestore import gs://trust-car-platform-backup/20260301 \
 
 ---
 
-## 7. Firebase Plan アップグレード判断基準
+## 7. Firebase Plan アップグレード計画（Spark → Blaze）
 
 現在: **Spark Plan（無料）**
 
-### Blaze Plan（従量課金）に移行するタイミング
+### このアプリの特性（実測ベース）
 
-| 指標 | Spark 上限 | 移行検討ライン |
-|------|-----------|--------------|
-| Firestore 読み取り | 50K/日 | 35K/日超 |
-| Firestore 書き込み | 20K/日 | 14K/日超 |
-| Cloud Storage | 1GB | 700MB超 |
-| Auth アクティブユーザー | 10K/月 | 7K/月超 |
+| 特性 | 数値 | 根拠 |
+|------|------|------|
+| ユーザー1人あたりの1日の読み取り数 | 約 50〜75 回 | 画面遷移 × get() 108箇所、リスト表示×snapshots() 10箇所 |
+| ユーザー1人あたりの1日の書き込み数 | 約 8〜15 回 | 整備記録・投稿・いいね・問い合わせ |
+| 1ユーザーあたりのStorage使用量 | 約 2〜5 MB | 写真 × 5枚 × 100〜500KB（圧縮後） |
+| リアルタイム接続数 | 3〜4 / 人 | ホーム・SNSフィード・問い合わせ・通知 |
+
+---
+
+### Spark Plan の無料枠と「危険ライン」
+
+| リソース | Spark 上限 | 警告ライン（70%） | 危険ライン（90%） |
+|---------|-----------|-----------------|-----------------|
+| Firestore 読み取り | 50,000 / 日 | 35,000 | 45,000 |
+| Firestore 書き込み | 20,000 / 日 | 14,000 | 18,000 |
+| Firestore 削除 | 20,000 / 日 | 14,000 | 18,000 |
+| Cloud Storage | 1 GB 総量 | 700 MB | 900 MB |
+| Storage 転送量 | 10 GB / 日 | 7 GB | 9 GB |
+| Firebase Auth MAU | 無制限（email/pass） | — | — |
+
+---
+
+### ユーザー規模と Spark 枯渇の目安
+
+> 計算式: `Spark上限 ÷ 1ユーザーの1日の使用量 = 上限DAU`
+> DAU/MAU比率 = **15%**（SNSアプリ標準値）で換算
+
+#### Firestore 読み取り（悲観シナリオ: 75 reads/DAU/日）
+
+```
+50,000 reads/日 ÷ 75 reads/DAU = 666 DAU が上限
+666 DAU ÷ 0.15 (DAU/MAU) = 約 4,400 MAU で枠超え
+```
+
+#### Firestore 読み取り（楽観シナリオ: 30 reads/DAU/日）
+
+```
+50,000 ÷ 30 = 1,666 DAU が上限
+1,666 ÷ 0.15 = 約 11,000 MAU で枠超え
+```
+
+#### Cloud Storage（写真投稿ユーザーが50%の場合）
+
+```
+1 GB ÷ 3 MB（平均）÷ 0.5（投稿率）= 約 667 ユーザーで容量枯渇
+```
+
+**→ 結論: Storage は早期にボトルネックになる。登録ユーザー 300〜500 人を目安に Blaze へ移行を検討。**
+
+---
+
+### Blaze Plan の推定コスト
+
+| MAU | DAU（15%） | Firestore読み取り/月 | Firestore書き込み/月 | Storage | **月額合計（概算）** |
+|-----|-----------|-------------------|-------------------|---------|----------------|
+| 500 | 75 | 168K | 34K | 1.5 GB | **$0.30** |
+| 1,000 | 150 | 338K | 68K | 3 GB | **$0.57** |
+| 5,000 | 750 | 1.69M | 338K | 15 GB | **$2.80** |
+| 10,000 | 1,500 | 3.38M | 675K | 30 GB | **$5.50** |
+| 50,000 | 7,500 | 16.9M | 3.38M | 150 GB | **$26** |
+
+> Blaze 料金（2026年時点）: Firestore 読み取り $0.06/100K、書き込み $0.18/100K、Storage $0.026/GB/月。無料枠（Spark相当）を差し引いた後の額。
+
+**→ 5万MAUでも月$26。規模に対してコストは非常に低い。**
+
+---
+
+### 移行タイミングの判断フロー
+
+```
+週次モニタリング（Firebase Console → 使用状況）
+          ↓
+  Storage > 700 MB  ──→  即座に移行を決定（Storage は追加不可）
+          ↓
+  読み取り > 35,000/日  ──→  2週間以内に移行
+          ↓
+  書き込み > 14,000/日  ──→  2週間以内に移行
+          ↓
+  すべて正常  ──→  翌週も継続監視
+```
+
+---
+
+### Blaze 移行手順（30分で完了）
+
+#### Step 1: 予算アラートの設定（移行前に必須）
+
+```
+Google Cloud Console → 予算とアラート → 予算を作成
+  プロジェクト: trust-car-platform
+  予算額: $10/月（安全マージン）
+  アラート: 50% / 90% / 100% で通知メール
+```
+> **重要**: Blaze は従量課金のため、バグや DDoS で異常課金のリスクがある。
+> 予算アラートなしで移行しないこと。
+
+#### Step 2: Blaze Plan に移行
+
+```
+Firebase Console → プロジェクトの設定 → 使用量と請求
+  → 「Blaze プランにアップグレード」
+  → クレジットカード登録
+  → 確認
+```
+
+#### Step 3: Cloud Functions を有効化（Blaze 移行後に使えるようになる）
+
+現在未使用だが、以下の機能実装時に必要になる：
+
+| 機能 | Cloud Functions の役割 |
+|------|----------------------|
+| 退会後30日削除 | `scheduled` Function（毎日実行） |
+| BtoB 成果報酬計算 | `onWrite` トリガー |
+| プッシュ通知の一括送信 | FCM Admin SDK 呼び出し |
+| 課金処理（Phase 7） | Webhook 受信（Stripe等） |
+
+#### Step 4: Firestore セキュリティルールで DDoS 対策
+
+```javascript
+// 1ユーザーが1秒に1回しか書き込めないレート制限（例）
+// ※ Firestore rules では直接的な rate limit は不可だが
+//    ドキュメントサイズ上限で間接的に制限
+allow create: if request.resource.data.keys().size() <= 20
+           && request.resource.size() < 1024 * 100; // 100KB上限
+```
+
+---
+
+### コスト最適化（ローンチ前に実施）
+
+#### 読み取り削減（最重要）
+
+```dart
+// ❌ 悪い例: 画面を開くたびに全件取得
+await firestore.collection('posts').get();
+
+// ✅ 良い例: ページネーション（実装済み）
+await firestore.collection('posts')
+  .orderBy('createdAt', descending: true)
+  .limit(20)
+  .get();
+```
+
+#### Storage コスト削減（実装済み）
+
+```dart
+// lib/services/image_processing_service.dart に実装済み
+// - 最大解像度: 1080px
+// - JPEG品質: 80%
+// - 推定圧縮後サイズ: 100〜300KB/枚
+```
+> 現在の圧縮設定で OK。変更不要。
+
+#### リアルタイム購読の最適化（画面離脱時にキャンセル）
+
+```dart
+// ✅ Providerが dispose 時に listener をキャンセルしていることを確認
+@override
+void dispose() {
+  _subscription?.cancel(); // 必須
+  super.dispose();
+}
+```
+> 各 Provider の dispose() を確認すること。漏れがあると Firestore 接続が増え続ける。
+
+---
+
+### 移行後の監視強化
+
+Blaze 移行後は `firebase_performance` パッケージ（導入済み）を活用：
+
+```dart
+// lib/services/ の重いクエリに計測を追加（移行後のタスク）
+final trace = FirebasePerformance.instance.newTrace('posts_feed_load');
+await trace.start();
+// ... Firestore クエリ実行 ...
+await trace.stop();
+```
+
+Firebase Console → Performance → トレース で可視化できる。
 
 ---
 
