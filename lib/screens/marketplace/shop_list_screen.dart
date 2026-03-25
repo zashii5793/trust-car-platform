@@ -522,7 +522,7 @@ class _ShopCard extends StatelessWidget {
                               size: 14, color: Colors.amber),
                           const SizedBox(width: 2),
                           Text(
-                            '${shop.rating!.toStringAsFixed(1)}',
+                            shop.rating!.toStringAsFixed(1),
                             style: theme.textTheme.bodySmall?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),

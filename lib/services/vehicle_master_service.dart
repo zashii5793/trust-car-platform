@@ -7,7 +7,12 @@ import '../data/vehicle_master_data.dart';
 /// Service for vehicle master data (makers, models, grades)
 /// Uses static data as fallback when Firestore is unavailable
 class VehicleMasterService {
-  final FirebaseFirestore _firestore;
+  // Lazy Firestore access: avoids calling FirebaseFirestore.instance at
+  // construction time so the service can be created before Firebase.initializeApp().
+  final FirebaseFirestore? _firestoreOverride;
+  FirebaseFirestore? _firestoreInstance;
+  FirebaseFirestore get _firestore =>
+      _firestoreOverride ?? (_firestoreInstance ??= FirebaseFirestore.instance);
 
   // Cache for quick access
   List<VehicleMaker>? _makersCache;
@@ -15,7 +20,7 @@ class VehicleMasterService {
   final Map<String, List<VehicleGrade>> _gradesCache = {};
 
   VehicleMasterService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+      : _firestoreOverride = firestore;
 
   /// Get all vehicle makers
   Future<Result<List<VehicleMaker>, AppError>> getMakers() async {

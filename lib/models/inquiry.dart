@@ -164,7 +164,7 @@ class Inquiry {
     if (vehicleMaker == null) return null;
     final parts = <String>[vehicleMaker!];
     if (vehicleModel != null) parts.add(vehicleModel!);
-    if (vehicleYear != null) parts.add('(${vehicleYear}年式)');
+    if (vehicleYear != null) parts.add('($vehicleYear年式)');
     return parts.join(' ');
   }
 

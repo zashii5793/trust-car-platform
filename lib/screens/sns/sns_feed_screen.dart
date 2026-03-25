@@ -115,6 +115,7 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
       MaterialPageRoute(builder: (context) => const PostCreateScreen()),
     ).then((_) {
       // 投稿後にフィードを更新
+      // ignore: use_build_context_synchronously
       if (mounted) context.read<PostProvider>().refreshFeed();
     });
   }

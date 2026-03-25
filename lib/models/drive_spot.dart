@@ -402,7 +402,7 @@ class DriveSpot {
   /// Get formatted rating
   String get formattedRating {
     if (!hasRatings) return '評価なし';
-    return '${averageRating.toStringAsFixed(1)} (${ratingCount}件)';
+    return '${averageRating.toStringAsFixed(1)} ($ratingCount件)';
   }
 
   /// Get category with emoji

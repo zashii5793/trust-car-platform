@@ -189,8 +189,8 @@ class GeoPoint2D {
   double _taylor(double x, bool isSin) {
     // Normalize x to [-pi, pi]
     const pi = 3.141592653589793;
-    while (x > pi) x -= 2 * pi;
-    while (x < -pi) x += 2 * pi;
+    while (x > pi) { x -= 2 * pi; }
+    while (x < -pi) { x += 2 * pi; }
 
     double result = isSin ? x : 1;
     double term = isSin ? x : 1;
@@ -323,9 +323,9 @@ class DriveStatistics {
     final minutes = (totalDuration % 3600) ~/ 60;
     final seconds = totalDuration % 60;
     if (hours > 0) {
-      return '$hours時間${minutes}分';
+      return '$hours時間$minutes分';
     }
-    return '$minutes分${seconds}秒';
+    return '$minutes分$seconds秒';
   }
 
   /// Format distance

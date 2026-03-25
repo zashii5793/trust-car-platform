@@ -287,7 +287,7 @@ class _ShopHeader extends StatelessWidget {
               _StarRating(rating: shop.rating!),
               const SizedBox(width: AppSpacing.xs),
               Text(
-                '${shop.rating!.toStringAsFixed(1)}',
+                shop.rating!.toStringAsFixed(1),
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -323,25 +323,19 @@ class _ShopHeader extends StatelessWidget {
 
 class _StarRating extends StatelessWidget {
   final double rating;
-  final int maxStars;
-  final double size;
 
-  const _StarRating({
-    required this.rating,
-    this.maxStars = 5,
-    this.size = 18,
-  });
+  const _StarRating({required this.rating});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: List.generate(maxStars, (index) {
+      children: List.generate(5, (index) {
         final filled = index + 1 <= rating;
         final half = !filled && index < rating && index + 1 > rating;
         return Icon(
           half ? Icons.star_half_rounded : Icons.star_rounded,
-          size: size,
+          size: 18,
           color: filled || half ? Colors.amber : Colors.grey.shade300,
         );
       }),

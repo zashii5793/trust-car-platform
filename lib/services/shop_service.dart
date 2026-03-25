@@ -230,8 +230,8 @@ class ShopService {
 
   double _taylorSin(double x) {
     // Normalize to [-π, π]
-    while (x > 3.14159265359) x -= 2 * 3.14159265359;
-    while (x < -3.14159265359) x += 2 * 3.14159265359;
+    while (x > 3.14159265359) { x -= 2 * 3.14159265359; }
+    while (x < -3.14159265359) { x += 2 * 3.14159265359; }
 
     double result = x;
     double term = x;

@@ -475,7 +475,7 @@ class _PartCard extends StatelessWidget {
                                 size: 13, color: Colors.amber),
                             const SizedBox(width: 2),
                             Text(
-                              '${part.rating!.toStringAsFixed(1)}',
+                              part.rating!.toStringAsFixed(1),
                               style: theme.textTheme.bodySmall?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),

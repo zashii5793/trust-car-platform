@@ -195,7 +195,9 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                 title: Text(vis.displayName),
                 subtitle: Text(_visibilityDescription(vis)),
                 value: vis,
+                // ignore: deprecated_member_use
                 groupValue: _selectedVisibility,
+                // ignore: deprecated_member_use
                 onChanged: (v) =>
                     setState(() => _selectedVisibility = v!),
                 contentPadding: EdgeInsets.zero,

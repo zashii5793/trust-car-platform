@@ -98,6 +98,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         final result = await pushService.requestPermission();
                         final granted = result.getOrElse(false);
                         if (!granted && mounted) {
+                          // ignore: use_build_context_synchronously
                           showErrorSnackBar(context, '通知の許可が必要です');
                           return;
                         }
