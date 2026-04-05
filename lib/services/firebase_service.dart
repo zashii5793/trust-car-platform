@@ -5,6 +5,7 @@ import 'dart:io' as io;
 import 'dart:typed_data';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 
@@ -25,7 +26,7 @@ class FirebaseService {
   /// 車両を登録
   Future<Result<String, AppError>> addVehicle(Vehicle vehicle) async {
     try {
-      final docRef = await _firestore.collection('vehicles').add(vehicle.toMap());
+      final docRef = await _firestore.collection(FirestoreCollections.vehicles).add(vehicle.toMap());
       return Result.success(docRef.id);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -35,7 +36,7 @@ class FirebaseService {
   /// 車両情報を更新
   Future<Result<void, AppError>> updateVehicle(String vehicleId, Vehicle vehicle) async {
     try {
-      await _firestore.collection('vehicles').doc(vehicleId).update(vehicle.toMap());
+      await _firestore.collection(FirestoreCollections.vehicles).doc(vehicleId).update(vehicle.toMap());
       return const Result.success(null);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -49,7 +50,7 @@ class FirebaseService {
     }
 
     return _firestore
-        .collection('vehicles')
+        .collection(FirestoreCollections.vehicles)
         .where('userId', isEqualTo: currentUserId)
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -61,7 +62,7 @@ class FirebaseService {
   /// 特定の車両を取得
   Future<Result<Vehicle?, AppError>> getVehicle(String vehicleId) async {
     try {
-      final doc = await _firestore.collection('vehicles').doc(vehicleId).get();
+      final doc = await _firestore.collection(FirestoreCollections.vehicles).doc(vehicleId).get();
       if (doc.exists) {
         return Result.success(Vehicle.fromFirestore(doc));
       }
@@ -78,7 +79,7 @@ class FirebaseService {
 
       // 関連する整備記録を取得して削除
       final records = await _firestore
-          .collection('maintenance_records')
+          .collection(FirestoreCollections.maintenanceRecords)
           .where('vehicleId', isEqualTo: vehicleId)
           .get();
 
@@ -87,7 +88,7 @@ class FirebaseService {
       }
 
       // 車両本体を削除
-      batch.delete(_firestore.collection('vehicles').doc(vehicleId));
+      batch.delete(_firestore.collection(FirestoreCollections.vehicles).doc(vehicleId));
 
       await batch.commit();
       return const Result.success(null);
@@ -100,7 +101,7 @@ class FirebaseService {
   Future<Result<bool, AppError>> isLicensePlateExists(String licensePlate, {String? excludeVehicleId}) async {
     try {
       final query = _firestore
-          .collection('vehicles')
+          .collection(FirestoreCollections.vehicles)
           .where('userId', isEqualTo: currentUserId)
           .where('licensePlate', isEqualTo: licensePlate);
 
@@ -123,7 +124,7 @@ class FirebaseService {
   /// 履歴を追加
   Future<Result<String, AppError>> addMaintenanceRecord(MaintenanceRecord record) async {
     try {
-      final docRef = await _firestore.collection('maintenance_records').add(record.toMap());
+      final docRef = await _firestore.collection(FirestoreCollections.maintenanceRecords).add(record.toMap());
       return Result.success(docRef.id);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -133,7 +134,7 @@ class FirebaseService {
   /// 履歴を更新
   Future<Result<void, AppError>> updateMaintenanceRecord(String recordId, MaintenanceRecord record) async {
     try {
-      await _firestore.collection('maintenance_records').doc(recordId).update(record.toMap());
+      await _firestore.collection(FirestoreCollections.maintenanceRecords).doc(recordId).update(record.toMap());
       return const Result.success(null);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -143,7 +144,7 @@ class FirebaseService {
   /// 車両の履歴一覧を取得（Stream版は後方互換性のため維持）
   Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(String vehicleId) {
     return _firestore
-        .collection('maintenance_records')
+        .collection(FirestoreCollections.maintenanceRecords)
         .where('vehicleId', isEqualTo: vehicleId)
         .orderBy('date', descending: true)
         .snapshots()
@@ -159,7 +160,7 @@ class FirebaseService {
   }) async {
     try {
       final snapshot = await _firestore
-          .collection('maintenance_records')
+          .collection(FirestoreCollections.maintenanceRecords)
           .where('vehicleId', isEqualTo: vehicleId)
           .orderBy('date', descending: true)
           .limit(limit)
@@ -177,7 +178,7 @@ class FirebaseService {
   /// 履歴を削除
   Future<Result<void, AppError>> deleteMaintenanceRecord(String recordId) async {
     try {
-      await _firestore.collection('maintenance_records').doc(recordId).delete();
+      await _firestore.collection(FirestoreCollections.maintenanceRecords).doc(recordId).delete();
       return const Result.success(null);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -203,7 +204,7 @@ class FirebaseService {
         final batchIds = vehicleIds.skip(i).take(batchSize).toList();
 
         final snapshot = await _firestore
-            .collection('maintenance_records')
+            .collection(FirestoreCollections.maintenanceRecords)
             .where('vehicleId', whereIn: batchIds)
             .orderBy('date', descending: true)
             .get();
@@ -262,8 +263,10 @@ class FirebaseService {
       List<String> urls = [];
       for (int i = 0; i < imageFiles.length; i++) {
         final result = await uploadImage(imageFiles[i], '$basePath/image_$i.jpg');
-        final url = result.getOrThrow();
-        urls.add(url);
+        if (result.isFailure) {
+          return Result.failure(result.errorOrNull ?? const AppError.unknown('Upload failed'));
+        }
+        urls.add(result.valueOrNull!);
       }
       return Result.success(urls);
     } catch (e) {
@@ -284,10 +287,10 @@ class FirebaseService {
       // Validate and compress
       final processResult = await imageService.processImage(imageBytes);
       if (processResult.isFailure) {
-        return Result.failure(processResult.errorOrNull!);
+        return Result.failure(processResult.errorOrNull ?? const AppError.unknown('Image processing failed'));
       }
 
-      final processedBytes = processResult.getOrThrow();
+      final processedBytes = processResult.valueOrNull!;
 
       // Upload compressed image
       final ref = _storage.ref().child(path);

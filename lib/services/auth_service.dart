@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 
@@ -145,7 +146,7 @@ class AuthService {
 
   /// ユーザードキュメントを Firestore に作成
   Future<void> _createUserDocument(User user, {String? displayName}) async {
-    final userDoc = _firestore.collection('users').doc(user.uid);
+    final userDoc = _firestore.collection(FirestoreCollections.users).doc(user.uid);
     final docSnapshot = await userDoc.get();
 
     if (!docSnapshot.exists) {
@@ -168,11 +169,11 @@ class AuthService {
     if (user == null) return const Result.success(null);
 
     try {
-      final doc = await _firestore.collection('users').doc(user.uid).get();
+      final doc = await _firestore.collection(FirestoreCollections.users).doc(user.uid).get();
       if (!doc.exists) {
         // ドキュメントが存在しない場合は作成
         await _createUserDocument(user);
-        final newDoc = await _firestore.collection('users').doc(user.uid).get();
+        final newDoc = await _firestore.collection(FirestoreCollections.users).doc(user.uid).get();
         if (!newDoc.exists) return const Result.success(null);
         return Result.success(AppUser.fromFirestore(newDoc));
       }
@@ -207,7 +208,7 @@ class AuthService {
         await user.updatePhotoURL(photoUrl);
       }
 
-      await _firestore.collection('users').doc(user.uid).update(updates);
+      await _firestore.collection(FirestoreCollections.users).doc(user.uid).update(updates);
       return const Result.success(null);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -223,7 +224,7 @@ class AuthService {
     }
 
     try {
-      await _firestore.collection('users').doc(user.uid).update({
+      await _firestore.collection(FirestoreCollections.users).doc(user.uid).update({
         'notificationSettings': settings.toMap(),
         'updatedAt': Timestamp.now(),
       });

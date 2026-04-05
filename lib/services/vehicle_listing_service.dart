@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/vehicle_listing.dart';
@@ -12,7 +13,7 @@ class VehicleListingService {
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _listingsRef =>
-      _firestore.collection('vehicle_listings');
+      _firestore.collection(FirestoreCollections.vehicleListings);
 
   CollectionReference<Map<String, dynamic>> get _favoritesRef =>
       _firestore.collection('listing_favorites');

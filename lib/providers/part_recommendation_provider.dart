@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/part_listing.dart';
 import '../models/vehicle.dart';
 import '../services/part_recommendation_service.dart';
+import '../core/constants/pagination.dart';
 import '../core/error/app_error.dart';
 
 /// パーツ提案プロバイダー
@@ -49,7 +50,7 @@ class PartRecommendationProvider with ChangeNotifier {
     final result = await _service.getRecommendationsForVehicle(
       vehicle,
       category: category,
-      limit: 20,
+      limit: Pagination.defaultPageSize,
     );
 
     result.when(
@@ -128,7 +129,7 @@ class PartRecommendationProvider with ChangeNotifier {
         },
       );
     } else if (category != null) {
-      final result = await _service.getPartsByCategory(category, limit: 30);
+      final result = await _service.getPartsByCategory(category, limit: Pagination.partsPageSize);
       result.when(
         success: (parts) {
           _browseParts = parts;
@@ -140,7 +141,7 @@ class PartRecommendationProvider with ChangeNotifier {
         },
       );
     } else {
-      final result = await _service.getFeaturedParts(limit: 20);
+      final result = await _service.getFeaturedParts(limit: Pagination.defaultPageSize);
       result.when(
         success: (parts) {
           _browseParts = parts;

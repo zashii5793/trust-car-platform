@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/post.dart';
 import '../services/post_service.dart';
+import '../core/constants/pagination.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 
@@ -58,14 +59,14 @@ class PostProvider with ChangeNotifier {
     notifyListeners();
 
     final result = await _postService.getFeed(
-      limit: 20,
+      limit: Pagination.defaultPageSize,
       category: category,
     );
 
     result.when(
       success: (posts) {
         _feedPosts = posts;
-        _hasMore = posts.length >= 20;
+        _hasMore = posts.length >= Pagination.defaultPageSize;
       },
       failure: (err) {
         _error = err;
@@ -84,14 +85,14 @@ class PostProvider with ChangeNotifier {
     notifyListeners();
 
     final result = await _postService.getFeed(
-      limit: 20,
+      limit: Pagination.defaultPageSize,
       category: _selectedCategory,
     );
 
     result.when(
       success: (posts) {
         _feedPosts = [..._feedPosts, ...posts];
-        _hasMore = posts.length >= 20;
+        _hasMore = posts.length >= Pagination.defaultPageSize;
       },
       failure: (err) {
         _error = err;

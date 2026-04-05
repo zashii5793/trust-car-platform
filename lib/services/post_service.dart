@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/post.dart';
@@ -12,10 +13,10 @@ class PostService {
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _postsRef =>
-      _firestore.collection('posts');
+      _firestore.collection(FirestoreCollections.posts);
 
   CollectionReference<Map<String, dynamic>> get _commentsRef =>
-      _firestore.collection('comments');
+      _firestore.collection(FirestoreCollections.comments);
 
   CollectionReference<Map<String, dynamic>> get _postLikesRef =>
       _firestore.collection('post_likes');

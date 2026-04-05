@@ -129,7 +129,7 @@ class ImageProcessingService {
     // Validate first
     final validationResult = validateImage(bytes);
     if (validationResult.isFailure) {
-      return Result.failure(validationResult.errorOrNull!);
+      return Result.failure(validationResult.errorOrNull ?? const AppError.unknown('Image validation failed'));
     }
 
     // Then compress

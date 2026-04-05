@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/vehicle.dart';
 import '../services/firebase_service.dart';
+import '../core/constants/retry_config.dart';
 import '../core/error/app_error.dart';
 
 /// 車両状態管理Provider
@@ -53,13 +54,13 @@ class VehicleProvider with ChangeNotifier {
   }
 
   int _retryCount = 0;
-  static const int _maxRetries = 3;
+  static const int _maxRetries = RetryConfig.maxRetries;
   Timer? _retryTimer;
 
   void _scheduleRetry(VoidCallback action) {
     if (_retryCount >= _maxRetries) return;
     _retryTimer?.cancel();
-    final delay = Duration(seconds: 2 << _retryCount); // 2s, 4s, 8s
+    final delay = Duration(seconds: RetryConfig.baseDelaySeconds << _retryCount); // 2s, 4s, 8s
     _retryCount++;
     _retryTimer = Timer(delay, action);
   }

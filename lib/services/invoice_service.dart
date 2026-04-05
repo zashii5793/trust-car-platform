@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/invoice.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 
@@ -23,7 +24,7 @@ class InvoiceService {
 
   // コレクション参照
   CollectionReference<Map<String, dynamic>> get _invoicesCollection =>
-      _firestore.collection('invoices');
+      _firestore.collection(FirestoreCollections.invoices);
 
   /// 請求書を作成
   Future<Result<String, AppError>> createInvoice(Invoice invoice) async {

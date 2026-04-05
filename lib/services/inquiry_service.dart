@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/inquiry.dart';
@@ -12,7 +13,7 @@ class InquiryService {
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _inquiriesCollection =>
-      _firestore.collection('inquiries');
+      _firestore.collection(FirestoreCollections.inquiries);
 
   /// Create a new inquiry
   Future<Result<Inquiry, AppError>> createInquiry({

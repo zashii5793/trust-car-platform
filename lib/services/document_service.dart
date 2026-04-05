@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/document.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 
@@ -28,7 +29,7 @@ class DocumentService {
 
   // コレクション参照
   CollectionReference<Map<String, dynamic>> get _documentsCollection =>
-      _firestore.collection('documents');
+      _firestore.collection(FirestoreCollections.documents);
 
   /// 書類をアップロードして登録
   Future<Result<String, AppError>> uploadDocument({
@@ -236,7 +237,7 @@ class DocumentService {
       // まず書類情報を取得
       final docResult = await getDocument(documentId);
       if (docResult.isFailure) {
-        return Result.failure(docResult.errorOrNull!);
+        return Result.failure(docResult.errorOrNull ?? const AppError.unknown('Failed to fetch document'));
       }
 
       final document = docResult.valueOrNull;

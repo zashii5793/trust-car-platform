@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/drive_log.dart';
 import '../services/drive_log_service.dart';
+import '../core/constants/pagination.dart';
 import '../core/error/app_error.dart';
 
 /// ドライブログ管理プロバイダー
@@ -27,7 +28,7 @@ class DriveLogProvider with ChangeNotifier {
   bool get hasMore => _hasMore;
   bool get isEmpty => _logs.isEmpty && !_isLoading;
 
-  static const int _pageSize = 20;
+  static const int _pageSize = Pagination.driveLogPageSize;
 
   // ── ドライブログ読み込み ──────────────────────────────────────────────────
 

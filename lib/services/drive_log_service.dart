@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/result/result.dart';
 import '../core/error/app_error.dart';
 import '../models/drive_log.dart';
@@ -13,10 +14,10 @@ class DriveLogService {
 
   // Collection references
   CollectionReference<Map<String, dynamic>> get _driveLogsRef =>
-      _firestore.collection('drive_logs');
+      _firestore.collection(FirestoreCollections.driveLogs);
 
   CollectionReference<Map<String, dynamic>> get _waypointsRef =>
-      _firestore.collection('drive_waypoints');
+      _firestore.collection(FirestoreCollections.driveWaypoints);
 
   CollectionReference<Map<String, dynamic>> get _driveLogLikesRef =>
       _firestore.collection('drive_log_likes');
@@ -25,7 +26,7 @@ class DriveLogService {
       _firestore.collection('spots');
 
   CollectionReference<Map<String, dynamic>> get _spotRatingsRef =>
-      _firestore.collection('spot_ratings');
+      _firestore.collection(FirestoreCollections.spotRatings);
 
   CollectionReference<Map<String, dynamic>> get _spotFavoritesRef =>
       _firestore.collection('spot_favorites');
