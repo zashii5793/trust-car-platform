@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/post.dart';
+import '../models/comment.dart';
 import '../services/post_service.dart';
 import '../core/constants/pagination.dart';
 import '../core/error/app_error.dart';
@@ -33,6 +34,13 @@ class PostProvider with ChangeNotifier {
   final Set<String> _likedPostIds = {};
   // 処理中のいいねリクエスト（連続タップによるレースコンディション防止）
   final Set<String> _pendingLikes = {};
+
+  // ── コメント状態 ───────────────────────────────────────────────────────────
+  String? _activeCommentPostId;
+  List<Comment> _comments = [];
+  bool _isLoadingComments = false;
+  bool _isSubmittingComment = false;
+  AppError? _commentError;
 
   // ── Getters ───────────────────────────────────────────────────────────────
   List<Post> get feedPosts => _feedPosts;

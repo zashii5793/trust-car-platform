@@ -60,164 +60,184 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${_vehicle.maker} ${_vehicle.model}'),
-        actions: [
-          // PDF出力ボタン
-          Consumer<MaintenanceProvider>(
-            builder: (context, provider, child) {
-              return IconButton(
-                icon: const Icon(Icons.picture_as_pdf),
-                tooltip: 'PDFで出力',
-                onPressed: provider.records.isEmpty
-                    ? null
-                    : () {
-                        showExportDialog(
-                          context: context,
-                          vehicle: _vehicle,
-                          records: provider.records,
-                        );
-                      },
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.build_circle_outlined),
-            tooltip: 'パーツ提案',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      PartRecommendationScreen(vehicle: _vehicle),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: '編集',
-            onPressed: _navigateToEdit,
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 車両画像
-            _VehicleImage(
-              imageUrl: _vehicle.imageUrl,
-              isDark: isDark,
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('${_vehicle.maker} ${_vehicle.model}'),
+          actions: [
+            // PDF出力ボタン
+            Consumer<MaintenanceProvider>(
+              builder: (context, provider, child) {
+                return IconButton(
+                  icon: const Icon(Icons.picture_as_pdf),
+                  tooltip: 'PDFで出力',
+                  onPressed: provider.records.isEmpty
+                      ? null
+                      : () {
+                          showExportDialog(
+                            context: context,
+                            vehicle: _vehicle,
+                            records: provider.records,
+                          );
+                        },
+                );
+              },
             ),
-
-            // 車両基本情報
-            Padding(
-              padding: AppSpacing.paddingScreen,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${_vehicle.maker} ${_vehicle.model}',
-                    style: theme.textTheme.displayMedium,
-                  ),
-                  AppSpacing.verticalSm,
-                  _InfoRow(
-                    icon: Icons.calendar_today,
-                    label: '年式',
-                    value: '${_vehicle.year}年',
-                  ),
-                  _InfoRow(
-                    icon: Icons.star_outline,
-                    label: 'グレード',
-                    value: _vehicle.grade,
-                  ),
-                  _InfoRow(
-                    icon: Icons.speed,
-                    label: '走行距離',
-                    value: '${_formatNumber(_vehicle.mileage)} km',
-                  ),
-                  if (_vehicle.inspectionExpiryDate != null)
-                    _InfoRow(
-                      icon: Icons.verified_outlined,
-                      label: '車検満了日',
-                      value: DateFormat('yyyy年MM月dd日')
-                          .format(_vehicle.inspectionExpiryDate!),
-                      valueColor: _vehicle.isInspectionExpired
-                          ? AppColors.error
-                          : _vehicle.isInspectionDueSoon
-                              ? AppColors.warning
-                              : null,
-                    ),
-                  if (_vehicle.insuranceExpiryDate != null)
-                    _InfoRow(
-                      icon: Icons.shield_outlined,
-                      label: '自賠責満了日',
-                      value: DateFormat('yyyy年MM月dd日')
-                          .format(_vehicle.insuranceExpiryDate!),
-                      valueColor: (_vehicle.daysUntilInsuranceExpiry != null &&
-                              _vehicle.daysUntilInsuranceExpiry! < 0)
-                          ? AppColors.error
-                          : _vehicle.isInsuranceDueSoon
-                              ? AppColors.warning
-                              : null,
-                    ),
-                ],
-              ),
-            ),
-
-            const Divider(height: 1),
-
-            // 統計情報
-            _StatisticsSection(
-              vehicleId: _vehicle.id,
-              onDetailsTap: () {
+            IconButton(
+              icon: const Icon(Icons.build_circle_outlined),
+              tooltip: 'パーツ提案',
+              onPressed: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => MaintenanceStatsScreen(
-                      vehicleName: '${_vehicle.maker} ${_vehicle.model}',
-                    ),
+                    builder: (_) => PartRecommendationScreen(vehicle: _vehicle),
                   ),
                 );
               },
             ),
-
-            const Divider(height: 1),
-
-            // 履歴セクション
-            Padding(
-              padding: AppSpacing.paddingScreen,
-              child: Text(
-                '愛車の記録',
-                style: theme.textTheme.headlineLarge,
-              ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: '編集',
+              onPressed: _navigateToEdit,
             ),
-
-            // 統合タイムライン（整備履歴 + ドライブログ）
-            _VehicleTimeline(
-              vehicle: _vehicle,
-            ),
-
-            AppSpacing.verticalLg,
           ],
+          bottom: TabBar(
+            labelColor: theme.colorScheme.primary,
+            unselectedLabelColor: isDark
+                ? AppColors.darkTextSecondary
+                : AppColors.textSecondary,
+            indicatorColor: theme.colorScheme.primary,
+            indicatorWeight: 3,
+            tabs: const [
+              Tab(icon: Icon(Icons.timeline, size: 18), text: 'すべて'),
+              Tab(icon: Icon(Icons.build_outlined, size: 18), text: '整備記録'),
+              Tab(
+                icon: Icon(Icons.directions_car_outlined, size: 18),
+                text: 'ドライブ',
+              ),
+            ],
+          ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AddMaintenanceScreen(
-                vehicleId: _vehicle.id,
-                currentVehicleMileage: _vehicle.mileage,
+        body: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 車両画像
+                  _VehicleImage(imageUrl: _vehicle.imageUrl, isDark: isDark),
+
+                  // 車両基本情報
+                  Padding(
+                    padding: AppSpacing.paddingScreen,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_vehicle.maker} ${_vehicle.model}',
+                          style: theme.textTheme.displayMedium,
+                        ),
+                        AppSpacing.verticalSm,
+                        _InfoRow(
+                          icon: Icons.calendar_today,
+                          label: '年式',
+                          value: '${_vehicle.year}年',
+                        ),
+                        _InfoRow(
+                          icon: Icons.star_outline,
+                          label: 'グレード',
+                          value: _vehicle.grade,
+                        ),
+                        _InfoRow(
+                          icon: Icons.speed,
+                          label: '走行距離',
+                          value: '${_formatNumber(_vehicle.mileage)} km',
+                        ),
+                        if (_vehicle.inspectionExpiryDate != null)
+                          _InfoRow(
+                            icon: Icons.verified_outlined,
+                            label: '車検満了日',
+                            value: DateFormat('yyyy年MM月dd日')
+                                .format(_vehicle.inspectionExpiryDate!),
+                            valueColor: _vehicle.isInspectionExpired
+                                ? AppColors.error
+                                : _vehicle.isInspectionDueSoon
+                                    ? AppColors.warning
+                                    : null,
+                          ),
+                        if (_vehicle.insuranceExpiryDate != null)
+                          _InfoRow(
+                            icon: Icons.shield_outlined,
+                            label: '自賠責満了日',
+                            value: DateFormat('yyyy年MM月dd日')
+                                .format(_vehicle.insuranceExpiryDate!),
+                            valueColor: (_vehicle.daysUntilInsuranceExpiry !=
+                                        null &&
+                                    _vehicle.daysUntilInsuranceExpiry! < 0)
+                                ? AppColors.error
+                                : _vehicle.isInsuranceDueSoon
+                                    ? AppColors.warning
+                                    : null,
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  const Divider(height: 1),
+
+                  // 統計情報
+                  _StatisticsSection(
+                    vehicleId: _vehicle.id,
+                    onDetailsTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MaintenanceStatsScreen(
+                            vehicleName: '${_vehicle.maker} ${_vehicle.model}',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  const Divider(height: 1),
+                ],
               ),
             ),
-          );
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('履歴を追加'),
+          ],
+          body: TabBarView(
+            children: [
+              _VehicleTimeline(
+                vehicle: _vehicle,
+                filter: _TimelineFilter.all,
+              ),
+              _VehicleTimeline(
+                vehicle: _vehicle,
+                filter: _TimelineFilter.maintenance,
+              ),
+              _VehicleTimeline(
+                vehicle: _vehicle,
+                filter: _TimelineFilter.drive,
+              ),
+            ],
+          ),
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AddMaintenanceScreen(
+                  vehicleId: _vehicle.id,
+                  currentVehicleMileage: _vehicle.mileage,
+                ),
+              ),
+            );
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('履歴を追加'),
+        ),
       ),
     );
   }
@@ -408,6 +428,9 @@ class _StatCard extends StatelessWidget {
 // Unified Vehicle Timeline (maintenance records + drive logs)
 // ---------------------------------------------------------------------------
 
+/// タイムラインの表示フィルタ
+enum _TimelineFilter { all, maintenance, drive }
+
 /// Timeline entry: either a maintenance record or a drive log
 sealed class _TimelineEntry {
   DateTime get date;
@@ -429,8 +452,12 @@ class _DriveEntry extends _TimelineEntry {
 
 class _VehicleTimeline extends StatefulWidget {
   final Vehicle vehicle;
+  final _TimelineFilter filter;
 
-  const _VehicleTimeline({required this.vehicle});
+  const _VehicleTimeline({
+    required this.vehicle,
+    this.filter = _TimelineFilter.all,
+  });
 
   @override
   State<_VehicleTimeline> createState() => _VehicleTimelineState();
@@ -449,6 +476,11 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
   }
 
   Future<void> _loadDriveLogs() async {
+    // 整備記録のみ表示の場合はドライブログを取得しない
+    if (widget.filter == _TimelineFilter.maintenance) {
+      if (mounted) setState(() => _driveLogsLoaded = true);
+      return;
+    }
     final result = await _driveLogService.getVehicleDriveLogs(
       vehicleId: widget.vehicle.id,
       userId: widget.vehicle.userId,
@@ -461,34 +493,62 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
     }
   }
 
+  String get _emptyTitle {
+    switch (widget.filter) {
+      case _TimelineFilter.maintenance:
+        return '整備記録がありません';
+      case _TimelineFilter.drive:
+        return 'ドライブログがありません';
+      case _TimelineFilter.all:
+        return '記録がありません';
+    }
+  }
+
+  String get _emptyDescription {
+    switch (widget.filter) {
+      case _TimelineFilter.maintenance:
+        return '「履歴を追加」から整備・点検記録を追加しましょう';
+      case _TimelineFilter.drive:
+        return 'ドライブログを記録してみましょう';
+      case _TimelineFilter.all:
+        return '整備履歴や走行記録を追加してみましょう';
+    }
+  }
+
+  IconData get _emptyIcon {
+    switch (widget.filter) {
+      case _TimelineFilter.drive:
+        return Icons.directions_car_outlined;
+      default:
+        return Icons.history;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<MaintenanceProvider>(
       builder: (context, maintenanceProvider, child) {
         if (maintenanceProvider.isLoading || !_driveLogsLoaded) {
-          return const Padding(
-            padding: EdgeInsets.all(AppSpacing.xl),
-            child: AppLoadingCenter(),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
 
-        // Merge and sort all entries by date descending
+        // フィルタに応じてエントリを結合・ソート
         final entries = <_TimelineEntry>[
-          ...maintenanceProvider.records.map(_MaintenanceEntry.new),
-          ..._driveLogs.map(_DriveEntry.new),
+          if (widget.filter != _TimelineFilter.drive)
+            ...maintenanceProvider.records.map(_MaintenanceEntry.new),
+          if (widget.filter != _TimelineFilter.maintenance)
+            ..._driveLogs.map(_DriveEntry.new),
         ]..sort((a, b) => b.date.compareTo(a.date));
 
         if (entries.isEmpty) {
-          return const AppEmptyState(
-            icon: Icons.history,
-            title: '記録がありません',
-            description: '整備履歴や走行記録を追加してみましょう',
+          return AppEmptyState(
+            icon: _emptyIcon,
+            title: _emptyTitle,
+            description: _emptyDescription,
           );
         }
 
         return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
             vertical: AppSpacing.xs,

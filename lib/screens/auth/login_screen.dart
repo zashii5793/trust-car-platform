@@ -98,23 +98,67 @@ class _LoginScreenState extends State<LoginScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // ロゴとタイトル
-                          Icon(
-                            Icons.directions_car,
-                            size: 80,
-                            color: theme.colorScheme.primary,
-                          ),
-                          AppSpacing.verticalMd,
-                          Text(
-                            'クルマ統合管理',
-                            style: theme.textTheme.displayMedium,
-                            textAlign: TextAlign.center,
-                          ),
-                          AppSpacing.verticalXs,
-                          Text(
-                            '信頼を設計する、新時代のカーライフ',
-                            style: theme.textTheme.bodyMedium,
-                            textAlign: TextAlign.center,
+                          // ヒーローセクション（グラデーション）
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 36,
+                              horizontal: AppSpacing.lg,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFF1A4D8F), // primary
+                                  Color(0xFF2563B8), // primaryHover
+                                  Color(0xFF2D7A5F), // secondary
+                                ],
+                              ),
+                              borderRadius: AppSpacing.borderRadiusLg,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Color(0xFF1A4D8F),
+                                  blurRadius: 20,
+                                  offset: Offset(0, 8),
+                                  spreadRadius: -4,
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(AppSpacing.md),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.directions_car,
+                                    size: 52,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                AppSpacing.verticalMd,
+                                const Text(
+                                  'TrustCar',
+                                  style: TextStyle(
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: 2.0,
+                                  ),
+                                ),
+                                AppSpacing.verticalXxs,
+                                Text(
+                                  '信頼を設計する、新時代のカーライフ',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                           AppSpacing.verticalXxl,
 

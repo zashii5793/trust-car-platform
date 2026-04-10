@@ -16,6 +16,9 @@ import '../widgets/common/offline_banner.dart';
 import 'vehicle_registration_screen.dart';
 import 'vehicle_detail_screen.dart';
 import 'profile/profile_screen.dart';
+import 'profile/settings_screen.dart';
+import 'settings/privacy_policy_screen.dart';
+import 'settings/terms_of_service_screen.dart';
 import 'notifications/notification_list_screen.dart';
 import 'marketplace/marketplace_screen.dart';
 import 'sns/sns_feed_screen.dart';
@@ -255,14 +258,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return ListView.builder(
           padding: AppSpacing.paddingScreen,
-          itemCount: vehicleProvider.vehicles.length + 1, // +1 for suggestion header
+          itemCount: vehicleProvider.vehicles.length + 2, // +2 for dashboard + suggestion
           itemBuilder: (context, index) {
             if (index == 0) {
+              return _DashboardSummaryCard(
+                vehicles: vehicleProvider.vehicles,
+              );
+            }
+            if (index == 1) {
               return _AiSuggestionSection(
                 onSeeAll: () => setState(() => _currentIndex = 1),
               );
             }
-            final vehicle = vehicleProvider.vehicles[index - 1];
+            final vehicle = vehicleProvider.vehicles[index - 2];
             return _VehicleCard(vehicle: vehicle);
           },
         );
@@ -274,87 +282,234 @@ class _HomeScreenState extends State<HomeScreen> {
     final authProvider = context.read<AuthProvider>();
     final user = authProvider.firebaseUser;
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return SingleChildScrollView(
-      padding: AppSpacing.paddingScreen,
       child: Column(
         children: [
-          AppSpacing.verticalLg,
-          // プロフィール画像
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: theme.colorScheme.primary,
-            child: user?.photoURL != null
-                ? ClipOval(
-                    child: Image.network(
-                      user!.photoURL!,
-                      width: 100,
-                      height: 100,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                : const Icon(
-                    Icons.person,
-                    size: 50,
-                    color: Colors.white,
-                  ),
-          ),
-          AppSpacing.verticalMd,
-          Text(
-            user?.displayName ?? 'ユーザー',
-            style: theme.textTheme.headlineMedium,
-          ),
-          AppSpacing.verticalXs,
-          Text(
-            user?.email ?? '',
-            style: theme.textTheme.bodyMedium,
-          ),
-          AppSpacing.verticalLg,
-          // プロフィール詳細ボタン
-          SizedBox(
+          // ---- プロフィールヘッダー ----
+          Container(
             width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ProfileScreen(),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.manage_accounts_outlined),
-              label: const Text('プロフィールを編集'),
+            padding: const EdgeInsets.symmetric(
+              vertical: AppSpacing.xl,
+              horizontal: AppSpacing.md,
             ),
-          ),
-          AppSpacing.verticalSm,
-          // ドライブログボタン
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const DriveLogScreen(),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.directions_car_outlined),
-              label: const Text('ドライブログ'),
-            ),
-          ),
-          AppSpacing.verticalXxl,
-          // ログアウトボタン
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _confirmSignOut(context),
-              icon: const Icon(Icons.logout),
-              label: const Text('ログアウト'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-                side: const BorderSide(color: AppColors.error),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDark
+                    ? [AppColors.darkCard, AppColors.darkSurface]
+                    : [AppColors.primary, AppColors.primaryHover],
               ),
+            ),
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 44,
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                  child: user?.photoURL != null
+                      ? ClipOval(
+                          child: Image.network(
+                            user!.photoURL!,
+                            width: 88,
+                            height: 88,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.person,
+                          size: 44,
+                          color: Colors.white,
+                        ),
+                ),
+                AppSpacing.verticalSm,
+                Text(
+                  user?.displayName ?? 'ユーザー',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                AppSpacing.verticalXxs,
+                Text(
+                  user?.email ?? '',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          AppSpacing.verticalSm,
+
+          // ---- アカウントセクション ----
+          _buildMenuSection(
+            context,
+            title: 'アカウント',
+            items: [
+              _MenuItemData(
+                icon: Icons.manage_accounts_outlined,
+                label: 'プロフィールを編集',
+                color: AppColors.primary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                ),
+              ),
+              _MenuItemData(
+                icon: Icons.directions_car_outlined,
+                label: 'ドライブログ',
+                color: AppColors.accentDrive,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DriveLogScreen()),
+                ),
+              ),
+              _MenuItemData(
+                icon: Icons.settings_outlined,
+                label: '設定',
+                color: AppColors.textSecondary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                ),
+              ),
+            ],
+          ),
+
+          AppSpacing.verticalSm,
+
+          // ---- サポートセクション ----
+          _buildMenuSection(
+            context,
+            title: 'サポート・法的情報',
+            items: [
+              _MenuItemData(
+                icon: Icons.privacy_tip_outlined,
+                label: 'プライバシーポリシー',
+                color: AppColors.info,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+                ),
+              ),
+              _MenuItemData(
+                icon: Icons.article_outlined,
+                label: '利用規約',
+                color: AppColors.info,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()),
+                ),
+              ),
+            ],
+          ),
+
+          AppSpacing.verticalSm,
+
+          // ---- ログアウト ----
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Card(
+              margin: EdgeInsets.zero,
+              child: ListTile(
+                leading: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.1),
+                    borderRadius: AppSpacing.borderRadiusSm,
+                  ),
+                  child: const Icon(
+                    Icons.logout,
+                    color: AppColors.error,
+                    size: AppSpacing.iconMd,
+                  ),
+                ),
+                title: const Text(
+                  'ログアウト',
+                  style: TextStyle(
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                onTap: () => _confirmSignOut(context),
+              ),
+            ),
+          ),
+
+          AppSpacing.verticalXxl,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuSection(
+    BuildContext context, {
+    required String title,
+    required List<_MenuItemData> items,
+  }) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(
+              left: AppSpacing.xs,
+              bottom: AppSpacing.xs,
+            ),
+            child: Text(
+              title,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          Card(
+            margin: EdgeInsets.zero,
+            child: Column(
+              children: items.asMap().entries.map((entry) {
+                final i = entry.key;
+                final item = entry.value;
+                return Column(
+                  children: [
+                    ListTile(
+                      leading: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: item.color.withValues(alpha: 0.1),
+                          borderRadius: AppSpacing.borderRadiusSm,
+                        ),
+                        child: Icon(
+                          item.icon,
+                          color: item.color,
+                          size: AppSpacing.iconMd,
+                        ),
+                      ),
+                      title: Text(
+                        item.label,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                        size: AppSpacing.iconMd,
+                      ),
+                      onTap: item.onTap,
+                    ),
+                    if (i < items.length - 1)
+                      const Divider(height: 1, indent: 56),
+                  ],
+                );
+              }).toList(),
             ),
           ),
         ],
@@ -597,6 +752,201 @@ class _VehicleCard extends StatelessWidget {
 // AIからの提案セクション（ホーム画面トップ）
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// ダッシュボードサマリーカード（マイカータブ最上部）
+// ---------------------------------------------------------------------------
+
+class _DashboardSummaryCard extends StatelessWidget {
+  final List<Vehicle> vehicles;
+
+  const _DashboardSummaryCard({required this.vehicles});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // 警告のある車両を集計
+    final expiredCount = vehicles
+        .where((v) => v.isInspectionExpired ||
+            (v.daysUntilInsuranceExpiry != null &&
+                v.daysUntilInsuranceExpiry! < 0))
+        .length;
+    final warnCount = vehicles
+        .where((v) =>
+            (v.isInspectionDueSoon && !v.isInspectionExpired) ||
+            (v.isInsuranceDueSoon &&
+                v.daysUntilInsuranceExpiry != null &&
+                v.daysUntilInsuranceExpiry! >= 0))
+        .length;
+
+    // 最も近い車検日を持つ車両
+    Vehicle? nextInspectionVehicle;
+    int? minDays;
+    for (final v in vehicles) {
+      if (v.daysUntilInspection != null && v.daysUntilInspection! > 0) {
+        if (minDays == null || v.daysUntilInspection! < minDays) {
+          minDays = v.daysUntilInspection;
+          nextInspectionVehicle = v;
+        }
+      }
+    }
+
+    return Container(
+      margin: AppSpacing.marginListItem,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [AppColors.darkCard, AppColors.darkSurface]
+              : [AppColors.primary, const Color(0xFF2563B8)],
+        ),
+        borderRadius: AppSpacing.borderRadiusMd,
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ---- タイトル ----
+          Row(
+            children: [
+              const Icon(Icons.dashboard_outlined,
+                  size: AppSpacing.iconSm, color: Colors.white70),
+              AppSpacing.horizontalXs,
+              Text(
+                'ダッシュボード',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: Colors.white70,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          AppSpacing.verticalSm,
+
+          // ---- 統計行 ----
+          Row(
+            children: [
+              _buildStatItem(
+                context,
+                icon: Icons.directions_car,
+                value: '${vehicles.length}',
+                label: '登録車両',
+                iconColor: Colors.white,
+              ),
+              _buildDivider(),
+              _buildStatItem(
+                context,
+                icon: Icons.error_outline,
+                value: '$expiredCount',
+                label: '要対応',
+                iconColor: expiredCount > 0
+                    ? const Color(0xFFFF8A80)
+                    : Colors.white54,
+              ),
+              _buildDivider(),
+              _buildStatItem(
+                context,
+                icon: Icons.warning_amber_outlined,
+                value: '$warnCount',
+                label: '注意',
+                iconColor: warnCount > 0
+                    ? const Color(0xFFFFD740)
+                    : Colors.white54,
+              ),
+            ],
+          ),
+
+          // ---- 次回車検 ----
+          if (nextInspectionVehicle != null) ...[
+            AppSpacing.verticalSm,
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: AppSpacing.borderRadiusSm,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.verified_outlined,
+                      size: 14, color: Colors.white70),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    '次の車検: '
+                    '${nextInspectionVehicle.maker} '
+                    '${nextInspectionVehicle.model} '
+                    '— あと$minDays日',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(
+    BuildContext context, {
+    required IconData icon,
+    required String value,
+    required String label,
+    required Color iconColor,
+  }) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, size: 20, color: iconColor),
+          AppSpacing.verticalXxs,
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Colors.white70,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDivider() {
+    return Container(
+      width: 1,
+      height: 48,
+      color: Colors.white.withValues(alpha: 0.2),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 class _AiSuggestionSection extends StatelessWidget {
   final VoidCallback onSeeAll;
 
@@ -814,3 +1164,22 @@ class _SuggestionCard extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// プロフィールメニュー項目データクラス
+// ---------------------------------------------------------------------------
+
+class _MenuItemData {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _MenuItemData({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+}
+

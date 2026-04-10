@@ -125,6 +125,24 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
 // カテゴリフィルタバー
 // ---------------------------------------------------------------------------
 
+/// カテゴリに対応するアイコンを返す
+IconData _categoryIcon(PostCategory cat) {
+  switch (cat) {
+    case PostCategory.maintenance:
+      return Icons.build_outlined;
+    case PostCategory.customization:
+      return Icons.palette_outlined;
+    case PostCategory.drive:
+      return Icons.directions_car_outlined;
+    case PostCategory.question:
+      return Icons.help_outline;
+    case PostCategory.sale:
+      return Icons.sell_outlined;
+    default:
+      return Icons.article_outlined;
+  }
+}
+
 class _CategoryFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -138,12 +156,14 @@ class _CategoryFilterBar extends StatelessWidget {
             children: [
               _CategoryChip(
                 label: 'すべて',
+                icon: Icons.all_inclusive,
                 selected: provider.selectedCategory == null,
                 onTap: () => provider.selectCategory(null),
               ),
               ...PostCategory.values.map(
                 (cat) => _CategoryChip(
                   label: cat.displayName,
+                  icon: _categoryIcon(cat),
                   selected: provider.selectedCategory == cat,
                   onTap: () => provider.selectCategory(cat),
                 ),
@@ -160,11 +180,13 @@ class _CategoryChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final IconData? icon;
 
   const _CategoryChip({
     required this.label,
     required this.selected,
     required this.onTap,
+    this.icon,
   });
 
   @override
@@ -173,6 +195,13 @@ class _CategoryChip extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: ChoiceChip(
+        avatar: icon != null
+            ? Icon(
+                icon,
+                size: 14,
+                color: selected ? Colors.white : theme.colorScheme.onSurface,
+              )
+            : null,
         label: Text(label),
         selected: selected,
         onSelected: (_) => onTap(),
@@ -203,16 +232,16 @@ class _PostCard extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: AppSpacing.borderRadiusMd,
+        borderRadius: AppSpacing.borderRadiusLg,
         boxShadow: isDark
             ? null
             : [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 4,
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
               ],
@@ -341,13 +370,20 @@ class _CategoryBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Text(
-        category.displayName,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_categoryIcon(category), size: 11, color: color),
+          const SizedBox(width: 3),
+          Text(
+            category.displayName,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -447,8 +483,12 @@ class _PostFooter extends StatelessWidget {
     final tertiary =
         isDark ? AppColors.darkTextTertiary : AppColors.textTertiary;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 0, 12, 8),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Divider(height: 1),
+        Padding(
+      padding: const EdgeInsets.fromLTRB(8, 2, 12, 6),
       child: Row(
         children: [
           // いいねボタン
@@ -519,6 +559,8 @@ class _PostFooter extends StatelessWidget {
           ),
         ],
       ),
+        ),
+      ],
     );
   }
 
