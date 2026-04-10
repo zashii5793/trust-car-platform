@@ -622,10 +622,11 @@ class _VehicleCard extends StatelessWidget {
                     ),
                     AppSpacing.verticalXxs,
                     Text(
-                      '${vehicle.year}年 ${vehicle.grade}',
+                      '${vehicle.year}年式 ${vehicle.grade}',
                       style: theme.textTheme.bodyMedium,
                     ),
                     AppSpacing.verticalXxs,
+                    // 走行距離 + 燃料タイプ
                     Row(
                       children: [
                         Icon(
@@ -640,6 +641,63 @@ class _VehicleCard extends StatelessWidget {
                           '${_formatMileage(vehicle.mileage)} km',
                           style: theme.textTheme.bodyMedium,
                         ),
+                        if (vehicle.fuelType != null) ...[
+                          AppSpacing.horizontalSm,
+                          _InfoChip(
+                            label: vehicle.fuelType!.displayName,
+                            color: AppColors.secondary,
+                            isDark: isDark,
+                          ),
+                        ],
+                      ],
+                    ),
+                    AppSpacing.verticalXxs,
+                    // ナンバープレート + 車検残日数
+                    Row(
+                      children: [
+                        if (vehicle.licensePlate != null &&
+                            vehicle.licensePlate!.isNotEmpty) ...[
+                          Icon(
+                            Icons.credit_card_outlined,
+                            size: 13,
+                            color: isDark
+                                ? AppColors.darkTextTertiary
+                                : AppColors.textTertiary,
+                          ),
+                          AppSpacing.horizontalXs,
+                          Flexible(
+                            child: Text(
+                              vehicle.licensePlate!,
+                              style: theme.textTheme.bodySmall,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          AppSpacing.horizontalSm,
+                        ],
+                        if (vehicle.daysUntilInspection != null &&
+                            !vehicle.isInspectionExpired) ...[
+                          Icon(
+                            Icons.verified_outlined,
+                            size: 13,
+                            color: vehicle.isInspectionDueSoon
+                                ? AppColors.warning
+                                : (isDark
+                                    ? AppColors.darkTextTertiary
+                                    : AppColors.textTertiary),
+                          ),
+                          AppSpacing.horizontalXs,
+                          Text(
+                            '車検 残${vehicle.daysUntilInspection}日',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: vehicle.isInspectionDueSoon
+                                  ? AppColors.warning
+                                  : null,
+                              fontWeight: vehicle.isInspectionDueSoon
+                                  ? FontWeight.w600
+                                  : null,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -1181,5 +1239,40 @@ class _MenuItemData {
     required this.color,
     required this.onTap,
   });
+}
+
+// ---------------------------------------------------------------------------
+// 小型インフォチップ（車両カード内）
+// ---------------------------------------------------------------------------
+
+class _InfoChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool isDark;
+
+  const _InfoChip({
+    required this.label,
+    required this.color,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.2 : 0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w500,
+          color: color,
+        ),
+      ),
+    );
+  }
 }
 

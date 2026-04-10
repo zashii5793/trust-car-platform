@@ -8,6 +8,7 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'post_create_screen.dart';
+import 'post_detail_screen.dart';
 
 /// SNS フィード画面
 ///
@@ -226,12 +227,27 @@ class _PostCard extends StatelessWidget {
 
   const _PostCard({required this.post});
 
+  void _openDetail(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PostDetailScreen(post: post),
+      ),
+    ).then((_) {
+      // 詳細から戻った際にフィードのコメント数などを反映
+      // ignore: use_build_context_synchronously
+      if (context.mounted) context.read<PostProvider>().refreshFeed();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Container(
+    return GestureDetector(
+      onTap: () => _openDetail(context),
+      child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkCard : Colors.white,
@@ -257,6 +273,7 @@ class _PostCard extends StatelessWidget {
           if (post.media.isNotEmpty) _PostMediaRow(media: post.media),
           _PostFooter(post: post),
         ],
+      ),
       ),
     );
   }

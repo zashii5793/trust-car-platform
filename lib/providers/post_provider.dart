@@ -54,6 +54,13 @@ class PostProvider with ChangeNotifier {
   AppError? get submitError => _submitError;
   String? get submitErrorMessage => _submitError?.userMessage;
 
+  // コメント Getters
+  List<Comment> get comments => _comments;
+  bool get isLoadingComments => _isLoadingComments;
+  bool get isSubmittingComment => _isSubmittingComment;
+  AppError? get commentError => _commentError;
+  String? get commentErrorMessage => _commentError?.userMessage;
+
   bool isLiked(String postId) => _likedPostIds.contains(postId);
 
   // ── フィード読み込み ───────────────────────────────────────────────────────
@@ -249,6 +256,117 @@ class PostProvider with ChangeNotifier {
     );
   }
 
+  // ── コメント読み込み ───────────────────────────────────────────────────────
+
+  Future<void> loadComments(String postId) async {
+    if (_activeCommentPostId != postId) {
+      _comments = [];
+    }
+    _activeCommentPostId = postId;
+    _isLoadingComments = true;
+    _commentError = null;
+    notifyListeners();
+
+    final result = await _postService.getComments(
+      postId: postId,
+      topLevelOnly: true,
+    );
+
+    result.when(
+      success: (comments) {
+        _comments = comments;
+      },
+      failure: (err) {
+        _commentError = err;
+      },
+    );
+
+    _isLoadingComments = false;
+    notifyListeners();
+  }
+
+  // ── コメント投稿 ───────────────────────────────────────────────────────────
+
+  Future<bool> addComment({
+    required String postId,
+    required String userId,
+    required String content,
+    String? userDisplayName,
+    String? userPhotoUrl,
+    String? parentCommentId,
+  }) async {
+    if (content.trim().isEmpty) return false;
+
+    _isSubmittingComment = true;
+    _commentError = null;
+    notifyListeners();
+
+    final result = await _postService.addComment(
+      postId: postId,
+      userId: userId,
+      userDisplayName: userDisplayName,
+      userPhotoUrl: userPhotoUrl,
+      content: content.trim(),
+      parentCommentId: parentCommentId,
+    );
+
+    bool success = false;
+    result.when(
+      success: (comment) {
+        if (parentCommentId == null) {
+          _comments = [..._comments, comment];
+        }
+        // フィード内のコメント数を楽観的更新
+        final idx = _feedPosts.indexWhere((p) => p.id == postId);
+        if (idx != -1) {
+          _feedPosts[idx] = _feedPosts[idx].copyWith(
+            commentCount: _feedPosts[idx].commentCount + 1,
+          );
+        }
+        success = true;
+      },
+      failure: (err) {
+        _commentError = err;
+      },
+    );
+
+    _isSubmittingComment = false;
+    notifyListeners();
+    return success;
+  }
+
+  // ── コメント削除 ───────────────────────────────────────────────────────────
+
+  Future<bool> deleteComment({
+    required String commentId,
+    required String userId,
+    required String postId,
+  }) async {
+    final result = await _postService.deleteComment(
+      commentId: commentId,
+      userId: userId,
+    );
+
+    return result.when(
+      success: (_) {
+        _comments.removeWhere((c) => c.id == commentId);
+        final idx = _feedPosts.indexWhere((p) => p.id == postId);
+        if (idx != -1) {
+          _feedPosts[idx] = _feedPosts[idx].copyWith(
+            commentCount: (_feedPosts[idx].commentCount - 1).clamp(0, double.maxFinite.toInt()),
+          );
+        }
+        notifyListeners();
+        return true;
+      },
+      failure: (err) {
+        _commentError = err;
+        notifyListeners();
+        return false;
+      },
+    );
+  }
+
   // ── リセット ───────────────────────────────────────────────────────────────
 
   void clear() {
@@ -262,6 +380,11 @@ class PostProvider with ChangeNotifier {
     _isSubmitting = false;
     _likedPostIds.clear();
     _pendingLikes.clear();
+    _activeCommentPostId = null;
+    _comments = [];
+    _isLoadingComments = false;
+    _isSubmittingComment = false;
+    _commentError = null;
     notifyListeners();
   }
 }
