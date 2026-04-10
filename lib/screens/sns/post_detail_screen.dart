@@ -7,6 +7,8 @@ import '../../models/post.dart';
 import '../../models/comment.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/di/service_locator.dart';
+import '../../services/post_service.dart';
 
 /// 投稿詳細画面
 ///
@@ -28,6 +30,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   // 返信対象コメント（nullの場合はトップレベルコメント）
   Comment? _replyTarget;
+
+  // コメントタイルのキー管理（返信投稿後に返信リストを再ロードするため）
+  final Map<String, GlobalKey<_CommentTileState>> _commentTileKeys = {};
 
   @override
   void initState() {
@@ -54,19 +59,28 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final userId = authProvider.firebaseUser?.uid ?? '';
     if (userId.isEmpty) return;
 
+    final replyTargetId = _replyTarget?.id;
+
     final success = await context.read<PostProvider>().addComment(
       postId: widget.post.id,
       userId: userId,
       content: text,
       userDisplayName: authProvider.firebaseUser?.displayName,
       userPhotoUrl: authProvider.firebaseUser?.photoURL,
-      parentCommentId: _replyTarget?.id,
+      parentCommentId: replyTargetId,
     );
 
     if (success && mounted) {
       _commentController.clear();
       setState(() => _replyTarget = null);
       _focusNode.unfocus();
+
+      // 返信投稿の場合は対象コメントタイルの返信リストをリセット・再ロード
+      if (replyTargetId != null) {
+        _commentTileKeys[replyTargetId]?.currentState
+            ?.resetAndReloadReplies();
+      }
+
       // 最下部へスクロール
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scrollController.hasClients) {
@@ -181,15 +195,22 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
                       return Column(
                         children: provider.comments
-                            .map((comment) => _CommentTile(
-                                  comment: comment,
-                                  postId: widget.post.id,
-                                  isDark: isDark,
-                                  onReply: (c) {
-                                    setState(() => _replyTarget = c);
-                                    _focusNode.requestFocus();
-                                  },
-                                ))
+                            .map((comment) {
+                              final key = _commentTileKeys.putIfAbsent(
+                                comment.id,
+                                () => GlobalKey<_CommentTileState>(),
+                              );
+                              return _CommentTile(
+                                key: key,
+                                comment: comment,
+                                postId: widget.post.id,
+                                isDark: isDark,
+                                onReply: (c) {
+                                  setState(() => _replyTarget = c);
+                                  _focusNode.requestFocus();
+                                },
+                              );
+                            })
                             .toList(),
                       );
                     },
@@ -573,18 +594,28 @@ class _CategoryBadgeDetail extends StatelessWidget {
 // コメントタイル
 // ---------------------------------------------------------------------------
 
-class _CommentTile extends StatelessWidget {
+class _CommentTile extends StatefulWidget {
   final Comment comment;
   final String postId;
   final bool isDark;
   final void Function(Comment) onReply;
 
   const _CommentTile({
+    super.key,
     required this.comment,
     required this.postId,
     required this.isDark,
     required this.onReply,
   });
+
+  @override
+  State<_CommentTile> createState() => _CommentTileState();
+}
+
+class _CommentTileState extends State<_CommentTile> {
+  bool _isExpanded = false;
+  bool _isLoadingReplies = false;
+  List<Comment> _replies = [];
 
   String _formatTime(DateTime dt) {
     final diff = DateTime.now().difference(dt);
@@ -595,6 +626,247 @@ class _CommentTile extends StatelessWidget {
     return DateFormat('M月d日').format(dt);
   }
 
+  // 返信を取得して展開する
+  Future<void> _toggleReplies() async {
+    if (_isExpanded) {
+      // 展開済みなら畳む
+      setState(() => _isExpanded = false);
+      return;
+    }
+
+    if (_replies.isNotEmpty) {
+      // ロード済みなら再取得せず展開
+      setState(() => _isExpanded = true);
+      return;
+    }
+
+    // 未ロードなら取得してから展開
+    setState(() => _isLoadingReplies = true);
+    try {
+      final postService = ServiceLocator.instance.get<PostService>();
+      final result = await postService.getReplies(
+        commentId: widget.comment.id,
+      );
+      result.when(
+        success: (replies) {
+          if (mounted) {
+            setState(() {
+              _replies = replies;
+              _isExpanded = true;
+            });
+          }
+        },
+        failure: (_) {
+          // エラー時は何もしない（ローディングを止めるだけ）
+        },
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingReplies = false);
+      }
+    }
+  }
+
+  // 返信投稿後に呼び出す: リセットして再ロード
+  Future<void> resetAndReloadReplies() async {
+    setState(() {
+      _replies = [];
+      _isExpanded = false;
+    });
+    await _toggleReplies();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tertiary =
+        widget.isDark ? AppColors.darkTextTertiary : AppColors.textTertiary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ---- メインコメント行 ----
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // アバター
+              CircleAvatar(
+                radius: 16,
+                backgroundColor:
+                    theme.colorScheme.primary.withValues(alpha: 0.15),
+                backgroundImage: widget.comment.userPhotoUrl != null
+                    ? NetworkImage(widget.comment.userPhotoUrl!)
+                    : null,
+                child: widget.comment.userPhotoUrl == null
+                    ? Text(
+                        (widget.comment.userDisplayName?.isNotEmpty ?? false)
+                            ? widget.comment.userDisplayName![0].toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : null,
+              ),
+              AppSpacing.horizontalSm,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 名前 + 時刻
+                    Row(
+                      children: [
+                        Text(
+                          widget.comment.userDisplayName ?? 'ユーザー',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        AppSpacing.horizontalXs,
+                        Text(
+                          _formatTime(widget.comment.createdAt),
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: tertiary, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                    AppSpacing.verticalXxs,
+                    // 本文
+                    Text(
+                      widget.comment.content,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    AppSpacing.verticalXxs,
+                    // アクション行
+                    Row(
+                      children: [
+                        // 返信ボタン
+                        GestureDetector(
+                          onTap: () => widget.onReply(widget.comment),
+                          child: Text(
+                            '返信',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        // 自分のコメントなら削除ボタン
+                        Consumer2<PostProvider, AuthProvider>(
+                          builder: (context, postProvider, authProvider, child) {
+                            final userId = authProvider.firebaseUser?.uid ?? '';
+                            if (widget.comment.userId != userId ||
+                                userId.isEmpty) {
+                              return const SizedBox.shrink();
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.only(left: 12),
+                              child: GestureDetector(
+                                onTap: () async {
+                                  await postProvider.deleteComment(
+                                    commentId: widget.comment.id,
+                                    userId: userId,
+                                    postId: widget.postId,
+                                  );
+                                },
+                                child: Text(
+                                  '削除',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: AppColors.error,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        // 返信数バッジ（タップで展開/畳む）
+                        if (widget.comment.replyCount > 0) ...[
+                          AppSpacing.horizontalSm,
+                          GestureDetector(
+                            onTap: _isLoadingReplies ? null : _toggleReplies,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_isLoadingReplies)
+                                  SizedBox(
+                                    width: 10,
+                                    height: 10,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 1.5,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  )
+                                else
+                                  Icon(
+                                    _isExpanded
+                                        ? Icons.expand_less
+                                        : Icons.expand_more,
+                                    size: 14,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  '返信${widget.comment.replyCount}件',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // ---- インライン返信一覧 ----
+        if (_isExpanded)
+          Padding(
+            padding: const EdgeInsets.only(left: 24),
+            child: Column(
+              children: _replies
+                  .map((reply) => _ReplyTile(
+                        reply: reply,
+                        postId: widget.postId,
+                        isDark: widget.isDark,
+                        formatTime: _formatTime,
+                      ))
+                  .toList(),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 返信タイル（インデント表示）
+// ---------------------------------------------------------------------------
+
+class _ReplyTile extends StatelessWidget {
+  final Comment reply;
+  final String postId;
+  final bool isDark;
+  final String Function(DateTime) formatTime;
+
+  const _ReplyTile({
+    required this.reply,
+    required this.postId,
+    required this.isDark,
+    required this.formatTime,
+  });
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -602,25 +874,25 @@ class _CommentTile extends StatelessWidget {
         isDark ? AppColors.darkTextTertiary : AppColors.textTertiary;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // アバター
+          // アバター（やや小さめ）
           CircleAvatar(
-            radius: 16,
+            radius: 13,
             backgroundColor:
                 theme.colorScheme.primary.withValues(alpha: 0.15),
-            backgroundImage: comment.userPhotoUrl != null
-                ? NetworkImage(comment.userPhotoUrl!)
+            backgroundImage: reply.userPhotoUrl != null
+                ? NetworkImage(reply.userPhotoUrl!)
                 : null,
-            child: comment.userPhotoUrl == null
+            child: reply.userPhotoUrl == null
                 ? Text(
-                    (comment.userDisplayName?.isNotEmpty ?? false)
-                        ? comment.userDisplayName![0].toUpperCase()
+                    (reply.userDisplayName?.isNotEmpty ?? false)
+                        ? reply.userDisplayName![0].toUpperCase()
                         : '?',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 10,
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.bold,
                     ),
@@ -636,77 +908,51 @@ class _CommentTile extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      comment.userDisplayName ?? 'ユーザー',
+                      reply.userDisplayName ?? 'ユーザー',
                       style: theme.textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w600,
+                        fontSize: 12,
                       ),
                     ),
                     AppSpacing.horizontalXs,
                     Text(
-                      _formatTime(comment.createdAt),
+                      formatTime(reply.createdAt),
                       style: theme.textTheme.bodySmall
-                          ?.copyWith(color: tertiary, fontSize: 11),
+                          ?.copyWith(color: tertiary, fontSize: 10),
                     ),
                   ],
                 ),
                 AppSpacing.verticalXxs,
                 // 本文
                 Text(
-                  comment.content,
-                  style: theme.textTheme.bodyMedium,
+                  reply.content,
+                  style: theme.textTheme.bodySmall?.copyWith(fontSize: 13),
                 ),
                 AppSpacing.verticalXxs,
-                // アクション行
-                Row(
-                  children: [
-                    // 返信ボタン
-                    GestureDetector(
-                      onTap: () => onReply(comment),
-                      child: Text(
-                        '返信',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    // 自分のコメントなら削除ボタン
-                    Consumer2<PostProvider, AuthProvider>(
-                      builder: (context, postProvider, authProvider, child) {
-                        final userId = authProvider.firebaseUser?.uid ?? '';
-                        if (comment.userId != userId || userId.isEmpty) {
-                          return const SizedBox.shrink();
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(left: 12),
-                          child: GestureDetector(
-                            onTap: () async {
-                              await postProvider.deleteComment(
-                                commentId: comment.id,
-                                userId: userId,
-                                postId: postId,
-                              );
-                            },
-                            child: Text(
-                              '削除',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.error,
-                              ),
-                            ),
-                          ),
+                // 自分の返信なら削除リンク
+                Consumer2<PostProvider, AuthProvider>(
+                  builder: (context, postProvider, authProvider, child) {
+                    final userId = authProvider.firebaseUser?.uid ?? '';
+                    if (reply.userId != userId || userId.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return GestureDetector(
+                      onTap: () async {
+                        await postProvider.deleteComment(
+                          commentId: reply.id,
+                          userId: userId,
+                          postId: postId,
                         );
                       },
-                    ),
-                    // 返信数バッジ
-                    if (comment.replyCount > 0) ...[
-                      AppSpacing.horizontalSm,
-                      Text(
-                        '返信${comment.replyCount}件',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: tertiary, fontSize: 11),
+                      child: Text(
+                        '削除',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.error,
+                          fontSize: 11,
+                        ),
                       ),
-                    ],
-                  ],
+                    );
+                  },
                 ),
               ],
             ),
