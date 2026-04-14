@@ -223,20 +223,32 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
             ],
           ),
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AddMaintenanceScreen(
-                  vehicleId: _vehicle.id,
-                  currentVehicleMileage: _vehicle.mileage,
-                ),
-              ),
+        // ドライブタブ(index=2)では非表示
+        floatingActionButton: Builder(
+          builder: (context) {
+            final tabController = DefaultTabController.of(context);
+            return AnimatedBuilder(
+              animation: tabController,
+              builder: (context, child) {
+                if (tabController.index == 2) return const SizedBox.shrink();
+                return FloatingActionButton.extended(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AddMaintenanceScreen(
+                          vehicleId: _vehicle.id,
+                          currentVehicleMileage: _vehicle.mileage,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('履歴を追加'),
+                );
+              },
             );
           },
-          icon: const Icon(Icons.add),
-          label: const Text('履歴を追加'),
         ),
       ),
     );
