@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import '../models/shop.dart';
 import '../models/inquiry.dart';
@@ -39,9 +41,14 @@ class ShopProvider with ChangeNotifier {
   // --- 問い合わせ系 ---
   List<Inquiry> _userInquiries = [];
 
-  // --- 店舗オーナー向け問い合わせ件数 ---
+  // --- 店舗オーナー向け問い合わせ一覧・件数 ---
+  List<Inquiry> _shopInquiries = [];
   int _inquiryTotal = 0;
   int _inquiryUnread = 0;
+  bool _isLoadingShopInquiries = false;
+
+  // --- Firestore real-time subscription for inquiry counts ---
+  StreamSubscription<Map<String, int>>? _inquirySubscription;
 
   // --- ローディング/エラー ---
   bool _isLoading = false;
@@ -57,8 +64,10 @@ class ShopProvider with ChangeNotifier {
   ServiceCategory? get selectedService => _selectedService;
   String? get selectedPrefecture => _selectedPrefecture;
   List<Inquiry> get userInquiries => _userInquiries;
+  List<Inquiry> get shopInquiries => _shopInquiries;
   int get inquiryTotal => _inquiryTotal;
   int get inquiryUnread => _inquiryUnread;
+  bool get isLoadingShopInquiries => _isLoadingShopInquiries;
   bool get isLoading => _isLoading;
   bool get isSubmitting => _isSubmitting;
   String? get submitError => _submitError;
@@ -273,7 +282,9 @@ class ShopProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Load inquiry counts (total + unread) for the owner's shop
+  /// Load inquiry counts (total + unread) for the owner's shop (one-shot fetch).
+  ///
+  /// Prefer [startWatchingInquiries] for real-time updates.
   Future<void> loadInquiryCount(String shopId) async {
     final result = await _shopService.getInquiryCount(shopId);
 
@@ -288,6 +299,54 @@ class ShopProvider with ChangeNotifier {
       },
     );
 
+    notifyListeners();
+  }
+
+  /// Start listening to real-time inquiry count updates for [shopId].
+  ///
+  /// Cancels any existing subscription before starting a new one.
+  /// Call [stopWatchingInquiries] or [dispose] to clean up.
+  void startWatchingInquiries(String shopId) {
+    _inquirySubscription?.cancel();
+    _inquirySubscription =
+        _shopService.watchInquiryCount(shopId).listen((data) {
+      _inquiryTotal = data['total'] ?? 0;
+      _inquiryUnread = data['unread'] ?? 0;
+      notifyListeners();
+    });
+  }
+
+  /// Stop listening to real-time inquiry count updates.
+  void stopWatchingInquiries() {
+    _inquirySubscription?.cancel();
+    _inquirySubscription = null;
+  }
+
+  @override
+  void dispose() {
+    _inquirySubscription?.cancel();
+    super.dispose();
+  }
+
+  /// Load inquiry list for the owner's shop
+  Future<void> loadShopInquiries(String shopId, {InquiryStatus? status}) async {
+    _isLoadingShopInquiries = true;
+    notifyListeners();
+
+    final result = await _inquiryService.getShopInquiries(shopId, status: status);
+
+    result.when(
+      success: (inquiries) {
+        _shopInquiries = inquiries;
+        _error = null;
+      },
+      failure: (err) {
+        _error = err;
+        _shopInquiries = [];
+      },
+    );
+
+    _isLoadingShopInquiries = false;
     notifyListeners();
   }
 
@@ -359,8 +418,10 @@ class ShopProvider with ChangeNotifier {
     _selectedShop = null;
     _myShop = null;
     _userInquiries = [];
+    _shopInquiries = [];
     _inquiryTotal = 0;
     _inquiryUnread = 0;
+    _isLoadingShopInquiries = false;
     _selectedType = null;
     _selectedService = null;
     _selectedPrefecture = null;

@@ -7,6 +7,7 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
+import 'shop_inquiry_list_screen.dart';
 import 'shop_registration_screen.dart';
 
 /// Shop owner hub screen.
@@ -26,18 +27,23 @@ class _ShopOwnerScreenState extends State<ShopOwnerScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final uid =
-          context.read<AuthProvider>().firebaseUser?.uid;
+      final uid = context.read<AuthProvider>().firebaseUser?.uid;
       if (uid == null) return;
 
       final provider = context.read<ShopProvider>();
       await provider.loadMyShop(uid);
 
-      // Load inquiry count once the shop is known
+      // Start real-time inquiry count stream once the shop is known
       if (provider.myShop != null) {
-        await provider.loadInquiryCount(provider.myShop!.id);
+        provider.startWatchingInquiries(provider.myShop!.id);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    context.read<ShopProvider>().stopWatchingInquiries();
+    super.dispose();
   }
 
   @override
@@ -274,8 +280,8 @@ class _RegisteredBody extends StatelessWidget {
           // Shop summary card
           _ShopSummaryCard(shop: shop),
           AppSpacing.verticalMd,
-          // Inquiry count badge
-          _InquiryCountBadge(provider: provider),
+          // Inquiry count badge (tappable → ShopInquiryListScreen)
+          _InquiryCountBadge(provider: provider, shopId: shop.id),
           AppSpacing.verticalMd,
           // Edit button
           OutlinedButton.icon(
@@ -444,11 +450,17 @@ class _ShopSummaryCard extends StatelessWidget {
   }
 }
 
-/// Badge showing inquiry count for the shop owner
+/// Badge showing inquiry count for the shop owner.
+///
+/// Tapping navigates to [ShopInquiryListScreen].
 class _InquiryCountBadge extends StatelessWidget {
   final ShopProvider provider;
+  final String shopId;
 
-  const _InquiryCountBadge({required this.provider});
+  const _InquiryCountBadge({
+    required this.provider,
+    required this.shopId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -457,7 +469,15 @@ class _InquiryCountBadge extends StatelessWidget {
     final unread = provider.inquiryUnread;
     final hasUnread = unread > 0;
 
-    return AppCard(
+    return InkWell(
+      borderRadius: AppSpacing.borderRadiusMd,
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ShopInquiryListScreen(shopId: shopId),
+        ),
+      ),
+      child: AppCard(
       backgroundColor: hasUnread
           ? AppColors.infoBackground
           : AppColors.infoBackground,
@@ -514,6 +534,7 @@ class _InquiryCountBadge extends StatelessWidget {
           ),
           const Icon(Icons.chevron_right, color: AppColors.textTertiary),
         ],
+      ),
       ),
     );
   }

@@ -229,6 +229,68 @@ class ShopService {
     }
   }
 
+  /// Stream of inquiry counts for a shop — emits real-time updates.
+  ///
+  /// Each event is {'total': N, 'unread': M} where unread is the number of
+  /// threads with unreadCountShop > 0.
+  ///
+  /// Implementation uses two parallel snapshots merged via Rx-style combineLatest
+  /// approximation: both queries are listened separately and the latest value
+  /// of each is combined on every emission.
+  Stream<Map<String, int>> watchInquiryCount(String shopId) {
+    final inquiriesCollection =
+        _firestore.collection(FirestoreCollections.inquiries);
+
+    // Stream of all inquiry docs for the shop
+    final totalStream = inquiriesCollection
+        .where('shopId', isEqualTo: shopId)
+        .snapshots();
+
+    // Stream of unread inquiry docs for the shop
+    final unreadStream = inquiriesCollection
+        .where('shopId', isEqualTo: shopId)
+        .where('unreadCountShop', isGreaterThan: 0)
+        .snapshots();
+
+    // Combine both streams by keeping track of latest values
+    int latestTotal = 0;
+    int latestUnread = 0;
+
+    return Stream.multi((controller) {
+      bool totalReceived = false;
+      bool unreadReceived = false;
+
+      void emit() {
+        if (totalReceived && unreadReceived) {
+          controller.add({'total': latestTotal, 'unread': latestUnread});
+        }
+      }
+
+      final totalSub = totalStream.listen(
+        (snapshot) {
+          latestTotal = snapshot.docs.length;
+          totalReceived = true;
+          emit();
+        },
+        onError: controller.addError,
+      );
+
+      final unreadSub = unreadStream.listen(
+        (snapshot) {
+          latestUnread = snapshot.docs.length;
+          unreadReceived = true;
+          emit();
+        },
+        onError: controller.addError,
+      );
+
+      controller.onCancel = () {
+        totalSub.cancel();
+        unreadSub.cancel();
+      };
+    });
+  }
+
   /// Get inquiry count for a shop (total and unread by shop)
   ///
   /// Returns {'total': N, 'unread': M} where unread is threads with
