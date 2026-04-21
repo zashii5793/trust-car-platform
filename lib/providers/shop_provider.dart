@@ -328,6 +328,22 @@ class ShopProvider with ChangeNotifier {
     super.dispose();
   }
 
+  /// Mark a shop inquiry as read locally (optimistic update).
+  ///
+  /// Resets [unreadCountShop] to 0 and decrements [_inquiryUnread] if it was
+  /// previously unread. Calls [notifyListeners] so the UI re-renders immediately.
+  void markInquiryAsReadLocally(String inquiryId) {
+    final idx = _shopInquiries.indexWhere((i) => i.id == inquiryId);
+    if (idx == -1) return;
+
+    final inquiry = _shopInquiries[idx];
+    if (inquiry.unreadCountShop <= 0) return;
+
+    _shopInquiries[idx] = inquiry.copyWith(unreadCountShop: 0);
+    if (_inquiryUnread > 0) _inquiryUnread--;
+    notifyListeners();
+  }
+
   /// Load inquiry list for the owner's shop
   Future<void> loadShopInquiries(String shopId, {InquiryStatus? status}) async {
     _isLoadingShopInquiries = true;
@@ -410,6 +426,33 @@ class ShopProvider with ChangeNotifier {
     notifyListeners();
     return success;
   }
+
+  // ---------------------------------------------------------------------------
+  // Inquiry messaging
+  // ---------------------------------------------------------------------------
+
+  /// Send a reply message from the shop side.
+  ///
+  /// [senderId] should be the shop owner's UID.
+  Future<Result<InquiryMessage, AppError>> sendInquiryMessage({
+    required String inquiryId,
+    required String senderId,
+    required String content,
+  }) {
+    return _inquiryService.sendMessage(
+      inquiryId: inquiryId,
+      senderId: senderId,
+      isFromShop: true,
+      content: content,
+    );
+  }
+
+  /// Stream messages for an inquiry thread (real-time).
+  Stream<List<InquiryMessage>> streamInquiryMessages(String inquiryId) {
+    return _inquiryService.streamMessages(inquiryId);
+  }
+
+  // ---------------------------------------------------------------------------
 
   /// 全状態をリセットする（ログアウト時など）
   void clear() {

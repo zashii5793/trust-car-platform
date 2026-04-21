@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/inquiry.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
+import '../../services/inquiry_service.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
@@ -67,14 +69,34 @@ class _ShopInquiryListScreenState extends State<ShopInquiryListScreen> {
   }
 
   /// Show inquiry detail in a bottom sheet.
-  void _showDetail(BuildContext context, Inquiry inquiry) {
+  ///
+  /// If the inquiry has unread messages for the shop, marks it as read before
+  /// opening the sheet so the unread badge disappears immediately.
+  Future<void> _showDetail(BuildContext context, Inquiry inquiry) async {
+    // Mark as read optimistically when tapping an unread inquiry
+    if (inquiry.unreadCountShop > 0) {
+      // Local update first for instant UI feedback
+      if (context.mounted) {
+        context.read<ShopProvider>().markInquiryAsReadLocally(inquiry.id);
+      }
+      // Persist to Firestore in the background (fire-and-forget)
+      InquiryService().markAsRead(inquiryId: inquiry.id, isUser: false);
+    }
+
+    if (!context.mounted) return;
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => _InquiryDetailSheet(inquiry: inquiry),
+      builder: (sheetCtx) => _InquiryDetailSheet(
+        inquiry: inquiry,
+        shopProvider: context.read<ShopProvider>(),
+        senderId:
+            context.read<AuthProvider>().firebaseUser?.uid ?? inquiry.shopId,
+      ),
     );
   }
 }
@@ -117,7 +139,7 @@ class _EmptyView extends StatelessWidget {
 
 class _InquiryTile extends StatelessWidget {
   final Inquiry inquiry;
-  final VoidCallback onTap;
+  final Future<void> Function() onTap;
 
   const _InquiryTile({required this.inquiry, required this.onTap});
 
@@ -315,24 +337,100 @@ class _TypeChip extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Inquiry detail bottom sheet
+// Inquiry detail bottom sheet (with reply input)
 // ---------------------------------------------------------------------------
 
-class _InquiryDetailSheet extends StatelessWidget {
+class _InquiryDetailSheet extends StatefulWidget {
   final Inquiry inquiry;
 
-  const _InquiryDetailSheet({required this.inquiry});
+  /// ShopProvider passed directly to avoid BuildContext scope issues inside
+  /// showModalBottomSheet's builder.
+  final ShopProvider shopProvider;
+
+  /// Firebase UID of the shop owner — used as senderId when sending replies.
+  final String senderId;
+
+  const _InquiryDetailSheet({
+    required this.inquiry,
+    required this.shopProvider,
+    required this.senderId,
+  });
+
+  @override
+  State<_InquiryDetailSheet> createState() => _InquiryDetailSheetState();
+}
+
+class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
+  final TextEditingController _replyController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  bool _isSending = false;
+
+  @override
+  void dispose() {
+    _replyController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Scroll the message list to the bottom.
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  /// Send a reply message from the shop side.
+  Future<void> _sendReply() async {
+    final content = _replyController.text.trim();
+    if (content.isEmpty) return;
+
+    setState(() => _isSending = true);
+
+    final result = await widget.shopProvider.sendInquiryMessage(
+      inquiryId: widget.inquiry.id,
+      senderId: widget.senderId,
+      content: content,
+    );
+
+    if (!mounted) return;
+
+    setState(() => _isSending = false);
+
+    result.when(
+      success: (_) {
+        _replyController.clear();
+        _scrollToBottom();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('返信を送信しました')),
+        );
+      },
+      failure: (err) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(err.userMessage),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      maxChildSize: 0.9,
+      initialChildSize: 0.75,
+      maxChildSize: 0.95,
       minChildSize: 0.4,
       expand: false,
-      builder: (context, scrollController) {
+      builder: (_, __) {
         return Column(
           children: [
             // Drag handle
@@ -347,23 +445,24 @@ class _InquiryDetailSheet extends StatelessWidget {
                 ),
               ),
             ),
+            // Scrollable content area
             Expanded(
               child: ListView(
-                controller: scrollController,
+                controller: _scrollController,
                 padding: AppSpacing.paddingScreen,
                 children: [
                   // Subject
                   Text(
-                    inquiry.subject,
+                    widget.inquiry.subject,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   AppSpacing.verticalXs,
-                  // Meta row
+                  // Meta row: type chip + status chip
                   Row(
                     children: [
-                      _TypeChip(type: inquiry.type),
+                      _TypeChip(type: widget.inquiry.type),
                       AppSpacing.horizontalSm,
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -371,14 +470,15 @@ class _InquiryDetailSheet extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: _statusColor(inquiry.status).withValues(alpha: 0.12),
+                          color: _statusColor(widget.inquiry.status)
+                              .withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          inquiry.status.displayName,
+                          widget.inquiry.status.displayName,
                           style: TextStyle(
                             fontSize: 10,
-                            color: _statusColor(inquiry.status),
+                            color: _statusColor(widget.inquiry.status),
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -388,13 +488,14 @@ class _InquiryDetailSheet extends StatelessWidget {
                   AppSpacing.verticalMd,
                   Divider(color: theme.dividerColor),
                   AppSpacing.verticalMd,
-                  // Initial message
-                  Text(
-                    inquiry.initialMessage,
-                    style: theme.textTheme.bodyMedium,
+                  // Initial message (user's first message)
+                  _MessageBubble(
+                    content: widget.inquiry.initialMessage,
+                    isFromShop: false,
+                    sentAt: widget.inquiry.createdAt,
                   ),
-                  if (inquiry.vehicleDisplay != null) ...[
-                    AppSpacing.verticalMd,
+                  if (widget.inquiry.vehicleDisplay != null) ...[
+                    AppSpacing.verticalSm,
                     Row(
                       children: [
                         const Icon(
@@ -404,7 +505,7 @@ class _InquiryDetailSheet extends StatelessWidget {
                         ),
                         AppSpacing.horizontalXs,
                         Text(
-                          inquiry.vehicleDisplay!,
+                          widget.inquiry.vehicleDisplay!,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -412,23 +513,65 @@ class _InquiryDetailSheet extends StatelessWidget {
                       ],
                     ),
                   ],
-                  AppSpacing.verticalXl,
-                  // Date info
+                  AppSpacing.verticalMd,
+                  // Real-time message thread
+                  StreamBuilder<List<InquiryMessage>>(
+                    stream: widget.shopProvider
+                        .streamInquiryMessages(widget.inquiry.id),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(AppSpacing.md),
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      }
+                      final messages = snapshot.data ?? [];
+                      if (messages.isEmpty) {
+                        return Text(
+                          'まだ返信はありません',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        );
+                      }
+                      return Column(
+                        children: messages
+                            .map(
+                              (msg) => _MessageBubble(
+                                content: msg.content,
+                                isFromShop: msg.isFromShop,
+                                sentAt: msg.sentAt,
+                              ),
+                            )
+                            .toList(),
+                      );
+                    },
+                  ),
+                  // Date info footer
+                  AppSpacing.verticalMd,
                   Text(
-                    '送信日時: ${_formatDateTime(inquiry.createdAt)}',
+                    '送信日時: ${_formatDateTime(widget.inquiry.createdAt)}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  if (inquiry.repliedAt != null)
+                  if (widget.inquiry.repliedAt != null)
                     Text(
-                      '返信日時: ${_formatDateTime(inquiry.repliedAt!)}',
+                      '返信日時: ${_formatDateTime(widget.inquiry.repliedAt!)}',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                 ],
               ),
+            ),
+            // Reply input area (fixed at bottom)
+            _ReplyInputBar(
+              controller: _replyController,
+              isSending: _isSending,
+              onSend: _sendReply,
             ),
           ],
         );
@@ -449,5 +592,154 @@ class _InquiryDetailSheet extends StatelessWidget {
   String _formatDateTime(DateTime dt) {
     return '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')} '
         '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Message bubble
+// ---------------------------------------------------------------------------
+
+class _MessageBubble extends StatelessWidget {
+  final String content;
+  final bool isFromShop;
+  final DateTime sentAt;
+
+  const _MessageBubble({
+    required this.content,
+    required this.isFromShop,
+    required this.sentAt,
+  });
+
+  String _formatTime(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${dt.month}/${dt.day} $h:$m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final alignment =
+        isFromShop ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final bubbleColor = isFromShop
+        ? theme.colorScheme.primaryContainer
+        : theme.colorScheme.surfaceContainerHighest;
+    final textColor = isFromShop
+        ? theme.colorScheme.onPrimaryContainer
+        : theme.colorScheme.onSurface;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Column(
+        crossAxisAlignment: alignment,
+        children: [
+          Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width * 0.75,
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
+            decoration: BoxDecoration(
+              color: bubbleColor,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(12),
+                topRight: const Radius.circular(12),
+                bottomLeft: isFromShop
+                    ? const Radius.circular(12)
+                    : const Radius.circular(2),
+                bottomRight: isFromShop
+                    ? const Radius.circular(2)
+                    : const Radius.circular(12),
+              ),
+            ),
+            child: Text(content, style: TextStyle(color: textColor)),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            _formatTime(sentAt),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reply input bar
+// ---------------------------------------------------------------------------
+
+class _ReplyInputBar extends StatelessWidget {
+  final TextEditingController controller;
+  final bool isSending;
+  final VoidCallback onSend;
+
+  const _ReplyInputBar({
+    required this.controller,
+    required this.isSending,
+    required this.onSend,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.sm + bottom,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          top: BorderSide(color: theme.dividerColor),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: TextField(
+              controller: controller,
+              minLines: 1,
+              maxLines: 4,
+              textInputAction: TextInputAction.newline,
+              decoration: const InputDecoration(
+                hintText: '返信メッセージを入力...',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.sm,
+                ),
+                isDense: true,
+              ),
+            ),
+          ),
+          AppSpacing.horizontalSm,
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: isSending
+                ? const Padding(
+                    padding: EdgeInsets.all(10),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : IconButton(
+                    onPressed: onSend,
+                    icon: const Icon(Icons.send),
+                    color: theme.colorScheme.primary,
+                    tooltip: '送信',
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 }
