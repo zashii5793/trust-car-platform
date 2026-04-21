@@ -25,11 +25,17 @@ class _ShopOwnerScreenState extends State<ShopOwnerScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final uid =
           context.read<AuthProvider>().firebaseUser?.uid;
-      if (uid != null) {
-        context.read<ShopProvider>().loadMyShop(uid);
+      if (uid == null) return;
+
+      final provider = context.read<ShopProvider>();
+      await provider.loadMyShop(uid);
+
+      // Load inquiry count once the shop is known
+      if (provider.myShop != null) {
+        await provider.loadInquiryCount(provider.myShop!.id);
       }
     });
   }
@@ -269,7 +275,7 @@ class _RegisteredBody extends StatelessWidget {
           _ShopSummaryCard(shop: shop),
           AppSpacing.verticalMd,
           // Inquiry count badge
-          _InquiryCountBadge(shop: shop),
+          _InquiryCountBadge(provider: provider),
           AppSpacing.verticalMd,
           // Edit button
           OutlinedButton.icon(
@@ -440,21 +446,26 @@ class _ShopSummaryCard extends StatelessWidget {
 
 /// Badge showing inquiry count for the shop owner
 class _InquiryCountBadge extends StatelessWidget {
-  final Shop shop;
+  final ShopProvider provider;
 
-  const _InquiryCountBadge({required this.shop});
+  const _InquiryCountBadge({required this.provider});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final total = provider.inquiryTotal;
+    final unread = provider.inquiryUnread;
+    final hasUnread = unread > 0;
 
     return AppCard(
-      backgroundColor: AppColors.infoBackground,
+      backgroundColor: hasUnread
+          ? AppColors.infoBackground
+          : AppColors.infoBackground,
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.mail_outline,
-            color: AppColors.info,
+            color: hasUnread ? AppColors.info : AppColors.textTertiary,
             size: AppSpacing.iconMd,
           ),
           AppSpacing.horizontalMd,
@@ -463,17 +474,41 @@ class _InquiryCountBadge extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '未対応の問い合わせ',
+                  '問い合わせ',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                Text(
-                  '問い合わせ管理画面から確認できます',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                if (hasUnread)
+                  RichText(
+                    text: TextSpan(
+                      style: theme.textTheme.bodySmall,
+                      children: [
+                        TextSpan(
+                          text: '全 $total 件',
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const TextSpan(text: '（'),
+                        TextSpan(
+                          text: '未読 $unread 件',
+                          style: TextStyle(
+                            color: AppColors.info,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const TextSpan(text: '）'),
+                      ],
+                    ),
+                  )
+                else
+                  Text(
+                    '問い合わせ $total 件',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
               ],
             ),
           ),

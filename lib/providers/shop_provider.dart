@@ -39,6 +39,10 @@ class ShopProvider with ChangeNotifier {
   // --- 問い合わせ系 ---
   List<Inquiry> _userInquiries = [];
 
+  // --- 店舗オーナー向け問い合わせ件数 ---
+  int _inquiryTotal = 0;
+  int _inquiryUnread = 0;
+
   // --- ローディング/エラー ---
   bool _isLoading = false;
   bool _isSubmitting = false;
@@ -53,6 +57,8 @@ class ShopProvider with ChangeNotifier {
   ServiceCategory? get selectedService => _selectedService;
   String? get selectedPrefecture => _selectedPrefecture;
   List<Inquiry> get userInquiries => _userInquiries;
+  int get inquiryTotal => _inquiryTotal;
+  int get inquiryUnread => _inquiryUnread;
   bool get isLoading => _isLoading;
   bool get isSubmitting => _isSubmitting;
   String? get submitError => _submitError;
@@ -267,6 +273,24 @@ class ShopProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Load inquiry counts (total + unread) for the owner's shop
+  Future<void> loadInquiryCount(String shopId) async {
+    final result = await _shopService.getInquiryCount(shopId);
+
+    result.when(
+      success: (counts) {
+        _inquiryTotal = counts['total'] ?? 0;
+        _inquiryUnread = counts['unread'] ?? 0;
+      },
+      failure: (_) {
+        _inquiryTotal = 0;
+        _inquiryUnread = 0;
+      },
+    );
+
+    notifyListeners();
+  }
+
   /// Create or update the current user's shop
   ///
   /// Returns true on success, false on failure.
@@ -335,6 +359,8 @@ class ShopProvider with ChangeNotifier {
     _selectedShop = null;
     _myShop = null;
     _userInquiries = [];
+    _inquiryTotal = 0;
+    _inquiryUnread = 0;
     _selectedType = null;
     _selectedService = null;
     _selectedPrefecture = null;

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/shop.dart';
@@ -225,6 +226,37 @@ class ShopService {
       return Result.success(Shop.fromFirestore(doc));
     } catch (e) {
       return Result.failure(AppError.server('ショップ情報の取得に失敗しました: $e'));
+    }
+  }
+
+  /// Get inquiry count for a shop (total and unread by shop)
+  ///
+  /// Returns {'total': N, 'unread': M} where unread is threads with
+  /// unreadCountShop > 0.
+  Future<Result<Map<String, int>, AppError>> getInquiryCount(
+    String shopId,
+  ) async {
+    try {
+      final inquiriesCollection =
+          _firestore.collection(FirestoreCollections.inquiries);
+
+      // Fetch all inquiries for this shop
+      final totalSnapshot = await inquiriesCollection
+          .where('shopId', isEqualTo: shopId)
+          .get();
+
+      // Count threads where shop has unread messages
+      final unreadSnapshot = await inquiriesCollection
+          .where('shopId', isEqualTo: shopId)
+          .where('unreadCountShop', isGreaterThan: 0)
+          .get();
+
+      return Result.success({
+        'total': totalSnapshot.docs.length,
+        'unread': unreadSnapshot.docs.length,
+      });
+    } catch (e) {
+      return Result.failure(AppError.server('問い合わせ件数の取得に失敗しました: $e'));
     }
   }
 

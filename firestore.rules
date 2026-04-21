@@ -102,13 +102,18 @@ service cloud.firestore {
 
     // 店舗データ (BtoB Marketplace)
     match /shops/{shopId} {
-      // アクティブな店舗は認証済みユーザーなら誰でも閲覧可能
+      // 認証済みユーザーなら誰でも閲覧可能（アクティブな店舗）
       allow read: if isAuthenticated();
 
-      // 店舗の作成は shopId == 自分のUID の場合のみ（1ユーザー1店舗モデル）
-      allow create: if isAuthenticated() && shopId == request.auth.uid;
-      // 更新・削除は店舗オーナー（shopId == UID）のみ
-      allow update, delete: if isAuthenticated() && shopId == request.auth.uid;
+      // 新規作成: docId == uid、かつ ownerId フィールドも uid と一致
+      allow create: if isAuthenticated()
+        && shopId == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid;
+
+      // 更新・削除: docId == uid かつ既存ドキュメントの ownerId も一致
+      allow update, delete: if isAuthenticated()
+        && shopId == request.auth.uid
+        && resource.data.ownerId == request.auth.uid;
     }
 
     // パーツリスティングデータ (BtoB Marketplace)
@@ -125,19 +130,23 @@ service cloud.firestore {
 
     // 問い合わせデータ (BtoB Marketplace)
     match /inquiries/{inquiryId} {
-      // 問い合わせは当事者（ユーザーまたは店舗）のみ閲覧可能
-      allow read: if isAuthenticated() &&
-        (resource.data.userId == request.auth.uid || resource.data.shopId == request.auth.uid);
+      // ショップオーナー（shopId）とユーザー本人（userId）が読み取り可能
+      allow read: if isAuthenticated()
+        && (request.auth.uid == resource.data.userId
+            || request.auth.uid == resource.data.shopId);
 
-      // 作成時は自分のユーザーIDを設定していること
-      allow create: if isCreatingOwnDocument();
+      // 認証済みユーザーが作成可能（自分の userId を設定していること）
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid;
 
-      // 更新は当事者のみ
-      allow update: if isAuthenticated() &&
-        (resource.data.userId == request.auth.uid || resource.data.shopId == request.auth.uid);
+      // 更新はオーナーまたはユーザー本人（既読フラグ等の更新用）
+      allow update: if isAuthenticated()
+        && (request.auth.uid == resource.data.userId
+            || request.auth.uid == resource.data.shopId);
 
-      // 削除は不可（履歴保持）
-      allow delete: if false;
+      // 削除は本人のみ
+      allow delete: if isAuthenticated()
+        && request.auth.uid == resource.data.userId;
 
       // 問い合わせ内のメッセージ
       match /messages/{messageId} {
