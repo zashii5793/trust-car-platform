@@ -21,6 +21,7 @@ import 'settings/privacy_policy_screen.dart';
 import 'settings/terms_of_service_screen.dart';
 import 'notifications/notification_list_screen.dart';
 import 'marketplace/marketplace_screen.dart';
+import 'marketplace/shop_owner_screen.dart';
 import 'sns/sns_feed_screen.dart';
 import 'drive/drive_log_screen.dart';
 
@@ -108,6 +109,22 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
+
+    // マーケットプレイスタブにオーナー掲載ボタンを表示
+    if (_currentIndex == 1) {
+      actions.add(
+        IconButton(
+          icon: const Icon(Icons.storefront_outlined),
+          tooltip: '店舗を掲載する',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ShopOwnerScreen()),
+            );
+          },
+        ),
+      );
+    }
 
     // 通知タブのみ「すべて既読」ボタンを表示
     if (_currentIndex == 3) {

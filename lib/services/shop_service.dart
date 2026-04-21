@@ -179,6 +179,75 @@ class ShopService {
     }
   }
 
+  /// Create a shop for the current user (docId = uid)
+  Future<Result<Shop, AppError>> createMyShop(Shop shop) async {
+    try {
+      final data = shop.toMap();
+      data['createdAt'] = data['updatedAt']; // Ensure createdAt is set
+      await _shopsCollection.doc(shop.id).set(data);
+      final doc = await _shopsCollection.doc(shop.id).get();
+      return Result.success(Shop.fromFirestore(doc));
+    } catch (e) {
+      return Result.failure(AppError.server('ショップの作成に失敗しました: $e'));
+    }
+  }
+
+  /// Update the current user's shop (validates ownerId before writing)
+  Future<Result<Shop, AppError>> updateMyShop(Shop shop) async {
+    try {
+      final existing = await _shopsCollection.doc(shop.id).get();
+      if (!existing.exists) {
+        return Result.failure(AppError.notFound('ショップが見つかりません'));
+      }
+
+      final existingData = existing.data()!;
+      if (existingData['ownerId'] != shop.ownerId) {
+        return Result.failure(AppError.permission('このショップを更新する権限がありません'));
+      }
+
+      final data = shop.toMap();
+      data['updatedAt'] = data['updatedAt'];
+      await _shopsCollection.doc(shop.id).update(data);
+      final doc = await _shopsCollection.doc(shop.id).get();
+      return Result.success(Shop.fromFirestore(doc));
+    } catch (e) {
+      return Result.failure(AppError.server('ショップの更新に失敗しました: $e'));
+    }
+  }
+
+  /// Get the current user's shop by UID (returns null if not exists)
+  Future<Result<Shop?, AppError>> getMyShop(String uid) async {
+    try {
+      final doc = await _shopsCollection.doc(uid).get();
+      if (!doc.exists) {
+        return Result.success(null);
+      }
+      return Result.success(Shop.fromFirestore(doc));
+    } catch (e) {
+      return Result.failure(AppError.server('ショップ情報の取得に失敗しました: $e'));
+    }
+  }
+
+  /// Delete the current user's shop
+  Future<Result<void, AppError>> deleteMyShop(String uid) async {
+    try {
+      final doc = await _shopsCollection.doc(uid).get();
+      if (!doc.exists) {
+        return Result.failure(AppError.notFound('ショップが見つかりません'));
+      }
+
+      final data = doc.data()!;
+      if (data['ownerId'] != uid) {
+        return Result.failure(AppError.permission('このショップを削除する権限がありません'));
+      }
+
+      await _shopsCollection.doc(uid).delete();
+      return Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.server('ショップの削除に失敗しました: $e'));
+    }
+  }
+
   /// Get shops by service category
   Future<Result<List<Shop>, AppError>> getShopsByService(
     ServiceCategory category, {

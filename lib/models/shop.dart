@@ -1,5 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Listing plan type for BtoB shop registration
+enum ShopPlanType {
+  free,      // Free listing (basic info only)
+  standard,  // Standard plan (9,800 yen/month)
+  premium,   // Premium plan (29,800 yen/month)
+
+  ;
+
+  static ShopPlanType fromString(String? value) {
+    if (value == null) return ShopPlanType.free;
+    try {
+      return ShopPlanType.values.firstWhere((e) => e.name == value);
+    } catch (_) {
+      return ShopPlanType.free;
+    }
+  }
+}
+
 /// Shop type classification
 enum ShopType {
   maintenanceShop('整備工場', 'Maintenance Shop'),
@@ -127,6 +145,11 @@ class Shop {
   final bool isFeatured;      // Featured/promoted
   final DateTime? verifiedAt;
 
+  // Plan
+  final ShopPlanType planType;   // Listing plan (default: free)
+  final DateTime? planExpiresAt; // Plan expiration date
+  final String? ownerId;         // Owner's UID
+
   // Status
   final bool isActive;
   final DateTime createdAt;
@@ -155,6 +178,9 @@ class Shop {
     this.isVerified = false,
     this.isFeatured = false,
     this.verifiedAt,
+    this.planType = ShopPlanType.free,
+    this.planExpiresAt,
+    this.ownerId,
     this.isActive = true,
     required this.createdAt,
     required this.updatedAt,
@@ -231,6 +257,9 @@ class Shop {
       isVerified: data['isVerified'] ?? false,
       isFeatured: data['isFeatured'] ?? false,
       verifiedAt: (data['verifiedAt'] as Timestamp?)?.toDate(),
+      planType: ShopPlanType.fromString(data['planType']),
+      planExpiresAt: (data['planExpiresAt'] as Timestamp?)?.toDate(),
+      ownerId: data['ownerId'],
       isActive: data['isActive'] ?? true,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -262,6 +291,9 @@ class Shop {
       'isVerified': isVerified,
       'isFeatured': isFeatured,
       'verifiedAt': verifiedAt != null ? Timestamp.fromDate(verifiedAt!) : null,
+      'planType': planType.name,
+      'planExpiresAt': planExpiresAt != null ? Timestamp.fromDate(planExpiresAt!) : null,
+      'ownerId': ownerId,
       'isActive': isActive,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -291,6 +323,9 @@ class Shop {
     bool? isVerified,
     bool? isFeatured,
     DateTime? verifiedAt,
+    ShopPlanType? planType,
+    DateTime? planExpiresAt,
+    String? ownerId,
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -318,6 +353,9 @@ class Shop {
       isVerified: isVerified ?? this.isVerified,
       isFeatured: isFeatured ?? this.isFeatured,
       verifiedAt: verifiedAt ?? this.verifiedAt,
+      planType: planType ?? this.planType,
+      planExpiresAt: planExpiresAt ?? this.planExpiresAt,
+      ownerId: ownerId ?? this.ownerId,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

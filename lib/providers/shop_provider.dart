@@ -4,6 +4,7 @@ import '../models/inquiry.dart';
 import '../services/shop_service.dart';
 import '../services/inquiry_service.dart';
 import '../core/error/app_error.dart';
+import '../core/result/result.dart';
 
 /// BtoBマーケットプレイス プロバイダー
 ///
@@ -26,6 +27,10 @@ class ShopProvider with ChangeNotifier {
   List<Shop> _featuredShops = [];
   Shop? _selectedShop;
 
+  // --- 自分のショップ ---
+  Shop? _myShop;
+  String? _submitError;
+
   // --- フィルタ状態 ---
   ShopType? _selectedType;
   ServiceCategory? _selectedService;
@@ -43,12 +48,14 @@ class ShopProvider with ChangeNotifier {
   List<Shop> get shops => _shops;
   List<Shop> get featuredShops => _featuredShops;
   Shop? get selectedShop => _selectedShop;
+  Shop? get myShop => _myShop;
   ShopType? get selectedType => _selectedType;
   ServiceCategory? get selectedService => _selectedService;
   String? get selectedPrefecture => _selectedPrefecture;
   List<Inquiry> get userInquiries => _userInquiries;
   bool get isLoading => _isLoading;
   bool get isSubmitting => _isSubmitting;
+  String? get submitError => _submitError;
   AppError? get error => _error;
   String? get errorMessage => _error?.userMessage;
 
@@ -238,17 +245,102 @@ class ShopProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Load the current user's own shop
+  Future<void> loadMyShop(String uid) async {
+    _isLoading = true;
+    notifyListeners();
+
+    final result = await _shopService.getMyShop(uid);
+
+    result.when(
+      success: (shop) {
+        _myShop = shop;
+        _error = null;
+      },
+      failure: (err) {
+        _error = err;
+        _myShop = null;
+      },
+    );
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Create or update the current user's shop
+  ///
+  /// Returns true on success, false on failure.
+  Future<bool> saveMyShop(Shop shop) async {
+    _isSubmitting = true;
+    _submitError = null;
+    notifyListeners();
+
+    // Determine create or update based on existing _myShop
+    final Result<Shop, AppError> result = _myShop == null
+        ? await _shopService.createMyShop(shop)
+        : await _shopService.updateMyShop(shop);
+
+    bool success = false;
+    result.when(
+      success: (saved) {
+        _myShop = saved;
+        _error = null;
+        success = true;
+      },
+      failure: (err) {
+        _error = err;
+        _submitError = err.userMessage;
+        success = false;
+      },
+    );
+
+    _isSubmitting = false;
+    notifyListeners();
+    return success;
+  }
+
+  /// Delete the current user's shop
+  ///
+  /// Returns true on success, false on failure.
+  Future<bool> deleteMyShop(String uid) async {
+    _isSubmitting = true;
+    _submitError = null;
+    notifyListeners();
+
+    final result = await _shopService.deleteMyShop(uid);
+
+    bool success = false;
+    result.when(
+      success: (_) {
+        _myShop = null;
+        _error = null;
+        success = true;
+      },
+      failure: (err) {
+        _error = err;
+        _submitError = err.userMessage;
+        success = false;
+      },
+    );
+
+    _isSubmitting = false;
+    notifyListeners();
+    return success;
+  }
+
   /// 全状態をリセットする（ログアウト時など）
   void clear() {
     _shops = [];
     _featuredShops = [];
     _selectedShop = null;
+    _myShop = null;
     _userInquiries = [];
     _selectedType = null;
     _selectedService = null;
     _selectedPrefecture = null;
     _isLoading = false;
     _isSubmitting = false;
+    _submitError = null;
     _error = null;
     notifyListeners();
   }
