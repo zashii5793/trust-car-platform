@@ -116,6 +116,20 @@ service cloud.firestore {
         && resource.data.ownerId == request.auth.uid;
     }
 
+    // ユーザー出品パーツリスティング (C2C Marketplace)
+    match /user_part_listings/{listingId} {
+      // 認証済みユーザーなら誰でも閲覧可能
+      allow read: if isAuthenticated();
+
+      // 作成: 自分の sellerId でのみ作成可能
+      allow create: if isAuthenticated()
+        && request.resource.data.sellerId == request.auth.uid;
+
+      // 更新・削除: 出品者本人のみ
+      allow update, delete: if isAuthenticated()
+        && resource.data.sellerId == request.auth.uid;
+    }
+
     // パーツリスティングデータ (BtoB Marketplace)
     match /part_listings/{listingId} {
       // 有効なリスティングは認証済みユーザーなら誰でも閲覧可能

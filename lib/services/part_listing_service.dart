@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/part_listing.dart';
+import '../models/user_part_listing.dart';
 import 'firebase_service.dart';
 
 /// Condition (used state) of a part being listed for sale
@@ -168,6 +169,70 @@ class PartListingService {
     } catch (e) {
       return Result.failure(AppError.unknown(
         'Failed to create listing',
+        originalError: e,
+      ));
+    }
+  }
+
+  /// Get listings created by the specified seller, ordered by createdAt descending.
+  Future<Result<List<UserPartListing>, AppError>> getMyListings(
+    String sellerId,
+  ) async {
+    if (sellerId.isEmpty) {
+      return const Result.failure(
+        AppError.validation('Seller ID is required', field: 'sellerId'),
+      );
+    }
+
+    try {
+      final snapshot = await _ref
+          .where('sellerId', isEqualTo: sellerId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      final listings = snapshot.docs
+          .map((doc) => UserPartListing.fromFirestore(doc))
+          .toList();
+
+      return Result.success(listings);
+    } on FirebaseException catch (e) {
+      return Result.failure(AppError.unknown(
+        'Failed to fetch listings: ${e.message}',
+        originalError: e,
+      ));
+    } catch (e) {
+      return Result.failure(AppError.unknown(
+        'Failed to fetch listings',
+        originalError: e,
+      ));
+    }
+  }
+
+  /// Update the status of a listing (e.g. soldOut, cancelled).
+  Future<Result<void, AppError>> updateListingStatus(
+    String listingId,
+    PartListingStatus status,
+  ) async {
+    if (listingId.isEmpty) {
+      return const Result.failure(
+        AppError.validation('Listing ID is required', field: 'listingId'),
+      );
+    }
+
+    try {
+      await _ref.doc(listingId).update({
+        'status': status.name,
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+      return const Result.success(null);
+    } on FirebaseException catch (e) {
+      return Result.failure(AppError.unknown(
+        'Failed to update listing status: ${e.message}',
+        originalError: e,
+      ));
+    } catch (e) {
+      return Result.failure(AppError.unknown(
+        'Failed to update listing status',
         originalError: e,
       ));
     }

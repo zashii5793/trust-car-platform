@@ -5,6 +5,7 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../marketplace/my_listings_screen.dart';
 import 'settings_screen.dart';
 
 /// プロフィール画面
@@ -74,6 +75,26 @@ class ProfileScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (context) => const SettingsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+
+                AppSpacing.verticalMd,
+
+                _MenuSection(
+                  title: 'マーケットプレイス',
+                  items: [
+                    _MenuItem(
+                      icon: Icons.sell_outlined,
+                      label: 'マイ出品',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const MyListingsScreen(),
                           ),
                         );
                       },
