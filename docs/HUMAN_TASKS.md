@@ -29,9 +29,8 @@
 
 ### Firebase / インフラ
 
-- [ ] **Firestore ルール & インデックスを本番に適用**
+- [x] **Firestore ルール & インデックスを本番に適用** — 2026-04-15 完了
   ```bash
-  firebase login
   firebase deploy --only firestore:rules,firestore:indexes
   ```
   - 確認: Firebase Console → Firestore → ルール タブで最新が反映されているか
