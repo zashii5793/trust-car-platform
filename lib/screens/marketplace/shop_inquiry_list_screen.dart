@@ -364,6 +364,16 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
   final TextEditingController _replyController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isSending = false;
+  bool _isUpdatingStatus = false;
+
+  // Local copy of the inquiry to reflect status changes immediately.
+  late Inquiry _inquiry;
+
+  @override
+  void initState() {
+    super.initState();
+    _inquiry = widget.inquiry;
+  }
 
   @override
   void dispose() {
@@ -393,7 +403,7 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
     setState(() => _isSending = true);
 
     final result = await widget.shopProvider.sendInquiryMessage(
-      inquiryId: widget.inquiry.id,
+      inquiryId: _inquiry.id,
       senderId: widget.senderId,
       content: content,
     );
@@ -419,6 +429,62 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
         );
       },
     );
+  }
+
+  /// Show confirmation dialog and update inquiry status.
+  Future<void> _changeStatus(InquiryStatus newStatus) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('ステータス変更'),
+        content: Text('ステータスを「${newStatus.displayName}」に変更しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('変更する'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    setState(() => _isUpdatingStatus = true);
+
+    final success = await widget.shopProvider.updateInquiryStatus(
+      _inquiry.id,
+      newStatus,
+    );
+
+    if (!mounted) return;
+
+    setState(() => _isUpdatingStatus = false);
+
+    if (success) {
+      // Reflect the new status locally for immediate feedback.
+      setState(() {
+        _inquiry = _inquiry.copyWith(status: newStatus);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('ステータスを「${newStatus.displayName}」に変更しました'),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.shopProvider.errorMessage ?? 'ステータスの変更に失敗しました',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   @override
@@ -453,7 +519,7 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
                 children: [
                   // Subject
                   Text(
-                    widget.inquiry.subject,
+                    _inquiry.subject,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -462,7 +528,7 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
                   // Meta row: type chip + status chip
                   Row(
                     children: [
-                      _TypeChip(type: widget.inquiry.type),
+                      _TypeChip(type: _inquiry.type),
                       AppSpacing.horizontalSm,
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -470,15 +536,15 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: _statusColor(widget.inquiry.status)
+                          color: _statusColor(_inquiry.status)
                               .withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          widget.inquiry.status.displayName,
+                          _inquiry.status.displayName,
                           style: TextStyle(
                             fontSize: 10,
-                            color: _statusColor(widget.inquiry.status),
+                            color: _statusColor(_inquiry.status),
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -490,11 +556,11 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
                   AppSpacing.verticalMd,
                   // Initial message (user's first message)
                   _MessageBubble(
-                    content: widget.inquiry.initialMessage,
+                    content: _inquiry.initialMessage,
                     isFromShop: false,
-                    sentAt: widget.inquiry.createdAt,
+                    sentAt: _inquiry.createdAt,
                   ),
-                  if (widget.inquiry.vehicleDisplay != null) ...[
+                  if (_inquiry.vehicleDisplay != null) ...[
                     AppSpacing.verticalSm,
                     Row(
                       children: [
@@ -505,7 +571,7 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
                         ),
                         AppSpacing.horizontalXs,
                         Text(
-                          widget.inquiry.vehicleDisplay!,
+                          _inquiry.vehicleDisplay!,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -517,7 +583,7 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
                   // Real-time message thread
                   StreamBuilder<List<InquiryMessage>>(
                     stream: widget.shopProvider
-                        .streamInquiryMessages(widget.inquiry.id),
+                        .streamInquiryMessages(_inquiry.id),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(
@@ -552,20 +618,26 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
                   // Date info footer
                   AppSpacing.verticalMd,
                   Text(
-                    '送信日時: ${_formatDateTime(widget.inquiry.createdAt)}',
+                    '送信日時: ${_formatDateTime(_inquiry.createdAt)}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  if (widget.inquiry.repliedAt != null)
+                  if (_inquiry.repliedAt != null)
                     Text(
-                      '返信日時: ${_formatDateTime(widget.inquiry.repliedAt!)}',
+                      '返信日時: ${_formatDateTime(_inquiry.repliedAt!)}',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                 ],
               ),
+            ),
+            // Status change action bar (above reply input)
+            _StatusActionBar(
+              status: _inquiry.status,
+              isLoading: _isUpdatingStatus,
+              onChangeStatus: _changeStatus,
             ),
             // Reply input area (fixed at bottom)
             _ReplyInputBar(
@@ -667,6 +739,149 @@ class _MessageBubble extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Status action bar
+// ---------------------------------------------------------------------------
+
+/// Shows the current status badge and action buttons to change the status.
+///
+/// - pending / replied: shows "対応中にする" + "クローズ" buttons
+/// - inProgress: shows "クローズ" button only
+/// - closed / cancelled: shows "再オープン" button
+class _StatusActionBar extends StatelessWidget {
+  final InquiryStatus status;
+  final bool isLoading;
+  final void Function(InquiryStatus) onChangeStatus;
+
+  const _StatusActionBar({
+    required this.status,
+    required this.isLoading,
+    required this.onChangeStatus,
+  });
+
+  Color _statusColor(InquiryStatus s) {
+    return switch (s) {
+      InquiryStatus.pending => AppColors.info,
+      InquiryStatus.inProgress => AppColors.warning,
+      InquiryStatus.replied => AppColors.success,
+      InquiryStatus.closed => AppColors.textTertiary,
+      InquiryStatus.cancelled => AppColors.error,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    // Determine which action buttons to show based on current status.
+    final List<_StatusButton> buttons = switch (status) {
+      InquiryStatus.pending || InquiryStatus.replied => [
+          _StatusButton(
+            label: '対応中にする',
+            status: InquiryStatus.inProgress,
+            color: AppColors.warning,
+          ),
+          _StatusButton(
+            label: 'クローズ',
+            status: InquiryStatus.closed,
+            color: AppColors.textTertiary,
+          ),
+        ],
+      InquiryStatus.inProgress => [
+          _StatusButton(
+            label: 'クローズ',
+            status: InquiryStatus.closed,
+            color: AppColors.textTertiary,
+          ),
+        ],
+      InquiryStatus.closed || InquiryStatus.cancelled => [
+          _StatusButton(
+            label: '再オープン',
+            status: InquiryStatus.pending,
+            color: AppColors.info,
+          ),
+        ],
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        border: Border(top: BorderSide(color: theme.dividerColor)),
+      ),
+      child: Row(
+        children: [
+          // Current status badge
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: 4,
+            ),
+            decoration: BoxDecoration(
+              color: _statusColor(status).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              status.displayName,
+              style: TextStyle(
+                fontSize: 11,
+                color: _statusColor(status),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          AppSpacing.horizontalSm,
+          // Spacer pushes buttons to the right
+          const Spacer(),
+          if (isLoading)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            ...buttons.map(
+              (btn) => Padding(
+                padding: const EdgeInsets.only(left: AppSpacing.xs),
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: btn.color,
+                    side: BorderSide(color: btn.color),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: 4,
+                    ),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: const TextStyle(fontSize: 12),
+                  ),
+                  onPressed: () => onChangeStatus(btn.status),
+                  child: Text(btn.label),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Data class for a single status action button.
+class _StatusButton {
+  final String label;
+  final InquiryStatus status;
+  final Color color;
+
+  const _StatusButton({
+    required this.label,
+    required this.status,
+    required this.color,
+  });
 }
 
 // ---------------------------------------------------------------------------

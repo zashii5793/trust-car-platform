@@ -452,6 +452,37 @@ class ShopProvider with ChangeNotifier {
     return _inquiryService.streamMessages(inquiryId);
   }
 
+  /// Update inquiry status (shop owner only).
+  ///
+  /// On success, updates the matching item in [_shopInquiries] locally
+  /// and calls [notifyListeners].
+  /// Returns true on success, false on failure.
+  Future<bool> updateInquiryStatus(
+    String inquiryId,
+    InquiryStatus status,
+  ) async {
+    final result = await _inquiryService.updateStatus(inquiryId, status);
+
+    bool success = false;
+    result.when(
+      success: (updated) {
+        final idx = _shopInquiries.indexWhere((i) => i.id == inquiryId);
+        if (idx != -1) {
+          _shopInquiries[idx] = updated;
+        }
+        _error = null;
+        success = true;
+      },
+      failure: (err) {
+        _error = err;
+        success = false;
+      },
+    );
+
+    notifyListeners();
+    return success;
+  }
+
   // ---------------------------------------------------------------------------
 
   /// 全状態をリセットする（ログアウト時など）
