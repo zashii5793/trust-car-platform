@@ -8,10 +8,16 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
 
+/// Filter options displayed in the chip row.
+///
+/// [null] means "all statuses" (no filter applied).
+typedef _StatusFilter = InquiryStatus?;
+
 /// Shop owner's inquiry list screen.
 ///
 /// Displays all inquiries for the given [shopId], sorted by updated date.
 /// Unread inquiries are visually highlighted with a left border and bold text.
+/// A filter chip row below the AppBar allows filtering by status.
 class ShopInquiryListScreen extends StatefulWidget {
   final String shopId;
 
@@ -22,6 +28,17 @@ class ShopInquiryListScreen extends StatefulWidget {
 }
 
 class _ShopInquiryListScreenState extends State<ShopInquiryListScreen> {
+  /// Currently selected status filter. null = show all.
+  _StatusFilter _selectedStatus;
+
+  /// Ordered list of filter options shown in the chip row.
+  static const List<({_StatusFilter status, String label})> _filterOptions = [
+    (status: null, label: 'すべて'),
+    (status: InquiryStatus.pending, label: '未対応'),
+    (status: InquiryStatus.inProgress, label: '対応中'),
+    (status: InquiryStatus.closed, label: 'クローズ'),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -30,40 +47,68 @@ class _ShopInquiryListScreenState extends State<ShopInquiryListScreen> {
     });
   }
 
+  /// Switch the active status filter and reload from Firestore.
+  void _applyFilter(_StatusFilter status) {
+    if (_selectedStatus == status) return;
+    setState(() => _selectedStatus = status);
+    context.read<ShopProvider>().loadShopInquiries(
+          widget.shopId,
+          status: status,
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('問い合わせ一覧')),
-      body: Consumer<ShopProvider>(
-        builder: (context, provider, _) {
-          if (provider.isLoadingShopInquiries) {
-            return const AppLoadingCenter(message: '問い合わせを読み込み中...');
-          }
+      body: Column(
+        children: [
+          // Status filter chip row
+          _FilterChipRow(
+            options: _filterOptions,
+            selectedStatus: _selectedStatus,
+            onSelected: _applyFilter,
+          ),
+          // Inquiry list
+          Expanded(
+            child: Consumer<ShopProvider>(
+              builder: (context, provider, _) {
+                if (provider.isLoadingShopInquiries) {
+                  return const AppLoadingCenter(message: '問い合わせを読み込み中...');
+                }
 
-          final inquiries = provider.shopInquiries;
+                final inquiries = provider.shopInquiries;
 
-          if (inquiries.isEmpty) {
-            return const _EmptyView();
-          }
+                if (inquiries.isEmpty) {
+                  return _EmptyView(
+                    isFiltered: _selectedStatus != null,
+                  );
+                }
 
-          return RefreshIndicator(
-            onRefresh: () =>
-                provider.loadShopInquiries(widget.shopId),
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              itemCount: inquiries.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(height: 1, indent: AppSpacing.md),
-              itemBuilder: (context, index) {
-                final inquiry = inquiries[index];
-                return _InquiryTile(
-                  inquiry: inquiry,
-                  onTap: () => _showDetail(context, inquiry),
+                return RefreshIndicator(
+                  onRefresh: () => provider.loadShopInquiries(
+                    widget.shopId,
+                    status: _selectedStatus,
+                  ),
+                  child: ListView.separated(
+                    padding:
+                        const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    itemCount: inquiries.length,
+                    separatorBuilder: (_, __) =>
+                        const Divider(height: 1, indent: AppSpacing.md),
+                    itemBuilder: (context, index) {
+                      final inquiry = inquiries[index];
+                      return _InquiryTile(
+                        inquiry: inquiry,
+                        onTap: () => _showDetail(context, inquiry),
+                      );
+                    },
+                  ),
                 );
               },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -102,11 +147,77 @@ class _ShopInquiryListScreenState extends State<ShopInquiryListScreen> {
 }
 
 // ---------------------------------------------------------------------------
+// Filter chip row
+// ---------------------------------------------------------------------------
+
+/// Horizontally scrollable row of filter chips for status selection.
+class _FilterChipRow extends StatelessWidget {
+  final List<({_StatusFilter status, String label})> options;
+  final _StatusFilter selectedStatus;
+  final void Function(_StatusFilter) onSelected;
+
+  const _FilterChipRow({
+    required this.options,
+    required this.selectedStatus,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: theme.dividerColor),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: options.map((opt) {
+            final isSelected = selectedStatus == opt.status;
+            return Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              child: FilterChip(
+                label: Text(opt.label),
+                selected: isSelected,
+                onSelected: (_) => onSelected(opt.status),
+                selectedColor: primary.withValues(alpha: 0.15),
+                checkmarkColor: primary,
+                labelStyle: TextStyle(
+                  color: isSelected ? primary : theme.colorScheme.onSurface,
+                  fontWeight:
+                      isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 13,
+                ),
+                side: isSelected
+                    ? BorderSide(color: primary)
+                    : BorderSide(color: theme.colorScheme.outlineVariant),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Empty state
 // ---------------------------------------------------------------------------
 
 class _EmptyView extends StatelessWidget {
-  const _EmptyView();
+  /// Whether the empty state is due to an active filter (vs no inquiries at all).
+  final bool isFiltered;
+
+  const _EmptyView({this.isFiltered = false});
 
   @override
   Widget build(BuildContext context) {
@@ -116,13 +227,15 @@ class _EmptyView extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.mail_outline,
+            isFiltered ? Icons.filter_list_off : Icons.mail_outline,
             size: 56,
             color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
           ),
           AppSpacing.verticalMd,
           Text(
-            'まだ問い合わせはありません',
+            isFiltered
+                ? 'このステータスの問い合わせはありません'
+                : 'まだ問い合わせはありません',
             style: theme.textTheme.bodyLarge?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

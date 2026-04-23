@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/part_listing.dart';
 import '../../models/vehicle.dart';
 import '../../providers/part_recommendation_provider.dart';
+import 'create_listing_screen.dart';
 import 'part_detail_screen.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
@@ -78,6 +79,21 @@ class _PartListScreenState extends State<PartListScreen> {
                   },
                 ),
             ],
+          ),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () async {
+              final result = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const CreateListingScreen(),
+                ),
+              );
+              if (result == true) {
+                _load(category: _selectedCategory);
+              }
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('出品する'),
           ),
           body: Column(
             children: [

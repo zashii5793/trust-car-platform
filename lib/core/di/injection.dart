@@ -24,6 +24,7 @@ import '../../services/post_service.dart';
 import '../../services/follow_service.dart';
 import '../../services/vehicle_listing_service.dart';
 import '../../services/drive_log_service.dart';
+import '../../services/part_listing_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -93,6 +94,13 @@ class Injection {
 
     // Drive Log Service (Drive Log/Map features)
     locator.registerLazySingleton<DriveLogService>(() => DriveLogService());
+
+    // Part Listing Service (user-to-user marketplace listings)
+    locator.registerLazySingleton<PartListingService>(
+      () => PartListingService(
+        firebaseService: locator.get<FirebaseService>(),
+      ),
+    );
 
     _initialized = true;
   }
