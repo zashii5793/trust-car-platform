@@ -111,11 +111,12 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
       case _ListingAction.cancel:
         await _updateStatus(listing, PartListingStatus.cancelled);
       case _ListingAction.edit:
-        // Navigate to CreateListingScreen (edit mode is not yet supported;
-        // open a new screen as a placeholder until edit feature is ready).
+        // Navigate to CreateListingScreen in edit mode, passing the existing listing.
         final refreshed = await Navigator.push<bool>(
           context,
-          MaterialPageRoute(builder: (_) => const CreateListingScreen()),
+          MaterialPageRoute(
+            builder: (_) => CreateListingScreen(existingListing: listing),
+          ),
         );
         if (refreshed == true && mounted) {
           _loadListings();
@@ -232,6 +233,7 @@ class _ListingCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusMd),
       child: InkWell(
         borderRadius: AppSpacing.borderRadiusMd,
+        onTap: onMenuTap,
         onLongPress: onMenuTap,
         child: Padding(
           padding: AppSpacing.paddingCard,

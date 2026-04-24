@@ -144,6 +144,19 @@
     },
 
     // =========================================================
+    // user_part_listings
+    // =========================================================
+    // 出品者の出品一覧（新着順）
+    {
+      "collectionGroup": "user_part_listings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sellerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+
+    // =========================================================
     // inquiries
     // =========================================================
     // ユーザー問い合わせ一覧
@@ -171,6 +184,15 @@
       "fields": [
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "unreadCountUser", "order": "DESCENDING" }
+      ]
+    },
+    // 店舗未読カウント
+    {
+      "collectionGroup": "inquiries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "unreadCountShop", "order": "ASCENDING" }
       ]
     },
 

@@ -57,7 +57,7 @@ mixin BaseProviderMixin on ChangeNotifier {
 
   // ── Result runner ─────────────────────────────────────────────────────────
 
-  /// Result<T,AppError> を返す非同期処理をローディング状態で包む。
+  /// [Result] を返す非同期処理をローディング状態で包む。
   ///
   /// 成功時は [onSuccess] を呼び出し、失敗時はエラーをセットする。
   /// 戻り値は処理が成功したかどうかを返す。

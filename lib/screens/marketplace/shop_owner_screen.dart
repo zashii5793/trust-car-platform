@@ -479,8 +479,8 @@ class _InquiryCountBadge extends StatelessWidget {
       ),
       child: AppCard(
       backgroundColor: hasUnread
-          ? AppColors.infoBackground
-          : AppColors.infoBackground,
+          ? AppColors.primary.withValues(alpha: 0.12)
+          : theme.colorScheme.surfaceContainerHighest,
       child: Row(
         children: [
           Icon(

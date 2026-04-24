@@ -8,11 +8,17 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/part_listing.dart';
+import '../../models/user_part_listing.dart';
 import '../../services/part_listing_service.dart';
 
-/// Screen for creating a new user-submitted part listing
+/// Screen for creating or editing a user-submitted part listing.
+///
+/// Pass [existingListing] to open in edit mode; omit (null) for new listing.
 class CreateListingScreen extends StatefulWidget {
-  const CreateListingScreen({super.key});
+  const CreateListingScreen({super.key, this.existingListing});
+
+  /// When non-null, the screen opens in edit mode pre-filled with this data.
+  final UserPartListing? existingListing;
 
   @override
   State<CreateListingScreen> createState() => _CreateListingScreenState();
@@ -33,6 +39,27 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
   static const int _maxImages = 5;
   static const int _maxDescriptionLength = 1000;
+
+  bool get _isEditMode => widget.existingListing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill fields when editing an existing listing
+    final existing = widget.existingListing;
+    if (existing != null) {
+      _titleController.text = existing.title;
+      _priceController.text = existing.price.toString();
+      _descriptionController.text = existing.description;
+      _compatibleVehicleController.text = existing.compatibleVehicle ?? '';
+      _selectedCategory = existing.category;
+      _selectedCondition = existing.condition;
+      _selectedShippingMethod = existing.shippingMethod;
+      // NOTE: existing image URLs are not loaded as File objects here because
+      // Firebase Storage download + re-upload is not yet implemented.
+      // Images will be cleared on edit submit until that feature is added.
+    }
+  }
 
   @override
   void dispose() {
@@ -140,7 +167,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('出品する'),
+        title: Text(_isEditMode ? '出品を編集' : '出品する'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: AppSpacing.sm),
@@ -155,7 +182,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : const Text('出品'),
+                  : Text(_isEditMode ? '更新' : '出品'),
             ),
           ),
         ],
@@ -292,7 +319,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : const Text('出品する'),
+                  : Text(_isEditMode ? '更新する' : '出品する'),
             ),
             AppSpacing.verticalXl,
           ],

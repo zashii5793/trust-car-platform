@@ -1,7 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/colors.dart';
@@ -25,45 +22,18 @@ class PostCreateScreen extends StatefulWidget {
 
 class _PostCreateScreenState extends State<PostCreateScreen> {
   final _contentController = TextEditingController();
-  final _imagePicker = ImagePicker();
 
   PostCategory _selectedCategory = PostCategory.general;
-
-  /// Selected image files (max 3)
-  final List<XFile> _selectedImages = [];
 
   /// Selected vehicle for tagging
   Vehicle? _selectedVehicle;
 
   static const int _maxLength = 500;
-  static const int _maxImages = 3;
 
   @override
   void dispose() {
     _contentController.dispose();
     super.dispose();
-  }
-
-  // ── Image picking ─────────────────────────────────────────────────────────
-
-  Future<void> _pickImage() async {
-    if (_selectedImages.length >= _maxImages) return;
-
-    final picked = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
-    if (picked == null) return;
-
-    setState(() {
-      _selectedImages.add(picked);
-    });
-  }
-
-  void _removeImage(int index) {
-    setState(() {
-      _selectedImages.removeAt(index);
-    });
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────
@@ -215,14 +185,11 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
           AppSpacing.verticalLg,
 
           // ── Image attachment area ─────────────────────────────────────────
+          // NOTE: Image upload is not yet available. Show a disabled placeholder
+          // instead of a silently broken picker to avoid confusing users.
           _SectionLabel(label: '画像（任意）'),
           AppSpacing.verticalSm,
-          _ImageAttachmentArea(
-            images: _selectedImages,
-            maxImages: _maxImages,
-            onAdd: _pickImage,
-            onRemove: _removeImage,
-          ),
+          _ImageAttachmentComingSoon(),
 
           AppSpacing.verticalLg,
 
@@ -339,104 +306,40 @@ class _CategoryChipRow extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Image attachment area
+// Image attachment — coming soon placeholder (image upload not yet implemented)
 // ---------------------------------------------------------------------------
 
-class _ImageAttachmentArea extends StatelessWidget {
-  final List<XFile> images;
-  final int maxImages;
-  final VoidCallback onAdd;
-  final ValueChanged<int> onRemove;
-
-  const _ImageAttachmentArea({
-    required this.images,
-    required this.maxImages,
-    required this.onAdd,
-    required this.onRemove,
-  });
+class _ImageAttachmentComingSoon extends StatelessWidget {
+  const _ImageAttachmentComingSoon();
 
   @override
   Widget build(BuildContext context) {
-    final canAdd = images.length < maxImages;
-
-    return Row(
-      children: [
-        // Add button
-        if (canAdd)
-          GestureDetector(
-            onTap: onAdd,
-            child: Container(
-              width: 80,
-              height: 80,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
-                ),
-              ),
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add_photo_alternate_outlined, size: 28),
-                  SizedBox(height: 4),
-                  Text('画像を追加', style: TextStyle(fontSize: 10)),
-                ],
-              ),
-            ),
-          ),
-        // Thumbnails
-        ...List.generate(images.length, (i) {
-          return _ImageThumbnail(
-            file: File(images[i].path),
-            onRemove: () => onRemove(i),
-          );
-        }),
-      ],
-    );
-  }
-}
-
-class _ImageThumbnail extends StatelessWidget {
-  final File file;
-  final VoidCallback onRemove;
-
-  const _ImageThumbnail({required this.file, required this.onRemove});
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Container(
-          width: 80,
-          height: 80,
-          margin: const EdgeInsets.only(right: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            image: DecorationImage(
-              image: FileImage(file),
-              fit: BoxFit.cover,
-            ),
-          ),
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.3),
         ),
-        Positioned(
-          top: 2,
-          right: 10,
-          child: GestureDetector(
-            onTap: onRemove,
-            child: Container(
-              width: 20,
-              height: 20,
-              decoration: const BoxDecoration(
-                color: Colors.black54,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.close, size: 14, color: Colors.white),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.add_photo_alternate_outlined,
+            size: 24,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '画像添付は近日対応予定です',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
