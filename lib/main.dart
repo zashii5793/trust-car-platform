@@ -21,6 +21,7 @@ import 'providers/connectivity_provider.dart';
 import 'providers/part_recommendation_provider.dart';
 import 'providers/post_provider.dart';
 import 'providers/drive_log_provider.dart';
+import 'providers/drive_recording_provider.dart';
 import 'providers/shop_provider.dart';
 import 'services/part_recommendation_service.dart';
 import 'services/post_service.dart';
@@ -136,6 +137,9 @@ class MyApp extends StatelessWidget {
           postService: sl.get<PostService>(),
         )),
         ChangeNotifierProvider(create: (_) => DriveLogProvider(
+          driveLogService: sl.get<DriveLogService>(),
+        )),
+        ChangeNotifierProvider(create: (_) => DriveRecordingProvider(
           driveLogService: sl.get<DriveLogService>(),
         )),
       ],

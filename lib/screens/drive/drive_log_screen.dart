@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../models/drive_log.dart';
 import '../../providers/drive_log_provider.dart';
+import '../../providers/drive_recording_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
+import 'drive_recording_screen.dart';
 
 /// ドライブログ一覧画面
 ///
@@ -55,11 +57,42 @@ class _DriveLogScreenState extends State<DriveLogScreen> {
     }
   }
 
+  void _startRecording() {
+    final recordingProvider = context.read<DriveRecordingProvider>();
+    if (recordingProvider.isRecording) {
+      // Resume the active recording screen
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const DriveRecordingScreen()),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const DriveRecordingScreen()),
+    ).then((_) => _load()); // refresh list after returning
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ドライブログ'),
+      ),
+      floatingActionButton: Consumer<DriveRecordingProvider>(
+        builder: (_, recordingProvider, __) => FloatingActionButton.extended(
+          onPressed: _startRecording,
+          backgroundColor: recordingProvider.isRecording
+              ? Colors.redAccent
+              : AppColors.primary,
+          icon: Icon(
+            recordingProvider.isRecording
+                ? Icons.stop_circle_outlined
+                : Icons.play_circle_outline,
+          ),
+          label: Text(
+            recordingProvider.isRecording ? '記録中...' : '記録開始',
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
       ),
       body: Consumer<DriveLogProvider>(
         builder: (context, provider, child) {
