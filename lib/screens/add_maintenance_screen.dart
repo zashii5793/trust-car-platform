@@ -247,11 +247,45 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   }
 
   @override
+  bool get _isDirty =>
+      _titleController.text.isNotEmpty ||
+      _costController.text.isNotEmpty ||
+      _shopNameController.text.isNotEmpty ||
+      _descriptionController.text.isNotEmpty;
+
+  Future<bool> _confirmDiscard(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('変更を破棄しますか？'),
+        content: const Text('保存していない変更は失われます。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('続ける'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('破棄する', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final typesToShow = _showAllTypes ? MaintenanceType.values : _commonTypes;
 
-    return Scaffold(
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldPop = await _confirmDiscard(context);
+        if (shouldPop && context.mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: Text(_isEditMode ? 'メンテナンス履歴を編集' : 'メンテナンス履歴を追加'),
       ),
@@ -452,7 +486,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                 // 保存ボタン
                 AppButton.primary(
                   label: _isEditMode ? '更新する' : '保存する',
-                  onPressed: _saveRecord,
+                  onPressed: _isLoading ? null : _saveRecord,
                   isFullWidth: true,
                   size: AppButtonSize.large,
                   icon: Icons.check,
@@ -462,6 +496,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           ),
         ),
       ),
+    ),  // PopScope
     );
   }
 

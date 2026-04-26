@@ -357,8 +357,43 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   // ---------------------------------------------------------------------------
 
   @override
+  bool get _isDirty =>
+      _currentStep > 0 ||
+      _selectedMaker != null ||
+      _yearController.text.isNotEmpty ||
+      _licensePlateController.text.isNotEmpty ||
+      _imageBytes != null;
+
+  Future<bool> _confirmDiscard(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('登録を中断しますか？'),
+        content: const Text('入力中のデータは保存されません。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('続ける'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('中断する', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldPop = await _confirmDiscard(context);
+        if (shouldPop && context.mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: Text(_stepTitle),
         leading: _currentStep > 0
@@ -389,6 +424,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           ],
         ),
       ),
+    ),  // PopScope
     );
   }
 
@@ -800,7 +836,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                     )
                   : AppButton.primary(
                       label: '登録する',
-                      onPressed: _registerVehicle,
+                      onPressed: _isLoading ? null : _registerVehicle,
                       isFullWidth: true,
                       icon: Icons.check,
                       size: AppButtonSize.large,

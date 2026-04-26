@@ -183,6 +183,14 @@ class DriveRecordingProvider with ChangeNotifier {
     return result.valueOrNull;
   }
 
+  @override
+  void dispose() {
+    _elapsedTimer?.cancel();
+    _positionSubscription?.cancel();
+    _waypointFlushTimer?.cancel();
+    super.dispose();
+  }
+
   /// Reset all state (call on logout or after navigating away).
   void clear() {
     _elapsedTimer?.cancel();

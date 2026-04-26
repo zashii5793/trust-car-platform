@@ -833,7 +833,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                   // 更新ボタン
                   AppButton.primary(
                     label: '更新する',
-                    onPressed: _hasChanges ? _updateVehicle : null,
+                    onPressed: (_hasChanges && !_isLoading) ? _updateVehicle : null,
                     isFullWidth: true,
                     size: AppButtonSize.large,
                     icon: Icons.save,

@@ -195,6 +195,26 @@
         { "fieldPath": "unreadCountShop", "order": "ASCENDING" }
       ]
     },
+    // ユーザー問い合わせ ステータスフィルタ付き
+    {
+      "collectionGroup": "inquiries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    // 店舗問い合わせ ステータスフィルタ付き
+    {
+      "collectionGroup": "inquiries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
 
     // =========================================================
     // posts (SNS)
