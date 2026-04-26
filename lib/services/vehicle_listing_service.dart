@@ -16,10 +16,10 @@ class VehicleListingService {
       _firestore.collection(FirestoreCollections.vehicleListings);
 
   CollectionReference<Map<String, dynamic>> get _favoritesRef =>
-      _firestore.collection('listing_favorites');
+      _firestore.collection(FirestoreCollections.listingFavorites);
 
   CollectionReference<Map<String, dynamic>> get _preferencesRef =>
-      _firestore.collection('vehicle_preferences');
+      _firestore.collection(FirestoreCollections.vehiclePreferences);
 
   // ==================== Listings ====================
 

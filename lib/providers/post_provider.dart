@@ -191,10 +191,17 @@ class PostProvider with ChangeNotifier {
     }
     notifyListeners();
 
+    // Resolve post author for notification
+    final post = _feedPosts.where((p) => p.id == postId).firstOrNull;
+
     // Firestore 同期
     final result = isCurrentlyLiked
         ? await _postService.unlikePost(postId: postId, userId: userId)
-        : await _postService.likePost(postId: postId, userId: userId);
+        : await _postService.likePost(
+            postId: postId,
+            userId: userId,
+            postAuthorId: post?.userId,
+          );
 
     result.onFailure((_) {
       // 失敗時はロールバック
@@ -301,6 +308,8 @@ class PostProvider with ChangeNotifier {
     _commentError = null;
     notifyListeners();
 
+    final post = _feedPosts.where((p) => p.id == postId).firstOrNull;
+
     final result = await _postService.addComment(
       postId: postId,
       userId: userId,
@@ -308,6 +317,7 @@ class PostProvider with ChangeNotifier {
       userPhotoUrl: userPhotoUrl,
       content: content.trim(),
       parentCommentId: parentCommentId,
+      postAuthorId: post?.userId,
     );
 
     bool success = false;

@@ -20,19 +20,19 @@ class DriveLogService {
       _firestore.collection(FirestoreCollections.driveWaypoints);
 
   CollectionReference<Map<String, dynamic>> get _driveLogLikesRef =>
-      _firestore.collection('drive_log_likes');
+      _firestore.collection(FirestoreCollections.driveLogLikes);
 
   CollectionReference<Map<String, dynamic>> get _spotsRef =>
-      _firestore.collection('spots');
+      _firestore.collection(FirestoreCollections.spots);
 
   CollectionReference<Map<String, dynamic>> get _spotRatingsRef =>
       _firestore.collection(FirestoreCollections.spotRatings);
 
   CollectionReference<Map<String, dynamic>> get _spotFavoritesRef =>
-      _firestore.collection('spot_favorites');
+      _firestore.collection(FirestoreCollections.spotFavorites);
 
   CollectionReference<Map<String, dynamic>> get _spotVisitsRef =>
-      _firestore.collection('spot_visits');
+      _firestore.collection(FirestoreCollections.spotVisits);
 
   // ============================================================
   // Drive Log Operations

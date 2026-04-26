@@ -167,7 +167,7 @@ class InquiryService {
       // Add message to subcollection
       final messageRef = await _inquiriesCollection
           .doc(inquiryId)
-          .collection('messages')
+          .collection(FirestoreCollections.messages)
           .add(messageData);
 
       // Update inquiry
@@ -211,7 +211,7 @@ class InquiryService {
     try {
       Query<Map<String, dynamic>> query = _inquiriesCollection
           .doc(inquiryId)
-          .collection('messages')
+          .collection(FirestoreCollections.messages)
           .orderBy('sentAt', descending: false)
           .limit(limit);
 
@@ -247,7 +247,7 @@ class InquiryService {
       // Mark individual messages as read
       final messages = await _inquiriesCollection
           .doc(inquiryId)
-          .collection('messages')
+          .collection(FirestoreCollections.messages)
           .where('isFromShop', isEqualTo: isUser)  // Messages from the other party
           .where('isRead', isEqualTo: false)
           .get();
@@ -318,7 +318,7 @@ class InquiryService {
   Stream<List<InquiryMessage>> streamMessages(String inquiryId) {
     return _inquiriesCollection
         .doc(inquiryId)
-        .collection('messages')
+        .collection(FirestoreCollections.messages)
         .orderBy('sentAt', descending: false)
         .snapshots()
         .map((snapshot) => snapshot.docs
