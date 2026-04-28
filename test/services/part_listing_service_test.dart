@@ -287,6 +287,7 @@ void main() {
 
   group('PartListingService.getMyListings', () {
     late FakeFirebaseFirestore fakeFs;
+    // Authenticated as 'user1' via getCurrentUid injection (DriveRecordingProvider pattern)
     late PartListingService service;
 
     setUp(() {
@@ -294,6 +295,7 @@ void main() {
       service = PartListingService(
         firestore: fakeFs,
         firebaseService: _StubFirebaseService(),
+        getCurrentUid: () => 'user1',
       );
     });
 
@@ -303,6 +305,23 @@ void main() {
       final err = result.errorOrNull;
       expect(err, isA<ValidationError>());
       expect((err as ValidationError).field, 'sellerId');
+    });
+
+    test('未認証時は AuthError を返す', () async {
+      final unauthService = PartListingService(
+        firestore: fakeFs,
+        firebaseService: _StubFirebaseService(),
+        getCurrentUid: () => null,
+      );
+      final result = await unauthService.getMyListings('user1');
+      expect(result.isFailure, true);
+      expect(result.errorOrNull, isA<AuthError>());
+    });
+
+    test('他ユーザーの sellerId を指定すると AuthError を返す', () async {
+      final result = await service.getMyListings('other_user');
+      expect(result.isFailure, true);
+      expect(result.errorOrNull, isA<AuthError>());
     });
 
     test('ドキュメントが存在しない場合は空リストを返す', () async {
@@ -391,6 +410,7 @@ void main() {
       service = PartListingService(
         firestore: fakeFs,
         firebaseService: _StubFirebaseService(),
+        getCurrentUid: () => 'user1',
       );
     });
 

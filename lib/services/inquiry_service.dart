@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
@@ -8,9 +9,11 @@ import '../models/vehicle.dart';
 /// Service for inquiry (user-to-shop communication) operations
 class InquiryService {
   final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
 
-  InquiryService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  InquiryService({FirebaseFirestore? firestore, FirebaseAuth? auth})
+      : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance;
 
   CollectionReference<Map<String, dynamic>> get _inquiriesCollection =>
       _firestore.collection(FirestoreCollections.inquiries);
@@ -153,6 +156,17 @@ class InquiryService {
     required String content,
     List<String> attachmentUrls = const [],
   }) async {
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null) {
+      return const Result.failure(
+        AppError.auth('認証が必要です', type: AuthErrorType.unknown),
+      );
+    }
+    if (currentUid != senderId) {
+      return const Result.failure(
+        AppError.auth('操作が許可されていません', type: AuthErrorType.unknown),
+      );
+    }
     try {
       final now = DateTime.now();
       final messageData = {

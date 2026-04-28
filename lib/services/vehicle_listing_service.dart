@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
@@ -8,9 +9,11 @@ import '../models/vehicle_search.dart';
 /// Service for managing vehicle listings and recommendations
 class VehicleListingService {
   final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
 
-  VehicleListingService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  VehicleListingService({FirebaseFirestore? firestore, FirebaseAuth? auth})
+      : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance;
 
   CollectionReference<Map<String, dynamic>> get _listingsRef =>
       _firestore.collection(FirestoreCollections.vehicleListings);
@@ -225,6 +228,17 @@ class VehicleListingService {
     required String userId,
     int limit = 10,
   }) async {
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null) {
+      return const Result.failure(
+        AppError.auth('認証が必要です', type: AuthErrorType.unknown),
+      );
+    }
+    if (currentUid != userId) {
+      return const Result.failure(
+        AppError.auth('他のユーザーの情報は取得できません', type: AuthErrorType.unknown),
+      );
+    }
     try {
       // Get user preference
       final prefDoc = await _preferencesRef.doc(userId).get();

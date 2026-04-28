@@ -89,14 +89,19 @@ class PartListingService {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
   final FirebaseService _firebaseService;
+  // Injectable for testability (mirrors DriveRecordingProvider pattern)
+  final String? Function() _getCurrentUid;
 
   PartListingService({
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
     FirebaseService? firebaseService,
+    String? Function()? getCurrentUid,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
         _auth = auth ?? FirebaseAuth.instance,
-        _firebaseService = firebaseService ?? FirebaseService();
+        _firebaseService = firebaseService ?? FirebaseService(),
+        _getCurrentUid = getCurrentUid ??
+            (() => (auth ?? FirebaseAuth.instance).currentUser?.uid);
 
   static const String _collection = 'user_part_listings';
 
@@ -108,7 +113,7 @@ class PartListingService {
   Future<Result<String, AppError>> createListing(
     CreatePartListingInput input,
   ) async {
-    final uid = _auth.currentUser?.uid;
+    final uid = _getCurrentUid();
     if (uid == null) {
       return const Result.failure(
         AppError.auth('Not authenticated', type: AuthErrorType.unknown),
@@ -181,6 +186,17 @@ class PartListingService {
     if (sellerId.isEmpty) {
       return const Result.failure(
         AppError.validation('Seller ID is required', field: 'sellerId'),
+      );
+    }
+    final currentUid = _getCurrentUid();
+    if (currentUid == null) {
+      return const Result.failure(
+        AppError.auth('認証が必要です', type: AuthErrorType.unknown),
+      );
+    }
+    if (currentUid != sellerId) {
+      return const Result.failure(
+        AppError.auth('他のユーザーの出品一覧は取得できません', type: AuthErrorType.unknown),
       );
     }
 
