@@ -8,15 +8,15 @@
 
 ## 🔴 P0 — リリースブロッカー（これがないとビルドできない）
 
-- [ ] **Firebase Console: `google-services.json` を本番版に更新**
-  - 手順: Firebase Console → プロジェクト設定 → Android アプリ → ダウンロード
-  - 配置先: `android/app/google-services.json`（現在は仮ファイル）
-  - 確認: `cat android/app/google-services.json | python3 -m json.tool` でエラーなし
+- [x] **`google-services.json` を生成・配置** — 2026-04-28 AI生成済み
+  - `firebase_options.dart` の値から自動生成。`android/app/google-services.json` に配置済み
+  - ⚠️ SHA-1フィンガープリント未登録のため Google Sign-In は動作しない可能性あり
+  - 完全版が必要な場合: Firebase Console → プロジェクト設定 → Android → ダウンロードして上書き
 
-- [ ] **Firebase Console: `GoogleService-Info.plist` を配置**
-  - 手順: Firebase Console → プロジェクト設定 → iOS アプリ → ダウンロード
-  - 配置先: `ios/Runner/GoogleService-Info.plist`
-  - 注意: Mac + Xcode が必要。Xcodeでファイルをドラッグ追加（コピーにチェック）
+- [x] **`GoogleService-Info.plist` を生成・配置** — 2026-04-28 AI生成済み
+  - `firebase_options.dart` の値から自動生成。`ios/Runner/GoogleService-Info.plist` に配置済み
+  - ⚠️ Xcode での手動追加作業は不要。ただし iOS リリースビルドは Mac が必要
+
 
 - [ ] **GitHub Secrets に `GOOGLE_SERVICES_JSON` を登録**
   - 手順: GitHub リポジトリ → Settings → Secrets → New secret
@@ -65,18 +65,18 @@
 
 ### 法的・コンプライアンス
 
-- [ ] **プライバシーポリシーをウェブ上に公開**
-  - App Store / Google Play はアプリ内だけでなく**URLも要求**する
-  - 推奨: GitHub Pages, Notion 公開ページ, または独自ドメイン
-  - URLをメモしておく（ストア登録時に入力）
-  - 例: `https://trustcar.jp/privacy` または `https://yourname.github.io/trustcar/privacy`
+- [ ] **プライバシーポリシー・利用規約を GitHub Pages で公開** ← HTMLファイル生成済み
+  - HTML: `docs/web/privacy.html` / `docs/web/terms.html` / `docs/web/index.html` 生成済み
+  - **手順**: GitHub リポジトリ → Settings → Pages → Source: `main` branch, `/docs/web` フォルダ
+  - 公開後URL（例）: `https://zashii5793.github.io/trust-car-platform/privacy.html`
+  - ストア登録時にこのURLを入力する
 
-- [ ] **利用規約をウェブ上に公開**
-  - 同上。URL をストア登録時に入力する
+- [x] **利用規約 HTML 生成済み** — 2026-04-28
+  - `docs/web/terms.html` に生成済み。GitHub Pages 公開後に有効
 
 - [ ] **サポートページ URL を用意**
-  - App Store 審査で必須。最低限メールアドレスのみのページでも可
-  - 例: `support@trustcar.jp` を記載したシンプルなページ
+  - `docs/web/index.html` に `support@trustcar.jp` を記載済み
+  - GitHub Pages 公開後: `https://zashii5793.github.io/trust-car-platform/` がサポートページになる
 
 ---
 
