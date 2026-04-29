@@ -1,6 +1,6 @@
 # Claude開発セッションメモ
 
-> **最終更新**: 2026-04-29
+> **最終更新**: 2026-04-29（Phase 7 Week 2 完了）
 
 ---
 
@@ -24,6 +24,15 @@
 | docs/web/（privacy.html / terms.html / index.html）GitHub Pages 用 HTML | ✅ |
 | docs/STORE_METADATA.md（App Store / Google Play メタデータ） | ✅ |
 | google-services.json / GoogleService-Info.plist 生成済み（gitignore対象） | ✅ |
+| **Phase 7 Week 2**: RevenueCatService（injectable executor パターン）実装 | ✅ |
+| **Phase 7 Week 2**: purchases_flutter: ^8.0.0 を pubspec.yaml に追加 | ✅ |
+| **Phase 7 Week 2**: ShopPlanScreen._startPurchase() を RevenueCatService に接続 | ✅ |
+| **Phase 7 Week 2**: InquiryService に月次問い合わせ上限チェック組み込み | ✅ |
+| **Phase 7 Week 2**: injection.dart に RevenueCatService 登録・InquiryService に ShopSubscriptionService 注入 | ✅ |
+| **Phase 7 Week 2**: test/services/revenue_cat_service_test.dart（15件） | ✅ |
+| **Phase 7 Week 2**: inquiry_service_test.dart に上限チェックテスト 5件追加 | ✅ |
+| **Phase 7 Week 2**: test/screens/shop_plan_screen_test.dart（11件） | ✅ |
+| **Phase 7 Week 2**: test/screens/profile_screen_test.dart（9件） | ✅ |
 
 ### 総合評価: **8.6 / 10** （2026-04-29 PM評価より）
 
@@ -110,12 +119,15 @@ RevenueCat Webhook → Cloud Functions → Firestore
 ## 次にやること（AI対応）
 
 ### P1（今週中）
-- [ ] **RevenueCat SDK 統合（Phase 7 Week 2）**: `purchases_flutter` を pubspec.yaml に追加
+- [x] **RevenueCat SDK 統合（Phase 7 Week 2）**: `purchases_flutter` を pubspec.yaml に追加 ✅
+- [x] **inquiry_service に問い合わせ上限チェック組み込み** ✅
+- [x] **screens/ ウィジェットテスト強化** ✅
 - [ ] **Cloud Functions: Webhook実装**: RevenueCat → Firestore 自動同期
-- [ ] **inquiry_service に問い合わせ上限チェック組み込み**
+- [ ] **RevenueCat production executors**: `_productionInitialize / _productionPurchase / _productionRestore / _productionEntitlements` に実際の Purchases.* 呼び出しを実装
 
 ### P2（来週以降）
-- [ ] screens/ ウィジェットテストを強化（ShopPlanScreen・ProfileEditSheet 等）
+- [ ] RevenueCat ダッシュボード設定（Product ID・Entitlement 登録）
+- [ ] E2E テスト（Firebase Emulator + RevenueCat Sandbox）
 
 ---
 
