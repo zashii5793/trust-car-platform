@@ -14,6 +14,7 @@ class FirestoreCollections {
   static const String driveSpots = 'drive_spots';
   static const String spotRatings = 'spot_ratings';
   static const String users = 'users';
+  static const String shops = 'shops';
   static const String shopListings = 'shop_listings';
   static const String vehicleListings = 'vehicle_listings';
   static const String inquiries = 'inquiries';

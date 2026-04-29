@@ -2,9 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Listing plan type for BtoB shop registration
 enum ShopPlanType {
-  free,      // Free listing (basic info only)
-  standard,  // Standard plan (9,800 yen/month)
-  premium,   // Premium plan (29,800 yen/month)
+  free,        // Free listing: 5 inquiries/month, 3 photos
+  standard,    // Standard: ¥3,980/month — unlimited inquiries, 20 photos
+  premium,     // Premium: ¥9,800/month — priority display, monthly report
+  enterprise,  // Enterprise: ¥14,800/month — up to 5 shops, API access
 
   ;
 
@@ -14,6 +15,40 @@ enum ShopPlanType {
       return ShopPlanType.values.firstWhere((e) => e.name == value);
     } catch (_) {
       return ShopPlanType.free;
+    }
+  }
+
+  String get displayName => switch (this) {
+    ShopPlanType.free => 'フリー',
+    ShopPlanType.standard => 'スタンダード',
+    ShopPlanType.premium => 'プレミアム',
+    ShopPlanType.enterprise => 'エンタープライズ',
+  };
+
+  int? get monthlyPrice => switch (this) {
+    ShopPlanType.free => null,
+    ShopPlanType.standard => 3980,
+    ShopPlanType.premium => 9800,
+    ShopPlanType.enterprise => 14800,
+  };
+}
+
+/// Subscription status for BtoB shops
+enum ShopSubscriptionStatus {
+  active,     // Subscription active
+  trialing,   // Within trial period
+  expired,    // Past expiration date
+  cancelled,  // Cancelled (will expire at period end)
+  free,       // No paid subscription
+
+  ;
+
+  static ShopSubscriptionStatus fromString(String? value) {
+    if (value == null) return ShopSubscriptionStatus.free;
+    try {
+      return ShopSubscriptionStatus.values.firstWhere((e) => e.name == value);
+    } catch (_) {
+      return ShopSubscriptionStatus.free;
     }
   }
 }
@@ -145,10 +180,13 @@ class Shop {
   final bool isFeatured;      // Featured/promoted
   final DateTime? verifiedAt;
 
-  // Plan
-  final ShopPlanType planType;   // Listing plan (default: free)
-  final DateTime? planExpiresAt; // Plan expiration date
-  final String? ownerId;         // Owner's UID
+  // Plan & Subscription
+  final ShopPlanType planType;                       // Listing plan (default: free)
+  final DateTime? planExpiresAt;                     // Plan expiration date
+  final ShopSubscriptionStatus subscriptionStatus;   // Current subscription state
+  final String? revenueCatUserId;                    // RevenueCat customer ID
+  final DateTime? trialStartedAt;                    // 30-day trial start
+  final String? ownerId;                             // Owner's UID
 
   // Status
   final bool isActive;
@@ -180,6 +218,9 @@ class Shop {
     this.verifiedAt,
     this.planType = ShopPlanType.free,
     this.planExpiresAt,
+    this.subscriptionStatus = ShopSubscriptionStatus.free,
+    this.revenueCatUserId,
+    this.trialStartedAt,
     this.ownerId,
     this.isActive = true,
     required this.createdAt,
@@ -259,6 +300,9 @@ class Shop {
       verifiedAt: (data['verifiedAt'] as Timestamp?)?.toDate(),
       planType: ShopPlanType.fromString(data['planType']),
       planExpiresAt: (data['planExpiresAt'] as Timestamp?)?.toDate(),
+      subscriptionStatus: ShopSubscriptionStatus.fromString(data['subscriptionStatus']),
+      revenueCatUserId: data['revenueCatUserId'],
+      trialStartedAt: (data['trialStartedAt'] as Timestamp?)?.toDate(),
       ownerId: data['ownerId'],
       isActive: data['isActive'] ?? true,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -293,6 +337,9 @@ class Shop {
       'verifiedAt': verifiedAt != null ? Timestamp.fromDate(verifiedAt!) : null,
       'planType': planType.name,
       'planExpiresAt': planExpiresAt != null ? Timestamp.fromDate(planExpiresAt!) : null,
+      'subscriptionStatus': subscriptionStatus.name,
+      'revenueCatUserId': revenueCatUserId,
+      'trialStartedAt': trialStartedAt != null ? Timestamp.fromDate(trialStartedAt!) : null,
       'ownerId': ownerId,
       'isActive': isActive,
       'createdAt': Timestamp.fromDate(createdAt),
@@ -325,6 +372,9 @@ class Shop {
     DateTime? verifiedAt,
     ShopPlanType? planType,
     DateTime? planExpiresAt,
+    ShopSubscriptionStatus? subscriptionStatus,
+    String? revenueCatUserId,
+    DateTime? trialStartedAt,
     String? ownerId,
     bool? isActive,
     DateTime? createdAt,
@@ -355,6 +405,9 @@ class Shop {
       verifiedAt: verifiedAt ?? this.verifiedAt,
       planType: planType ?? this.planType,
       planExpiresAt: planExpiresAt ?? this.planExpiresAt,
+      subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
+      revenueCatUserId: revenueCatUserId ?? this.revenueCatUserId,
+      trialStartedAt: trialStartedAt ?? this.trialStartedAt,
       ownerId: ownerId ?? this.ownerId,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,

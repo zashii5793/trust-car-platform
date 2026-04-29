@@ -8,6 +8,7 @@ import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'shop_inquiry_list_screen.dart';
+import 'shop_plan_screen.dart';
 import 'shop_registration_screen.dart';
 
 /// Shop owner hub screen.
@@ -583,7 +584,10 @@ class _UpgradeBanner extends StatelessWidget {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => ShopRegistrationScreen(existingShop: shop),
+                builder: (_) => ShopPlanScreen(
+                  shopId: shop.id,
+                  currentPlan: shop.planType,
+                ),
               ),
             ),
             child: const Text('変更'),

@@ -28,6 +28,8 @@ import 'services/post_service.dart';
 import 'services/drive_log_service.dart';
 import 'services/shop_service.dart';
 import 'services/inquiry_service.dart';
+import 'services/shop_subscription_service.dart';
+import 'providers/subscription_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'core/theme/app_theme.dart';
@@ -132,6 +134,9 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ShopProvider(
           shopService: sl.get<ShopService>(),
           inquiryService: sl.get<InquiryService>(),
+        )),
+        ChangeNotifierProvider(create: (_) => SubscriptionProvider(
+          subscriptionService: sl.get<ShopSubscriptionService>(),
         )),
         ChangeNotifierProvider(create: (_) => PostProvider(
           postService: sl.get<PostService>(),

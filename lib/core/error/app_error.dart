@@ -21,6 +21,7 @@ sealed class AppError implements Exception {
   const factory AppError.permission(String message) = PermissionError;
   const factory AppError.server(String message, {int? statusCode}) = ServerError;
   const factory AppError.cache(String message) = CacheError;
+  const factory AppError.planLimit(String message, {String? planName}) = PlanLimitError;
   const factory AppError.unknown(String message, {Object? originalError}) = UnknownError;
 }
 
@@ -170,6 +171,27 @@ final class CacheError extends AppError {
 
   @override
   String toString() => 'CacheError: $message';
+}
+
+/// プラン制限エラー
+final class PlanLimitError extends AppError {
+  @override
+  final String message;
+
+  final String? planName;
+
+  const PlanLimitError(this.message, {this.planName});
+
+  @override
+  String get userMessage => planName != null
+      ? '現在の${planName}では、この機能の上限に達しました。プランをアップグレードしてください。'
+      : 'プランの上限に達しました。アップグレードしてください。';
+
+  @override
+  bool get isRetryable => false;
+
+  @override
+  String toString() => 'PlanLimitError${planName != null ? '($planName)' : ''}: $message';
 }
 
 /// 不明なエラー

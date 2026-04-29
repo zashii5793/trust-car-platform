@@ -110,9 +110,14 @@ service cloud.firestore {
         && shopId == request.auth.uid
         && request.resource.data.ownerId == request.auth.uid;
 
-      // 更新・削除: docId == uid かつ既存ドキュメントの ownerId も一致
-      allow update, delete: if isAuthenticated()
-        && shopId == request.auth.uid
+      // 通常更新: オーナー本人のみ（subscriptionStatus / planType は除外 — Cloud Functions経由）
+      allow update: if isAuthenticated()
+        && resource.data.ownerId == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['subscriptionStatus', 'revenueCatUserId', 'trialStartedAt']);
+
+      // 削除: オーナー本人のみ
+      allow delete: if isAuthenticated()
         && resource.data.ownerId == request.auth.uid;
     }
 
