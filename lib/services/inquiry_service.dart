@@ -5,15 +5,21 @@ import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/inquiry.dart';
 import '../models/vehicle.dart';
+import 'shop_subscription_service.dart';
 
 /// Service for inquiry (user-to-shop communication) operations
 class InquiryService {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final ShopSubscriptionService _subscriptionService;
 
-  InquiryService({FirebaseFirestore? firestore, FirebaseAuth? auth})
-      : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  InquiryService({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+    ShopSubscriptionService? subscriptionService,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance,
+        _subscriptionService = subscriptionService ?? ShopSubscriptionService();
 
   CollectionReference<Map<String, dynamic>> get _inquiriesCollection =>
       _firestore.collection(FirestoreCollections.inquiries);
@@ -30,6 +36,20 @@ class InquiryService {
     Vehicle? vehicle,
     List<String> attachmentUrls = const [],
   }) async {
+    // Enforce monthly inquiry limit for the shop's subscription plan.
+    final canReceiveResult = await _subscriptionService.canReceiveInquiry(shopId);
+    if (canReceiveResult.isFailure) {
+      return Result.failure(canReceiveResult.errorOrNull!);
+    }
+    if (canReceiveResult.valueOrNull == false) {
+      return const Result.failure(
+        AppError.planLimit(
+          'This shop has reached its monthly inquiry limit',
+          planName: 'フリー',
+        ),
+      );
+    }
+
     try {
       final now = DateTime.now();
       final inquiryData = {

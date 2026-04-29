@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/di/service_locator.dart';
 import '../../models/shop.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
+import '../../services/revenue_cat_service.dart';
 import '../../services/shop_subscription_service.dart';
 import '../../widgets/common/loading_indicator.dart';
 
@@ -372,14 +375,32 @@ class _PlanButtonState extends State<_PlanButton> {
   }
 
   Future<void> _startPurchase() async {
-    // TODO(phase7-week2): RevenueCat purchase flow
-    // final packageId = _productIdFor(widget.planType);
-    // final result = await Purchases.purchasePackage(package);
-    // On success, Cloud Functions webhook updates Firestore automatically.
+    setState(() => _isLoading = true);
 
-    showSuccessSnackBar(
-      context,
-      'RevenueCat連携後に課金処理が有効になります（Phase 7 Week 2）',
+    final authProvider = context.read<AuthProvider>();
+    final userId = authProvider.firebaseUser?.uid ?? '';
+
+    final rcService = ServiceLocator.instance.get<RevenueCatService>();
+    final result = await rcService.purchasePlan(widget.planType, userId: userId);
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    result.when(
+      success: (_) async {
+        // Cloud Functions webhook will update subscriptionStatus automatically.
+        // We optimistically update planType and show success to the user.
+        await _applyPlanChange(
+          widget.planType,
+          ShopSubscriptionStatus.active,
+        );
+      },
+      failure: (error) {
+        final msg = error.userMessage;
+        if (msg.isNotEmpty) {
+          showSuccessSnackBar(context, msg);
+        }
+      },
     );
   }
 

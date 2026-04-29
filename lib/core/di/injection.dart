@@ -26,6 +26,7 @@ import '../../services/vehicle_listing_service.dart';
 import '../../services/drive_log_service.dart';
 import '../../services/part_listing_service.dart';
 import '../../services/shop_subscription_service.dart';
+import '../../services/revenue_cat_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -84,8 +85,11 @@ class Injection {
 
     // BtoB Marketplace Services
     locator.registerLazySingleton<ShopService>(() => ShopService());
-    locator.registerLazySingleton<InquiryService>(() => InquiryService());
     locator.registerLazySingleton<ShopSubscriptionService>(() => ShopSubscriptionService());
+    locator.registerLazySingleton<InquiryService>(
+      () => InquiryService(subscriptionService: locator.get<ShopSubscriptionService>()),
+    );
+    locator.registerLazySingleton<RevenueCatService>(() => RevenueCatService());
 
     // SNS/Community Services
     locator.registerLazySingleton<PostService>(() => PostService());
