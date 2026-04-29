@@ -53,7 +53,10 @@ class AuthProvider with ChangeNotifier {
         result.when(
           success: (profile) => _appUser = profile,
           failure: (error) {
-            debugPrint('AuthProvider: getUserProfile failed: ${error.message}');
+            assert(() {
+              debugPrint('AuthProvider: getUserProfile failed: ${error.message}');
+              return true;
+            }());
             _appUser = null;
           },
         );

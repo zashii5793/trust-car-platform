@@ -71,7 +71,10 @@ class AuthService {
       try {
         await _createUserDocument(credential.user!);
       } catch (e) {
-        debugPrint('signInWithEmail: _createUserDocument failed (may be offline): $e');
+        assert(() {
+          debugPrint('signInWithEmail: _createUserDocument failed (may be offline): $e');
+          return true;
+        }());
       }
 
       return Result.success(credential);
