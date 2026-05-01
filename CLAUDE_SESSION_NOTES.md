@@ -119,11 +119,14 @@ RevenueCat Webhook → Cloud Functions → Firestore
 ## 次にやること（AI対応）
 
 ### P1（今週中）
-- [x] **RevenueCat SDK 統合（Phase 7 Week 2）**: `purchases_flutter` を pubspec.yaml に追加 ✅
+- [x] **RevenueCat SDK 統合（Phase 7 Week 2）** ✅
 - [x] **inquiry_service に問い合わせ上限チェック組み込み** ✅
 - [x] **screens/ ウィジェットテスト強化** ✅
+- [x] **RevenueCat production executors 実装** ✅
+- [x] **SNS画像投稿実装** ✅
+- [x] **ヘルプ画面 → GitHub Pages URL に変更** ✅
+- [x] **パーツ出品編集時の画像保持修正** ✅
 - [ ] **Cloud Functions: Webhook実装**: RevenueCat → Firestore 自動同期
-- [ ] **RevenueCat production executors**: `_productionInitialize / _productionPurchase / _productionRestore / _productionEntitlements` に実際の Purchases.* 呼び出しを実装
 
 ### P2（来週以降）
 - [ ] RevenueCat ダッシュボード設定（Product ID・Entitlement 登録）
@@ -139,7 +142,9 @@ RevenueCat Webhook → Cloud Functions → Firestore
 ### P1（ローンチ前必須）
 - [ ] Firebase Authentication 有効確認
 - [ ] Firebase Crashlytics 有効化
-- [ ] GitHub Pages 有効化（Privacy/Terms URL公開）
+- [ ] **GitHub Pages 有効化** ← 手順: リポジトリ Settings → Pages → Source: `main` / `/docs` → Save
+  - 公開後URL: `https://zashii5793.github.io/trust-car-platform/`
+  - HTMLファイルは `docs/web/` に生成済み（index.html / privacy.html / terms.html）
 - [ ] Apple Developer Program 登録（$99/年）
 - [ ] Google Play Developer 登録（$25）
 - [ ] App Store Connect / Google Play Console アプリ登録

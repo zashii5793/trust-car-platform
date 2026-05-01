@@ -34,13 +34,21 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   PartCategory _selectedCategory = PartCategory.other;
   PartCondition _selectedCondition = PartCondition.goodCondition;
   ShippingMethod _selectedShippingMethod = ShippingMethod.includedInPrice;
-  final List<File> _images = [];
+
+  /// Existing image URLs loaded from the listing being edited. Kept as-is on save.
+  final List<String> _existingImageUrls = [];
+
+  /// Newly selected image files to upload on save.
+  final List<File> _newImages = [];
+
   bool _isSubmitting = false;
 
   static const int _maxImages = 5;
   static const int _maxDescriptionLength = 1000;
 
   bool get _isEditMode => widget.existingListing != null;
+
+  int get _totalImageCount => _existingImageUrls.length + _newImages.length;
 
   @override
   void initState() {
@@ -55,9 +63,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       _selectedCategory = existing.category;
       _selectedCondition = existing.condition;
       _selectedShippingMethod = existing.shippingMethod;
-      // NOTE: existing image URLs are not loaded as File objects here because
-      // Firebase Storage download + re-upload is not yet implemented.
-      // Images will be cleared on edit submit until that feature is added.
+      // Load existing image URLs so they are preserved on save.
+      _existingImageUrls.addAll(existing.imageUrls);
     }
   }
 
@@ -89,7 +96,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   // -----------------------------------------------------------------------
 
   Future<void> _pickImage() async {
-    if (_images.length >= _maxImages) return;
+    if (_totalImageCount >= _maxImages) return;
 
     final picker = ImagePicker();
     final picked = await picker.pickImage(
@@ -101,13 +108,18 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     if (picked == null) return;
 
     setState(() {
-      _images.add(File(picked.path));
+      _newImages.add(File(picked.path));
     });
   }
 
+  /// Removes an image by unified index (existing URLs first, then new files).
   void _removeImage(int index) {
     setState(() {
-      _images.removeAt(index);
+      if (index < _existingImageUrls.length) {
+        _existingImageUrls.removeAt(index);
+      } else {
+        _newImages.removeAt(index - _existingImageUrls.length);
+      }
     });
   }
 
@@ -122,20 +134,41 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     setState(() => _isSubmitting = true);
 
     final service = ServiceLocator.instance.get<PartListingService>();
-    final input = CreatePartListingInput(
-      title: _titleController.text.trim(),
-      category: _selectedCategory,
-      condition: _selectedCondition,
-      price: _price,
-      description: _descriptionController.text.trim(),
-      compatibleVehicle: _compatibleVehicleController.text.trim().isEmpty
-          ? null
-          : _compatibleVehicleController.text.trim(),
-      images: List.unmodifiable(_images),
-      shippingMethod: _selectedShippingMethod,
-    );
+    final compatibleVehicle = _compatibleVehicleController.text.trim().isEmpty
+        ? null
+        : _compatibleVehicleController.text.trim();
 
-    final result = await service.createListing(input);
+    Result<dynamic, AppError> result;
+
+    if (_isEditMode) {
+      result = await service.updateListing(
+        UpdatePartListingInput(
+          listingId: widget.existingListing!.id,
+          title: _titleController.text.trim(),
+          category: _selectedCategory,
+          condition: _selectedCondition,
+          price: _price,
+          description: _descriptionController.text.trim(),
+          compatibleVehicle: compatibleVehicle,
+          existingImageUrls: List.unmodifiable(_existingImageUrls),
+          newImages: List.unmodifiable(_newImages),
+          shippingMethod: _selectedShippingMethod,
+        ),
+      );
+    } else {
+      result = await service.createListing(
+        CreatePartListingInput(
+          title: _titleController.text.trim(),
+          category: _selectedCategory,
+          condition: _selectedCondition,
+          price: _price,
+          description: _descriptionController.text.trim(),
+          compatibleVehicle: compatibleVehicle,
+          images: List.unmodifiable(_newImages),
+          shippingMethod: _selectedShippingMethod,
+        ),
+      );
+    }
 
     if (!mounted) return;
 
@@ -144,7 +177,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     result.when(
       success: (_) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('出品しました')),
+          SnackBar(content: Text(_isEditMode ? '更新しました' : '出品しました')),
         );
         Navigator.of(context).pop(true);
       },
@@ -197,7 +230,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             _SectionLabel(label: '商品画像（最大$_maxImages枚）'),
             AppSpacing.verticalXs,
             _ImagePickerRow(
-              images: _images,
+              existingUrls: _existingImageUrls,
+              newImages: _newImages,
               maxImages: _maxImages,
               onAdd: _pickImage,
               onRemove: _removeImage,
@@ -369,17 +403,47 @@ class _SectionLabel extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ImagePickerRow extends StatelessWidget {
-  final List<File> images;
+  /// URLs of images already saved (from an existing listing).
+  final List<String> existingUrls;
+
+  /// Newly picked local files (not yet uploaded).
+  final List<File> newImages;
+
   final int maxImages;
   final VoidCallback onAdd;
+
+  /// Unified remove callback: indices 0..existingUrls.length-1 map to
+  /// existing URLs; higher indices map to newImages.
   final void Function(int index) onRemove;
 
   const _ImagePickerRow({
-    required this.images,
+    required this.existingUrls,
+    required this.newImages,
     required this.maxImages,
     required this.onAdd,
     required this.onRemove,
   });
+
+  int get _total => existingUrls.length + newImages.length;
+
+  Widget _removeButton(int index) {
+    return Positioned(
+      top: 2,
+      right: 2,
+      child: GestureDetector(
+        onTap: () => onRemove(index),
+        child: Container(
+          width: 22,
+          height: 22,
+          decoration: const BoxDecoration(
+            color: Colors.black54,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.close, size: 14, color: Colors.white),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -389,10 +453,35 @@ class _ImagePickerRow extends StatelessWidget {
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          // Existing images
-          ...images.asMap().entries.map((entry) {
-            final index = entry.key;
-            final file = entry.value;
+          // Existing URL thumbnails (network images)
+          ...existingUrls.asMap().entries.map((entry) {
+            return Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: AppSpacing.borderRadiusSm,
+                    child: Image.network(
+                      entry.value,
+                      width: 90,
+                      height: 90,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox(
+                        width: 90,
+                        height: 90,
+                        child: Icon(Icons.broken_image_outlined),
+                      ),
+                    ),
+                  ),
+                  _removeButton(entry.key),
+                ],
+              ),
+            );
+          }),
+
+          // Newly picked file thumbnails
+          ...newImages.asMap().entries.map((entry) {
+            final unifiedIndex = existingUrls.length + entry.key;
             return Padding(
               padding: const EdgeInsets.only(right: AppSpacing.xs),
               child: Stack(
@@ -400,39 +489,20 @@ class _ImagePickerRow extends StatelessWidget {
                   ClipRRect(
                     borderRadius: AppSpacing.borderRadiusSm,
                     child: Image.file(
-                      file,
+                      entry.value,
                       width: 90,
                       height: 90,
                       fit: BoxFit.cover,
                     ),
                   ),
-                  Positioned(
-                    top: 2,
-                    right: 2,
-                    child: GestureDetector(
-                      onTap: () => onRemove(index),
-                      child: Container(
-                        width: 22,
-                        height: 22,
-                        decoration: const BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          size: 14,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
+                  _removeButton(unifiedIndex),
                 ],
               ),
             );
           }),
 
           // Add button (only when under the limit)
-          if (images.length < maxImages)
+          if (_total < maxImages)
             GestureDetector(
               onTap: onAdd,
               child: Container(
@@ -455,7 +525,7 @@ class _ImagePickerRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${images.length}/$maxImages',
+                      '$_total/$maxImages',
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
