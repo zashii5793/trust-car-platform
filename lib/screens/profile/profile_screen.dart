@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
@@ -135,8 +136,15 @@ class ProfileScreen extends StatelessWidget {
                     _MenuItem(
                       icon: Icons.help_outline,
                       label: 'ヘルプ',
-                      onTap: () {
-                        showSuccessSnackBar(context, '実装予定の機能です');
+                      onTap: () async {
+                        final uri = Uri.parse(
+                          'https://zashii5793.github.io/trust-car-platform/',
+                        );
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        } else if (context.mounted) {
+                          showSuccessSnackBar(context, 'ブラウザを開けませんでした');
+                        }
                       },
                     ),
                     _MenuItem(

@@ -1,13 +1,18 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/di/service_locator.dart';
 import '../../models/post.dart';
 import '../../models/vehicle.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/post_provider.dart';
 import '../../providers/vehicle_provider.dart';
+import '../../services/firebase_service.dart';
 
 /// Post creation screen
 ///
@@ -28,12 +33,45 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   /// Selected vehicle for tagging
   Vehicle? _selectedVehicle;
 
+  /// Images selected for upload (max 3)
+  final List<Uint8List> _pickedImages = [];
+  bool _isUploadingImages = false;
+
   static const int _maxLength = 500;
+  static const int _maxImages = 3;
 
   @override
   void dispose() {
     _contentController.dispose();
     super.dispose();
+  }
+
+  // ── Image picker ──────────────────────────────────────────────────────────
+
+  Future<void> _pickImages() async {
+    if (_pickedImages.length >= _maxImages) return;
+
+    final picker = ImagePicker();
+    final remaining = _maxImages - _pickedImages.length;
+    final picked = await picker.pickMultiImage(
+      maxWidth: 1080,
+      maxHeight: 1080,
+      imageQuality: 85,
+      limit: remaining,
+    );
+
+    if (picked.isEmpty) return;
+
+    final newBytes = <Uint8List>[];
+    for (final xFile in picked) {
+      newBytes.add(await xFile.readAsBytes());
+    }
+
+    setState(() => _pickedImages.addAll(newBytes));
+  }
+
+  void _removeImage(int index) {
+    setState(() => _pickedImages.removeAt(index));
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────
@@ -53,15 +91,34 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       return;
     }
 
-    // NOTE: Image upload to Firebase Storage is not yet implemented.
-    // The imageUrls list is passed as empty until upload logic is added.
+    // Upload images to Firebase Storage if any are selected.
+    List<String> imageUrls = [];
+    if (_pickedImages.isNotEmpty) {
+      setState(() => _isUploadingImages = true);
+      final firebaseService = ServiceLocator.instance.get<FirebaseService>();
+      final basePath = 'post_images/${user.uid}/${DateTime.now().millisecondsSinceEpoch}';
+
+      for (int i = 0; i < _pickedImages.length; i++) {
+        final result = await firebaseService.uploadImageBytes(
+          _pickedImages[i],
+          '$basePath/image_$i.jpg',
+        );
+        if (result.isSuccess && result.valueOrNull != null) {
+          imageUrls.add(result.valueOrNull!);
+        }
+      }
+
+      if (!mounted) return;
+      setState(() => _isUploadingImages = false);
+    }
+
     final success = await postProvider.createPost(
       userId: user.uid,
       content: content,
       category: _selectedCategory,
       userDisplayName: user.displayName,
       userPhotoUrl: user.photoURL,
-      imageUrls: const [],
+      imageUrls: imageUrls,
     );
 
     if (!mounted) return;
@@ -124,7 +181,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
               return ValueListenableBuilder<TextEditingValue>(
                 valueListenable: _contentController,
                 builder: (_, value, __) {
-                  final canSubmit = value.text.trim().isNotEmpty;
+                  final canSubmit = value.text.trim().isNotEmpty &&
+                      !_isUploadingImages;
                   return TextButton(
                     onPressed: canSubmit ? _submit : null,
                     child: const Text('投稿'),
@@ -185,11 +243,15 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
           AppSpacing.verticalLg,
 
           // ── Image attachment area ─────────────────────────────────────────
-          // NOTE: Image upload is not yet available. Show a disabled placeholder
-          // instead of a silently broken picker to avoid confusing users.
-          _SectionLabel(label: '画像（任意）'),
+          _SectionLabel(label: '画像（任意・最大3枚）'),
           AppSpacing.verticalSm,
-          _ImageAttachmentComingSoon(),
+          _ImageAttachmentPicker(
+            images: _pickedImages,
+            maxImages: _maxImages,
+            isUploading: _isUploadingImages,
+            onAdd: _pickImages,
+            onRemove: _removeImage,
+          ),
 
           AppSpacing.verticalLg,
 
@@ -216,15 +278,21 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
               return ValueListenableBuilder<TextEditingValue>(
                 valueListenable: _contentController,
                 builder: (_, value, __) {
+                  final isBusy =
+                      provider.isSubmitting || _isUploadingImages;
                   final canSubmit =
-                      value.text.trim().isNotEmpty && !provider.isSubmitting;
+                      value.text.trim().isNotEmpty && !isBusy;
                   return FilledButton(
                     onPressed: canSubmit ? _submit : null,
                     style: FilledButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),
                     ),
                     child: Text(
-                      provider.isSubmitting ? '投稿中...' : '投稿する',
+                      _isUploadingImages
+                          ? '画像をアップロード中...'
+                          : provider.isSubmitting
+                              ? '投稿中...'
+                              : '投稿する',
                     ),
                   );
                 },
@@ -306,40 +374,90 @@ class _CategoryChipRow extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Image attachment — coming soon placeholder (image upload not yet implemented)
+// Image attachment picker
 // ---------------------------------------------------------------------------
 
-class _ImageAttachmentComingSoon extends StatelessWidget {
-  const _ImageAttachmentComingSoon();
+class _ImageAttachmentPicker extends StatelessWidget {
+  final List<Uint8List> images;
+  final int maxImages;
+  final bool isUploading;
+  final VoidCallback onAdd;
+  final ValueChanged<int> onRemove;
+
+  const _ImageAttachmentPicker({
+    required this.images,
+    required this.maxImages,
+    required this.isUploading,
+    required this.onAdd,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.add_photo_alternate_outlined,
-            size: 24,
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '画像添付は近日対応予定です',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+    final canAdd = images.length < maxImages && !isUploading;
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        // Thumbnail previews with remove button
+        ...images.asMap().entries.map((entry) {
+          final index = entry.key;
+          final bytes = entry.value;
+          return Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.memory(
+                  bytes,
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              Positioned(
+                top: 2,
+                right: 2,
+                child: GestureDetector(
+                  onTap: () => onRemove(index),
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close, size: 14, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }),
+
+        // Add button (hidden when limit reached)
+        if (canAdd)
+          GestureDetector(
+            onTap: onAdd,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Icon(
+                Icons.add_photo_alternate_outlined,
+                size: 28,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }

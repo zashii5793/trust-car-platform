@@ -1,3 +1,4 @@
+import 'package:purchases_flutter/purchases_flutter.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/shop.dart';
@@ -189,46 +190,33 @@ class RevenueCatService {
   // ---------------------------------------------------------------------------
 
   static Future<void> _productionInitialize(String userId) async {
-    // TODO(phase7-week2): Replace with actual RevenueCat SDK call:
-    //   await Purchases.configure(
-    //     PurchasesConfiguration(_apiKey)..appUserID = userId,
-    //   );
-    throw UnimplementedError(
-      'RevenueCat SDK not yet configured. Add purchases_flutter and implement this executor.',
-    );
+    final config = PurchasesConfiguration(_apiKey)..appUserID = userId;
+    await Purchases.configure(config);
   }
 
   static Future<PurchaseResult> _productionPurchase(
     String productId,
     String userId,
   ) async {
-    // TODO(phase7-week2): Replace with actual RevenueCat SDK call:
-    //   final offerings = await Purchases.getOfferings();
-    //   final package = offerings.current?.availablePackages
-    //       .firstWhere((p) => p.storeProduct.productIdentifier == productId);
-    //   final customerInfo = await Purchases.purchasePackage(package!);
-    //   return PurchaseResult(isSuccess: true, productId: productId);
-    throw UnimplementedError(
-      'RevenueCat SDK not yet configured.',
+    final offerings = await Purchases.getOfferings();
+    final packages = offerings.current?.availablePackages ?? [];
+    final package = packages.firstWhere(
+      (p) => p.storeProduct.identifier == productId,
+      orElse: () => throw Exception('Product $productId not found in offerings'),
     );
+    // purchasePackage throws PurchasesError on cancellation or failure.
+    await Purchases.purchasePackage(package);
+    return PurchaseResult(isSuccess: true, productId: productId);
   }
 
   static Future<RestoreResult> _productionRestore(String userId) async {
-    // TODO(phase7-week2): Replace with actual RevenueCat SDK call:
-    //   final customerInfo = await Purchases.restorePurchases();
-    //   final entitlements = customerInfo.entitlements.active.keys.toList();
-    //   return RestoreResult(activeEntitlements: entitlements);
-    throw UnimplementedError(
-      'RevenueCat SDK not yet configured.',
-    );
+    final customerInfo = await Purchases.restorePurchases();
+    final entitlements = customerInfo.entitlements.active.keys.toList();
+    return RestoreResult(activeEntitlements: entitlements);
   }
 
   static Future<List<String>> _productionEntitlements(String userId) async {
-    // TODO(phase7-week2): Replace with actual RevenueCat SDK call:
-    //   final customerInfo = await Purchases.getCustomerInfo();
-    //   return customerInfo.entitlements.active.keys.toList();
-    throw UnimplementedError(
-      'RevenueCat SDK not yet configured.',
-    );
+    final customerInfo = await Purchases.getCustomerInfo();
+    return customerInfo.entitlements.active.keys.toList();
   }
 }
