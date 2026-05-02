@@ -124,11 +124,16 @@ class VehicleCertificateOcrService {
 
   /// 認識されたテキストを解析
   VehicleCertificateData _parseRecognizedText(RecognizedText recognizedText) {
-    // 全テキストを取得
-    final fullText = recognizedText.text;
+    return _parseText(recognizedText.text);
+  }
+
+  /// Parses raw OCR text without MLKit dependency — exposed for accuracy testing.
+  @visibleForTesting
+  VehicleCertificateData parseRawTextForTest(String rawText) => _parseText(rawText);
+
+  VehicleCertificateData _parseText(String fullText) {
     final lines = fullText.split('\n');
 
-    // デバッグ用：認識されたテキストを出力（リリースビルドでは無効）
     assert(() {
       debugPrint('=== OCR Recognized Text ===');
       debugPrint(fullText);

@@ -173,10 +173,16 @@ class InvoiceOcrService {
 
   /// 認識されたテキストを解析
   InvoiceData _parseRecognizedText(RecognizedText recognizedText) {
-    final fullText = recognizedText.text;
+    return _parseText(recognizedText.text);
+  }
+
+  /// Parses raw OCR text without MLKit dependency — exposed for accuracy testing.
+  @visibleForTesting
+  InvoiceData parseRawTextForTest(String rawText) => _parseText(rawText);
+
+  InvoiceData _parseText(String fullText) {
     final lines = fullText.split('\n');
 
-    // デバッグ出力
     assert(() {
       debugPrint('=== Invoice OCR Text ===');
       debugPrint(fullText);
