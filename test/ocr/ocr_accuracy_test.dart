@@ -22,10 +22,6 @@ void main() {
   final vcService = VehicleCertificateOcrService();
   final invService = InvoiceOcrService();
 
-  // Track totals for the overall summary.
-  var totalChecked = 0;
-  var totalPassed = 0;
-
   group('OCR Accuracy Report — Vehicle Certificate', () {
     for (final fixture in vehicleCertificateFixtures) {
       test(fixture.name, () {
@@ -33,9 +29,6 @@ void main() {
         final report = _evaluateVehicleCertificate(result, fixture.expected);
 
         _printVehicleReport(fixture.name, report);
-
-        totalChecked += report.totalFields;
-        totalPassed += report.passedFields;
 
         expect(
           report.accuracy,
@@ -54,9 +47,6 @@ void main() {
         final report = _evaluateInvoice(result, fixture.expected);
 
         _printInvoiceReport(fixture.name, report);
-
-        totalChecked += report.totalFields;
-        totalPassed += report.passedFields;
 
         expect(
           report.accuracy,
@@ -154,11 +144,7 @@ _AccuracyReport _evaluateInvoice(
   InvoiceData actual,
   ExpectedInvoice expected,
 ) {
-  final itemCountMatch = expected.itemCount == null
-      ? null
-      : expected.itemCount;
   final actualItemCount = actual.items.length;
-
   return _AccuracyReport([
     _FieldResult('date', expected.date, actual.date),
     _FieldResult('totalAmount', expected.totalAmount, actual.totalAmount),
@@ -167,7 +153,7 @@ _AccuracyReport _evaluateInvoice(
     _FieldResult('shopName', expected.shopName, actual.shopName),
     _FieldResult('shopPhone', expected.shopPhone, actual.shopPhone),
     _FieldResult('mileage', expected.mileage, actual.mileage),
-    _FieldResult('itemCount', itemCountMatch, actualItemCount == 0 ? null : actualItemCount),
+    _FieldResult('itemCount', expected.itemCount, actualItemCount > 0 ? actualItemCount : null),
   ]);
 }
 
