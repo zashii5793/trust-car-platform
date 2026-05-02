@@ -218,13 +218,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           // Google サインアップ
                           OutlinedButton.icon(
                             onPressed: _handleGoogleSignup,
-                            icon: Image.network(
-                              'https://www.google.com/favicon.ico',
-                              width: 20,
-                              height: 20,
-                              errorBuilder: (_, __, ___) =>
-                                  const Icon(Icons.g_mobiledata, size: 20),
-                            ),
+                            icon: const Icon(Icons.g_mobiledata, size: 20),
                             label: const Text('Google で登録'),
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(

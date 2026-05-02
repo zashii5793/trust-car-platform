@@ -127,8 +127,7 @@ void main() {
   group('Screen Golden Tests - Auth Screens', () {
     testWidgets('LoginScreen - initial state', (tester) async {
       await tester.pumpWidget(createLoginScreen());
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
@@ -138,8 +137,7 @@ void main() {
 
     testWidgets('SignupScreen - initial state', (tester) async {
       await tester.pumpWidget(createSignupScreen());
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
@@ -149,13 +147,12 @@ void main() {
 
     testWidgets('LoginScreen - with input', (tester) async {
       await tester.pumpWidget(createLoginScreen());
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      // Enter email and password
       final textFields = find.byType(TextFormField);
       await tester.enterText(textFields.at(0), 'test@example.com');
       await tester.enterText(textFields.at(1), 'password123');
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
@@ -165,11 +162,10 @@ void main() {
 
     testWidgets('LoginScreen - validation error', (tester) async {
       await tester.pumpWidget(createLoginScreen());
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      // Tap login without input to trigger validation
       await tester.tap(find.text('ログイン'));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
@@ -179,11 +175,10 @@ void main() {
 
     testWidgets('SignupScreen - validation error', (tester) async {
       await tester.pumpWidget(createSignupScreen());
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      // Tap register without input to trigger validation
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
