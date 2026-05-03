@@ -37,9 +37,22 @@
   - ⚠️ キーはコードにコミット可能（Public key）だが、Secret key は絶対にコミット禁止
 
 - [ ] **RevenueCat で Products / Entitlements を設定**
-  - App Store Connect で Subscription Products を作成し RevenueCat に登録
-  - Google Play でも同様に Subscription を作成
-  - RevenueCat ダッシュボード → Entitlements → `premium` / `standard` Entitlement を定義
+  - コード内の ID（`lib/services/revenue_cat_service.dart`）:
+    - Entitlement: `btob_standard` / `btob_premium` / `btob_enterprise`
+    - Product ID: `trustcar_btob_standard_monthly` / `trustcar_btob_premium_monthly` / `trustcar_btob_enterprise_monthly`
+  - 手順:
+    1. **App Store Connect**: Subscriptions → + → 上記 Product ID で月額プランを作成
+    2. **Google Play Console**: サブスクリプション → + → 同じ Product ID を登録
+    3. **RevenueCat ダッシュボード** → Products → 上記 2 ストアの Product を登録
+    4. **RevenueCat ダッシュボード** → Entitlements → `btob_standard` / `btob_premium` / `btob_enterprise` を作成し各 Product を紐付け
+    5. **RevenueCat ダッシュボード** → Offerings → Default Offering に全 Package を追加
+  - 所要時間: 約 2〜4 時間（ストア審査が走る前の設定のみ）
+
+- [ ] **RevenueCat Webhook を Firebase Cloud Functions に接続**
+  - RevenueCat ダッシュボード → Integrations → Webhooks → + New
+  - URL: Firebase Cloud Functions の `handleRevenueCatWebhook` エンドポイント URL
+  - Authorization Header: `Bearer <REVENUECAT_WEBHOOK_SECRET>` の値を Firebase Secret Manager に登録
+  - ⚠️ 現状: `functions/src/index.ts` の `REVENUECAT_WEBHOOK_SECRET` は Firebase Secret Manager から取得予定
 
 ### Firebase / インフラ
 
