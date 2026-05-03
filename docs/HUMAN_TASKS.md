@@ -27,6 +27,20 @@
 
 ## 🟠 P1 — ローンチ前必須（ストア審査に必要）
 
+### RevenueCat / 課金
+
+- [ ] **RevenueCat SDK キーを本番キーに差し替え**
+  - 現状: `lib/services/revenue_cat_service.dart` の `_apiKey = 'REVENUECAT_API_KEY_PLACEHOLDER'`
+  - 手順:
+    1. https://app.revenuecat.com → プロジェクト設定 → API Keys → Public App-specific key をコピー
+    2. `lib/services/revenue_cat_service.dart` の `REVENUECAT_API_KEY_PLACEHOLDER` を実キーに置換
+  - ⚠️ キーはコードにコミット可能（Public key）だが、Secret key は絶対にコミット禁止
+
+- [ ] **RevenueCat で Products / Entitlements を設定**
+  - App Store Connect で Subscription Products を作成し RevenueCat に登録
+  - Google Play でも同様に Subscription を作成
+  - RevenueCat ダッシュボード → Entitlements → `premium` / `standard` Entitlement を定義
+
 ### Firebase / インフラ
 
 - [x] **Firestore ルール & インデックスを本番に適用** — 2026-04-15 完了
