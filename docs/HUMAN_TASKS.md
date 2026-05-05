@@ -18,7 +18,7 @@
   - ⚠️ Xcode での手動追加作業は不要。ただし iOS リリースビルドは Mac が必要
 
 
-- [ ] **GitHub Secrets に `GOOGLE_SERVICES_JSON` を登録**
+- [x] **GitHub Secrets に `GOOGLE_SERVICES_JSON` を登録** — 2026-05-05 完了
   - 手順: GitHub リポジトリ → Settings → Secrets → New secret
   - 値: `google-services.json` の内容をそのまま貼り付け
   - 目的: CI (GitHub Actions) の Android ビルドで使用
