@@ -159,7 +159,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           }
         },
         failure: (error) {
-          showErrorSnackBar(context, error.userMessage);
+          if (mounted) showErrorSnackBar(context, error.userMessage);
         },
       );
     } finally {
@@ -301,9 +301,15 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         imageUrl = uploadResult.getOrThrow();
       }
 
+      final currentUserId = _firebaseService.currentUserId;
+      if (currentUserId == null) {
+        if (mounted) showErrorSnackBar(context, 'ログインセッションが切れました。再ログインしてください');
+        return;
+      }
+
       final vehicle = Vehicle(
         id: '',
-        userId: _firebaseService.currentUserId ?? '',
+        userId: currentUserId,
         maker: _selectedMaker?.name ?? '',
         model: _selectedModel?.name ?? '',
         year: int.parse(_yearController.text),

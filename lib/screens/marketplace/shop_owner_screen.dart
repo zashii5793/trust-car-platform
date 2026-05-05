@@ -35,6 +35,7 @@ class _ShopOwnerScreenState extends State<ShopOwnerScreen> {
       await provider.loadMyShop(uid);
 
       // Start real-time inquiry count stream once the shop is known
+      if (!mounted) return;
       if (provider.myShop != null) {
         provider.startWatchingInquiries(provider.myShop!.id);
       }
