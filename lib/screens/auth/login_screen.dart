@@ -46,8 +46,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.signInWithGoogle();
 
-    if (!success && mounted && authProvider.errorMessage != null) {
-      showErrorSnackBar(context, authProvider.errorMessage!);
+    if (!success && mounted) {
+      showErrorSnackBar(context, authProvider.errorMessage ?? 'ログインに失敗しました');
     }
   }
 

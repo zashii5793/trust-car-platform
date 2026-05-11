@@ -37,6 +37,11 @@ class InquiryService {
     List<String> attachmentUrls = const [],
   }) async {
     // Enforce monthly inquiry limit for the shop's subscription plan.
+    // NOTE: There is a known TOCTOU race condition between this check and the
+    // document write below. Two simultaneous requests could both pass the check
+    // and exceed the limit by 1. Atomic enforcement requires a Cloud Function
+    // with a Firestore transaction; the Firestore security rule provides a
+    // server-side backstop for egregious over-use.
     final canReceiveResult = await _subscriptionService.canReceiveInquiry(shopId);
     if (canReceiveResult.isFailure) {
       return Result.failure(canReceiveResult.errorOrNull!);
