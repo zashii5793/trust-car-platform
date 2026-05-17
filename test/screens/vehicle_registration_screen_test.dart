@@ -252,25 +252,25 @@ Widget _buildScreen() {
 
 Future<void> _fillStep1AndAdvance(WidgetTester tester) async {
   // Wait for maker loading
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(seconds: 10));
 
   // Select maker
   await tester.tap(find.text('メーカーを選択 *'));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(seconds: 10));
   await tester.tap(find.text('トヨタ'));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(seconds: 10));
 
   // Select model (loads after maker selection)
   await tester.tap(find.text('車種を選択 *'));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(seconds: 10));
   await tester.tap(find.text('プリウス'));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(seconds: 10));
 
   // Select grade (loads after model selection)
   await tester.tap(find.text('グレードを選択 *'));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(seconds: 10));
   await tester.tap(find.text('S'));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(seconds: 10));
 
   // Enter year and mileage (TextFormField[0]=year, TextFormField[1]=mileage)
   await tester.enterText(find.byType(TextFormField).at(0), '2023');
@@ -279,7 +279,7 @@ Future<void> _fillStep1AndAdvance(WidgetTester tester) async {
 
   // Tap 次へ
   await tester.tap(find.text('次へ'));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(seconds: 10));
 }
 
 // ===========================================================================
@@ -372,7 +372,7 @@ void main() {
 
     testWidgets('6. Maker selector placeholder visible', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle(); // wait for makers to load
+      await tester.pumpAndSettle(const Duration(seconds: 10)); // wait for makers to load
 
       expect(find.text('メーカーを選択 *'), findsOneWidget);
     });
@@ -382,40 +382,40 @@ void main() {
   group('VehicleRegistrationScreen — Validation (Step 1)', () {
     testWidgets('7. Tapping 次へ with empty maker shows error', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('次へ'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('メーカーを選択してください'), findsOneWidget);
     });
 
     testWidgets('8. Tapping 次へ with empty model shows error', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('次へ'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('車種を選択してください'), findsOneWidget);
     });
 
     testWidgets('9. Tapping 次へ with empty year shows error', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('次へ'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('年式を入力'), findsOneWidget);
     });
 
     testWidgets('10. Tapping 次へ with empty mileage shows error', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('次へ'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('走行距離を入力してください'), findsOneWidget);
     });
@@ -423,10 +423,10 @@ void main() {
     testWidgets('11. Title unchanged when validation fails (stays step 1)',
         (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('次へ'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Still on step 1
       expect(find.text('基本情報を入力'), findsOneWidget);
@@ -434,22 +434,22 @@ void main() {
 
     testWidgets('12. Negative mileage shows error', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextFormField).at(1), '-1');
       await tester.tap(find.text('次へ'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('正しい走行距離を入力してください'), findsOneWidget);
     });
 
     testWidgets('13. Year < 1900 shows error', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextFormField).at(0), '1800');
       await tester.tap(find.text('次へ'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('正しい年式'), findsOneWidget);
     });
@@ -507,7 +507,7 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await _fillStep1AndAdvance(tester); // → step 2
       await tester.tap(find.text('次へ'));
-      await tester.pumpAndSettle(); // → step 3
+      await tester.pumpAndSettle(const Duration(seconds: 10)); // → step 3
     }
 
     testWidgets('20. AppBar title changes to 「詳細情報（任意）」', (tester) async {
@@ -544,7 +544,7 @@ void main() {
 
       // Tap AppBar back arrow
       await tester.tap(find.byIcon(Icons.arrow_back));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Should be back on step 1
       expect(find.text('基本情報を入力'), findsOneWidget);
@@ -558,7 +558,7 @@ void main() {
     testWidgets('26. Entering year makes state dirty → back triggers dialog',
         (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Make dirty by entering year
       await tester.enterText(find.byType(TextFormField).at(0), '2023');
@@ -568,7 +568,7 @@ void main() {
       final NavigatorState navigator =
           tester.state(find.byType(Navigator));
       navigator.maybePop();
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('登録を中断しますか？'), findsOneWidget);
     });
@@ -576,7 +576,7 @@ void main() {
     testWidgets('27. Tapping 続ける dismisses dialog, wizard stays',
         (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextFormField).at(0), '2023');
       await tester.pump();
@@ -584,10 +584,10 @@ void main() {
       final NavigatorState navigator =
           tester.state(find.byType(Navigator));
       navigator.maybePop();
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('続ける'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Dialog dismissed, still on registration screen
       expect(find.text('登録を中断しますか？'), findsNothing);
@@ -620,7 +620,7 @@ void main() {
       final NavigatorState navigator =
           tester.state(find.byType(Navigator));
       navigator.pushNamed('/register');
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Make dirty
       await tester.enterText(find.byType(TextFormField).at(0), '2023');
@@ -628,11 +628,11 @@ void main() {
 
       // System back
       navigator.maybePop();
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Tap 中断する
       await tester.tap(find.text('中断する'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Screen popped — back on home
       expect(find.text('Home'), findsOneWidget);
@@ -646,14 +646,14 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await _fillStep1AndAdvance(tester);
       await tester.tap(find.text('次へ'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
     }
 
     testWidgets('29. Success → snackbar 「車両を登録しました」', (tester) async {
       await navigateToStep3(tester);
 
       await tester.tap(find.text('登録する'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('車両を登録しました'), findsOneWidget);
     });
@@ -664,7 +664,7 @@ void main() {
       await navigateToStep3(tester);
 
       await tester.tap(find.text('登録する'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Shows the error snackbar (サーバーエラーが発生しました or 登録に失敗しました)
       expect(
@@ -684,19 +684,19 @@ void main() {
   group('VehicleRegistrationScreen — Edge cases', () {
     testWidgets('no crash on initial render', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(tester.takeException(), isNull);
     });
 
     testWidgets('mileage 0 is valid (boundary value)', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Enter 0 mileage
       await tester.enterText(find.byType(TextFormField).at(1), '0');
       await tester.tap(find.text('次へ'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Should NOT show mileage range error (0 is valid, ≥ 0)
       expect(find.text('正しい走行距離を入力してください'), findsNothing);

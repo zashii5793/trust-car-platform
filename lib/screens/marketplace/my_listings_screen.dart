@@ -7,6 +7,7 @@ import '../../core/di/service_locator.dart';
 import '../../models/user_part_listing.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/part_listing_service.dart';
+import '../../widgets/common/loading_indicator.dart';
 import 'create_listing_screen.dart';
 
 /// Screen that shows all listings created by the current user.
@@ -157,7 +158,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppLoadingCenter();
     }
 
     if (_errorMessage != null) {

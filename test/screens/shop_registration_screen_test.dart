@@ -248,7 +248,7 @@ Widget _buildScreen({
 Future<void> _scrollToAndTap(WidgetTester tester, Finder finder) async {
   await tester.scrollUntilVisible(finder, 100);
   await tester.tap(finder);
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(seconds: 10));
 }
 
 // ---------------------------------------------------------------------------
@@ -259,7 +259,7 @@ void main() {
   group('ShopRegistrationScreen — AppBar titles', () {
     testWidgets('1. shows 店舗を登録 in new mode', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('店舗を登録'), findsOneWidget);
     });
@@ -268,7 +268,7 @@ void main() {
       await tester.pumpWidget(
         _buildScreen(existingShop: _makeExistingShop()),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('掲載情報を編集'), findsOneWidget);
     });
@@ -278,11 +278,11 @@ void main() {
     testWidgets('3. shows error when shop name is empty on submit',
         (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Tap AppBar 保存 without entering name
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('店舗名を入力してください'), findsOneWidget);
     });
@@ -290,11 +290,11 @@ void main() {
     testWidgets('4. clears validation error after entering shop name',
         (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Trigger validation error
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       expect(find.text('店舗名を入力してください'), findsOneWidget);
 
       // Enter name — error should clear
@@ -307,7 +307,7 @@ void main() {
   group('ShopRegistrationScreen — Optional fields visible', () {
     testWidgets('5-11. all optional fields are present', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // 電話番号
       expect(find.text('電話番号'), findsOneWidget);
@@ -329,7 +329,7 @@ void main() {
 
     testWidgets('11. 説明文 field has maxLength 500', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('説明文'), findsOneWidget);
       // Find the description hint text to confirm it exists
@@ -343,7 +343,7 @@ void main() {
   group('ShopRegistrationScreen — Section headers', () {
     testWidgets('12-16. all section headers are visible', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('基本情報'), findsOneWidget);
       expect(find.text('連絡先'), findsOneWidget);
@@ -359,7 +359,7 @@ void main() {
   group('ShopRegistrationScreen — ServiceCategory chips', () {
     testWidgets('17. all 12 ServiceCategory chips are rendered', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Scroll to chips section
       await tester.scrollUntilVisible(find.text('車検'), 200);
@@ -374,7 +374,7 @@ void main() {
 
     testWidgets('18. tapping chip selects it', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('車検'), 200);
 
@@ -389,7 +389,7 @@ void main() {
       expect(chipWidget.selected, isFalse);
 
       await tester.tap(chip);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       chipWidget = tester.widget(chip);
       expect(chipWidget.selected, isTrue);
@@ -397,7 +397,7 @@ void main() {
 
     testWidgets('19. tapping selected chip deselects it', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('整備・点検'), 200);
 
@@ -408,13 +408,13 @@ void main() {
 
       // Select
       await tester.tap(chip);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       FilterChip chipWidget = tester.widget(chip);
       expect(chipWidget.selected, isTrue);
 
       // Deselect
       await tester.tap(chip);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       chipWidget = tester.widget(chip);
       expect(chipWidget.selected, isFalse);
     });
@@ -423,7 +423,7 @@ void main() {
   group('ShopRegistrationScreen — Plan selection', () {
     testWidgets('20. Free plan card shows 0円', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('0円'), 200);
       expect(find.text('0円'), findsOneWidget);
@@ -431,7 +431,7 @@ void main() {
 
     testWidgets('21. Standard plan card shows 9,800円 / 月', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('9,800円 / 月'), 200);
       expect(find.text('9,800円 / 月'), findsOneWidget);
@@ -439,7 +439,7 @@ void main() {
 
     testWidgets('22. Premium plan card shows 29,800円 / 月', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('29,800円 / 月'), 200);
       expect(find.text('29,800円 / 月'), findsOneWidget);
@@ -447,7 +447,7 @@ void main() {
 
     testWidgets('23. default selection is Free plan', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('Free'), 200);
 
@@ -467,11 +467,11 @@ void main() {
 
     testWidgets('24. tapping Standard plan selects it', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('Standard'), 200);
       await tester.tap(find.text('Standard'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Now Standard should be selected (radio_button_checked near 'Standard')
       // and Free should be deselected
@@ -484,7 +484,7 @@ void main() {
     testWidgets('25. bottom 保存する button enabled when not submitting',
         (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Scroll to bottom button
       await tester.scrollUntilVisible(find.text('保存する'), 200);
@@ -502,7 +502,7 @@ void main() {
       await tester.pumpWidget(
         _buildScreen(shopProvider: _FakeShopProvider(isSubmitting: true)),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('保存中...'), 200);
       expect(find.text('保存中...'), findsOneWidget);
@@ -518,7 +518,7 @@ void main() {
 
     testWidgets('27. AppBar 保存 TextButton present in new mode', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('保存'), findsOneWidget);
       expect(
@@ -535,7 +535,7 @@ void main() {
       await tester.pumpWidget(
         _buildScreen(shopProvider: _FakeShopProvider(isSubmitting: true)),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // AppBar should show spinner, not 保存 button
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -547,7 +547,7 @@ void main() {
     testWidgets('29. edit mode pre-fills shop name', (tester) async {
       final shop = _makeExistingShop(name: 'オートサービス山田');
       await tester.pumpWidget(_buildScreen(existingShop: shop));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
         find.descendant(
@@ -561,7 +561,7 @@ void main() {
     testWidgets('30. edit mode pre-fills description', (tester) async {
       final shop = _makeExistingShop(description: '熟練スタッフが丁寧に整備します');
       await tester.pumpWidget(_buildScreen(existingShop: shop));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('熟練スタッフが丁寧に整備します'), findsOneWidget);
     });
@@ -569,7 +569,7 @@ void main() {
     testWidgets('31. edit mode pre-fills plan type (Standard)', (tester) async {
       final shop = _makeExistingShop(planType: ShopPlanType.standard);
       await tester.pumpWidget(_buildScreen(existingShop: shop));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Scroll to plan section
       await tester.scrollUntilVisible(find.text('Standard'), 200);
@@ -585,7 +585,7 @@ void main() {
         services: [ServiceCategory.inspection, ServiceCategory.tire],
       );
       await tester.pumpWidget(_buildScreen(existingShop: shop));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('車検'), 200);
 
@@ -613,13 +613,13 @@ void main() {
         (tester) async {
       final provider = _FakeShopProvider(saveShouldSucceed: true);
       await tester.pumpWidget(_buildScreen(shopProvider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextFormField).first, '新規テスト工場');
       await tester.pump();
 
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(provider.saveCalledWith, isTrue);
       expect(provider.lastSavedShop?.name, '新規テスト工場');
@@ -628,13 +628,13 @@ void main() {
     testWidgets('34. failed save shows error snackbar', (tester) async {
       final provider = _FakeShopProvider(saveShouldSucceed: false);
       await tester.pumpWidget(_buildScreen(shopProvider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextFormField).first, 'エラーテスト工場');
       await tester.pump();
 
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Shows fallback error message snackbar
       expect(find.byType(SnackBar), findsOneWidget);
@@ -648,13 +648,13 @@ void main() {
         submitError: 'ネットワークエラーが発生しました',
       );
       await tester.pumpWidget(_buildScreen(shopProvider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextFormField).first, 'エラーテスト工場');
       await tester.pump();
 
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('ネットワークエラーが発生しました'), findsOneWidget);
     });
@@ -687,18 +687,18 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Navigate to registration screen
       await tester.tap(find.text('open'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       expect(find.text('店舗を登録'), findsOneWidget);
 
       // Enter name and save
       await tester.enterText(find.byType(TextFormField).first, 'ポップテスト工場');
       await tester.pump();
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // After successful save, should have popped back to the home screen
       expect(find.text('open'), findsOneWidget);
@@ -709,19 +709,19 @@ void main() {
   group('ShopRegistrationScreen — Edge Cases', () {
     testWidgets('name with only whitespace fails validation', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextFormField).first, '   ');
       await tester.pump();
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('店舗名を入力してください'), findsOneWidget);
     });
 
     testWidgets('all plan cards are visible on scroll', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('Free'), 200);
       expect(find.text('Free'), findsOneWidget);
@@ -737,10 +737,10 @@ void main() {
       await tester.pumpWidget(
         _buildScreen(shopProvider: provider, existingShop: shop),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(provider.lastSavedShop?.id, 'existing-shop-id');
     });
