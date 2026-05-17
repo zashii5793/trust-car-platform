@@ -69,10 +69,23 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
                 }
 
                 if (provider.feedPosts.isEmpty) {
+                  // Category filter active but no results
+                  if (provider.selectedCategory != null) {
+                    return AppEmptyState(
+                      icon: Icons.filter_list_off,
+                      title: 'この絞り込みには投稿がありません',
+                      description:
+                          '「${provider.selectedCategory!.displayName}」カテゴリの投稿がまだありません。\n他のカテゴリも探してみましょう。',
+                      buttonLabel: 'すべて表示',
+                      onButtonPressed: () => provider.selectCategory(null),
+                    );
+                  }
+                  // No posts at all
                   return AppEmptyState(
-                    icon: Icons.article_outlined,
-                    title: '投稿がありません',
-                    description: 'まだ投稿がありません。最初の投稿をしてみましょう！',
+                    icon: Icons.forum_outlined,
+                    title: '投稿がまだありません',
+                    description:
+                        '他のユーザーの投稿や、\n気になるハッシュタグを探してみましょう\n\n右下のボタンから最初の投稿をしてみましょう',
                     buttonLabel: '投稿する',
                     onButtonPressed: () => _openCreatePost(context),
                   );

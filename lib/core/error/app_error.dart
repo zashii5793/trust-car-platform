@@ -56,12 +56,12 @@ final class AuthError extends AppError {
   @override
   String get userMessage => switch (type) {
     AuthErrorType.invalidCredentials => 'メールアドレスまたはパスワードが正しくありません',
-    AuthErrorType.userNotFound => 'ユーザーが見つかりません',
-    AuthErrorType.emailAlreadyInUse => 'このメールアドレスは既に使用されています',
-    AuthErrorType.weakPassword => 'パスワードが弱すぎます。より強力なパスワードを使用してください',
+    AuthErrorType.userNotFound => 'メールアドレスまたはパスワードが正しくありません',
+    AuthErrorType.emailAlreadyInUse => 'このメールアドレスはすでに登録されています',
+    AuthErrorType.weakPassword => 'パスワードは8文字以上で設定してください',
     AuthErrorType.sessionExpired => 'セッションが期限切れです。再度ログインしてください',
-    AuthErrorType.tooManyRequests => 'リクエストが多すぎます。しばらく待ってからお試しください',
-    AuthErrorType.unknown => '認証エラーが発生しました',
+    AuthErrorType.tooManyRequests => 'ログイン試行が多すぎます。しばらく待ってからお試しください',
+    AuthErrorType.unknown => 'ログインに失敗しました。再度お試しください',
   };
 
   @override
