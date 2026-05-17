@@ -564,6 +564,7 @@ class _HomeScreenState extends State<HomeScreen> {
       maintenanceProvider.clear();
       notificationProvider.clear();
       await authProvider.signOut();
+      if (!context.mounted) return;
     }
   }
 }

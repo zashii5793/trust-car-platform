@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_text_field.dart';
@@ -110,15 +111,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                                 colors: [
-                                  Color(0xFF1A4D8F), // primary
-                                  Color(0xFF2563B8), // primaryHover
-                                  Color(0xFF2D7A5F), // secondary
+                                  AppColors.primary,
+                                  AppColors.primaryHover,
+                                  AppColors.secondary,
                                 ],
                               ),
                               borderRadius: AppSpacing.borderRadiusLg,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Color(0xFF1A4D8F),
+                                  color: AppColors.primary,
                                   blurRadius: 20,
                                   offset: Offset(0, 8),
                                   spreadRadius: -4,

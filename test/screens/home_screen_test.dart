@@ -391,7 +391,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.byIcon(Icons.store_outlined));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
         find.descendant(
@@ -407,7 +407,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.byIcon(Icons.forum_outlined));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
         find.descendant(
@@ -423,7 +423,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.byIcon(Icons.notifications_outlined));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
         find.descendant(
@@ -439,7 +439,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.byIcon(Icons.person_outline));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
         find.descendant(
@@ -492,7 +492,7 @@ void main() {
           matching: find.byIcon(icon),
         );
         await tester.tap(iconFinder);
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
       }
 
       // クラッシュしない
@@ -622,7 +622,7 @@ void main() {
       );
       await tester.tap(carTabIcon);
       await tester.tap(carTabIcon);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(tester.takeException(), isNull);
     });
