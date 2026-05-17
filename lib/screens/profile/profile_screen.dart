@@ -359,8 +359,10 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
     setState(() => _isSaving = false);
 
     if (success) {
-      Navigator.of(context).pop();
-      showSuccessSnackBar(context, 'プロフィールを更新しました');
+      Navigator.of(context).pop(); // close sheet first
+      if (context.mounted) {
+        showSuccessSnackBar(context, 'プロフィールを更新しました');
+      }
     } else {
       showSuccessSnackBar(context, '更新に失敗しました');
     }
