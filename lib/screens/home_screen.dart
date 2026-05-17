@@ -246,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (vehicleProvider.error != null) {
           return AppErrorState(
-            message: vehicleProvider.errorMessage ?? 'エラーが発生しました',
+            message: vehicleProvider.errorMessage ?? 'データを読み込めませんでした',
             onRetry: vehicleProvider.isRetryable
                 ? () {
                     vehicleProvider.clearError();

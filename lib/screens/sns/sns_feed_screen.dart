@@ -63,7 +63,7 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
 
                 if (provider.error != null && provider.feedPosts.isEmpty) {
                   return AppErrorState(
-                    message: provider.errorMessage ?? 'エラーが発生しました',
+                    message: provider.errorMessage ?? 'データを読み込めませんでした',
                     onRetry: () => provider.refreshFeed(),
                   );
                 }

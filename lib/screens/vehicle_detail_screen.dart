@@ -508,7 +508,7 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
   String get _emptyTitle {
     switch (widget.filter) {
       case _TimelineFilter.maintenance:
-        return '整備記録がありません';
+        return 'メンテナンス記録がありません';
       case _TimelineFilter.drive:
         return 'ドライブログがありません';
       case _TimelineFilter.all:
@@ -519,7 +519,7 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
   String get _emptyDescription {
     switch (widget.filter) {
       case _TimelineFilter.maintenance:
-        return '「履歴を追加」から整備・点検記録を追加しましょう';
+        return '整備・点検・オイル交換などの記録を追加すると\nここに履歴が表示されます';
       case _TimelineFilter.drive:
         return 'ドライブログを記録してみましょう';
       case _TimelineFilter.all:
@@ -529,9 +529,11 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
 
   IconData get _emptyIcon {
     switch (widget.filter) {
+      case _TimelineFilter.maintenance:
+        return Icons.build_outlined;
       case _TimelineFilter.drive:
         return Icons.directions_car_outlined;
-      default:
+      case _TimelineFilter.all:
         return Icons.history;
     }
   }

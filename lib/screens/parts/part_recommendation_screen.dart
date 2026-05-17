@@ -81,7 +81,7 @@ class _PartRecommendationScreenState extends State<PartRecommendationScreen> {
 
     if (provider.error != null) {
       return _ErrorState(
-        message: provider.errorMessage ?? 'エラーが発生しました',
+        message: provider.errorMessage ?? 'データを読み込めませんでした',
         onRetry: () => provider.loadRecommendations(widget.vehicle),
       );
     }
