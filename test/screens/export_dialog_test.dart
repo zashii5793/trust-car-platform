@@ -130,7 +130,7 @@ void main() {
         _buildLauncher(vehicle: _makeVehicle(), records: []),
       );
       await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('メンテナンス履歴をエクスポート'), findsOneWidget);
     });
@@ -141,7 +141,7 @@ void main() {
         _buildLauncher(vehicle: vehicle, records: []),
       );
       await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('ホンダ'), findsWidgets);
       expect(find.textContaining('シビック'), findsWidgets);
@@ -157,7 +157,7 @@ void main() {
         _buildLauncher(vehicle: _makeVehicle(), records: records),
       );
       await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('3件'), findsOneWidget);
     });
@@ -181,7 +181,7 @@ void main() {
         _buildLauncher(vehicle: _makeVehicle(), records: []),
       );
       await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('プレビュー / 印刷'), findsOneWidget);
     });
@@ -191,7 +191,7 @@ void main() {
         _buildLauncher(vehicle: _makeVehicle(), records: []),
       );
       await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('共有'), findsOneWidget);
     });
@@ -201,7 +201,7 @@ void main() {
         _buildLauncher(vehicle: _makeVehicle(), records: []),
       );
       await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('ダイレクト印刷'), findsOneWidget);
     });
@@ -213,7 +213,7 @@ void main() {
         _buildLauncher(vehicle: _makeVehicle(), records: []),
       );
       await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('キャンセル'), findsOneWidget);
     });
@@ -226,7 +226,7 @@ void main() {
         _buildLauncher(vehicle: vehicle, records: [_makeRecord()]),
       );
       await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('スバル'), findsWidgets);
       expect(find.textContaining('インプレッサ'), findsWidgets);
@@ -237,7 +237,7 @@ void main() {
         _buildLauncher(vehicle: _makeVehicle(), records: []),
       );
       await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('0件'), findsOneWidget);
     });

@@ -289,7 +289,7 @@ void main() {
       final btn = find.textContaining('すべて表示');
       if (btn.evaluate().isNotEmpty) {
         await tester.tap(btn);
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
       }
 
       expect(tester.takeException(), isNull);

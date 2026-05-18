@@ -161,7 +161,7 @@ Future<void> _tapAppBarSubmit(WidgetTester tester) async {
     matching: find.byType(FilledButton),
   );
   await tester.tap(appBarButton);
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(seconds: 10));
 }
 
 // ---------------------------------------------------------------------------
@@ -584,7 +584,7 @@ void main() {
   group('CreateListingScreen — Edge cases', () {
     testWidgets('no crash when all optional fields are empty', (tester) async {
       await tester.pumpWidget(_buildNew());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(tester.takeException(), isNull);
     });

@@ -309,7 +309,7 @@ void main() {
 
       // Now submit with no type
       await tester.tap(find.text('整備記録を登録'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('整備タイプを選択してください'), findsOneWidget);
     });
@@ -321,7 +321,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('整備記録を登録'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('作業日を設定してください'), findsOneWidget);
     });

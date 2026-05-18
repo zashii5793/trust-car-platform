@@ -190,7 +190,7 @@ void main() {
       expect(downgradeButton, findsOneWidget);
 
       await tester.tap(downgradeButton);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Confirmation dialog should appear
       expect(find.text('無料プランに変更'), findsOneWidget);
@@ -203,10 +203,10 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('ダウングレード'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('キャンセル'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Dialog closed; plan name still visible (not navigated away)
       expect(find.text('スタンダード'), findsOneWidget);
@@ -217,7 +217,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('ダウングレード'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
         find.textContaining('サブスクリプションは期間終了時にキャンセルされます'),

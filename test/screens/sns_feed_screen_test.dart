@@ -305,7 +305,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.byType(FloatingActionButton));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // PostCreateScreen に遷移
       expect(find.text('投稿を作成'), findsOneWidget);

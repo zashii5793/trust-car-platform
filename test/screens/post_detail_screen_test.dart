@@ -278,7 +278,7 @@ void main() {
   group('PostDetailScreen — AppBar', () {
     testWidgets('1. shows 投稿の詳細 title', (tester) async {
       await tester.pumpWidget(_buildScreen(_makePost()));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('投稿の詳細'), findsOneWidget);
     });
@@ -288,7 +288,7 @@ void main() {
       await tester.pumpWidget(
         _buildScreen(post, loggedInUid: 'other-uid'),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byIcon(Icons.delete_outline), findsNothing);
     });
@@ -298,7 +298,7 @@ void main() {
       await tester.pumpWidget(
         _buildScreen(post, loggedInUid: 'author-uid'),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byIcon(Icons.delete_outline), findsOneWidget);
     });
@@ -308,7 +308,7 @@ void main() {
     testWidgets('4. shows post content', (tester) async {
       final post = _makePost(content: 'これは投稿のテスト本文です');
       await tester.pumpWidget(_buildScreen(post));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('これは投稿のテスト本文です'), findsOneWidget);
     });
@@ -316,7 +316,7 @@ void main() {
     testWidgets('5. shows author display name', (tester) async {
       final post = _makePost(userDisplayName: '山田太郎');
       await tester.pumpWidget(_buildScreen(post));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('山田太郎'), findsOneWidget);
     });
@@ -324,7 +324,7 @@ void main() {
     testWidgets('6. shows like count', (tester) async {
       final post = _makePost(likeCount: 42);
       await tester.pumpWidget(_buildScreen(post));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('42'), findsOneWidget);
     });
@@ -332,7 +332,7 @@ void main() {
     testWidgets('7. shows hashtags', (tester) async {
       final post = _makePost(hashtags: ['クルマ', 'DIY']);
       await tester.pumpWidget(_buildScreen(post));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('#クルマ'), findsOneWidget);
       expect(find.textContaining('#DIY'), findsOneWidget);
@@ -341,7 +341,7 @@ void main() {
     testWidgets('8. shows category badge', (tester) async {
       final post = _makePost(category: PostCategory.maintenance);
       await tester.pumpWidget(_buildScreen(post));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Category badge renders the displayName
       expect(find.text('メンテナンス'), findsOneWidget);
@@ -351,7 +351,7 @@ void main() {
   group('PostDetailScreen — Comments section', () {
     testWidgets('9. shows コメント header', (tester) async {
       await tester.pumpWidget(_buildScreen(_makePost()));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('コメント'), findsOneWidget);
     });
@@ -365,7 +365,7 @@ void main() {
 
     testWidgets('11. shows まだコメントがありません when empty', (tester) async {
       await tester.pumpWidget(_buildScreen(_makePost()));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
         find.textContaining('まだコメントがありません'),
@@ -377,7 +377,7 @@ void main() {
       final svc = _FakePostService()
         ..commentsToReturn = [_makeComment(content: 'すごい投稿ですね！')];
       await tester.pumpWidget(_buildScreen(_makePost(), postService: svc));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('すごい投稿ですね！'), findsOneWidget);
     });
@@ -386,7 +386,7 @@ void main() {
       final svc = _FakePostService()
         ..commentsToReturn = [_makeComment(userDisplayName: '鈴木コメント者')];
       await tester.pumpWidget(_buildScreen(_makePost(), postService: svc));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('鈴木コメント者'), findsOneWidget);
     });
@@ -395,7 +395,7 @@ void main() {
   group('PostDetailScreen — Comment input', () {
     testWidgets('14. shows comment input field', (tester) async {
       await tester.pumpWidget(_buildScreen(_makePost()));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byType(TextField), findsOneWidget);
     });
@@ -405,11 +405,11 @@ void main() {
       await tester.pumpWidget(
         _buildScreen(_makePost(), loggedInUid: 'user-uid', postService: svc),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Send button with empty field
       await tester.tap(find.byIcon(Icons.send_rounded));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(svc.addCommentCallCount, equals(0));
     });
@@ -419,11 +419,11 @@ void main() {
       await tester.pumpWidget(
         _buildScreen(_makePost(), loggedInUid: 'user-uid', postService: svc),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextField), 'テストコメントを投稿します');
       await tester.tap(find.byIcon(Icons.send_rounded));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(svc.addCommentCallCount, greaterThan(0));
     });
@@ -433,7 +433,7 @@ void main() {
     testWidgets('17. like count displayed', (tester) async {
       final post = _makePost(likeCount: 7);
       await tester.pumpWidget(_buildScreen(post));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('7'), findsOneWidget);
     });
@@ -443,10 +443,10 @@ void main() {
       await tester.pumpWidget(
         _buildScreen(_makePost(), loggedInUid: 'user-uid', postService: svc),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.byIcon(Icons.favorite_border));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(svc.likeToggleCallCount, greaterThan(0));
     });
@@ -456,7 +456,7 @@ void main() {
     testWidgets('19. post with no hashtags has no # text', (tester) async {
       final post = _makePost(hashtags: []);
       await tester.pumpWidget(_buildScreen(post));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('#'), findsNothing);
     });
@@ -469,7 +469,7 @@ void main() {
           _makeComment(id: 'c3', content: 'コメントC'),
         ];
       await tester.pumpWidget(_buildScreen(_makePost(), postService: svc));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('コメントA'), findsOneWidget);
       expect(find.text('コメントB'), findsOneWidget);

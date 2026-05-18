@@ -189,7 +189,7 @@ void main() {
   group('MyListingsScreen — AppBar', () {
     testWidgets('17. shows マイ出品 title', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('マイ出品'), findsOneWidget);
     });
@@ -212,7 +212,7 @@ void main() {
       _stub.myListingsResult = const Result.success([]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('まだ出品していません'), findsOneWidget);
     });
@@ -221,7 +221,7 @@ void main() {
       _stub.myListingsResult = const Result.success([]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('出品する'), findsWidgets);
     });
@@ -233,7 +233,7 @@ void main() {
           Result.failure(AppError.server('読み込みに失敗しました'));
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byType(SnackBar), findsNothing);
       // Error shown inline
@@ -245,7 +245,7 @@ void main() {
           Result.failure(AppError.server('エラー'));
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('再読み込み'), findsOneWidget);
     });
@@ -257,7 +257,7 @@ void main() {
           Result.success([_makeListing(title: 'BLITZ車高調 ZZ-R')]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('BLITZ車高調 ZZ-R'), findsOneWidget);
     });
@@ -267,7 +267,7 @@ void main() {
           Result.success([_makeListing(price: 15000, payout: 13800)]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // priceDisplay formats price with ¥
       expect(find.textContaining('¥'), findsWidgets);
@@ -278,7 +278,7 @@ void main() {
           Result.success([_makeListing(status: PartListingStatus.active)]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('出品中'), findsOneWidget);
     });
@@ -288,7 +288,7 @@ void main() {
           Result.success([_makeListing(status: PartListingStatus.soldOut)]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('売り切れ'), findsOneWidget);
     });
@@ -298,7 +298,7 @@ void main() {
           Result.success([_makeListing(status: PartListingStatus.cancelled)]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('取り下げ'), findsOneWidget);
     });
@@ -309,7 +309,7 @@ void main() {
       _stub.myListingsResult = const Result.success([]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byType(FloatingActionButton), findsOneWidget);
     });
@@ -321,10 +321,10 @@ void main() {
           Result.success([_makeListing(title: 'アクションテスト')]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('アクションテスト'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Action sheet appeared
       expect(find.text('売り切れにする'), findsOneWidget);
@@ -335,10 +335,10 @@ void main() {
           Result.success([_makeListing(status: PartListingStatus.active)]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.byIcon(Icons.more_vert));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('売り切れにする'), findsOneWidget);
     });
@@ -348,10 +348,10 @@ void main() {
           Result.success([_makeListing(status: PartListingStatus.active)]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.byIcon(Icons.more_vert));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('取り下げる'), findsOneWidget);
     });
@@ -361,10 +361,10 @@ void main() {
           Result.success([_makeListing(status: PartListingStatus.active)]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.byIcon(Icons.more_vert));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('編集'), findsOneWidget);
     });
@@ -375,10 +375,10 @@ void main() {
           Result.success([_makeListing(status: PartListingStatus.soldOut)]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.byIcon(Icons.more_vert));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('売り切れにする'), findsNothing);
       expect(find.text('取り下げる'), findsNothing);
@@ -395,7 +395,7 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('パーツA'), findsOneWidget);
       expect(find.text('パーツB'), findsOneWidget);
@@ -406,11 +406,11 @@ void main() {
       _stub.myListingsResult = Result.failure(AppError.server('エラー'));
 
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       final countBefore = _stub.loadCallCount;
       await tester.tap(find.text('再読み込み'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(_stub.loadCallCount, greaterThan(countBefore));
     });

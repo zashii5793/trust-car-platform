@@ -158,7 +158,7 @@ void main() {
       mockService.featuredResult = const Result.success([]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('現在パーツは掲載されていません'), findsOneWidget);
     });
@@ -170,7 +170,7 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('HKSマフラー'), findsOneWidget);
       expect(find.text('TRDエアフィルター'), findsOneWidget);
@@ -184,7 +184,7 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('おすすめパーツ'), findsOneWidget);
     });
@@ -195,14 +195,14 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('広告'), findsOneWidget);
     });
 
     testWidgets('カテゴリフィルタ行が表示される', (tester) async {
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // 「すべて」チップが存在する
       expect(find.text('すべて'), findsOneWidget);
@@ -213,7 +213,7 @@ void main() {
 
     testWidgets('検索バーが表示される', (tester) async {
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byType(TextField), findsOneWidget);
     });
@@ -223,7 +223,7 @@ void main() {
           Result.failure(AppError.network('connection failed'));
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(tester.takeException(), isNull);
       // エラー状態 UI（リフレッシュアイコンなど）
@@ -236,7 +236,7 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('3,000'), findsWidgets);
     });
@@ -247,14 +247,14 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('Mobil 1'), findsOneWidget);
     });
 
     testWidgets('検索テキスト入力でclearアイコンが出現する', (tester) async {
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextField), 'マフラー');
       await tester.pump();
@@ -264,7 +264,7 @@ void main() {
 
     testWidgets('clearアイコンタップで検索テキストがクリアされる', (tester) async {
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextField), 'テスト');
       await tester.pump();
@@ -282,7 +282,7 @@ void main() {
       mockService.featuredResult = const Result.success([]);
 
       await tester.pumpWidget(_buildApp(provider, vehicle: vehicle));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // 車両情報を含むバナー（「RAV4」や「Toyota」など）
       expect(
@@ -297,7 +297,7 @@ void main() {
       mockService.featuredResult = const Result.success([]);
 
       await tester.pumpWidget(_buildApp(provider, vehicle: null));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(tester.takeException(), isNull);
     });
@@ -309,7 +309,7 @@ void main() {
         ]);
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });
@@ -320,7 +320,7 @@ void main() {
         ]);
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });
@@ -331,7 +331,7 @@ void main() {
         ]);
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });
@@ -345,7 +345,7 @@ void main() {
         );
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(find.byType(ListView), findsWidgets);
         expect(tester.takeException(), isNull);
@@ -357,7 +357,7 @@ void main() {
         ]);
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });

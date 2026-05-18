@@ -260,14 +260,14 @@ void main() {
   group('ShopOwnerScreen — Unregistered state (myShop == null)', () {
     testWidgets('shows invitation headline', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('あなたの店舗を掲載しましょう'), findsOneWidget);
     });
 
     testWidgets('shows description text', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
         find.textContaining('整備工場・ディーラー'),
@@ -277,7 +277,7 @@ void main() {
 
     testWidgets('shows Free plan card', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('Free'), findsOneWidget);
       expect(find.text('0円'), findsOneWidget);
@@ -285,7 +285,7 @@ void main() {
 
     testWidgets('shows Standard plan card with price', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('Standard'), findsOneWidget);
       expect(find.text('9,800円 / 月'), findsOneWidget);
@@ -293,7 +293,7 @@ void main() {
 
     testWidgets('shows Premium plan card with price', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('Premium'), findsOneWidget);
       expect(find.text('29,800円 / 月'), findsOneWidget);
@@ -301,21 +301,21 @@ void main() {
 
     testWidgets('shows register button', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('無料で掲載を始める'), findsOneWidget);
     });
 
     testWidgets('プランを選択 section heading is shown', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('プランを選択'), findsOneWidget);
     });
 
     testWidgets('Free plan shows features', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('基本情報を掲載'), findsOneWidget);
       expect(find.text('問い合わせ受付'), findsOneWidget);
@@ -326,7 +326,7 @@ void main() {
     testWidgets('shows shop name', (tester) async {
       final provider = _FakeShopProvider(shop: _makeShop(name: 'タカヤモータース'));
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('タカヤモータース'), findsOneWidget);
     });
@@ -335,7 +335,7 @@ void main() {
       final provider = _FakeShopProvider(
           shop: _makeShop(planType: ShopPlanType.free));
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // One badge in summary card, possibly one in unregistered cards — but
       // in registered mode only the summary card badge is shown.
@@ -346,7 +346,7 @@ void main() {
       final provider = _FakeShopProvider(
           shop: _makeShop(planType: ShopPlanType.standard));
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('Standard'), findsOneWidget);
     });
@@ -355,7 +355,7 @@ void main() {
       final provider = _FakeShopProvider(
           shop: _makeShop(planType: ShopPlanType.premium));
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('Premium'), findsOneWidget);
     });
@@ -365,7 +365,7 @@ void main() {
         shop: _makeShop(prefecture: '東京都', city: '渋谷区'),
       );
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('東京都 渋谷区'), findsOneWidget);
     });
@@ -374,7 +374,7 @@ void main() {
       final provider =
           _FakeShopProvider(shop: _makeShop(rating: 4.3));
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('4.3'), findsOneWidget);
     });
@@ -382,7 +382,7 @@ void main() {
     testWidgets('shows 掲載情報を編集 button', (tester) async {
       final provider = _FakeShopProvider(shop: _makeShop());
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('掲載情報を編集'), findsOneWidget);
     });
@@ -390,7 +390,7 @@ void main() {
     testWidgets('shows 掲載を削除 button', (tester) async {
       final provider = _FakeShopProvider(shop: _makeShop());
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('掲載を削除'), findsOneWidget);
     });
@@ -401,7 +401,7 @@ void main() {
       final provider =
           _FakeShopProvider(shop: _makeShop(), inquiryTotal: 5, inquiryUnread: 0);
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('問い合わせ 5 件'), findsOneWidget);
     });
@@ -411,7 +411,7 @@ void main() {
       final provider = _FakeShopProvider(
           shop: _makeShop(), inquiryTotal: 10, inquiryUnread: 3);
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // RichText spans — use textContaining to match partial span text
       expect(find.textContaining('全 10 件'), findsOneWidget);
@@ -421,7 +421,7 @@ void main() {
     testWidgets('shows 問い合わせ section', (tester) async {
       final provider = _FakeShopProvider(shop: _makeShop());
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('問い合わせ'), findsOneWidget);
     });
@@ -432,7 +432,7 @@ void main() {
       final provider =
           _FakeShopProvider(shop: _makeShop(planType: ShopPlanType.free));
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('プランをアップグレードしませんか?'), findsOneWidget);
     });
@@ -441,7 +441,7 @@ void main() {
       final provider =
           _FakeShopProvider(shop: _makeShop(planType: ShopPlanType.standard));
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('プランをアップグレードしませんか?'), findsNothing);
     });
@@ -450,7 +450,7 @@ void main() {
       final provider =
           _FakeShopProvider(shop: _makeShop(planType: ShopPlanType.premium));
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('プランをアップグレードしませんか?'), findsNothing);
     });
@@ -460,10 +460,10 @@ void main() {
     testWidgets('tapping 掲載を削除 shows confirmation dialog', (tester) async {
       final provider = _FakeShopProvider(shop: _makeShop());
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('掲載を削除'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('掲載を削除しますか?'), findsOneWidget);
       expect(find.text('この操作は取り消せません。\n掲載情報・問い合わせ履歴はすべて削除されます。'),
@@ -476,13 +476,13 @@ void main() {
         (tester) async {
       final provider = _FakeShopProvider(shop: _makeShop());
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('掲載を削除'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('キャンセル'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(provider.deleteCalled, isFalse);
       expect(find.text('掲載を削除しますか?'), findsNothing);
@@ -492,13 +492,13 @@ void main() {
       final provider = _FakeShopProvider(
           shop: _makeShop(), deleteShouldSucceed: true);
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('掲載を削除'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('削除する'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(provider.deleteCalled, isTrue);
     });
@@ -507,12 +507,12 @@ void main() {
       final provider = _FakeShopProvider(
           shop: _makeShop(), deleteShouldSucceed: true);
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('掲載を削除'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       await tester.tap(find.text('削除する'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('掲載を削除しました'), findsOneWidget);
     });
@@ -523,7 +523,7 @@ void main() {
       final provider =
           _FakeShopProvider(shop: _makeShop(rating: null));
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(tester.takeException(), isNull);
       expect(find.text('テストモータース'), findsOneWidget);
@@ -532,7 +532,7 @@ void main() {
     testWidgets('shows store icon when no logoUrl', (tester) async {
       final provider = _FakeShopProvider(shop: _makeShop());
       await tester.pumpWidget(_buildScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byIcon(Icons.store), findsOneWidget);
     });

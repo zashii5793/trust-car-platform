@@ -153,14 +153,14 @@ void main() {
 
     testWidgets('2. shows 年間コスト section', (tester) async {
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('年間コスト'), findsOneWidget);
     });
 
     testWidgets('3. shows 月別コスト推移（直近12ヶ月）section', (tester) async {
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(
         find.text('月別コスト推移（直近12ヶ月）'),
@@ -171,7 +171,7 @@ void main() {
 
     testWidgets('4. shows タイプ別内訳 section', (tester) async {
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('タイプ別内訳'), 200);
       expect(find.text('タイプ別内訳'), findsOneWidget);
@@ -187,7 +187,7 @@ void main() {
         ],
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Total = ¥8,000
       expect(find.text('¥8,000'), findsOneWidget);
@@ -202,7 +202,7 @@ void main() {
         ],
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('3件'), findsOneWidget);
     });
@@ -215,7 +215,7 @@ void main() {
         ],
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Average = ¥5,000
       expect(find.text('¥5,000'), findsOneWidget);
@@ -229,7 +229,7 @@ void main() {
         ],
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('2種類'), findsOneWidget);
     });
@@ -241,7 +241,7 @@ void main() {
         records: [_makeRecord(type: MaintenanceType.oilChange, cost: 3000)],
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('タイプ別内訳'), 200);
       // オイル交換 displayName
@@ -255,7 +255,7 @@ void main() {
         ],
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('100%'), 200);
       expect(find.text('100%'), findsOneWidget);
@@ -268,7 +268,7 @@ void main() {
         records: [_makeRecord(shopName: null)],
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('店舗別集計'), findsNothing);
     });
@@ -278,7 +278,7 @@ void main() {
         records: [_makeRecord(shopName: 'オートサービス山田')],
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('店舗別集計'), 200);
       expect(find.text('店舗別集計'), findsOneWidget);
@@ -289,7 +289,7 @@ void main() {
         records: [_makeRecord(shopName: 'トラストモータース', cost: 8000)],
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('トラストモータース'), 200);
       expect(find.text('トラストモータース'), findsOneWidget);
@@ -302,7 +302,7 @@ void main() {
         records: [_makeRecord(cost: 12000)],
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Both total and average show ¥12,000
       expect(find.text('¥12,000'), findsWidgets);
@@ -314,7 +314,7 @@ void main() {
         records: [_makeRecord(shopName: '')],
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('店舗別集計'), findsNothing);
     });

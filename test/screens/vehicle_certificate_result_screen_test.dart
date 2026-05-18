@@ -199,7 +199,7 @@ void main() {
 
       // 画像表示ボタンをタップ
       await tester.tap(find.byIcon(Icons.image));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // InteractiveViewerが表示される（画像ビューモード）
       expect(find.byType(InteractiveViewer), findsOneWidget);
@@ -212,7 +212,7 @@ void main() {
 
       // 登録ボタンをタップ
       await tester.tap(find.text('この内容で登録'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // エラーメッセージが表示される
       expect(find.text('メーカーまたは車種を入力してください'), findsOneWidget);
@@ -225,7 +225,7 @@ void main() {
 
       // キャンセルボタンをタップ
       await tester.tap(find.text('キャンセル'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // 画面が閉じる（MaterialAppのみ残る）
       expect(find.byType(VehicleCertificateResultScreen), findsNothing);

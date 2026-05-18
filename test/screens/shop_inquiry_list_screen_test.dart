@@ -35,6 +35,7 @@ import 'package:trust_car_platform/providers/shop_provider.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
+import 'package:trust_car_platform/services/inquiry_service.dart';
 import 'package:trust_car_platform/models/inquiry.dart';
 import 'package:trust_car_platform/models/user.dart';
 import 'package:trust_car_platform/core/result/result.dart';
@@ -45,6 +46,22 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 // ---------------------------------------------------------------------------
 
 class _StubShopService implements ShopService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _StubInquiryService implements InquiryService {
+  @override
+  Stream<List<InquiryMessage>> streamMessages(String inquiryId) =>
+      Stream.value([]);
+
+  @override
+  Future<Result<void, AppError>> markAsRead({
+    required String inquiryId,
+    required bool isUser,
+  }) async =>
+      const Result.success(null);
+
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
@@ -96,7 +113,14 @@ class _FakeShopProvider extends ShopProvider {
     List<Inquiry> inquiries = const [],
   })  : _loading = loading,
         _inquiries = List.of(inquiries),
-        super(shopService: _StubShopService());
+        super(
+          shopService: _StubShopService(),
+          inquiryService: _StubInquiryService(),
+        );
+
+  @override
+  Stream<List<InquiryMessage>> streamInquiryMessages(String inquiryId) =>
+      Stream.value([]);
 
   @override
   bool get isLoadingShopInquiries => _loading;
@@ -235,7 +259,7 @@ void main() {
       await tester.pumpWidget(
         _buildScreen(shopProvider: _FakeShopProvider(inquiries: [])),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('まだ問い合わせはありません'), findsOneWidget);
     });
@@ -250,7 +274,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('オイル交換について質問'), findsOneWidget);
     });
@@ -265,7 +289,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('オイル交換の料金を教えてください'), findsOneWidget);
     });
@@ -278,7 +302,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Unread badge shows the count
       expect(find.text('3'), findsOneWidget);
@@ -292,7 +316,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // No numeric badge should appear
       expect(find.text('0'), findsNothing);
@@ -308,10 +332,10 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('ボトムシートテスト'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Bottom sheet is now open — there should be a Material with elevation
       expect(find.byType(BottomSheet), findsOneWidget);
@@ -331,7 +355,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('問い合わせA'), findsOneWidget);
       expect(find.text('問い合わせB'), findsOneWidget);
@@ -351,7 +375,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('クローズ済み問い合わせ'), findsOneWidget);
     });

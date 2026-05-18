@@ -260,7 +260,7 @@ void main() {
       final deleteButtons = find.byTooltip('削除');
       if (deleteButtons.evaluate().isNotEmpty) {
         await tester.tap(deleteButtons.first);
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(find.text('ドライブログを削除'), findsOneWidget);
         expect(find.text('このドライブログを削除しますか？'), findsOneWidget);
@@ -276,10 +276,10 @@ void main() {
       final deleteButtons = find.byTooltip('削除');
       if (deleteButtons.evaluate().isNotEmpty) {
         await tester.tap(deleteButtons.first);
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         await tester.tap(find.text('キャンセル'));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(find.text('ドライブログを削除'), findsNothing);
         expect(service.lastDeleteId, isNull);

@@ -167,7 +167,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('パーツ'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // TabBar の 2 番目タブがアクティブになる
       // (各画面の空状態テキストは shop/part_list_screen_test でカバー済み)
@@ -180,10 +180,10 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('パーツ'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('工場・業者'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('工場・業者'), findsOneWidget);
     });

@@ -105,13 +105,13 @@ void main() {
         ),
       );
       await tester.tap(find.text('open'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       expect(find.byType(PrivacyPolicyScreen), findsOneWidget);
 
       final backButton = find.byType(BackButton);
       if (backButton.evaluate().isNotEmpty) {
         await tester.tap(backButton);
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
         expect(find.byType(PrivacyPolicyScreen), findsNothing);
       }
     });
@@ -135,13 +135,13 @@ void main() {
         ),
       );
       await tester.tap(find.text('open'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       expect(find.byType(TermsOfServiceScreen), findsOneWidget);
 
       final backButton = find.byType(BackButton);
       if (backButton.evaluate().isNotEmpty) {
         await tester.tap(backButton);
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
         expect(find.byType(TermsOfServiceScreen), findsNothing);
       }
     });

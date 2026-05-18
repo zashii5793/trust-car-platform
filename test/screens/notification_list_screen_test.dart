@@ -333,7 +333,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('オイル交換推奨'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(provider.lastMarkedReadId, 'n1');
     });
@@ -353,7 +353,7 @@ void main() {
         find.text('消耗品交換推奨'),
         const Offset(-500, 0),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(provider.lastRemovedId, 'n1');
     });

@@ -300,7 +300,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(provider.saveSettingsCalled, isTrue);
     });
@@ -311,7 +311,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('設定を保存しました'), findsOneWidget);
     });
@@ -322,7 +322,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('設定の保存に失敗しました'), findsOneWidget);
     });

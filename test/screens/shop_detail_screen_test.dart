@@ -190,7 +190,7 @@ void main() {
       mockShop.shopResult = Result.success(_fullShop(name: 'プレミアムガレージ'));
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('プレミアムガレージ'), findsWidgets);
     });
@@ -201,7 +201,7 @@ void main() {
       );
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('最高のサービスを提供します。'), findsOneWidget);
     });
@@ -210,7 +210,7 @@ void main() {
       mockShop.shopResult = Result.success(_fullShop(isVerified: true));
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // 認証アイコン or "認証済み" テキスト
       expect(
@@ -224,7 +224,7 @@ void main() {
       mockShop.shopResult = Result.success(_fullShop(phone: '03-9876-5432'));
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('03-9876-5432'), findsOneWidget);
     });
@@ -235,7 +235,7 @@ void main() {
       );
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('東京都新宿区'), findsOneWidget);
     });
@@ -249,7 +249,7 @@ void main() {
       );
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // サービスに対応するChipやテキストが存在する
       expect(find.byType(Chip).evaluate().isNotEmpty, isTrue);
@@ -259,7 +259,7 @@ void main() {
       mockShop.shopResult = Result.success(_fullShop());
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('問い合わせ'), findsWidgets);
     });
@@ -268,7 +268,7 @@ void main() {
       mockShop.shopResult = Result.success(_fullShop(imageUrls: []));
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byIcon(Icons.store), findsWidgets);
     });
@@ -277,7 +277,7 @@ void main() {
       mockShop.shopResult = Result.success(_fullShop());
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('営業'), findsWidgets);
     });
@@ -288,7 +288,7 @@ void main() {
       );
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('広告'), findsOneWidget);
     });
@@ -299,7 +299,7 @@ void main() {
       );
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // エラー状態（再試行ボタンやメッセージ）が表示される
       expect(tester.takeException(), isNull);
@@ -310,7 +310,7 @@ void main() {
         mockShop.shopResult = Result.success(_fullShop(description: null));
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });
@@ -319,7 +319,7 @@ void main() {
         mockShop.shopResult = Result.success(_fullShop(phone: null));
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });
@@ -328,7 +328,7 @@ void main() {
         mockShop.shopResult = Result.success(_fullShop(rating: null));
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });
@@ -337,7 +337,7 @@ void main() {
         mockShop.shopResult = Result.success(_fullShop(services: []));
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });

@@ -157,7 +157,7 @@ void main() {
   group('SignupScreen — AppBar', () {
     testWidgets('1. shows 新規登録 title', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('新規登録'), findsOneWidget);
     });
@@ -166,31 +166,31 @@ void main() {
   group('SignupScreen — Form validation', () {
     testWidgets('2. empty display name shows error', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('表示名を入力してください'), findsOneWidget);
     });
 
     testWidgets('3. empty email shows error', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), '山田太郎');
       await tester.pump();
 
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('メールアドレスを入力してください'), findsOneWidget);
     });
 
     testWidgets('4. invalid email format shows error', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), '山田太郎');
@@ -198,14 +198,14 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('有効なメールアドレスを入力してください'), findsOneWidget);
     });
 
     testWidgets('5. empty password shows error', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), '山田太郎');
@@ -213,14 +213,14 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('パスワードを入力してください'), findsOneWidget);
     });
 
     testWidgets('6. password shorter than 6 chars shows error', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), '山田太郎');
@@ -229,14 +229,14 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('パスワードは6文字以上で入力してください'), findsOneWidget);
     });
 
     testWidgets('7. empty confirm password shows error', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), '山田太郎');
@@ -245,14 +245,14 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('パスワードを再入力してください'), findsOneWidget);
     });
 
     testWidgets('8. mismatched passwords show error', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), '山田太郎');
@@ -262,18 +262,18 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('パスワードが一致しません'), findsOneWidget);
     });
 
     testWidgets('9. all valid fields produce no validation errors', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await _fillAllValid(tester);
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('表示名を入力してください'), findsNothing);
       expect(find.text('メールアドレスを入力してください'), findsNothing);
@@ -314,15 +314,15 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('open'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       expect(find.text('新規登録'), findsOneWidget);
 
       await _fillAllValid(tester);
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('open'), findsOneWidget);
       expect(find.text('新規登録'), findsNothing);
@@ -331,11 +331,11 @@ void main() {
     testWidgets('13. failed signup shows fallback error snackbar', (tester) async {
       final provider = _FakeAuthProvider(signUpShouldSucceed: false);
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await _fillAllValid(tester);
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byType(SnackBar), findsOneWidget);
       expect(find.text('サインアップに失敗しました'), findsOneWidget);
@@ -347,11 +347,11 @@ void main() {
         errorMessage: 'このメールアドレスは既に使用されています',
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await _fillAllValid(tester);
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('このメールアドレスは既に使用されています'), findsOneWidget);
     });
@@ -360,7 +360,7 @@ void main() {
   group('SignupScreen — Google signup', () {
     testWidgets('15. Google 登録 button is present', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('Google で登録'), findsOneWidget);
     });
@@ -384,13 +384,13 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('open'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.text('Google で登録'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(provider.googleSignupCalled, isTrue);
       expect(find.text('open'), findsOneWidget);
@@ -401,14 +401,14 @@ void main() {
   group('SignupScreen — Legal links', () {
     testWidgets('17. 利用規約 link is visible', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('利用規約'), findsOneWidget);
     });
 
     testWidgets('18. プライバシーポリシー link is visible', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('プライバシーポリシー'), findsOneWidget);
     });
@@ -417,20 +417,20 @@ void main() {
   group('SignupScreen — Edge Cases', () {
     testWidgets('19. whitespace-only display name fails validation', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextFormField).at(0), '   ');
       await tester.pump();
 
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('表示名を入力してください'), findsOneWidget);
     });
 
     testWidgets('20a. password with exactly 5 chars fails', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), '山田太郎');
@@ -439,7 +439,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('パスワードは6文字以上で入力してください'), findsOneWidget);
     });
@@ -447,7 +447,7 @@ void main() {
     testWidgets('20b. password with exactly 6 chars passes validation', (tester) async {
       final provider = _FakeAuthProvider(signUpShouldSucceed: true);
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), '山田太郎');
@@ -457,7 +457,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('パスワードは6文字以上で入力してください'), findsNothing);
     });

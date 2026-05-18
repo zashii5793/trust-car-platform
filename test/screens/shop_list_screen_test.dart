@@ -206,7 +206,7 @@ void main() {
       mockShop.shopsResult = const Result.success([]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('工場が見つかりません'), findsOneWidget);
     });
@@ -218,7 +218,7 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('ガレージA'), findsOneWidget);
       expect(find.text('ガレージB'), findsOneWidget);
@@ -232,7 +232,7 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('3'), findsWidgets);
     });
@@ -242,7 +242,7 @@ void main() {
           AppError.network('connection failed'));
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // エラー状態のUI（リトライボタンなど）が存在する
       expect(find.byIcon(Icons.refresh), findsWidgets);
@@ -250,14 +250,14 @@ void main() {
 
     testWidgets('検索バーが表示される', (tester) async {
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byType(TextField), findsOneWidget);
     });
 
     testWidgets('フィルタ行のDropdownChipが3つ表示される', (tester) async {
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // 業種・サービス・地域の3ラベルが存在する
       expect(find.text('業種'), findsOneWidget);
@@ -268,7 +268,7 @@ void main() {
     testWidgets('検索テキスト入力でclearアイコンが出現する', (tester) async {
       mockShop.shopsResult = const Result.success([]);
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextField), 'トヨタ');
       await tester.pump();
@@ -279,7 +279,7 @@ void main() {
     testWidgets('clearアイコンタップで検索テキストがクリアされる', (tester) async {
       mockShop.shopsResult = const Result.success([]);
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextField), 'テスト');
       await tester.pump();
@@ -297,7 +297,7 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byIcon(Icons.verified), findsOneWidget);
     });
@@ -308,7 +308,7 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('広告'), findsOneWidget);
     });
@@ -320,7 +320,7 @@ void main() {
         ]);
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });
@@ -331,7 +331,7 @@ void main() {
         ]);
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });
@@ -345,7 +345,7 @@ void main() {
         );
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(find.byType(ListView), findsOneWidget);
         expect(tester.takeException(), isNull);

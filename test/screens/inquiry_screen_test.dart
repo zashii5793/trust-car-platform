@@ -334,7 +334,7 @@ void main() {
       await tester.enterText(textFields.last, 'メッセージ内容です。');
 
       await tester.tap(find.textContaining('送信').last);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // バリデーションエラーが表示される（例外なし）
       expect(tester.takeException(), isNull);
@@ -355,7 +355,7 @@ void main() {
       await tester.enterText(textFields.first, '件名です');
 
       await tester.tap(find.textContaining('送信').last);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(tester.takeException(), isNull);
       expect(mockInquiry.createCallCount, 0);

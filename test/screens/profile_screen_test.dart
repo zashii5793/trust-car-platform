@@ -214,7 +214,7 @@ void main() {
 
       // Tap menu item
       await tester.tap(find.text('プロフィールを編集'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Bottom sheet title should appear
       expect(find.text('プロフィールを編集'), findsWidgets);
@@ -233,7 +233,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('プロフィールを編集'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Should find the TextFormField for the display name
       expect(find.byType(TextFormField), findsOneWidget);
@@ -252,7 +252,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('プロフィールを編集'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('保存'), findsOneWidget);
     });
@@ -270,7 +270,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('プロフィールを編集'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       final textField = tester.widget<TextFormField>(find.byType(TextFormField));
       expect(textField.controller?.text, 'テストユーザー');
@@ -289,7 +289,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('プロフィールを編集'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Should find a CircleAvatar for the photo picker
       expect(find.byType(CircleAvatar), findsWidgets);

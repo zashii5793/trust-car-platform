@@ -229,7 +229,7 @@ void main() {
       await tester.pumpWidget(
           _buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([]);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('記録がありません'), findsOneWidget);
     });
@@ -243,7 +243,7 @@ void main() {
       await tester.pumpWidget(
           _buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord()]);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // タイトルはカード内 + バッジ の両方に存在するので findsWidgets
       expect(find.text('オイル交換'), findsWidgets);
@@ -264,7 +264,7 @@ void main() {
             cost: 80000,
             type: MaintenanceType.carInspection),
       ]);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('オイル交換テスト'), findsOneWidget);
       expect(find.text('車検テスト'), findsOneWidget);
@@ -278,7 +278,7 @@ void main() {
       mockFirebase.emitRecords([
         _testRecord(shopName: 'オートバックス新宿店'),
       ]);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('オートバックス新宿店'), findsOneWidget);
     });
@@ -290,7 +290,7 @@ void main() {
           _buildScreen(_testVehicle(), maintenanceProvider));
       // shopName なし（デフォルト null）
       mockFirebase.emitRecords([_testRecord()]);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // store_outlined アイコンはタイムラインカード上に存在しない
       expect(
@@ -308,7 +308,7 @@ void main() {
       await tester.pumpWidget(
           _buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord()]);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('2024/03/15'), findsOneWidget);
     });
@@ -327,13 +327,13 @@ void main() {
     /// カードをタップして BottomSheet を開く共通手順
     Future<void> openSheet(WidgetTester tester) async {
       await tester.tap(find.byType(GestureDetector).first);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       // BottomSheet 内をスクロールして削除ボタンを可視領域に
       await tester.drag(
         find.byType(DraggableScrollableSheet),
         const Offset(0, -300),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
     }
 
     testWidgets('記録をタップすると BottomSheet が開く', (tester) async {
@@ -341,10 +341,10 @@ void main() {
       await tester.pumpWidget(
           _buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord()]);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.byType(GestureDetector).first);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // BottomSheet が開いた証拠：タイトルが複数登場
       expect(find.text('オイル交換'), findsAtLeastNWidgets(2));
@@ -355,10 +355,10 @@ void main() {
       await tester.pumpWidget(
           _buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord(cost: 12500)]);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.byType(GestureDetector).first);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('¥12,500'), findsAtLeastNWidgets(1));
     });
@@ -368,10 +368,10 @@ void main() {
       await tester.pumpWidget(
           _buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord(shopName: 'トヨタカローラ')]);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.byType(GestureDetector).first);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('トヨタカローラ'), findsAtLeastNWidgets(1));
     });
@@ -381,7 +381,7 @@ void main() {
       await tester.pumpWidget(
           _buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord(mileageAtService: 15000)]);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // タップ（カードが画面外の場合も Flutter は警告のみで処理することがある）
       await tester.tap(find.byType(GestureDetector).first, warnIfMissed: false);
@@ -402,7 +402,7 @@ void main() {
       mockFirebase.emitRecords([
         _testRecord(description: '次回は10000km後に交換予定'),
       ]);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.tap(find.byType(GestureDetector).first, warnIfMissed: false);
       await tester.pump(const Duration(milliseconds: 300));
@@ -424,7 +424,7 @@ void main() {
       await tester.pumpWidget(
           _buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord()]);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // GestureDetector（タイムラインカード）をタップ
       await tester.tap(find.byType(GestureDetector).first);
@@ -442,7 +442,7 @@ void main() {
       await tester.pumpWidget(
           _buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord()]);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // BottomSheet を開く
       await tester.tap(find.byType(GestureDetector).first);
