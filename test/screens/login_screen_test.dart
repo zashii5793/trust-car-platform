@@ -110,7 +110,7 @@ void main() {
       await tester.pumpWidget(createLoginScreen());
       await tester.pump();
 
-      expect(find.text('クルマ統合管理'), findsOneWidget);
+      expect(find.text('TrustCar'), findsOneWidget);
       expect(find.text('信頼を設計する、新時代のカーライフ'), findsOneWidget);
     });
 

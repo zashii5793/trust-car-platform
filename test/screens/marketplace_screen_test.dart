@@ -1,6 +1,6 @@
 // MarketplaceScreen Widget Tests
 //
-// MarketplaceScreen は ShopListScreen / PartListScreen を 2 タブで表示するだけの
+// MarketplaceScreen は ShopListScreen / PartListScreen / MyListingsScreen を 3 タブで表示するだけの
 // 薄いコンテナ。タブ構造と各タブの描画を検証する。
 
 import 'package:flutter/material.dart';
@@ -143,11 +143,11 @@ void main() {
       expect(find.text('パーツ'), findsOneWidget);
     });
 
-    testWidgets('TabBar が 2 タブ持つ', (tester) async {
+    testWidgets('TabBar が 3 タブ持つ', (tester) async {
       await tester.pumpWidget(_buildUnderTest());
       await tester.pump();
 
-      expect(find.byType(Tab), findsNWidgets(2));
+      expect(find.byType(Tab), findsNWidgets(3));
     });
 
     testWidgets('デフォルトは「工場・業者」タブが選択されている', (tester) async {

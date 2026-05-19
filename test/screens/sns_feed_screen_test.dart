@@ -192,7 +192,7 @@ void main() {
       await tester.pumpWidget(_buildApp(mockService));
       await tester.pump();
 
-      expect(find.text('投稿がありません'), findsOneWidget);
+      expect(find.text('投稿がまだありません'), findsOneWidget);
     });
 
     testWidgets('エラー時にエラーUIが表示される', (tester) async {
