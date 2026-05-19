@@ -1,0 +1,1030 @@
+// User Journey Widget Integration Tests
+//
+// Simulates realistic multi-step user flows across multiple screens
+// using fake providers (no real Firebase required).
+//
+// Personas covered:
+//   P1 — ゲストユーザー          : Login screen, navigate to Signup
+//   P2 — 新規登録ユーザー        : Signup form validation, field requirements
+//   P3 — 初回ログインユーザー     : HomeScreen empty states, all tabs reachable
+//   P4 — 一般車両オーナー        : HomeScreen with vehicles, notification badge
+//   P5 — SNS投稿ユーザー        : Navigate to SNS feed, open PostCreateScreen
+//   P6 — マーケットプレイス利用者  : Switch to marketplace, verify 3 tabs
+//   P7 — 通知ありユーザー        : Unread badge, navigate to 通知 tab
+//   P8 — オフラインユーザー       : Offline banner visible
+//   P9 — ショップオーナー        : Inquiry list, filter chips, bottom sheet
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
+
+import 'package:trust_car_platform/screens/home_screen.dart';
+import 'package:trust_car_platform/screens/auth/login_screen.dart';
+import 'package:trust_car_platform/screens/auth/signup_screen.dart';
+import 'package:trust_car_platform/screens/marketplace/shop_inquiry_list_screen.dart';
+import 'package:trust_car_platform/providers/vehicle_provider.dart';
+import 'package:trust_car_platform/providers/maintenance_provider.dart';
+import 'package:trust_car_platform/providers/auth_provider.dart';
+import 'package:trust_car_platform/providers/notification_provider.dart';
+import 'package:trust_car_platform/providers/connectivity_provider.dart';
+import 'package:trust_car_platform/providers/shop_provider.dart';
+import 'package:trust_car_platform/providers/post_provider.dart';
+import 'package:trust_car_platform/providers/drive_log_provider.dart';
+import 'package:trust_car_platform/services/firebase_service.dart';
+import 'package:trust_car_platform/services/auth_service.dart';
+import 'package:trust_car_platform/services/recommendation_service.dart';
+import 'package:trust_car_platform/services/shop_service.dart';
+import 'package:trust_car_platform/services/inquiry_service.dart';
+import 'package:trust_car_platform/services/post_service.dart';
+import 'package:trust_car_platform/services/drive_log_service.dart';
+import 'package:trust_car_platform/models/vehicle.dart';
+import 'package:trust_car_platform/models/maintenance_record.dart';
+import 'package:trust_car_platform/models/app_notification.dart';
+import 'package:trust_car_platform/models/inquiry.dart';
+import 'package:trust_car_platform/models/user.dart';
+import 'package:trust_car_platform/core/result/result.dart';
+import 'package:trust_car_platform/core/error/app_error.dart';
+
+// =============================================================================
+// Shared stubs
+// =============================================================================
+
+class _StubFirebaseService implements FirebaseService {
+  @override
+  String? get currentUserId => 'uid-test';
+
+  @override
+  Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
+
+  @override
+  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(String vid) =>
+      const Stream.empty();
+
+  @override
+  Future<Result<String, AppError>> addVehicle(Vehicle v) async =>
+      const Result.success('id');
+
+  @override
+  Future<Result<void, AppError>> updateVehicle(String id, Vehicle v) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<void, AppError>> deleteVehicle(String id) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<Vehicle?, AppError>> getVehicle(String id) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<bool, AppError>> isLicensePlateExists(String plate,
+          {String? excludeVehicleId}) async =>
+      const Result.success(false);
+
+  @override
+  Future<Result<String, AppError>> addMaintenanceRecord(
+          MaintenanceRecord r) async =>
+      const Result.success('rid');
+
+  @override
+  Future<Result<void, AppError>> updateMaintenanceRecord(
+          String id, MaintenanceRecord r) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<void, AppError>> deleteMaintenanceRecord(String id) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getMaintenanceRecordsForVehicle(String vehicleId,
+              {int limit = 20}) async =>
+          const Result.success([]);
+
+  @override
+  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>>
+      getMaintenanceRecordsForVehicles(List<String> vehicleIds,
+              {int limitPerVehicle = 20}) async =>
+          const Result.success({});
+
+  @override
+  Future<Result<String, AppError>> uploadImage(dynamic f, String path) async =>
+      const Result.success('url');
+
+  @override
+  Future<Result<String, AppError>> uploadImageBytes(
+          dynamic b, String path) async =>
+      const Result.success('url');
+
+  @override
+  Future<Result<List<String>, AppError>> uploadImages(
+          List<dynamic> files, String basePath) async =>
+      const Result.success([]);
+
+  @override
+  Future<Result<String, AppError>> uploadProcessedImage(
+    dynamic bytes,
+    String path, {
+    required dynamic imageService,
+  }) async =>
+      const Result.success('url');
+}
+
+class _StubAuthService implements AuthService {
+  @override
+  Stream<User?> get authStateChanges => const Stream.empty();
+
+  @override
+  User? get currentUser => null;
+
+  @override
+  Future<Result<UserCredential, AppError>> signInWithEmail(
+          {required String email, required String password}) async =>
+      Result.failure(AppError.unknown('stub'));
+
+  @override
+  Future<Result<UserCredential, AppError>> signUpWithEmail(
+          {required String email,
+          required String password,
+          String? displayName}) async =>
+      Result.failure(AppError.unknown('stub'));
+
+  @override
+  Future<Result<UserCredential?, AppError>> signInWithGoogle() async =>
+      Result.failure(AppError.unknown('stub'));
+
+  @override
+  Future<Result<void, AppError>> signOut() async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<AppUser?, AppError>> getUserProfile() async =>
+      Result.failure(AppError.unknown('stub'));
+
+  @override
+  Future<Result<void, AppError>> updateUserProfile(
+          {String? displayName, String? photoUrl}) async =>
+      Result.failure(AppError.unknown('stub'));
+
+  @override
+  Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<void, AppError>> deleteAccount() async =>
+      const Result.success(null);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _StubConnectivityProvider extends ChangeNotifier
+    implements ConnectivityProvider {
+  final bool _offline;
+  _StubConnectivityProvider({bool isOffline = false}) : _offline = isOffline;
+
+  @override
+  bool get isOnline => !_offline;
+
+  @override
+  bool get isOffline => _offline;
+
+  @override
+  bool get isInitialized => true;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _StubInquiryService implements InquiryService {
+  @override
+  Stream<List<InquiryMessage>> streamMessages(String inquiryId) =>
+      Stream.value([]);
+
+  @override
+  Future<Result<void, AppError>> markAsRead({
+    required String inquiryId,
+    required bool isUser,
+  }) async =>
+      const Result.success(null);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _StubShopService implements ShopService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+// =============================================================================
+// Fake providers
+// =============================================================================
+
+class _FakeVehicleProvider extends VehicleProvider {
+  _FakeVehicleProvider({List<Vehicle>? vehicles})
+      : _fakeVehicles = vehicles ?? [],
+        super(firebaseService: _StubFirebaseService());
+
+  List<Vehicle> _fakeVehicles;
+
+  @override
+  List<Vehicle> get vehicles => _fakeVehicles;
+
+  @override
+  bool get isLoading => false;
+
+  @override
+  AppError? get error => null;
+
+  @override
+  String? get errorMessage => null;
+
+  @override
+  bool get isRetryable => false;
+
+  @override
+  void listenToVehicles() {}
+
+  @override
+  void stopListening() {}
+
+  @override
+  void clear() {
+    _fakeVehicles = [];
+    notifyListeners();
+  }
+
+  @override
+  void clearError() {}
+}
+
+class _FakeNotificationProvider extends NotificationProvider {
+  _FakeNotificationProvider({List<AppNotification>? notifications})
+      : _fakeNotifications = notifications ?? [],
+        super(
+          firebaseService: _StubFirebaseService(),
+          recommendationService: RecommendationService(),
+        );
+
+  final List<AppNotification> _fakeNotifications;
+
+  @override
+  List<AppNotification> get notifications => _fakeNotifications;
+
+  @override
+  int get unreadCount => _fakeNotifications.where((n) => !n.isRead).length;
+
+  @override
+  List<AppNotification> get topSuggestions =>
+      _fakeNotifications.take(3).toList();
+
+  @override
+  Future<void> generateNotificationsForVehicles(
+      List<Vehicle> vehicles) async {}
+}
+
+class _FakeShopProvider extends ShopProvider {
+  final bool _loading;
+  List<Inquiry> _inquiries;
+
+  _FakeShopProvider({
+    bool loading = false,
+    List<Inquiry> inquiries = const [],
+  })  : _loading = loading,
+        _inquiries = List.of(inquiries),
+        super(
+          shopService: _StubShopService(),
+          inquiryService: _StubInquiryService(),
+        );
+
+  @override
+  Stream<List<InquiryMessage>> streamInquiryMessages(String inquiryId) =>
+      Stream.value([]);
+
+  @override
+  bool get isLoadingShopInquiries => _loading;
+
+  @override
+  List<Inquiry> get shopInquiries => _inquiries;
+
+  @override
+  Future<void> loadShopInquiries(String shopId,
+      {InquiryStatus? status}) async {}
+
+  @override
+  void markInquiryAsReadLocally(String inquiryId) {
+    final idx = _inquiries.indexWhere((i) => i.id == inquiryId);
+    if (idx != -1) {
+      _inquiries[idx] = _inquiries[idx].copyWith(unreadCountShop: 0);
+      notifyListeners();
+    }
+  }
+}
+
+// =============================================================================
+// Test data factories
+// =============================================================================
+
+Vehicle _makeVehicle({
+  String id = 'v1',
+  String maker = 'Toyota',
+  String model = 'Prius',
+  int year = 2022,
+}) =>
+    Vehicle(
+      id: id,
+      userId: 'u1',
+      maker: maker,
+      model: model,
+      year: year,
+      grade: 'S',
+      mileage: 25000,
+      createdAt: DateTime(2024, 1, 1),
+      updatedAt: DateTime(2024, 1, 1),
+    );
+
+AppNotification _makeNotification({bool isRead = false}) => AppNotification(
+      id: 'n1',
+      userId: 'u1',
+      type: NotificationType.maintenanceRecommendation,
+      title: 'オイル交換の時期です',
+      message: '前回の交換から5,000km走行しました',
+      isRead: isRead,
+      createdAt: DateTime(2024, 1, 1),
+    );
+
+Inquiry _makeInquiry({
+  String id = 'inq-1',
+  String subject = 'テスト問い合わせ',
+  String initialMessage = 'メッセージ本文',
+  InquiryStatus status = InquiryStatus.pending,
+  int unreadCountShop = 0,
+}) {
+  final now = DateTime(2025, 6, 1, 10, 0);
+  return Inquiry(
+    id: id,
+    userId: 'user-1',
+    shopId: 'shop-1',
+    type: InquiryType.general,
+    subject: subject,
+    initialMessage: initialMessage,
+    status: status,
+    unreadCountShop: unreadCountShop,
+    createdAt: now,
+    updatedAt: now,
+  );
+}
+
+// =============================================================================
+// Widget builders
+// =============================================================================
+
+Widget _buildHomeApp({
+  List<Vehicle>? vehicles,
+  List<AppNotification>? notifications,
+  bool isOffline = false,
+}) {
+  final fb = _StubFirebaseService();
+  final fakeFirestore = FakeFirebaseFirestore();
+
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider<VehicleProvider>.value(
+        value: _FakeVehicleProvider(vehicles: vehicles),
+      ),
+      ChangeNotifierProvider<MaintenanceProvider>(
+        create: (_) => MaintenanceProvider(firebaseService: fb),
+      ),
+      ChangeNotifierProvider<AuthProvider>(
+        create: (_) => AuthProvider(authService: _StubAuthService()),
+      ),
+      ChangeNotifierProvider<NotificationProvider>.value(
+        value: _FakeNotificationProvider(notifications: notifications),
+      ),
+      ChangeNotifierProvider<ConnectivityProvider>(
+        create: (_) => _StubConnectivityProvider(isOffline: isOffline),
+      ),
+      ChangeNotifierProvider<ShopProvider>(
+        create: (_) => ShopProvider(
+          shopService: ShopService(firestore: fakeFirestore),
+          inquiryService: InquiryService(firestore: fakeFirestore),
+        ),
+      ),
+      ChangeNotifierProvider<PostProvider>(
+        create: (_) =>
+            PostProvider(postService: PostService(firestore: fakeFirestore)),
+      ),
+      ChangeNotifierProvider<DriveLogProvider>(
+        create: (_) => DriveLogProvider(
+            driveLogService: DriveLogService(firestore: fakeFirestore)),
+      ),
+    ],
+    child: const MaterialApp(home: HomeScreen()),
+  );
+}
+
+Widget _buildLoginApp() {
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider<AuthProvider>(
+        create: (_) => AuthProvider(authService: _StubAuthService()),
+      ),
+    ],
+    child: const MaterialApp(home: LoginScreen()),
+  );
+}
+
+Widget _buildSignupApp() {
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider<AuthProvider>(
+        create: (_) => AuthProvider(authService: _StubAuthService()),
+      ),
+    ],
+    child: const MaterialApp(home: SignupScreen()),
+  );
+}
+
+Widget _buildShopInquiryApp({List<Inquiry>? inquiries}) {
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider<ShopProvider>.value(
+        value: _FakeShopProvider(inquiries: inquiries ?? []),
+      ),
+      ChangeNotifierProvider<AuthProvider>(
+        create: (_) => AuthProvider(authService: _StubAuthService()),
+      ),
+    ],
+    child: const MaterialApp(
+      home: ShopInquiryListScreen(shopId: 'shop-1'),
+    ),
+  );
+}
+
+Future<void> _setSurface(WidgetTester tester) async {
+  await tester.binding.setSurfaceSize(const Size(800, 1400));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+void main() {
+  // ---------------------------------------------------------------------------
+  // P1: ゲストユーザー — LoginScreen
+  // ---------------------------------------------------------------------------
+
+  group('P1 ゲストユーザー — LoginScreen', () {
+    testWidgets('ブランドロゴとキャッチコピーが表示される', (tester) async {
+      await tester.pumpWidget(_buildLoginApp());
+      await tester.pump();
+
+      expect(find.text('TrustCar'), findsOneWidget);
+      expect(find.text('信頼を設計する、新時代のカーライフ'), findsOneWidget);
+    });
+
+    testWidgets('メールアドレス・パスワード・ログインボタンが表示される', (tester) async {
+      await tester.pumpWidget(_buildLoginApp());
+      await tester.pump();
+
+      expect(find.text('ログイン'), findsWidgets);
+      expect(find.byType(TextFormField), findsWidgets);
+    });
+
+    testWidgets('新規登録リンクが表示される', (tester) async {
+      await tester.pumpWidget(_buildLoginApp());
+      await tester.pump();
+
+      expect(find.text('新規登録'), findsOneWidget);
+    });
+
+    testWidgets('「パスワードを忘れた場合」リンクが表示される', (tester) async {
+      await tester.pumpWidget(_buildLoginApp());
+      await tester.pump();
+
+      expect(find.text('パスワードを忘れた場合'), findsOneWidget);
+    });
+
+    testWidgets('空のまま送信するとバリデーションエラーが表示される', (tester) async {
+      await tester.pumpWidget(_buildLoginApp());
+      await tester.pump();
+
+      await tester.tap(find.text('ログイン').last);
+      await tester.pump();
+
+      expect(find.text('メールアドレスを入力してください'), findsOneWidget);
+    });
+
+    testWidgets('不正なメールアドレスでバリデーションエラーが出る', (tester) async {
+      await tester.pumpWidget(_buildLoginApp());
+      await tester.pump();
+
+      final fields = find.byType(TextFormField);
+      await tester.enterText(fields.first, 'not-an-email');
+      await tester.tap(find.text('ログイン').last);
+      await tester.pump();
+
+      expect(find.text('有効なメールアドレスを入力してください'), findsOneWidget);
+    });
+
+    testWidgets('新規登録ボタンをタップするとSignupScreenに遷移する', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildLoginApp());
+      await tester.pump();
+
+      await tester.tap(find.text('新規登録'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('表示名'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // P2: 新規登録ユーザー — SignupScreen
+  // ---------------------------------------------------------------------------
+
+  group('P2 新規登録ユーザー — SignupScreen', () {
+    testWidgets('表示名・メール・パスワード・確認フィールドが表示される', (tester) async {
+      await tester.pumpWidget(_buildSignupApp());
+      await tester.pump();
+
+      expect(find.text('表示名'), findsOneWidget);
+      expect(find.text('アカウントを作成'), findsOneWidget);
+    });
+
+    testWidgets('全フィールド空で送信するとバリデーションエラーが出る', (tester) async {
+      await tester.pumpWidget(_buildSignupApp());
+      await tester.pump();
+
+      await tester.tap(find.text('アカウントを作成'));
+      await tester.pump();
+
+      expect(find.textContaining('入力してください'), findsWidgets);
+    });
+
+    testWidgets('パスワードが6文字未満だとエラーが出る', (tester) async {
+      await tester.pumpWidget(_buildSignupApp());
+      await tester.pump();
+
+      final fields = find.byType(TextFormField);
+      await tester.enterText(fields.at(0), 'テストユーザー');
+      await tester.enterText(fields.at(1), 'test@example.com');
+      await tester.enterText(fields.at(2), '123');
+      await tester.tap(find.text('アカウントを作成'));
+      await tester.pump();
+
+      expect(find.text('パスワードは6文字以上で入力してください'), findsOneWidget);
+    });
+
+    testWidgets('パスワードと確認が不一致だとエラーが出る', (tester) async {
+      await tester.pumpWidget(_buildSignupApp());
+      await tester.pump();
+
+      final fields = find.byType(TextFormField);
+      await tester.enterText(fields.at(0), 'テストユーザー');
+      await tester.enterText(fields.at(1), 'test@example.com');
+      await tester.enterText(fields.at(2), 'password123');
+      await tester.enterText(fields.at(3), 'different456');
+      await tester.tap(find.text('アカウントを作成'));
+      await tester.pump();
+
+      expect(find.text('パスワードが一致しません'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // P3: 初回ログインユーザー — HomeScreen (empty state)
+  // ---------------------------------------------------------------------------
+
+  group('P3 初回ログインユーザー — 車両なし', () {
+    testWidgets('BottomNavigationBar の 5 タブが表示される', (tester) async {
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      expect(find.byType(BottomNavigationBar), findsOneWidget);
+      expect(find.text('マイカー'), findsWidgets);
+      expect(find.text('マーケット'), findsOneWidget);
+      expect(find.text('みんなの投稿'), findsOneWidget);
+      expect(find.text('通知'), findsOneWidget);
+      expect(find.text('プロフィール'), findsOneWidget);
+    });
+
+    testWidgets('初期タブは「マイカー」でAppBarタイトルが正しい', (tester) async {
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      expect(
+        find.descendant(
+            of: find.byType(AppBar), matching: find.text('マイカー')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('車両登録FABが表示される', (tester) async {
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+    });
+
+    testWidgets('全タブを一巡してもクラッシュしない', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      final tabIcons = [
+        Icons.store_outlined,
+        Icons.forum_outlined,
+        Icons.notifications_outlined,
+        Icons.person_outline,
+        Icons.directions_car,
+      ];
+      for (final icon in tabIcons) {
+        final target = find.descendant(
+          of: find.byType(BottomNavigationBar),
+          matching: find.byIcon(icon),
+        );
+        await tester.tap(target);
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+      }
+
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // P4: 一般車両オーナー — HomeScreen (with vehicles)
+  // ---------------------------------------------------------------------------
+
+  group('P4 一般車両オーナー — 車両あり', () {
+    testWidgets('車両カードが表示される', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp(
+        vehicles: [_makeVehicle(id: 'v1', maker: 'Toyota', model: 'Prius')],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.textContaining('Toyota'), findsWidgets);
+      expect(find.textContaining('Prius'), findsWidgets);
+    });
+
+    testWidgets('複数台の車両が全て表示される', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp(
+        vehicles: [
+          _makeVehicle(id: 'v1', maker: 'Toyota', model: 'Prius'),
+          _makeVehicle(id: 'v2', maker: 'Honda', model: 'Fit'),
+          _makeVehicle(id: 'v3', maker: 'Nissan', model: 'Note'),
+        ],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.textContaining('Toyota'), findsWidgets);
+      expect(find.textContaining('Honda'), findsWidgets);
+      expect(find.textContaining('Nissan'), findsWidgets);
+    });
+
+    testWidgets('未読通知がないとき通知バッジは非表示', (tester) async {
+      await tester.pumpWidget(_buildHomeApp(
+        notifications: [_makeNotification(isRead: true)],
+      ));
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byType(BottomNavigationBar),
+          matching: find.text('1'),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('未読通知2件のとき通知バッジに「2」が表示される', (tester) async {
+      await tester.pumpWidget(_buildHomeApp(
+        notifications: [
+          _makeNotification(isRead: false),
+          _makeNotification(isRead: false),
+        ],
+      ));
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byType(BottomNavigationBar),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // P5: SNS投稿ユーザー
+  // ---------------------------------------------------------------------------
+
+  group('P5 SNS投稿ユーザー', () {
+    testWidgets('みんなの投稿タブに切り替えられる', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.descendant(
+        of: find.byType(BottomNavigationBar),
+        matching: find.byIcon(Icons.forum_outlined),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(
+        find.descendant(
+            of: find.byType(AppBar), matching: find.text('みんなの投稿')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('SNSタブに切り替えるとFABが表示される', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.descendant(
+        of: find.byType(BottomNavigationBar),
+        matching: find.byIcon(Icons.forum_outlined),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+    });
+
+    testWidgets('SNS FABをタップするとPostCreateScreenが開く', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.descendant(
+        of: find.byType(BottomNavigationBar),
+        matching: find.byIcon(Icons.forum_outlined),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('新規投稿'), findsOneWidget);
+    });
+
+    testWidgets('PostCreateScreen で本文入力 → 文字数カウンタが更新される',
+        (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      // SNSタブ → FAB → PostCreateScreen
+      await tester.tap(find.descendant(
+        of: find.byType(BottomNavigationBar),
+        matching: find.byIcon(Icons.forum_outlined),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.enterText(find.byType(TextField).first, 'ドライブ日記');
+      await tester.pump();
+
+      expect(find.textContaining('/ 500'), findsOneWidget);
+    });
+
+    testWidgets('PostCreateScreen で戻ると SNS フィードに戻る', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.descendant(
+        of: find.byType(BottomNavigationBar),
+        matching: find.byIcon(Icons.forum_outlined),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(
+        find.descendant(
+            of: find.byType(AppBar), matching: find.text('みんなの投稿')),
+        findsOneWidget,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // P6: マーケットプレイス利用者
+  // ---------------------------------------------------------------------------
+
+  group('P6 マーケットプレイス利用者', () {
+    testWidgets('マーケットタブに切り替えるとAppBarタイトルが変わる', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.descendant(
+        of: find.byType(BottomNavigationBar),
+        matching: find.byIcon(Icons.store_outlined),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(
+        find.descendant(
+            of: find.byType(AppBar), matching: find.text('マーケットプレイス')),
+        findsWidgets,
+      );
+    });
+
+    testWidgets('マーケットタブに「店舗を掲載する」アイコンが表示される', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.descendant(
+        of: find.byType(BottomNavigationBar),
+        matching: find.byIcon(Icons.store_outlined),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byIcon(Icons.storefront_outlined), findsOneWidget);
+    });
+
+    testWidgets('マーケット内に 3 タブ（工場・業者、パーツ、マイ出品）が表示される',
+        (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.descendant(
+        of: find.byType(BottomNavigationBar),
+        matching: find.byIcon(Icons.store_outlined),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('工場・業者'), findsOneWidget);
+      expect(find.text('パーツ'), findsOneWidget);
+      expect(find.text('マイ出品'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // P7: 通知ありユーザー
+  // ---------------------------------------------------------------------------
+
+  group('P7 通知ありユーザー', () {
+    testWidgets('未読2件 → 通知タブに切り替えると「すべて既読」ボタンが出る', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp(
+        notifications: [
+          _makeNotification(isRead: false),
+          _makeNotification(isRead: false),
+        ],
+      ));
+      await tester.pump();
+
+      await tester.tap(find.descendant(
+        of: find.byType(BottomNavigationBar),
+        matching: find.byIcon(Icons.notifications_outlined),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('すべて既読'), findsOneWidget);
+    });
+
+    testWidgets('全て既読のとき「すべて既読」ボタンは非表示', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp(
+        notifications: [_makeNotification(isRead: true)],
+      ));
+      await tester.pump();
+
+      await tester.tap(find.descendant(
+        of: find.byType(BottomNavigationBar),
+        matching: find.byIcon(Icons.notifications_outlined),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('すべて既読'), findsNothing);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // P8: オフラインユーザー
+  // ---------------------------------------------------------------------------
+
+  group('P8 オフラインユーザー', () {
+    testWidgets('オフライン時にオフラインバナーが表示される', (tester) async {
+      await tester.pumpWidget(_buildHomeApp(isOffline: true));
+      await tester.pump();
+
+      expect(find.textContaining('オフライン'), findsWidgets);
+    });
+
+    testWidgets('オンライン時はオフラインバナーが非表示', (tester) async {
+      await tester.pumpWidget(_buildHomeApp(isOffline: false));
+      await tester.pump();
+
+      expect(find.textContaining('オフライン'), findsNothing);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // P9: ショップオーナー — ShopInquiryListScreen
+  // ---------------------------------------------------------------------------
+
+  group('P9 ショップオーナー — 問い合わせ管理', () {
+    testWidgets('問い合わせなしのとき空状態が表示される', (tester) async {
+      await tester.pumpWidget(_buildShopInquiryApp(inquiries: []));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('まだ問い合わせはありません'), findsOneWidget);
+    });
+
+    testWidgets('フィルターチップ（すべて・未対応・対応中・クローズ）が表示される',
+        (tester) async {
+      await tester.pumpWidget(_buildShopInquiryApp());
+      await tester.pump();
+
+      expect(find.text('すべて'), findsOneWidget);
+      expect(find.text('未対応'), findsOneWidget);
+      expect(find.text('対応中'), findsOneWidget);
+      expect(find.text('クローズ'), findsOneWidget);
+    });
+
+    testWidgets('問い合わせ件名・本文プレビューが表示される', (tester) async {
+      await tester.pumpWidget(_buildShopInquiryApp(
+        inquiries: [
+          _makeInquiry(
+            subject: 'オイル交換の料金について',
+            initialMessage: '料金を教えてください',
+          ),
+        ],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('オイル交換の料金について'), findsOneWidget);
+      expect(find.text('料金を教えてください'), findsOneWidget);
+    });
+
+    testWidgets('未読バッジが unreadCountShop > 0 のとき表示される', (tester) async {
+      await tester.pumpWidget(_buildShopInquiryApp(
+        inquiries: [_makeInquiry(unreadCountShop: 5)],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('5'), findsOneWidget);
+    });
+
+    testWidgets('問い合わせをタップするとボトムシートが開く', (tester) async {
+      await tester.pumpWidget(_buildShopInquiryApp(
+        inquiries: [_makeInquiry(subject: '修理の見積もり依頼')],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('修理の見積もり依頼'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byType(BottomSheet), findsOneWidget);
+    });
+
+    testWidgets('複数の問い合わせが全件表示される', (tester) async {
+      await tester.pumpWidget(_buildShopInquiryApp(
+        inquiries: [
+          _makeInquiry(id: '1', subject: '車検の予約について'),
+          _makeInquiry(id: '2', subject: 'タイヤ交換の費用'),
+          _makeInquiry(id: '3', subject: 'エンジンオイルの種類'),
+        ],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('車検の予約について'), findsOneWidget);
+      expect(find.text('タイヤ交換の費用'), findsOneWidget);
+      expect(find.text('エンジンオイルの種類'), findsOneWidget);
+    });
+
+    testWidgets('クローズ済み問い合わせも表示される', (tester) async {
+      await tester.pumpWidget(_buildShopInquiryApp(
+        inquiries: [
+          _makeInquiry(
+            subject: 'クローズ済み対応',
+            status: InquiryStatus.closed,
+          ),
+        ],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('クローズ済み対応'), findsOneWidget);
+    });
+  });
+}
