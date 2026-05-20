@@ -8,6 +8,7 @@
 //   P2 — 新規登録ユーザー        : Signup form validation, field requirements
 //   P3 — 初回ログインユーザー     : HomeScreen empty states, all tabs reachable
 //   P4 — 一般車両オーナー        : HomeScreen with vehicles, notification badge
+//   P4b — 車両詳細フロー         : Vehicle card tap → detail → maintenance add
 //   P5 — SNS投稿ユーザー        : Navigate to SNS feed, open PostCreateScreen
 //   P6 — マーケットプレイス利用者  : Switch to marketplace, verify 3 tabs
 //   P7 — 通知ありユーザー        : Unread badge, navigate to 通知 tab
@@ -24,6 +25,8 @@ import 'package:trust_car_platform/screens/home_screen.dart';
 import 'package:trust_car_platform/screens/auth/login_screen.dart';
 import 'package:trust_car_platform/screens/auth/signup_screen.dart';
 import 'package:trust_car_platform/screens/marketplace/shop_inquiry_list_screen.dart';
+import 'package:trust_car_platform/core/di/injection.dart';
+import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
@@ -1025,6 +1028,153 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('クローズ済み対応'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // P4b: 車両詳細フロー — VehicleDetailScreen & AddMaintenanceScreen
+  // ---------------------------------------------------------------------------
+
+  group('P4b 車両詳細フロー', () {
+    setUpAll(() {
+      final sl = ServiceLocator.instance;
+      if (!sl.isRegistered<FirebaseService>()) {
+        sl.registerLazySingleton<FirebaseService>(
+            () => _StubFirebaseService());
+      }
+      if (!sl.isRegistered<DriveLogService>()) {
+        sl.registerLazySingleton<DriveLogService>(
+            () => DriveLogService(firestore: FakeFirebaseFirestore()));
+      }
+    });
+
+    tearDownAll(() {
+      Injection.reset();
+    });
+
+    testWidgets('車両カードをタップするとVehicleDetailScreenに遷移する', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp(
+        vehicles: [_makeVehicle(maker: 'Honda', model: 'Civic')],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // 車両カードをタップ
+      await tester.tap(find.textContaining('Honda').first);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // VehicleDetailScreen が開く（AppBar に車両名）
+      expect(find.textContaining('Honda'), findsWidgets);
+      expect(find.textContaining('Civic'), findsWidgets);
+    });
+
+    testWidgets('VehicleDetailScreenに「履歴を追加」FABが表示される', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp(
+        vehicles: [_makeVehicle(maker: 'Mazda', model: 'CX-5')],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.textContaining('Mazda').first);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('履歴を追加'), findsOneWidget);
+    });
+
+    testWidgets('「履歴を追加」をタップするとAddMaintenanceScreenが開く',
+        (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp(
+        vehicles: [_makeVehicle(maker: 'Subaru', model: 'Forester')],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.textContaining('Subaru').first);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('履歴を追加'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('メンテナンス履歴を追加'), findsOneWidget);
+    });
+
+    testWidgets('AddMaintenanceScreen にメンテナンスタイプチップが表示される',
+        (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp(
+        vehicles: [_makeVehicle(maker: 'Nissan', model: 'Serena')],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.textContaining('Nissan').first);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text('履歴を追加'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // メンテナンスタイプチップ（点検・車検・オイル交換など）
+      expect(find.text('メンテナンスタイプ'), findsOneWidget);
+    });
+
+    testWidgets('AddMaintenanceScreen でタイトル空のまま保存するとバリデーションエラーが出る',
+        (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp(
+        vehicles: [_makeVehicle(maker: 'Mitsubishi', model: 'Outlander')],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.textContaining('Mitsubishi').first);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text('履歴を追加'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // タイトル未入力で「保存する」をタップ
+      await tester.tap(find.text('保存する'));
+      await tester.pump();
+
+      expect(find.textContaining('入力してください'), findsWidgets);
+    });
+
+    testWidgets('AddMaintenanceScreen でタイトルを入力すると「保存する」が有効になる',
+        (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp(
+        vehicles: [_makeVehicle(maker: 'Daihatsu', model: 'Tanto')],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.textContaining('Daihatsu').first);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text('履歴を追加'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // タイトルを入力（labelText: 'タイトル'のTextFormField）
+      final titleField = find.widgetWithText(TextFormField, 'タイトル');
+      await tester.enterText(titleField, '6ヶ月点検');
+      await tester.pump();
+
+      expect(find.text('6ヶ月点検'), findsOneWidget);
+    });
+
+    testWidgets('AddMaintenanceScreen で戻るとVehicleDetailScreenに戻る',
+        (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp(
+        vehicles: [_makeVehicle(maker: 'Toyota', model: 'Alphard')],
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.textContaining('Toyota').first);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text('履歴を追加'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // AddMaintenanceScreen で戻る
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // VehicleDetailScreen に戻ることを確認
+      expect(find.text('履歴を追加'), findsOneWidget);
     });
   });
 }

@@ -13,7 +13,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       // ログイン画面が表示されることを確認
-      expect(find.text('クルマ統合管理'), findsOneWidget);
+      expect(find.text('TrustCar'), findsOneWidget);
 
       // メールアドレス入力フィールドが存在することを確認
       final emailFields = find.byType(TextFormField);
