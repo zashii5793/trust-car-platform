@@ -614,6 +614,7 @@ class _PlanBadge extends StatelessWidget {
       ShopPlanType.free => ('Free', AppColors.textTertiary),
       ShopPlanType.standard => ('Standard', AppColors.info),
       ShopPlanType.premium => ('Premium', AppColors.accentCustom),
+      ShopPlanType.enterprise => ('Enterprise', AppColors.primary),
     };
 
     return Container(

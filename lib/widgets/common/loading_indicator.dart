@@ -309,6 +309,7 @@ IconData _getErrorIcon(AppError error) {
     PermissionError() => Icons.block,
     ServerError() => Icons.cloud_off,
     CacheError() => Icons.storage,
+    PlanLimitError() => Icons.upgrade,
     UnknownError() => Icons.error_outline,
   };
 }

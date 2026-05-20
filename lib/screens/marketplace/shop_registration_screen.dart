@@ -583,6 +583,7 @@ class _PlanCard extends StatelessWidget {
         ShopPlanType.free => 'Free',
         ShopPlanType.standard => 'Standard',
         ShopPlanType.premium => 'Premium',
+        ShopPlanType.enterprise => 'Enterprise',
       };
 
   Widget get _planIcon {
@@ -590,6 +591,7 @@ class _PlanCard extends StatelessWidget {
       ShopPlanType.free => (Icons.store_outlined, AppColors.textTertiary),
       ShopPlanType.standard => (Icons.workspace_premium_outlined, AppColors.info),
       ShopPlanType.premium => (Icons.diamond_outlined, AppColors.accentCustom),
+      ShopPlanType.enterprise => (Icons.corporate_fare, AppColors.primary),
     };
     return Icon(icon, size: AppSpacing.iconMd, color: color);
   }

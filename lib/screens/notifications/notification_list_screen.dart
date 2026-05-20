@@ -349,13 +349,13 @@ class _NotificationCard extends StatelessWidget {
                 ? null
                 : priorityColor.withValues(alpha: isDark ? 0.07 : 0.05),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: IntrinsicHeight(
+            child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // 優先度アクセントバー
               Container(
                 width: 4,
-                height: double.infinity,
                 constraints: const BoxConstraints(minHeight: 80),
                 decoration: BoxDecoration(
                   color: notification.isRead
@@ -477,6 +477,7 @@ class _NotificationCard extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.xs),
             ],
+          ),
           ),
         ),
       ),

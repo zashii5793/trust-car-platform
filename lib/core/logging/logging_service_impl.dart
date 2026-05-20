@@ -112,6 +112,7 @@ class LoggingServiceImpl implements LoggingService {
       PermissionError() => LogLevel.error,
       NotFoundError() => LogLevel.error,
       ServerError() => LogLevel.error,
+      PlanLimitError() => LogLevel.warning,
       UnknownError() => LogLevel.error,
     };
   }
@@ -126,6 +127,7 @@ class LoggingServiceImpl implements LoggingService {
       PermissionError() => 'Permission',
       ServerError() => 'Server',
       CacheError() => 'Cache',
+      PlanLimitError() => 'PlanLimit',
       UnknownError() => 'Unknown',
     };
   }

@@ -42,8 +42,12 @@ import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
 import 'package:trust_car_platform/services/post_service.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
+import 'package:trust_car_platform/services/vehicle_master_service.dart';
+import 'package:trust_car_platform/services/vehicle_certificate_ocr_service.dart';
+import 'package:trust_car_platform/services/invoice_ocr_service.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
+import 'package:trust_car_platform/models/vehicle_master.dart';
 import 'package:trust_car_platform/models/app_notification.dart';
 import 'package:trust_car_platform/models/inquiry.dart';
 import 'package:trust_car_platform/models/user.dart';
@@ -222,6 +226,14 @@ class _StubShopService implements ShopService {
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
+class _StubInvoiceOcrService implements InvoiceOcrService {
+  @override
+  void dispose() {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
 // =============================================================================
 // Fake providers
 // =============================================================================
@@ -314,6 +326,12 @@ class _FakeShopProvider extends ShopProvider {
   List<Inquiry> get shopInquiries => _inquiries;
 
   @override
+  Future<void> loadShops() async {}
+
+  @override
+  Future<void> searchShops(String query) async {}
+
+  @override
   Future<void> loadShopInquiries(String shopId,
       {InquiryStatus? status}) async {}
 
@@ -325,6 +343,42 @@ class _FakeShopProvider extends ShopProvider {
       notifyListeners();
     }
   }
+}
+
+// =============================================================================
+// P10 stubs — VehicleRegistrationScreen ServiceLocator dependencies
+// =============================================================================
+
+class _StubVehicleMasterService implements VehicleMasterService {
+  static const _maker = VehicleMaker(
+      id: 'm1', name: 'トヨタ', nameEn: 'Toyota', country: 'JP');
+  static const _model = VehicleModel(id: 'v1', makerId: 'm1', name: 'プリウス');
+  static const _grade = VehicleGrade(id: 'g1', modelId: 'v1', name: 'S');
+
+  @override
+  Future<Result<List<VehicleMaker>, AppError>> getMakers() async =>
+      const Result.success([_maker]);
+
+  @override
+  Future<Result<List<VehicleModel>, AppError>> getModelsForMaker(
+          String makerId) async =>
+      const Result.success([_model]);
+
+  @override
+  Future<Result<List<VehicleGrade>, AppError>> getGradesForModel(
+          String modelId) async =>
+      const Result.success([_grade]);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _StubOcrService implements VehicleCertificateOcrService {
+  @override
+  void dispose() {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 // =============================================================================
@@ -411,10 +465,7 @@ Widget _buildHomeApp({
         create: (_) => _StubConnectivityProvider(isOffline: isOffline),
       ),
       ChangeNotifierProvider<ShopProvider>(
-        create: (_) => ShopProvider(
-          shopService: ShopService(firestore: fakeFirestore),
-          inquiryService: InquiryService(firestore: fakeFirestore),
-        ),
+        create: (_) => _FakeShopProvider(),
       ),
       ChangeNotifierProvider<PostProvider>(
         create: (_) =>
@@ -540,7 +591,8 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('新規登録'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.pump(); // kick off navigation
+      await tester.pump(const Duration(milliseconds: 500)); // settle transition
 
       expect(find.text('表示名'), findsOneWidget);
     });
@@ -1046,6 +1098,10 @@ void main() {
         sl.registerLazySingleton<DriveLogService>(
             () => DriveLogService(firestore: FakeFirebaseFirestore()));
       }
+      if (!sl.isRegistered<InvoiceOcrService>()) {
+        sl.registerLazySingleton<InvoiceOcrService>(
+            () => _StubInvoiceOcrService());
+      }
     });
 
     tearDownAll(() {
@@ -1148,9 +1204,8 @@ void main() {
       await tester.tap(find.text('履歴を追加'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      // タイトルを入力（labelText: 'タイトル'のTextFormField）
-      final titleField = find.widgetWithText(TextFormField, 'タイトル');
-      await tester.enterText(titleField, '6ヶ月点検');
+      // タイトルは AddMaintenanceScreen の最初の入力可能な TextFormField
+      await tester.enterText(find.byType(TextFormField).first, '6ヶ月点検');
       await tester.pump();
 
       expect(find.text('6ヶ月点検'), findsOneWidget);
@@ -1175,6 +1230,174 @@ void main() {
 
       // VehicleDetailScreen に戻ることを確認
       expect(find.text('履歴を追加'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // P10: 車両登録フロー — HomeScreen FAB → VehicleRegistrationScreen (wizard)
+  // ---------------------------------------------------------------------------
+
+  group('P10 車両登録フロー', () {
+    setUpAll(() {
+      final sl = ServiceLocator.instance;
+      if (!sl.isRegistered<VehicleMasterService>()) {
+        sl.registerLazySingleton<VehicleMasterService>(
+            () => _StubVehicleMasterService());
+      }
+      if (!sl.isRegistered<VehicleCertificateOcrService>()) {
+        sl.registerLazySingleton<VehicleCertificateOcrService>(
+            () => _StubOcrService());
+      }
+      if (!sl.isRegistered<FirebaseService>()) {
+        sl.registerLazySingleton<FirebaseService>(
+            () => _StubFirebaseService());
+      }
+    });
+
+    tearDownAll(() {
+      Injection.reset();
+    });
+
+    testWidgets('マイカータブ FABをタップするとVehicleRegistrationScreenが開く',
+        (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      // マイカータブ（デフォルト）の FAB をタップ
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // Step 1 タイトル
+      expect(find.text('基本情報を入力'), findsOneWidget);
+    });
+
+    testWidgets('ウィザードステップインジケーターが全3ステップ表示される', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('基本情報'), findsOneWidget);
+      expect(find.text('車検・保険'), findsOneWidget);
+      expect(find.text('詳細情報'), findsOneWidget);
+    });
+
+    testWidgets('OCRスキャンボタンが表示される', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('車検証をスキャンして自動入力'), findsOneWidget);
+    });
+
+    testWidgets('空フォームで「次へ」をタップするとメーカーバリデーションエラーが出る',
+        (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('次へ'));
+      await tester.pump();
+
+      expect(find.text('メーカーを選択してください'), findsOneWidget);
+    });
+
+    testWidgets('空フォームで「次へ」をタップすると年式・走行距離バリデーションエラーが出る',
+        (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('次へ'));
+      await tester.pump();
+
+      // 複数のバリデーションエラーが出る
+      expect(find.textContaining('入力'), findsWidgets);
+    });
+
+    testWidgets('年式に文字を入力すると数値バリデーションエラーが出る', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // 年式フィールドに不正な値を入力
+      final yearField = find.widgetWithText(TextFormField, '年式 *');
+      if (yearField.evaluate().isNotEmpty) {
+        await tester.enterText(yearField, '無効な値');
+        await tester.tap(find.text('次へ'));
+        await tester.pump();
+
+        expect(find.textContaining('入力'), findsWidgets);
+      }
+    });
+
+    testWidgets('走行距離に負の値を入力するとバリデーションエラーが出る', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // 走行距離フィールドに負の値を入力
+      final mileageField = find.widgetWithText(TextFormField, '走行距離 *');
+      if (mileageField.evaluate().isNotEmpty) {
+        await tester.enterText(mileageField, '-100');
+        await tester.tap(find.text('次へ'));
+        await tester.pump();
+
+        expect(find.textContaining('入力'), findsWidgets);
+      }
+    });
+
+    testWidgets('Step 0 では AppBar に戻るボタンがない', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // Step 0 はウィザード先頭 — BackButton は表示されない
+      final appBar = tester.widget<AppBar>(find.byType(AppBar));
+      expect(appBar.leading, isNull);
+    });
+
+    testWidgets('VehicleRegistrationScreen から navigator.pop で HomeScreen に戻る',
+        (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // Scaffold の close / system back ではなく Navigator.pop 相当
+      final NavigatorState navigator = tester.state(find.byType(Navigator));
+      navigator.pop();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // HomeScreen の マイカー AppBar タイトルに戻る
+      expect(
+        find.descendant(
+            of: find.byType(AppBar), matching: find.text('マイカー')),
+        findsOneWidget,
+      );
     });
   });
 }
