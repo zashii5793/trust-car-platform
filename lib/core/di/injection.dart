@@ -28,6 +28,7 @@ import '../../services/part_listing_service.dart';
 import '../../services/shop_subscription_service.dart';
 import '../../services/revenue_cat_service.dart';
 import '../../services/analytics_service.dart';
+import '../../services/user_subscription_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -59,6 +60,11 @@ class Injection {
 
     // Analytics Service (register early for use across all other services)
     locator.registerLazySingleton<AnalyticsService>(() => AnalyticsService());
+
+    // User Subscription Service (B2C plan logic)
+    locator.registerLazySingleton<UserSubscriptionService>(
+      () => const UserSubscriptionService(),
+    );
 
     // Core Services
     locator.registerLazySingleton<FirebaseService>(() => FirebaseService());

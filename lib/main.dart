@@ -31,6 +31,8 @@ import 'services/shop_service.dart';
 import 'services/inquiry_service.dart';
 import 'services/shop_subscription_service.dart';
 import 'providers/subscription_provider.dart';
+import 'providers/user_subscription_provider.dart';
+import 'services/user_subscription_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/onboarding_screen.dart';
@@ -93,18 +95,19 @@ Future<void> _initializeCrashlytics() async {
   }
 }
 
-/// Set up logging for authentication state changes
+/// Set up logging and analytics tracking for authentication state changes
 void _setupAuthLogging() {
   final logger = sl.tryGet<LoggingService>();
-  if (logger == null) return;
+  final analytics = sl.tryGet<AnalyticsService>();
 
   final authService = sl.get<AuthService>();
   authService.authStateChanges.listen((user) {
-    logger.setUserId(user?.uid);
+    logger?.setUserId(user?.uid);
+    analytics?.setUserId(user?.uid);
     if (user != null) {
-      logger.info('User signed in', tag: 'Auth');
+      logger?.info('User signed in', tag: 'Auth');
     } else {
-      logger.info('User signed out', tag: 'Auth');
+      logger?.info('User signed out', tag: 'Auth');
     }
   });
 }
@@ -143,6 +146,9 @@ class MyApp extends StatelessWidget {
         )),
         ChangeNotifierProvider(create: (_) => SubscriptionProvider(
           subscriptionService: sl.get<ShopSubscriptionService>(),
+        )),
+        ChangeNotifierProvider(create: (_) => UserSubscriptionProvider(
+          service: sl.get<UserSubscriptionService>(),
         )),
         ChangeNotifierProvider(create: (_) => PostProvider(
           postService: sl.get<PostService>(),

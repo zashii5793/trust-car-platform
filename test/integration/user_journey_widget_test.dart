@@ -14,6 +14,8 @@
 //   P7 — 通知ありユーザー        : Unread badge, navigate to 通知 tab
 //   P8 — オフラインユーザー       : Offline banner visible
 //   P9 — ショップオーナー        : Inquiry list, filter chips, bottom sheet
+//   P10 — 車両登録フロー          : VehicleRegistrationScreen wizard
+//   P11 — プロフィール管理        : Profile tab, settings navigation, B2C plan display
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,6 +37,8 @@ import 'package:trust_car_platform/providers/connectivity_provider.dart';
 import 'package:trust_car_platform/providers/shop_provider.dart';
 import 'package:trust_car_platform/providers/post_provider.dart';
 import 'package:trust_car_platform/providers/drive_log_provider.dart';
+import 'package:trust_car_platform/providers/user_subscription_provider.dart';
+import 'package:trust_car_platform/models/user_plan.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/services/recommendation_service.dart';
@@ -377,6 +381,19 @@ class _StubOcrService implements VehicleCertificateOcrService {
   @override
   void dispose() {}
 
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+/// AuthService stub that emits null immediately so AuthProvider.isLoading resolves.
+/// Use in tests that need to render screens gated on auth completion.
+class _StubAuthServiceResolved implements AuthService {
+  @override
+  Stream<User?> get authStateChanges => Stream.value(null);
+  @override
+  User? get currentUser => null;
+  @override
+  bool get isAuthenticated => false;
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
@@ -1398,6 +1415,160 @@ void main() {
             of: find.byType(AppBar), matching: find.text('マイカー')),
         findsOneWidget,
       );
+    });
+  });
+
+  // ===========================================================================
+  // P11 — プロフィール管理（B2C ユーザー）
+  // Profile tab navigation, settings access, plan display, logout flow
+  // ===========================================================================
+  group('P11 プロフィール管理', () {
+    // Builds HomeApp with a resolved AuthProvider (Stream.value(null) → isLoading=false).
+    // Also provides UserSubscriptionProvider for plan-related assertions.
+    Widget buildProfileHomeApp({UserPlanType planType = UserPlanType.free}) {
+      final fb = _StubFirebaseService();
+      final fakeFirestore = FakeFirebaseFirestore();
+
+      final userSubProvider = UserSubscriptionProvider();
+      // Seed plan state without a real auth flow
+      userSubProvider.loadFromUser(planType, null);
+
+      return MultiProvider(
+        providers: [
+          ChangeNotifierProvider<VehicleProvider>.value(
+            value: _FakeVehicleProvider(),
+          ),
+          ChangeNotifierProvider<MaintenanceProvider>(
+            create: (_) => MaintenanceProvider(firebaseService: fb),
+          ),
+          ChangeNotifierProvider<AuthProvider>(
+            create: (_) => AuthProvider(authService: _StubAuthServiceResolved()),
+          ),
+          ChangeNotifierProvider<NotificationProvider>.value(
+            value: _FakeNotificationProvider(),
+          ),
+          ChangeNotifierProvider<ConnectivityProvider>(
+            create: (_) => _StubConnectivityProvider(),
+          ),
+          ChangeNotifierProvider<ShopProvider>(
+            create: (_) => _FakeShopProvider(),
+          ),
+          ChangeNotifierProvider<PostProvider>(
+            create: (_) =>
+                PostProvider(postService: PostService(firestore: fakeFirestore)),
+          ),
+          ChangeNotifierProvider<DriveLogProvider>(
+            create: (_) => DriveLogProvider(
+                driveLogService: DriveLogService(firestore: fakeFirestore)),
+          ),
+          ChangeNotifierProvider<UserSubscriptionProvider>.value(
+            value: userSubProvider,
+          ),
+        ],
+        child: const MaterialApp(home: HomeScreen()),
+      );
+    }
+
+    testWidgets('プロフィールタブに切り替えられる', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(buildProfileHomeApp());
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      // Tap the profile tab (index 4 — rightmost)
+      await tester.tap(find.byIcon(Icons.person_outline));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(
+        find.descendant(
+            of: find.byType(AppBar), matching: find.text('プロフィール')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('プロフィール画面に設定アイコンが表示される', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(buildProfileHomeApp());
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.byIcon(Icons.person_outline));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.byIcon(Icons.settings_outlined), findsWidgets);
+    });
+
+    testWidgets('ログアウトボタンが表示される', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(buildProfileHomeApp());
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.byIcon(Icons.person_outline));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.byIcon(Icons.logout), findsOneWidget);
+    });
+
+    testWidgets('ログアウトボタンをタップすると確認ダイアログが表示される', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(buildProfileHomeApp());
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.byIcon(Icons.person_outline));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.byIcon(Icons.logout));
+      await tester.pumpAndSettle();
+
+      // Logout confirmation dialog
+      expect(find.text('ログアウト'), findsWidgets);
+      expect(find.text('キャンセル'), findsOneWidget);
+    });
+
+    testWidgets('ダイアログのキャンセルでプロフィール画面に留まる', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(buildProfileHomeApp());
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.byIcon(Icons.person_outline));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.byIcon(Icons.logout));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('キャンセル'));
+      await tester.pumpAndSettle();
+
+      // Still on profile screen
+      expect(
+        find.descendant(
+            of: find.byType(AppBar), matching: find.text('プロフィール')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('UserSubscriptionProvider — free プランは isPremium=false', (tester) async {
+      final provider = UserSubscriptionProvider();
+      provider.loadFromUser(UserPlanType.free, null);
+      expect(provider.isPremium, isFalse);
+      expect(provider.canExportPdf, isFalse);
+      expect(provider.maxMonthlyInquiries, lessThan(9999));
+    });
+
+    testWidgets('UserSubscriptionProvider — premium プランは isPremium=true', (tester) async {
+      final provider = UserSubscriptionProvider();
+      final future = DateTime.now().add(const Duration(days: 30));
+      provider.loadFromUser(UserPlanType.premium, future);
+      expect(provider.isPremium, isTrue);
+      expect(provider.canExportPdf, isTrue);
+    });
+
+    testWidgets('UserSubscriptionProvider — clear() で free に戻る', (tester) async {
+      final provider = UserSubscriptionProvider();
+      provider.loadFromUser(UserPlanType.premium, null);
+      expect(provider.isPremium, isTrue);
+
+      provider.clear();
+      expect(provider.isPremium, isFalse);
+      expect(provider.planType, UserPlanType.free);
     });
   });
 }

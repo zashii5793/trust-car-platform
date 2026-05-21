@@ -23,8 +23,16 @@ service cloud.firestore {
 
     // ユーザードキュメント
     match /users/{userId} {
-      // 自分のデータのみ読み書き可能
-      allow read, write: if isOwner(userId);
+      // 自分のデータのみ読み取り可能
+      allow read: if isOwner(userId);
+
+      // 作成: 自分自身のドキュメントのみ
+      allow create: if isOwner(userId);
+
+      // 更新: planType / planExpiresAt はCloud Functions経由のみ（クライアント書き換え禁止）
+      allow update: if isOwner(userId)
+          && !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['planType', 'planExpiresAt']);
     }
 
     // 車両データ
