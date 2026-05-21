@@ -210,10 +210,18 @@ class InvoiceOcrService {
       date ??= _extractDate(line);
 
       // 金額を抽出
-      if (totalAmount == null && _containsKeyword(line, ['合計', '請求金額', 'ご請求', '総額'])) {
+      // "合計" lines (line-item totals) take priority over "ご請求金額" header lines.
+      // We always update on "合計"/"総額" so the last such line wins; header keywords
+      // only fill in if no higher-priority value was found yet.
+      if (_containsKeyword(line, ['合計', '総額']) &&
+          !_containsKeyword(line, ['小計', '税抜', '本体'])) {
+        totalAmount = _extractAmount(line) ?? totalAmount;
+      } else if (totalAmount == null &&
+          _containsKeyword(line, ['請求金額', 'ご請求'])) {
         totalAmount = _extractAmount(line);
       }
-      if (taxAmount == null && _containsKeyword(line, ['消費税', '税額', '税'])) {
+      // Only match consumption tax specifically; avoid matching "自動車重量税" etc.
+      if (taxAmount == null && _containsKeyword(line, ['消費税', '税額'])) {
         taxAmount = _extractAmount(line);
       }
       if (subtotalAmount == null && _containsKeyword(line, ['小計', '税抜', '本体'])) {
@@ -406,6 +414,8 @@ class InvoiceOcrService {
       'オイル', 'タイヤ', 'ブレーキ', 'バッテリー', 'フィルター',
       'ワイパー', 'エアコン', '点検', '車検', '整備', '修理',
       '交換', '工賃', '部品', 'パーツ', '洗車', 'コーティング',
+      // Government taxes and insurance that appear as line items in shaken invoices
+      '重量税', '自賠責', '印紙', '代行', '保険',
     ];
 
     bool isMaintenanceItem = false;
