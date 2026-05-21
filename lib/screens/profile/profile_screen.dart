@@ -11,6 +11,7 @@ import '../../models/maintenance_record.dart';
 import '../../models/vehicle.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/maintenance_provider.dart';
+import '../../providers/user_subscription_provider.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../services/firebase_service.dart';
 import '../../widgets/common/app_card.dart';
@@ -42,10 +43,11 @@ class ProfileScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<AuthProvider>(
-        builder: (context, authProvider, child) {
+      body: Consumer2<AuthProvider, UserSubscriptionProvider>(
+        builder: (context, authProvider, subProvider, child) {
           final user = authProvider.firebaseUser;
           final appUser = authProvider.appUser;
+          final isPremium = subProvider.isPremium;
 
           if (authProvider.isLoading) {
             return const AppLoadingCenter();
@@ -62,6 +64,7 @@ class ProfileScreen extends StatelessWidget {
                   photoUrl: user?.photoURL,
                   displayName: appUser?.displayName ?? user?.displayName ?? 'ユーザー',
                   email: user?.email ?? '',
+                  isPremium: isPremium,
                 ),
 
                 AppSpacing.verticalXxl,
@@ -122,8 +125,10 @@ class ProfileScreen extends StatelessWidget {
                   items: [
                     _MenuItem(
                       icon: Icons.download_outlined,
-                      label: 'データをエクスポート',
-                      onTap: () => _showExportPicker(context),
+                      label: isPremium ? 'データをエクスポート' : 'データをエクスポート（プレミアム）',
+                      onTap: isPremium
+                          ? () => _showExportPicker(context)
+                          : () => _showUpgradeDialog(context),
                     ),
                   ],
                 ),
@@ -192,6 +197,25 @@ class ProfileScreen extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _showUpgradeDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('プレミアムプランが必要です'),
+        content: const Text(
+          'データのエクスポートはプレミアムプランの機能です。\n'
+          'アップグレードすると整備記録や走行ログのPDFエクスポート、無制限の問い合わせが利用できます。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('閉じる'),
+          ),
+        ],
       ),
     );
   }
@@ -450,11 +474,13 @@ class _ProfileHeader extends StatelessWidget {
   final String? photoUrl;
   final String displayName;
   final String email;
+  final bool isPremium;
 
   const _ProfileHeader({
     this.photoUrl,
     required this.displayName,
     required this.email,
+    required this.isPremium,
   });
 
   @override
@@ -500,6 +526,25 @@ class _ProfileHeader extends StatelessWidget {
         Text(
           email,
           style: theme.textTheme.bodyMedium,
+        ),
+        AppSpacing.verticalSm,
+
+        // プランバッジ
+        Chip(
+          avatar: Icon(
+            isPremium ? Icons.star : Icons.star_border,
+            size: 16,
+            color: isPremium ? Colors.white : theme.colorScheme.onSurface,
+          ),
+          label: Text(
+            isPremium ? 'プレミアム' : 'フリープラン',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: isPremium ? Colors.white : null,
+            ),
+          ),
+          backgroundColor: isPremium ? AppColors.primary : null,
+          side: isPremium ? BorderSide.none : null,
+          visualDensity: VisualDensity.compact,
         ),
       ],
     );

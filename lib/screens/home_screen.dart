@@ -6,6 +6,7 @@ import '../providers/maintenance_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/connectivity_provider.dart';
+import '../providers/user_subscription_provider.dart';
 import '../models/vehicle.dart';
 import '../models/app_notification.dart';
 import '../core/constants/colors.dart';
@@ -298,6 +299,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildProfileTab() {
     final authProvider = context.read<AuthProvider>();
     final user = authProvider.firebaseUser;
+    final subProvider = context.watch<UserSubscriptionProvider>();
+    final isPremium = subProvider.isPremium;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -355,6 +358,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: Colors.white.withValues(alpha: 0.8),
                   ),
                 ),
+                AppSpacing.verticalSm,
+                // プランバッジ
+                Chip(
+                  avatar: Icon(
+                    isPremium ? Icons.star : Icons.star_border,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                  label: Text(
+                    isPremium ? 'プレミアム' : 'フリープラン',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: Colors.white,
+                    ),
+                  ),
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                  side: BorderSide.none,
+                  visualDensity: VisualDensity.compact,
+                ),
               ],
             ),
           ),
@@ -392,6 +413,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   context,
                   MaterialPageRoute(builder: (_) => const SettingsScreen()),
                 ),
+              ),
+            ],
+          ),
+
+          AppSpacing.verticalSm,
+
+          // ---- データセクション ----
+          _buildMenuSection(
+            context,
+            title: 'データ',
+            items: [
+              _MenuItemData(
+                icon: Icons.download_outlined,
+                label: isPremium ? 'データをエクスポート' : 'データをエクスポート（プレミアム）',
+                color: AppColors.primary,
+                onTap: isPremium
+                    ? () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                      )
+                    : () => _showUpgradeDialog(context),
               ),
             ],
           ),
@@ -528,6 +570,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               }).toList(),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUpgradeDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('プレミアムプランが必要です'),
+        content: const Text(
+          'データのエクスポートはプレミアムプランの機能です。\n'
+          'プレミアムプランにアップグレードしてご利用ください。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('閉じる'),
           ),
         ],
       ),

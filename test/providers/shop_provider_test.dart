@@ -78,6 +78,11 @@ class MockShopService implements ShopService {
     ServiceCategory category, {
     int limit = 20,
   }) async => const Result.success([]);
+
+  // Fallback for newer ShopService methods (createMyShop, deleteMyShop, etc.)
+  // not exercised by these provider-level tests.
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 // ---------------------------------------------------------------------------

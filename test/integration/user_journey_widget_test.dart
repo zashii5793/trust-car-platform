@@ -492,6 +492,9 @@ Widget _buildHomeApp({
         create: (_) => DriveLogProvider(
             driveLogService: DriveLogService(firestore: fakeFirestore)),
       ),
+      ChangeNotifierProvider<UserSubscriptionProvider>(
+        create: (_) => UserSubscriptionProvider(),
+      ),
     ],
     child: const MaterialApp(home: HomeScreen()),
   );
@@ -1569,6 +1572,45 @@ void main() {
       provider.clear();
       expect(provider.isPremium, isFalse);
       expect(provider.planType, UserPlanType.free);
+    });
+
+    testWidgets('フリープランではプロフィールにフリープランバッジが表示される', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(buildProfileHomeApp());
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.byIcon(Icons.person_outline));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      // Chip renders text through DefaultTextStyle chain; textContaining is robust to widget wrapping
+      expect(find.textContaining('フリープラン'), findsWidgets);
+    });
+
+    testWidgets('プレミアムプランではプロフィールにプレミアムバッジが表示される', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(buildProfileHomeApp(planType: UserPlanType.premium));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.byIcon(Icons.person_outline));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.textContaining('プレミアム'), findsWidgets);
+    });
+
+    testWidgets('フリープランのエクスポートタップでアップグレードダイアログが表示される', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(buildProfileHomeApp());
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.byIcon(Icons.person_outline));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      // Find the export menu item by its label text fragment
+      await tester.tap(find.textContaining('データをエクスポート'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('プレミアムプランが必要です'), findsOneWidget);
+      expect(find.text('閉じる'), findsOneWidget);
     });
   });
 }
