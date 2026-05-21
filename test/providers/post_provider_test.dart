@@ -59,8 +59,13 @@ class MockPostService implements PostService {
   }
 
   @override
-  Future<Result<void, AppError>> likePost(
-      {required String postId, required String userId}) async {
+  Future<Result<void, AppError>> likePost({
+    required String postId,
+    required String userId,
+    String? postAuthorId,
+    String? actorDisplayName,
+    String? actorPhotoUrl,
+  }) async {
     likeCallCount++;
     return likeResult;
   }

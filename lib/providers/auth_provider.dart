@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../services/analytics_service.dart';
 import '../models/user.dart';
@@ -91,8 +92,11 @@ class AuthProvider with ChangeNotifier {
     _isLoading = false;
 
     return result.when(
-      success: (_) {
+      success: (_) async {
         _analytics?.trackSignup('email');
+        // Reset onboarding flag so new users see onboarding on next launch.
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('onboarding_completed', false);
         notifyListeners();
         return true;
       },
