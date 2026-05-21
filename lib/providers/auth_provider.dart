@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
+import '../services/analytics_service.dart';
 import '../models/user.dart';
 import '../core/error/app_error.dart';
 
@@ -10,6 +11,7 @@ import '../core/error/app_error.dart';
 /// エラーはAppError型で保持し、型安全なエラーハンドリングを実現
 class AuthProvider with ChangeNotifier {
   final AuthService _authService;
+  final AnalyticsService? _analytics;
 
   User? _firebaseUser;
   AppUser? _appUser;
@@ -17,8 +19,9 @@ class AuthProvider with ChangeNotifier {
   AppError? _error;
   StreamSubscription<User?>? _authSubscription;
 
-  AuthProvider({required AuthService authService})
-      : _authService = authService {
+  AuthProvider({required AuthService authService, AnalyticsService? analyticsService})
+      : _authService = authService,
+        _analytics = analyticsService {
     _init();
   }
 
@@ -89,6 +92,7 @@ class AuthProvider with ChangeNotifier {
 
     return result.when(
       success: (_) {
+        _analytics?.trackSignup('email');
         notifyListeners();
         return true;
       },
@@ -118,6 +122,7 @@ class AuthProvider with ChangeNotifier {
 
     return result.when(
       success: (_) {
+        _analytics?.trackLogin('email');
         notifyListeners();
         return true;
       },
@@ -141,6 +146,9 @@ class AuthProvider with ChangeNotifier {
 
     return result.when(
       success: (credential) {
+        if (credential != null) {
+          _analytics?.trackLogin('google');
+        }
         notifyListeners();
         return credential != null;
       },

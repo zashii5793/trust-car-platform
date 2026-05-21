@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/maintenance_record.dart';
 import '../services/firebase_service.dart';
+import '../services/analytics_service.dart';
 import '../core/constants/retry_config.dart';
 import '../core/error/app_error.dart';
 
@@ -10,9 +11,11 @@ import '../core/error/app_error.dart';
 /// エラーはAppError型で保持し、型安全なエラーハンドリングを実現
 class MaintenanceProvider with ChangeNotifier {
   final FirebaseService _firebaseService;
+  final AnalyticsService? _analytics;
 
-  MaintenanceProvider({required FirebaseService firebaseService})
-      : _firebaseService = firebaseService;
+  MaintenanceProvider({required FirebaseService firebaseService, AnalyticsService? analyticsService})
+      : _firebaseService = firebaseService,
+        _analytics = analyticsService;
 
   List<MaintenanceRecord> _records = [];
   bool _isLoading = false;
@@ -108,6 +111,7 @@ class MaintenanceProvider with ChangeNotifier {
 
     return result.when(
       success: (_) {
+        _analytics?.trackMaintenanceRecorded(record.type.name);
         _isLoading = false;
         notifyListeners();
         return true;

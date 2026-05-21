@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../models/drive_log.dart';
 import '../services/drive_log_service.dart';
+import '../services/analytics_service.dart';
 import '../core/error/app_error.dart';
 
 /// GPS drive recording state provider.
@@ -13,6 +14,7 @@ import '../core/error/app_error.dart';
 /// [permissionChecker] and [positionStreamFactory] are injectable for testing.
 class DriveRecordingProvider with ChangeNotifier {
   final DriveLogService _service;
+  final AnalyticsService? _analytics;
   final Future<bool> Function() _permissionChecker;
   final Stream<Position> Function() _positionStreamFactory;
 
@@ -21,10 +23,12 @@ class DriveRecordingProvider with ChangeNotifier {
 
   DriveRecordingProvider({
     required DriveLogService driveLogService,
+    AnalyticsService? analyticsService,
     Future<bool> Function()? permissionChecker,
     Stream<Position> Function()? positionStreamFactory,
     this.initialPosition,
   })  : _service = driveLogService,
+        _analytics = analyticsService,
         _permissionChecker = permissionChecker ?? _defaultPermissionCheck,
         _positionStreamFactory =
             positionStreamFactory ?? _defaultPositionStream;
@@ -175,7 +179,9 @@ class DriveRecordingProvider with ChangeNotifier {
     _isLoading = false;
 
     result.when(
-      success: (_) {},
+      success: (log) {
+        _analytics?.trackDriveLogged(log.statistics.totalDistance);
+      },
       failure: (err) { _error = err; },
     );
 

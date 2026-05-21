@@ -2,7 +2,6 @@
 // Run: flutter test --update-goldens test/golden/
 // Images saved to: test/golden/goldens/
 
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -24,14 +23,12 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 // =============================================================================
 
 class MockAuthService implements AuthService {
-  final StreamController<firebase_auth.User?> _authStateController =
-      StreamController<firebase_auth.User?>.broadcast();
-
   @override
   GoogleSignIn get googleSignIn => GoogleSignIn();
 
+  // Emit null immediately so AuthProvider sets isLoading=false and pumpAndSettle resolves.
   @override
-  Stream<firebase_auth.User?> get authStateChanges => _authStateController.stream;
+  Stream<firebase_auth.User?> get authStateChanges => Stream.value(null);
 
   @override
   firebase_auth.User? get currentUser => null;
@@ -79,9 +76,6 @@ class MockAuthService implements AuthService {
   ) async =>
       const Result.success(null);
 
-  void dispose() {
-    _authStateController.close();
-  }
 }
 
 // =============================================================================

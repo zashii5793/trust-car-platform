@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/vehicle.dart';
 import '../services/firebase_service.dart';
+import '../services/analytics_service.dart';
 import '../core/constants/retry_config.dart';
 import '../core/error/app_error.dart';
 
@@ -10,9 +11,11 @@ import '../core/error/app_error.dart';
 /// エラーはAppError型で保持し、型安全なエラーハンドリングを実現
 class VehicleProvider with ChangeNotifier {
   final FirebaseService _firebaseService;
+  final AnalyticsService? _analytics;
 
-  VehicleProvider({required FirebaseService firebaseService})
-      : _firebaseService = firebaseService;
+  VehicleProvider({required FirebaseService firebaseService, AnalyticsService? analyticsService})
+      : _firebaseService = firebaseService,
+        _analytics = analyticsService;
 
   List<Vehicle> _vehicles = [];
   Vehicle? _selectedVehicle;
@@ -111,6 +114,7 @@ class VehicleProvider with ChangeNotifier {
 
     return result.when(
       success: (_) {
+        _analytics?.trackVehicleAdded();
         _isLoading = false;
         notifyListeners();
         return true;

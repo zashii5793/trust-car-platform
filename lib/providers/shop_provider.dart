@@ -5,6 +5,7 @@ import '../models/shop.dart';
 import '../models/inquiry.dart';
 import '../services/shop_service.dart';
 import '../services/inquiry_service.dart';
+import '../services/analytics_service.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 
@@ -17,12 +18,15 @@ import '../core/result/result.dart';
 class ShopProvider with ChangeNotifier {
   final ShopService _shopService;
   final InquiryService _inquiryService;
+  final AnalyticsService? _analytics;
 
   ShopProvider({
     required ShopService shopService,
     required InquiryService inquiryService,
+    AnalyticsService? analyticsService,
   })  : _shopService = shopService,
-        _inquiryService = inquiryService;
+        _inquiryService = inquiryService,
+        _analytics = analyticsService;
 
   // --- Shop一覧系 ---
   List<Shop> _shops = [];
@@ -226,6 +230,7 @@ class ShopProvider with ChangeNotifier {
       success: (inquiry) {
         created = inquiry;
         _error = null;
+        _analytics?.trackInquirySent(shopId);
       },
       failure: (err) {
         _error = err;

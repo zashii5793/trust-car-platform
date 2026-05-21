@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_core/firebase_core.dart' hide FirebaseService;
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'core/di/injection.dart';
 import 'core/di/service_locator.dart';
+import 'services/analytics_service.dart';
 import 'core/logging/crashlytics_wrapper.dart';
 import 'core/logging/logging_service.dart';
 import 'services/firebase_service.dart';
@@ -118,12 +119,15 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider(
           authService: sl.get<AuthService>(),
+          analyticsService: sl.get<AnalyticsService>(),
         )),
         ChangeNotifierProvider(create: (_) => VehicleProvider(
           firebaseService: sl.get<FirebaseService>(),
+          analyticsService: sl.get<AnalyticsService>(),
         )),
         ChangeNotifierProvider(create: (_) => MaintenanceProvider(
           firebaseService: sl.get<FirebaseService>(),
+          analyticsService: sl.get<AnalyticsService>(),
         )),
         ChangeNotifierProvider(create: (_) => NotificationProvider(
           firebaseService: sl.get<FirebaseService>(),
@@ -135,6 +139,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ShopProvider(
           shopService: sl.get<ShopService>(),
           inquiryService: sl.get<InquiryService>(),
+          analyticsService: sl.get<AnalyticsService>(),
         )),
         ChangeNotifierProvider(create: (_) => SubscriptionProvider(
           subscriptionService: sl.get<ShopSubscriptionService>(),
@@ -147,6 +152,7 @@ class MyApp extends StatelessWidget {
         )),
         ChangeNotifierProvider(create: (_) => DriveRecordingProvider(
           driveLogService: sl.get<DriveLogService>(),
+          analyticsService: sl.get<AnalyticsService>(),
         )),
       ],
       child: MaterialApp(
