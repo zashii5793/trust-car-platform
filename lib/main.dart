@@ -32,6 +32,7 @@ import 'services/shop_subscription_service.dart';
 import 'providers/subscription_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/auth/onboarding_screen.dart';
 import 'core/theme/app_theme.dart';
 
 void main() async {
@@ -160,29 +161,58 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// 認証状態に応じて画面を切り替えるラッパー
-class AuthWrapper extends StatelessWidget {
+/// Routes to Home, Login, or Onboarding based on auth + first-launch state.
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
   @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool? _onboardingDone;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOnboardingState();
+  }
+
+  Future<void> _loadOnboardingState() async {
+    final done = await hasCompletedOnboarding();
+    if (mounted) {
+      setState(() => _onboardingDone = done);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Still loading onboarding flag
+    if (_onboardingDone == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
-        // 初期化中はローディング表示
         if (authProvider.isLoading) {
           return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        // 認証済みならホーム画面、未認証ならログイン画面
+        // Authenticated users always go to HomeScreen
         if (authProvider.isAuthenticated) {
           return const HomeScreen();
-        } else {
-          return const LoginScreen();
         }
+
+        // First-time visitors see onboarding
+        if (!_onboardingDone!) {
+          return const OnboardingScreen();
+        }
+
+        return const LoginScreen();
       },
     );
   }
