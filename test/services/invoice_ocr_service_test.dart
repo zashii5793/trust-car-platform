@@ -167,4 +167,65 @@ void main() {
       expect(str.contains('confidenceScore:'), true);
     });
   });
+
+  group('InvoiceOcrService', () {
+    late InvoiceOcrService service;
+
+    setUp(() {
+      service = InvoiceOcrService();
+    });
+
+    group('totalAmount priority', () {
+      test('"ご請求金額" header before "合計" line → uses "合計" value', () {
+        final result = service.parseRawTextForTest(
+          'ご請求金額 ¥120000\n合計 ¥99404',
+        );
+        expect(result.totalAmount, 99404);
+      });
+
+      test('only header, no "合計" line → falls back to header value', () {
+        final result = service.parseRawTextForTest('ご請求金額 ¥50000');
+        expect(result.totalAmount, 50000);
+      });
+
+      test('multiple "合計" lines → last one wins', () {
+        final result = service.parseRawTextForTest('合計 ¥10000\n合計 ¥20000');
+        expect(result.totalAmount, 20000);
+      });
+    });
+
+    group('taxAmount specificity', () {
+      test('"自動車重量税" line is NOT captured as taxAmount', () {
+        final result = service.parseRawTextForTest(
+          '自動車重量税 ¥24600\n消費税 ¥5764',
+        );
+        expect(result.taxAmount, 5764);
+      });
+
+      test('"消費税" line IS captured as taxAmount', () {
+        final result = service.parseRawTextForTest('消費税 ¥5764');
+        expect(result.taxAmount, 5764);
+      });
+    });
+
+    group('shaken item recognition', () {
+      test('"自動車重量税 ¥24600" recognized as a line item', () {
+        final result = service.parseRawTextForTest('自動車重量税 ¥24600');
+        expect(result.items.length, 1);
+        expect(result.items.first.amount, 24600);
+      });
+
+      test('"自賠責保険料 ¥17540" recognized as a line item', () {
+        final result = service.parseRawTextForTest('自賠責保険料 ¥17540');
+        expect(result.items.length, 1);
+        expect(result.items.first.amount, 17540);
+      });
+
+      test('regular maintenance "エンジンオイル交換 ¥3800" still recognized', () {
+        final result = service.parseRawTextForTest('エンジンオイル交換 ¥3800');
+        expect(result.items.length, 1);
+        expect(result.items.first.amount, 3800);
+      });
+    });
+  });
 }
