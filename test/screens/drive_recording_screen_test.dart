@@ -156,8 +156,9 @@ class _FakeDriveRecordingProvider extends DriveRecordingProvider {
   }
 
   @override
-  Future<void> stopRecording() async {
+  Future<DriveLog?> stopRecording() async {
     stopCalled = true;
+    return null;
   }
 }
 
@@ -452,7 +453,8 @@ void main() {
         errorMessage: '位置情報の権限が必要です',
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.pump(); // triggers postFrameCallback → startRecording
+      await tester.pump(const Duration(milliseconds: 200)); // snackbar entrance
 
       expect(find.text('位置情報の権限が必要です'), findsOneWidget);
     });
@@ -465,7 +467,8 @@ void main() {
         errorMessage: null,
       );
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.pump(); // triggers postFrameCallback → startRecording
+      await tester.pump(const Duration(milliseconds: 200)); // snackbar entrance
 
       expect(find.text('記録を開始できませんでした'), findsOneWidget);
     });

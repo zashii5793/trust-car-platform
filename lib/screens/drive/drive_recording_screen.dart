@@ -107,83 +107,91 @@ class _DriveRecordingScreenState extends State<DriveRecordingScreen> {
         ),
         body: Consumer<DriveRecordingProvider>(
           builder: (context, provider, _) {
-            if (provider.isLoading) {
-              return const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              );
-            }
-
             return SafeArea(
               child: Column(
                 children: [
                   Expanded(
-                    child: Padding(
-                      padding: AppSpacing.paddingScreen,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // ── Elapsed time ──────────────────────────────
-                          _StatCard(
-                            label: '経過時間',
-                            value: provider.formattedElapsed,
-                            icon: Icons.timer_outlined,
-                            large: true,
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-
-                          // ── Distance and speed row ────────────────────
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _StatCard(
-                                  label: '走行距離',
-                                  value: _formatDistance(provider.distanceKm),
-                                  icon: Icons.straighten_outlined,
+                    child: provider.isLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                                color: Colors.white),
+                          )
+                        : LayoutBuilder(
+                      builder: (context, constraints) => SingleChildScrollView(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                              minHeight: constraints.maxHeight),
+                          child: Padding(
+                            padding: AppSpacing.paddingScreen,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // ── Elapsed time ──────────────────────────────
+                                _StatCard(
+                                  label: '経過時間',
+                                  value: provider.formattedElapsed,
+                                  icon: Icons.timer_outlined,
+                                  large: true,
                                 ),
-                              ),
-                              const SizedBox(width: AppSpacing.sm),
-                              Expanded(
-                                child: _StatCard(
-                                  label: '現在速度',
+                                const SizedBox(height: AppSpacing.md),
+
+                                // ── Distance and speed row ────────────────────
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _StatCard(
+                                        label: '走行距離',
+                                        value: _formatDistance(provider.distanceKm),
+                                        icon: Icons.straighten_outlined,
+                                      ),
+                                    ),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Expanded(
+                                      child: _StatCard(
+                                        label: '現在速度',
+                                        value:
+                                            '${provider.currentSpeedKmh.toStringAsFixed(0)} km/h',
+                                        icon: Icons.speed_outlined,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
+
+                                // ── Max speed ─────────────────────────────────
+                                _StatCard(
+                                  label: '最高速度',
                                   value:
-                                      '${provider.currentSpeedKmh.toStringAsFixed(0)} km/h',
-                                  icon: Icons.speed_outlined,
+                                      '${provider.maxSpeedKmh.toStringAsFixed(0)} km/h',
+                                  icon: Icons.rocket_launch_outlined,
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSpacing.sm),
 
-                          // ── Max speed ─────────────────────────────────
-                          _StatCard(
-                            label: '最高速度',
-                            value:
-                                '${provider.maxSpeedKmh.toStringAsFixed(0)} km/h',
-                            icon: Icons.rocket_launch_outlined,
-                          ),
+                                const SizedBox(height: AppSpacing.xl),
 
-                          const SizedBox(height: AppSpacing.xl),
-
-                          // ── GPS indicator ─────────────────────────────
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.gps_fixed,
-                                color: Colors.greenAccent,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 6),
-                              const Text(
-                                'GPS 取得中',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 13,
+                                // ── GPS indicator ─────────────────────────────
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.gps_fixed,
+                                      color: Colors.greenAccent,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Text(
+                                      'GPS 取得中',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),

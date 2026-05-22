@@ -79,13 +79,27 @@ MaintenanceRecord _makeRecord({String id = 'rec-1'}) {
     cost: 5000,
     date: now,
     createdAt: now,
-    updatedAt: now,
   );
 }
 
 // ---------------------------------------------------------------------------
 // Widget builder — wraps showExportDialog in a scaffold
 // ---------------------------------------------------------------------------
+
+Future<void> _openDialog(
+  WidgetTester tester, {
+  Vehicle? vehicle,
+  List<MaintenanceRecord>? records,
+}) async {
+  await tester.binding.setSurfaceSize(const Size(400, 1600));
+  addTearDown(() async => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(_buildLauncher(
+    vehicle: vehicle ?? _makeVehicle(),
+    records: records ?? [],
+  ));
+  await tester.tap(find.text('OPEN'));
+  await tester.pumpAndSettle(const Duration(seconds: 10));
+}
 
 Widget _buildLauncher({
   required Vehicle vehicle,
@@ -126,38 +140,25 @@ void main() {
 
   group('ExportDialog — Title', () {
     testWidgets('1. shows メンテナンス履歴をエクスポート title', (tester) async {
-      await tester.pumpWidget(
-        _buildLauncher(vehicle: _makeVehicle(), records: []),
-      );
-      await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _openDialog(tester);
 
       expect(find.text('メンテナンス履歴をエクスポート'), findsOneWidget);
     });
 
     testWidgets('2. shows vehicle name in subtitle', (tester) async {
-      final vehicle = _makeVehicle(maker: 'ホンダ', model: 'シビック');
-      await tester.pumpWidget(
-        _buildLauncher(vehicle: vehicle, records: []),
-      );
-      await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _openDialog(tester,
+          vehicle: _makeVehicle(maker: 'ホンダ', model: 'シビック'));
 
       expect(find.textContaining('ホンダ'), findsWidgets);
       expect(find.textContaining('シビック'), findsWidgets);
     });
 
     testWidgets('3. shows record count in subtitle', (tester) async {
-      final records = [
+      await _openDialog(tester, records: [
         _makeRecord(id: '1'),
         _makeRecord(id: '2'),
         _makeRecord(id: '3'),
-      ];
-      await tester.pumpWidget(
-        _buildLauncher(vehicle: _makeVehicle(), records: records),
-      );
-      await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      ]);
 
       expect(find.textContaining('3件'), findsOneWidget);
     });
@@ -165,9 +166,10 @@ void main() {
 
   group('ExportDialog — Loading state', () {
     testWidgets('4. shows PDFを生成中 while loading', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 1600));
+      addTearDown(() async => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
-        _buildLauncher(vehicle: _makeVehicle(), records: []),
-      );
+          _buildLauncher(vehicle: _makeVehicle(), records: []));
       await tester.tap(find.text('OPEN'));
       await tester.pump(); // single tick — still loading
 
@@ -176,32 +178,21 @@ void main() {
   });
 
   group('ExportDialog — Actions', () {
-    testWidgets('5. shows プレビュー / 印刷 option after generation', (tester) async {
-      await tester.pumpWidget(
-        _buildLauncher(vehicle: _makeVehicle(), records: []),
-      );
-      await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+    testWidgets('5. shows プレビュー / 印刷 option after generation',
+        (tester) async {
+      await _openDialog(tester);
 
       expect(find.text('プレビュー / 印刷'), findsOneWidget);
     });
 
     testWidgets('6. shows 共有 option', (tester) async {
-      await tester.pumpWidget(
-        _buildLauncher(vehicle: _makeVehicle(), records: []),
-      );
-      await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _openDialog(tester);
 
       expect(find.text('共有'), findsOneWidget);
     });
 
     testWidgets('7. shows ダイレクト印刷 option', (tester) async {
-      await tester.pumpWidget(
-        _buildLauncher(vehicle: _makeVehicle(), records: []),
-      );
-      await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _openDialog(tester);
 
       expect(find.text('ダイレクト印刷'), findsOneWidget);
     });
@@ -209,11 +200,7 @@ void main() {
 
   group('ExportDialog — Cancel', () {
     testWidgets('8. shows キャンセル button', (tester) async {
-      await tester.pumpWidget(
-        _buildLauncher(vehicle: _makeVehicle(), records: []),
-      );
-      await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _openDialog(tester);
 
       expect(find.text('キャンセル'), findsOneWidget);
     });
@@ -221,23 +208,16 @@ void main() {
 
   group('ExportDialog — Edge Cases', () {
     testWidgets('9. vehicle name shown in subtitle', (tester) async {
-      final vehicle = _makeVehicle(maker: 'スバル', model: 'インプレッサ');
-      await tester.pumpWidget(
-        _buildLauncher(vehicle: vehicle, records: [_makeRecord()]),
-      );
-      await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _openDialog(tester,
+          vehicle: _makeVehicle(maker: 'スバル', model: 'インプレッサ'),
+          records: [_makeRecord()]);
 
       expect(find.textContaining('スバル'), findsWidgets);
       expect(find.textContaining('インプレッサ'), findsWidgets);
     });
 
     testWidgets('10. record count 0 shown in subtitle', (tester) async {
-      await tester.pumpWidget(
-        _buildLauncher(vehicle: _makeVehicle(), records: []),
-      );
-      await tester.tap(find.text('OPEN'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _openDialog(tester);
 
       expect(find.textContaining('0件'), findsOneWidget);
     });
