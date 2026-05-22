@@ -38,6 +38,7 @@ import 'package:trust_car_platform/providers/post_provider.dart';
 import 'package:trust_car_platform/services/post_service.dart';
 import 'package:trust_car_platform/providers/drive_log_provider.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
+import 'package:trust_car_platform/providers/user_subscription_provider.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 
 // ---------------------------------------------------------------------------
@@ -335,6 +336,9 @@ Widget _buildApp({
         create: (_) => DriveLogProvider(
           driveLogService: DriveLogService(firestore: FakeFirebaseFirestore()),
         ),
+      ),
+      ChangeNotifierProvider<UserSubscriptionProvider>(
+        create: (_) => UserSubscriptionProvider(),
       ),
     ],
     child: const MaterialApp(home: HomeScreen()),

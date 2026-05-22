@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:trust_car_platform/screens/drive/drive_log_screen.dart';
 import 'package:trust_car_platform/providers/drive_log_provider.dart';
+import 'package:trust_car_platform/providers/drive_recording_provider.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
@@ -164,6 +165,13 @@ Widget _buildUnderTest({
       ChangeNotifierProvider(
         create: (_) =>
             DriveLogProvider(driveLogService: driveLogService),
+      ),
+      ChangeNotifierProvider(
+        create: (_) => DriveRecordingProvider(
+          driveLogService: driveLogService,
+          permissionChecker: () async => false,
+          positionStreamFactory: () => const Stream.empty(),
+        ),
       ),
     ],
     child: const MaterialApp(home: DriveLogScreen()),
