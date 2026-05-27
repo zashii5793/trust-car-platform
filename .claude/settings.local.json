@@ -79,7 +79,8 @@
       "Bash(dart scripts/import_vehicle_master.dart:*)",
       "Bash(gh:*)",
       "Bash(git pull:*)",
-      "Bash(export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\")"
+      "Bash(export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\")",
+      "mcp__e36b7f71-e60d-44f5-8ec7-5264433c51d8__read_file_content"
     ]
   }
 }
