@@ -11,6 +11,7 @@ export const engagementReview: Deck = {
   emoji: "🎯",
   accentColor: "from-amber-500 to-rose-500",
   estimatedMinutes: 8,
+  priceJpy: 240,
   questions: [
     {
       id: "er-1",

@@ -2,14 +2,14 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ZAXEL Learning — ビジネススキルが身につくクイズ",
+  title: "ZAXEL-Learning — ビジネススキルが身につくクイズ",
   description:
     "現場で鍛えたコミュニケーション・思考法・組織論を、スマホでサクッと学べるクイズに。",
-  applicationName: "ZAXEL Learning",
+  applicationName: "ZAXEL-Learning",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "ZAXEL Learning",
+    title: "ZAXEL-Learning",
     statusBarStyle: "black-translucent",
   },
 };

@@ -4,7 +4,11 @@ import type { DeckProgress } from "./types";
 
 const STORAGE_KEY = "zaxel-learning:progress:v1";
 const STREAK_KEY = "zaxel-learning:streak:v1";
-const FREE_PLAYS_KEY = "zaxel-learning:free-plays:v1";
+const UNLOCKED_KEY = "zaxel-learning:unlocked:v1";
+const BUNDLE_FLAG = "__bundle__";
+
+export const PREVIEW_QUESTIONS = 3;
+export const BUNDLE_PRICE_JPY = 600;
 
 type ProgressMap = Record<string, DeckProgress>;
 
@@ -13,12 +17,10 @@ type StreakState = {
   lastPlayedDate: string;
 };
 
-type FreePlaysState = {
-  date: string;
-  count: number;
+type UnlockedState = {
+  deckIds: string[];
+  bundle: boolean;
 };
-
-const FREE_PLAYS_PER_DAY = 3;
 
 function todayKey(): string {
   const d = new Date();
@@ -107,23 +109,39 @@ function bumpStreak(): void {
   });
 }
 
-export function getFreePlaysRemaining(): number {
-  const state = readJSON<FreePlaysState | null>(FREE_PLAYS_KEY, null);
-  const today = todayKey();
-  if (!state || state.date !== today) {
-    return FREE_PLAYS_PER_DAY;
-  }
-  return Math.max(0, FREE_PLAYS_PER_DAY - state.count);
+function readUnlocked(): UnlockedState {
+  return readJSON<UnlockedState>(UNLOCKED_KEY, { deckIds: [], bundle: false });
 }
 
-export function consumeFreePlay(): void {
-  const today = todayKey();
-  const state = readJSON<FreePlaysState | null>(FREE_PLAYS_KEY, null);
-  if (!state || state.date !== today) {
-    writeJSON(FREE_PLAYS_KEY, { date: today, count: 1 });
-    return;
-  }
-  writeJSON(FREE_PLAYS_KEY, { date: today, count: state.count + 1 });
+export function getUnlockedDeckIds(): string[] {
+  return readUnlocked().deckIds;
 }
 
-export const FREE_PLAY_LIMIT = FREE_PLAYS_PER_DAY;
+export function hasBundle(): boolean {
+  return readUnlocked().bundle;
+}
+
+export function isDeckUnlocked(deckId: string): boolean {
+  const state = readUnlocked();
+  return state.bundle || state.deckIds.includes(deckId);
+}
+
+export function unlockDeck(deckId: string): void {
+  const state = readUnlocked();
+  if (state.deckIds.includes(deckId)) return;
+  writeJSON(UNLOCKED_KEY, {
+    ...state,
+    deckIds: [...state.deckIds, deckId],
+  });
+}
+
+export function unlockBundle(): void {
+  const state = readUnlocked();
+  writeJSON(UNLOCKED_KEY, { ...state, bundle: true });
+}
+
+export function resetUnlocks(): void {
+  writeJSON(UNLOCKED_KEY, { deckIds: [], bundle: false });
+}
+
+export { BUNDLE_FLAG };

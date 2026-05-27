@@ -27,6 +27,7 @@ export type Deck = {
   emoji: string;
   accentColor: string;
   estimatedMinutes: number;
+  priceJpy: number;
   questions: Question[];
 };
 

@@ -29,7 +29,7 @@ export default function Home() {
         </h1>
         <p className="mt-4 max-w-2xl text-sm text-muted sm:text-base">
           コミュニケーション、思考法、組織論。実戦で磨かれたビジネススキルを、
-          スマホで遊べる一問一答に。1日3問は無料。
+          スマホで遊べる一問一答に。FREEデッキは全問無料、PROデッキはお気に入りだけ買い切りでアンロック。
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-3 text-sm">
           <Link
@@ -42,7 +42,7 @@ export default function Home() {
             href="/pro"
             className="rounded-full border border-border bg-card-elevated px-5 py-2.5 font-semibold text-foreground"
           >
-            Pro プランを見る
+            PROデッキ一覧を見る
           </Link>
         </div>
 
@@ -72,7 +72,7 @@ export default function Home() {
       })}
 
       <footer className="mt-6 border-t border-border pt-6 text-center text-xs text-muted">
-        © {new Date().getFullYear()} ZAXEL Learning · 現場で鍛えた研修コンテンツを、世界に開放する。
+        © {new Date().getFullYear()} ZAXEL-Learning · 現場で鍛えた研修コンテンツを、世界に開放する。
       </footer>
     </div>
   );

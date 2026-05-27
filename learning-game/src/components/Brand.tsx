@@ -15,9 +15,7 @@ export function Brand({ size = "md" }: { size?: "sm" | "md" }) {
       >
         Z
       </span>
-      <span className={isSm ? "text-base" : "text-lg"}>
-        ZAXEL <span className="text-muted font-normal">Learning</span>
-      </span>
+      <span className={isSm ? "text-base" : "text-lg"}>ZAXEL-Learning</span>
     </Link>
   );
 }

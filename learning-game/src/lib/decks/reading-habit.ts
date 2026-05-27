@@ -11,6 +11,7 @@ export const readingHabit: Deck = {
   emoji: "📚",
   accentColor: "from-emerald-500 to-teal-500",
   estimatedMinutes: 6,
+  priceJpy: 0,
   questions: [
     {
       id: "rh-1",

@@ -11,6 +11,7 @@ export const communicationTheory: Deck = {
   emoji: "💬",
   accentColor: "from-sky-500 to-indigo-500",
   estimatedMinutes: 7,
+  priceJpy: 0,
   questions: [
     {
       id: "ct-1",

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Brand } from "@/components/Brand";
+import { DeckPurchaseCTA } from "@/components/DeckPurchaseCTA";
 import { StreakBadge } from "@/components/StreakBadge";
 import { ALL_DECKS, getDeckById } from "@/lib/decks";
 
@@ -45,7 +46,7 @@ export default async function DeckDetail({
               <div className="flex items-center gap-2">
                 {deck.tier === "paid" ? (
                   <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-400">
-                    PRO
+                    PRO · ¥{deck.priceJpy.toLocaleString()}
                   </span>
                 ) : (
                   <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
@@ -81,22 +82,7 @@ export default async function DeckDetail({
             />
           </div>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href={`/decks/${deck.id}/play`}
-              className="flex-1 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-5 py-3 text-center text-base font-semibold text-white shadow-lg shadow-indigo-500/25"
-            >
-              ▶ プレイする
-            </Link>
-            {deck.tier === "paid" && (
-              <Link
-                href="/pro"
-                className="rounded-full border border-amber-500/40 bg-amber-500/10 px-5 py-3 text-center text-sm font-semibold text-amber-200"
-              >
-                Pro なら無制限プレイ
-              </Link>
-            )}
-          </div>
+          <DeckPurchaseCTA deck={deck} />
         </div>
       </section>
 

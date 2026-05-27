@@ -11,6 +11,7 @@ export const abstractionPower: Deck = {
   emoji: "🧠",
   accentColor: "from-violet-500 to-fuchsia-500",
   estimatedMinutes: 8,
+  priceJpy: 240,
   questions: [
     {
       id: "ap-1",
