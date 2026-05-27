@@ -33,6 +33,13 @@
 	<string>ドライブ記録のためGPSを使用します。</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>バックグラウンドでドライブルートを記録するためGPSを使用します。</string>
+	<!-- Camera and photo library permissions for OCR and image upload -->
+	<key>NSCameraUsageDescription</key>
+	<string>整備記録の写真撮影や車検証・請求書のOCR読み取りにカメラを使用します。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>整備記録やSNS投稿に使用する写真をフォトライブラリから選択します。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>作成したPDFレポートをフォトライブラリに保存します。</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
