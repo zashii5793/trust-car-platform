@@ -298,7 +298,14 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           _imageBytes!,
           'vehicles/$uuid.jpg',
         );
-        imageUrl = uploadResult.getOrThrow();
+        if (uploadResult.isFailure) {
+          if (mounted) {
+            showErrorSnackBar(context, '画像のアップロードに失敗しました。もう一度お試しください');
+            setState(() => _isLoading = false);
+          }
+          return;
+        }
+        imageUrl = uploadResult.valueOrNull;
       }
 
       final currentUserId = _firebaseService.currentUserId;
