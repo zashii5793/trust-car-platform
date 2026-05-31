@@ -191,13 +191,13 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
         description: _descriptionController.text.isEmpty
             ? null
             : _descriptionController.text,
-        cost: int.parse(_costController.text),
+        cost: int.tryParse(_costController.text) ?? 0,
         shopName:
             _shopNameController.text.isEmpty ? null : _shopNameController.text,
         date: _selectedDate,
         mileageAtService: _mileageController.text.isEmpty
             ? null
-            : int.parse(_mileageController.text),
+            : int.tryParse(_mileageController.text),
         createdAt: existing?.createdAt ?? DateTime.now(),
         partNumber: _partNumberController.text.isEmpty
             ? null

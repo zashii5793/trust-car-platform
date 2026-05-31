@@ -772,6 +772,7 @@ class _CommentTileState extends State<_CommentTile> {
                                     userId: userId,
                                     postId: widget.postId,
                                   );
+                                  if (!mounted) return;
                                 },
                                 child: Text(
                                   '削除',
@@ -943,6 +944,7 @@ class _ReplyTile extends StatelessWidget {
                           userId: userId,
                           postId: postId,
                         );
+                        if (!context.mounted) return;
                       },
                       child: Text(
                         '削除',

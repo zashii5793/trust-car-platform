@@ -100,18 +100,29 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   Future<void> _pickImage() async {
     if (_totalImageCount >= _maxImages) return;
 
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1920,
-      maxHeight: 1920,
-      imageQuality: 85,
-    );
-    if (picked == null) return;
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
 
-    setState(() {
-      _newImages.add(File(picked.path));
-    });
+      setState(() {
+        _newImages.add(File(picked.path));
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('画像の選択に失敗しました: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   /// Removes an image by unified index (existing URLs first, then new files).

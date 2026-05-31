@@ -148,7 +148,7 @@ class ProfileScreen extends StatelessWidget {
                         if (await canLaunchUrl(uri)) {
                           await launchUrl(uri, mode: LaunchMode.externalApplication);
                         } else if (context.mounted) {
-                          showSuccessSnackBar(context, 'ブラウザを開けませんでした');
+                          showErrorSnackBar(context, 'ブラウザを開けませんでした');
                         }
                       },
                     ),
@@ -270,7 +270,7 @@ class ProfileScreen extends StatelessWidget {
 
     if (vehicles.isEmpty) {
       if (context.mounted) {
-        showSuccessSnackBar(context, '車両が登録されていません');
+        showErrorSnackBar(context, '車両が登録されていません');
       }
       return;
     }
@@ -388,7 +388,7 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
         showSuccessSnackBar(context, 'プロフィールを更新しました');
       }
     } else {
-      showSuccessSnackBar(context, '更新に失敗しました');
+      showErrorSnackBar(context, '更新に失敗しました');
     }
   }
 

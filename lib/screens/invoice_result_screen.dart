@@ -295,7 +295,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           border: Border.all(
-            color: hasDate ? Colors.grey[300]! : Colors.orange,
+            color: hasDate ? (Colors.grey[300] ?? Colors.grey) : Colors.orange,
             width: hasDate ? 1 : 2,
           ),
           borderRadius: BorderRadius.circular(8),

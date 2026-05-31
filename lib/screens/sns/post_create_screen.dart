@@ -97,6 +97,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       setState(() => _isUploadingImages = true);
       final firebaseService = ServiceLocator.instance.get<FirebaseService>();
       final basePath = 'post_images/${user.uid}/${DateTime.now().millisecondsSinceEpoch}';
+      int uploadFailCount = 0;
 
       for (int i = 0; i < _pickedImages.length; i++) {
         final result = await firebaseService.uploadImageBytes(
@@ -105,11 +106,24 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         );
         if (result.isSuccess && result.valueOrNull != null) {
           imageUrls.add(result.valueOrNull!);
+        } else {
+          uploadFailCount++;
         }
       }
 
       if (!mounted) return;
       setState(() => _isUploadingImages = false);
+
+      // Notify the user if any images failed to upload
+      if (uploadFailCount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${uploadFailCount}枚の画像のアップロードに失敗しました'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        if (imageUrls.isEmpty) return; // All images failed — abort post
+      }
     }
 
     final success = await postProvider.createPost(
