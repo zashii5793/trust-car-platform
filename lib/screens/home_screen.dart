@@ -851,17 +851,20 @@ class _VehicleCard extends StatelessWidget {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xxs,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: AppSpacing.borderRadiusXs,
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
+          AppSpacing.horizontalXxs,
           Text(
             label,
             style: TextStyle(
@@ -939,7 +942,7 @@ class _DashboardSummaryCard extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: isDark
               ? [AppColors.darkCard, AppColors.darkSurface]
-              : [AppColors.primary, const Color(0xFF2563B8)],
+              : [AppColors.primary, AppColors.primaryHover],
         ),
         borderRadius: AppSpacing.borderRadiusMd,
         boxShadow: isDark
@@ -989,7 +992,7 @@ class _DashboardSummaryCard extends StatelessWidget {
                 value: '$expiredCount',
                 label: '要対応',
                 iconColor: expiredCount > 0
-                    ? const Color(0xFFFF8A80)
+                    ? AppColors.error.withValues(alpha: 0.9)
                     : Colors.white54,
               ),
               _buildDivider(),
@@ -999,7 +1002,7 @@ class _DashboardSummaryCard extends StatelessWidget {
                 value: '$warnCount',
                 label: '注意',
                 iconColor: warnCount > 0
-                    ? const Color(0xFFFFD740)
+                    ? AppColors.warning
                     : Colors.white54,
               ),
             ],

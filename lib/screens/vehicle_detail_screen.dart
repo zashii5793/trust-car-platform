@@ -894,7 +894,7 @@ class _MaintenanceTimelineItem extends StatelessWidget {
                                   ? AppColors.darkTextTertiary
                                   : AppColors.textTertiary,
                             ),
-                            const SizedBox(width: 4),
+                            AppSpacing.horizontalXxs,
                             Text(
                               record.shopName!,
                               style: theme.textTheme.bodySmall?.copyWith(

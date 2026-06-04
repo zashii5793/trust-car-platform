@@ -548,14 +548,14 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           onTap: _isOcrProcessing ? null : _scanInvoice,
           borderRadius: AppSpacing.borderRadiusMd,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.md),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(AppSpacing.sm),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: AppSpacing.borderRadiusMd,
                   ),
                   child: _isOcrProcessing
                       ? const SizedBox(
@@ -595,10 +595,13 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xxs,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.secondary.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: AppSpacing.borderRadiusXs,
                   ),
                   child: Text(
                     '便利',
