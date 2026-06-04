@@ -461,4 +461,88 @@ void main() {
       expect(find.text('オイル交換'), findsWidgets);
     });
   });
+
+  // -------------------------------------------------------------------------
+  group('タイムライン月別ヘッダー', () {
+    testWidgets('異なる月の記録が2件あると2つの月ヘッダーが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 1200));
+      addTearDown(() async => tester.binding.setSurfaceSize(null));
+
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await tester.pumpWidget(
+          _buildScreen(_testVehicle(), maintenanceProvider));
+
+      mockFirebase.emitRecords([
+        MaintenanceRecord(
+          id: 'r1',
+          vehicleId: 'v1',
+          userId: 'test-user-id',
+          type: MaintenanceType.oilChange,
+          title: '1月の整備',
+          cost: 3000,
+          date: DateTime(2024, 1, 10),
+          createdAt: DateTime(2024, 1, 10),
+        ),
+        MaintenanceRecord(
+          id: 'r2',
+          vehicleId: 'v1',
+          userId: 'test-user-id',
+          type: MaintenanceType.tireChange,
+          title: '3月の整備',
+          cost: 8000,
+          date: DateTime(2024, 3, 20),
+          createdAt: DateTime(2024, 3, 20),
+        ),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('2024年3月'), findsOneWidget);
+      expect(find.text('2024年1月'), findsOneWidget);
+    });
+
+    testWidgets('同月の記録が2件あると月ヘッダーは1つだけ表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 1200));
+      addTearDown(() async => tester.binding.setSurfaceSize(null));
+
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await tester.pumpWidget(
+          _buildScreen(_testVehicle(), maintenanceProvider));
+
+      mockFirebase.emitRecords([
+        MaintenanceRecord(
+          id: 'r1',
+          vehicleId: 'v1',
+          userId: 'test-user-id',
+          type: MaintenanceType.oilChange,
+          title: '整備A',
+          cost: 3000,
+          date: DateTime(2024, 5, 5),
+          createdAt: DateTime(2024, 5, 5),
+        ),
+        MaintenanceRecord(
+          id: 'r2',
+          vehicleId: 'v1',
+          userId: 'test-user-id',
+          type: MaintenanceType.washing,
+          title: '整備B',
+          cost: 1000,
+          date: DateTime(2024, 5, 20),
+          createdAt: DateTime(2024, 5, 20),
+        ),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('2024年5月'), findsOneWidget);
+    });
+
+    testWidgets('記録が0件のとき月ヘッダーは表示されない', (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await tester.pumpWidget(
+          _buildScreen(_testVehicle(), maintenanceProvider));
+      mockFirebase.emitRecords([]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.textContaining('年'), findsNothing);
+    });
+  });
 }
