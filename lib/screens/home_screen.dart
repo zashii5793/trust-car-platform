@@ -25,6 +25,7 @@ import 'marketplace/marketplace_screen.dart';
 import 'marketplace/shop_owner_screen.dart';
 import 'sns/sns_feed_screen.dart';
 import 'drive/drive_log_screen.dart';
+import 'add_maintenance_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -1156,15 +1157,36 @@ class _AiSuggestionSection extends StatelessWidget {
 
             // ---- 横スクロールカード ----
             SizedBox(
-              height: 140,
+              height: 168,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: suggestions.length,
                 separatorBuilder: (_, __) => AppSpacing.horizontalSm,
                 itemBuilder: (context, index) {
+                  final n = suggestions[index];
                   return _SuggestionCard(
-                    notification: suggestions[index],
+                    notification: n,
                     isDark: isDark,
+                    onTap: n.vehicleId != null
+                        ? () {
+                            final vehicles =
+                                context.read<VehicleProvider>().vehicles;
+                            final vehicle = vehicles.cast<Vehicle?>().firstWhere(
+                                  (v) => v?.id == n.vehicleId,
+                                  orElse: () => null,
+                                );
+                            if (vehicle == null || !context.mounted) return;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AddMaintenanceScreen(
+                                  vehicleId: vehicle.id,
+                                  currentVehicleMileage: vehicle.mileage,
+                                ),
+                              ),
+                            );
+                          }
+                        : null,
                   );
                 },
               ),
@@ -1185,10 +1207,12 @@ class _AiSuggestionSection extends StatelessWidget {
 class _SuggestionCard extends StatelessWidget {
   final AppNotification notification;
   final bool isDark;
+  final VoidCallback? onTap;
 
   const _SuggestionCard({
     required this.notification,
     required this.isDark,
+    this.onTap,
   });
 
   Color get _priorityColor {
@@ -1220,83 +1244,107 @@ class _SuggestionCard extends StatelessWidget {
     final theme = Theme.of(context);
     final color = _priorityColor;
 
-    return Container(
-      width: 200,
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: AppSpacing.borderRadiusMd,
-        border: Border.all(
-          color: color.withValues(alpha: 0.4),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 210,
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkCard : Colors.white,
+          borderRadius: AppSpacing.borderRadiusMd,
+          border: Border.all(
+            color: color.withValues(alpha: 0.4),
+          ),
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ---- アイコン + 優先度バッジ ----
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: color.withValues(alpha: 0.12),
+                  child: Icon(_typeIcon, size: 15, color: color),
                 ),
-              ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ---- アイコン + 優先度バッジ ----
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 14,
-                backgroundColor: color.withValues(alpha: 0.12),
-                child: Icon(_typeIcon, size: 15, color: color),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  notification.priority == NotificationPriority.high ? '要対応' : '推奨',
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    notification.priority == NotificationPriority.high
+                        ? '要対応'
+                        : '推奨',
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-
-          AppSpacing.verticalXs,
-
-          // ---- タイトル ----
-          Text(
-            notification.title,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+              ],
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
 
-          AppSpacing.verticalXxs,
+            AppSpacing.verticalXs,
 
-          // ---- メッセージ（理由）----
-          Expanded(
-            child: Text(
-              notification.message,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: isDark
-                    ? AppColors.darkTextTertiary
-                    : AppColors.textTertiary,
+            // ---- タイトル ----
+            Text(
+              notification.title,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-          ),
-        ],
+
+            AppSpacing.verticalXxs,
+
+            // ---- メッセージ（理由）----
+            Expanded(
+              child: Text(
+                notification.message,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: isDark
+                      ? AppColors.darkTextTertiary
+                      : AppColors.textTertiary,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+
+            // ---- アクションボタン ----
+            if (onTap != null) ...[
+              AppSpacing.verticalXxs,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    '対応する',
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, size: 14, color: color),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

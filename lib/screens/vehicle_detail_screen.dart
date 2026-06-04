@@ -263,25 +263,67 @@ class _VehicleImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const height = 220.0;
+    Widget image;
+
     if (imageUrl != null && imageUrl!.isNotEmpty) {
-      return Image.network(
+      image = Image.network(
         imageUrl!,
-        height: 250,
+        height: height,
+        width: double.infinity,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _buildPlaceholder(),
+        errorBuilder: (_, __, ___) => _buildPlaceholder(height),
       );
+    } else {
+      image = _buildPlaceholder(height);
     }
-    return _buildPlaceholder();
+
+    // Gradient overlay at the bottom for smooth transition into content
+    return Stack(
+      children: [
+        image,
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 80,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  (isDark
+                          ? AppColors.darkBackground
+                          : Colors.white)
+                      .withValues(alpha: 0.85),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
-  Widget _buildPlaceholder() {
+  Widget _buildPlaceholder(double height) {
     return Container(
-      height: 250,
-      color: isDark ? AppColors.darkCard : AppColors.backgroundLight,
+      height: height,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [AppColors.darkCard, AppColors.darkSurface]
+              : [AppColors.backgroundLight, AppColors.backgroundSecondary],
+        ),
+      ),
       child: Center(
         child: Icon(
           Icons.directions_car,
-          size: 100,
+          size: 80,
           color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
         ),
       ),
@@ -462,6 +504,22 @@ class _DriveEntry extends _TimelineEntry {
   DateTime get date => log.startTime;
 }
 
+/// List item in the timeline ListView — either a month header or a timeline entry
+sealed class _TimelineListItem {}
+
+class _TimelineMonthHeader extends _TimelineListItem {
+  final int year;
+  final int month;
+  _TimelineMonthHeader(this.year, this.month);
+}
+
+class _TimelineEntryItem extends _TimelineListItem {
+  final _TimelineEntry entry;
+  final bool isFirst;
+  final bool isLast;
+  _TimelineEntryItem(this.entry, {required this.isFirst, required this.isLast});
+}
+
 class _VehicleTimeline extends StatefulWidget {
   final Vehicle vehicle;
   final _TimelineFilter filter;
@@ -546,7 +604,7 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // フィルタに応じてエントリを結合・ソート
+        // Sort entries newest-first
         final entries = <_TimelineEntry>[
           if (widget.filter != _TimelineFilter.drive)
             ...maintenanceProvider.records.map(_MaintenanceEntry.new),
@@ -562,34 +620,70 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.xs,
-          ),
-          itemCount: entries.length,
-          itemBuilder: (context, index) {
-            final entry = entries[index];
-            final isFirst = index == 0;
-            final isLast = index == entries.length - 1;
+        // Build the flat list: insert a month-header before each new year/month group
+        final items = <_TimelineListItem>[];
+        int? lastYear;
+        int? lastMonth;
+        // Track entry indices to set isFirst/isLast relative to actual entries only
+        final entryIndices = <int>[]; // positions in `items` that hold entries
+        for (final entry in entries) {
+          final y = entry.date.year;
+          final m = entry.date.month;
+          if (y != lastYear || m != lastMonth) {
+            items.add(_TimelineMonthHeader(y, m));
+            lastYear = y;
+            lastMonth = m;
+          }
+          entryIndices.add(items.length);
+          items.add(_TimelineEntryItem(
+            entry,
+            isFirst: entryIndices.length == 1,
+            isLast: false, // updated below
+          ));
+        }
+        // Mark the last actual entry
+        if (entryIndices.isNotEmpty) {
+          final lastPos = entryIndices.last;
+          final last = items[lastPos] as _TimelineEntryItem;
+          items[lastPos] = _TimelineEntryItem(
+            last.entry,
+            isFirst: last.isFirst,
+            isLast: true,
+          );
+        }
 
-            return switch (entry) {
-              _MaintenanceEntry(:final record) => _MaintenanceTimelineItem(
-                  record: record,
-                  isFirst: isFirst,
-                  isLast: isLast,
-                  onTap: () => _showMaintenanceDetailSheet(
-                    context,
-                    record,
-                    maintenanceProvider,
-                    widget.vehicle.mileage,
-                  ),
-                ),
-              _DriveEntry(:final log) => _DriveTimelineItem(
-                  log: log,
-                  isFirst: isFirst,
-                  isLast: isLast,
-                ),
+        return ListView.builder(
+          padding: const EdgeInsets.only(
+            left: AppSpacing.md,
+            right: AppSpacing.md,
+            top: AppSpacing.xs,
+            bottom: AppSpacing.xxl,
+          ),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return switch (item) {
+              _TimelineMonthHeader(:final year, :final month) =>
+                _MonthSectionHeader(year: year, month: month),
+              _TimelineEntryItem(:final entry, :final isFirst, :final isLast) =>
+                switch (entry) {
+                  _MaintenanceEntry(:final record) => _MaintenanceTimelineItem(
+                      record: record,
+                      isFirst: isFirst,
+                      isLast: isLast,
+                      onTap: () => _showMaintenanceDetailSheet(
+                        context,
+                        record,
+                        maintenanceProvider,
+                        widget.vehicle.mileage,
+                      ),
+                    ),
+                  _DriveEntry(:final log) => _DriveTimelineItem(
+                      log: log,
+                      isFirst: isFirst,
+                      isLast: isLast,
+                    ),
+                },
             };
           },
         );
@@ -614,6 +708,38 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
         record: record,
         provider: provider,
         currentVehicleMileage: currentVehicleMileage,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Month section header
+// ---------------------------------------------------------------------------
+
+class _MonthSectionHeader extends StatelessWidget {
+  final int year;
+  final int month;
+
+  const _MonthSectionHeader({required this.year, required this.month});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: AppSpacing.md,
+        bottom: AppSpacing.xs,
+        left: 48 + AppSpacing.sm, // align with card content
+      ),
+      child: Text(
+        '$year年$month月',
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
