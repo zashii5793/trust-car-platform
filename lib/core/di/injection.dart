@@ -29,6 +29,7 @@ import '../../services/shop_subscription_service.dart';
 import '../../services/revenue_cat_service.dart';
 import '../../services/analytics_service.dart';
 import '../../services/user_subscription_service.dart';
+import '../../services/newsletter_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -117,6 +118,9 @@ class Injection {
         firebaseService: locator.get<FirebaseService>(),
       ),
     );
+
+    // Newsletter Service (email newsletter creation & delivery)
+    locator.registerLazySingleton<NewsletterService>(() => NewsletterService());
 
     _initialized = true;
   }

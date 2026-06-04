@@ -367,7 +367,12 @@ class RecommendationService {
       vehicleId: vehicle.id,
       type: NotificationType.maintenanceRecommendation,
       title: '${rule.name}の時期です',
-      message: _generateMessage(rule, daysUntilDue, vehicle),
+      message: _generateMessage(
+        rule,
+        daysUntilDue,
+        vehicle,
+        lastMileage: lastMaintenanceMileage,
+      ),
       priority: priority,
       createdAt: now,
       actionDate: recommendedDate,
@@ -472,17 +477,39 @@ class RecommendationService {
   }
 
   /// メッセージ生成
-  String _generateMessage(MaintenanceRule rule, int daysUntilDue, Vehicle vehicle) {
+  /// Shows km-based context when mileage data is available, otherwise falls
+  /// back to time-based messaging. Follows the design principle: AI proposes
+  /// with reasons, user decides.
+  String _generateMessage(
+    MaintenanceRule rule,
+    int daysUntilDue,
+    Vehicle vehicle, {
+    int? lastMileage,
+  }) {
     final vehicleName = vehicle.displayName;
 
+    // Build a km-context suffix when we have prior mileage data
+    String kmContext = '';
+    if (lastMileage != null && rule.intervalKm > 0) {
+      final kmSince = vehicle.mileage - lastMileage;
+      final kmRemaining = rule.intervalKm - kmSince;
+      if (kmRemaining > 0) {
+        kmContext = '（前回から${kmSince.clamp(0, 999999)}km走行、あと${kmRemaining}kmが目安）';
+      } else {
+        kmContext = '（交換目安の${rule.intervalKm}kmを超えています）';
+      }
+    } else if (rule.intervalKm > 0) {
+      kmContext = '（目安: ${rule.intervalKm}km毎）';
+    }
+
     if (daysUntilDue <= 0) {
-      return '$vehicleNameの${rule.name}の時期を過ぎています。${rule.description}';
+      return '$vehicleNameの${rule.name}の時期です$kmContext。${rule.description}';
     } else if (daysUntilDue <= 7) {
-      return '$vehicleNameの${rule.name}まであと$daysUntilDue日です。${rule.description}';
+      return '$vehicleNameは現在${vehicle.mileage}km。${rule.name}まであと$daysUntilDue日$kmContext。';
     } else if (daysUntilDue <= 30) {
-      return '$vehicleNameの${rule.name}まであと約${(daysUntilDue / 7).round()}週間です。';
+      return '$vehicleNameは現在${vehicle.mileage}km。${rule.name}まであと約${(daysUntilDue / 7).round()}週間$kmContext。';
     } else {
-      return '$vehicleNameの${rule.name}まであと約${(daysUntilDue / 30).round()}ヶ月です。';
+      return '$vehicleNameは現在${vehicle.mileage}km。${rule.name}まであと約${(daysUntilDue / 30).round()}ヶ月$kmContext。';
     }
   }
 

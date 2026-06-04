@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/user.dart';
+import '../../models/newsletter.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
 import '../../services/push_notification_service.dart';
+import '../../services/newsletter_service.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../settings/privacy_policy_screen.dart';
@@ -20,7 +22,9 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late NotificationSettings _notificationSettings;
+  NewsletterSubscription? _newsletterSubscription;
   bool _isLoading = false;
+  bool _isNewsletterLoading = false;
 
   @override
   void initState() {
@@ -28,6 +32,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final authProvider = context.read<AuthProvider>();
     _notificationSettings =
         authProvider.appUser?.notificationSettings ?? NotificationSettings();
+    _loadNewsletterSubscription();
+  }
+
+  Future<void> _loadNewsletterSubscription() async {
+    final uid = context.read<AuthProvider>().firebaseUser?.uid;
+    if (uid == null) return;
+    final result = await sl.get<NewsletterService>().getSubscription(uid);
+    if (!mounted) return;
+    result.when(
+      success: (sub) => setState(() {
+        _newsletterSubscription = sub ??
+            NewsletterSubscription(
+              userId: uid,
+              email: context.read<AuthProvider>().appUser?.email ?? '',
+              updatedAt: DateTime.now(),
+            );
+      }),
+      failure: (_) => setState(() {
+        _newsletterSubscription = NewsletterSubscription(
+          userId: uid,
+          email: context.read<AuthProvider>().appUser?.email ?? '',
+          updatedAt: DateTime.now(),
+        );
+      }),
+    );
+  }
+
+  Future<void> _saveNewsletterSubscription() async {
+    final uid = context.read<AuthProvider>().firebaseUser?.uid;
+    final sub = _newsletterSubscription;
+    if (uid == null || sub == null) return;
+    setState(() => _isNewsletterLoading = true);
+    final result = await sl.get<NewsletterService>().updateSubscription(sub);
+    if (!mounted) return;
+    setState(() => _isNewsletterLoading = false);
+    if (result.isFailure) {
+      showErrorSnackBar(context, 'ニュースレター設定の保存に失敗しました');
+    }
   }
 
   Future<void> _saveSettings() async {
@@ -178,6 +220,98 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
+
+            AppSpacing.verticalXxl,
+
+            // ニュースレター設定セクション
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.xxs,
+                bottom: AppSpacing.xs,
+              ),
+              child: Text(
+                'メールニュースレター',
+                style: theme.textTheme.labelMedium,
+              ),
+            ),
+            _newsletterSubscription == null
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.md),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                : AppCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        SwitchListTile(
+                          title: const Text('ニュースレターを受け取る'),
+                          subtitle: const Text('整備のコツやお得な情報をお届け'),
+                          value: _newsletterSubscription!.isSubscribed,
+                          onChanged: _isNewsletterLoading
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    _newsletterSubscription =
+                                        _newsletterSubscription!
+                                            .copyWith(isSubscribed: value);
+                                  });
+                                  _saveNewsletterSubscription();
+                                },
+                        ),
+                        if (_newsletterSubscription!.isSubscribed) ...[
+                          const Divider(height: 1),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.md,
+                              AppSpacing.sm,
+                              AppSpacing.md,
+                              AppSpacing.xs,
+                            ),
+                            child: Text(
+                              '受け取るカテゴリ',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          ...NewsletterCategory.values.map((cat) {
+                            final sub = _newsletterSubscription!;
+                            final selected =
+                                sub.subscribedCategories.contains(cat);
+                            return CheckboxListTile(
+                              title: Text(cat.displayName),
+                              value: selected,
+                              dense: true,
+                              onChanged: _isNewsletterLoading
+                                  ? null
+                                  : (checked) {
+                                      final updated =
+                                          List<NewsletterCategory>.from(
+                                              sub.subscribedCategories);
+                                      if (checked == true) {
+                                        if (!updated.contains(cat)) {
+                                          updated.add(cat);
+                                        }
+                                      } else {
+                                        updated.remove(cat);
+                                      }
+                                      setState(() {
+                                        _newsletterSubscription =
+                                            sub.copyWith(
+                                          subscribedCategories: updated,
+                                        );
+                                      });
+                                      _saveNewsletterSubscription();
+                                    },
+                            );
+                          }),
+                          const SizedBox(height: AppSpacing.xs),
+                        ],
+                      ],
+                    ),
+                  ),
 
             AppSpacing.verticalXxl,
 

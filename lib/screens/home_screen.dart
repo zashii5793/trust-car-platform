@@ -652,6 +652,16 @@ class _VehicleCard extends StatelessWidget {
         (vehicle.daysUntilInsuranceExpiry != null &&
             vehicle.daysUntilInsuranceExpiry! < 0);
 
+    // Count maintenance suggestions for this vehicle from NotificationProvider
+    final suggestionCount = context
+        .watch<NotificationProvider>()
+        .getNotificationsForVehicle(vehicle.id)
+        .where((n) =>
+            n.type != NotificationType.system &&
+            (n.priority == NotificationPriority.high ||
+                n.priority == NotificationPriority.medium))
+        .length;
+
     return AppCard(
       margin: AppSpacing.marginListItem,
       onTap: () {
@@ -783,10 +793,40 @@ class _VehicleCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
-                Icons.chevron_right,
-                color:
-                    isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Icon(
+                    Icons.chevron_right,
+                    color: isDark
+                        ? AppColors.darkTextTertiary
+                        : AppColors.textTertiary,
+                  ),
+                  if (suggestionCount > 0) ...[
+                    AppSpacing.verticalXxs,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.12),
+                        borderRadius: AppSpacing.borderRadiusXs,
+                        border: Border.all(
+                          color: AppColors.warning.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Text(
+                        '提案 $suggestionCount件',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),

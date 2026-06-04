@@ -14,6 +14,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { handleWebhook } from "./webhook";
 import type { ShopSubscriptionUpdate } from "./types";
+export { onNewsletterSend } from "./sendNewsletter";
 
 admin.initializeApp();
 

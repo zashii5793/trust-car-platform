@@ -10,6 +10,7 @@ import '../../widgets/common/loading_indicator.dart';
 import 'shop_inquiry_list_screen.dart';
 import 'shop_plan_screen.dart';
 import 'shop_registration_screen.dart';
+import '../newsletter/newsletter_list_screen.dart';
 
 /// Shop owner hub screen.
 ///
@@ -284,6 +285,24 @@ class _RegisteredBody extends StatelessWidget {
           AppSpacing.verticalMd,
           // Inquiry count badge (tappable → ShopInquiryListScreen)
           _InquiryCountBadge(provider: provider, shopId: shop.id),
+          AppSpacing.verticalMd,
+          // Newsletter management button
+          OutlinedButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => NewsletterListScreen(
+                  authorId: shop.id,
+                  authorName: shop.name,
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.mail_outline),
+            label: const Text('ニュースレター管理'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(AppSpacing.tapTargetMin),
+            ),
+          ),
           AppSpacing.verticalMd,
           // Edit button
           OutlinedButton.icon(
