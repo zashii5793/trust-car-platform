@@ -9,6 +9,7 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
 import '../../services/post_service.dart';
+import '../../widgets/common/loading_indicator.dart';
 
 /// 投稿詳細画面
 ///
@@ -165,31 +166,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       }
 
                       if (provider.comments.isEmpty) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 40),
-                          child: Center(
-                            child: Column(
-                              children: [
-                                Icon(
-                                  Icons.chat_bubble_outline,
-                                  size: 40,
-                                  color: isDark
-                                      ? AppColors.darkTextTertiary
-                                      : AppColors.textTertiary,
-                                ),
-                                AppSpacing.verticalSm,
-                                Text(
-                                  'まだコメントがありません\n最初のコメントをしてみましょう',
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: isDark
-                                        ? AppColors.darkTextTertiary
-                                        : AppColors.textTertiary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        return const AppEmptyState(
+                          icon: Icons.chat_bubble_outline,
+                          title: 'まだコメントがありません',
+                          description: '最初のコメントをしてみましょう',
                         );
                       }
 

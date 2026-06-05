@@ -6,9 +6,9 @@ import '../core/error/app_error.dart';
 /// Manages newsletter creation, delivery, and subscription preferences.
 ///
 /// Delivery flow (Firestore-trigger pattern):
-/// 1. App calls sendNewsletter() → sets status to "sending" in Firestore
+/// 1. App calls sendNewsletter() → sets status to "scheduled" in Firestore
 /// 2. Cloud Function `onNewsletterSend` watches newsletters/{id} for
-///    status=="sending", then sends emails via SendGrid and marks "sent".
+///    status=="scheduled", then sends emails via SendGrid and marks "sent".
 /// This avoids the cloud_functions package dependency.
 class NewsletterService {
   final FirebaseFirestore? _firestore;
@@ -95,7 +95,7 @@ class NewsletterService {
 
   /// Queues the newsletter for delivery.
   ///
-  /// Sets status to "sending" in Firestore. The Cloud Function
+  /// Sets status to "scheduled" in Firestore. The Cloud Function
   /// `onNewsletterSend` watches for this state change and handles
   /// actual email delivery, then updates the doc to "sent".
   Future<Result<void, AppError>> sendNewsletter(String newsletterId) async {
