@@ -142,16 +142,10 @@ class _PartListScreenState extends State<PartListScreen> {
     }
 
     if (provider.browseParts.isEmpty) {
-      final hasFilter =
-          _searchController.text.isNotEmpty || _selectedCategory != null;
-      return AppEmptyState(
+      return const AppEmptyState(
         icon: Icons.build_outlined,
-        title: hasFilter ? 'パーツが見つかりません' : '現在パーツは掲載されていません',
-        description: hasFilter
-            ? 'フィルタや検索条件を変えてお試しください'
-            : '登録されているパーツがまだありません',
-        buttonLabel: hasFilter ? 'フィルタをリセット' : null,
-        onButtonPressed: hasFilter ? () => _onCategoryChanged(null) : null,
+        title: 'パーツが見つかりません',
+        description: '検索条件を変えるか、\n新しいパーツを出品してみましょう',
       );
     }
 

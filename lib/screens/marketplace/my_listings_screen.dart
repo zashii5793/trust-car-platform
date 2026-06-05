@@ -190,7 +190,13 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
     }
 
     if (_listings.isEmpty) {
-      return _EmptyState(onCreateTap: _openCreateListing);
+      return AppEmptyState(
+        icon: Icons.sell_outlined,
+        title: '出品中のパーツがありません',
+        description: 'パーツを出品して、\n他のユーザーと取引しましょう',
+        buttonLabel: 'パーツを出品する',
+        onButtonPressed: _openCreateListing,
+      );
     }
 
     return RefreshIndicator(
@@ -462,52 +468,3 @@ class _ListingActionSheet extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// _EmptyState
-// ---------------------------------------------------------------------------
-
-class _EmptyState extends StatelessWidget {
-  final VoidCallback onCreateTap;
-
-  const _EmptyState({required this.onCreateTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: Padding(
-        padding: AppSpacing.paddingScreen,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.inventory_2_outlined,
-              size: AppSpacing.iconEmpty,
-              color: AppColors.textTertiary,
-            ),
-            AppSpacing.verticalMd,
-            Text(
-              'まだ出品していません',
-              style: theme.textTheme.titleMedium,
-            ),
-            AppSpacing.verticalXs,
-            Text(
-              '不要になったパーツを出品してみましょう',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            AppSpacing.verticalLg,
-            FilledButton.icon(
-              onPressed: onCreateTap,
-              icon: const Icon(Icons.add),
-              label: const Text('出品する'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

@@ -92,11 +92,9 @@ class _ShopListScreenState extends State<ShopListScreen> {
 
     if (provider.shops.isEmpty) {
       return AppEmptyState(
-        icon: Icons.store_mall_directory_outlined,
-        title: '工場が見つかりません',
-        description: 'フィルタや検索条件を変えてお試しください',
-        buttonLabel: 'フィルタをリセット',
-        onButtonPressed: provider.clearFilters,
+        icon: Icons.store_outlined,
+        title: '整備工場・業者が見つかりません',
+        description: '検索条件を変えるか、\nしばらく経ってから再度お試しください',
       );
     }
 

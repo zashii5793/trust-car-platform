@@ -225,7 +225,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildBody() {
     switch (_currentIndex) {
       case 0:
-        return _buildVehicleList();
+        return _VehicleTab(onNavigateToMarketplace: () {
+          setState(() {
+            _currentIndex = 1;
+          });
+        });
       case 1:
         return const MarketplaceScreen();
       case 2:
@@ -233,75 +237,93 @@ class _HomeScreenState extends State<HomeScreen> {
       case 3:
         return const NotificationListScreen();
       case 4:
-        return _buildProfileTab();
+        return const _ProfileTab();
       default:
-        return _buildVehicleList();
+        return _VehicleTab(onNavigateToMarketplace: () {
+          setState(() {
+            _currentIndex = 1;
+          });
+        });
     }
   }
+}
 
-  Widget _buildVehicleList() {
-    return Consumer<VehicleProvider>(
-      builder: (context, vehicleProvider, child) {
-        if (vehicleProvider.isLoading) {
-          return const AppLoadingCenter(message: '車両を読み込み中...');
-        }
+// ---------------------------------------------------------------------------
+// 車両タブ（マイカー一覧・ダッシュボード・AI提案）
+// ---------------------------------------------------------------------------
 
-        if (vehicleProvider.error != null) {
-          return AppErrorState(
-            message: vehicleProvider.errorMessage ?? 'データを読み込めませんでした',
-            onRetry: vehicleProvider.isRetryable
-                ? () {
-                    vehicleProvider.clearError();
-                    vehicleProvider.listenToVehicles();
-                  }
-                : null,
+class _VehicleTab extends StatelessWidget {
+  final VoidCallback onNavigateToMarketplace;
+
+  const _VehicleTab({required this.onNavigateToMarketplace});
+
+  @override
+  Widget build(BuildContext context) {
+    final vehicleProvider = context.watch<VehicleProvider>();
+
+    if (vehicleProvider.isLoading) {
+      return const AppLoadingCenter(message: '車両を読み込み中...');
+    }
+
+    if (vehicleProvider.error != null) {
+      return AppErrorState(
+        message: vehicleProvider.errorMessage ?? 'データを読み込めませんでした',
+        onRetry: vehicleProvider.isRetryable
+            ? () {
+                vehicleProvider.clearError();
+                vehicleProvider.listenToVehicles();
+              }
+            : null,
+      );
+    }
+
+    if (vehicleProvider.vehicles.isEmpty) {
+      return AppEmptyState(
+        icon: Icons.directions_car,
+        title: '車両が登録されていません',
+        description: '愛車を登録して、メンテナンス管理を始めましょう',
+        buttonLabel: '車両を登録',
+        onButtonPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const VehicleRegistrationScreen(),
+            ),
+          );
+        },
+      );
+    }
+
+    return ListView.builder(
+      padding: AppSpacing.paddingScreen,
+      itemCount: vehicleProvider.vehicles.length + 2, // +2 for dashboard + suggestion
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return _DashboardSummaryCard(
+            vehicles: vehicleProvider.vehicles,
           );
         }
-
-        if (vehicleProvider.vehicles.isEmpty) {
-          return AppEmptyState(
-            icon: Icons.directions_car,
-            title: '車両が登録されていません',
-            description: '愛車を登録して、メンテナンス管理を始めましょう',
-            buttonLabel: '車両を登録',
-            onButtonPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const VehicleRegistrationScreen(),
-                ),
-              );
-            },
-          );
+        if (index == 1) {
+          return _AiSuggestionSection(onSeeAll: onNavigateToMarketplace);
         }
-
-        return ListView.builder(
-          padding: AppSpacing.paddingScreen,
-          itemCount: vehicleProvider.vehicles.length + 2, // +2 for dashboard + suggestion
-          itemBuilder: (context, index) {
-            if (index == 0) {
-              return _DashboardSummaryCard(
-                vehicles: vehicleProvider.vehicles,
-              );
-            }
-            if (index == 1) {
-              return _AiSuggestionSection(
-                onSeeAll: () => setState(() => _currentIndex = 1),
-              );
-            }
-            final vehicle = vehicleProvider.vehicles[index - 2];
-            return _VehicleCard(vehicle: vehicle);
-          },
-        );
+        final vehicle = vehicleProvider.vehicles[index - 2];
+        return _VehicleCard(vehicle: vehicle);
       },
     );
   }
+}
 
-  Widget _buildProfileTab() {
-    final authProvider = context.read<AuthProvider>();
-    final user = authProvider.firebaseUser;
-    final subProvider = context.watch<UserSubscriptionProvider>();
-    final isPremium = subProvider.isPremium;
+// ---------------------------------------------------------------------------
+// プロフィールタブ
+// ---------------------------------------------------------------------------
+
+class _ProfileTab extends StatelessWidget {
+  const _ProfileTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final user = context.read<AuthProvider>().firebaseUser;
+    final isPremium = context.watch<UserSubscriptionProvider>().isPremium;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 

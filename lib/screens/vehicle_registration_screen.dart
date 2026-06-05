@@ -205,6 +205,13 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   VehicleMaker? _findMatchingMaker(
       List<VehicleMaker> makers, String ocrText) {
     final lowerText = ocrText.toLowerCase();
+    // Prefer exact match first to avoid false partial matches.
+    for (final maker in makers) {
+      if (maker.name.toLowerCase() == lowerText ||
+          maker.nameEn.toLowerCase() == lowerText) {
+        return maker;
+      }
+    }
     for (final maker in makers) {
       if (maker.name.toLowerCase().contains(lowerText) ||
           maker.nameEn.toLowerCase().contains(lowerText) ||
@@ -223,6 +230,14 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     modelsResult.when(
       success: (models) {
         final lowerText = ocrModelName.toLowerCase();
+        // Prefer exact match first to avoid false partial matches.
+        for (final model in models) {
+          if (model.name.toLowerCase() == lowerText ||
+              (model.nameEn?.toLowerCase() == lowerText)) {
+            if (mounted) setState(() => _selectedModel = model);
+            return;
+          }
+        }
         for (final model in models) {
           if (model.name.toLowerCase().contains(lowerText) ||
               (model.nameEn?.toLowerCase().contains(lowerText) ?? false) ||
