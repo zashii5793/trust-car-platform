@@ -283,6 +283,9 @@ class _RegisteredBody extends StatelessWidget {
           // Shop summary card
           _ShopSummaryCard(shop: shop),
           AppSpacing.verticalMd,
+          // Performance summary card
+          _PerformanceSummaryCard(shop: shop, provider: provider),
+          AppSpacing.verticalMd,
           // Inquiry count badge (tappable → ShopInquiryListScreen)
           _InquiryCountBadge(provider: provider, shopId: shop.id),
           AppSpacing.verticalMd,
@@ -474,6 +477,132 @@ class _ShopSummaryCard extends StatelessWidget {
 /// Badge showing inquiry count for the shop owner.
 ///
 /// Tapping navigates to [ShopInquiryListScreen].
+/// Quick performance summary shown on the registered shop owner screen.
+class _PerformanceSummaryCard extends StatelessWidget {
+  final Shop shop;
+  final ShopProvider provider;
+
+  const _PerformanceSummaryCard({
+    required this.shop,
+    required this.provider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final daysSince = DateTime.now().difference(shop.createdAt).inDays;
+    final total = provider.inquiryTotal;
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '掲載実績',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          AppSpacing.verticalSm,
+          Row(
+            children: [
+              _StatItem(
+                icon: Icons.calendar_today_outlined,
+                label: '掲載日数',
+                value: '$daysSince 日',
+              ),
+              _StatDivider(),
+              _StatItem(
+                icon: Icons.mail_outline,
+                label: '累計問い合わせ',
+                value: '$total 件',
+                valueColor: total > 0 ? AppColors.info : null,
+              ),
+              _StatDivider(),
+              _StatItem(
+                icon: Icons.workspace_premium_outlined,
+                label: 'プラン',
+                value: shop.planType.displayName,
+                valueColor: shop.planType != ShopPlanType.free
+                    ? AppColors.warning
+                    : null,
+              ),
+            ],
+          ),
+          if (shop.planExpiresAt != null) ...[
+            AppSpacing.verticalXs,
+            Text(
+              'プラン期限: ${_formatDate(shop.planExpiresAt!)}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime dt) =>
+      '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+}
+
+class _StatItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  const _StatItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+          AppSpacing.verticalXxs,
+          Text(
+            value,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: valueColor,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: VerticalDivider(
+        color: Theme.of(context).dividerColor,
+        thickness: 1,
+        width: AppSpacing.md,
+      ),
+    );
+  }
+}
+
 class _InquiryCountBadge extends StatelessWidget {
   final ShopProvider provider;
   final String shopId;
