@@ -216,6 +216,31 @@ void main() {
         final doc = await db.collection('newsletters').doc(docId).get();
         expect(doc.data()?['title'], '更新後');
       });
+
+      group('Edge Cases', () {
+        test('id が空文字のニュースレターを更新しようとすると failure を返す', () async {
+          // newsletter.id == '' means .doc('').update(...) which FakeFirestore
+          // treats as a reference to the empty-string document.  The service
+          // wraps any exception in a Result.failure, so callers must not pass
+          // an unsaved model (id still '').
+          final n = _makeNewsletter(id: ''); // id never set — not yet persisted
+          final result = await service.updateNewsletter(n);
+          // FakeFirestore throws on update of a non-existent document path,
+          // so the service should return a failure, not throw.
+          expect(result.isFailure, isTrue);
+        });
+
+        test('送信済みニュースレターは更新できない', () async {
+          final n = _makeNewsletter(status: NewsletterStatus.sent);
+          await service.createNewsletter(n);
+          final snap = await db.collection('newsletters').get();
+          final docId = snap.docs.first.id;
+
+          final sent = n.copyWith(id: docId, title: '変更試み');
+          final result = await service.updateNewsletter(sent);
+          expect(result.isFailure, isTrue);
+        });
+      });
     });
 
     group('deleteNewsletter', () {
@@ -263,6 +288,19 @@ void main() {
           result.when(
             success: (list) => expect(list, isEmpty),
             failure: (_) => fail('Expected success'),
+          );
+        });
+
+        test('特殊文字を含む authorId でもクラッシュせず結果を返す', () async {
+          // Firestore where() treats the value as a literal string —
+          // special chars are safe as query values (not interpreted as regex).
+          const specialId = r'author/with\special$chars #1';
+          final result = await service.getMyNewsletters(specialId);
+          // No document has this authorId, so expect an empty success.
+          expect(result.isSuccess, isTrue);
+          result.when(
+            success: (list) => expect(list, isEmpty),
+            failure: (_) => fail('Expected success, not an exception'),
           );
         });
       });

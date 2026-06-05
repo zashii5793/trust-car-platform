@@ -17,22 +17,22 @@ class VehicleOcrMatcher {
   static VehicleMaker? findMaker(
       List<VehicleMaker> makers, String ocrText) {
     if (ocrText.isEmpty) return null;
-    final lowerText = ocrText.toLowerCase();
+    final normalizedText = _normalize(ocrText);
 
     // Pass 1: exact match.
     for (final maker in makers) {
-      if (maker.name.toLowerCase() == lowerText ||
-          maker.nameEn.toLowerCase() == lowerText) {
+      if (_normalize(maker.name) == normalizedText ||
+          _normalize(maker.nameEn) == normalizedText) {
         return maker;
       }
     }
 
     // Pass 2: partial / contains match.
     for (final maker in makers) {
-      if (maker.name.toLowerCase().contains(lowerText) ||
-          maker.nameEn.toLowerCase().contains(lowerText) ||
-          lowerText.contains(maker.name.toLowerCase()) ||
-          lowerText.contains(maker.nameEn.toLowerCase())) {
+      if (_normalize(maker.name).contains(normalizedText) ||
+          _normalize(maker.nameEn).contains(normalizedText) ||
+          normalizedText.contains(_normalize(maker.name)) ||
+          normalizedText.contains(_normalize(maker.nameEn))) {
         return maker;
       }
     }
@@ -47,25 +47,48 @@ class VehicleOcrMatcher {
   static VehicleModel? findModel(
       List<VehicleModel> models, String ocrModelName) {
     if (ocrModelName.isEmpty) return null;
-    final lowerText = ocrModelName.toLowerCase();
+    final normalizedText = _normalize(ocrModelName);
 
     // Pass 1: exact match.
     for (final model in models) {
-      if (model.name.toLowerCase() == lowerText ||
-          model.nameEn?.toLowerCase() == lowerText) {
+      if (_normalize(model.name) == normalizedText ||
+          (model.nameEn != null ? _normalize(model.nameEn!) : null) ==
+              normalizedText) {
         return model;
       }
     }
 
     // Pass 2: partial / contains match.
     for (final model in models) {
-      if (model.name.toLowerCase().contains(lowerText) ||
-          (model.nameEn?.toLowerCase().contains(lowerText) ?? false) ||
-          lowerText.contains(model.name.toLowerCase())) {
+      if (_normalize(model.name).contains(normalizedText) ||
+          (model.nameEn != null
+              ? _normalize(model.nameEn!).contains(normalizedText)
+              : false) ||
+          normalizedText.contains(_normalize(model.name))) {
         return model;
       }
     }
 
     return null;
+  }
+
+  /// Normalises OCR text for robust Japanese matching:
+  /// - Full-width ASCII (！-～, U+FF01..U+FF5E) → half-width (U+0021..U+007E)
+  /// - Ideographic space (U+3000) → ASCII space
+  /// Then lowercases and trims whitespace.
+  static String _normalize(String text) {
+    final buffer = StringBuffer();
+    for (final codeUnit in text.codeUnits) {
+      if (codeUnit >= 0xFF01 && codeUnit <= 0xFF5E) {
+        // Full-width ASCII variants → corresponding half-width character
+        buffer.writeCharCode(codeUnit - 0xFEE0);
+      } else if (codeUnit == 0x3000) {
+        // Ideographic space → regular space
+        buffer.writeCharCode(0x0020);
+      } else {
+        buffer.writeCharCode(codeUnit);
+      }
+    }
+    return buffer.toString().toLowerCase().trim();
   }
 }

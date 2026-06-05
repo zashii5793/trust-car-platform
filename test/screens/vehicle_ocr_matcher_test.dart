@@ -219,5 +219,54 @@ void main() {
         });
       });
     });
+
+    // =========================================================================
+    group('normalization', () {
+      test('全角英字 → 半角変換でマッチする (Ｔｏｙｏｔａ → Toyota)', () {
+        // Full-width "Ｔｏｙｏｔａ" should normalize to "toyota" and match トヨタ/Toyota
+        final result = VehicleOcrMatcher.findMaker(_makers, 'Ｔｏｙｏｔａ');
+        expect(result, isNotNull);
+        expect(result!.id, '1');
+      });
+
+      test('全角数字は正規化される (２０２４ → 2024)', () {
+        // This tests the normalize function itself via model matching.
+        // Create a model named "RAV4" and search with full-width "ＲＡＶ４"
+        final models = [
+          VehicleModel(id: 'rav4', makerId: 'toyota', name: 'RAV4', nameEn: 'RAV4'),
+        ];
+        final result = VehicleOcrMatcher.findModel(models, 'ＲＡＶ４');
+        expect(result, isNotNull);
+        expect(result!.id, 'rav4');
+      });
+
+      test('全角スペース（U+3000）は半角スペースとして扱う', () {
+        final makers = [
+          VehicleMaker(id: 'bmw', name: 'BMW', nameEn: 'BMW', country: 'DE'),
+        ];
+        // "ＢＭＷ　プレミアム" — full-width letters + ideographic space + trailing text
+        // Should still match BMW via contains logic after normalization
+        final result = VehicleOcrMatcher.findMaker(makers, 'ＢＭＷ　ジャパン');
+        expect(result, isNotNull);
+      });
+
+      test('マスタデータ側も正規化される（マスタがＨＯＮＤＡの場合でもhondaでマッチ）', () {
+        // If master data itself has full-width chars (shouldn't happen but defensive)
+        final makers = [
+          VehicleMaker(id: 'h', name: 'ホンダ', nameEn: 'ＨＯＮＤＡ', country: 'JP'),
+        ];
+        final result = VehicleOcrMatcher.findMaker(makers, 'Honda');
+        expect(result, isNotNull);
+        expect(result!.id, 'h');
+      });
+
+      group('Edge Cases', () {
+        test('全角記号のみ → null', () {
+          final result = VehicleOcrMatcher.findMaker(_makers, '　　　');
+          // ideographic spaces only — after normalization becomes empty/spaces, no match
+          expect(result, isNull);
+        });
+      });
+    });
   });
 }
