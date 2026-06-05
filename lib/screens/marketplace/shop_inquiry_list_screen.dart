@@ -80,8 +80,16 @@ class _ShopInquiryListScreenState extends State<ShopInquiryListScreen> {
                 final inquiries = provider.shopInquiries;
 
                 if (inquiries.isEmpty) {
-                  return _EmptyView(
-                    isFiltered: _selectedStatus != null,
+                  return AppEmptyState(
+                    icon: _selectedStatus != null
+                        ? Icons.filter_list_off
+                        : Icons.mail_outline,
+                    title: _selectedStatus != null
+                        ? '該当する問い合わせがありません'
+                        : '問い合わせはありません',
+                    description: _selectedStatus != null
+                        ? 'フィルターを変更してみてください'
+                        : 'ユーザーからの問い合わせがここに表示されます',
                   );
                 }
 
@@ -204,43 +212,6 @@ class _FilterChipRow extends StatelessWidget {
             );
           }).toList(),
         ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Empty state
-// ---------------------------------------------------------------------------
-
-class _EmptyView extends StatelessWidget {
-  /// Whether the empty state is due to an active filter (vs no inquiries at all).
-  final bool isFiltered;
-
-  const _EmptyView({this.isFiltered = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isFiltered ? Icons.filter_list_off : Icons.mail_outline,
-            size: 56,
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-          ),
-          AppSpacing.verticalMd,
-          Text(
-            isFiltered
-                ? 'このステータスの問い合わせはありません'
-                : 'まだ問い合わせはありません',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
       ),
     );
   }

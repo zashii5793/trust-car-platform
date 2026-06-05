@@ -19,6 +19,7 @@ import '../widgets/vehicle/vehicle_selector_fields.dart';
 import 'package:uuid/uuid.dart';
 import 'document_scanner_screen.dart';
 import 'vehicle_certificate_result_screen.dart';
+import 'vehicle/vehicle_ocr_matcher.dart';
 
 class VehicleRegistrationScreen extends StatefulWidget {
   const VehicleRegistrationScreen({super.key});
@@ -204,23 +205,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
 
   VehicleMaker? _findMatchingMaker(
       List<VehicleMaker> makers, String ocrText) {
-    final lowerText = ocrText.toLowerCase();
-    // Prefer exact match first to avoid false partial matches.
-    for (final maker in makers) {
-      if (maker.name.toLowerCase() == lowerText ||
-          maker.nameEn.toLowerCase() == lowerText) {
-        return maker;
-      }
-    }
-    for (final maker in makers) {
-      if (maker.name.toLowerCase().contains(lowerText) ||
-          maker.nameEn.toLowerCase().contains(lowerText) ||
-          lowerText.contains(maker.name.toLowerCase()) ||
-          lowerText.contains(maker.nameEn.toLowerCase())) {
-        return maker;
-      }
-    }
-    return null;
+    return VehicleOcrMatcher.findMaker(makers, ocrText);
   }
 
   Future<void> _loadAndMatchModel(String ocrModelName) async {
@@ -229,22 +214,10 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         await _masterService.getModelsForMaker(_selectedMaker!.id);
     modelsResult.when(
       success: (models) {
-        final lowerText = ocrModelName.toLowerCase();
-        // Prefer exact match first to avoid false partial matches.
-        for (final model in models) {
-          if (model.name.toLowerCase() == lowerText ||
-              (model.nameEn?.toLowerCase() == lowerText)) {
-            if (mounted) setState(() => _selectedModel = model);
-            return;
-          }
-        }
-        for (final model in models) {
-          if (model.name.toLowerCase().contains(lowerText) ||
-              (model.nameEn?.toLowerCase().contains(lowerText) ?? false) ||
-              lowerText.contains(model.name.toLowerCase())) {
-            if (mounted) setState(() => _selectedModel = model);
-            break;
-          }
+        final matchedModel =
+            VehicleOcrMatcher.findModel(models, ocrModelName);
+        if (matchedModel != null) {
+          if (mounted) setState(() => _selectedModel = matchedModel);
         }
       },
       failure: (_) {},
