@@ -256,6 +256,37 @@ void main() {
         final afterSnap = await db.collection('newsletters').get();
         expect(afterSnap.docs, isEmpty);
       });
+
+      test('送信済みニュースレターは削除できない', () async {
+        final n = _makeNewsletter(status: NewsletterStatus.sent);
+        await service.createNewsletter(n);
+        final snap = await db.collection('newsletters').get();
+        final docId = snap.docs.first.id;
+
+        final result = await service.deleteNewsletter(docId);
+        expect(result.isFailure, isTrue);
+
+        // Document must still exist
+        final afterSnap = await db.collection('newsletters').get();
+        expect(afterSnap.docs, hasLength(1));
+      });
+
+      test('スケジュール済みニュースレターは削除できる', () async {
+        final n = _makeNewsletter(status: NewsletterStatus.scheduled);
+        await service.createNewsletter(n);
+        final snap = await db.collection('newsletters').get();
+        final docId = snap.docs.first.id;
+
+        final result = await service.deleteNewsletter(docId);
+        expect(result.isSuccess, isTrue);
+      });
+
+      group('Edge Cases', () {
+        test('存在しないIDへの削除は failure を返す', () async {
+          final result = await service.deleteNewsletter('non-existent-id');
+          expect(result.isFailure, isTrue);
+        });
+      });
     });
 
     group('getMyNewsletters', () {

@@ -268,5 +268,48 @@ void main() {
         });
       });
     });
+
+    // =========================================================================
+    group('実車検証OCRパターン', () {
+      // These tests use OCR text patterns actually seen on Japanese 車検証.
+
+      test('「トヨタ」正確読み取り → マッチ', () {
+        final result = VehicleOcrMatcher.findMaker(_makers, 'トヨタ');
+        expect(result?.id, '1');
+      });
+
+      test('「プリウス」正確読み取り → マッチ', () {
+        final result = VehicleOcrMatcher.findModel(_models, 'プリウス');
+        expect(result?.id, '1');
+      });
+
+      test('前後に余分なスペースが入る「 トヨタ 」→ trimで正規化されマッチ', () {
+        // _normalize() calls .trim() — leading/trailing spaces are removed
+        final result = VehicleOcrMatcher.findMaker(_makers, ' トヨタ ');
+        expect(result?.id, '1');
+      });
+
+      test('車名に型式が混入「プリウス ZVW50」→ 車名部分で部分マッチ', () {
+        // OCR may pick up the grade code alongside the model name.
+        // The model name "プリウス" is contained in "プリウス ZVW50".
+        final result = VehicleOcrMatcher.findModel(_models, 'プリウス ZVW50');
+        expect(result?.id, '1');
+      });
+
+      test('メーカー名に「株式会社」が混入 → 部分マッチで対応', () {
+        // e.g. OCR reads "トヨタ自動車株式会社" from the vehicle certificate header
+        final result = VehicleOcrMatcher.findMaker(_makers, 'トヨタ自動車株式会社');
+        expect(result?.id, '1');
+      });
+
+      // --- Known gap: half-width katakana is NOT yet normalized ---
+      // TODO: half-width katakana support (ﾄﾖﾀ → トヨタ) is a future enhancement.
+      test('半角カタカナ「ﾄﾖﾀ」は現状マッチしない（既知の未対応パターン）', () {
+        // This test DOCUMENTS a known gap. When half-width katakana normalization
+        // is implemented, change expect to isNotNull.
+        final result = VehicleOcrMatcher.findMaker(_makers, 'ﾄﾖﾀ');
+        expect(result, isNull); // Known gap — half-width katakana not yet supported
+      });
+    });
   });
 }
