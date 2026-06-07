@@ -21,6 +21,8 @@ import 'profile/settings_screen.dart';
 import 'settings/privacy_policy_screen.dart';
 import 'settings/terms_of_service_screen.dart';
 import 'notifications/notification_list_screen.dart';
+import '../core/di/service_locator.dart';
+import '../services/mileage_notification_service.dart';
 import 'marketplace/marketplace_screen.dart';
 import 'marketplace/shop_list_screen.dart';
 import 'marketplace/shop_owner_screen.dart';
@@ -330,6 +332,11 @@ class _VehicleTab extends StatelessWidget {
               await context
                   .read<VehicleProvider>()
                   .updateVehicle(primaryVehicle.id, updated);
+              // Schedule a 30-day reminder to update mileage again
+              sl
+                  .get<MileageNotificationService>()
+                  .scheduleMonthlyReminder()
+                  .catchError((_) {}); // fire-and-forget
             },
           ),
         ),

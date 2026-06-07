@@ -32,6 +32,7 @@ import '../../services/user_subscription_service.dart';
 import '../../services/newsletter_service.dart';
 import '../../services/ai_chat_service.dart';
 import '../../services/maintenance_comment_service.dart';
+import '../../services/mileage_notification_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -130,6 +131,11 @@ class Injection {
     // Maintenance Comment Service (rule-based AI comments for maintenance records)
     locator.registerLazySingleton<MaintenanceCommentService>(
       () => MaintenanceCommentService(),
+    );
+
+    // Mileage Notification Service (schedules 30-day local reminder after mileage update)
+    locator.registerLazySingleton<MileageNotificationService>(
+      () => MileageNotificationService(),
     );
 
     _initialized = true;

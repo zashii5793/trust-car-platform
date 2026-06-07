@@ -5,6 +5,7 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/chat_message.dart';
+import '../../models/vehicle.dart';
 import '../../providers/ai_chat_provider.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../services/ai_chat_service.dart';
@@ -115,6 +116,7 @@ class _AiChatViewState extends State<_AiChatView> {
               builder: (context, provider, _) {
                 if (provider.isEmpty) {
                   return _EmptyState(
+                    vehicle: context.read<VehicleProvider>().selectedVehicle,
                     onSuggestionTap: (q) => _sendMessage(q),
                   );
                 }
@@ -149,20 +151,67 @@ class _AiChatViewState extends State<_AiChatView> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onSuggestionTap});
+  const _EmptyState({required this.onSuggestionTap, this.vehicle});
 
   final void Function(String question) onSuggestionTap;
+  final Vehicle? vehicle;
 
-  static const _suggestions = [
-    'ワイパー交換の時期は？',
-    'オイル交換はいつ？',
-    'タイヤの寿命は？',
-    'バッテリー上がりの対処法',
-  ];
+  /// Returns suggestions tailored to the vehicle's fuel type and characteristics.
+  /// Avoids irrelevant questions (e.g. oil change for EVs).
+  List<String> _buildSuggestions() {
+    final fuel = vehicle?.fuelType;
+    final name = vehicle != null ? '${vehicle!.maker} ${vehicle!.model}' : null;
+    final km = vehicle?.mileage;
+
+    // EV: no engine oil, no coolant, different focus
+    if (fuel == FuelType.electric) {
+      return [
+        if (name != null) '$name のバッテリー劣化の確認方法は？'
+        else 'EVバッテリーの劣化確認方法は？',
+        'EVの冬場の航続距離低下対策は？',
+        if (km != null) '${km}km走行後のタイヤ点検ポイントは？'
+        else 'タイヤの点検ポイントは？',
+        '車検でEVならではの確認事項は？',
+      ];
+    }
+
+    // Hybrid: mostly gas-like but no oil change urgency
+    if (fuel == FuelType.hybrid || fuel == FuelType.phev) {
+      return [
+        if (name != null) '$name のオイル交換時期は？'
+        else 'ハイブリッド車のオイル交換時期は？',
+        'ハイブリッドバッテリーの寿命と交換費用は？',
+        if (km != null) '${km}km走行後に確認すべきことは？'
+        else 'タイヤの寿命は？',
+        'ハイブリッド車の燃費を悪化させる原因は？',
+      ];
+    }
+
+    // Gasoline / diesel / hydrogen (default)
+    return [
+      if (name != null && km != null)
+        '$name（${km}km）の次のオイル交換時期は？'
+      else
+        'オイル交換はいつ？',
+      'ワイパー交換の時期と選び方は？',
+      if (km != null) '${km}km走行後のタイヤ点検ポイントは？'
+      else 'タイヤの寿命と点検方法は？',
+      'バッテリー上がりのサインと対処法は？',
+    ];
+  }
+
+  String _buildSubtitle() {
+    if (vehicle == null) {
+      return '整備・トラブル・車検など気になることを\n気軽に質問できます';
+    }
+    return '${vehicle!.maker} ${vehicle!.model} について\n整備・トラブル・車検など何でも聞いてください';
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final suggestions = _buildSuggestions();
+
     return Center(
       child: SingleChildScrollView(
         padding: AppSpacing.paddingScreen,
@@ -185,7 +234,7 @@ class _EmptyState extends StatelessWidget {
             ),
             AppSpacing.verticalSm,
             Text(
-              '整備・トラブル・車検など気になることを\n気軽に質問できます',
+              _buildSubtitle(),
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: AppColors.textTertiary,
@@ -196,7 +245,7 @@ class _EmptyState extends StatelessWidget {
               spacing: AppSpacing.xs,
               runSpacing: AppSpacing.xs,
               alignment: WrapAlignment.center,
-              children: _suggestions.map((q) {
+              children: suggestions.map((q) {
                 return ActionChip(
                   label: Text(q),
                   onPressed: () => onSuggestionTap(q),
