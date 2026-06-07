@@ -373,6 +373,14 @@ class RecommendationService {
         vehicle,
         lastMileage: lastMaintenanceMileage,
       ),
+      reason: _generateReason(
+        rule: rule,
+        vehicle: vehicle,
+        lastDate: lastMaintenanceDate,
+        lastMileage: lastMaintenanceMileage,
+        now: now,
+        daysUntilDue: daysUntilDue,
+      ),
       priority: priority,
       createdAt: now,
       actionDate: recommendedDate,
@@ -474,6 +482,68 @@ class RecommendationService {
         'daysUntilInspection': daysUntilInspection,
       },
     );
+  }
+
+  /// Structured reason explaining WHY this action is recommended now.
+  /// References actual vehicle data so the user can make an informed decision.
+  /// Never a judgment — just facts and options.
+  String _generateReason({
+    required MaintenanceRule rule,
+    required Vehicle vehicle,
+    required DateTime? lastDate,
+    required int? lastMileage,
+    required DateTime now,
+    required int daysUntilDue,
+  }) {
+    final lines = <String>[];
+
+    // Data point 1: Last service history
+    if (lastDate != null) {
+      final monthsAgo = now.difference(lastDate).inDays ~/ 30;
+      final dateStr =
+          '${lastDate.year}年${lastDate.month}月${lastDate.day}日';
+      lines.add('📋 前回の${rule.name}: $dateStr（${monthsAgo}ヶ月前）');
+      if (lastMileage != null) {
+        final kmSince = vehicle.mileage - lastMileage;
+        lines.add('🚗 前回から走行: ${_formatKm(kmSince)}');
+      }
+    } else {
+      lines.add('📋 ${rule.name}の記録: なし');
+    }
+
+    // Data point 2: Manufacturer recommendation
+    final rec = <String>[];
+    if (rule.intervalMonths > 0) {
+      rec.add('${rule.intervalMonths}ヶ月ごと');
+    }
+    if (rule.intervalKm > 0) {
+      rec.add('${_formatKm(rule.intervalKm)}ごと');
+    }
+    if (rec.isNotEmpty) {
+      lines.add('📌 推奨交換目安: ${rec.join(' または ')}');
+    }
+
+    // Data point 3: Why now
+    if (daysUntilDue <= 0) {
+      lines.add('⚠️ すでに推奨時期を過ぎています。');
+    } else if (daysUntilDue <= 30) {
+      lines.add('✅ 今が交換の最適なタイミングです。');
+    } else {
+      lines.add(
+          '🗓 あと約${(daysUntilDue / 30).round()}ヶ月後が交換時期の目安です。');
+    }
+
+    // Note: what this maintenance does
+    lines.add('ℹ️ ${rule.description}');
+
+    return lines.join('\n');
+  }
+
+  String _formatKm(int km) {
+    if (km >= 10000) {
+      return '${(km / 10000).toStringAsFixed(km % 10000 == 0 ? 0 : 1)}万km';
+    }
+    return '${km}km';
   }
 
   /// メッセージ生成

@@ -17,10 +17,18 @@ class InquiryScreen extends StatefulWidget {
   final Shop shop;
   final String? vehicleId;
 
+  /// Pre-fills the subject field. Used when navigating from an AI suggestion.
+  final String? prefillSubject;
+
+  /// Pre-fills the message body. Used when navigating from an AI suggestion.
+  final String? prefillMessage;
+
   const InquiryScreen({
     super.key,
     required this.shop,
     this.vehicleId,
+    this.prefillSubject,
+    this.prefillMessage,
   });
 
   @override
@@ -40,6 +48,13 @@ class _InquiryScreenState extends State<InquiryScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.prefillSubject != null) {
+      _subjectController.text = widget.prefillSubject!;
+    }
+    if (widget.prefillMessage != null) {
+      _messageController.text = widget.prefillMessage!;
+      _messageLength = widget.prefillMessage!.length;
+    }
     _messageController.addListener(() {
       setState(() => _messageLength = _messageController.text.length);
     });

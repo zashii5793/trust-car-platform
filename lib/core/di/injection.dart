@@ -31,6 +31,7 @@ import '../../services/analytics_service.dart';
 import '../../services/user_subscription_service.dart';
 import '../../services/newsletter_service.dart';
 import '../../services/ai_chat_service.dart';
+import '../../services/maintenance_comment_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -125,6 +126,11 @@ class Injection {
 
     // AI Chat Service (Claude-powered automotive advice)
     locator.registerLazySingleton<AiChatService>(() => AiChatService());
+
+    // Maintenance Comment Service (rule-based AI comments for maintenance records)
+    locator.registerLazySingleton<MaintenanceCommentService>(
+      () => MaintenanceCommentService(),
+    );
 
     _initialized = true;
   }

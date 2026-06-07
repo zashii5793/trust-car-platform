@@ -12,6 +12,7 @@ import '../core/constants/spacing.dart';
 import '../widgets/common/app_card.dart';
 import '../widgets/common/loading_indicator.dart';
 import 'add_maintenance_screen.dart';
+import '../widgets/maintenance/maintenance_ai_comment.dart';
 import 'export/export_dialog.dart';
 import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
@@ -1193,6 +1194,15 @@ class _MaintenanceDetailSheet extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       color: typeColor,
                     ),
+                  ),
+
+                  AppSpacing.verticalMd,
+
+                  // AI comment — why this maintenance matters and next schedule
+                  MaintenanceAiComment(
+                    record: record,
+                    allRecords: provider.records,
+                    currentMileage: currentVehicleMileage,
                   ),
 
                   AppSpacing.verticalMd,

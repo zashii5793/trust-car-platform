@@ -22,6 +22,7 @@ import 'settings/privacy_policy_screen.dart';
 import 'settings/terms_of_service_screen.dart';
 import 'notifications/notification_list_screen.dart';
 import 'marketplace/marketplace_screen.dart';
+import 'marketplace/shop_list_screen.dart';
 import 'marketplace/shop_owner_screen.dart';
 import 'sns/sns_feed_screen.dart';
 import 'drive/drive_log_screen.dart';
@@ -1311,7 +1312,7 @@ class _AiSuggestionSection extends StatelessWidget {
 // 個別の提案カード
 // ---------------------------------------------------------------------------
 
-class _SuggestionCard extends StatelessWidget {
+class _SuggestionCard extends StatefulWidget {
   final AppNotification notification;
   final bool isDark;
   final VoidCallback? onTap;
@@ -1322,8 +1323,15 @@ class _SuggestionCard extends StatelessWidget {
     this.onTap,
   });
 
+  @override
+  State<_SuggestionCard> createState() => _SuggestionCardState();
+}
+
+class _SuggestionCardState extends State<_SuggestionCard> {
+  bool _expanded = false;
+
   Color get _priorityColor {
-    switch (notification.priority) {
+    switch (widget.notification.priority) {
       case NotificationPriority.high:
         return AppColors.error;
       case NotificationPriority.medium:
@@ -1334,7 +1342,7 @@ class _SuggestionCard extends StatelessWidget {
   }
 
   IconData get _typeIcon {
-    switch (notification.type) {
+    switch (widget.notification.type) {
       case NotificationType.inspectionReminder:
         return Icons.verified_outlined;
       case NotificationType.partsReplacement:
@@ -1346,23 +1354,37 @@ class _SuggestionCard extends StatelessWidget {
     }
   }
 
+  void _openDetailSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _SuggestionDetailSheet(
+        notification: widget.notification,
+        isDark: widget.isDark,
+        onAddRecord: widget.onTap,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = _priorityColor;
+    final n = widget.notification;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: () => _openDetailSheet(context),
       child: Container(
         width: 210,
         padding: const EdgeInsets.all(AppSpacing.sm),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.darkCard : Colors.white,
+          color: widget.isDark ? AppColors.darkCard : Colors.white,
           borderRadius: AppSpacing.borderRadiusMd,
-          border: Border.all(
-            color: color.withValues(alpha: 0.4),
-          ),
-          boxShadow: isDark
+          border: Border.all(color: color.withValues(alpha: 0.4)),
+          boxShadow: widget.isDark
               ? null
               : [
                   BoxShadow(
@@ -1385,15 +1407,14 @@ class _SuggestionCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    notification.priority == NotificationPriority.high
-                        ? '要対応'
-                        : '推奨',
+                    n.priority == NotificationPriority.high ? '要対応' : '推奨',
                     style: TextStyle(
                       color: color,
                       fontSize: 10,
@@ -1408,22 +1429,21 @@ class _SuggestionCard extends StatelessWidget {
 
             // ---- タイトル ----
             Text(
-              notification.title,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+              n.title,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
 
             AppSpacing.verticalXxs,
 
-            // ---- メッセージ（理由）----
+            // ---- メッセージ ----
             Expanded(
               child: Text(
-                notification.message,
+                n.message,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: isDark
+                  color: widget.isDark
                       ? AppColors.darkTextTertiary
                       : AppColors.textTertiary,
                 ),
@@ -1432,24 +1452,224 @@ class _SuggestionCard extends StatelessWidget {
               ),
             ),
 
-            // ---- アクションボタン ----
-            if (onTap != null) ...[
-              AppSpacing.verticalXxs,
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    '対応する',
+            // ---- 「理由を見る」ヒント ----
+            AppSpacing.verticalXxs,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  'タップで詳細・工場を探す',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Icon(Icons.chevron_right, size: 13, color: color),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 提案詳細ボトムシート（理由全文 + アクション選択）
+// ---------------------------------------------------------------------------
+
+class _SuggestionDetailSheet extends StatelessWidget {
+  final AppNotification notification;
+  final bool isDark;
+  final VoidCallback? onAddRecord;
+
+  const _SuggestionDetailSheet({
+    required this.notification,
+    required this.isDark,
+    this.onAddRecord,
+  });
+
+  Color _priorityColor(BuildContext context) {
+    switch (notification.priority) {
+      case NotificationPriority.high:
+        return AppColors.error;
+      case NotificationPriority.medium:
+        return AppColors.warning;
+      case NotificationPriority.low:
+        return AppColors.info;
+    }
+  }
+
+  String _buildPrefillMessage() {
+    final sb = StringBuffer();
+    sb.writeln('【AIからの整備提案】');
+    sb.writeln(notification.title);
+    sb.writeln();
+    if (notification.reason != null) {
+      sb.writeln(notification.reason);
+    } else {
+      sb.writeln(notification.message);
+    }
+    sb.writeln();
+    sb.writeln('上記の提案について見積もりをお願いできますか。');
+    return sb.toString().trim();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = _priorityColor(context);
+    final n = notification;
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.65,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      builder: (_, scrollController) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        child: ListView(
+          controller: scrollController,
+          children: [
+            // ---- ドラッグハンドル ----
+            Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // ---- 優先度バッジ + タイトル ----
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    n.priority == NotificationPriority.high ? '要対応' : '推奨',
                     style: TextStyle(
                       color: color,
                       fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  Icon(Icons.chevron_right, size: 14, color: color),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              n.title,
+              style: theme.textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+
+            // ---- 理由セクション ----
+            if (n.reason != null) ...[
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.6),
+                  borderRadius: AppSpacing.borderRadiusMd,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline,
+                            size: 15,
+                            color: theme.colorScheme.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          'なぜ今なのか',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      n.reason!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        height: 1.7,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(height: AppSpacing.sm),
+            ] else ...[
+              Text(
+                n.message,
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: AppSpacing.sm),
             ],
+
+            // ---- 注意文 ----
+            Text(
+              'あなたが決めるための情報を整理しました。最終的な判断はあなた自身でお決めください。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+
+            const SizedBox(height: AppSpacing.lg),
+
+            // ---- アクション: 整備記録を追加 ----
+            if (onAddRecord != null)
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  onAddRecord!();
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('整備記録を追加する'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                ),
+              ),
+
+            const SizedBox(height: AppSpacing.sm),
+
+            // ---- アクション: 整備工場を探す ----
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ShopListScreen(
+                      maintenanceContext:
+                          n.metadata?['ruleName'] as String? ?? n.title,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.store_outlined),
+              label: const Text('近くの整備工場を探す'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48),
+              ),
+            ),
+
+            const SizedBox(height: AppSpacing.xl),
           ],
         ),
       ),

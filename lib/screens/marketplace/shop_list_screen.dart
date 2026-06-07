@@ -12,8 +12,12 @@ import 'shop_detail_screen.dart';
 /// - ユーザーが工場を探す（工場からの売り込みは排除）
 /// - FABなし・業者起点のアクションなし
 /// - isFeatured は「広告」ラベルで明示（ソート優先度を隠さない）
+/// - [maintenanceContext] が渡された場合はAI提案起点のコンテキストバナーを表示
 class ShopListScreen extends StatefulWidget {
-  const ShopListScreen({super.key});
+  /// Optional search keyword pre-populated from an AI suggestion.
+  final String? maintenanceContext;
+
+  const ShopListScreen({super.key, this.maintenanceContext});
 
   @override
   State<ShopListScreen> createState() => _ShopListScreenState();
@@ -26,7 +30,12 @@ class _ShopListScreenState extends State<ShopListScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ShopProvider>().loadShops();
+      final provider = context.read<ShopProvider>();
+      provider.loadShops();
+      if (widget.maintenanceContext != null) {
+        _searchController.text = widget.maintenanceContext!;
+        provider.searchShops(widget.maintenanceContext!);
+      }
     });
   }
 
@@ -63,6 +72,8 @@ class _ShopListScreenState extends State<ShopListScreen> {
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (widget.maintenanceContext != null)
+                _AiContextBanner(context: widget.maintenanceContext!),
               _SearchBar(
                 controller: _searchController,
                 onChanged: _onSearchChanged,
@@ -116,6 +127,47 @@ class _ShopListScreenState extends State<ShopListScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AIコンテキストバナー（AI提案から遷移した場合のみ表示）
+// ---------------------------------------------------------------------------
+
+class _AiContextBanner extends StatelessWidget {
+  final String context;
+
+  const _AiContextBanner({required this.context});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final theme = Theme.of(ctx);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.6),
+      child: Row(
+        children: [
+          Icon(
+            Icons.smart_toy_outlined,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              'AIの提案: $context に対応できる工場を表示しています',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
