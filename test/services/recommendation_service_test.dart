@@ -850,4 +850,115 @@ void main() {
       expect(ids.length, uniqueIds.length);
     });
   });
+
+  // ==========================================================================
+  // Group 8: reason フィールド生成
+  // ==========================================================================
+  group('reason フィールド生成', () {
+    test('generateRecommendations で生成された通知の reason が null でない（メンテナンスルール通知）', () {
+      // 200日前に登録 → oilChange が期日超過して通知が生成される
+      final v = _makeVehicle(createdBefore: const Duration(days: 200));
+      final result = service.generateRecommendations(
+        vehicle: v, records: [], userId: _userId,
+      );
+      // メンテナンスルール通知（maintenanceRecommendation）を絞り込む
+      final maintenanceNotifs = result.where(
+        (n) => n.type == NotificationType.maintenanceRecommendation,
+      ).toList();
+
+      expect(maintenanceNotifs, isNotEmpty);
+      for (final notif in maintenanceNotifs) {
+        expect(notif.reason, isNotNull,
+            reason: '${notif.title} の reason が null');
+      }
+    });
+
+    test('reason に "前回" "推奨" "ヶ月" のいずれかが含まれる（日本語テンプレート確認）', () {
+      final v = _makeVehicle(createdBefore: const Duration(days: 200));
+      final result = service.generateRecommendations(
+        vehicle: v, records: [], userId: _userId,
+      );
+      final maintenanceNotifs = result.where(
+        (n) => n.type == NotificationType.maintenanceRecommendation &&
+               n.reason != null,
+      ).toList();
+
+      expect(maintenanceNotifs, isNotEmpty);
+      for (final notif in maintenanceNotifs) {
+        final reason = notif.reason!;
+        final containsExpected =
+            reason.contains('前回') ||
+            reason.contains('推奨') ||
+            reason.contains('ヶ月');
+        expect(containsExpected, isTrue,
+            reason: '${notif.title} の reason に期待するキーワードがない: $reason');
+      }
+    });
+
+    test('過去記録なしの場合でも reason が生成される（"なし" または "記録" 等が含まれる）', () {
+      // records なし → lastDate = null → "記録: なし" のパスを通る
+      final v = _makeVehicle(createdBefore: const Duration(days: 200));
+      final result = service.generateRecommendations(
+        vehicle: v, records: [], userId: _userId,
+      );
+      final maintenanceNotifs = result.where(
+        (n) => n.type == NotificationType.maintenanceRecommendation &&
+               n.reason != null,
+      ).toList();
+
+      expect(maintenanceNotifs, isNotEmpty);
+      for (final notif in maintenanceNotifs) {
+        final reason = notif.reason!;
+        // lastDate == null のパス: "の記録: なし" が含まれる
+        expect(
+          reason.contains('なし') || reason.contains('記録'),
+          isTrue,
+          reason: '${notif.title} の reason（記録なし）に期待するキーワードがない: $reason',
+        );
+      }
+    });
+
+    test('走行距離超過の場合、reason に "過ぎています" が含まれる', () {
+      // vehicle.mileage=30000, lastMileage=25000 → 5000km到達 → daysUntilDue=0
+      // daysUntilDue <= 0 → "すでに推奨時期を過ぎています。" が含まれる
+      final v = _makeVehicle(mileage: 30000);
+      final record = _makeRecord(
+        type: MaintenanceType.oilChange,
+        doneAgo: const Duration(days: 10),
+        mileageAtService: 25000, // 30000 - 25000 = 5000km = intervalKm
+      );
+      final result = service.generateRecommendations(
+        vehicle: v, records: [record], userId: _userId,
+      );
+      final oilNotif = result.firstWhere(
+        (n) => n.title.contains('エンジンオイル交換'),
+        orElse: () => throw 'oilChange notification not found',
+      );
+
+      expect(oilNotif.reason, isNotNull);
+      expect(oilNotif.reason, contains('過ぎています'));
+    });
+
+    test('前回整備日ありの場合、reason に前回日付情報（年月日）が含まれる', () {
+      final v = _makeVehicle(mileage: 30000);
+      // 200日前に整備 → 期日超過 → high priority
+      final record = _makeRecord(
+        type: MaintenanceType.oilChange,
+        doneAgo: const Duration(days: 200),
+        mileageAtService: 25000,
+      );
+      final result = service.generateRecommendations(
+        vehicle: v, records: [record], userId: _userId,
+      );
+      final oilNotif = result.firstWhere(
+        (n) => n.title.contains('エンジンオイル交換'),
+        orElse: () => throw 'oilChange notification not found',
+      );
+
+      expect(oilNotif.reason, isNotNull);
+      // 前回日付が "年" 形式で含まれる（例: "2025年"）
+      expect(oilNotif.reason, contains('年'));
+      expect(oilNotif.reason, contains('前回'));
+    });
+  });
 }
