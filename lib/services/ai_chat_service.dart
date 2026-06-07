@@ -13,6 +13,16 @@ import '../models/chat_message.dart';
 /// secret — it is never embedded in the mobile binary.
 /// Every request is authenticated via a Firebase ID token.
 class AiChatService {
+  /// Optional HTTP client for dependency injection (used in tests).
+  final http.Client? _httpClient;
+
+  /// Optional FirebaseAuth instance for dependency injection (used in tests).
+  final FirebaseAuth? _auth;
+
+  AiChatService({http.Client? httpClient, FirebaseAuth? auth})
+      : _httpClient = httpClient,
+        _auth = auth;
+
   // Cloud Function base URL — set FIREBASE_FUNCTIONS_URL in .env
   // e.g. https://asia-northeast1-trust-car-platform.cloudfunctions.net
   String get _functionsBaseUrl =>
@@ -37,7 +47,7 @@ class AiChatService {
     }
 
     // Obtain a fresh Firebase ID token to authenticate with the Cloud Function.
-    final user = FirebaseAuth.instance.currentUser;
+    final user = (_auth ?? FirebaseAuth.instance).currentUser;
     if (user == null) {
       return const Result.failure(
         ServerError('ログインが必要です。'),
@@ -70,7 +80,8 @@ class AiChatService {
         'history': messages,
       });
 
-      final response = await http
+      final client = _httpClient ?? http.Client();
+      final response = await client
           .post(
             Uri.parse(_endpoint),
             headers: {
