@@ -37,4 +37,18 @@ class ChatMessage {
     createdAt: createdAt,
     isLoading: isLoading ?? this.isLoading,
   );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'role': role.name,
+    'content': content,
+    'createdAt': createdAt.toIso8601String(),
+  };
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
+    id: json['id'] as String,
+    role: ChatRole.values.byName(json['role'] as String),
+    content: json['content'] as String,
+    createdAt: DateTime.parse(json['createdAt'] as String),
+  );
 }

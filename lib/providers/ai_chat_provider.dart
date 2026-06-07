@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/chat_message.dart';
 import '../models/vehicle.dart';
 import '../services/ai_chat_service.dart';
@@ -12,6 +14,9 @@ class AiChatProvider with ChangeNotifier {
 
   AiChatProvider({required AiChatService service}) : _service = service;
 
+  static const _kHistoryKey = 'ai_chat_history';
+  static const _kMaxPersistedMessages = 20;
+
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
   String? _error;
@@ -22,6 +27,41 @@ class AiChatProvider with ChangeNotifier {
 
   /// Returns true when no messages have been sent yet (first open state).
   bool get isEmpty => _messages.isEmpty;
+
+  /// Loads persisted conversation from SharedPreferences.
+  /// Call once after the widget tree mounts (e.g. in initState via postFrameCallback).
+  Future<void> loadHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kHistoryKey);
+    if (raw == null) return;
+    try {
+      final list = (jsonDecode(raw) as List<dynamic>)
+          .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
+          .toList();
+      _messages
+        ..clear()
+        ..addAll(list);
+      notifyListeners();
+    } catch (_) {
+      // Ignore corrupt persisted data — start fresh
+    }
+  }
+
+  Future<void> _saveHistory() async {
+    final persisted = _messages.where((m) => !m.isLoading).toList();
+    final limited = persisted.length > _kMaxPersistedMessages
+        ? persisted.sublist(persisted.length - _kMaxPersistedMessages)
+        : persisted;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _kHistoryKey,
+        jsonEncode(limited.map((m) => m.toJson()).toList()),
+      );
+    } catch (_) {
+      // Fire-and-forget; persistence failure should not surface to the user
+    }
+  }
 
   /// Build a human-readable vehicle context string for the system prompt.
   String _buildVehicleContext(Vehicle? vehicle) {
@@ -78,6 +118,7 @@ class AiChatProvider with ChangeNotifier {
 
     _isLoading = false;
     notifyListeners();
+    _saveHistory();
   }
 
   /// Clear the entire conversation history and any error state.
@@ -85,5 +126,6 @@ class AiChatProvider with ChangeNotifier {
     _messages.clear();
     _error = null;
     notifyListeners();
+    _saveHistory();
   }
 }

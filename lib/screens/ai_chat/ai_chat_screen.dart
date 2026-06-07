@@ -48,6 +48,16 @@ class _AiChatViewState extends State<_AiChatView> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AiChatProvider>().loadHistory();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _inputController.dispose();
     _scrollController.dispose();

@@ -34,6 +34,11 @@ const MAX_TOKENS = 1024;
 const MAX_REQUESTS_PER_DAY = 20;
 const REGION = "asia-northeast1";
 
+// Input size limits to prevent prompt injection and cost attacks
+const MAX_USER_MESSAGE_LENGTH = 500;
+const MAX_HISTORY_MESSAGES = 20;
+const MAX_HISTORY_MESSAGE_LENGTH = 500;
+
 interface HistoryMessage {
   role: "user" | "assistant";
   content: string;
@@ -81,10 +86,29 @@ export const askCarAi = onRequest(
       .collection("daily")
       .doc(jstDate);
 
-    const usageSnap = await usageRef.get();
-    const currentCount = (usageSnap.data()?.count as number) ?? 0;
+    // Atomic transaction: check and increment in a single round-trip to prevent race conditions
+    let rateLimited = false;
+    try {
+      await admin.firestore().runTransaction(async (txn) => {
+        const snap = await txn.get(usageRef);
+        const count = (snap.data()?.count as number) ?? 0;
+        if (count >= MAX_REQUESTS_PER_DAY) {
+          rateLimited = true;
+          return;
+        }
+        txn.set(
+          usageRef,
+          { count: count + 1, updatedAt: admin.firestore.Timestamp.now() },
+          { merge: true }
+        );
+      });
+    } catch (txnError) {
+      console.error("Rate limit transaction failed:", txnError);
+      res.status(500).json({ error: "内部エラーが発生しました" });
+      return;
+    }
 
-    if (currentCount >= MAX_REQUESTS_PER_DAY) {
+    if (rateLimited) {
       res.status(429).json({
         error: `1日の利用上限（${MAX_REQUESTS_PER_DAY}回）に達しました。明日また試してください。`,
       });
@@ -103,12 +127,26 @@ export const askCarAi = onRequest(
       return;
     }
 
+    if (userMessage.trim().length > MAX_USER_MESSAGE_LENGTH) {
+      res.status(400).json({ error: `メッセージは${MAX_USER_MESSAGE_LENGTH}文字以内で入力してください` });
+      return;
+    }
+
     // --- 4. Call Anthropic API ---
+    // Sanitize history: valid roles only, truncate oversized content, keep last N messages
+    const sanitizedHistory: HistoryMessage[] = (history ?? [])
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({
+        role: m.role,
+        content: typeof m.content === "string"
+          ? m.content.slice(0, MAX_HISTORY_MESSAGE_LENGTH)
+          : "",
+      }))
+      .filter((m) => m.content.length > 0)
+      .slice(-MAX_HISTORY_MESSAGES);
+
     const messages: HistoryMessage[] = [
-      ...(history ?? []).filter(
-        (m) =>
-          m.role === "user" || m.role === "assistant"
-      ),
+      ...sanitizedHistory,
       { role: "user", content: userMessage.trim() },
     ];
 
@@ -139,17 +177,6 @@ export const askCarAi = onRequest(
         content: Array<{ type: string; text: string }>;
       };
       const reply = data.content.find((c) => c.type === "text")?.text ?? "";
-
-      // --- 5. Increment usage counter (fire-and-forget safe to fail) ---
-      usageRef
-        .set(
-          {
-            count: currentCount + 1,
-            updatedAt: admin.firestore.Timestamp.now(),
-          },
-          { merge: true }
-        )
-        .catch((e) => console.warn("Failed to update usage counter:", e));
 
       res.status(200).json({ reply });
     } catch (error) {
