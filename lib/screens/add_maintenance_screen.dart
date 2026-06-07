@@ -40,6 +40,10 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   final _partNumberController = TextEditingController();
   final _partManufacturerController = TextEditingController();
 
+  // Phase 6: Tire-specific controllers and state
+  final _tireSizeController = TextEditingController();
+  String? _tirePosition;
+
   MaintenanceType _selectedType = MaintenanceType.repair;
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
@@ -80,6 +84,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
         _partManufacturerController.text = record.partManufacturer!;
       }
       if (record.description != null) _descriptionController.text = record.description!;
+      // Phase 6: tire fields
+      if (record.tireSize != null) _tireSizeController.text = record.tireSize!;
+      _tirePosition = record.tirePosition;
     }
   }
 
@@ -92,6 +99,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     _mileageController.dispose();
     _partNumberController.dispose();
     _partManufacturerController.dispose();
+    _tireSizeController.dispose();
     _invoiceOcrService.dispose();
     super.dispose();
   }
@@ -205,6 +213,11 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
         partManufacturer: _partManufacturerController.text.isEmpty
             ? null
             : _partManufacturerController.text,
+        // Phase 6: tire fields (only persisted for tire-related types)
+        tireSize: _isTireType
+            ? (_tireSizeController.text.isEmpty ? null : _tireSizeController.text)
+            : null,
+        tirePosition: _isTireType ? _tirePosition : null,
       );
 
       final provider =
@@ -236,12 +249,22 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     }
   }
 
+  /// Returns true when the selected type is tire-related.
+  bool get _isTireType =>
+      _selectedType == MaintenanceType.tireChange ||
+      _selectedType == MaintenanceType.tireRotation;
+
   void _onTypeSelected(MaintenanceType type) {
     setState(() {
       _selectedType = type;
       // タイプに応じてタイトルを自動設定（空の場合のみ）
       if (_titleController.text.isEmpty) {
         _titleController.text = type.displayName;
+      }
+      // Reset tire-specific fields when switching away from tire types
+      if (!_isTireType) {
+        _tireSizeController.clear();
+        _tirePosition = null;
       }
     });
   }
@@ -471,6 +494,43 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  AppSpacing.verticalMd,
+                ],
+
+                // タイヤ詳細情報（タイヤ交換・ローテーション時のみ表示）
+                if (_isTireType) ...[
+                  Text(
+                    'タイヤ詳細（任意）',
+                    style: theme.textTheme.labelLarge,
+                  ),
+                  AppSpacing.verticalXs,
+                  AppTextField(
+                    controller: _tireSizeController,
+                    labelText: 'タイヤサイズ',
+                    hintText: '例: 215/55R17',
+                    prefixIcon: const Icon(Icons.tire_repair),
+                  ),
+                  AppSpacing.verticalMd,
+                  DropdownButtonFormField<String>(
+                    value: _tirePosition,
+                    decoration: const InputDecoration(
+                      labelText: '交換位置',
+                      prefixIcon: Icon(Icons.swap_vert),
+                    ),
+                    items: ['全輪', '前輪', '後輪', '左前', '右前', '左後', '右後']
+                        .map(
+                          (p) => DropdownMenuItem(value: p, child: Text(p)),
+                        )
+                        .toList(),
+                    onChanged: (v) => setState(() => _tirePosition = v),
+                  ),
+                  AppSpacing.verticalMd,
+                  AppTextField(
+                    controller: _partManufacturerController,
+                    labelText: 'タイヤメーカー',
+                    hintText: '例: ブリヂストン、ミシュラン',
+                    prefixIcon: const Icon(Icons.business),
                   ),
                   AppSpacing.verticalMd,
                 ],

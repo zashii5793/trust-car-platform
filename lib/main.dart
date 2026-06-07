@@ -37,6 +37,8 @@ import 'screens/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/onboarding_screen.dart';
 import 'core/theme/app_theme.dart';
+import 'providers/ai_chat_provider.dart';
+import 'services/ai_chat_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -159,6 +161,9 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => DriveRecordingProvider(
           driveLogService: sl.get<DriveLogService>(),
           analyticsService: sl.get<AnalyticsService>(),
+        )),
+        ChangeNotifierProvider(create: (_) => AiChatProvider(
+          service: sl.get<AiChatService>(),
         )),
       ],
       child: MaterialApp(

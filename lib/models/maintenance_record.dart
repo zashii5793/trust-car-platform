@@ -325,6 +325,11 @@ class MaintenanceRecord {
   final int? taxAmount;                     // 消費税額
   final int? discountAmount;                // 割引額
 
+  // Phase 6 追加フィールド: タイヤ詳細
+  final String? tireSize;          // e.g., "215/55R17"
+  final String? tirePosition;      // "全輪" | "前輪" | "後輪" | "左前" | "右前" | "左後" | "右後"
+  final int? tireTreadDepth;       // 溝の深さ (mm, optional)
+
   MaintenanceRecord({
     required this.id,
     required this.vehicleId,
@@ -356,6 +361,10 @@ class MaintenanceRecord {
     this.miscCost,
     this.taxAmount,
     this.discountAmount,
+    // Phase 6 追加
+    this.tireSize,
+    this.tirePosition,
+    this.tireTreadDepth,
   });
 
   // Firestoreからデータを取得
@@ -396,6 +405,10 @@ class MaintenanceRecord {
       miscCost: data['miscCost'],
       taxAmount: data['taxAmount'],
       discountAmount: data['discountAmount'],
+      // Phase 6 追加
+      tireSize: data['tireSize'],
+      tirePosition: data['tirePosition'],
+      tireTreadDepth: data['tireTreadDepth'] as int?,
     );
   }
 
@@ -478,6 +491,10 @@ class MaintenanceRecord {
       'miscCost': miscCost,
       'taxAmount': taxAmount,
       'discountAmount': discountAmount,
+      // Phase 6 追加 (only written when non-null)
+      if (tireSize != null) 'tireSize': tireSize,
+      if (tirePosition != null) 'tirePosition': tirePosition,
+      if (tireTreadDepth != null) 'tireTreadDepth': tireTreadDepth,
     };
   }
 
@@ -550,6 +567,10 @@ class MaintenanceRecord {
     int? miscCost,
     int? taxAmount,
     int? discountAmount,
+    // Phase 6 追加
+    String? tireSize,
+    String? tirePosition,
+    int? tireTreadDepth,
   }) {
     return MaintenanceRecord(
       id: id ?? this.id,
@@ -581,6 +602,10 @@ class MaintenanceRecord {
       miscCost: miscCost ?? this.miscCost,
       taxAmount: taxAmount ?? this.taxAmount,
       discountAmount: discountAmount ?? this.discountAmount,
+      // Phase 6 追加
+      tireSize: tireSize ?? this.tireSize,
+      tirePosition: tirePosition ?? this.tirePosition,
+      tireTreadDepth: tireTreadDepth ?? this.tireTreadDepth,
     );
   }
 

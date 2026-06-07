@@ -26,6 +26,10 @@ import 'marketplace/shop_owner_screen.dart';
 import 'sns/sns_feed_screen.dart';
 import 'drive/drive_log_screen.dart';
 import 'add_maintenance_screen.dart';
+import 'ai_chat/ai_chat_screen.dart';
+import '../widgets/vehicle/mileage_reminder_banner.dart';
+import '../widgets/vehicle/mileage_update_dialog.dart';
+import '../providers/ai_chat_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -108,6 +112,20 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
           return const SizedBox.shrink();
+        },
+      ),
+    );
+
+    // AIチャットボタン（全タブ共通）
+    actions.add(
+      IconButton(
+        icon: const Icon(Icons.smart_toy_outlined),
+        tooltip: 'AIに聞く',
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AiChatScreen()),
+          );
         },
       ),
     );
@@ -294,21 +312,45 @@ class _VehicleTab extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
-      padding: AppSpacing.paddingScreen,
-      itemCount: vehicleProvider.vehicles.length + 2, // +2 for dashboard + suggestion
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return _DashboardSummaryCard(
-            vehicles: vehicleProvider.vehicles,
-          );
-        }
-        if (index == 1) {
-          return _AiSuggestionSection(onSeeAll: onNavigateToMarketplace);
-        }
-        final vehicle = vehicleProvider.vehicles[index - 2];
-        return _VehicleCard(vehicle: vehicle);
-      },
+    final primaryVehicle = vehicleProvider.vehicles.first;
+
+    return Column(
+      children: [
+        MileageReminderBanner(
+          vehicle: primaryVehicle,
+          onTapUpdate: () => MileageUpdateDialog.show(
+            context,
+            primaryVehicle,
+            (newMileage) async {
+              final updated = primaryVehicle.copyWith(
+                mileage: newMileage,
+                mileageUpdatedAt: DateTime.now(),
+              );
+              await context
+                  .read<VehicleProvider>()
+                  .updateVehicle(primaryVehicle.id, updated);
+            },
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: AppSpacing.paddingScreen,
+            itemCount: vehicleProvider.vehicles.length + 2,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return _DashboardSummaryCard(
+                  vehicles: vehicleProvider.vehicles,
+                );
+              }
+              if (index == 1) {
+                return _AiSuggestionSection(onSeeAll: onNavigateToMarketplace);
+              }
+              final vehicle = vehicleProvider.vehicles[index - 2];
+              return _VehicleCard(vehicle: vehicle);
+            },
+          ),
+        ),
+      ],
     );
   }
 }
