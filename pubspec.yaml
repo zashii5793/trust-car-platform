@@ -45,6 +45,8 @@ dependencies:
   url_launcher: ^6.3.0
   shared_preferences: ^2.5.5
   firebase_analytics: ^12.4.1
+  # AI Chat: Anthropic API
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:

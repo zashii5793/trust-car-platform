@@ -149,6 +149,7 @@ class Vehicle {
   final int year;
   final String grade;
   final int mileage;
+  final DateTime? mileageUpdatedAt;  // Last updated date of mileage
   final String? imageUrl;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -186,6 +187,7 @@ class Vehicle {
     required this.year,
     required this.grade,
     required this.mileage,
+    this.mileageUpdatedAt,
     this.imageUrl,
     required this.createdAt,
     required this.updatedAt,
@@ -255,6 +257,7 @@ class Vehicle {
       year: data['year'] ?? 0,
       grade: data['grade'] ?? '',
       mileage: data['mileage'] ?? 0,
+      mileageUpdatedAt: _parseTimestampNullable(data['mileageUpdatedAt']),
       imageUrl: data['imageUrl'],
       createdAt: _parseTimestamp(data['createdAt']),
       updatedAt: _parseTimestamp(data['updatedAt']),
@@ -309,6 +312,7 @@ class Vehicle {
       'year': year,
       'grade': grade,
       'mileage': mileage,
+      'mileageUpdatedAt': mileageUpdatedAt != null ? Timestamp.fromDate(mileageUpdatedAt!) : null,
       'imageUrl': imageUrl,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -349,6 +353,7 @@ class Vehicle {
     int? year,
     String? grade,
     int? mileage,
+    DateTime? mileageUpdatedAt,
     String? imageUrl,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -378,6 +383,7 @@ class Vehicle {
       year: year ?? this.year,
       grade: grade ?? this.grade,
       mileage: mileage ?? this.mileage,
+      mileageUpdatedAt: mileageUpdatedAt ?? this.mileageUpdatedAt,
       imageUrl: imageUrl ?? this.imageUrl,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
