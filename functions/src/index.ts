@@ -2,12 +2,14 @@
 //
 // Exports:
 //   onRevenueCatWebhook — HTTP endpoint called by RevenueCat after subscription events.
+//   askCarAi           — HTTPS proxy for Anthropic API (API key never leaves the server).
 //
 // Deploy:
 //   firebase deploy --only functions
 //
 // Environment secrets:
 //   REVENUECAT_WEBHOOK_SECRET  — set via: firebase functions:secrets:set REVENUECAT_WEBHOOK_SECRET
+//   ANTHROPIC_API_KEY          — set via: firebase functions:secrets:set ANTHROPIC_API_KEY
 
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
@@ -15,6 +17,7 @@ import { defineSecret } from "firebase-functions/params";
 import { handleWebhook } from "./webhook";
 import type { ShopSubscriptionUpdate } from "./types";
 export { onNewsletterSend } from "./sendNewsletter";
+export { askCarAi } from "./askCarAi";
 
 admin.initializeApp();
 

@@ -478,6 +478,20 @@ service cloud.firestore {
       allow write: if false; // written exclusively by Cloud Functions
     }
 
+    // ==================== AIチャット利用量カウンター ====================
+    // ai_chat_usage/{userId}/daily/{YYYY-MM-DD}
+    // Written exclusively by the askCarAi Cloud Function (server-side).
+    // Users can read their own usage so the UI can show remaining quota.
+    match /ai_chat_usage/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if false; // written exclusively by Cloud Functions
+
+      match /daily/{date} {
+        allow read: if isOwner(userId);
+        allow write: if false; // written exclusively by Cloud Functions
+      }
+    }
+
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;

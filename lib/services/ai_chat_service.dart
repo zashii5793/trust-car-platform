@@ -1,78 +1,99 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/chat_message.dart';
 
-/// Service for communicating with the Claude AI API.
+/// Service for communicating with the AI chat Cloud Function.
 ///
-/// Sends conversation history and vehicle context to generate
-/// automotive advice responses.
+/// The Cloud Function (`askCarAi`) holds the ANTHROPIC_API_KEY as a Firebase
+/// secret — it is never embedded in the mobile binary.
+/// Every request is authenticated via a Firebase ID token.
 class AiChatService {
-  static const _endpoint = 'https://api.anthropic.com/v1/messages';
-  static const _model = 'claude-haiku-4-5-20251001';
-  static const _maxTokens = 1024;
+  // Cloud Function base URL — set FIREBASE_FUNCTIONS_URL in .env
+  // e.g. https://asia-northeast1-trust-car-platform.cloudfunctions.net
+  String get _functionsBaseUrl =>
+      dotenv.env['FIREBASE_FUNCTIONS_URL'] ?? '';
 
-  String get _apiKey => dotenv.env['ANTHROPIC_API_KEY'] ?? '';
+  String get _endpoint => '$_functionsBaseUrl/askCarAi';
 
-  /// Send a user message and receive an AI response.
+  /// Send a user message and receive an AI response via the Cloud Function.
   ///
   /// [userMessage] The current user input.
-  /// [vehicleContext] Human-readable vehicle summary, e.g. "トヨタ プリウス 2020年式 走行距離45000km".
-  /// [history] Previous messages in the conversation (loading messages are excluded).
+  /// [vehicleContext] Human-readable vehicle summary.
+  /// [history] Previous messages in the conversation (loading messages excluded).
   Future<Result<String, AppError>> ask({
     required String userMessage,
     required String vehicleContext,
     required List<ChatMessage> history,
   }) async {
-    if (_apiKey.isEmpty) {
+    if (_functionsBaseUrl.isEmpty) {
       return const Result.failure(
-        ServerError('ANTHROPIC_API_KEYが設定されていません。.envファイルを確認してください。'),
+        ServerError('FIREBASE_FUNCTIONS_URLが設定されていません。.envファイルを確認してください。'),
       );
     }
 
+    // Obtain a fresh Firebase ID token to authenticate with the Cloud Function.
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const Result.failure(
+        ServerError('ログインが必要です。'),
+      );
+    }
+
+    final String? idToken;
     try {
-      // Build message history for the API (exclude loading placeholder messages)
-      final messages = [
-        ...history
-            .where((m) => !m.isLoading)
-            .map((m) => {
-                  'role': m.role == ChatRole.user ? 'user' : 'assistant',
-                  'content': m.content,
-                }),
-        {'role': 'user', 'content': userMessage},
-      ];
+      idToken = await user.getIdToken();
+    } catch (e) {
+      return Result.failure(ServerError('認証トークンの取得に失敗しました: $e'));
+    }
+
+    if (idToken == null) {
+      return const Result.failure(ServerError('認証トークンの取得に失敗しました。'));
+    }
+
+    try {
+      final messages = history
+          .where((m) => !m.isLoading)
+          .map((m) => {
+                'role': m.role == ChatRole.user ? 'user' : 'assistant',
+                'content': m.content,
+              })
+          .toList();
 
       final body = jsonEncode({
-        'model': _model,
-        'max_tokens': _maxTokens,
-        'system': _buildSystemPrompt(vehicleContext),
-        'messages': messages,
+        'userMessage': userMessage,
+        'vehicleContext': vehicleContext,
+        'history': messages,
       });
 
       final response = await http
           .post(
             Uri.parse(_endpoint),
             headers: {
-              'x-api-key': _apiKey,
-              'anthropic-version': '2023-06-01',
-              'content-type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+              'Content-Type': 'application/json',
             },
             body: body,
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final content = (data['content'] as List).first as Map<String, dynamic>;
-        return Result.success(content['text'] as String);
+        return Result.success(data['reply'] as String);
+      } else if (response.statusCode == 429) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return Result.failure(
+          ServerError(data['error'] as String? ?? '1日の利用上限に達しました。'),
+        );
       } else {
-        final error = jsonDecode(response.body);
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
         return Result.failure(
           ServerError(
-            'AIの応答に失敗しました (${response.statusCode}): ${error['error']?['message'] ?? ''}',
+            'AIの応答に失敗しました (${response.statusCode}): ${data['error'] ?? ''}',
             statusCode: response.statusCode,
           ),
         );
@@ -86,26 +107,5 @@ class AiChatService {
     } catch (e) {
       return Result.failure(ServerError('AIとの通信に失敗しました: $e'));
     }
-  }
-
-  String _buildSystemPrompt(String vehicleContext) {
-    return '''あなたはクルマの専門家AIアシスタントです。日本語で、親しみやすく丁寧に回答します。
-
-ユーザーの車両情報:
-$vehicleContext
-
-できること:
-- 消耗品（オイル・タイヤ・ワイパー・バッテリー等）の交換時期の目安
-- 車のトラブルシューティングと対処法のアドバイス
-- 整備工場への問い合わせ前の事前確認
-- 車検・定期点検に関するアドバイス
-- カスタム・ドレスアップのアドバイス
-- 保険・税金に関する一般的な情報
-
-回答スタイル:
-- 簡潔に、箇条書きを活用する
-- 専門用語には説明を添える
-- 不確かな情報は「目安として」と前置きする
-- 整備は専門家（整備士）に相談することを推奨する''';
   }
 }
