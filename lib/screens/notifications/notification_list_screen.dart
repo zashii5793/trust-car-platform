@@ -137,6 +137,48 @@ class NotificationListScreen extends StatelessWidget {
                   ),
                   AppSpacing.verticalLg,
 
+                  // AI提案理由
+                  if (notification.reason != null) ...[
+                    Container(
+                      padding: AppSpacing.paddingCard,
+                      decoration: BoxDecoration(
+                        color: AppColors.infoBackground,
+                        borderRadius: AppSpacing.borderRadiusMd,
+                        border: Border.all(
+                          color: AppColors.info.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.auto_awesome,
+                                size: 14,
+                                color: AppColors.info,
+                              ),
+                              AppSpacing.horizontalXs,
+                              Text(
+                                'なぜ今なのか',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: AppColors.info,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          AppSpacing.verticalXxs,
+                          Text(
+                            notification.reason!,
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                    AppSpacing.verticalMd,
+                  ],
+
                   // 詳細情報
                   if (notification.actionDate != null) ...[
                     _DetailRow(

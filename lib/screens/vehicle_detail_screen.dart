@@ -827,87 +827,136 @@ class _MaintenanceTimelineItem extends StatelessWidget {
                 top: AppSpacing.xs,
                 bottom: AppSpacing.md,
               ),
-              child: GestureDetector(
-                onTap: onTap,
-                child: AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Date + type badge
-                      Row(
-                        children: [
-                          Text(
-                            dateFormat.format(record.date),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: isDark
-                                  ? AppColors.darkTextTertiary
-                                  : AppColors.textTertiary,
+              child: Card(
+                elevation: 2,
+                margin: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                    borderRadius: AppSpacing.borderRadiusMd),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: onTap,
+                  child: IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Left type-color accent bar
+                        Container(width: 4, color: typeColor),
+                        Expanded(
+                          child: Padding(
+                            padding: AppSpacing.paddingCard,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Date + type badge
+                                Row(
+                                  children: [
+                                    Text(
+                                      dateFormat.format(record.date),
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                        color: isDark
+                                            ? AppColors.darkTextTertiary
+                                            : AppColors.textTertiary,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.xs,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: typeColor.withValues(alpha: 0.12),
+                                        borderRadius: AppSpacing.borderRadiusXs,
+                                      ),
+                                      child: Text(
+                                        record.typeDisplayName,
+                                        style: TextStyle(
+                                          color: typeColor,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                AppSpacing.verticalXxs,
+                                // Title
+                                Text(
+                                  record.title,
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                AppSpacing.verticalXxs,
+                                // Cost + mileage at service
+                                Row(
+                                  children: [
+                                    Text(
+                                      '¥${NumberFormat('#,###').format(record.cost)}',
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: typeColor,
+                                      ),
+                                    ),
+                                    if (record.mileageAtService != null) ...[
+                                      const Spacer(),
+                                      Icon(
+                                        Icons.speed,
+                                        size: 12,
+                                        color: isDark
+                                            ? AppColors.darkTextTertiary
+                                            : AppColors.textTertiary,
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        '${NumberFormat('#,###').format(record.mileageAtService!)} km',
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                          color: isDark
+                                              ? AppColors.darkTextTertiary
+                                              : AppColors.textTertiary,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                // Shop name (optional)
+                                if (record.shopName != null &&
+                                    record.shopName!.isNotEmpty) ...[
+                                  AppSpacing.verticalXxs,
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.store_outlined,
+                                        size: 13,
+                                        color: isDark
+                                            ? AppColors.darkTextTertiary
+                                            : AppColors.textTertiary,
+                                      ),
+                                      AppSpacing.horizontalXxs,
+                                      Flexible(
+                                        child: Text(
+                                          record.shopName!,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                            color: isDark
+                                                ? AppColors.darkTextTertiary
+                                                : AppColors.textTertiary,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.xs,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: typeColor.withValues(alpha: 0.12),
-                              borderRadius: AppSpacing.borderRadiusXs,
-                            ),
-                            child: Text(
-                              record.typeDisplayName,
-                              style: TextStyle(
-                                color: typeColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      AppSpacing.verticalXxs,
-                      // Title
-                      Text(
-                        record.title,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      AppSpacing.verticalXxs,
-                      // Cost
-                      Text(
-                        '¥${NumberFormat('#,###').format(record.cost)}',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: typeColor,
-                        ),
-                      ),
-                      // Shop name (optional)
-                      if (record.shopName != null &&
-                          record.shopName!.isNotEmpty) ...[
-                        AppSpacing.verticalXxs,
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.store_outlined,
-                              size: 13,
-                              color: isDark
-                                  ? AppColors.darkTextTertiary
-                                  : AppColors.textTertiary,
-                            ),
-                            AppSpacing.horizontalXxs,
-                            Text(
-                              record.shopName!,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: isDark
-                                    ? AppColors.darkTextTertiary
-                                    : AppColors.textTertiary,
-                              ),
-                            ),
-                          ],
                         ),
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),

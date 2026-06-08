@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -67,7 +68,21 @@ class ProfileScreen extends StatelessWidget {
                   isPremium: isPremium,
                 ),
 
-                AppSpacing.verticalXxl,
+                AppSpacing.verticalLg,
+
+                // 統計セクション
+                Consumer2<VehicleProvider, MaintenanceProvider>(
+                  builder: (context, vehicleProvider, maintenanceProvider, _) {
+                    return _StatsSection(
+                      vehicleCount: vehicleProvider.vehicles.length,
+                      maintenanceCount: maintenanceProvider.records.length,
+                      totalMileage: vehicleProvider.vehicles
+                          .fold(0, (sum, v) => sum + v.mileage),
+                    );
+                  },
+                ),
+
+                AppSpacing.verticalLg,
 
                 // メニュー項目
                 _MenuSection(
@@ -547,6 +562,108 @@ class _ProfileHeader extends StatelessWidget {
           visualDensity: VisualDensity.compact,
         ),
       ],
+    );
+  }
+}
+
+class _StatsSection extends StatelessWidget {
+  final int vehicleCount;
+  final int maintenanceCount;
+  final int totalMileage;
+
+  const _StatsSection({
+    required this.vehicleCount,
+    required this.maintenanceCount,
+    required this.totalMileage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _StatItem(
+          icon: Icons.directions_car,
+          value: vehicleCount.toString(),
+          label: '登録車両',
+          color: AppColors.primary,
+        ),
+        const _StatDivider(),
+        _StatItem(
+          icon: Icons.build_outlined,
+          value: maintenanceCount.toString(),
+          label: '整備記録',
+          color: AppColors.maintenanceParts,
+        ),
+        const _StatDivider(),
+        _StatItem(
+          icon: Icons.speed,
+          value: totalMileage == 0
+              ? '0'
+              : NumberFormat('#,###').format(totalMileage),
+          label: '総走行距離(km)',
+          color: AppColors.secondary,
+        ),
+      ],
+    );
+  }
+}
+
+class _StatItem extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color color;
+
+  const _StatItem({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          AppSpacing.verticalXs,
+          Text(
+            value,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      width: 1,
+      color: AppColors.divider.withValues(alpha: 0.4),
     );
   }
 }
