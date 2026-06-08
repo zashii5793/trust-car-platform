@@ -199,41 +199,50 @@ class _HomeScreenState extends State<HomeScreen> {
           : null,
       bottomNavigationBar: Consumer<NotificationProvider>(
         builder: (context, notificationProvider, child) {
-          return BottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
+          final unread = notificationProvider.unreadCount;
+          return NavigationBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: (index) {
+              setState(() => _currentIndex = index);
             },
-            items: [
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.directions_car),
+            destinations: [
+              const NavigationDestination(
+                icon: Icon(Icons.directions_car_outlined),
+                selectedIcon: Icon(Icons.directions_car),
                 label: 'マイカー',
               ),
-              const BottomNavigationBarItem(
+              const NavigationDestination(
                 icon: Icon(Icons.store_outlined),
+                selectedIcon: Icon(Icons.store),
                 label: 'マーケット',
               ),
-              const BottomNavigationBarItem(
+              const NavigationDestination(
                 icon: Icon(Icons.forum_outlined),
+                selectedIcon: Icon(Icons.forum),
                 label: 'みんなの投稿',
               ),
-              BottomNavigationBarItem(
+              NavigationDestination(
                 icon: Badge(
-                  isLabelVisible: notificationProvider.unreadCount > 0,
+                  isLabelVisible: unread > 0,
                   label: Text(
-                    notificationProvider.unreadCount > 99
-                        ? '99+'
-                        : notificationProvider.unreadCount.toString(),
+                    unread > 99 ? '99+' : '$unread',
                     style: const TextStyle(fontSize: 10),
                   ),
                   child: const Icon(Icons.notifications_outlined),
                 ),
+                selectedIcon: Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text(
+                    unread > 99 ? '99+' : '$unread',
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                  child: const Icon(Icons.notifications),
+                ),
                 label: '通知',
               ),
-              const BottomNavigationBarItem(
+              const NavigationDestination(
                 icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
                 label: 'プロフィール',
               ),
             ],
@@ -713,6 +722,18 @@ class _VehicleCard extends StatelessWidget {
     return formatter.format(mileage);
   }
 
+  Color _statusAccentColor() {
+    if (vehicle.isInspectionExpired ||
+        (vehicle.daysUntilInsuranceExpiry != null &&
+            vehicle.daysUntilInsuranceExpiry! < 0)) {
+      return AppColors.error;
+    }
+    if (vehicle.isInspectionDueSoon || vehicle.isInsuranceDueSoon) {
+      return AppColors.warning;
+    }
+    return AppColors.success;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -724,7 +745,6 @@ class _VehicleCard extends StatelessWidget {
         (vehicle.daysUntilInsuranceExpiry != null &&
             vehicle.daysUntilInsuranceExpiry! < 0);
 
-    // Count maintenance suggestions for this vehicle from NotificationProvider
     final suggestionCount = context
         .watch<NotificationProvider>()
         .getNotificationsForVehicle(vehicle.id)
@@ -734,180 +754,216 @@ class _VehicleCard extends StatelessWidget {
                 n.priority == NotificationPriority.medium))
         .length;
 
-    return AppCard(
+    final accentColor = _statusAccentColor();
+
+    return Card(
       margin: AppSpacing.marginListItem,
-      onTap: () {
-        Provider.of<VehicleProvider>(context, listen: false)
-            .selectVehicle(vehicle);
-        Provider.of<MaintenanceProvider>(context, listen: false)
-            .listenToMaintenanceRecords(vehicle.id);
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => VehicleDetailScreen(vehicle: vehicle),
-          ),
-        );
-      },
-      child: Column(
-        children: [
-          Row(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusMd),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          Provider.of<VehicleProvider>(context, listen: false)
+              .selectVehicle(vehicle);
+          Provider.of<MaintenanceProvider>(context, listen: false)
+              .listenToMaintenanceRecords(vehicle.id);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VehicleDetailScreen(vehicle: vehicle),
+            ),
+          );
+        },
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 車両画像
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkCard : AppColors.backgroundLight,
-                  borderRadius: AppSpacing.borderRadiusSm,
-                ),
-                child: vehicle.imageUrl != null && vehicle.imageUrl!.isNotEmpty
-                    ? ClipRRect(
-                        borderRadius: AppSpacing.borderRadiusSm,
-                        child: Image.network(
-                          vehicle.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              _buildPlaceholder(isDark),
-                        ),
-                      )
-                    : _buildPlaceholder(isDark),
-              ),
-              AppSpacing.horizontalMd,
-              // 車両情報
+              // Left status accent bar (green=ok / orange=warning / red=expired)
+              Container(width: 4, color: accentColor),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${vehicle.maker} ${vehicle.model}',
-                      style: theme.textTheme.headlineMedium,
-                    ),
-                    AppSpacing.verticalXxs,
-                    Text(
-                      '${vehicle.year}年式 ${vehicle.grade}',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                    AppSpacing.verticalXxs,
-                    // 走行距離 + 燃料タイプ
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.speed,
-                          size: AppSpacing.iconSm,
-                          color: isDark
-                              ? AppColors.darkTextTertiary
-                              : AppColors.textTertiary,
-                        ),
-                        AppSpacing.horizontalXs,
-                        Text(
-                          '${_formatMileage(vehicle.mileage)} km',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        if (vehicle.fuelType != null) ...[
-                          AppSpacing.horizontalSm,
-                          _InfoChip(
-                            label: vehicle.fuelType!.displayName,
-                            color: AppColors.secondary,
-                            isDark: isDark,
+                child: Padding(
+                  padding: AppSpacing.paddingCard,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 車両画像
+                          Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? AppColors.darkCard
+                                  : AppColors.backgroundLight,
+                              borderRadius: AppSpacing.borderRadiusSm,
+                            ),
+                            child: vehicle.imageUrl != null &&
+                                    vehicle.imageUrl!.isNotEmpty
+                                ? ClipRRect(
+                                    borderRadius: AppSpacing.borderRadiusSm,
+                                    child: Image.network(
+                                      vehicle.imageUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          _buildPlaceholder(isDark),
+                                    ),
+                                  )
+                                : _buildPlaceholder(isDark),
                           ),
-                        ],
-                      ],
-                    ),
-                    AppSpacing.verticalXxs,
-                    // ナンバープレート + 車検残日数
-                    Row(
-                      children: [
-                        if (vehicle.licensePlate != null &&
-                            vehicle.licensePlate!.isNotEmpty) ...[
-                          Icon(
-                            Icons.credit_card_outlined,
-                            size: 13,
-                            color: isDark
-                                ? AppColors.darkTextTertiary
-                                : AppColors.textTertiary,
-                          ),
-                          AppSpacing.horizontalXs,
-                          Flexible(
-                            child: Text(
-                              vehicle.licensePlate!,
-                              style: theme.textTheme.bodySmall,
-                              overflow: TextOverflow.ellipsis,
+                          AppSpacing.horizontalMd,
+                          // 車両情報
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${vehicle.maker} ${vehicle.model}',
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark
+                                        ? AppColors.darkTextPrimary
+                                        : AppColors.textPrimary,
+                                  ),
+                                ),
+                                AppSpacing.verticalXxs,
+                                Text(
+                                  '${vehicle.year}年式 ${vehicle.grade}',
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                                AppSpacing.verticalXxs,
+                                // 走行距離 + 燃料タイプ
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.speed,
+                                      size: AppSpacing.iconSm,
+                                      color: isDark
+                                          ? AppColors.darkTextTertiary
+                                          : AppColors.textTertiary,
+                                    ),
+                                    AppSpacing.horizontalXs,
+                                    Text(
+                                      '${_formatMileage(vehicle.mileage)} km',
+                                      style: theme.textTheme.bodySmall,
+                                    ),
+                                    if (vehicle.fuelType != null) ...[
+                                      AppSpacing.horizontalSm,
+                                      _InfoChip(
+                                        label: vehicle.fuelType!.displayName,
+                                        color: AppColors.secondary,
+                                        isDark: isDark,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                AppSpacing.verticalXxs,
+                                // ナンバープレート + 車検残日数
+                                Row(
+                                  children: [
+                                    if (vehicle.licensePlate != null &&
+                                        vehicle.licensePlate!.isNotEmpty) ...[
+                                      Icon(
+                                        Icons.credit_card_outlined,
+                                        size: 13,
+                                        color: isDark
+                                            ? AppColors.darkTextTertiary
+                                            : AppColors.textTertiary,
+                                      ),
+                                      AppSpacing.horizontalXs,
+                                      Flexible(
+                                        child: Text(
+                                          vehicle.licensePlate!,
+                                          style: theme.textTheme.bodySmall,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      AppSpacing.horizontalSm,
+                                    ],
+                                    if (vehicle.daysUntilInspection != null &&
+                                        !vehicle.isInspectionExpired) ...[
+                                      Icon(
+                                        Icons.verified_outlined,
+                                        size: 13,
+                                        color: vehicle.isInspectionDueSoon
+                                            ? AppColors.warning
+                                            : (isDark
+                                                ? AppColors.darkTextTertiary
+                                                : AppColors.textTertiary),
+                                      ),
+                                      AppSpacing.horizontalXs,
+                                      Text(
+                                        '車検 残${vehicle.daysUntilInspection}日',
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                          color: vehicle.isInspectionDueSoon
+                                              ? AppColors.warning
+                                              : null,
+                                          fontWeight:
+                                              vehicle.isInspectionDueSoon
+                                                  ? FontWeight.w600
+                                                  : null,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
-                          AppSpacing.horizontalSm,
-                        ],
-                        if (vehicle.daysUntilInspection != null &&
-                            !vehicle.isInspectionExpired) ...[
-                          Icon(
-                            Icons.verified_outlined,
-                            size: 13,
-                            color: vehicle.isInspectionDueSoon
-                                ? AppColors.warning
-                                : (isDark
+                          // 提案バッジ + シェブロン
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Icon(
+                                Icons.chevron_right,
+                                color: isDark
                                     ? AppColors.darkTextTertiary
-                                    : AppColors.textTertiary),
-                          ),
-                          AppSpacing.horizontalXs,
-                          Text(
-                            '車検 残${vehicle.daysUntilInspection}日',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: vehicle.isInspectionDueSoon
-                                  ? AppColors.warning
-                                  : null,
-                              fontWeight: vehicle.isInspectionDueSoon
-                                  ? FontWeight.w600
-                                  : null,
-                            ),
+                                    : AppColors.textTertiary,
+                              ),
+                              if (suggestionCount > 0) ...[
+                                AppSpacing.verticalXxs,
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: AppSpacing.xs,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.warning
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: AppSpacing.borderRadiusXs,
+                                    border: Border.all(
+                                      color: AppColors.warning
+                                          .withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '提案 $suggestionCount件',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.warning,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ],
+                      ),
+                      // 車検・保険警告バナー
+                      if (hasInspectionWarning || hasInsuranceWarning) ...[
+                        AppSpacing.verticalSm,
+                        _buildWarningBanner(context, theme),
                       ],
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Icon(
-                    Icons.chevron_right,
-                    color: isDark
-                        ? AppColors.darkTextTertiary
-                        : AppColors.textTertiary,
+                    ],
                   ),
-                  if (suggestionCount > 0) ...[
-                    AppSpacing.verticalXxs,
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.xs,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.warning.withValues(alpha: 0.12),
-                        borderRadius: AppSpacing.borderRadiusXs,
-                        border: Border.all(
-                          color: AppColors.warning.withValues(alpha: 0.4),
-                        ),
-                      ),
-                      child: Text(
-                        '提案 $suggestionCount件',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.warning,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
+                ),
               ),
             ],
           ),
-          // 車検・保険警告バナー
-          if (hasInspectionWarning || hasInsuranceWarning) ...[
-            AppSpacing.verticalSm,
-            _buildWarningBanner(context, theme),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -1228,17 +1284,35 @@ class _AiSuggestionSection extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.lightbulb_outline,
-                    size: AppSpacing.iconSm,
-                    color: theme.colorScheme.primary,
-                  ),
-                  AppSpacing.horizontalXs,
-                  Text(
-                    'メンテナンスの提案',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xxs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                      border: Border.all(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 13,
+                          color: theme.colorScheme.primary,
+                        ),
+                        AppSpacing.horizontalXs,
+                        Text(
+                          'AIからの提案',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const Spacer(),
@@ -1384,98 +1458,101 @@ class _SuggestionCardState extends State<_SuggestionCard> {
 
     return GestureDetector(
       onTap: () => _openDetailSheet(context),
-      child: Container(
+      child: SizedBox(
         width: 210,
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: widget.isDark ? AppColors.darkCard : Colors.white,
-          borderRadius: AppSpacing.borderRadiusMd,
-          border: Border.all(color: color.withValues(alpha: 0.4)),
-          boxShadow: widget.isDark
-              ? null
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+        child: Card(
+          margin: EdgeInsets.zero,
+          elevation: 2,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: AppSpacing.borderRadiusMd,
+            side: BorderSide(color: color.withValues(alpha: 0.25)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Colored top accent strip
+              Container(height: 3, color: color),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ---- アイコン + 優先度バッジ ----
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 14,
+                            backgroundColor: color.withValues(alpha: 0.12),
+                            child: Icon(_typeIcon, size: 15, color: color),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              n.priority == NotificationPriority.high
+                                  ? '要対応'
+                                  : '推奨',
+                              style: TextStyle(
+                                color: color,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      AppSpacing.verticalXs,
+                      // ---- タイトル ----
+                      Text(
+                        n.title,
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      AppSpacing.verticalXxs,
+                      // ---- メッセージ ----
+                      Expanded(
+                        child: Text(
+                          n.message,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: widget.isDark
+                                ? AppColors.darkTextTertiary
+                                : AppColors.textTertiary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // ---- 「理由を見る」ヒント ----
+                      AppSpacing.verticalXxs,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            'タップで詳細',
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Icon(Icons.chevron_right, size: 13, color: color),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ---- アイコン + 優先度バッジ ----
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: color.withValues(alpha: 0.12),
-                  child: Icon(_typeIcon, size: 15, color: color),
                 ),
-                const Spacer(),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    n.priority == NotificationPriority.high ? '要対応' : '推奨',
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            AppSpacing.verticalXs,
-
-            // ---- タイトル ----
-            Text(
-              n.title,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-
-            AppSpacing.verticalXxs,
-
-            // ---- メッセージ ----
-            Expanded(
-              child: Text(
-                n.message,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: widget.isDark
-                      ? AppColors.darkTextTertiary
-                      : AppColors.textTertiary,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-
-            // ---- 「理由を見る」ヒント ----
-            AppSpacing.verticalXxs,
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  'タップで詳細・工場を探す',
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Icon(Icons.chevron_right, size: 13, color: color),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
