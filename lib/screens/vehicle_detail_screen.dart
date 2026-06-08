@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
 import '../models/drive_log.dart';
+import '../models/app_notification.dart';
 import '../providers/maintenance_provider.dart';
+import '../providers/notification_provider.dart';
 import '../services/drive_log_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
@@ -198,6 +200,26 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                             vehicleName: '${_vehicle.maker} ${_vehicle.model}',
                           ),
                         ),
+                      );
+                    },
+                  ),
+
+                  // AI提案
+                  Consumer<NotificationProvider>(
+                    builder: (context, notifProvider, _) {
+                      final suggestions = notifProvider
+                          .getNotificationsForVehicle(_vehicle.id)
+                          .where((n) => !n.isRead)
+                          .take(3)
+                          .toList();
+                      if (suggestions.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return Column(
+                        children: [
+                          const Divider(height: 1),
+                          _VehicleAiSuggestions(suggestions: suggestions),
+                        ],
                       );
                     },
                   ),
@@ -1450,5 +1472,147 @@ class _DetailRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Vehicle AI suggestions — shows unread AI recommendations for this vehicle
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _VehicleAiSuggestions extends StatelessWidget {
+  final List<AppNotification> suggestions;
+
+  const _VehicleAiSuggestions({required this.suggestions});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: AppSpacing.paddingScreen,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section header pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+              border: Border.all(
+                color: theme.colorScheme.primary.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.auto_awesome,
+                  size: 13,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'AIからの提案',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.verticalSm,
+
+          // Suggestion rows
+          ...suggestions.map(
+            (n) => Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: _SuggestionRow(notification: n),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SuggestionRow extends StatelessWidget {
+  final AppNotification notification;
+
+  const _SuggestionRow({required this.notification});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = _typeColor(notification.type);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: AppSpacing.borderRadiusSm,
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Icon(_typeIcon(notification.type), size: 16, color: color),
+          AppSpacing.horizontalXs,
+          Expanded(
+            child: Text(
+              notification.title,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          if (notification.priority == NotificationPriority.high)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+              ),
+              child: const Text(
+                '緊急',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.error,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static Color _typeColor(NotificationType type) {
+    switch (type) {
+      case NotificationType.inspectionReminder:
+        return AppColors.maintenanceCarInspection;
+      case NotificationType.partsReplacement:
+        return AppColors.maintenanceParts;
+      case NotificationType.system:
+        return AppColors.info;
+      case NotificationType.maintenanceRecommendation:
+        return AppColors.maintenanceRepair;
+    }
+  }
+
+  static IconData _typeIcon(NotificationType type) {
+    switch (type) {
+      case NotificationType.inspectionReminder:
+        return Icons.verified_outlined;
+      case NotificationType.partsReplacement:
+        return Icons.build_outlined;
+      case NotificationType.system:
+        return Icons.info_outline;
+      case NotificationType.maintenanceRecommendation:
+        return Icons.car_repair;
+    }
   }
 }
