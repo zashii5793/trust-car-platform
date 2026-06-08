@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/colors.dart';
@@ -303,34 +304,60 @@ class _ChatBubble extends StatelessWidget {
             AppSpacing.horizontalXs,
           ],
           Flexible(
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.75,
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              decoration: BoxDecoration(
-                color: isUser
-                    ? AppColors.primary
-                    : theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(AppSpacing.radiusLg),
-                  topRight: const Radius.circular(AppSpacing.radiusLg),
-                  bottomLeft: Radius.circular(isUser ? AppSpacing.radiusLg : AppSpacing.radiusXs),
-                  bottomRight: Radius.circular(isUser ? AppSpacing.radiusXs : AppSpacing.radiusLg),
+            child: Column(
+              crossAxisAlignment:
+                  isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.75,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isUser
+                        ? AppColors.primary
+                        : theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(AppSpacing.radiusLg),
+                      topRight: const Radius.circular(AppSpacing.radiusLg),
+                      bottomLeft: Radius.circular(
+                          isUser ? AppSpacing.radiusLg : AppSpacing.radiusXs),
+                      bottomRight: Radius.circular(
+                          isUser ? AppSpacing.radiusXs : AppSpacing.radiusLg),
+                    ),
+                  ),
+                  child: message.isLoading
+                      ? const _TypingIndicator()
+                      : Text(
+                          message.content,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color:
+                                isUser ? Colors.white : AppColors.textPrimary,
+                            height: 1.5,
+                          ),
+                        ),
                 ),
-              ),
-              child: message.isLoading
-                  ? const _TypingIndicator()
-                  : Text(
-                      message.content,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: isUser ? Colors.white : AppColors.textPrimary,
-                        height: 1.5,
+                if (!message.isLoading) ...[
+                  const SizedBox(height: 3),
+                  Padding(
+                    padding: EdgeInsets.only(
+                      left: isUser ? 0 : 4,
+                      right: isUser ? 4 : 0,
+                    ),
+                    child: Text(
+                      DateFormat('HH:mm').format(message.createdAt),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontSize: 10,
+                        color: theme.colorScheme.onSurface
+                            .withValues(alpha: 0.4),
                       ),
                     ),
+                  ),
+                ],
+              ],
             ),
           ),
           if (isUser) AppSpacing.horizontalXs,

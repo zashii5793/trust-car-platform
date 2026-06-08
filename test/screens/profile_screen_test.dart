@@ -295,4 +295,23 @@ void main() {
       expect(find.byType(CircleAvatar), findsWidgets);
     });
   });
+
+  group('ProfileScreen — 統計セクション', () {
+    testWidgets('統計ラベルが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pump();
+
+      expect(find.text('登録車両'), findsOneWidget);
+      expect(find.text('整備記録'), findsOneWidget);
+      expect(find.text('総走行距離(km)'), findsOneWidget);
+    });
+
+    testWidgets('初期状態で車両数と整備記録数が 0 と表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pump();
+
+      // VehicleProvider と MaintenanceProvider が空なので '0' が複数表示される
+      expect(find.text('0'), findsWidgets);
+    });
+  });
 }

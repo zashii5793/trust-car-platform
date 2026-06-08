@@ -224,6 +224,7 @@ AppNotification _makeNotification({
   bool isRead = false,
   String title = 'オイル交換推奨',
   String message = '走行距離から交換時期を超えています',
+  String? reason,
 }) {
   return AppNotification(
     id: id,
@@ -235,6 +236,7 @@ AppNotification _makeNotification({
     priority: priority,
     isRead: isRead,
     createdAt: DateTime.now(),
+    reason: reason,
   );
 }
 
@@ -372,6 +374,41 @@ void main() {
 
       expect(find.text('新しい通知'), findsOneWidget);
       expect(find.text('通知はありません'), findsNothing);
+    });
+  });
+
+  group('詳細シート — reason 表示', () {
+    testWidgets('reason があるとき「なぜ今なのか」セクションが表示される', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(
+          id: 'n1',
+          title: 'オイル交換推奨',
+          reason: 'オイル交換から5,000km超過しています',
+        ),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.tap(find.text('オイル交換推奨'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('なぜ今なのか'), findsOneWidget);
+      expect(find.text('オイル交換から5,000km超過しています'), findsOneWidget);
+    });
+
+    testWidgets('reason がないとき「なぜ今なのか」セクションが非表示', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', title: 'タイヤ点検推奨'),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.tap(find.text('タイヤ点検推奨'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('なぜ今なのか'), findsNothing);
     });
   });
 }

@@ -381,6 +381,16 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                     }).toList(),
                   ),
 
+                AppSpacing.verticalSm,
+
+                // Selected type preview
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: _selectedType != null
+                      ? _buildTypePreview(_selectedType!)
+                      : const SizedBox.shrink(),
+                ),
+
                 AppSpacing.verticalLg,
 
                 // タイトル
@@ -582,6 +592,45 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           _onTypeSelected(type);
         }
       },
+    );
+  }
+
+  Widget _buildTypePreview(MaintenanceType type) {
+    return Container(
+      key: ValueKey(type),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: type.color.withValues(alpha: 0.08),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(color: type.color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: type.color.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(type.icon, size: 20, color: type.color),
+          ),
+          AppSpacing.horizontalSm,
+          Text(
+            type.displayName,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: type.color,
+              fontSize: 14,
+            ),
+          ),
+          const Spacer(),
+          Icon(Icons.check_circle, size: 18, color: type.color),
+        ],
+      ),
     );
   }
 
