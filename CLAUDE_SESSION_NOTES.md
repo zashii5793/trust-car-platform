@@ -1,6 +1,6 @@
 # Claude Session Notes
 
-最終更新: 2026-06-09
+最終更新: 2026-06-09（続き）
 
 ---
 
@@ -63,6 +63,21 @@
 - `context.mounted` チェック後に `AddMaintenanceScreen` へプッシュ
 
 ---
+
+### 整備統計画面強化
+- `maintenance_stats_screen.dart`:
+  - `headlaneLarge` バグ修正 → `_SectionHeader`（pill スタイル）
+  - `_TypeProportionBar`: カテゴリ別費用比率を積み上げカラーバーで可視化
+
+### ドライブ記録画面強化
+- `drive_recording_screen.dart`:
+  - `_PulsingGpsIndicator`: GPS インジケータをパルスアニメーション化
+  - 現在速度カード: ≤60=緑/60-99=オレンジ/≥100=赤 のアクセントカラー
+
+### SNS フィード強化
+- `sns_feed_screen.dart`:
+  - `_PostCard` に左アクセントバー（カテゴリ別色）を追加
+  - ハッシュタグをタップ可能チップ（pill 形状 + SnackBar フィードバック）
 
 ### ドライブログ画面強化
 - `drive_log_screen.dart`: `_DriveLogSummaryCard` + `_SummaryItem` を追加
