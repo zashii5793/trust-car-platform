@@ -1476,6 +1476,182 @@ class _DetailRow extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Suggestion detail bottom sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+void _showSuggestionDetail(
+    BuildContext context, AppNotification notification) {
+  final theme = Theme.of(context);
+  final dateFormat = DateFormat('yyyy/MM/dd');
+  final color = _SuggestionRow._typeColor(notification.type);
+
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (sheetContext) {
+      return DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (_, scrollController) {
+          return SingleChildScrollView(
+            controller: scrollController,
+            padding: AppSpacing.paddingScreen,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+
+                // Icon + type badge + priority
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: color,
+                      child: Icon(
+                        _SuggestionRow._typeIcon(notification.type),
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    AppSpacing.horizontalSm,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs,
+                        vertical: AppSpacing.xxs,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        borderRadius: AppSpacing.borderRadiusXs,
+                      ),
+                      child: Text(
+                        notification.typeDisplayName,
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    if (notification.priority == NotificationPriority.high)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.1),
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.radiusFull),
+                        ),
+                        child: const Text(
+                          '緊急',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                AppSpacing.verticalMd,
+
+                // Title
+                Text(notification.title, style: theme.textTheme.headlineLarge),
+                AppSpacing.verticalSm,
+
+                // Message
+                Text(notification.message, style: theme.textTheme.bodyLarge),
+                AppSpacing.verticalLg,
+
+                // Reason
+                if (notification.reason != null) ...[
+                  Container(
+                    padding: AppSpacing.paddingCard,
+                    decoration: BoxDecoration(
+                      color: AppColors.infoBackground,
+                      borderRadius: AppSpacing.borderRadiusMd,
+                      border: Border.all(
+                          color: AppColors.info.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.auto_awesome,
+                                size: 14, color: AppColors.info),
+                            AppSpacing.horizontalXs,
+                            Text(
+                              'なぜ今なのか',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: AppColors.info,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        AppSpacing.verticalXxs,
+                        Text(notification.reason!,
+                            style: theme.textTheme.bodyMedium),
+                      ],
+                    ),
+                  ),
+                  AppSpacing.verticalMd,
+                ],
+
+                // Action date
+                if (notification.actionDate != null) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.event,
+                          size: 16, color: AppColors.textTertiary),
+                      AppSpacing.horizontalXs,
+                      Text(
+                        '推奨日: ${dateFormat.format(notification.actionDate!)}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                  AppSpacing.verticalSm,
+                ],
+
+                AppSpacing.verticalLg,
+
+                // Close button
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    child: const Text('閉じる'),
+                  ),
+                ),
+                AppSpacing.verticalMd,
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Vehicle AI suggestions — shows unread AI recommendations for this vehicle
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1528,7 +1704,10 @@ class _VehicleAiSuggestions extends StatelessWidget {
           ...suggestions.map(
             (n) => Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: _SuggestionRow(notification: n),
+              child: _SuggestionRow(
+                notification: n,
+                onTap: () => _showSuggestionDetail(context, n),
+              ),
             ),
           ),
         ],
@@ -1539,53 +1718,66 @@ class _VehicleAiSuggestions extends StatelessWidget {
 
 class _SuggestionRow extends StatelessWidget {
   final AppNotification notification;
+  final VoidCallback? onTap;
 
-  const _SuggestionRow({required this.notification});
+  const _SuggestionRow({required this.notification, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = _typeColor(notification.type);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
-        borderRadius: AppSpacing.borderRadiusSm,
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        children: [
-          Icon(_typeIcon(notification.type), size: 16, color: color),
-          AppSpacing.horizontalXs,
-          Expanded(
-            child: Text(
-              notification.title,
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          if (notification.priority == NotificationPriority.high)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-              ),
-              child: const Text(
-                '緊急',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.error,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppSpacing.borderRadiusSm,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.06),
+          borderRadius: AppSpacing.borderRadiusSm,
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            Icon(_typeIcon(notification.type), size: 16, color: color),
+            AppSpacing.horizontalXs,
+            Expanded(
+              child: Text(
+                notification.title,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
-        ],
+            if (notification.priority == NotificationPriority.high)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                ),
+                child: const Text(
+                  '緊急',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.error,
+                  ),
+                ),
+              ),
+            if (onTap != null) ...[
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right,
+                size: 16,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
