@@ -342,7 +342,8 @@ void main() {
   });
 
   group('NotificationListScreen — スワイプ削除', () {
-    testWidgets('スワイプすると removeNotification が呼ばれる', (tester) async {
+    testWidgets('左スワイプ後にダイアログで「削除」をタップすると removeNotification が呼ばれる',
+        (tester) async {
       provider.mockNotifications = [
         _makeNotification(id: 'n1', title: '消耗品交換推奨'),
       ];
@@ -355,9 +356,99 @@ void main() {
         find.text('消耗品交換推奨'),
         const Offset(-500, 0),
       );
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      // confirmDismiss が表示した確認ダイアログを承認
+      await tester.tap(find.text('削除'));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
 
       expect(provider.lastRemovedId, 'n1');
+    });
+  });
+
+  group('NotificationListScreen — 双方向スワイプ', () {
+    testWidgets('右スワイプ（startToEnd）で未読通知が既読になる', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', title: 'オイル交換推奨', isRead: false),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.drag(
+        find.text('オイル交換推奨'),
+        const Offset(500, 0),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(provider.lastMarkedReadId, 'n1');
+    });
+
+    testWidgets('左スワイプ（endToStart）で削除確認ダイアログが表示される', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', title: 'タイヤ点検推奨'),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.drag(
+        find.text('タイヤ点検推奨'),
+        const Offset(-500, 0),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.text('通知を削除'), findsOneWidget);
+      expect(find.text('この通知を削除しますか？'), findsOneWidget);
+    });
+
+    testWidgets('既読済み通知を右スワイプしても markAsRead は呼ばれない', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', title: '既読通知', isRead: true),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.drag(
+        find.text('既読通知'),
+        const Offset(500, 0),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(provider.lastMarkedReadId, isNull);
+    });
+
+    testWidgets('「全て既読」ボタンは未読通知があるときのみ表示される', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', isRead: false),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.text('全て既読'), findsOneWidget);
+
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', isRead: true),
+      ];
+      await tester.pump();
+
+      expect(find.text('全て既読'), findsNothing);
+    });
+
+    testWidgets('「全て既読」ボタンをタップすると markAllAsRead が呼ばれる', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', isRead: false),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.tap(find.text('全て既読'));
+      await tester.pump();
+
+      expect(provider.markAllReadCallCount, 1);
     });
   });
 
