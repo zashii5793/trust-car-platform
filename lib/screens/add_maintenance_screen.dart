@@ -335,7 +335,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   duration: const Duration(milliseconds: 250),
                   child: _ocrAppliedFields.isEmpty
                       ? const SizedBox.shrink()
-                      : _OcrAppliedBanner(fields: _ocrAppliedFields),
+                      : _buildOcrAppliedBanner(fields: _ocrAppliedFields),
                 ),
                 AppSpacing.verticalLg,
 
@@ -647,8 +647,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     );
   }
 
-  /// OCR適用フィールド確認バナー
-  Widget _OcrAppliedBanner({required List<String> fields}) {
+  Widget _buildOcrAppliedBanner({required List<String> fields}) {
     return Container(
       key: const ValueKey('ocr_banner'),
       margin: const EdgeInsets.only(top: AppSpacing.sm),

@@ -434,22 +434,27 @@ class _NotificationCard extends StatelessWidget {
         return false; // don't dismiss the card
       },
       onDismissed: (_) => onDismiss(),
-      // startToEnd background: mark as read (green)
+      // startToEnd background: mark as read (green) — grey if already read
       background: Container(
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.only(left: AppSpacing.md),
         decoration: BoxDecoration(
-          color: AppColors.success,
+          color: notification.isRead
+              ? AppColors.textTertiary.withValues(alpha: 0.3)
+              : AppColors.success,
           borderRadius: AppSpacing.borderRadiusMd,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.done, color: Colors.white),
-            SizedBox(height: 2),
+          children: [
+            Icon(
+              notification.isRead ? Icons.done : Icons.done,
+              color: Colors.white,
+            ),
+            const SizedBox(height: 2),
             Text(
-              '既読',
-              style: TextStyle(
+              notification.isRead ? '既読済み' : '既読',
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 11,
                 fontWeight: FontWeight.bold,

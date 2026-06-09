@@ -393,26 +393,9 @@ class _CategoryBadge extends StatelessWidget {
 
   const _CategoryBadge({required this.category});
 
-  Color _color(PostCategory cat) {
-    switch (cat) {
-      case PostCategory.maintenance:
-        return AppColors.info;
-      case PostCategory.customization:
-        return AppColors.secondary;
-      case PostCategory.drive:
-        return AppColors.success;
-      case PostCategory.question:
-        return AppColors.warning;
-      case PostCategory.sale:
-        return AppColors.error;
-      default:
-        return AppColors.textTertiary;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final color = _color(category);
+    final color = _categoryColor(category);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -468,7 +451,7 @@ class _PostContent extends StatelessWidget {
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('#$tag の投稿を検索中...'),
+                      content: Text('#$tag のハッシュタグ検索は近日公開予定です'),
                       duration: const Duration(seconds: 2),
                       behavior: SnackBarBehavior.floating,
                     ),

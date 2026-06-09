@@ -15,8 +15,6 @@ class MaintenanceStatsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('メンテナンス統計'),
@@ -562,7 +560,7 @@ class _TypeProportionBar extends StatelessWidget {
           children: sorted.map((e) {
             final ratio = e.value / stats.totalCost;
             return Flexible(
-              flex: (ratio * 1000).round(),
+              flex: (ratio * 1000).round().clamp(1, 1000),
               child: Container(color: e.key.color),
             );
           }).toList(),
