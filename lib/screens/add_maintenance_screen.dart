@@ -49,6 +49,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   bool _isLoading = false;
   bool _showAllTypes = false;
   bool _isOcrProcessing = false;
+  List<String> _ocrAppliedFields = [];
 
   bool get _isEditMode => widget.existingRecord != null;
 
@@ -157,26 +158,32 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
 
   /// OCRデータをフォームに反映
   void _applyOcrData(MaintenanceRegistrationData data) {
+    final applied = <String>[];
     setState(() {
       _selectedType = data.type;
       _titleController.text = data.type.displayName;
       _selectedDate = data.date;
+      applied.add('種別: ${data.type.displayName}');
+      applied.add('日付: ${data.date.year}/${data.date.month}/${data.date.day}');
 
       if (data.cost != null) {
         _costController.text = data.cost.toString();
+        applied.add('費用: ¥${data.cost}');
       }
       if (data.mileage != null) {
         _mileageController.text = data.mileage.toString();
+        applied.add('走行距離: ${data.mileage} km');
       }
       if (data.shopName != null) {
         _shopNameController.text = data.shopName!;
+        applied.add('店舗名: ${data.shopName}');
       }
       if (data.description != null) {
         _descriptionController.text = data.description!;
+        applied.add('備考: 読み取り済み');
       }
+      _ocrAppliedFields = applied;
     });
-
-    showSuccessSnackBar(context, '請求書の情報を読み取りました');
   }
 
   Future<void> _saveRecord() async {
@@ -324,6 +331,12 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
               children: [
                 // 請求書スキャンボタン
                 _buildOcrScanButton(theme),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child: _ocrAppliedFields.isEmpty
+                      ? const SizedBox.shrink()
+                      : _OcrAppliedBanner(fields: _ocrAppliedFields),
+                ),
                 AppSpacing.verticalLg,
 
                 // タイプ選択
@@ -629,6 +642,61 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           ),
           const Spacer(),
           Icon(Icons.check_circle, size: 18, color: type.color),
+        ],
+      ),
+    );
+  }
+
+  /// OCR適用フィールド確認バナー
+  Widget _OcrAppliedBanner({required List<String> fields}) {
+    return Container(
+      key: const ValueKey('ocr_banner'),
+      margin: const EdgeInsets.only(top: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.08),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.check_circle, size: 14, color: AppColors.success),
+              AppSpacing.horizontalXs,
+              Text(
+                'OCRで ${fields.length} 項目を自動入力しました',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.success,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: fields.map((f) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                ),
+                child: Text(
+                  f,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.success,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         ],
       ),
     );

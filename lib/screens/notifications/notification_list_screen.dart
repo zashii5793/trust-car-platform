@@ -32,25 +32,56 @@ class NotificationListScreen extends StatelessWidget {
           );
         }
 
-        return ListView.builder(
-          padding: AppSpacing.paddingScreen,
-          itemCount: provider.notifications.length,
-          itemBuilder: (context, index) {
-            final notification = provider.notifications[index];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: _NotificationCard(
-                notification: notification,
-                onTap: () {
-                  provider.markAsRead(notification.id);
-                  _showNotificationDetail(context, notification);
-                },
-                onDismiss: () {
-                  provider.removeNotification(notification.id);
+        final hasUnread =
+            provider.notifications.any((n) => !n.isRead);
+
+        return Column(
+          children: [
+            if (hasUnread)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      icon: const Icon(Icons.done_all, size: 16),
+                      label: const Text('全て既読'),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: AppColors.primary,
+                      ),
+                      onPressed: () => provider.markAllAsRead(),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: ListView.builder(
+                padding: AppSpacing.paddingScreen,
+                itemCount: provider.notifications.length,
+                itemBuilder: (context, index) {
+                  final notification = provider.notifications[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: _NotificationCard(
+                      notification: notification,
+                      onTap: () {
+                        provider.markAsRead(notification.id);
+                        _showNotificationDetail(context, notification);
+                      },
+                      onDismiss: () {
+                        provider.removeNotification(notification.id);
+                      },
+                      onMarkRead: notification.isRead
+                          ? null
+                          : () => provider.markAsRead(notification.id),
+                    ),
+                  );
                 },
               ),
-            );
-          },
+            ),
+          ],
         );
       },
     );
@@ -353,11 +384,13 @@ class _NotificationCard extends StatelessWidget {
   final AppNotification notification;
   final VoidCallback onTap;
   final VoidCallback onDismiss;
+  final VoidCallback? onMarkRead;
 
   const _NotificationCard({
     required this.notification,
     required this.onTap,
     required this.onDismiss,
+    this.onMarkRead,
   });
 
   @override
@@ -369,16 +402,85 @@ class _NotificationCard extends StatelessWidget {
 
     return Dismissible(
       key: Key(notification.id),
-      direction: DismissDirection.endToStart,
+      direction: DismissDirection.horizontal,
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.endToStart) {
+          // Delete: show brief confirmation
+          return await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('通知を削除'),
+                  content: const Text('この通知を削除しますか？'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('キャンセル'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: TextButton.styleFrom(
+                          foregroundColor: AppColors.error),
+                      child: const Text('削除'),
+                    ),
+                  ],
+                ),
+              ) ??
+              false;
+        }
+        // startToEnd: mark as read (only if unread)
+        if (!notification.isRead) {
+          onMarkRead?.call();
+        }
+        return false; // don't dismiss the card
+      },
       onDismissed: (_) => onDismiss(),
+      // startToEnd background: mark as read (green)
       background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.success,
+          borderRadius: AppSpacing.borderRadiusMd,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.done, color: Colors.white),
+            SizedBox(height: 2),
+            Text(
+              '既読',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+      // endToStart background: delete (red)
+      secondaryBackground: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: AppSpacing.md),
         decoration: BoxDecoration(
           color: AppColors.error,
           borderRadius: AppSpacing.borderRadiusMd,
         ),
-        child: const Icon(Icons.delete, color: Colors.white),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.delete, color: Colors.white),
+            SizedBox(height: 2),
+            Text(
+              '削除',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
       child: AppCard(
         onTap: onTap,
