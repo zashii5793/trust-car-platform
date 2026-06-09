@@ -39,6 +39,12 @@
 - `notification_list_screen_test.dart`: reason 表示あり/なし 2件
 - `profile_screen_test.dart`: `_StatsSection` ラベル・初期値 2件
 
+### 車両未登録オンボーディングガイド
+- `home_screen.dart`: `_VehicleTab` の空状態を `AppEmptyState` から `_VehicleEmptyOnboarding` に刷新
+  - ヒーローアイコン（96px 円形背景）
+  - 3機能ハイライト（`_FeatureRow`）: 整備記録 / AI通知 / 工場連携
+  - 大型 CTA「車両を登録する」ボタン → `VehicleRegistrationScreen` へ
+
 ---
 
 ## アーキテクチャ上の重要な決定事項
