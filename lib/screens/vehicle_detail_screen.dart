@@ -218,7 +218,11 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       return Column(
                         children: [
                           const Divider(height: 1),
-                          _VehicleAiSuggestions(suggestions: suggestions),
+                          _VehicleAiSuggestions(
+                            suggestions: suggestions,
+                            vehicleId: _vehicle.id,
+                            vehicleMileage: _vehicle.mileage,
+                          ),
                         ],
                       );
                     },
@@ -1480,7 +1484,11 @@ class _DetailRow extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 void _showSuggestionDetail(
-    BuildContext context, AppNotification notification) {
+  BuildContext context,
+  AppNotification notification, {
+  String vehicleId = '',
+  int vehicleMileage = 0,
+}) {
   final theme = Theme.of(context);
   final dateFormat = DateFormat('yyyy/MM/dd');
   final color = _SuggestionRow._typeColor(notification.type);
@@ -1633,6 +1641,32 @@ void _showSuggestionDetail(
 
                 AppSpacing.verticalLg,
 
+                // CTA: record maintenance
+                if (vehicleId.isNotEmpty) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AddMaintenanceScreen(
+                                vehicleId: vehicleId,
+                                currentVehicleMileage: vehicleMileage,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('今すぐ記録する'),
+                    ),
+                  ),
+                  AppSpacing.verticalSm,
+                ],
+
                 // Close button
                 SizedBox(
                   width: double.infinity,
@@ -1657,8 +1691,14 @@ void _showSuggestionDetail(
 
 class _VehicleAiSuggestions extends StatelessWidget {
   final List<AppNotification> suggestions;
+  final String vehicleId;
+  final int vehicleMileage;
 
-  const _VehicleAiSuggestions({required this.suggestions});
+  const _VehicleAiSuggestions({
+    required this.suggestions,
+    required this.vehicleId,
+    required this.vehicleMileage,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1706,7 +1746,12 @@ class _VehicleAiSuggestions extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: AppSpacing.xs),
               child: _SuggestionRow(
                 notification: n,
-                onTap: () => _showSuggestionDetail(context, n),
+                onTap: () => _showSuggestionDetail(
+                  context,
+                  n,
+                  vehicleId: vehicleId,
+                  vehicleMileage: vehicleMileage,
+                ),
               ),
             ),
           ),
