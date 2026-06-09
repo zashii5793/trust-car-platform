@@ -308,12 +308,8 @@ class _VehicleTab extends StatelessWidget {
     }
 
     if (vehicleProvider.vehicles.isEmpty) {
-      return AppEmptyState(
-        icon: Icons.directions_car,
-        title: '車両が登録されていません',
-        description: '愛車を登録して、メンテナンス管理を始めましょう',
-        buttonLabel: '車両を登録',
-        onButtonPressed: () {
+      return _VehicleEmptyOnboarding(
+        onRegister: () {
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -1052,6 +1048,175 @@ class _VehicleCard extends StatelessWidget {
         Icons.directions_car,
         size: AppSpacing.iconLg,
         color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 車両未登録時オンボーディングガイド
+// ---------------------------------------------------------------------------
+
+class _VehicleEmptyOnboarding extends StatelessWidget {
+  final VoidCallback onRegister;
+
+  const _VehicleEmptyOnboarding({required this.onRegister});
+
+  static const _features = [
+    (
+      icon: Icons.history,
+      title: '整備履歴を正確に記録',
+      description: '修理・点検・消耗品交換を時系列で管理できます',
+      color: AppColors.primary,
+    ),
+    (
+      icon: Icons.notifications_active,
+      title: 'AIが次の点検をお知らせ',
+      description: '走行距離と履歴から最適なタイミングを自動分析',
+      color: AppColors.info,
+    ),
+    (
+      icon: Icons.handshake,
+      title: '信頼できる整備工場と繋がる',
+      description: 'AI提案から評価の高い工場へ簡単にアクセス',
+      color: AppColors.success,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return SingleChildScrollView(
+      padding: AppSpacing.paddingScreen,
+      child: Column(
+        children: [
+          AppSpacing.verticalXl,
+          // Hero icon
+          Container(
+            width: 96,
+            height: 96,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.10),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.directions_car,
+              size: 52,
+              color: AppColors.primary,
+            ),
+          ),
+          AppSpacing.verticalMd,
+          Text(
+            'まず愛車を登録しよう',
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          AppSpacing.verticalSm,
+          Text(
+            '登録するだけで、AIがあなたの愛車に\n合ったお役立ち情報をお知らせします',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+              height: 1.6,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          AppSpacing.verticalXl,
+          // Feature list
+          ...(_features.map((f) => _FeatureRow(
+                icon: f.icon,
+                title: f.title,
+                description: f.description,
+                accentColor: f.color,
+              ))),
+          AppSpacing.verticalXl,
+          // CTA button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: onRegister,
+              icon: const Icon(Icons.add),
+              label: const Text('車両を登録する'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          AppSpacing.verticalLg,
+        ],
+      ),
+    );
+  }
+}
+
+class _FeatureRow extends StatelessWidget {
+  const _FeatureRow({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.accentColor,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final Color accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.12),
+              borderRadius: AppSpacing.borderRadiusMd,
+            ),
+            child: Icon(icon, size: 22, color: accentColor),
+          ),
+          AppSpacing.horizontalMd,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isDark
+                        ? AppColors.darkTextPrimary
+                        : AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
