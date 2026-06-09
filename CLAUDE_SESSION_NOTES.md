@@ -64,6 +64,17 @@
 
 ---
 
+### ドライブログ画面強化
+- `drive_log_screen.dart`: `_DriveLogSummaryCard` + `_SummaryItem` を追加
+  - ListView index=0 にグラデーションバナーを挿入（primary→primaryHover）
+  - 集計: 総走行距離・総時間・平均速度・件数ヘッダー
+
+### テスト追加（続き）
+- `home_screen_test.dart`: `_VehicleEmptyOnboarding` グループ 5件
+  - "まず愛車を登録しよう" 表示 / 3機能ハイライト / CTA / 遷移 / 車両追加後に消える
+
+---
+
 ## 未解決・人間が対応すべき事項
 
 | 優先度 | タスク |
