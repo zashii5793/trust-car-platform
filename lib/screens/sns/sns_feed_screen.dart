@@ -139,6 +139,24 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
 // カテゴリフィルタバー
 // ---------------------------------------------------------------------------
 
+/// カテゴリに対応するアクセントカラーを返す
+Color _categoryColor(PostCategory cat) {
+  switch (cat) {
+    case PostCategory.maintenance:
+      return AppColors.info;
+    case PostCategory.customization:
+      return AppColors.secondary;
+    case PostCategory.drive:
+      return AppColors.success;
+    case PostCategory.question:
+      return AppColors.warning;
+    case PostCategory.sale:
+      return AppColors.error;
+    default:
+      return AppColors.textTertiary;
+  }
+}
+
 /// カテゴリに対応するアイコンを返す
 IconData _categoryIcon(PostCategory cat) {
   switch (cat) {
@@ -257,36 +275,38 @@ class _PostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final accentColor = _categoryColor(post.category);
 
-    return GestureDetector(
-      onTap: () => _openDetail(context),
-      child: Container(
+    return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: AppSpacing.borderRadiusLg,
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+      elevation: isDark ? 0 : 2,
+      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusLg),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _openDetail(context),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // カテゴリ別左アクセントバー
+              Container(width: 4, color: accentColor),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _PostHeader(post: post),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: _PostContent(post: post),
+                    ),
+                    if (post.media.isNotEmpty) _PostMediaRow(media: post.media),
+                    _PostFooter(post: post),
+                  ],
                 ),
-              ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _PostHeader(post: post),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: _PostContent(post: post),
+              ),
+            ],
           ),
-          if (post.media.isNotEmpty) _PostMediaRow(media: post.media),
-          _PostFooter(post: post),
-        ],
-      ),
+        ),
       ),
     );
   }
@@ -441,17 +461,42 @@ class _PostContent extends StatelessWidget {
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
-            runSpacing: 2,
-            children: post.hashtags
-                .map((tag) => Text(
-                      '#$tag',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ))
-                .toList(),
+            runSpacing: 4,
+            children: post.hashtags.map((tag) {
+              return InkWell(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('#$tag の投稿を検索中...'),
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                    border: Border.all(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Text(
+                    '#$tag',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ],
         const SizedBox(height: 8),

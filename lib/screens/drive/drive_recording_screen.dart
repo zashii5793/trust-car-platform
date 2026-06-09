@@ -153,6 +153,7 @@ class _DriveRecordingScreenState extends State<DriveRecordingScreen> {
                                         value:
                                             '${provider.currentSpeedKmh.toStringAsFixed(0)} km/h',
                                         icon: Icons.speed_outlined,
+                                        accentColor: _speedColor(provider.currentSpeedKmh),
                                       ),
                                     ),
                                   ],
@@ -170,24 +171,7 @@ class _DriveRecordingScreenState extends State<DriveRecordingScreen> {
                                 const SizedBox(height: AppSpacing.xl),
 
                                 // ── GPS indicator ─────────────────────────────
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.gps_fixed,
-                                      color: Colors.greenAccent,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    const Text(
-                                      'GPS 取得中',
-                                      style: TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                const _PulsingGpsIndicator(),
                               ],
                             ),
                           ),
@@ -228,6 +212,12 @@ class _DriveRecordingScreenState extends State<DriveRecordingScreen> {
     );
   }
 
+  Color _speedColor(double kmh) {
+    if (kmh >= 100) return Colors.redAccent;
+    if (kmh >= 60) return Colors.orangeAccent;
+    return Colors.greenAccent;
+  }
+
   String _formatDistance(double km) {
     if (km >= 1.0) {
       return '${km.toStringAsFixed(2)} km';
@@ -245,16 +235,23 @@ class _StatCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final bool large;
+  final Color? accentColor;
 
   const _StatCard({
     required this.label,
     required this.value,
     required this.icon,
     this.large = false,
+    this.accentColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bg = accentColor != null
+        ? accentColor!.withValues(alpha: 0.18)
+        : Colors.white.withValues(alpha: 0.12);
+    final valueColor = accentColor ?? Colors.white;
+
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
@@ -262,8 +259,14 @@ class _StatCard extends StatelessWidget {
         horizontal: AppSpacing.md,
       ),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
+        color: bg,
         borderRadius: AppSpacing.borderRadiusMd,
+        border: accentColor != null
+            ? Border.all(
+                color: accentColor!.withValues(alpha: 0.4),
+                width: 1,
+              )
+            : null,
       ),
       child: Column(
         children: [
@@ -282,11 +285,84 @@ class _StatCard extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              color: Colors.white,
+              color: valueColor,
               fontSize: large ? 48 : 28,
               fontWeight: FontWeight.bold,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pulsing GPS indicator
+// ---------------------------------------------------------------------------
+
+class _PulsingGpsIndicator extends StatefulWidget {
+  const _PulsingGpsIndicator();
+
+  @override
+  State<_PulsingGpsIndicator> createState() => _PulsingGpsIndicatorState();
+}
+
+class _PulsingGpsIndicatorState extends State<_PulsingGpsIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _pulse = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (_, __) => Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.greenAccent.withValues(alpha: _pulse.value * 0.3),
+                ),
+              ),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.greenAccent,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 6),
+          const Text(
+            'GPS 取得中',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
           ),
         ],
       ),
