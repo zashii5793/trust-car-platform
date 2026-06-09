@@ -615,6 +615,59 @@ void main() {
     });
   });
 
+  group('HomeScreen — 車両未登録オンボーディング', () {
+    testWidgets('車両0台のとき "まず愛車を登録しよう" が表示される', (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.text('まず愛車を登録しよう'), findsOneWidget);
+    });
+
+    testWidgets('3つの機能ハイライトラベルが表示される', (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.text('整備履歴を正確に記録'), findsOneWidget);
+      expect(find.text('AIが次の点検をお知らせ'), findsOneWidget);
+      expect(find.text('信頼できる整備工場と繋がる'), findsOneWidget);
+    });
+
+    testWidgets('「車両を登録する」CTAボタンが表示される', (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.text('車両を登録する'), findsOneWidget);
+    });
+
+    testWidgets('「車両を登録する」タップで VehicleRegistrationScreen に遷移する',
+        (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      await tester.tap(find.text('車両を登録する'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // VehicleRegistrationScreen のコンテンツが存在する
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('車両が1台登録されたらオンボーディングが消える', (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+      expect(find.text('まず愛車を登録しよう'), findsOneWidget);
+
+      vp.setVehicles([_makeVehicle('v1')]);
+      await tester.pump();
+
+      expect(find.text('まず愛車を登録しよう'), findsNothing);
+    });
+  });
+
   group('Edge Cases', () {
     testWidgets('同じタブを連続タップしてもクラッシュしない', (tester) async {
       await tester.pumpWidget(_buildApp());

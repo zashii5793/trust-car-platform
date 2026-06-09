@@ -121,19 +121,162 @@ class _DriveLogScreenState extends State<DriveLogScreen> {
               controller: _scrollController,
               padding: AppSpacing.paddingScreen,
               itemCount:
-                  provider.logs.length + (provider.isLoading ? 1 : 0),
+                  provider.logs.length + 1 + (provider.isLoading ? 1 : 0),
               itemBuilder: (context, index) {
-                if (index == provider.logs.length) {
+                if (index == 0) {
+                  return _DriveLogSummaryCard(logs: provider.logs);
+                }
+                final logIndex = index - 1;
+                if (logIndex == provider.logs.length) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),
                     child: Center(child: CircularProgressIndicator()),
                   );
                 }
-                return _DriveLogCard(log: provider.logs[index]);
+                return _DriveLogCard(log: provider.logs[logIndex]);
               },
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// サマリーバナー（読み込み済みログの集計）
+// ---------------------------------------------------------------------------
+
+class _DriveLogSummaryCard extends StatelessWidget {
+  final List<DriveLog> logs;
+
+  const _DriveLogSummaryCard({required this.logs});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final totalDistanceKm =
+        logs.fold<double>(0, (s, l) => s + l.statistics.totalDistance) / 1000;
+    final totalSecs =
+        logs.fold<int>(0, (s, l) => s + l.statistics.totalDuration);
+    final avgSpeedKmh = logs.isEmpty
+        ? 0.0
+        : logs.fold<double>(0, (s, l) => s + l.statistics.averageSpeed) /
+            logs.length;
+
+    final hours = totalSecs ~/ 3600;
+    final minutes = (totalSecs % 3600) ~/ 60;
+    final durationLabel =
+        hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [AppColors.darkCard, AppColors.darkSurface]
+              : [AppColors.primary, AppColors.primaryHover],
+        ),
+        borderRadius: AppSpacing.borderRadiusMd,
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.25),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.bar_chart_rounded,
+                size: 16,
+                color: Colors.white.withValues(alpha: 0.85),
+              ),
+              AppSpacing.horizontalXs,
+              Text(
+                '走行サマリー（${logs.length}件）',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          AppSpacing.verticalSm,
+          Row(
+            children: [
+              _SummaryItem(
+                icon: Icons.route,
+                label: '総走行距離',
+                value: '${totalDistanceKm.toStringAsFixed(1)} km',
+              ),
+              _SummaryItem(
+                icon: Icons.timer_outlined,
+                label: '総時間',
+                value: durationLabel,
+              ),
+              _SummaryItem(
+                icon: Icons.speed,
+                label: '平均速度',
+                value: '${avgSpeedKmh.toStringAsFixed(0)} km/h',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryItem extends StatelessWidget {
+  const _SummaryItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, size: 18, color: Colors.white.withValues(alpha: 0.75)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.white.withValues(alpha: 0.7),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
