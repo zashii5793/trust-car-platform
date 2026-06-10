@@ -157,6 +157,45 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Place GoogleService-Info.plist
+        run: |
+          if [ -n "${{ secrets.GOOGLE_SERVICES_PLIST }}" ]; then
+            echo '${{ secrets.GOOGLE_SERVICES_PLIST }}' > ios/Runner/GoogleService-Info.plist
+          else
+            cat > ios/Runner/GoogleService-Info.plist <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>API_KEY</key>
+            <string>AIzaSyDZQ4UK6IXiUKNJ3u1Cjup4nIEmiV97O0Q</string>
+            <key>GCM_SENDER_ID</key>
+            <string>31421119456</string>
+            <key>PLIST_VERSION</key>
+            <string>1</string>
+            <key>BUNDLE_ID</key>
+            <string>jp.trustcar.app</string>
+            <key>PROJECT_ID</key>
+            <string>trust-car-platform</string>
+            <key>STORAGE_BUCKET</key>
+            <string>trust-car-platform.firebasestorage.app</string>
+            <key>IS_ADS_ENABLED</key>
+            <false/>
+            <key>IS_ANALYTICS_ENABLED</key>
+            <false/>
+            <key>IS_APPINVITE_ENABLED</key>
+            <true/>
+            <key>IS_GCM_ENABLED</key>
+            <true/>
+            <key>IS_SIGNIN_ENABLED</key>
+            <true/>
+            <key>GOOGLE_APP_ID</key>
+            <string>1:31421119456:ios:4320af5d1401f02c80c985</string>
+          </dict>
+          </plist>
+          EOF
+          fi
+
       - name: Build iOS (no codesign)
         run: flutter build ios --no-codesign --debug
 
