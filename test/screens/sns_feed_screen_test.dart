@@ -6,9 +6,12 @@ import 'package:provider/provider.dart';
 import 'package:trust_car_platform/screens/sns/sns_feed_screen.dart';
 import 'package:trust_car_platform/providers/post_provider.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
+import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/services/post_service.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
+import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/models/post.dart';
+import 'package:trust_car_platform/models/comment.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
@@ -57,8 +60,13 @@ class MockPostService implements PostService {
   }
 
   @override
-  Future<Result<void, AppError>> likePost(
-          {required String postId, required String userId}) async =>
+  Future<Result<void, AppError>> likePost({
+    required String postId,
+    required String userId,
+    String? postAuthorId,
+    String? actorDisplayName,
+    String? actorPhotoUrl,
+  }) async =>
       likeResult;
 
   @override
@@ -75,6 +83,15 @@ class MockPostService implements PostService {
   Future<Result<void, AppError>> deletePost(
           {required String postId, required String userId}) async =>
       deleteResult;
+
+  @override
+  Future<Result<List<Comment>, AppError>> getComments({
+    required String postId,
+    int limit = 50,
+    dynamic startAfter,
+    bool topLevelOnly = true,
+  }) async =>
+      const Result.success([]);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -147,6 +164,13 @@ Post _makePost({
   );
 }
 
+/// Minimal FirebaseService stub — VehicleProvider only reads its in-memory
+/// state in these tests, so no method is actually invoked.
+class _StubFirebaseService implements FirebaseService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
 Widget _buildApp(MockPostService mockPostService) {
   return MultiProvider(
     providers: [
@@ -155,6 +179,9 @@ Widget _buildApp(MockPostService mockPostService) {
       ),
       ChangeNotifierProvider(
         create: (_) => AuthProvider(authService: MockAuthService()),
+      ),
+      ChangeNotifierProvider<VehicleProvider>(
+        create: (_) => VehicleProvider(firebaseService: _StubFirebaseService()),
       ),
     ],
     child: const MaterialApp(home: SnsFeedScreen()),
@@ -275,6 +302,11 @@ void main() {
     });
 
     testWidgets('カテゴリチップがすべて表示される', (tester) async {
+      // Chips are in a lazy horizontal ListView; widen the surface so all
+      // category chips are actually built.
+      await tester.binding.setSurfaceSize(const Size(2000, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       await tester.pumpWidget(_buildApp(mockService));
       await tester.pump();
 
@@ -307,8 +339,8 @@ void main() {
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      // PostCreateScreen に遷移
-      expect(find.text('投稿を作成'), findsOneWidget);
+      // PostCreateScreen に遷移（AppBar タイトルは「新規投稿」）
+      expect(find.text('新規投稿'), findsOneWidget);
     });
 
     testWidgets('いいねボタンをタップするとlikePostが呼ばれる', (tester) async {

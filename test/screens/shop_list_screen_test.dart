@@ -70,6 +70,31 @@ class MockShopService implements ShopService {
           ServiceCategory category,
           {int limit = 20}) async =>
       const Result.success([]);
+
+  @override
+  Future<Result<Shop, AppError>> createMyShop(Shop shop) async =>
+      Result.failure(AppError.unknown('not impl'));
+
+  @override
+  Future<Result<Shop, AppError>> updateMyShop(Shop shop) async =>
+      Result.failure(AppError.unknown('not impl'));
+
+  @override
+  Future<Result<Shop?, AppError>> getMyShop(String uid) async =>
+      const Result.success(null);
+
+  @override
+  Stream<Map<String, int>> watchInquiryCount(String shopId) =>
+      Stream.value(const {'total': 0, 'unread': 0});
+
+  @override
+  Future<Result<Map<String, int>, AppError>> getInquiryCount(
+          String shopId) async =>
+      const Result.success({'total': 0, 'unread': 0});
+
+  @override
+  Future<Result<void, AppError>> deleteMyShop(String uid) async =>
+      const Result.success(null);
 }
 
 // ---------------------------------------------------------------------------
@@ -212,7 +237,7 @@ void main() {
       await tester.pumpWidget(_buildApp(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('工場が見つかりません'), findsOneWidget);
+      expect(find.text('整備工場・業者が見つかりません'), findsOneWidget);
     });
 
     testWidgets('ショップリストが正常に表示される', (tester) async {

@@ -24,7 +24,6 @@ import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 
 import 'package:trust_car_platform/core/error/app_error.dart';
-import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/models/chat_message.dart';
 import 'package:trust_car_platform/services/ai_chat_service.dart';
 
@@ -49,7 +48,7 @@ void main() {
   }
 
   // Helper: ログイン済みのモックユーザーをセットアップ
-  MockUser _makeAuthUser(MockFirebaseAuth mockAuth,
+  MockUser makeAuthUser(MockFirebaseAuth mockAuth,
       {String idToken = 'test-id-token'}) {
     final mockUser = MockUser();
     when(mockAuth.currentUser).thenReturn(mockUser);
@@ -58,8 +57,13 @@ void main() {
   }
 
   // Helper: JSON レスポンスを作る
-  http.Response _jsonResponse(Map<String, dynamic> body, int statusCode) {
-    return http.Response(jsonEncode(body), statusCode);
+  http.Response jsonResponse(Map<String, dynamic> body, int statusCode) {
+    // utf-8 charset is required so Japanese reply text survives decoding.
+    return http.Response(
+      jsonEncode(body),
+      statusCode,
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -72,11 +76,11 @@ void main() {
         loadValidEnv();
         final mockClient = MockClient();
         final mockAuth = MockFirebaseAuth();
-        _makeAuthUser(mockAuth);
+        makeAuthUser(mockAuth);
 
         when(mockClient.post(any,
                 headers: anyNamed('headers'), body: anyNamed('body')))
-            .thenAnswer((_) async => _jsonResponse({'reply': 'テスト回答'}, 200));
+            .thenAnswer((_) async => jsonResponse({'reply': 'テスト回答'}, 200));
 
         final service = AiChatService(httpClient: mockClient, auth: mockAuth);
         final result = await service.ask(
@@ -99,11 +103,11 @@ void main() {
         loadValidEnv();
         final mockClient = MockClient();
         final mockAuth = MockFirebaseAuth();
-        _makeAuthUser(mockAuth);
+        makeAuthUser(mockAuth);
 
         when(mockClient.post(any,
                 headers: anyNamed('headers'), body: anyNamed('body')))
-            .thenAnswer((_) async => _jsonResponse(
+            .thenAnswer((_) async => jsonResponse(
                   {'error': '1日の利用上限に達しました。明日また試してください。'},
                   429,
                 ));
@@ -126,12 +130,12 @@ void main() {
         loadValidEnv();
         final mockClient = MockClient();
         final mockAuth = MockFirebaseAuth();
-        _makeAuthUser(mockAuth);
+        makeAuthUser(mockAuth);
 
         when(mockClient.post(any,
                 headers: anyNamed('headers'), body: anyNamed('body')))
             .thenAnswer((_) async =>
-                _jsonResponse({'error': 'Internal Server Error'}, 500));
+                jsonResponse({'error': 'Internal Server Error'}, 500));
 
         final service = AiChatService(httpClient: mockClient, auth: mockAuth);
         final result = await service.ask(
@@ -208,7 +212,7 @@ void main() {
         loadValidEnv();
         final mockClient = MockClient();
         final mockAuth = MockFirebaseAuth();
-        _makeAuthUser(mockAuth);
+        makeAuthUser(mockAuth);
 
         when(mockClient.post(any,
                 headers: anyNamed('headers'), body: anyNamed('body')))
@@ -231,7 +235,7 @@ void main() {
         loadValidEnv();
         final mockClient = MockClient();
         final mockAuth = MockFirebaseAuth();
-        _makeAuthUser(mockAuth);
+        makeAuthUser(mockAuth);
 
         when(mockClient.post(any,
                 headers: anyNamed('headers'), body: anyNamed('body')))
@@ -261,11 +265,11 @@ void main() {
         loadValidEnv();
         final mockClient = MockClient();
         final mockAuth = MockFirebaseAuth();
-        _makeAuthUser(mockAuth);
+        makeAuthUser(mockAuth);
 
         when(mockClient.post(any,
                 headers: anyNamed('headers'), body: anyNamed('body')))
-            .thenAnswer((_) async => _jsonResponse({'reply': 'OK'}, 200));
+            .thenAnswer((_) async => jsonResponse({'reply': 'OK'}, 200));
 
         final history = [
           ChatMessage(
@@ -323,12 +327,12 @@ void main() {
         loadValidEnv();
         final mockClient = MockClient();
         final mockAuth = MockFirebaseAuth();
-        _makeAuthUser(mockAuth);
+        makeAuthUser(mockAuth);
 
         when(mockClient.post(any,
                 headers: anyNamed('headers'), body: anyNamed('body')))
             .thenAnswer((_) async =>
-                _jsonResponse({'reply': 'Cloud Function 側が処理します'}, 200));
+                jsonResponse({'reply': 'Cloud Function 側が処理します'}, 200));
 
         final service = AiChatService(httpClient: mockClient, auth: mockAuth);
         final result = await service.ask(
@@ -357,12 +361,12 @@ void main() {
         loadValidEnv();
         final mockClient = MockClient();
         final mockAuth = MockFirebaseAuth();
-        _makeAuthUser(mockAuth);
+        makeAuthUser(mockAuth);
 
         when(mockClient.post(any,
                 headers: anyNamed('headers'), body: anyNamed('body')))
             .thenAnswer(
-                (_) async => _jsonResponse({'reply': '初めてのご質問ですね'}, 200));
+                (_) async => jsonResponse({'reply': '初めてのご質問ですね'}, 200));
 
         final service = AiChatService(httpClient: mockClient, auth: mockAuth);
         final result = await service.ask(

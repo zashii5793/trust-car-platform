@@ -146,7 +146,9 @@ void main() {
 
     test('standard plan with 100 inquiries -> can receive (unlimited)',
         () async {
-      await _seedShop(fakeFs, 'shop1', planType: ShopPlanType.standard);
+      await _seedShop(fakeFs, 'shop1',
+          planType: ShopPlanType.standard,
+          subscriptionStatus: ShopSubscriptionStatus.active);
       for (var i = 0; i < 100; i++) {
         await _seedInquiry(fakeFs, 'shop1');
       }
@@ -204,7 +206,9 @@ void main() {
     });
 
     test('standard plan: 19 photos -> can add', () async {
-      await _seedShop(fakeFs, 'shop1', planType: ShopPlanType.standard);
+      await _seedShop(fakeFs, 'shop1',
+          planType: ShopPlanType.standard,
+          subscriptionStatus: ShopSubscriptionStatus.active);
       final result = await sut.canAddPhoto('shop1', currentCount: 19);
       expect(result.isSuccess, isTrue);
       expect(result.valueOrNull, isTrue);
@@ -218,7 +222,9 @@ void main() {
     });
 
     test('premium plan: 999 photos -> can add (unlimited)', () async {
-      await _seedShop(fakeFs, 'shop1', planType: ShopPlanType.premium);
+      await _seedShop(fakeFs, 'shop1',
+          planType: ShopPlanType.premium,
+          subscriptionStatus: ShopSubscriptionStatus.active);
       final result = await sut.canAddPhoto('shop1', currentCount: 999);
       expect(result.isSuccess, isTrue);
       expect(result.valueOrNull, isTrue);

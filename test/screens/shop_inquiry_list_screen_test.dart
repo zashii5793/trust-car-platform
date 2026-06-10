@@ -11,7 +11,7 @@
 //   Loading state:
 //     6. Shows loading indicator while loading
 //   Empty state (no filter):
-//     7. Shows 'まだ問い合わせはありません' when no inquiries
+//     7. Shows '問い合わせはありません' when no inquiries
 //   Empty state (filtered):
 //     8. Shows 'このステータスの問い合わせはありません' when filter has no results
 //   Inquiries displayed:
@@ -106,7 +106,7 @@ class _StubAuthService implements AuthService {
 
 class _FakeShopProvider extends ShopProvider {
   final bool _loading;
-  List<Inquiry> _inquiries;
+  final List<Inquiry> _inquiries;
 
   _FakeShopProvider({
     bool loading = false,
@@ -256,13 +256,13 @@ void main() {
   });
 
   group('ShopInquiryListScreen — Empty state', () {
-    testWidgets('7. shows まだ問い合わせはありません when no inquiries', (tester) async {
+    testWidgets('7. shows 問い合わせはありません when no inquiries', (tester) async {
       await tester.pumpWidget(
         _buildScreen(shopProvider: _FakeShopProvider(inquiries: [])),
       );
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('まだ問い合わせはありません'), findsOneWidget);
+      expect(find.text('問い合わせはありません'), findsOneWidget);
     });
   });
 

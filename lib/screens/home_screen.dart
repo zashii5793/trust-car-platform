@@ -11,7 +11,6 @@ import '../models/vehicle.dart';
 import '../models/app_notification.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
-import '../widgets/common/app_card.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/common/offline_banner.dart';
 import 'vehicle_registration_screen.dart';
@@ -32,7 +31,6 @@ import 'add_maintenance_screen.dart';
 import 'ai_chat/ai_chat_screen.dart';
 import '../widgets/vehicle/mileage_reminder_banner.dart';
 import '../widgets/vehicle/mileage_update_dialog.dart';
-import '../providers/ai_chat_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -1592,8 +1590,6 @@ class _SuggestionCard extends StatefulWidget {
 }
 
 class _SuggestionCardState extends State<_SuggestionCard> {
-  bool _expanded = false;
-
   Color get _priorityColor {
     switch (widget.notification.priority) {
       case NotificationPriority.high:
@@ -1766,21 +1762,6 @@ class _SuggestionDetailSheet extends StatelessWidget {
       case NotificationPriority.low:
         return AppColors.info;
     }
-  }
-
-  String _buildPrefillMessage() {
-    final sb = StringBuffer();
-    sb.writeln('【AIからの整備提案】');
-    sb.writeln(notification.title);
-    sb.writeln();
-    if (notification.reason != null) {
-      sb.writeln(notification.reason);
-    } else {
-      sb.writeln(notification.message);
-    }
-    sb.writeln();
-    sb.writeln('上記の提案について見積もりをお願いできますか。');
-    return sb.toString().trim();
   }
 
   @override

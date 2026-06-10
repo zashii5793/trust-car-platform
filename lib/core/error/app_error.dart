@@ -196,7 +196,7 @@ final class PlanLimitError extends AppError {
 
   @override
   String get userMessage => planName != null
-      ? '現在の${planName}では、この機能の上限に達しました。プランをアップグレードしてください。'
+      ? '現在の$planNameでは、この機能の上限に達しました。プランをアップグレードしてください。'
       : 'プランの上限に達しました。アップグレードしてください。';
 
   @override

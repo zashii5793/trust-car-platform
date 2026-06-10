@@ -122,7 +122,7 @@ class _FakeAuthProvider extends AuthProvider {
 
 AppUser _makeAppUser({NotificationSettings? notificationSettings}) {
   return AppUser(
-    uid: 'user-1',
+    id: 'user-1',
     email: 'test@example.com',
     displayName: 'テストユーザー',
     notificationSettings: notificationSettings ?? NotificationSettings(),
@@ -302,7 +302,11 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // The newsletter section keeps an indeterminate spinner alive when no
+      // user is signed in, so pumpAndSettle would never settle. Bounded pumps
+      // are enough for the save future and the snackbar animation.
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
 
       expect(provider.saveSettingsCalled, isTrue);
     });
@@ -313,7 +317,11 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // The newsletter section keeps an indeterminate spinner alive when no
+      // user is signed in, so pumpAndSettle would never settle. Bounded pumps
+      // are enough for the save future and the snackbar animation.
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
 
       expect(find.text('設定を保存しました'), findsOneWidget);
     });
@@ -324,7 +332,11 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // The newsletter section keeps an indeterminate spinner alive when no
+      // user is signed in, so pumpAndSettle would never settle. Bounded pumps
+      // are enough for the save future and the snackbar animation.
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
 
       expect(find.text('設定の保存に失敗しました'), findsOneWidget);
     });

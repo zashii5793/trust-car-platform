@@ -80,13 +80,15 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       if (record.mileageAtService != null) {
         _mileageController.text = record.mileageAtService.toString();
       }
-      if (record.partNumber != null)
+      if (record.partNumber != null) {
         _partNumberController.text = record.partNumber!;
+      }
       if (record.partManufacturer != null) {
         _partManufacturerController.text = record.partManufacturer!;
       }
-      if (record.description != null)
+      if (record.description != null) {
         _descriptionController.text = record.description!;
+      }
       // Phase 6: tire fields
       if (record.tireSize != null) _tireSizeController.text = record.tireSize!;
       _tirePosition = record.tirePosition;
@@ -280,7 +282,6 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     });
   }
 
-  @override
   bool get _isDirty =>
       _titleController.text.isNotEmpty ||
       _costController.text.isNotEmpty ||
@@ -308,6 +309,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     return result ?? false;
   }
 
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final typesToShow = _showAllTypes ? MaintenanceType.values : _commonTypes;
@@ -403,9 +405,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   // Selected type preview
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
-                    child: _selectedType != null
-                        ? _buildTypePreview(_selectedType!)
-                        : const SizedBox.shrink(),
+                    child: _buildTypePreview(_selectedType),
                   ),
 
                   AppSpacing.verticalLg,
@@ -540,7 +540,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                     ),
                     AppSpacing.verticalMd,
                     DropdownButtonFormField<String>(
-                      value: _tirePosition,
+                      initialValue: _tirePosition,
                       decoration: const InputDecoration(
                         labelText: '交換位置',
                         prefixIcon: Icon(Icons.swap_vert),

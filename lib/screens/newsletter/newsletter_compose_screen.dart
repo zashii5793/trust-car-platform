@@ -4,7 +4,6 @@ import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/newsletter.dart';
 import '../../services/newsletter_service.dart';
-import '../../widgets/common/loading_indicator.dart';
 
 /// Screen for composing a new newsletter or editing a draft.
 class NewsletterComposeScreen extends StatefulWidget {
@@ -195,17 +194,21 @@ class _NewsletterComposeScreenState extends State<NewsletterComposeScreen> {
             // ---- 配信対象 ----
             Text('配信対象', style: theme.textTheme.labelMedium),
             AppSpacing.verticalXs,
-            ...NewsletterAudience.values.map((aud) {
-              return RadioListTile<NewsletterAudience>(
-                title: Text(aud.displayName),
-                value: aud,
-                groupValue: _audience,
-                contentPadding: EdgeInsets.zero,
-                onChanged: (v) {
-                  if (v != null) setState(() => _audience = v);
-                },
-              );
-            }),
+            RadioGroup<NewsletterAudience>(
+              groupValue: _audience,
+              onChanged: (v) {
+                if (v != null) setState(() => _audience = v);
+              },
+              child: Column(
+                children: NewsletterAudience.values.map((aud) {
+                  return RadioListTile<NewsletterAudience>(
+                    title: Text(aud.displayName),
+                    value: aud,
+                    contentPadding: EdgeInsets.zero,
+                  );
+                }).toList(),
+              ),
+            ),
 
             AppSpacing.verticalMd,
 

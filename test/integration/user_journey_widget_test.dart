@@ -182,7 +182,6 @@ class _StubAuthService implements AuthService {
   Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
       const Result.success(null);
 
-  @override
   Future<Result<void, AppError>> deleteAccount() async =>
       const Result.success(null);
 
@@ -305,7 +304,7 @@ class _FakeNotificationProvider extends NotificationProvider {
 
 class _FakeShopProvider extends ShopProvider {
   final bool _loading;
-  List<Inquiry> _inquiries;
+  final List<Inquiry> _inquiries;
 
   _FakeShopProvider({
     bool loading = false,
@@ -390,7 +389,6 @@ class _StubAuthServiceResolved implements AuthService {
   Stream<User?> get authStateChanges => Stream.value(null);
   @override
   User? get currentUser => null;
-  @override
   bool get isAuthenticated => false;
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -674,11 +672,11 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('P3 初回ログインユーザー — 車両なし', () {
-    testWidgets('BottomNavigationBar の 5 タブが表示される', (tester) async {
+    testWidgets('NavigationBar の 5 タブが表示される', (tester) async {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
 
-      expect(find.byType(BottomNavigationBar), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.text('マイカー'), findsWidgets);
       expect(find.text('マーケット'), findsOneWidget);
       expect(find.text('みんなの投稿'), findsOneWidget);
@@ -713,11 +711,12 @@ void main() {
         Icons.forum_outlined,
         Icons.notifications_outlined,
         Icons.person_outline,
-        Icons.directions_car,
+        // NavigationBar shows the outlined icon while マイカー is unselected.
+        Icons.directions_car_outlined,
       ];
       for (final icon in tabIcons) {
         final target = find.descendant(
-          of: find.byType(BottomNavigationBar),
+          of: find.byType(NavigationBar),
           matching: find.byIcon(icon),
         );
         await tester.tap(target);
@@ -768,7 +767,7 @@ void main() {
 
       expect(
         find.descendant(
-          of: find.byType(BottomNavigationBar),
+          of: find.byType(NavigationBar),
           matching: find.text('1'),
         ),
         findsNothing,
@@ -786,7 +785,7 @@ void main() {
 
       expect(
         find.descendant(
-          of: find.byType(BottomNavigationBar),
+          of: find.byType(NavigationBar),
           matching: find.text('2'),
         ),
         findsOneWidget,
@@ -805,7 +804,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.descendant(
-        of: find.byType(BottomNavigationBar),
+        of: find.byType(NavigationBar),
         matching: find.byIcon(Icons.forum_outlined),
       ));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -822,7 +821,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.descendant(
-        of: find.byType(BottomNavigationBar),
+        of: find.byType(NavigationBar),
         matching: find.byIcon(Icons.forum_outlined),
       ));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -836,7 +835,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.descendant(
-        of: find.byType(BottomNavigationBar),
+        of: find.byType(NavigationBar),
         matching: find.byIcon(Icons.forum_outlined),
       ));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -854,7 +853,7 @@ void main() {
 
       // SNSタブ → FAB → PostCreateScreen
       await tester.tap(find.descendant(
-        of: find.byType(BottomNavigationBar),
+        of: find.byType(NavigationBar),
         matching: find.byIcon(Icons.forum_outlined),
       ));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -874,7 +873,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.descendant(
-        of: find.byType(BottomNavigationBar),
+        of: find.byType(NavigationBar),
         matching: find.byIcon(Icons.forum_outlined),
       ));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -903,7 +902,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.descendant(
-        of: find.byType(BottomNavigationBar),
+        of: find.byType(NavigationBar),
         matching: find.byIcon(Icons.store_outlined),
       ));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -921,7 +920,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.descendant(
-        of: find.byType(BottomNavigationBar),
+        of: find.byType(NavigationBar),
         matching: find.byIcon(Icons.store_outlined),
       ));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -935,7 +934,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.descendant(
-        of: find.byType(BottomNavigationBar),
+        of: find.byType(NavigationBar),
         matching: find.byIcon(Icons.store_outlined),
       ));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -962,7 +961,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.descendant(
-        of: find.byType(BottomNavigationBar),
+        of: find.byType(NavigationBar),
         matching: find.byIcon(Icons.notifications_outlined),
       ));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -978,7 +977,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.descendant(
-        of: find.byType(BottomNavigationBar),
+        of: find.byType(NavigationBar),
         matching: find.byIcon(Icons.notifications_outlined),
       ));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -1016,7 +1015,7 @@ void main() {
       await tester.pumpWidget(_buildShopInquiryApp(inquiries: []));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('まだ問い合わせはありません'), findsOneWidget);
+      expect(find.text('問い合わせはありません'), findsOneWidget);
     });
 
     testWidgets('フィルターチップ（すべて・未対応・対応中・クローズ）が表示される', (tester) async {

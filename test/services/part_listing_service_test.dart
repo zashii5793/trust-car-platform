@@ -27,12 +27,13 @@ import 'package:trust_car_platform/services/part_listing_service.dart';
 // ---------------------------------------------------------------------------
 
 /// Stub FirebaseService that always returns the provided result for uploadImages
-class _StubFirebaseService extends FirebaseService {
-  final Result<List<String>, AppError> uploadResult;
+///
+/// Implements (not extends) FirebaseService so no real Firebase app is needed.
+class _StubFirebaseService implements FirebaseService {
+  final Result<List<String>, AppError> uploadResult = const Result.success([]);
 
-  _StubFirebaseService({
-    this.uploadResult = const Result.success([]),
-  });
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 
   @override
   Future<Result<List<String>, AppError>> uploadImages(
@@ -216,7 +217,7 @@ void main() {
   group('UserPartListing', () {
     final now = DateTime(2024, 1, 15, 12, 0, 0);
 
-    UserPartListing _makeListing({
+    UserPartListing makeListing({
       int price = 5000,
       PartListingStatus status = PartListingStatus.active,
     }) {
@@ -237,19 +238,19 @@ void main() {
     }
 
     test('priceDisplay でカンマ区切りの通貨文字列を返す', () {
-      expect(_makeListing(price: 10000).priceDisplay, '¥10,000');
+      expect(makeListing(price: 10000).priceDisplay, '¥10,000');
     });
 
     test('priceDisplay 1000未満はカンマなし', () {
-      expect(_makeListing(price: 500).priceDisplay, '¥500');
+      expect(makeListing(price: 500).priceDisplay, '¥500');
     });
 
     test('priceDisplay 1,000,000 以上もフォーマットされる', () {
-      expect(_makeListing(price: 1000000).priceDisplay, '¥1,000,000');
+      expect(makeListing(price: 1000000).priceDisplay, '¥1,000,000');
     });
 
     test('toMap でシリアライズできる', () {
-      final listing = _makeListing();
+      final listing = makeListing();
       final map = listing.toMap();
       expect(map['id'], 'listing1');
       expect(map['sellerId'], 'user1');
@@ -259,25 +260,25 @@ void main() {
     });
 
     test('copyWith でフィールドを上書きできる', () {
-      final original = _makeListing(status: PartListingStatus.active);
+      final original = makeListing(status: PartListingStatus.active);
       final updated = original.copyWith(status: PartListingStatus.soldOut);
       expect(updated.status, PartListingStatus.soldOut);
       expect(updated.id, original.id); // unchanged
     });
 
     test('== は id で比較する', () {
-      final a = _makeListing();
-      final b = _makeListing().copyWith(title: 'Different Title');
+      final a = makeListing();
+      final b = makeListing().copyWith(title: 'Different Title');
       expect(a, b); // same id
     });
 
     group('Edge Cases', () {
       test('imageUrls が空リストでも問題ない', () {
-        expect(_makeListing().imageUrls, isEmpty);
+        expect(makeListing().imageUrls, isEmpty);
       });
 
       test('compatibleVehicle が null でも問題ない', () {
-        expect(_makeListing().compatibleVehicle, isNull);
+        expect(makeListing().compatibleVehicle, isNull);
       });
     });
   });
@@ -326,7 +327,14 @@ void main() {
     });
 
     test('ドキュメントが存在しない場合は空リストを返す', () async {
-      final result = await service.getMyListings('unknown_user');
+      // The service rejects sellerIds other than the current uid, so
+      // authenticate as the queried (record-less) user.
+      final emptyUserService = PartListingService(
+        firestore: fakeFs,
+        firebaseService: _StubFirebaseService(),
+        getCurrentUid: () => 'unknown_user',
+      );
+      final result = await emptyUserService.getMyListings('unknown_user');
       expect(result.isSuccess, true);
       expect(result.valueOrNull, isEmpty);
     });
@@ -467,13 +475,14 @@ void main() {
     });
 
     group('Edge Cases', () {
-      test('存在しない listingId でも成功を返す (Firestore の merge 動作)', () async {
+      test('存在しない listingId は失敗を返す (update は not-found)', () async {
         final result = await service.updateListingStatus(
           'non_existent_id',
           PartListingStatus.soldOut,
         );
-        // FakeFirebaseFirestore では存在しないドキュメントへの update は成功する
-        expect(result.isSuccess, true);
+        // update() on a missing document throws not-found (matching real
+        // Firestore), which the service surfaces as a failure Result.
+        expect(result.isFailure, true);
       });
     });
   });
@@ -483,12 +492,6 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('PartListingService.createListing validation', () {
-    late FakeFirebaseFirestore fakeFs;
-
-    setUp(() {
-      fakeFs = FakeFirebaseFirestore();
-    });
-
     test('未認証時は AuthError を返す', () async {
       // FirebaseAuth.instance を使うと実際の Firebase に繋がるため
       // auth を省略して実行すると currentUser が null になりうる環境を期待するが、

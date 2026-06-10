@@ -13,7 +13,7 @@ import '../../services/ai_chat_service.dart';
 
 /// AI chat screen — lets users ask a car expert AI questions about their vehicle.
 ///
-/// Wraps a ChangeNotifierProvider<AiChatProvider> so each navigation to this
+/// Wraps a `ChangeNotifierProvider<AiChatProvider>` so each navigation to this
 /// screen starts with a fresh conversation.
 class AiChatScreen extends StatelessWidget {
   const AiChatScreen({super.key});
@@ -40,13 +40,6 @@ class _AiChatViewState extends State<_AiChatView> {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
-
-  static const _suggestedQuestions = [
-    'ワイパー交換の時期は？',
-    'オイル交換はいつ？',
-    'タイヤの寿命は？',
-    'バッテリー上がりの対処法',
-  ];
 
   @override
   void initState() {

@@ -1,26 +1,26 @@
 #!/usr/bin/env dart
 // ignore_for_file: avoid_print
-/// Vehicle Master CSV → Firestore Import Script
-///
-/// Usage:
-///   dart scripts/import_vehicle_master.dart [--csv data/vehicle_masters.csv] [--dry-run]
-///
-/// Options:
-///   --csv <path>   CSV file path (default: data/vehicle_masters.csv)
-///   --dry-run      Preview changes without writing to Firestore
-///   --clear        Clear existing Firestore data before import
-///
-/// CSV Format:
-///   type,id,parent_id,name,name_en,body_type,production_start_year,production_end_year,display_order,country
-///
-/// Requirements:
-///   - Firebase service account key at: .env or GOOGLE_APPLICATION_CREDENTIALS
-///   - Run from project root
-///
-/// When to run:
-///   - Initial setup: dart scripts/import_vehicle_master.dart
-///   - New model year: add row to CSV, then re-run
-///   - New maker added: add maker + models to CSV, then re-run
+// Vehicle Master CSV → Firestore Import Script
+//
+// Usage:
+//   dart scripts/import_vehicle_master.dart [--csv data/vehicle_masters.csv] [--dry-run]
+//
+// Options:
+//   --csv <path>   CSV file path (default: data/vehicle_masters.csv)
+//   --dry-run      Preview changes without writing to Firestore
+//   --clear        Clear existing Firestore data before import
+//
+// CSV Format:
+//   type,id,parent_id,name,name_en,body_type,production_start_year,production_end_year,display_order,country
+//
+// Requirements:
+//   - Firebase service account key at: .env or GOOGLE_APPLICATION_CREDENTIALS
+//   - Run from project root
+//
+// When to run:
+//   - Initial setup: dart scripts/import_vehicle_master.dart
+//   - New model year: add row to CSV, then re-run
+//   - New maker added: add maker + models to CSV, then re-run
 
 import 'dart:io';
 

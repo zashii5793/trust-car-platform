@@ -14,7 +14,9 @@ import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
+import 'package:trust_car_platform/providers/notification_provider.dart';
 import 'package:trust_car_platform/screens/vehicle_detail_screen.dart';
+import 'package:trust_car_platform/services/recommendation_service.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:trust_car_platform/models/drive_log.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
@@ -173,11 +175,31 @@ Widget _buildScreen(
   MaintenanceProvider provider,
 ) {
   return MaterialApp(
-    home: ChangeNotifierProvider<MaintenanceProvider>.value(
-      value: provider,
+    home: MultiProvider(
+      providers: [
+        ChangeNotifierProvider<MaintenanceProvider>.value(value: provider),
+        ChangeNotifierProvider<NotificationProvider>(
+          create: (_) => NotificationProvider(
+            firebaseService: MockFirebaseService(),
+            recommendationService: RecommendationService(),
+          ),
+        ),
+      ],
       child: VehicleDetailScreen(vehicle: vehicle),
     ),
   );
+}
+
+/// Pumps the screen on a tall surface — the unified timeline lives in a
+/// TabBarView below the header and is not rendered on the default 600px
+/// surface.
+Future<void> _pumpScreen(
+  WidgetTester tester,
+  MaintenanceProvider provider,
+) async {
+  await tester.binding.setSurfaceSize(const Size(800, 1600));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(_buildScreen(_testVehicle(), provider));
 }
 
 // ---------------------------------------------------------------------------
@@ -215,8 +237,7 @@ void main() {
   // -------------------------------------------------------------------------
   group('VehicleDetailScreen - 基本表示', () {
     testWidgets('車両名が AppBar に表示される', (tester) async {
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       await tester.pump();
 
       expect(find.text('トヨタ ヴォクシー'), findsWidgets);
@@ -225,8 +246,7 @@ void main() {
     testWidgets('履歴なし → 空状態を表示する', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
 
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -239,8 +259,7 @@ void main() {
     testWidgets('記録が1件あるとき、タイトルと費用が表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
 
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([_testRecord()]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -253,8 +272,7 @@ void main() {
     testWidgets('複数記録がすべて表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
 
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([
         _testRecord(id: 'r1', title: 'オイル交換テスト', cost: 5000),
         _testRecord(
@@ -272,8 +290,7 @@ void main() {
     testWidgets('shopName があれば店舗名を表示する', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
 
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([
         _testRecord(shopName: 'オートバックス新宿店'),
       ]);
@@ -285,8 +302,7 @@ void main() {
     testWidgets('shopName が null のとき店舗名アイコンを表示しない', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
 
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       // shopName なし（デフォルト null）
       mockFirebase.emitRecords([_testRecord()]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -304,8 +320,7 @@ void main() {
     testWidgets('日付が yyyy/MM/dd 形式で表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
 
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([_testRecord()]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -323,26 +338,13 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('詳細 BottomSheet', () {
-    /// カードをタップして BottomSheet を開く共通手順
-    Future<void> openSheet(WidgetTester tester) async {
-      await tester.tap(find.byType(GestureDetector).first);
-      await tester.pumpAndSettle(const Duration(seconds: 10));
-      // BottomSheet 内をスクロールして削除ボタンを可視領域に
-      await tester.drag(
-        find.byType(DraggableScrollableSheet),
-        const Offset(0, -300),
-      );
-      await tester.pumpAndSettle(const Duration(seconds: 10));
-    }
-
     testWidgets('記録をタップすると BottomSheet が開く', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([_testRecord()]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.tap(find.byType(GestureDetector).first);
+      await tester.tap(find.text('オイル交換').first);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // BottomSheet が開いた証拠：タイトルが複数登場
@@ -351,12 +353,11 @@ void main() {
 
     testWidgets('BottomSheet に費用が表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([_testRecord(cost: 12500)]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.tap(find.byType(GestureDetector).first);
+      await tester.tap(find.text('オイル交換').first);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('¥12,500'), findsAtLeastNWidgets(1));
@@ -364,12 +365,11 @@ void main() {
 
     testWidgets('BottomSheet に shopName が表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([_testRecord(shopName: 'トヨタカローラ')]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.tap(find.byType(GestureDetector).first);
+      await tester.tap(find.text('オイル交換').first);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('トヨタカローラ'), findsAtLeastNWidgets(1));
@@ -377,33 +377,32 @@ void main() {
 
     testWidgets('BottomSheet に mileageAtService が表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([_testRecord(mileageAtService: 15000)]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // タップ（カードが画面外の場合も Flutter は警告のみで処理することがある）
-      await tester.tap(find.byType(GestureDetector).first, warnIfMissed: false);
+      await tester.tap(find.text('オイル交換').first, warnIfMissed: false);
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
 
       // BottomSheet が開いていれば 15,000 km が表示される
+      // （タイムラインカードと BottomSheet の両方に表示される）
       // 開いていなければ何もない（警告のみでスキップ）
       final kmText = find.text('15,000 km');
       if (kmText.evaluate().isEmpty) return;
-      expect(kmText, findsOneWidget);
+      expect(kmText, findsWidgets);
     });
 
     testWidgets('BottomSheet に description が表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([
         _testRecord(description: '次回は10000km後に交換予定'),
       ]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.tap(find.byType(GestureDetector).first, warnIfMissed: false);
+      await tester.tap(find.text('オイル交換').first, warnIfMissed: false);
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -420,13 +419,12 @@ void main() {
   group('BottomSheet open 確認', () {
     testWidgets('カードをタップすると BottomSheet が開く', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([_testRecord()]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // GestureDetector（タイムラインカード）をタップ
-      await tester.tap(find.byType(GestureDetector).first);
+      await tester.tap(find.text('オイル交換').first);
       // BottomSheet open アニメーションを進める
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
@@ -438,13 +436,12 @@ void main() {
 
     testWidgets('BottomSheet の背景タップで閉じる', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([_testRecord()]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // BottomSheet を開く
-      await tester.tap(find.byType(GestureDetector).first);
+      await tester.tap(find.text('オイル交換').first);
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -468,8 +465,7 @@ void main() {
       addTearDown(() async => tester.binding.setSurfaceSize(null));
 
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
 
       mockFirebase.emitRecords([
         MaintenanceRecord(
@@ -504,8 +500,7 @@ void main() {
       addTearDown(() async => tester.binding.setSurfaceSize(null));
 
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
 
       mockFirebase.emitRecords([
         MaintenanceRecord(
@@ -536,12 +531,13 @@ void main() {
 
     testWidgets('記録が0件のとき月ヘッダーは表示されない', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester
-          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
+      await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.textContaining('年'), findsNothing);
+      // The header section shows '年式' / '2023年', so match only the
+      // month-header format (e.g. 2024年3月).
+      expect(find.textContaining(RegExp(r'\d{4}年\d{1,2}月')), findsNothing);
     });
   });
 }

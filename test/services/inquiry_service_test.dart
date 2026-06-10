@@ -317,7 +317,7 @@ void main() {
     late FakeFirebaseFirestore fakeFs;
     late ShopSubscriptionService subscriptionService;
 
-    Future<void> _seedShop(
+    Future<void> seedShop(
       String shopId, {
       ShopPlanType planType = ShopPlanType.free,
       ShopSubscriptionStatus status = ShopSubscriptionStatus.active,
@@ -334,7 +334,7 @@ void main() {
       });
     }
 
-    Future<void> _seedInquiries(String shopId, int count) async {
+    Future<void> seedInquiries(String shopId, int count) async {
       final now = DateTime.now();
       final monthStart = DateTime(now.year, now.month, 1);
       for (var i = 0; i < count; i++) {
@@ -359,8 +359,8 @@ void main() {
     });
 
     test('creates inquiry when shop is under the free plan limit', () async {
-      await _seedShop('shop1', planType: ShopPlanType.free);
-      await _seedInquiries('shop1', 3); // 3 of 5 used
+      await seedShop('shop1', planType: ShopPlanType.free);
+      await seedInquiries('shop1', 3); // 3 of 5 used
 
       final svc = InquiryService(
         firestore: fakeFs,
@@ -379,8 +379,8 @@ void main() {
     });
 
     test('returns PlanLimitError when free plan limit is reached', () async {
-      await _seedShop('shop1', planType: ShopPlanType.free);
-      await _seedInquiries('shop1', 5); // all 5 used
+      await seedShop('shop1', planType: ShopPlanType.free);
+      await seedInquiries('shop1', 5); // all 5 used
 
       final svc = InquiryService(
         firestore: fakeFs,
@@ -401,12 +401,12 @@ void main() {
 
     test('standard plan allows inquiry even when free limit would be hit',
         () async {
-      await _seedShop(
+      await seedShop(
         'shop1',
         planType: ShopPlanType.standard,
         status: ShopSubscriptionStatus.active,
       );
-      await _seedInquiries('shop1', 10); // standard = unlimited
+      await seedInquiries('shop1', 10); // standard = unlimited
 
       final svc = InquiryService(
         firestore: fakeFs,
@@ -425,12 +425,12 @@ void main() {
     });
 
     test('expired subscription is treated as free — limit enforced', () async {
-      await _seedShop(
+      await seedShop(
         'shop1',
         planType: ShopPlanType.premium,
         status: ShopSubscriptionStatus.expired,
       );
-      await _seedInquiries('shop1', 5); // 5 = free plan limit
+      await seedInquiries('shop1', 5); // 5 = free plan limit
 
       final svc = InquiryService(
         firestore: fakeFs,

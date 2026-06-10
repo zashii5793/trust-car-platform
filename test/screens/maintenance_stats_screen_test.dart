@@ -33,8 +33,6 @@ import 'package:trust_car_platform/screens/maintenance_stats_screen.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
-import 'package:trust_car_platform/core/result/result.dart';
-import 'package:trust_car_platform/core/error/app_error.dart';
 
 // ---------------------------------------------------------------------------
 // Stub FirebaseService
@@ -88,7 +86,6 @@ MaintenanceRecord _makeRecord({
     shopName: shopName,
     date: now,
     createdAt: now,
-    updatedAt: now,
   );
 }
 
@@ -189,8 +186,8 @@ void main() {
       await tester.pumpWidget(_buildScreen(provider: provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      // Total = ¥8,000
-      expect(find.text('¥8,000'), findsOneWidget);
+      // Total = ¥8,000 (also appears in per-type breakdown rows)
+      expect(find.text('¥8,000'), findsWidgets);
     });
 
     testWidgets('6. shows record count', (tester) async {

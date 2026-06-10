@@ -174,7 +174,6 @@ void main() {
     });
 
     test('priceDisplay shows 要問合せ when null', () {
-      final noPrice = testListing.copyWith(priceFrom: null, priceTo: null);
       // copyWith doesn't allow setting to null, so create new instance
       final noPriceListing = PartListing(
         id: 'part1',

@@ -119,7 +119,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       if (uploadFailCount > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${uploadFailCount}枚の画像のアップロードに失敗しました'),
+            content: Text('$uploadFailCount枚の画像のアップロードに失敗しました'),
             backgroundColor: AppColors.error,
           ),
         );

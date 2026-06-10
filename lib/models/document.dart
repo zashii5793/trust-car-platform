@@ -149,8 +149,9 @@ class Document {
   String get fileSizeDisplay {
     if (fileSize == null) return '不明';
     if (fileSize! < 1024) return '$fileSize B';
-    if (fileSize! < 1024 * 1024)
+    if (fileSize! < 1024 * 1024) {
       return '${(fileSize! / 1024).toStringAsFixed(1)} KB';
+    }
     return '${(fileSize! / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 

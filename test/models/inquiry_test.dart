@@ -171,7 +171,6 @@ void main() {
     });
 
     test('vehicleDisplay returns null when no maker', () {
-      final noVehicle = inquiry.copyWith(vehicleMaker: null);
       // Note: copyWith doesn't allow setting to null, so we create a new inquiry
       final noVehicleInquiry = Inquiry(
         id: 'inq2',

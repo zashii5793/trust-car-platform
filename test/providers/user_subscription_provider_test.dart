@@ -20,7 +20,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/models/user_plan.dart';
 import 'package:trust_car_platform/providers/user_subscription_provider.dart';
-import 'package:trust_car_platform/services/user_subscription_service.dart';
 
 void main() {
   // ---------------------------------------------------------------------------

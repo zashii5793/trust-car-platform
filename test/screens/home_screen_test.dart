@@ -7,7 +7,7 @@
 // Coverage:
 //   - Initial tab index (マイカー)
 //   - AppBar title per tab
-//   - BottomNavigationBar items & tap
+//   - NavigationBar items & tap
 //   - Vehicle loading / empty / error states
 //   - Notification badge when unread count > 0
 //   - Offline banner (ConnectivityProvider.isOffline = true)
@@ -169,7 +169,6 @@ class _StubAuthService implements AuthService {
   Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
       const Result.success(null);
 
-  @override
   Future<Result<void, AppError>> deleteAccount() async =>
       const Result.success(null);
 
@@ -456,12 +455,12 @@ void main() {
     });
   });
 
-  group('HomeScreen — BottomNavigationBar', () {
-    testWidgets('BottomNavigationBar が表示される', (tester) async {
+  group('HomeScreen — NavigationBar', () {
+    testWidgets('NavigationBar が表示される', (tester) async {
       await tester.pumpWidget(_buildApp());
       await tester.pump();
 
-      expect(find.byType(BottomNavigationBar), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
     });
 
     testWidgets('5つのタブアイコンが存在する', (tester) async {
@@ -484,16 +483,17 @@ void main() {
       await tester.pump();
 
       // 全タブを一巡
+      // NavigationBar shows the outlined icon for unselected destinations
       final icons = [
         Icons.store_outlined,
         Icons.forum_outlined,
         Icons.notifications_outlined,
         Icons.person_outline,
-        Icons.directions_car,
+        Icons.directions_car_outlined,
       ];
       for (final icon in icons) {
         final iconFinder = find.descendant(
-          of: find.byType(BottomNavigationBar),
+          of: find.byType(NavigationBar),
           matching: find.byIcon(icon),
         );
         await tester.tap(iconFinder);
@@ -511,7 +511,7 @@ void main() {
       await tester.pumpWidget(_buildApp(vehicleProvider: vp));
       await tester.pump();
 
-      expect(find.byType(BottomNavigationBar), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
     });
 
     testWidgets('車両あり → リストに表示される', (tester) async {
@@ -690,14 +690,21 @@ void main() {
       await tester.pumpWidget(_buildApp(vehicleProvider: vp));
       await tester.pump();
 
-      // ヒーローアイコン(1) + _FeatureRow アイコン(3) = オンボーディング配下に4個
-      expect(
-        find.descendant(
-          of: find.byType(SingleChildScrollView),
-          matching: find.byType(ExcludeSemantics),
-        ),
-        findsNWidgets(4),
-      );
+      // ヒーローアイコンと各 _FeatureRow アイコンが ExcludeSemantics 配下にある
+      for (final icon in [
+        Icons.history,
+        Icons.notifications_active,
+        Icons.handshake,
+      ]) {
+        expect(
+          find.ancestor(
+            of: find.byIcon(icon),
+            matching: find.byType(ExcludeSemantics),
+          ),
+          findsWidgets,
+          reason: '$icon should be wrapped in ExcludeSemantics',
+        );
+      }
     });
 
     testWidgets('「車両を登録する」ElevatedButton が onPressed を持ちアクセス可能',
@@ -706,10 +713,11 @@ void main() {
       await tester.pumpWidget(_buildApp(vehicleProvider: vp));
       await tester.pump();
 
+      // ElevatedButton.icon creates a private subclass, so match by subtype
       final button = tester.widget<ElevatedButton>(
         find.ancestor(
           of: find.text('車両を登録する'),
-          matching: find.byType(ElevatedButton),
+          matching: find.bySubtype<ElevatedButton>(),
         ),
       );
       expect(button.onPressed, isNotNull);
@@ -722,7 +730,7 @@ void main() {
       await tester.pump();
 
       final carTabIcon = find.descendant(
-        of: find.byType(BottomNavigationBar),
+        of: find.byType(NavigationBar),
         matching: find.byIcon(Icons.directions_car),
       );
       await tester.tap(carTabIcon);

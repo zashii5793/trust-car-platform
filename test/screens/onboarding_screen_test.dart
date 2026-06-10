@@ -5,10 +5,7 @@ import 'package:trust_car_platform/screens/auth/onboarding_screen.dart';
 import 'package:trust_car_platform/screens/auth/login_screen.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
-import 'package:trust_car_platform/core/result/result.dart';
-import 'package:trust_car_platform/core/error/app_error.dart';
-import 'package:trust_car_platform/models/user.dart';
-import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
+import 'package:firebase_auth/firebase_auth.dart' show User;
 import 'package:provider/provider.dart';
 
 // Minimal AuthService stub so LoginScreen can render without Firebase.
@@ -18,7 +15,6 @@ class _StubAuthService implements AuthService {
   Stream<User?> get authStateChanges => Stream.value(null);
   @override
   User? get currentUser => null;
-  @override
   bool get isAuthenticated => false;
   @override
   dynamic noSuchMethod(Invocation i) => null;

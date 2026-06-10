@@ -1,11 +1,11 @@
-/// Firebase Emulator Helper for Integration Tests
-///
-/// This helper provides utilities for connecting to Firebase Emulators
-/// and managing test data lifecycle.
-///
-/// Usage:
-/// 1. Start Firebase Emulators: `firebase emulators:start`
-/// 2. Run integration tests: `flutter test test/integration/`
+// Firebase Emulator Helper for Integration Tests
+//
+// This helper provides utilities for connecting to Firebase Emulators
+// and managing test data lifecycle.
+//
+// Usage:
+// 1. Start Firebase Emulators: `firebase emulators:start`
+// 2. Run integration tests: `flutter test test/integration/`
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

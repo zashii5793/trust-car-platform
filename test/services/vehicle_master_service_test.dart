@@ -233,7 +233,7 @@ void main() {
     });
 
     test('getCommonGrades で非常に長い modelId でもクラッシュしない', () {
-      final longId = 'model_' + 'x' * 200;
+      final longId = 'model_${'x' * 200}';
       expect(() => VehicleMasterData.getCommonGrades(longId), returnsNormally);
     });
 

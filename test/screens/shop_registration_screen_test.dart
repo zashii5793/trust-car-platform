@@ -243,13 +243,6 @@ Widget _buildScreen({
   );
 }
 
-// Scrolls to find and interact with a widget that may be off-screen.
-Future<void> _scrollToAndTap(WidgetTester tester, Finder finder) async {
-  await tester.scrollUntilVisible(finder, 100);
-  await tester.tap(finder);
-  await tester.pumpAndSettle(const Duration(seconds: 10));
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -296,9 +289,11 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
       expect(find.text('店舗名を入力してください'), findsOneWidget);
 
-      // Enter name — error should clear
+      // Enter name and re-submit — validation now passes and the error clears
       await tester.enterText(find.byType(TextFormField).first, 'テスト工場');
       await tester.pump();
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       expect(find.text('店舗名を入力してください'), findsNothing);
     });
   });
@@ -313,16 +308,20 @@ void main() {
       // メールアドレス
       expect(find.text('メールアドレス'), findsOneWidget);
       // ウェブサイト
-      await tester.scrollUntilVisible(find.text('ウェブサイト'), 100);
+      await tester.scrollUntilVisible(find.text('ウェブサイト'), 100,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('ウェブサイト'), findsOneWidget);
       // 都道府県
-      await tester.scrollUntilVisible(find.text('都道府県'), 100);
+      await tester.scrollUntilVisible(find.text('都道府県'), 100,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('都道府県'), findsOneWidget);
       // 市区町村
-      await tester.scrollUntilVisible(find.text('市区町村'), 100);
+      await tester.scrollUntilVisible(find.text('市区町村'), 100,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('市区町村'), findsOneWidget);
       // 住所
-      await tester.scrollUntilVisible(find.text('住所'), 100);
+      await tester.scrollUntilVisible(find.text('住所'), 100,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('住所'), findsOneWidget);
     });
 
@@ -346,11 +345,14 @@ void main() {
 
       expect(find.text('基本情報'), findsOneWidget);
       expect(find.text('連絡先'), findsOneWidget);
-      await tester.scrollUntilVisible(find.text('所在地'), 100);
+      await tester.scrollUntilVisible(find.text('所在地'), 100,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('所在地'), findsOneWidget);
-      await tester.scrollUntilVisible(find.text('サービス'), 100);
+      await tester.scrollUntilVisible(find.text('サービス'), 100,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('サービス'), findsOneWidget);
-      await tester.scrollUntilVisible(find.text('プラン選択'), 100);
+      await tester.scrollUntilVisible(find.text('プラン選択'), 100,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('プラン選択'), findsOneWidget);
     });
   });
@@ -362,7 +364,8 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Scroll to chips section
-      await tester.scrollUntilVisible(find.text('車検'), 200);
+      await tester.scrollUntilVisible(find.text('車検'), 200,
+          scrollable: find.byType(Scrollable).first);
 
       // Verify some representative chips are present
       expect(find.text('車検'), findsOneWidget);
@@ -376,7 +379,8 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.scrollUntilVisible(find.text('車検'), 200);
+      await tester.scrollUntilVisible(find.text('車検'), 200,
+          scrollable: find.byType(Scrollable).first);
 
       final chip = find.ancestor(
         of: find.text('車検'),
@@ -388,6 +392,8 @@ void main() {
       FilterChip chipWidget = tester.widget(chip);
       expect(chipWidget.selected, isFalse);
 
+      await tester.ensureVisible(chip);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       await tester.tap(chip);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -399,7 +405,8 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.scrollUntilVisible(find.text('整備・点検'), 200);
+      await tester.scrollUntilVisible(find.text('整備・点検'), 200,
+          scrollable: find.byType(Scrollable).first);
 
       final chip = find.ancestor(
         of: find.text('整備・点検'),
@@ -407,6 +414,8 @@ void main() {
       );
 
       // Select
+      await tester.ensureVisible(chip);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       await tester.tap(chip);
       await tester.pumpAndSettle(const Duration(seconds: 10));
       FilterChip chipWidget = tester.widget(chip);
@@ -425,7 +434,8 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.scrollUntilVisible(find.text('0円'), 200);
+      await tester.scrollUntilVisible(find.text('0円'), 200,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('0円'), findsOneWidget);
     });
 
@@ -433,7 +443,8 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.scrollUntilVisible(find.text('9,800円 / 月'), 200);
+      await tester.scrollUntilVisible(find.text('9,800円 / 月'), 200,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('9,800円 / 月'), findsOneWidget);
     });
 
@@ -441,7 +452,8 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.scrollUntilVisible(find.text('29,800円 / 月'), 200);
+      await tester.scrollUntilVisible(find.text('29,800円 / 月'), 200,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('29,800円 / 月'), findsOneWidget);
     });
 
@@ -449,7 +461,8 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.scrollUntilVisible(find.text('Free'), 200);
+      await tester.scrollUntilVisible(find.text('Free'), 200,
+          scrollable: find.byType(Scrollable).first);
 
       // Free plan should have radio_button_checked icon
       final freePlanCard = find.ancestor(
@@ -469,7 +482,8 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.scrollUntilVisible(find.text('Standard'), 200);
+      await tester.scrollUntilVisible(find.text('Standard'), 200,
+          scrollable: find.byType(Scrollable).first);
       await tester.tap(find.text('Standard'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -487,7 +501,8 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Scroll to bottom button
-      await tester.scrollUntilVisible(find.text('保存する'), 200);
+      await tester.scrollUntilVisible(find.text('保存する'), 200,
+          scrollable: find.byType(Scrollable).first);
 
       final button = find.ancestor(
         of: find.text('保存する'),
@@ -502,9 +517,12 @@ void main() {
       await tester.pumpWidget(
         _buildScreen(shopProvider: _FakeShopProvider(isSubmitting: true)),
       );
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // The submitting spinner animates forever; use bounded pumps.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
-      await tester.scrollUntilVisible(find.text('保存中...'), 200);
+      await tester.scrollUntilVisible(find.text('保存中...'), 200,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('保存中...'), findsOneWidget);
 
       // Button should be disabled
@@ -535,7 +553,9 @@ void main() {
       await tester.pumpWidget(
         _buildScreen(shopProvider: _FakeShopProvider(isSubmitting: true)),
       );
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // The submitting spinner animates forever; use bounded pumps.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // AppBar should show spinner, not 保存 button
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -567,12 +587,18 @@ void main() {
     });
 
     testWidgets('31. edit mode pre-fills plan type (Standard)', (tester) async {
+      // Plan cards are lazily built in a ListView; use a tall surface so all
+      // three cards (Free/Standard/Premium) are rendered.
+      await tester.binding.setSurfaceSize(const Size(800, 2400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       final shop = _makeExistingShop(planType: ShopPlanType.standard);
       await tester.pumpWidget(_buildScreen(existingShop: shop));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Scroll to plan section
-      await tester.scrollUntilVisible(find.text('Standard'), 200);
+      await tester.scrollUntilVisible(find.text('Standard'), 200,
+          scrollable: find.byType(Scrollable).first);
 
       // Standard should be selected (radio_button_checked near it)
       expect(find.byIcon(Icons.radio_button_checked), findsOneWidget);
@@ -587,7 +613,8 @@ void main() {
       await tester.pumpWidget(_buildScreen(existingShop: shop));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.scrollUntilVisible(find.text('車検'), 200);
+      await tester.scrollUntilVisible(find.text('車検'), 200,
+          scrollable: find.byType(Scrollable).first);
 
       // 車検 chip should be selected
       final inspectionChip = find.ancestor(
@@ -598,7 +625,8 @@ void main() {
       expect(widget.selected, isTrue);
 
       // タイヤ交換 chip should also be selected
-      await tester.scrollUntilVisible(find.text('タイヤ交換'), 100);
+      await tester.scrollUntilVisible(find.text('タイヤ交換'), 100,
+          scrollable: find.byType(Scrollable).first);
       final tireChip = find.ancestor(
         of: find.text('タイヤ交換'),
         matching: find.byType(FilterChip),
@@ -663,7 +691,6 @@ void main() {
       final provider = _FakeShopProvider(saveShouldSucceed: true);
 
       // Wrap in a Navigator with a home route so pop can be verified
-      bool popped = false;
       await tester.pumpWidget(
         MultiProvider(
           providers: [
@@ -723,11 +750,14 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.scrollUntilVisible(find.text('Free'), 200);
+      await tester.scrollUntilVisible(find.text('Free'), 200,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('Free'), findsOneWidget);
-      await tester.scrollUntilVisible(find.text('Standard'), 100);
+      await tester.scrollUntilVisible(find.text('Standard'), 100,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('Standard'), findsOneWidget);
-      await tester.scrollUntilVisible(find.text('Premium'), 100);
+      await tester.scrollUntilVisible(find.text('Premium'), 100,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('Premium'), findsOneWidget);
     });
 

@@ -367,7 +367,8 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       // confirmDismiss が表示した確認ダイアログを承認
-      await tester.tap(find.text('削除'));
+      // （スワイプ背景にも「削除」テキストがあるためダイアログのボタンに限定）
+      await tester.tap(find.widgetWithText(TextButton, '削除'));
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       expect(provider.lastRemovedId, 'n1');

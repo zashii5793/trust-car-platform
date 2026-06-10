@@ -343,7 +343,7 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('DriveLog モデル', () {
-    DriveLog _makeLog({
+    DriveLog makeLog({
       String id = 'log1',
       String userId = 'user1',
       DriveLogStatus status = DriveLogStatus.completed,
@@ -366,14 +366,14 @@ void main() {
     }
 
     test('DriveLog インスタンスを作成できる', () {
-      final log = _makeLog();
+      final log = makeLog();
       expect(log.id, 'log1');
       expect(log.userId, 'user1');
       expect(log.status, DriveLogStatus.completed);
     });
 
     test('copyWith で status を更新できる', () {
-      final log = _makeLog(status: DriveLogStatus.recording);
+      final log = makeLog(status: DriveLogStatus.recording);
       final updated = log.copyWith(status: DriveLogStatus.completed);
 
       expect(updated.status, DriveLogStatus.completed);
@@ -381,23 +381,23 @@ void main() {
     });
 
     test('recording ステータスは endTime が null', () {
-      final log = _makeLog(status: DriveLogStatus.recording);
+      final log = makeLog(status: DriveLogStatus.recording);
       expect(log.endTime, isNull);
     });
 
     test('statistics.totalDistance はデフォルト値が正しい', () {
-      final log = _makeLog();
+      final log = makeLog();
       expect(log.statistics.totalDistance, 50.0);
     });
 
     test('toMap で userId が含まれる', () {
-      final log = _makeLog(userId: 'u1');
+      final log = makeLog(userId: 'u1');
       final map = log.toMap();
       expect(map['userId'], 'u1');
     });
 
     test('toMap で status が文字列で含まれる', () {
-      final log = _makeLog(status: DriveLogStatus.completed);
+      final log = makeLog(status: DriveLogStatus.completed);
       final map = log.toMap();
       expect(map['status'], 'completed');
     });

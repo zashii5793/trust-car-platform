@@ -25,6 +25,10 @@ class ShopOwnerScreen extends StatefulWidget {
 }
 
 class _ShopOwnerScreenState extends State<ShopOwnerScreen> {
+  // Captured in initState because looking up ancestors (context.read)
+  // inside dispose() throws once the element is deactivated.
+  ShopProvider? _shopProvider;
+
   @override
   void initState() {
     super.initState();
@@ -33,6 +37,7 @@ class _ShopOwnerScreenState extends State<ShopOwnerScreen> {
       if (uid == null) return;
 
       final provider = context.read<ShopProvider>();
+      _shopProvider = provider;
       await provider.loadMyShop(uid);
 
       // Start real-time inquiry count stream once the shop is known
@@ -45,7 +50,7 @@ class _ShopOwnerScreenState extends State<ShopOwnerScreen> {
 
   @override
   void dispose() {
-    context.read<ShopProvider>().stopWatchingInquiries();
+    _shopProvider?.stopWatchingInquiries();
     super.dispose();
   }
 

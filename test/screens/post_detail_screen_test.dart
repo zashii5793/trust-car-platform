@@ -116,6 +116,8 @@ class _FakePostService implements PostService {
     dynamic startAfter,
     bool topLevelOnly = true,
   }) async {
+    // Small delay so the loading state is observable with a single pump.
+    await Future<void>.delayed(const Duration(milliseconds: 50));
     return Result.success(commentsToReturn);
   }
 
@@ -160,6 +162,9 @@ class _FakePostService implements PostService {
   Future<Result<void, AppError>> likePost({
     required String postId,
     required String userId,
+    String? postAuthorId,
+    String? actorDisplayName,
+    String? actorPhotoUrl,
   }) async {
     likeToggleCallCount++;
     return const Result.success(null);
@@ -358,10 +363,18 @@ void main() {
     });
 
     testWidgets('10. shows spinner while loading', (tester) async {
+      // The comments section sits below the post body in a lazy scrollable;
+      // use a tall surface so it is actually built on the first frame.
+      await tester.binding.setSurfaceSize(const Size(800, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       await tester.pumpWidget(_buildScreen(_makePost()));
       await tester.pump(); // single tick — still loading
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      // Flush the mock's artificial load delay so no timer is pending.
+      await tester.pump(const Duration(milliseconds: 100));
     });
 
     testWidgets('11. shows まだコメントがありません when empty', (tester) async {

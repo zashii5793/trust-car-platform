@@ -224,7 +224,7 @@ class _FakeDriveProvider extends DriveRecordingProvider {
       !_startShouldFail;
 
   @override
-  Future<void> stopRecording() async {}
+  Future<DriveLog?> stopRecording() async => null;
 }
 
 Widget _buildDriveScreen(_FakeDriveProvider provider,
@@ -364,7 +364,8 @@ void main() {
       await tester.pumpWidget(_buildDriveScreen(
         _FakeDriveProvider(currentSpeed: 42, maxSpeed: 68, distanceKm: 0.3),
       ));
-      await tester.pumpAndSettle();
+      // The recording indicator animates forever; use bounded pumps.
+      await tester.pump(const Duration(milliseconds: 500));
 
       await expectLater(
         find.byType(MaterialApp),
@@ -386,10 +387,11 @@ void main() {
     testWidgets('recording_dialog: stop confirmation dialog open',
         (tester) async {
       await tester.pumpWidget(_buildDriveScreen(_FakeDriveProvider()));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
 
       await tester.tap(find.text('記録を終了'));
-      await tester.pumpAndSettle();
+      // Dialog open animation; the screen itself never settles.
+      await tester.pump(const Duration(milliseconds: 500));
 
       await expectLater(
         find.byType(MaterialApp),
@@ -404,7 +406,7 @@ void main() {
         errorMessage: '位置情報の権限が必要です',
       );
       await tester.pumpWidget(_buildDriveScreen(provider));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
 
       await expectLater(
         find.byType(MaterialApp),
@@ -417,7 +419,7 @@ void main() {
       await tester.pumpWidget(_buildDriveScreen(
         _FakeDriveProvider(distanceKm: 12.34),
       ));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
 
       await expectLater(
         find.byType(MaterialApp),
@@ -431,7 +433,7 @@ void main() {
         vehicleId: 'v1',
         vehicleName: 'GR86',
       ));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
 
       await expectLater(
         find.byType(MaterialApp),

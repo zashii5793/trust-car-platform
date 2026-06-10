@@ -354,7 +354,6 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   // ビルド
   // ---------------------------------------------------------------------------
 
-  @override
   bool get _isDirty =>
       _currentStep > 0 ||
       _selectedMaker != null ||
@@ -383,6 +382,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     return result ?? false;
   }
 
+  @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: !_isDirty,

@@ -10,7 +10,7 @@ import 'shop_subscription_service.dart';
 /// Service for inquiry (user-to-shop communication) operations
 class InquiryService {
   final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
+  final FirebaseAuth? _authOverride;
   final ShopSubscriptionService _subscriptionService;
 
   InquiryService({
@@ -18,8 +18,12 @@ class InquiryService {
     FirebaseAuth? auth,
     ShopSubscriptionService? subscriptionService,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance,
+        _authOverride = auth,
         _subscriptionService = subscriptionService ?? ShopSubscriptionService();
+
+  /// Resolved lazily so tests can construct this service with a fake
+  /// Firestore only, without calling Firebase.initializeApp().
+  FirebaseAuth get _auth => _authOverride ?? FirebaseAuth.instance;
 
   CollectionReference<Map<String, dynamic>> get _inquiriesCollection =>
       _firestore.collection(FirestoreCollections.inquiries);

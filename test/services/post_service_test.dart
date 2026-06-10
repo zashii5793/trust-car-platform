@@ -103,7 +103,8 @@ void main() {
 
     test('メール形式は @ を含むが正しく扱われる', () {
       // @の後ろが word characters(英数字_)のみを対象とする
-      final mentions = Post.extractMentions('連絡はtest@example.com まで');
+      expect(() => Post.extractMentions('連絡はtest@example.com まで'),
+          returnsNormally);
       // "example" が抽出される可能性があるが、少なくともクラッシュしない
       expect(() => Post.extractMentions('test@example.com'), returnsNormally);
     });

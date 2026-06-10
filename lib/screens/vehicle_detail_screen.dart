@@ -19,6 +19,7 @@ import 'export/export_dialog.dart';
 import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
 import 'maintenance_stats_screen.dart';
+import 'maintenance_search_screen.dart';
 
 class VehicleDetailScreen extends StatefulWidget {
   final Vehicle vehicle;
@@ -69,6 +70,25 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
         appBar: AppBar(
           title: Text('${_vehicle.maker} ${_vehicle.model}'),
           actions: [
+            // 整備履歴検索ボタン
+            Consumer<MaintenanceProvider>(
+              builder: (context, provider, child) {
+                return IconButton(
+                  icon: const Icon(Icons.search),
+                  tooltip: '整備履歴を検索',
+                  onPressed: provider.records.isEmpty
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MaintenanceSearchScreen(),
+                            ),
+                          );
+                        },
+                );
+              },
+            ),
             // PDF出力ボタン
             Consumer<MaintenanceProvider>(
               builder: (context, provider, child) {

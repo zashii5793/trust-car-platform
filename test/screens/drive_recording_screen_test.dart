@@ -272,7 +272,10 @@ void main() {
   group('DriveRecordingScreen — AppBar', () {
     testWidgets('shows default title when no vehicleName', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('ドライブ記録中'), findsOneWidget);
     });
@@ -280,14 +283,20 @@ void main() {
     testWidgets('shows vehicle name in title when provided', (tester) async {
       await tester
           .pumpWidget(_buildScreen(vehicleName: 'GR86', vehicleId: 'v1'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('GR86 — 記録中'), findsOneWidget);
     });
 
     testWidgets('no back arrow shown (canPop is false)', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       // automaticallyImplyLeading is false → no back button
       expect(find.byType(BackButton), findsNothing);
@@ -297,7 +306,10 @@ void main() {
   group('DriveRecordingScreen — Stat cards', () {
     testWidgets('shows 経過時間 card with formattedElapsed', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('経過時間'), findsOneWidget);
       expect(find.text('12:34'), findsOneWidget);
@@ -306,7 +318,10 @@ void main() {
     testWidgets('shows 走行距離 card', (tester) async {
       await tester.pumpWidget(
           _buildScreen(provider: _FakeDriveRecordingProvider(distanceKm: 0)));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('走行距離'), findsOneWidget);
     });
@@ -314,7 +329,10 @@ void main() {
     testWidgets('shows 現在速度 card with speed value', (tester) async {
       await tester.pumpWidget(_buildScreen(
           provider: _FakeDriveRecordingProvider(currentSpeed: 42)));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('現在速度'), findsOneWidget);
       expect(find.text('42 km/h'), findsOneWidget);
@@ -323,7 +341,10 @@ void main() {
     testWidgets('shows 最高速度 card with speed value', (tester) async {
       await tester.pumpWidget(
           _buildScreen(provider: _FakeDriveRecordingProvider(maxSpeed: 68)));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('最高速度'), findsOneWidget);
       expect(find.text('68 km/h'), findsOneWidget);
@@ -331,7 +352,10 @@ void main() {
 
     testWidgets('shows GPS indicator', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('GPS 取得中'), findsOneWidget);
     });
@@ -341,7 +365,10 @@ void main() {
     testWidgets('shows metres when distance < 1 km', (tester) async {
       await tester.pumpWidget(
           _buildScreen(provider: _FakeDriveRecordingProvider(distanceKm: 0.5)));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('500 m'), findsOneWidget);
     });
@@ -349,7 +376,10 @@ void main() {
     testWidgets('shows km when distance >= 1 km', (tester) async {
       await tester.pumpWidget(_buildScreen(
           provider: _FakeDriveRecordingProvider(distanceKm: 12.34)));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('12.34 km'), findsOneWidget);
     });
@@ -357,7 +387,10 @@ void main() {
     testWidgets('shows 0 m when distance is 0', (tester) async {
       await tester.pumpWidget(
           _buildScreen(provider: _FakeDriveRecordingProvider(distanceKm: 0)));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('0 m'), findsOneWidget);
     });
@@ -381,10 +414,11 @@ void main() {
       await tester.pump();
 
       // The ElevatedButton.icon is disabled when onPressed is null
+      // (ElevatedButton.icon builds a private subclass, so match by subtype)
       final button = tester.widget<ElevatedButton>(
         find.ancestor(
           of: find.text('記録を終了'),
-          matching: find.byType(ElevatedButton),
+          matching: find.bySubtype<ElevatedButton>(),
         ),
       );
       expect(button.onPressed, isNull);
@@ -394,17 +428,26 @@ void main() {
   group('DriveRecordingScreen — Stop button', () {
     testWidgets('stop button is visible when recording', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('記録を終了'), findsOneWidget);
     });
 
     testWidgets('stop button opens confirmation dialog', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       await tester.tap(find.text('記録を終了'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('記録を終了しますか？'), findsOneWidget);
       expect(find.text('現在のドライブデータを保存して終了します。'), findsOneWidget);
@@ -416,13 +459,22 @@ void main() {
         (tester) async {
       final provider = _FakeDriveRecordingProvider();
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       await tester.tap(find.text('記録を終了'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       await tester.tap(find.text('続ける'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(provider.stopCalled, isFalse);
       // Dialog is gone
@@ -434,13 +486,22 @@ void main() {
     testWidgets("tapping '終了' calls stopRecording", (tester) async {
       final provider = _FakeDriveRecordingProvider();
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       await tester.tap(find.text('記録を終了'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       await tester.tap(find.text('終了'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(provider.stopCalled, isTrue);
     });
@@ -481,7 +542,10 @@ void main() {
         (tester) async {
       final provider = _FakeDriveRecordingProvider(isRecording: true);
       await tester.pumpWidget(_buildScreen(provider: provider));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(provider.startCalled, isFalse);
     });
@@ -491,7 +555,10 @@ void main() {
     testWidgets('no crash when vehicleId and vehicleName are null',
         (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(tester.takeException(), isNull);
     });
@@ -499,7 +566,10 @@ void main() {
     testWidgets('speed shows zero correctly', (tester) async {
       await tester.pumpWidget(_buildScreen(
           provider: _FakeDriveRecordingProvider(currentSpeed: 0, maxSpeed: 0)));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // Bounded pumps: the pulsing GPS indicator animates forever,
+      // so pumpAndSettle would always time out on this screen.
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       // Both speed cards should show '0 km/h'
       expect(find.text('0 km/h'), findsNWidgets(2));

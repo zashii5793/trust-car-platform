@@ -7,9 +7,8 @@
 /// All builders accept named parameters so callers override only what matters.
 /// Defaults produce valid, minimal objects that pass validation.
 
-library test_data;
+library;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/models/app_notification.dart';
 import 'package:trust_car_platform/models/shop.dart';

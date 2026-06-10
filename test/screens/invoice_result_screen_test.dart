@@ -41,7 +41,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:trust_car_platform/screens/invoice_result_screen.dart';
 import 'package:trust_car_platform/services/invoice_ocr_service.dart';
-import 'package:trust_car_platform/models/maintenance_record.dart';
 
 // ---------------------------------------------------------------------------
 // Test helpers

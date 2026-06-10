@@ -40,8 +40,6 @@
 //    29. Bottom button label 「更新する」
 //    30. Success update → snackbar 「更新しました」
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -50,7 +48,6 @@ import 'package:trust_car_platform/services/part_listing_service.dart';
 import 'package:trust_car_platform/models/part_listing.dart';
 import 'package:trust_car_platform/models/user_part_listing.dart';
 import 'package:trust_car_platform/core/di/service_locator.dart';
-import 'package:trust_car_platform/core/di/injection.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 

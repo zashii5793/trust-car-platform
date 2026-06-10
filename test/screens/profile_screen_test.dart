@@ -7,13 +7,15 @@
 //   4. Bottom sheet contains 保存 button
 //   5. Main screen renders ユーザー name and menu items
 
-import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:trust_car_platform/models/user.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
+import 'package:trust_car_platform/providers/user_subscription_provider.dart';
 import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/screens/profile/profile_screen.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
@@ -28,16 +30,32 @@ import 'package:trust_car_platform/models/maintenance_record.dart';
 // Stubs
 // ---------------------------------------------------------------------------
 
+class _FakeUser implements User {
+  @override
+  String get uid => 'uid1';
+  @override
+  String? get displayName => null;
+  @override
+  String? get photoURL => null;
+  @override
+  String? get email => 'test@example.com';
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
 class _StubAuthService implements AuthService {
   final AppUser? _user;
 
   _StubAuthService({AppUser? user}) : _user = user;
 
+  // Emit a signed-in user when a profile is provided so AuthProvider
+  // loads it via getUserProfile().
   @override
-  User? get currentUser => null;
+  User? get currentUser => _user == null ? null : _FakeUser();
 
   @override
-  Stream<User?> get authStateChanges => Stream.value(null);
+  Stream<User?> get authStateChanges =>
+      Stream.value(_user == null ? null : _FakeUser());
 
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
@@ -120,14 +138,12 @@ class _StubFirebaseService implements FirebaseService {
 
   @override
   Future<Result<String, AppError>> addMaintenanceRecord(
-    String vehicleId,
     MaintenanceRecord record,
   ) async =>
       const Result.success('id');
 
   @override
   Future<Result<void, AppError>> updateMaintenanceRecord(
-    String vehicleId,
     String recordId,
     MaintenanceRecord record,
   ) async =>
@@ -135,17 +151,16 @@ class _StubFirebaseService implements FirebaseService {
 
   @override
   Future<Result<void, AppError>> deleteMaintenanceRecord(
-    String vehicleId,
     String recordId,
   ) async =>
       const Result.success(null);
 
   @override
-  Future<Result<String?, AppError>> uploadImageBytes(
-    dynamic bytes,
+  Future<Result<String, AppError>> uploadImageBytes(
+    Uint8List bytes,
     String path,
   ) async =>
-      const Result.success(null);
+      const Result.success('url');
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -167,6 +182,9 @@ Widget _buildScreen({AppUser? appUser}) {
       ),
       ChangeNotifierProvider<VehicleProvider>(
         create: (_) => VehicleProvider(firebaseService: fb),
+      ),
+      ChangeNotifierProvider<UserSubscriptionProvider>(
+        create: (_) => UserSubscriptionProvider(),
       ),
       ChangeNotifierProvider<MaintenanceProvider>(
         create: (_) => MaintenanceProvider(firebaseService: fb),
@@ -195,7 +213,8 @@ void main() {
 
       expect(find.text('プロフィールを編集'), findsOneWidget);
       expect(find.text('通知設定'), findsOneWidget);
-      expect(find.text('データをエクスポート'), findsOneWidget);
+      // Label is plan-dependent: 'データをエクスポート（プレミアム）' on the free plan.
+      expect(find.textContaining('データをエクスポート'), findsOneWidget);
     });
 
     testWidgets('shows ログアウト button', (tester) async {

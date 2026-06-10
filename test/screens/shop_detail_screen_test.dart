@@ -59,6 +59,31 @@ class MockShopService implements ShopService {
           ServiceCategory category,
           {int limit = 20}) async =>
       const Result.success([]);
+
+  @override
+  Future<Result<Shop, AppError>> createMyShop(Shop shop) async =>
+      Result.failure(AppError.unknown('not impl'));
+
+  @override
+  Future<Result<Shop, AppError>> updateMyShop(Shop shop) async =>
+      Result.failure(AppError.unknown('not impl'));
+
+  @override
+  Future<Result<Shop?, AppError>> getMyShop(String uid) async =>
+      const Result.success(null);
+
+  @override
+  Stream<Map<String, int>> watchInquiryCount(String shopId) =>
+      Stream.value(const {'total': 0, 'unread': 0});
+
+  @override
+  Future<Result<Map<String, int>, AppError>> getInquiryCount(
+          String shopId) async =>
+      const Result.success({'total': 0, 'unread': 0});
+
+  @override
+  Future<Result<void, AppError>> deleteMyShop(String uid) async =>
+      const Result.success(null);
 }
 
 class MockInquiryService implements InquiryService {

@@ -4,7 +4,7 @@
 //   Loading state:
 //     1. Shows CircularProgressIndicator while loading
 //   Empty state:
-//     2. Shows 'まだ出品していません'
+//     2. Shows '出品中のパーツがありません'
 //     3. Shows '出品する' FilledButton in empty state
 //   Error state:
 //     4. Shows error message
@@ -44,7 +44,6 @@ import 'package:trust_car_platform/models/part_listing.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/di/service_locator.dart';
-import 'package:trust_car_platform/core/di/injection.dart';
 
 // ---------------------------------------------------------------------------
 // Stub PartListingService
@@ -55,10 +54,18 @@ class _StubPartListingService implements PartListingService {
       const Result.success([]);
   int loadCallCount = 0;
 
+  /// When set, getMyListings waits before resolving so tests can observe
+  /// the loading state.
+  Duration? loadDelay;
+
   @override
   Future<Result<List<UserPartListing>, AppError>> getMyListings(
       String userId) async {
     loadCallCount++;
+    final delay = loadDelay;
+    if (delay != null) {
+      await Future<void>.delayed(delay);
+    }
     return myListingsResult;
   }
 
@@ -196,13 +203,17 @@ void main() {
 
   group('MyListingsScreen — Loading state', () {
     testWidgets('1. shows spinner while loading', (tester) async {
-      // Use a slow stub that doesn't complete
+      // Use a slow stub so the loading frame is observable
       _stub.myListingsResult = const Result.success([]);
+      _stub.loadDelay = const Duration(milliseconds: 50);
 
       await tester.pumpWidget(_buildScreen());
       await tester.pump(); // Don't settle — catch loading frame
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      // Flush the artificial delay so no timer is pending at teardown.
+      await tester.pump(const Duration(milliseconds: 100));
     });
   });
 
@@ -213,7 +224,7 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('まだ出品していません'), findsOneWidget);
+      expect(find.text('出品中のパーツがありません'), findsOneWidget);
     });
 
     testWidgets('3. shows 出品する button in empty state', (tester) async {

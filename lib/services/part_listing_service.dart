@@ -117,7 +117,6 @@ class UpdatePartListingInput {
 /// Service for user-submitted part listings in the marketplace
 class PartListingService {
   final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
   final FirebaseService _firebaseService;
   // Injectable for testability (mirrors DriveRecordingProvider pattern)
   final String? Function() _getCurrentUid;
@@ -128,7 +127,6 @@ class PartListingService {
     FirebaseService? firebaseService,
     String? Function()? getCurrentUid,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance,
         _firebaseService = firebaseService ?? FirebaseService(),
         _getCurrentUid = getCurrentUid ??
             (() => (auth ?? FirebaseAuth.instance).currentUser?.uid);

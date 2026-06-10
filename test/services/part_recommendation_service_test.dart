@@ -8,7 +8,6 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/mockito.dart';
 import 'package:trust_car_platform/models/part_listing.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/services/part_recommendation_service.dart';

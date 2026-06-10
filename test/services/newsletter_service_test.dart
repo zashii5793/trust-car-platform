@@ -14,7 +14,6 @@
 //  11. NewsletterService.updateSubscription — persists preferences
 //  12. Edge Cases: empty authorId, non-existent newsletter
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/models/newsletter.dart';

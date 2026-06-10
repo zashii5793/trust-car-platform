@@ -298,7 +298,6 @@ void main() {
     testWidgets('12. successful signup pops the route', (tester) async {
       final provider = _FakeAuthProvider(signUpShouldSucceed: true);
 
-      bool popped = false;
       await tester.pumpWidget(
         ChangeNotifierProvider<AuthProvider>.value(
           value: provider,
@@ -392,6 +391,9 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
+      // The Google button sits below the fold; scroll it into view first.
+      await tester.ensureVisible(find.text('Google で登録'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       await tester.tap(find.text('Google で登録'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -426,6 +428,9 @@ void main() {
       await tester.enterText(find.byType(TextFormField).at(0), '   ');
       await tester.pump();
 
+      // The submit button sits below the fold; scroll it into view first.
+      await tester.ensureVisible(find.text('アカウントを作成'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
       await tester.tap(find.text('アカウントを作成'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 

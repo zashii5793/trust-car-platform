@@ -1,9 +1,9 @@
-/// CRUD Integration Tests
-///
-/// This file tests CRUD operations for all models
-/// verifying serialization, deserialization, and data integrity.
-///
-/// Run with: flutter test test/integration/crud_integration_test.dart
+// CRUD Integration Tests
+//
+// This file tests CRUD operations for all models
+// verifying serialization, deserialization, and data integrity.
+//
+// Run with: flutter test test/integration/crud_integration_test.dart
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -408,9 +408,9 @@ void main() {
 
       final stats = DriveStatistics.fromMap(map);
 
-      expect(stats?.totalDistance, 100.0);
-      expect(stats?.totalDuration, 3600);
-      expect(stats?.averageSpeed, 50.0);
+      expect(stats.totalDistance, 100.0);
+      expect(stats.totalDuration, 3600);
+      expect(stats.averageSpeed, 50.0);
     });
 
     test('DriveLog.fromMap parses correctly', () {

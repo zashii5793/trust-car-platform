@@ -107,7 +107,7 @@ class _SignupScreenState extends State<SignupScreen> {
                             hintText: '例: 山田太郎',
                             prefixIcon: const Icon(Icons.person_outlined),
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
+                              if (value == null || value.trim().isEmpty) {
                                 return '表示名を入力してください';
                               }
                               return null;

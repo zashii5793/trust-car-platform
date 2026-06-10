@@ -231,7 +231,6 @@ void main() {
     test('isShopListing returns true for shop listing', () {
       expect(listing.isShopListing, true);
 
-      final privateListing = listing.copyWith(shopId: null);
       // Note: copyWith doesn't allow setting to null, create new
       final privateListingNew = VehicleListing(
         id: 'listing2',

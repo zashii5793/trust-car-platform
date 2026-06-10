@@ -12,7 +12,7 @@ void main() {
         expect(error, isA<AuthError>());
         final authError = error as AuthError;
         expect(authError.type, AuthErrorType.userNotFound);
-        expect(authError.userMessage, 'ユーザーが見つかりません');
+        expect(authError.userMessage, 'メールアドレスまたはパスワードが正しくありません');
         expect(authError.isRetryable, false);
       });
 
@@ -41,7 +41,7 @@ void main() {
         expect(error, isA<AuthError>());
         final authError = error as AuthError;
         expect(authError.type, AuthErrorType.emailAlreadyInUse);
-        expect(authError.userMessage, 'このメールアドレスは既に使用されています');
+        expect(authError.userMessage, 'このメールアドレスはすでに登録されています');
       });
 
       test('mapFirebaseError maps weak-password to AuthError', () {

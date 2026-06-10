@@ -37,7 +37,6 @@ import 'package:trust_car_platform/providers/part_recommendation_provider.dart';
 import 'package:trust_car_platform/services/part_recommendation_service.dart';
 import 'package:trust_car_platform/models/part_listing.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
-import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 
 // ---------------------------------------------------------------------------

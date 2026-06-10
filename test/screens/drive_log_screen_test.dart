@@ -55,7 +55,6 @@ class MockAuthService implements AuthService {
   Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
       const Result.success(null);
 
-  @override
   Future<Result<void, AppError>> deleteAccount() async =>
       const Result.success(null);
 
@@ -126,7 +125,6 @@ class MockDriveLogService implements DriveLogService {
 DriveLog _makeDriveLog({
   String id = 'log1',
   String userId = 'user1',
-  String? title,
   double distance = 42.5,
   int durationSecs = 3600,
 }) {
@@ -153,7 +151,6 @@ DriveLog _makeDriveLog({
 
 Widget _buildUnderTest({
   required MockDriveLogService driveLogService,
-  String? userId,
 }) {
   return MultiProvider(
     providers: [
@@ -299,13 +296,18 @@ void main() {
       ]);
 
       final handle = tester.ensureSemantics();
-      addTearDown(handle.dispose);
       await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      // Two pumps: one for the post-frame load, one for the loaded rebuild.
+      await tester.pump();
       await tester.pump();
 
-      // _SummaryItem merges label and value into a single announcement
-      expect(find.bySemanticsLabel('総走行距離 30.0 km'), findsOneWidget);
-      expect(find.bySemanticsLabel('総時間 1h 0m'), findsOneWidget);
+      // The summary card merges all stats into one semantics node, so match
+      // the label+value pairs inside the merged announcement.
+      expect(find.bySemanticsLabel(RegExp('総走行距離 30\\.0 km')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('総時間 1h 0m')), findsOneWidget);
+
+      // Must be disposed before the end-of-test verifications run.
+      handle.dispose();
     });
 
     testWidgets('サマリーカード表示時にレイアウト例外が発生しない', (tester) async {

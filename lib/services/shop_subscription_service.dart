@@ -31,10 +31,15 @@ class ShopPlanLimits {
 /// Handles plan limit enforcement and subscription state updates.
 /// RevenueCat webhook updates Firestore; this service reads that state.
 class ShopSubscriptionService {
-  final FirebaseFirestore _firestore;
+  final FirebaseFirestore? _firestoreOverride;
 
   ShopSubscriptionService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+      : _firestoreOverride = firestore;
+
+  /// Resolved lazily so tests can construct this service without
+  /// calling Firebase.initializeApp().
+  FirebaseFirestore get _firestore =>
+      _firestoreOverride ?? FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _shops =>
       _firestore.collection('shops');

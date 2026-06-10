@@ -110,10 +110,12 @@ class DocumentService {
 
       if (title != null) updates['title'] = title;
       if (description != null) updates['description'] = description;
-      if (documentDate != null)
+      if (documentDate != null) {
         updates['documentDate'] = Timestamp.fromDate(documentDate);
-      if (expiryDate != null)
+      }
+      if (expiryDate != null) {
         updates['expiryDate'] = Timestamp.fromDate(expiryDate);
+      }
       if (isArchived != null) updates['isArchived'] = isArchived;
 
       await _documentsCollection.doc(documentId).update(updates);

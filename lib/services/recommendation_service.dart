@@ -499,7 +499,7 @@ class RecommendationService {
     if (lastDate != null) {
       final monthsAgo = now.difference(lastDate).inDays ~/ 30;
       final dateStr = '${lastDate.year}年${lastDate.month}月${lastDate.day}日';
-      lines.add('📋 前回の${rule.name}: $dateStr（${monthsAgo}ヶ月前）');
+      lines.add('📋 前回の${rule.name}: $dateStr（$monthsAgoヶ月前）');
       if (lastMileage != null) {
         final kmSince = vehicle.mileage - lastMileage;
         lines.add('🚗 前回から走行: ${_formatKm(kmSince)}');
