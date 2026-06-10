@@ -1093,28 +1093,33 @@ class _VehicleEmptyOnboarding extends StatelessWidget {
       child: Column(
         children: [
           AppSpacing.verticalXl,
-          // Hero icon
-          Container(
-            width: 96,
-            height: 96,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.10),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.directions_car,
-              size: 52,
-              color: AppColors.primary,
+          // Hero icon — decorative, excluded from semantics tree
+          ExcludeSemantics(
+            child: Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.directions_car,
+                size: 52,
+                color: AppColors.primary,
+              ),
             ),
           ),
           AppSpacing.verticalMd,
-          Text(
-            'まず愛車を登録しよう',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+          Semantics(
+            header: true,
+            child: Text(
+              'まず愛車を登録しよう',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
           ),
           AppSpacing.verticalSm,
           Text(
@@ -1180,14 +1185,17 @@ class _FeatureRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.12),
-              borderRadius: AppSpacing.borderRadiusMd,
+          // Feature icon — decorative; text title/description carry the meaning
+          ExcludeSemantics(
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.12),
+                borderRadius: AppSpacing.borderRadiusMd,
+              ),
+              child: Icon(icon, size: 22, color: accentColor),
             ),
-            child: Icon(icon, size: 22, color: accentColor),
           ),
           AppSpacing.horizontalMd,
           Expanded(

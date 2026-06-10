@@ -668,6 +668,46 @@ void main() {
     });
   });
 
+  group('アクセシビリティ — _VehicleEmptyOnboarding', () {
+    testWidgets('ヘッダーテキストに header セマンティクスが付与されている', (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      // Semantics(header: true) が「まず愛車を登録しよう」テキストの先祖に存在する
+      final semanticsWidgets = tester.widgetList<Semantics>(
+        find.ancestor(
+          of: find.text('まず愛車を登録しよう'),
+          matching: find.byType(Semantics),
+        ),
+      );
+      expect(semanticsWidgets.any((s) => s.properties.header == true), isTrue);
+    });
+
+    testWidgets('装飾的なアイコンに ExcludeSemantics が付与されている', (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      // ヒーローアイコン + _FeatureRow アイコン（3個）分の ExcludeSemantics が存在する
+      expect(find.byType(ExcludeSemantics), findsWidgets);
+    });
+
+    testWidgets('「車両を登録する」ElevatedButton が onPressed を持ちアクセス可能', (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      final button = tester.widget<ElevatedButton>(
+        find.ancestor(
+          of: find.text('車両を登録する'),
+          matching: find.byType(ElevatedButton),
+        ),
+      );
+      expect(button.onPressed, isNotNull);
+    });
+  });
+
   group('Edge Cases', () {
     testWidgets('同じタブを連続タップしてもクラッシュしない', (tester) async {
       await tester.pumpWidget(_buildApp());
