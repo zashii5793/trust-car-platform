@@ -411,9 +411,9 @@ void main() {
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      // RichText spans — use textContaining to match partial span text
-      expect(find.textContaining('全 10 件'), findsOneWidget);
-      expect(find.textContaining('未読 3 件'), findsOneWidget);
+      // RichText spans — use textContaining with findRichText to match spans
+      expect(find.textContaining('全 10 件', findRichText: true), findsOneWidget);
+      expect(find.textContaining('未読 3 件', findRichText: true), findsOneWidget);
     });
 
     testWidgets('shows 問い合わせ section', (tester) async {
@@ -460,6 +460,7 @@ void main() {
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
+      await tester.ensureVisible(find.text('掲載を削除'));
       await tester.tap(find.text('掲載を削除'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -476,6 +477,7 @@ void main() {
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
+      await tester.ensureVisible(find.text('掲載を削除'));
       await tester.tap(find.text('掲載を削除'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -492,6 +494,7 @@ void main() {
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
+      await tester.ensureVisible(find.text('掲載を削除'));
       await tester.tap(find.text('掲載を削除'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -507,6 +510,7 @@ void main() {
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
+      await tester.ensureVisible(find.text('掲載を削除'));
       await tester.tap(find.text('掲載を削除'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
       await tester.tap(find.text('削除する'));

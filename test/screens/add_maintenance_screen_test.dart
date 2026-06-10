@@ -248,7 +248,8 @@ void main() {
       await tester.pumpWidget(_buildNew());
       await tester.pump();
 
-      expect(find.text('修理'), findsOneWidget);
+      // チップが複数箇所（選択行と一覧）に表示されうるため findsWidgets
+      expect(find.text('修理'), findsWidgets);
     });
 
     testWidgets('保存 / 登録ボタンが存在する', (tester) async {

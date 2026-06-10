@@ -17,6 +17,9 @@ class VehicleOcrMatcher {
   static VehicleMaker? findMaker(List<VehicleMaker> makers, String ocrText) {
     if (ocrText.isEmpty) return null;
     final normalizedText = _normalize(ocrText);
+    // Whitespace/symbol-only OCR text normalizes to empty; `contains('')`
+    // is always true, so bail out to avoid matching the first maker.
+    if (normalizedText.isEmpty) return null;
 
     // Pass 1: exact match.
     for (final maker in makers) {
@@ -47,6 +50,9 @@ class VehicleOcrMatcher {
       List<VehicleModel> models, String ocrModelName) {
     if (ocrModelName.isEmpty) return null;
     final normalizedText = _normalize(ocrModelName);
+    // Whitespace/symbol-only OCR text normalizes to empty; `contains('')`
+    // is always true, so bail out to avoid matching the first model.
+    if (normalizedText.isEmpty) return null;
 
     // Pass 1: exact match.
     for (final model in models) {

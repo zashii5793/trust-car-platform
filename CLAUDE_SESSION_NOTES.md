@@ -1,6 +1,6 @@
 # Claude Session Notes
 
-最終更新: 2026-06-09（続き）
+最終更新: 2026-06-10
 
 ---
 
@@ -8,6 +8,44 @@
 
 **ブランチ**: `claude/continue-development-WYZZp`
 **ベース**: `main`（140 コミット先行）
+
+---
+
+## 今セッション（2026-06-10）の成果
+
+### CI 完全修復（PR #20 の Analyze & Test 失敗を解消）
+1. **Check formatting**: ブランチ全体が未フォーマットだった → CI と同一の
+   Dart 3.10.0 で `dart format lib test` 適用（207ファイル）
+2. **flutter analyze --fatal-infos 150件 → 0件**:
+   - `AppSpacing.horizontalXxs` 未定義（lib 3画面がコンパイル不能だった実バグ）
+   - テストスタブ署名の現行化・mockito mocks 再生成・lint 一括修正
+3. **テスト**: 2656パス/63失敗 → 修復継続中（drive_recording 等25件修正済み、
+   残り38件はサブエージェントで対応中）
+
+### lib/ 実バグ修正
+- `InquiryService` / `ShopSubscriptionService`: コンストラクタでの
+  `FirebaseAuth.instance` / `FirebaseFirestore.instance` 即時評価を遅延化
+- `shop_owner_screen`: `dispose()` 内 `context.read` → 画面離脱時クラッシュ修正
+- `signup_screen`: 表示名バリデータ trim 追加
+
+### 新機能: 整備履歴検索（コア機能①「整備履歴の一元管理」強化）
+- `MaintenanceProvider.searchRecords()` + `MaintenanceSortBy` enum
+  （キーワード/タイプ/日付範囲/費用範囲/5種ソート、TDD 25件）
+- `MaintenanceSearchScreen`（FilterChip・件数/合計費用サマリー、テスト7件）
+- `VehicleDetailScreen` AppBar に検索アイコン導線
+
+### アクセシビリティ改善
+- `_VehicleEmptyOnboarding`: ヒーロー/機能アイコンを ExcludeSemantics 化、
+  見出しに `Semantics(header: true)`
+- `_SummaryItem`: `'$label $value'` の統合読み上げラベル
+- 通知スワイプ（双方向 Dismissible）のウィジェットテスト5件
+
+### ローカル開発環境（このセッションで構築）
+- Flutter 3.38.0 SDK: `/tmp/flutter`（`export PATH=/tmp/flutter/bin:$PATH`）
+- Dart 3.10.0（CI と同一）: `/tmp/dart310/dart-sdk/bin/dart`
+- テスト時の注意: testWidgets 内の `Future.delayed` は FakeAsync でハング、
+  無限アニメ画面では `pumpAndSettle` 不可（有界 pump を使う）、
+  `ElevatedButton.icon` は `find.bySubtype<ElevatedButton>()` で探す
 
 ---
 

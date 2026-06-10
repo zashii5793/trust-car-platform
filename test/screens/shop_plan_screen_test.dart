@@ -156,8 +156,8 @@ void main() {
       await tester.pumpWidget(_buildScreen(currentPlan: ShopPlanType.free));
       await tester.pump();
 
-      // The OutlinedButton for the current plan shows 現在のプラン
-      expect(find.text('現在のプラン'), findsOneWidget);
+      // The chip and the OutlinedButton for the current plan both show 現在のプラン
+      expect(find.text('現在のプラン'), findsWidgets);
     });
 
     testWidgets('current standard plan shows 現在のプラン chip', (tester) async {
@@ -225,7 +225,8 @@ void main() {
       await tester.pumpWidget(_buildScreen(currentPlan: ShopPlanType.premium));
       await tester.pump();
 
-      await tester.tap(find.text('ダウングレード'));
+      // プレミアムからは Free / Standard の2つにダウングレード可能なため .first を使う
+      await tester.tap(find.text('ダウングレード').first);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(

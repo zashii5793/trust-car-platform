@@ -67,6 +67,20 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   VehicleMasterService get _masterService => sl.get<VehicleMasterService>();
 
   @override
+  void initState() {
+    super.initState();
+    // _isDirty depends on these controllers; rebuild so PopScope.canPop
+    // stays in sync when the user types (otherwise the discard-confirmation
+    // dialog never appears for text-only input).
+    _yearController.addListener(_onDirtyStateChanged);
+    _licensePlateController.addListener(_onDirtyStateChanged);
+  }
+
+  void _onDirtyStateChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
     _yearController.dispose();
@@ -331,12 +345,15 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       );
 
       if (!mounted) return;
-      final success = await Provider.of<VehicleProvider>(context, listen: false)
-          .addVehicle(vehicle);
+      final provider = Provider.of<VehicleProvider>(context, listen: false);
+      final success = await provider.addVehicle(vehicle);
 
-      if (success && mounted) {
+      if (!mounted) return;
+      if (success) {
         showSuccessSnackBar(context, '車両を登録しました');
         Navigator.pop(context);
+      } else {
+        showErrorSnackBar(context, provider.errorMessage ?? '登録に失敗しました');
       }
     } catch (e) {
       if (mounted) showErrorSnackBar(context, '登録に失敗しました: $e');

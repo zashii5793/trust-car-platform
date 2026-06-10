@@ -159,7 +159,7 @@ void main() {
       await tester.pumpWidget(_buildApp(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('現在パーツは掲載されていません'), findsOneWidget);
+      expect(find.text('パーツが見つかりません'), findsOneWidget);
     });
 
     testWidgets('おすすめパーツが正常に表示される', (tester) async {

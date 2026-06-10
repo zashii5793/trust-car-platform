@@ -14,7 +14,7 @@
 //     9.  Tapping '次へ' with empty fields shows '年式を入力'
 //    10.  Tapping '次へ' with empty fields shows '走行距離を入力してください'
 //    11.  Title unchanged (step still 0) when validation fails
-//    12.  Mileage validation: negative value → error
+//    12.  Mileage input: negative sign is filtered (digits only)
 //    13.  Year validation: year < 1900 → error
 //   Step 2 — 車検・保険:
 //    14.  AppBar title '車検・保険の情報' after navigating
@@ -252,25 +252,35 @@ Widget _buildScreen() {
 // ===========================================================================
 
 Future<void> _fillStep1AndAdvance(WidgetTester tester) async {
+  // Enlarge the surface so the selectors are not obscured by the bottom
+  // 「次へ」button bar (default 800x600 is too small).
+  await tester.binding.setSurfaceSize(const Size(800, 2000));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pump();
+
   // Wait for maker loading
   await tester.pumpAndSettle(const Duration(seconds: 10));
 
   // Select maker
+  await tester.ensureVisible(find.text('メーカーを選択 *'));
   await tester.tap(find.text('メーカーを選択 *'));
   await tester.pumpAndSettle(const Duration(seconds: 10));
   await tester.tap(find.text('トヨタ'));
   await tester.pumpAndSettle(const Duration(seconds: 10));
 
   // Select model (loads after maker selection)
+  await tester.ensureVisible(find.text('車種を選択 *'));
   await tester.tap(find.text('車種を選択 *'));
   await tester.pumpAndSettle(const Duration(seconds: 10));
   await tester.tap(find.text('プリウス'));
   await tester.pumpAndSettle(const Duration(seconds: 10));
 
   // Select grade (loads after model selection)
+  await tester.ensureVisible(find.text('グレードを選択 *'));
   await tester.tap(find.text('グレードを選択 *'));
   await tester.pumpAndSettle(const Duration(seconds: 10));
-  await tester.tap(find.text('S'));
+  // 「S」はリストタイルの avatar イニシャルと名前の両方に現れる（同一タイル内）
+  await tester.tap(find.text('S').first);
   await tester.pumpAndSettle(const Duration(seconds: 10));
 
   // Enter year and mileage (TextFormField[0]=year, TextFormField[1]=mileage)
@@ -436,15 +446,25 @@ void main() {
       expect(find.text('基本情報を入力'), findsOneWidget);
     });
 
-    testWidgets('12. Negative mileage shows error', (tester) async {
+    testWidgets('12. Negative mileage input is sanitized (digits only)',
+        (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
+      // AppTextField.number は digitsOnly フォーマッタを持つため
+      // 「-1」を入力すると「-」が除去され「1」になる（負値は入力不可）
       await tester.enterText(find.byType(TextFormField).at(1), '-1');
+      await tester.pump();
+
+      final mileageField =
+          tester.widget<TextFormField>(find.byType(TextFormField).at(1));
+      expect(mileageField.controller?.text, '1');
+
       await tester.tap(find.text('次へ'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('正しい走行距離を入力してください'), findsOneWidget);
+      // 負値エラーは表示されない（フォーマッタで弾かれるため）
+      expect(find.text('正しい走行距離を入力してください'), findsNothing);
     });
 
     testWidgets('13. Year < 1900 shows error', (tester) async {
@@ -493,7 +513,8 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await _fillStep1AndAdvance(tester);
 
-      expect(find.text('ナンバープレート'), findsOneWidget);
+      // セクション見出しとフィールドラベルの両方に表示される
+      expect(find.text('ナンバープレート'), findsWidgets);
     });
 
     testWidgets('19. Notification banner visible', (tester) async {
@@ -545,8 +566,11 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await _fillStep1AndAdvance(tester); // → step 2
 
-      // Tap AppBar back arrow
-      await tester.tap(find.byIcon(Icons.arrow_back));
+      // Tap AppBar back arrow（「戻る」ボタンにも arrow_back があるため AppBar 内に限定）
+      await tester.tap(find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byIcon(Icons.arrow_back),
+      ));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Should be back on step 1
@@ -642,8 +666,33 @@ void main() {
 
   // =========================================================================
   group('VehicleRegistrationScreen — Registration', () {
+    // 成功時に Navigator.pop されるため、ルート直下ではなく Home 上に push する
+    // （pop 後も Home の Scaffold が SnackBar を表示できるようにする）
     Future<void> navigateToStep3(WidgetTester tester) async {
-      await tester.pumpWidget(_buildScreen());
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<VehicleProvider>.value(
+                value: _FakeVehicleProvider()),
+          ],
+          child: MaterialApp(
+            home: const Scaffold(body: Text('Home')),
+            onGenerateRoute: (settings) {
+              if (settings.name == '/register') {
+                return MaterialPageRoute(
+                  builder: (_) => const VehicleRegistrationScreen(),
+                );
+              }
+              return null;
+            },
+          ),
+        ),
+      );
+
+      final NavigatorState navigator = tester.state(find.byType(Navigator));
+      navigator.pushNamed('/register');
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
       await _fillStep1AndAdvance(tester);
       await tester.tap(find.text('次へ'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -653,7 +702,9 @@ void main() {
       await navigateToStep3(tester);
 
       await tester.tap(find.text('登録する'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // pumpAndSettle(10s) だと SnackBar の表示タイマー(4s)が発火して消えるため有界 pump
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text('車両を登録しました'), findsOneWidget);
     });
@@ -665,7 +716,9 @@ void main() {
       await navigateToStep3(tester);
 
       await tester.tap(find.text('登録する'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      // pumpAndSettle(10s) だと SnackBar の表示タイマー(4s)が発火して消えるため有界 pump
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // Shows the error snackbar (サーバーエラーが発生しました or 登録に失敗しました)
       expect(

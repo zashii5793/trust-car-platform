@@ -12,8 +12,11 @@ import 'package:trust_car_platform/providers/part_recommendation_provider.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
 import 'package:trust_car_platform/services/part_recommendation_service.dart';
+import 'package:trust_car_platform/providers/vehicle_provider.dart';
+import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/models/shop.dart';
 import 'package:trust_car_platform/models/part_listing.dart';
+import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 
@@ -52,6 +55,14 @@ class MockShopService implements ShopService {
   Future<Result<List<Shop>, AppError>> getShopsForMaker(String makerId,
           {int limit = 20}) async =>
       const Result.success([]);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _StubFirebaseService implements FirebaseService {
+  @override
+  Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -105,6 +116,9 @@ Widget _buildUnderTest({
 }) {
   return MultiProvider(
     providers: [
+      ChangeNotifierProvider(
+        create: (_) => VehicleProvider(firebaseService: _StubFirebaseService()),
+      ),
       ChangeNotifierProvider(
         create: (_) => ShopProvider(
           shopService: shopService ?? MockShopService(),
@@ -195,7 +209,8 @@ void main() {
       await tester.pumpWidget(_buildUnderTest());
       await tester.pump();
 
-      expect(find.byIcon(Icons.store_outlined), findsOneWidget);
+      // タブと ShopListScreen の空状態の両方に表示されうるため findsWidgets
+      expect(find.byIcon(Icons.store_outlined), findsWidgets);
     });
 
     testWidgets('パーツアイコン（build_outlined）が表示される', (tester) async {
