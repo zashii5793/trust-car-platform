@@ -102,6 +102,9 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Flutter doctor (diagnostic)
+        run: flutter doctor -v
+
       - name: Place google-services.json
         run: |
           if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
@@ -161,6 +164,9 @@ jobs:
 
       - name: Get dependencies
         run: flutter pub get
+
+      - name: Flutter doctor (diagnostic)
+        run: flutter doctor -v
 
       - name: Place GoogleService-Info.plist
         run: |
