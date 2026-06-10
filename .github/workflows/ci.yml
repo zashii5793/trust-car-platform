@@ -104,10 +104,12 @@ jobs:
 
       - name: Install Android SDK 36 and NDK
         run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platforms;android-36" \
-            "build-tools;36.0.0" \
-            "ndk;28.2.13676358" 2>&1 | tail -5
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          echo "y" | $SDKMANAGER "platforms;android-36" 2>&1 | tail -3
+          echo "y" | $SDKMANAGER "ndk;28.2.13676358" 2>&1 | tail -3
+          echo "y" | $SDKMANAGER "build-tools;36.0.0" 2>&1 | tail -3 || \
+            echo "build-tools;36.0.0 not found, using existing build-tools"
+          echo "y" | $SDKMANAGER --licenses 2>&1 | tail -3
 
       - name: Place google-services.json
         run: |
@@ -168,6 +170,9 @@ jobs:
 
       - name: Get dependencies
         run: flutter pub get
+
+      - name: Select Xcode 16.2
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
       - name: Place GoogleService-Info.plist
         run: |
