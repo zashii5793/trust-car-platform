@@ -42,8 +42,10 @@ class ShopProvider with ChangeNotifier {
   ServiceCategory? _selectedService;
   String? _selectedPrefecture;
 
-  // --- 問い合わせ系 ---
+  // --- ユーザー問い合わせ系 ---
   List<Inquiry> _userInquiries = [];
+  bool _isLoadingUserInquiries = false;
+  StreamSubscription<List<Inquiry>>? _userInquirySubscription;
 
   // --- 店舗オーナー向け問い合わせ一覧・件数 ---
   List<Inquiry> _shopInquiries = [];
@@ -68,6 +70,9 @@ class ShopProvider with ChangeNotifier {
   ServiceCategory? get selectedService => _selectedService;
   String? get selectedPrefecture => _selectedPrefecture;
   List<Inquiry> get userInquiries => _userInquiries;
+  bool get isLoadingUserInquiries => _isLoadingUserInquiries;
+  int get userInquiryUnreadTotal =>
+      _userInquiries.fold(0, (sum, i) => sum + i.unreadCountUser);
   List<Inquiry> get shopInquiries => _shopInquiries;
   int get inquiryTotal => _inquiryTotal;
   int get inquiryUnread => _inquiryUnread;
@@ -223,6 +228,7 @@ class ShopProvider with ChangeNotifier {
       subject: subject,
       message: message,
       vehicleId: vehicleId,
+      shopName: _selectedShop?.name,
     );
 
     Inquiry? created;
@@ -243,9 +249,9 @@ class ShopProvider with ChangeNotifier {
     return created;
   }
 
-  /// ユーザーの問い合わせ一覧を取得する
+  /// ユーザーの問い合わせ一覧を取得する（ワンショット）
   Future<void> loadUserInquiries(String userId) async {
-    _isLoading = true;
+    _isLoadingUserInquiries = true;
     notifyListeners();
 
     final result = await _inquiryService.getUserInquiries(userId);
@@ -261,8 +267,79 @@ class ShopProvider with ChangeNotifier {
       },
     );
 
-    _isLoading = false;
+    _isLoadingUserInquiries = false;
     notifyListeners();
+  }
+
+  /// ユーザーの問い合わせ一覧をリアルタイム監視する
+  void watchUserInquiries(String userId) {
+    _userInquirySubscription?.cancel();
+    _isLoadingUserInquiries = true;
+    notifyListeners();
+    _userInquirySubscription =
+        _inquiryService.streamUserInquiries(userId).listen(
+      (inquiries) {
+        _userInquiries = inquiries;
+        _isLoadingUserInquiries = false;
+        notifyListeners();
+      },
+      onError: (_) {
+        _isLoadingUserInquiries = false;
+        notifyListeners();
+      },
+    );
+  }
+
+  /// ユーザー問い合わせ監視を停止する
+  void stopWatchingUserInquiries() {
+    _userInquirySubscription?.cancel();
+    _userInquirySubscription = null;
+  }
+
+  /// ユーザーが問い合わせスレッドに返信メッセージを送る
+  Future<Result<InquiryMessage, AppError>> sendUserReply({
+    required String inquiryId,
+    required String userId,
+    required String content,
+  }) {
+    return _inquiryService.sendMessage(
+      inquiryId: inquiryId,
+      senderId: userId,
+      isFromShop: false,
+      content: content,
+    );
+  }
+
+  /// ユーザー側の未読をローカルでリセットする（楽観的更新）
+  void markUserInquiryAsReadLocally(String inquiryId) {
+    final idx = _userInquiries.indexWhere((i) => i.id == inquiryId);
+    if (idx == -1) return;
+    final inquiry = _userInquiries[idx];
+    if (inquiry.unreadCountUser <= 0) return;
+    _userInquiries[idx] = inquiry.copyWith(unreadCountUser: 0);
+    notifyListeners();
+  }
+
+  /// ユーザーが問い合わせをクローズする
+  Future<bool> closeUserInquiry(String inquiryId) async {
+    final result =
+        await _inquiryService.updateStatus(inquiryId, InquiryStatus.closed);
+    bool success = false;
+    result.when(
+      success: (updated) {
+        final idx = _userInquiries.indexWhere((i) => i.id == inquiryId);
+        if (idx != -1) {
+          _userInquiries[idx] = updated;
+        }
+        success = true;
+      },
+      failure: (err) {
+        _error = err;
+        success = false;
+      },
+    );
+    notifyListeners();
+    return success;
   }
 
   /// Load the current user's own shop
@@ -330,6 +407,7 @@ class ShopProvider with ChangeNotifier {
   @override
   void dispose() {
     _inquirySubscription?.cancel();
+    _userInquirySubscription?.cancel();
     super.dispose();
   }
 
@@ -498,6 +576,9 @@ class ShopProvider with ChangeNotifier {
     _selectedShop = null;
     _myShop = null;
     _userInquiries = [];
+    _isLoadingUserInquiries = false;
+    _userInquirySubscription?.cancel();
+    _userInquirySubscription = null;
     _shopInquiries = [];
     _inquiryTotal = 0;
     _inquiryUnread = 0;

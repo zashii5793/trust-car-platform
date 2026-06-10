@@ -98,6 +98,7 @@ class MockInquiryService implements InquiryService {
     String? partListingId,
     dynamic vehicle,
     List<String> attachmentUrls = const [],
+    String? shopName,
   }) async =>
       Result.failure(AppError.unknown('not impl'));
 

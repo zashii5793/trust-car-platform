@@ -1,7 +1,7 @@
 // MarketplaceScreen Widget Tests
 //
-// MarketplaceScreen は ShopListScreen / PartListScreen / MyListingsScreen を 3 タブで表示するだけの
-// 薄いコンテナ。タブ構造と各タブの描画を検証する。
+// MarketplaceScreen は ShopListScreen / PartListScreen / MyInquiriesScreen / MyListingsScreen を
+// 4 タブで表示するだけの薄いコンテナ。タブ構造と各タブの描画を検証する。
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -160,11 +160,18 @@ void main() {
       expect(find.text('パーツ'), findsOneWidget);
     });
 
-    testWidgets('TabBar が 3 タブ持つ', (tester) async {
+    testWidgets('「問い合わせ」タブが表示される', (tester) async {
       await tester.pumpWidget(_buildUnderTest());
       await tester.pump();
 
-      expect(find.byType(Tab), findsNWidgets(3));
+      expect(find.text('問い合わせ'), findsOneWidget);
+    });
+
+    testWidgets('TabBar が 4 タブ持つ', (tester) async {
+      await tester.pumpWidget(_buildUnderTest());
+      await tester.pump();
+
+      expect(find.byType(Tab), findsNWidgets(4));
     });
 
     testWidgets('デフォルトは「工場・業者」タブが選択されている', (tester) async {

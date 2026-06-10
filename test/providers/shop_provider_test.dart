@@ -113,6 +113,7 @@ class MockInquiryService implements InquiryService {
     String? vehicleId,
     String? partListingId,
     dynamic vehicle,
+    String? shopName,
     List<String> attachmentUrls = const [],
   }) async {
     lastUserId = userId;

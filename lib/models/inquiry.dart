@@ -105,7 +105,8 @@ class Inquiry {
   final String initialMessage; // First message content
   final List<String> attachmentUrls;
 
-  // Vehicle info snapshot (for context)
+  // Snapshot fields (captured at creation time to avoid extra queries)
+  final String? shopName;
   final String? vehicleMaker;
   final String? vehicleModel;
   final int? vehicleYear;
@@ -132,6 +133,7 @@ class Inquiry {
     required this.subject,
     required this.initialMessage,
     this.attachmentUrls = const [],
+    this.shopName,
     this.vehicleMaker,
     this.vehicleModel,
     this.vehicleYear,
@@ -181,6 +183,7 @@ class Inquiry {
       subject: data['subject'] ?? '',
       initialMessage: data['initialMessage'] ?? '',
       attachmentUrls: List<String>.from(data['attachmentUrls'] ?? []),
+      shopName: data['shopName'],
       vehicleMaker: data['vehicleMaker'],
       vehicleModel: data['vehicleModel'],
       vehicleYear: data['vehicleYear'],
@@ -205,6 +208,7 @@ class Inquiry {
       'subject': subject,
       'initialMessage': initialMessage,
       'attachmentUrls': attachmentUrls,
+      'shopName': shopName,
       'vehicleMaker': vehicleMaker,
       'vehicleModel': vehicleModel,
       'vehicleYear': vehicleYear,
@@ -229,6 +233,7 @@ class Inquiry {
     String? subject,
     String? initialMessage,
     List<String>? attachmentUrls,
+    String? shopName,
     String? vehicleMaker,
     String? vehicleModel,
     int? vehicleYear,
@@ -251,6 +256,7 @@ class Inquiry {
       subject: subject ?? this.subject,
       initialMessage: initialMessage ?? this.initialMessage,
       attachmentUrls: attachmentUrls ?? this.attachmentUrls,
+      shopName: shopName ?? this.shopName,
       vehicleMaker: vehicleMaker ?? this.vehicleMaker,
       vehicleModel: vehicleModel ?? this.vehicleModel,
       vehicleYear: vehicleYear ?? this.vehicleYear,

@@ -38,6 +38,7 @@ class InquiryService {
     String? vehicleId,
     String? partListingId,
     Vehicle? vehicle,
+    String? shopName,
     List<String> attachmentUrls = const [],
   }) async {
     // Enforce monthly inquiry limit for the shop's subscription plan.
@@ -72,6 +73,7 @@ class InquiryService {
         'subject': subject,
         'initialMessage': message,
         'attachmentUrls': attachmentUrls,
+        'shopName': shopName,
         'vehicleMaker': vehicle?.maker,
         'vehicleModel': vehicle?.model,
         'vehicleYear': vehicle?.year,

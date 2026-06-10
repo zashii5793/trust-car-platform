@@ -6,6 +6,7 @@ import '../../core/constants/spacing.dart';
 import 'shop_list_screen.dart';
 import 'part_list_screen.dart';
 import 'my_listings_screen.dart';
+import 'my_inquiries_screen.dart';
 
 /// マーケットプレイス トップ画面
 ///
@@ -17,7 +18,7 @@ class MarketplaceScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Column(
         children: [
           // 選択車両コンテキストバナー
@@ -29,6 +30,7 @@ class MarketplaceScreen extends StatelessWidget {
               tabs: [
                 Tab(icon: Icon(Icons.store_outlined), text: '工場・業者'),
                 Tab(icon: Icon(Icons.build_outlined), text: 'パーツ'),
+                Tab(icon: Icon(Icons.inbox_outlined), text: '問い合わせ'),
                 Tab(icon: Icon(Icons.sell_outlined), text: 'マイ出品'),
               ],
             ),
@@ -38,6 +40,7 @@ class MarketplaceScreen extends StatelessWidget {
               children: [
                 ShopListScreen(),
                 PartListScreen(),
+                MyInquiriesScreen(),
                 MyListingsScreen(),
               ],
             ),

@@ -103,6 +103,7 @@ class MockInquiryService implements InquiryService {
     String? partListingId,
     dynamic vehicle,
     List<String> attachmentUrls = const [],
+    String? shopName,
   }) async {
     createCallCount++;
     if (shouldFail) {
