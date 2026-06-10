@@ -295,6 +295,36 @@ void main() {
     });
   });
 
+  group('アクセシビリティ — 走行サマリー', () {
+    testWidgets('サマリーカードの統計が統合セマンティクスラベルで読み上げ可能', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'log1', distance: 30000.0, durationSecs: 3600),
+      ]);
+
+      final handle = tester.ensureSemantics();
+      addTearDown(handle.dispose);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      // _SummaryItem merges label and value into a single announcement
+      expect(find.bySemanticsLabel('総走行距離 30.0 km'), findsOneWidget);
+      expect(find.bySemanticsLabel('総時間 1h 0m'), findsOneWidget);
+    });
+
+    testWidgets('サマリーカード表示時にレイアウト例外が発生しない', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'log1', distance: 30000.0),
+        _makeDriveLog(id: 'log2', distance: 15000.0),
+      ]);
+
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.textContaining('走行サマリー'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('Edge Cases', () {
     testWidgets('ログが空→追加されたら空状態が消える', (tester) async {
       service.logsResult = const Result.success([]);

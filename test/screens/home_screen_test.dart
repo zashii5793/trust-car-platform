@@ -689,8 +689,14 @@ void main() {
       await tester.pumpWidget(_buildApp(vehicleProvider: vp));
       await tester.pump();
 
-      // ヒーローアイコン + _FeatureRow アイコン（3個）分の ExcludeSemantics が存在する
-      expect(find.byType(ExcludeSemantics), findsWidgets);
+      // ヒーローアイコン(1) + _FeatureRow アイコン(3) = オンボーディング配下に4個
+      expect(
+        find.descendant(
+          of: find.byType(SingleChildScrollView),
+          matching: find.byType(ExcludeSemantics),
+        ),
+        findsNWidgets(4),
+      );
     });
 
     testWidgets('「車両を登録する」ElevatedButton が onPressed を持ちアクセス可能', (tester) async {

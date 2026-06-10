@@ -252,15 +252,15 @@ class _SummaryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      label: '$label $value',
-      excludeSemantics: true,
-      child: Expanded(
+    // Expanded must stay the direct child of the parent Row;
+    // Semantics merges label+value into one announcement for screen readers.
+    return Expanded(
+      child: Semantics(
+        label: '$label $value',
+        excludeSemantics: true,
         child: Column(
           children: [
-            ExcludeSemantics(
-              child: Icon(icon, size: 18, color: Colors.white.withValues(alpha: 0.75)),
-            ),
+            Icon(icon, size: 18, color: Colors.white.withValues(alpha: 0.75)),
             const SizedBox(height: 4),
             Text(
               value,
