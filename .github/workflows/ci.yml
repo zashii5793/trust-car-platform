@@ -202,7 +202,7 @@ jobs:
           fi
 
       - name: Build iOS (no codesign)
-        run: flutter build ios --no-codesign --debug
+        run: flutter build ios --no-codesign --debug --verbose
 
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
@@ -210,3 +210,4 @@ jobs:
           name: ios-build-debug
           path: build/ios/iphoneos/
           retention-days: 7
+          if-no-files-found: warn
