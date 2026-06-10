@@ -30,10 +30,12 @@ class MockShopService implements ShopService {
     String? prefecture,
     int limit = 20,
     dynamic startAfter,
-  }) async => const Result.success([]);
+  }) async =>
+      const Result.success([]);
 
   @override
-  Future<Result<List<Shop>, AppError>> getFeaturedShops({int limit = 5}) async =>
+  Future<Result<List<Shop>, AppError>> getFeaturedShops(
+          {int limit = 5}) async =>
       const Result.success([]);
 
   @override
@@ -47,24 +49,32 @@ class MockShopService implements ShopService {
       const Result.success([]);
 
   @override
-  Future<Result<List<Shop>, AppError>> getNearbyShops(dynamic center,
-          double radiusKm, {int limit = 20}) async =>
+  Future<Result<List<Shop>, AppError>> getNearbyShops(
+          dynamic center, double radiusKm,
+          {int limit = 20}) async =>
       const Result.success([]);
 
   @override
   Future<Result<List<Shop>, AppError>> getShopsByService(
-          ServiceCategory category, {int limit = 20}) async =>
+          ServiceCategory category,
+          {int limit = 20}) async =>
       const Result.success([]);
 }
 
 class MockInquiryService implements InquiryService {
   @override
   Future<Result<Inquiry, AppError>> createInquiry({
-    required String userId, required String shopId,
-    required InquiryType type, required String subject,
-    required String message, String? vehicleId, String? partListingId,
-    dynamic vehicle, List<String> attachmentUrls = const [],
-  }) async => Result.failure(AppError.unknown('not impl'));
+    required String userId,
+    required String shopId,
+    required InquiryType type,
+    required String subject,
+    required String message,
+    String? vehicleId,
+    String? partListingId,
+    dynamic vehicle,
+    List<String> attachmentUrls = const [],
+  }) async =>
+      Result.failure(AppError.unknown('not impl'));
 
   @override
   Future<Result<Inquiry, AppError>> getInquiry(String id) async =>
@@ -82,10 +92,13 @@ class MockInquiryService implements InquiryService {
 
   @override
   Future<Result<InquiryMessage, AppError>> sendMessage({
-    required String inquiryId, required String senderId,
-    required bool isFromShop, required String content,
+    required String inquiryId,
+    required String senderId,
+    required bool isFromShop,
+    required String content,
     List<String> attachmentUrls = const [],
-  }) async => Result.failure(AppError.unknown('not impl'));
+  }) async =>
+      Result.failure(AppError.unknown('not impl'));
 
   @override
   Future<Result<List<InquiryMessage>, AppError>> getMessages(String id,
@@ -98,7 +111,8 @@ class MockInquiryService implements InquiryService {
       const Result.success(null);
 
   @override
-  Future<Result<Inquiry, AppError>> updateStatus(String id, dynamic status) async =>
+  Future<Result<Inquiry, AppError>> updateStatus(
+          String id, dynamic status) async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
@@ -106,10 +120,12 @@ class MockInquiryService implements InquiryService {
       const Result.success(0);
 
   @override
-  Stream<List<Inquiry>> streamUserInquiries(String userId) => const Stream.empty();
+  Stream<List<Inquiry>> streamUserInquiries(String userId) =>
+      const Stream.empty();
 
   @override
-  Stream<List<InquiryMessage>> streamMessages(String inquiryId) => const Stream.empty();
+  Stream<List<InquiryMessage>> streamMessages(String inquiryId) =>
+      const Stream.empty();
 }
 
 // ---------------------------------------------------------------------------

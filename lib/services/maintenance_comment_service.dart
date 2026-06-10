@@ -2,10 +2,10 @@ import '../models/maintenance_record.dart';
 
 /// Tone of an AI-generated maintenance comment.
 enum CommentTone {
-  good,       // within recommended schedule
+  good, // within recommended schedule
   acceptable, // slightly overdue (within 20%)
-  overdue,    // significantly overdue
-  noHistory,  // no previous record to compare against
+  overdue, // significantly overdue
+  noHistory, // no previous record to compare against
 }
 
 /// Computed comment for a single maintenance record.
@@ -94,10 +94,10 @@ class MaintenanceCommentService {
       tone = CommentTone.noHistory;
     } else {
       final monthsGap = record.date.difference(prev.date).inDays / 30;
-      final kmGap = (record.mileageAtService != null &&
-              prev.mileageAtService != null)
-          ? record.mileageAtService! - prev.mileageAtService!
-          : null;
+      final kmGap =
+          (record.mileageAtService != null && prev.mileageAtService != null)
+              ? record.mileageAtService! - prev.mileageAtService!
+              : null;
 
       final parts = <String>['前回から${monthsGap.round()}ヶ月'];
       if (kmGap != null) {
@@ -106,14 +106,12 @@ class MaintenanceCommentService {
       timingDetail = '（${parts.join('・')}）';
 
       // Evaluate timing
-      final timeRatio = rule.intervalMonths > 0
-          ? monthsGap / rule.intervalMonths
-          : 0.0;
+      final timeRatio =
+          rule.intervalMonths > 0 ? monthsGap / rule.intervalMonths : 0.0;
       final kmRatio = (rule.intervalKm > 0 && kmGap != null)
           ? kmGap / rule.intervalKm
           : 0.0;
-      final maxRatio =
-          timeRatio > kmRatio ? timeRatio : kmRatio;
+      final maxRatio = timeRatio > kmRatio ? timeRatio : kmRatio;
 
       if (maxRatio <= 1.0) {
         tone = CommentTone.good;
@@ -127,14 +125,10 @@ class MaintenanceCommentService {
     final typeName = record.typeDisplayName;
 
     final timingEvaluation = switch (tone) {
-      CommentTone.good =>
-        'この$typeName は適切なタイミングで行われました。',
-      CommentTone.acceptable =>
-        'この$typeName はほぼ推奨時期での対応でした。',
-      CommentTone.overdue =>
-        'この$typeName は推奨時期より遅れての対応でした。次回は少し早めに。',
-      CommentTone.noHistory =>
-        'この$typeName の記録が初めて登録されました。',
+      CommentTone.good => 'この$typeName は適切なタイミングで行われました。',
+      CommentTone.acceptable => 'この$typeName はほぼ推奨時期での対応でした。',
+      CommentTone.overdue => 'この$typeName は推奨時期より遅れての対応でした。次回は少し早めに。',
+      CommentTone.noHistory => 'この$typeName の記録が初めて登録されました。',
     };
 
     // Next schedule

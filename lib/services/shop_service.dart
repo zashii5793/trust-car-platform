@@ -38,8 +38,8 @@ class ShopService {
     DocumentSnapshot? startAfter,
   }) async {
     try {
-      Query<Map<String, dynamic>> query = _shopsCollection
-          .where('isActive', isEqualTo: true);
+      Query<Map<String, dynamic>> query =
+          _shopsCollection.where('isActive', isEqualTo: true);
 
       if (type != null) {
         query = query.where('type', isEqualTo: type.name);
@@ -64,9 +64,8 @@ class ShopService {
 
       final snapshot = await query.get();
 
-      final shops = snapshot.docs
-          .map((doc) => Shop.fromFirestore(doc))
-          .toList();
+      final shops =
+          snapshot.docs.map((doc) => Shop.fromFirestore(doc)).toList();
 
       return Result.success(shops);
     } catch (e) {
@@ -84,9 +83,8 @@ class ShopService {
           .limit(limit)
           .get();
 
-      final shops = snapshot.docs
-          .map((doc) => Shop.fromFirestore(doc))
-          .toList();
+      final shops =
+          snapshot.docs.map((doc) => Shop.fromFirestore(doc)).toList();
 
       return Result.success(shops);
     } catch (e) {
@@ -108,9 +106,8 @@ class ShopService {
           .limit(limit)
           .get();
 
-      final shops = snapshot.docs
-          .map((doc) => Shop.fromFirestore(doc))
-          .toList();
+      final shops =
+          snapshot.docs.map((doc) => Shop.fromFirestore(doc)).toList();
 
       return Result.success(shops);
     } catch (e) {
@@ -134,9 +131,8 @@ class ShopService {
           .limit(limit)
           .get();
 
-      final shops = snapshot.docs
-          .map((doc) => Shop.fromFirestore(doc))
-          .toList();
+      final shops =
+          snapshot.docs.map((doc) => Shop.fromFirestore(doc)).toList();
 
       return Result.success(shops);
     } catch (e) {
@@ -159,20 +155,18 @@ class ShopService {
           .limit(limit)
           .get();
 
-      final shops = snapshot.docs
-          .map((doc) => Shop.fromFirestore(doc))
-          .where((shop) {
-            if (shop.location == null) return false;
-            // Rough distance calculation
-            final distance = _calculateDistance(
-              center.latitude,
-              center.longitude,
-              shop.location!.latitude,
-              shop.location!.longitude,
-            );
-            return distance <= radiusKm;
-          })
-          .toList();
+      final shops =
+          snapshot.docs.map((doc) => Shop.fromFirestore(doc)).where((shop) {
+        if (shop.location == null) return false;
+        // Rough distance calculation
+        final distance = _calculateDistance(
+          center.latitude,
+          center.longitude,
+          shop.location!.latitude,
+          shop.location!.longitude,
+        );
+        return distance <= radiusKm;
+      }).toList();
 
       return Result.success(shops);
     } catch (e) {
@@ -242,9 +236,8 @@ class ShopService {
         _firestore.collection(FirestoreCollections.inquiries);
 
     // Stream of all inquiry docs for the shop
-    final totalStream = inquiriesCollection
-        .where('shopId', isEqualTo: shopId)
-        .snapshots();
+    final totalStream =
+        inquiriesCollection.where('shopId', isEqualTo: shopId).snapshots();
 
     // Stream of unread inquiry docs for the shop
     final unreadStream = inquiriesCollection
@@ -303,9 +296,8 @@ class ShopService {
           _firestore.collection(FirestoreCollections.inquiries);
 
       // Fetch all inquiries for this shop
-      final totalSnapshot = await inquiriesCollection
-          .where('shopId', isEqualTo: shopId)
-          .get();
+      final totalSnapshot =
+          await inquiriesCollection.where('shopId', isEqualTo: shopId).get();
 
       // Count threads where shop has unread messages
       final unreadSnapshot = await inquiriesCollection
@@ -355,9 +347,8 @@ class ShopService {
           .limit(limit)
           .get();
 
-      final shops = snapshot.docs
-          .map((doc) => Shop.fromFirestore(doc))
-          .toList();
+      final shops =
+          snapshot.docs.map((doc) => Shop.fromFirestore(doc)).toList();
 
       return Result.success(shops);
     } catch (e) {
@@ -366,14 +357,16 @@ class ShopService {
   }
 
   // Simple Haversine distance calculation
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+  double _calculateDistance(
+      double lat1, double lon1, double lat2, double lon2) {
     const R = 6371.0; // Earth's radius in km
     final dLat = _toRadians(lat2 - lat1);
     final dLon = _toRadians(lon2 - lon1);
-    final a =
-        _sin(dLat / 2) * _sin(dLat / 2) +
-        _cos(_toRadians(lat1)) * _cos(_toRadians(lat2)) *
-        _sin(dLon / 2) * _sin(dLon / 2);
+    final a = _sin(dLat / 2) * _sin(dLat / 2) +
+        _cos(_toRadians(lat1)) *
+            _cos(_toRadians(lat2)) *
+            _sin(dLon / 2) *
+            _sin(dLon / 2);
     final c = 2 * _atan2(_sqrt(a), _sqrt(1 - a));
     return R * c;
   }
@@ -393,8 +386,12 @@ class ShopService {
 
   double _taylorSin(double x) {
     // Normalize to [-π, π]
-    while (x > 3.14159265359) { x -= 2 * 3.14159265359; }
-    while (x < -3.14159265359) { x += 2 * 3.14159265359; }
+    while (x > 3.14159265359) {
+      x -= 2 * 3.14159265359;
+    }
+    while (x < -3.14159265359) {
+      x += 2 * 3.14159265359;
+    }
 
     double result = x;
     double term = x;

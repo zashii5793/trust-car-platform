@@ -48,13 +48,15 @@ class _StubAuthService implements AuthService {
     required String email,
     required String password,
     String? displayName,
-  }) async => Result.failure(AppError.server('stub'));
+  }) async =>
+      Result.failure(AppError.server('stub'));
 
   @override
   Future<Result<UserCredential, AppError>> signInWithEmail({
     required String email,
     required String password,
-  }) async => Result.failure(AppError.server('stub'));
+  }) async =>
+      Result.failure(AppError.server('stub'));
 
   @override
   Future<Result<UserCredential?, AppError>> signInWithGoogle() async =>
@@ -65,19 +67,20 @@ class _StubAuthService implements AuthService {
       const Result.success(null);
 
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
   Future<Result<void, AppError>> updateUserProfile({
     String? displayName,
     String? photoUrl,
-  }) async => const Result.success(null);
+  }) async =>
+      const Result.success(null);
 
   @override
   Future<Result<void, AppError>> updateNotificationSettings(
     NotificationSettings settings,
-  ) async => const Result.success(null);
+  ) async =>
+      const Result.success(null);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -119,26 +122,30 @@ class _StubFirebaseService implements FirebaseService {
   Future<Result<String, AppError>> addMaintenanceRecord(
     String vehicleId,
     MaintenanceRecord record,
-  ) async => const Result.success('id');
+  ) async =>
+      const Result.success('id');
 
   @override
   Future<Result<void, AppError>> updateMaintenanceRecord(
     String vehicleId,
     String recordId,
     MaintenanceRecord record,
-  ) async => const Result.success(null);
+  ) async =>
+      const Result.success(null);
 
   @override
   Future<Result<void, AppError>> deleteMaintenanceRecord(
     String vehicleId,
     String recordId,
-  ) async => const Result.success(null);
+  ) async =>
+      const Result.success(null);
 
   @override
   Future<Result<String?, AppError>> uploadImageBytes(
     dynamic bytes,
     String path,
-  ) async => const Result.success(null);
+  ) async =>
+      const Result.success(null);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -220,7 +227,8 @@ void main() {
       expect(find.text('プロフィールを編集'), findsWidgets);
     });
 
-    testWidgets('bottom sheet contains display name text field', (tester) async {
+    testWidgets('bottom sheet contains display name text field',
+        (tester) async {
       await tester.pumpWidget(_buildScreen(
         appUser: AppUser(
           id: 'uid1',
@@ -272,7 +280,8 @@ void main() {
       await tester.tap(find.text('プロフィールを編集'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      final textField = tester.widget<TextFormField>(find.byType(TextFormField));
+      final textField =
+          tester.widget<TextFormField>(find.byType(TextFormField));
       expect(textField.controller?.text, 'テストユーザー');
     });
 

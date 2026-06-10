@@ -109,10 +109,14 @@ void main() {
     });
 
     test('fromString が既知の値を正しく変換する', () {
-      expect(CompatibilityLevel.fromString('perfect'), CompatibilityLevel.perfect);
-      expect(CompatibilityLevel.fromString('compatible'), CompatibilityLevel.compatible);
-      expect(CompatibilityLevel.fromString('conditional'), CompatibilityLevel.conditional);
-      expect(CompatibilityLevel.fromString('incompatible'), CompatibilityLevel.incompatible);
+      expect(
+          CompatibilityLevel.fromString('perfect'), CompatibilityLevel.perfect);
+      expect(CompatibilityLevel.fromString('compatible'),
+          CompatibilityLevel.compatible);
+      expect(CompatibilityLevel.fromString('conditional'),
+          CompatibilityLevel.conditional);
+      expect(CompatibilityLevel.fromString('incompatible'),
+          CompatibilityLevel.incompatible);
     });
 
     test('fromString が null を返す（不明な値）', () {
@@ -270,7 +274,7 @@ void main() {
       const spec = VehicleSpec(gradePattern: 'sport');
       expect(
         spec.matchesVehicle(
-          makerId: 'toyota', modelId: 'prius', year: 2020, grade: 'GR Sport'),
+            makerId: 'toyota', modelId: 'prius', year: 2020, grade: 'GR Sport'),
         true,
       );
     });
@@ -279,7 +283,7 @@ void main() {
       const spec = VehicleSpec(gradePattern: 'premium');
       expect(
         spec.matchesVehicle(
-          makerId: 'toyota', modelId: 'prius', year: 2020, grade: 'Standard'),
+            makerId: 'toyota', modelId: 'prius', year: 2020, grade: 'Standard'),
         false,
       );
     });
@@ -296,7 +300,7 @@ void main() {
       const spec = VehicleSpec(bodyType: 'sedan');
       expect(
         spec.matchesVehicle(
-          makerId: 'toyota', modelId: 'camry', year: 2020, bodyType: 'sedan'),
+            makerId: 'toyota', modelId: 'camry', year: 2020, bodyType: 'sedan'),
         true,
       );
     });
@@ -305,7 +309,7 @@ void main() {
       const spec = VehicleSpec(bodyType: 'suv');
       expect(
         spec.matchesVehicle(
-          makerId: 'toyota', modelId: 'camry', year: 2020, bodyType: 'sedan'),
+            makerId: 'toyota', modelId: 'camry', year: 2020, bodyType: 'sedan'),
         false,
       );
     });
@@ -327,7 +331,8 @@ void main() {
         defaultCompatibility: CompatibilityLevel.incompatible,
       );
       expect(
-        part.getCompatibilityFor(makerId: 'toyota', modelId: 'prius', year: 2020),
+        part.getCompatibilityFor(
+            makerId: 'toyota', modelId: 'prius', year: 2020),
         CompatibilityLevel.incompatible,
       );
     });
@@ -336,7 +341,8 @@ void main() {
       const spec = VehicleSpec(makerId: 'toyota', modelId: 'prius');
       final part = _makePart(compatibleVehicles: [spec]);
       expect(
-        part.getCompatibilityFor(makerId: 'toyota', modelId: 'prius', year: 2020),
+        part.getCompatibilityFor(
+            makerId: 'toyota', modelId: 'prius', year: 2020),
         CompatibilityLevel.perfect,
       );
     });
@@ -345,7 +351,8 @@ void main() {
       const spec = VehicleSpec(makerId: 'toyota', modelId: 'aqua');
       final part = _makePart(compatibleVehicles: [spec]);
       expect(
-        part.getCompatibilityFor(makerId: 'toyota', modelId: 'prius', year: 2020),
+        part.getCompatibilityFor(
+            makerId: 'toyota', modelId: 'prius', year: 2020),
         CompatibilityLevel.conditional,
       );
     });
@@ -484,8 +491,8 @@ void main() {
     test('複数条件が重なる場合も結果はリスト型で返る', () {
       final part = _makePart(
         category: PartCategory.aero,
-        priceFrom: 20000,  // < 30000 → リーズナブル pro
-        rating: 4.8,        // >= 4.5 → 高評価 pro
+        priceFrom: 20000, // < 30000 → リーズナブル pro
+        rating: 4.8, // >= 4.5 → 高評価 pro
         brand: 'STI',
       );
       final result = service.generateProsAndCons(part, vehicle);
@@ -566,6 +573,5 @@ void main() {
         expect(CompatibilityLevel.fromString(level.name), level);
       }
     });
-
   });
 }

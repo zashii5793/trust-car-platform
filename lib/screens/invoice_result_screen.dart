@@ -495,9 +495,8 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
       date: _date!,
       cost: int.tryParse(_amountController.text.replaceAll(',', '')),
       mileage: int.tryParse(_mileageController.text.replaceAll(',', '')),
-      shopName: _shopNameController.text.isNotEmpty
-          ? _shopNameController.text
-          : null,
+      shopName:
+          _shopNameController.text.isNotEmpty ? _shopNameController.text : null,
       description: _descriptionController.text.isNotEmpty
           ? _descriptionController.text
           : null,

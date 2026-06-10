@@ -68,8 +68,7 @@ class _StubAuthService implements AuthService {
   Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
       const Result.success(null);
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
       const Result.success(null);
@@ -267,7 +266,8 @@ void main() {
       expect(find.text('パスワードが一致しません'), findsOneWidget);
     });
 
-    testWidgets('9. all valid fields produce no validation errors', (tester) async {
+    testWidgets('9. all valid fields produce no validation errors',
+        (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -283,7 +283,8 @@ void main() {
   });
 
   group('SignupScreen — Loading state', () {
-    testWidgets('10. shows loading overlay when isLoading=true', (tester) async {
+    testWidgets('10. shows loading overlay when isLoading=true',
+        (tester) async {
       await tester.pumpWidget(
         _buildScreen(provider: _FakeAuthProvider(isLoading: true)),
       );
@@ -328,7 +329,8 @@ void main() {
       expect(find.text('新規登録'), findsNothing);
     });
 
-    testWidgets('13. failed signup shows fallback error snackbar', (tester) async {
+    testWidgets('13. failed signup shows fallback error snackbar',
+        (tester) async {
       final provider = _FakeAuthProvider(signUpShouldSucceed: false);
       await tester.pumpWidget(_buildScreen(provider: provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -341,7 +343,8 @@ void main() {
       expect(find.text('サインアップに失敗しました'), findsOneWidget);
     });
 
-    testWidgets('14. failed signup shows provider errorMessage', (tester) async {
+    testWidgets('14. failed signup shows provider errorMessage',
+        (tester) async {
       final provider = _FakeAuthProvider(
         signUpShouldSucceed: false,
         errorMessage: 'このメールアドレスは既に使用されています',
@@ -415,7 +418,8 @@ void main() {
   });
 
   group('SignupScreen — Edge Cases', () {
-    testWidgets('19. whitespace-only display name fails validation', (tester) async {
+    testWidgets('19. whitespace-only display name fails validation',
+        (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -444,7 +448,8 @@ void main() {
       expect(find.text('パスワードは6文字以上で入力してください'), findsOneWidget);
     });
 
-    testWidgets('20b. password with exactly 6 chars passes validation', (tester) async {
+    testWidgets('20b. password with exactly 6 chars passes validation',
+        (tester) async {
       final provider = _FakeAuthProvider(signUpShouldSucceed: true);
       await tester.pumpWidget(_buildScreen(provider: provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));

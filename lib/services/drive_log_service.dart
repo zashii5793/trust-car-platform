@@ -144,7 +144,8 @@ class DriveLogService {
   }
 
   /// Get waypoints for a drive
-  Future<Result<List<DriveWaypoint>, AppError>> getWaypoints(String driveLogId) async {
+  Future<Result<List<DriveWaypoint>, AppError>> getWaypoints(
+      String driveLogId) async {
     try {
       final snapshot = await _waypointsRef
           .where('driveLogId', isEqualTo: driveLogId)
@@ -252,16 +253,17 @@ class DriveLogService {
 
       // Client-side filtering for tags and prefecture
       if (tags != null && tags.isNotEmpty) {
-        logs = logs.where((log) =>
-          log.tags.any((tag) => tags.contains(tag))
-        ).toList();
+        logs = logs
+            .where((log) => log.tags.any((tag) => tags.contains(tag)))
+            .toList();
       }
 
       if (prefecture != null) {
-        logs = logs.where((log) =>
-          log.startAddress?.contains(prefecture) == true ||
-          log.endAddress?.contains(prefecture) == true
-        ).toList();
+        logs = logs
+            .where((log) =>
+                log.startAddress?.contains(prefecture) == true ||
+                log.endAddress?.contains(prefecture) == true)
+            .toList();
       }
 
       return Result.success(logs);
@@ -331,9 +333,8 @@ class DriveLogService {
       }
 
       // Delete waypoints
-      final waypointSnapshot = await _waypointsRef
-          .where('driveLogId', isEqualTo: driveLogId)
-          .get();
+      final waypointSnapshot =
+          await _waypointsRef.where('driveLogId', isEqualTo: driveLogId).get();
       for (final waypointDoc in waypointSnapshot.docs) {
         await waypointDoc.reference.delete();
       }
@@ -531,7 +532,8 @@ class DriveLogService {
       final spots = snapshot.docs
           .map((doc) => DriveSpot.fromMap(doc.data(), doc.id))
           .where((spot) {
-            final distance = center.distanceTo(spot.location) / 1000; // Convert to km
+            final distance =
+                center.distanceTo(spot.location) / 1000; // Convert to km
             return distance <= radiusKm;
           })
           .take(limit)
@@ -557,11 +559,13 @@ class DriveLogService {
           .limit(100);
 
       if (category != null) {
-        firestoreQuery = firestoreQuery.where('category', isEqualTo: category.name);
+        firestoreQuery =
+            firestoreQuery.where('category', isEqualTo: category.name);
       }
 
       if (prefecture != null) {
-        firestoreQuery = firestoreQuery.where('prefecture', isEqualTo: prefecture);
+        firestoreQuery =
+            firestoreQuery.where('prefecture', isEqualTo: prefecture);
       }
 
       final snapshot = await firestoreQuery.get();
@@ -572,7 +576,8 @@ class DriveLogService {
           .map((doc) => DriveSpot.fromMap(doc.data(), doc.id))
           .where((spot) {
             return spot.name.toLowerCase().contains(queryLower) ||
-                (spot.description?.toLowerCase().contains(queryLower) ?? false) ||
+                (spot.description?.toLowerCase().contains(queryLower) ??
+                    false) ||
                 spot.tags.any((tag) => tag.toLowerCase().contains(queryLower));
           })
           .take(limit)
@@ -742,7 +747,8 @@ class DriveLogService {
       if (spotDoc.exists) {
         final spot = DriveSpot.fromMap(spotDoc.data()!, spotDoc.id);
         final newCount = spot.ratingCount + 1;
-        final newAverage = ((spot.averageRating * spot.ratingCount) + rating) / newCount;
+        final newAverage =
+            ((spot.averageRating * spot.ratingCount) + rating) / newCount;
 
         batch.update(_spotsRef.doc(spotId), {
           'averageRating': newAverage,
@@ -881,9 +887,8 @@ class DriveLogService {
       final spots = <DriveSpot>[];
       for (var i = 0; i < spotIds.length; i += 10) {
         final chunk = spotIds.skip(i).take(10).toList();
-        final spotSnapshot = await _spotsRef
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
+        final spotSnapshot =
+            await _spotsRef.where(FieldPath.documentId, whereIn: chunk).get();
         spots.addAll(
           spotSnapshot.docs.map((doc) => DriveSpot.fromMap(doc.data(), doc.id)),
         );
@@ -966,7 +971,8 @@ class DriveLogService {
   // ============================================================
 
   /// Get user drive statistics
-  Future<Result<Map<String, dynamic>, AppError>> getUserDriveStatistics(String userId) async {
+  Future<Result<Map<String, dynamic>, AppError>> getUserDriveStatistics(
+      String userId) async {
     try {
       final snapshot = await _driveLogsRef
           .where('userId', isEqualTo: userId)

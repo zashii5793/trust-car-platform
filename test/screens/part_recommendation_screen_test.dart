@@ -88,7 +88,8 @@ class _FakeProvider extends PartRecommendationProvider {
   PartCategory? get selectedCategory => _selected;
 
   @override
-  Future<void> loadRecommendations(Vehicle vehicle, {PartCategory? category}) async {}
+  Future<void> loadRecommendations(Vehicle vehicle,
+      {PartCategory? category}) async {}
 
   @override
   void selectCategory(PartCategory? category) {}

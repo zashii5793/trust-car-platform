@@ -89,7 +89,8 @@ class ShopSubscriptionService {
   // ---------------------------------------------------------------------------
 
   /// Returns the effective plan type for a shop, treating expired subscriptions as free.
-  ShopPlanType _effectivePlan(ShopPlanType planType, ShopSubscriptionStatus status) {
+  ShopPlanType _effectivePlan(
+      ShopPlanType planType, ShopSubscriptionStatus status) {
     if (status == ShopSubscriptionStatus.active ||
         status == ShopSubscriptionStatus.trialing) {
       return planType;
@@ -119,7 +120,8 @@ class ShopSubscriptionService {
 
       final data = shopDoc.data()!;
       final planType = ShopPlanType.fromString(data['planType']);
-      final status = ShopSubscriptionStatus.fromString(data['subscriptionStatus']);
+      final status =
+          ShopSubscriptionStatus.fromString(data['subscriptionStatus']);
       final effective = _effectivePlan(planType, status);
       final limits = getPlanLimits(effective);
 
@@ -132,7 +134,8 @@ class ShopSubscriptionService {
         return Result.failure(countResult.errorOrNull!);
       }
 
-      return Result.success(countResult.valueOrNull! < limits.maxMonthlyInquiries);
+      return Result.success(
+          countResult.valueOrNull! < limits.maxMonthlyInquiries);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
     }
@@ -154,7 +157,8 @@ class ShopSubscriptionService {
     }
     if (currentCount < 0) {
       return const Result.failure(
-        AppError.validation('currentCount must not be negative', field: 'currentCount'),
+        AppError.validation('currentCount must not be negative',
+            field: 'currentCount'),
       );
     }
 
@@ -168,7 +172,8 @@ class ShopSubscriptionService {
 
       final data = shopDoc.data()!;
       final planType = ShopPlanType.fromString(data['planType']);
-      final status = ShopSubscriptionStatus.fromString(data['subscriptionStatus']);
+      final status =
+          ShopSubscriptionStatus.fromString(data['subscriptionStatus']);
       final effective = _effectivePlan(planType, status);
       final limits = getPlanLimits(effective);
 
@@ -243,7 +248,8 @@ class ShopSubscriptionService {
 
       final snapshot = await _inquiries
           .where('shopId', isEqualTo: shopId)
-          .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart))
+          .where('createdAt',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart))
           .get();
 
       return Result.success(snapshot.docs.length);

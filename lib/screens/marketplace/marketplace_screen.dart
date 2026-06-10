@@ -91,9 +91,8 @@ class _VehicleContextBanner extends StatelessWidget {
               child: Text(
                 '${vehicle.maker} ${vehicle.model} (${vehicle.year}年) の情報を表示中',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.primary,
+                  color:
+                      isDark ? AppColors.darkTextSecondary : AppColors.primary,
                   fontWeight: FontWeight.w500,
                 ),
                 maxLines: 1,

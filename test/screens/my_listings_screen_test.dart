@@ -64,7 +64,7 @@ class _StubPartListingService implements PartListingService {
 
   @override
   Future<Result<void, AppError>> updateListingStatus(
-      String id, PartListingStatus status) async =>
+          String id, PartListingStatus status) async =>
       const Result.success(null);
 
   @override
@@ -97,8 +97,7 @@ class _StubAuthService implements AuthService {
   Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
       const Result.success(null);
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
       const Result.success(null);
@@ -229,8 +228,7 @@ void main() {
 
   group('MyListingsScreen — Error state', () {
     testWidgets('4. shows error message on failure', (tester) async {
-      _stub.myListingsResult =
-          Result.failure(AppError.server('読み込みに失敗しました'));
+      _stub.myListingsResult = Result.failure(AppError.server('読み込みに失敗しました'));
 
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -241,8 +239,7 @@ void main() {
     });
 
     testWidgets('5. shows 再読み込み retry button', (tester) async {
-      _stub.myListingsResult =
-          Result.failure(AppError.server('エラー'));
+      _stub.myListingsResult = Result.failure(AppError.server('エラー'));
 
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));

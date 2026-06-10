@@ -96,7 +96,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     if (_pickedImages.isNotEmpty) {
       setState(() => _isUploadingImages = true);
       final firebaseService = ServiceLocator.instance.get<FirebaseService>();
-      final basePath = 'post_images/${user.uid}/${DateTime.now().millisecondsSinceEpoch}';
+      final basePath =
+          'post_images/${user.uid}/${DateTime.now().millisecondsSinceEpoch}';
       int uploadFailCount = 0;
 
       for (int i = 0; i < _pickedImages.length; i++) {
@@ -143,8 +144,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         const SnackBar(content: Text('投稿しました')),
       );
     } else {
-      final msg =
-          postProvider.submitErrorMessage ?? '投稿に失敗しました。もう一度お試しください。';
+      final msg = postProvider.submitErrorMessage ?? '投稿に失敗しました。もう一度お試しください。';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(msg),
@@ -195,8 +195,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
               return ValueListenableBuilder<TextEditingValue>(
                 valueListenable: _contentController,
                 builder: (_, value, __) {
-                  final canSubmit = value.text.trim().isNotEmpty &&
-                      !_isUploadingImages;
+                  final canSubmit =
+                      value.text.trim().isNotEmpty && !_isUploadingImages;
                   return TextButton(
                     onPressed: canSubmit ? _submit : null,
                     child: const Text('投稿'),
@@ -292,10 +292,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
               return ValueListenableBuilder<TextEditingValue>(
                 valueListenable: _contentController,
                 builder: (_, value, __) {
-                  final isBusy =
-                      provider.isSubmitting || _isUploadingImages;
-                  final canSubmit =
-                      value.text.trim().isNotEmpty && !isBusy;
+                  final isBusy = provider.isSubmitting || _isUploadingImages;
+                  final canSubmit = value.text.trim().isNotEmpty && !isBusy;
                   return FilledButton(
                     onPressed: canSubmit ? _submit : null,
                     style: FilledButton.styleFrom(
@@ -370,9 +368,7 @@ class _CategoryChipRow extends StatelessWidget {
               cat.displayName,
               style: TextStyle(
                 fontSize: 12,
-                color: isSelected
-                    ? Colors.white
-                    : theme.colorScheme.onSurface,
+                color: isSelected ? Colors.white : theme.colorScheme.onSurface,
               ),
             ),
             selected: isSelected,
@@ -441,7 +437,8 @@ class _ImageAttachmentPicker extends StatelessWidget {
                       color: Colors.black54,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.close, size: 14, color: Colors.white),
+                    child:
+                        const Icon(Icons.close, size: 14, color: Colors.white),
                   ),
                 ),
               ),

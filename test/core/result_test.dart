@@ -127,13 +127,15 @@ void main() {
         expect(called, true);
 
         called = false;
-        const Result<int, String>.failure('error').onSuccess((_) => called = true);
+        const Result<int, String>.failure('error')
+            .onSuccess((_) => called = true);
         expect(called, false);
       });
 
       test('onFailureが失敗時にのみ実行される', () {
         var called = false;
-        const Result<int, String>.failure('error').onFailure((_) => called = true);
+        const Result<int, String>.failure('error')
+            .onFailure((_) => called = true);
         expect(called, true);
 
         called = false;

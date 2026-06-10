@@ -16,12 +16,9 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 // ---------------------------------------------------------------------------
 
 class MockPartRecommendationService implements PartRecommendationService {
-  Result<List<PartListing>, AppError> featuredResult =
-      const Result.success([]);
-  Result<List<PartListing>, AppError> categoryResult =
-      const Result.success([]);
-  Result<List<PartListing>, AppError> searchResult =
-      const Result.success([]);
+  Result<List<PartListing>, AppError> featuredResult = const Result.success([]);
+  Result<List<PartListing>, AppError> categoryResult = const Result.success([]);
+  Result<List<PartListing>, AppError> searchResult = const Result.success([]);
 
   PartCategory? lastCategory;
   String? lastKeyword;
@@ -36,14 +33,16 @@ class MockPartRecommendationService implements PartRecommendationService {
 
   @override
   Future<Result<List<PartListing>, AppError>> getPartsByCategory(
-      PartCategory category, {int limit = 20, dynamic startAfter}) async {
+      PartCategory category,
+      {int limit = 20,
+      dynamic startAfter}) async {
     lastCategory = category;
     return categoryResult;
   }
 
   @override
-  Future<Result<List<PartListing>, AppError>> searchParts(
-      String keyword, {PartCategory? category, int limit = 20}) async {
+  Future<Result<List<PartListing>, AppError>> searchParts(String keyword,
+      {PartCategory? category, int limit = 20}) async {
     lastKeyword = keyword;
     lastCategory = category;
     return searchResult;
@@ -56,8 +55,8 @@ class MockPartRecommendationService implements PartRecommendationService {
   @override
   Future<Result<List<PartRecommendation>, AppError>>
       getRecommendationsForVehicle(dynamic vehicle,
-          {PartCategory? category, int limit = 10}) async =>
-      const Result.success([]);
+              {PartCategory? category, int limit = 10}) async =>
+          const Result.success([]);
 
   @override
   List<PartProCon> generateProsAndCons(dynamic part, dynamic vehicle) => [];
@@ -207,8 +206,8 @@ void main() {
       // 「すべて」チップが存在する
       expect(find.text('すべて'), findsOneWidget);
       // ChoiceChip が複数存在する
-      expect(find.byType(ChoiceChip).evaluate().length,
-          greaterThanOrEqualTo(2));
+      expect(
+          find.byType(ChoiceChip).evaluate().length, greaterThanOrEqualTo(2));
     });
 
     testWidgets('検索バーが表示される', (tester) async {

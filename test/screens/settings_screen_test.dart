@@ -66,8 +66,7 @@ class _StubAuthService implements AuthService {
   Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
       const Result.success(null);
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
       const Result.success(null);
@@ -229,8 +228,8 @@ void main() {
       expect(find.text('車検リマインダー'), findsOneWidget);
     });
 
-    testWidgets(
-        '10. reminder switches disabled when pushEnabled=false', (tester) async {
+    testWidgets('10. reminder switches disabled when pushEnabled=false',
+        (tester) async {
       final provider = _FakeAuthProvider(
         appUser: _makeAppUser(
           notificationSettings: NotificationSettings(pushEnabled: false),
@@ -240,9 +239,11 @@ void main() {
       await tester.pump();
 
       // When pushEnabled is false, reminder switches have null onChanged → disabled
-      final switches = tester.widgetList<SwitchListTile>(
-        find.byType(SwitchListTile),
-      ).toList();
+      final switches = tester
+          .widgetList<SwitchListTile>(
+            find.byType(SwitchListTile),
+          )
+          .toList();
 
       // First switch is pushEnabled itself — it should be enabled
       expect(switches[0].onChanged, isNotNull);
@@ -294,7 +295,8 @@ void main() {
   });
 
   group('SettingsScreen — Save flow', () {
-    testWidgets('15. tapping 保存 calls updateNotificationSettings', (tester) async {
+    testWidgets('15. tapping 保存 calls updateNotificationSettings',
+        (tester) async {
       final provider = _FakeAuthProvider(saveShouldSucceed: true);
       await tester.pumpWidget(_buildScreen(provider: provider));
       await tester.pump();

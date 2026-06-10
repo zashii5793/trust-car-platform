@@ -36,10 +36,12 @@ void main() {
     // ---------------------------------------------------------------------------
     // Simulate the maker-lookup logic extracted from _initMasterSelections
     // ---------------------------------------------------------------------------
-    VehicleMaker? _resolveMaker(List<VehicleMaker> masters, String vehicleMakerName) {
+    VehicleMaker? _resolveMaker(
+        List<VehicleMaker> masters, String vehicleMakerName) {
       try {
         return masters.firstWhere(
-          (m) => m.name == vehicleMakerName ||
+          (m) =>
+              m.name == vehicleMakerName ||
               m.nameEn.toLowerCase() == vehicleMakerName.toLowerCase(),
           orElse: () => masters.firstWhere(
             (m) => m.id == vehicleMakerName.toLowerCase(),
@@ -51,10 +53,12 @@ void main() {
       }
     }
 
-    VehicleModel? _resolveModel(List<VehicleModel> masters, String vehicleModelName) {
+    VehicleModel? _resolveModel(
+        List<VehicleModel> masters, String vehicleModelName) {
       try {
         return masters.firstWhere(
-          (m) => m.name == vehicleModelName ||
+          (m) =>
+              m.name == vehicleModelName ||
               (m.nameEn?.toLowerCase() == vehicleModelName.toLowerCase()),
         );
       } catch (_) {
@@ -62,7 +66,8 @@ void main() {
       }
     }
 
-    VehicleGrade? _resolveGrade(List<VehicleGrade> masters, String modelId, String gradeName) {
+    VehicleGrade? _resolveGrade(
+        List<VehicleGrade> masters, String modelId, String gradeName) {
       try {
         return masters.firstWhere((g) => g.name == gradeName);
       } catch (_) {
@@ -249,7 +254,11 @@ void main() {
       test('別メーカーに変更するとchanged=true', () {
         final vehicle = _makeVehicle(maker: 'トヨタ');
         final hondaMaker = VehicleMaker(
-          id: 'honda', name: 'ホンダ', nameEn: 'Honda', country: 'JP', displayOrder: 2,
+          id: 'honda',
+          name: 'ホンダ',
+          nameEn: 'Honda',
+          country: 'JP',
+          displayOrder: 2,
         );
         final changed = _hasChanged(
           selectedMaker: hondaMaker,

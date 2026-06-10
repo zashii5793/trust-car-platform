@@ -298,8 +298,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         updated.remove(cat);
                                       }
                                       setState(() {
-                                        _newsletterSubscription =
-                                            sub.copyWith(
+                                        _newsletterSubscription = sub.copyWith(
                                           subscribedCategories: updated,
                                         );
                                       });

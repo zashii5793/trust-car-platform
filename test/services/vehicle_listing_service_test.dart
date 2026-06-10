@@ -142,13 +142,14 @@ void main() {
 
   group('VehicleListing.displayTitle', () {
     test('gradeName なし: 「メーカー モデル」', () {
-      final l = _makeListing(makerName: 'トヨタ', modelName: 'プリウス', gradeName: null);
+      final l =
+          _makeListing(makerName: 'トヨタ', modelName: 'プリウス', gradeName: null);
       expect(l.displayTitle, 'トヨタ プリウス');
     });
 
     test('gradeName あり: 「メーカー モデル グレード」', () {
       final l = _makeListing(
-        makerName: 'ホンダ', modelName: 'フィット', gradeName: 'Luxury');
+          makerName: 'ホンダ', modelName: 'フィット', gradeName: 'Luxury');
       expect(l.displayTitle, 'ホンダ フィット Luxury');
     });
 
@@ -383,16 +384,17 @@ void main() {
     });
 
     test('priceMin+priceMax は 1 カウント', () {
-      const criteria = VehicleSearchCriteria(priceMin: 1000000, priceMax: 3000000);
+      const criteria =
+          VehicleSearchCriteria(priceMin: 1000000, priceMax: 3000000);
       expect(criteria.filterCount, 1);
     });
 
     test('複数フィルター', () {
       const criteria = VehicleSearchCriteria(
-        makerId: 'toyota',        // +1
-        yearMin: 2018,            // +1 (yearMin || yearMax)
-        noAccidentHistory: true,  // +1
-        bodyTypes: ['sedan'],     // +1
+        makerId: 'toyota', // +1
+        yearMin: 2018, // +1 (yearMin || yearMax)
+        noAccidentHistory: true, // +1
+        bodyTypes: ['sedan'], // +1
       );
       expect(criteria.filterCount, 4);
     });

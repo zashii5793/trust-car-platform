@@ -28,7 +28,8 @@ void main() {
   group('InquiryType', () {
     test('fromString returns correct enum value', () {
       expect(InquiryType.fromString('partInquiry'), InquiryType.partInquiry);
-      expect(InquiryType.fromString('serviceInquiry'), InquiryType.serviceInquiry);
+      expect(
+          InquiryType.fromString('serviceInquiry'), InquiryType.serviceInquiry);
       expect(InquiryType.fromString('estimate'), InquiryType.estimate);
       expect(InquiryType.fromString('appointment'), InquiryType.appointment);
     });

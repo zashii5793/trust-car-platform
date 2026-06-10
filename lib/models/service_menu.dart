@@ -53,37 +53,37 @@ enum PricingType {
 /// サービスメニューモデル
 class ServiceMenu {
   final String id;
-  final String shopId;                     // 店舗ID（BtoB用、個人はnull）
+  final String shopId; // 店舗ID（BtoB用、個人はnull）
 
   final ServiceCategory category;
-  final String name;                       // サービス名
-  final String? description;               // 説明
-  final String? details;                   // 詳細説明（長文）
+  final String name; // サービス名
+  final String? description; // 説明
+  final String? details; // 詳細説明（長文）
 
   // 料金
   final PricingType pricingType;
-  final int? basePrice;                    // 基本料金
-  final int? maxPrice;                     // 最大料金（〜円から の場合）
-  final int? laborCostPerHour;             // 時間単価
+  final int? basePrice; // 基本料金
+  final int? maxPrice; // 最大料金（〜円から の場合）
+  final int? laborCostPerHour; // 時間単価
 
   // 作業時間
-  final double? estimatedHours;            // 想定作業時間
-  final double? minHours;                  // 最短作業時間
-  final double? maxHours;                  // 最長作業時間
+  final double? estimatedHours; // 想定作業時間
+  final double? minHours; // 最短作業時間
+  final double? maxHours; // 最長作業時間
 
   // 対象車種
-  final List<String> applicableVehicleTypes;  // 対象車種（軽自動車、普通車等）
-  final bool isUniversal;                  // 全車種対応か
+  final List<String> applicableVehicleTypes; // 対象車種（軽自動車、普通車等）
+  final bool isUniversal; // 全車種対応か
 
   // 状態
-  final bool isActive;                     // 有効フラグ
-  final bool isPopular;                    // 人気メニューか
-  final bool isRecommended;                // おすすめか
-  final int sortOrder;                     // 表示順
+  final bool isActive; // 有効フラグ
+  final bool isPopular; // 人気メニューか
+  final bool isRecommended; // おすすめか
+  final int sortOrder; // 表示順
 
   // 画像
-  final String? imageUrl;                  // サービス画像
-  final List<String> galleryUrls;          // ギャラリー画像
+  final String? imageUrl; // サービス画像
+  final List<String> galleryUrls; // ギャラリー画像
 
   // メタデータ
   final Map<String, dynamic>? metadata;
@@ -149,9 +149,9 @@ class ServiceMenu {
 
   static String _formatNumber(int number) {
     return number.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]},',
-    );
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (Match m) => '${m[1]},',
+        );
   }
 
   factory ServiceMenu.fromFirestore(DocumentSnapshot doc) {
@@ -170,7 +170,8 @@ class ServiceMenu {
       estimatedHours: (data['estimatedHours'] as num?)?.toDouble(),
       minHours: (data['minHours'] as num?)?.toDouble(),
       maxHours: (data['maxHours'] as num?)?.toDouble(),
-      applicableVehicleTypes: List<String>.from(data['applicableVehicleTypes'] ?? []),
+      applicableVehicleTypes:
+          List<String>.from(data['applicableVehicleTypes'] ?? []),
       isUniversal: data['isUniversal'] ?? true,
       isActive: data['isActive'] ?? true,
       isPopular: data['isPopular'] ?? false,
@@ -252,7 +253,8 @@ class ServiceMenu {
       estimatedHours: estimatedHours ?? this.estimatedHours,
       minHours: minHours ?? this.minHours,
       maxHours: maxHours ?? this.maxHours,
-      applicableVehicleTypes: applicableVehicleTypes ?? this.applicableVehicleTypes,
+      applicableVehicleTypes:
+          applicableVehicleTypes ?? this.applicableVehicleTypes,
       isUniversal: isUniversal ?? this.isUniversal,
       isActive: isActive ?? this.isActive,
       isPopular: isPopular ?? this.isPopular,

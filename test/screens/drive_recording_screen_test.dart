@@ -194,8 +194,7 @@ class _StubAuthService implements AuthService {
       const Result.success(null);
 
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
@@ -279,8 +278,8 @@ void main() {
     });
 
     testWidgets('shows vehicle name in title when provided', (tester) async {
-      await tester.pumpWidget(
-          _buildScreen(vehicleName: 'GR86', vehicleId: 'v1'));
+      await tester
+          .pumpWidget(_buildScreen(vehicleName: 'GR86', vehicleId: 'v1'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('GR86 — 記録中'), findsOneWidget);
@@ -313,8 +312,8 @@ void main() {
     });
 
     testWidgets('shows 現在速度 card with speed value', (tester) async {
-      await tester.pumpWidget(
-          _buildScreen(provider: _FakeDriveRecordingProvider(currentSpeed: 42)));
+      await tester.pumpWidget(_buildScreen(
+          provider: _FakeDriveRecordingProvider(currentSpeed: 42)));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('現在速度'), findsOneWidget);
@@ -348,8 +347,8 @@ void main() {
     });
 
     testWidgets('shows km when distance >= 1 km', (tester) async {
-      await tester.pumpWidget(
-          _buildScreen(provider: _FakeDriveRecordingProvider(distanceKm: 12.34)));
+      await tester.pumpWidget(_buildScreen(
+          provider: _FakeDriveRecordingProvider(distanceKm: 12.34)));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('12.34 km'), findsOneWidget);
@@ -365,7 +364,8 @@ void main() {
   });
 
   group('DriveRecordingScreen — Loading state', () {
-    testWidgets('shows CircularProgressIndicator when isLoading', (tester) async {
+    testWidgets('shows CircularProgressIndicator when isLoading',
+        (tester) async {
       await tester.pumpWidget(
           _buildScreen(provider: _FakeDriveRecordingProvider(isLoading: true)));
       await tester.pump(); // one frame — addPostFrameCallback fires
@@ -412,7 +412,8 @@ void main() {
       expect(find.text('終了'), findsOneWidget);
     });
 
-    testWidgets("tapping '続ける' dismisses dialog without stopping", (tester) async {
+    testWidgets("tapping '続ける' dismisses dialog without stopping",
+        (tester) async {
       final provider = _FakeDriveRecordingProvider();
       await tester.pumpWidget(_buildScreen(provider: provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -446,7 +447,8 @@ void main() {
   });
 
   group('DriveRecordingScreen — Permission denied', () {
-    testWidgets('shows error snackbar when startRecording fails', (tester) async {
+    testWidgets('shows error snackbar when startRecording fails',
+        (tester) async {
       final provider = _FakeDriveRecordingProvider(
         isRecording: false,
         startShouldFail: true,
@@ -477,8 +479,7 @@ void main() {
   group('DriveRecordingScreen — Already recording guard', () {
     testWidgets('does NOT call startRecording when already recording',
         (tester) async {
-      final provider =
-          _FakeDriveRecordingProvider(isRecording: true);
+      final provider = _FakeDriveRecordingProvider(isRecording: true);
       await tester.pumpWidget(_buildScreen(provider: provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -487,7 +488,8 @@ void main() {
   });
 
   group('DriveRecordingScreen — Edge cases', () {
-    testWidgets('no crash when vehicleId and vehicleName are null', (tester) async {
+    testWidgets('no crash when vehicleId and vehicleName are null',
+        (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -495,9 +497,8 @@ void main() {
     });
 
     testWidgets('speed shows zero correctly', (tester) async {
-      await tester.pumpWidget(
-          _buildScreen(provider: _FakeDriveRecordingProvider(
-              currentSpeed: 0, maxSpeed: 0)));
+      await tester.pumpWidget(_buildScreen(
+          provider: _FakeDriveRecordingProvider(currentSpeed: 0, maxSpeed: 0)));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // Both speed cards should show '0 km/h'

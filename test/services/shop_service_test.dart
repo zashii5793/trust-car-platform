@@ -82,8 +82,10 @@ void main() {
     });
 
     test('fromString が既知の値を正しく変換する', () {
-      expect(ServiceCategory.fromString('inspection'), ServiceCategory.inspection);
-      expect(ServiceCategory.fromString('maintenance'), ServiceCategory.maintenance);
+      expect(
+          ServiceCategory.fromString('inspection'), ServiceCategory.inspection);
+      expect(ServiceCategory.fromString('maintenance'),
+          ServiceCategory.maintenance);
       expect(ServiceCategory.fromString('repair'), ServiceCategory.repair);
       expect(ServiceCategory.fromString('tire'), ServiceCategory.tire);
     });
@@ -314,8 +316,11 @@ void main() {
     test('Result.success に Shop を格納できる', () {
       final now = DateTime.now();
       final shop = Shop(
-        id: 's1', name: 'S', type: ShopType.other,
-        createdAt: now, updatedAt: now,
+        id: 's1',
+        name: 'S',
+        type: ShopType.other,
+        createdAt: now,
+        updatedAt: now,
       );
       final result = Result<Shop, AppError>.success(shop);
       expect(result.isSuccess, true);
@@ -338,22 +343,43 @@ void main() {
     });
 
     test('BusinessHours.fromMap: isClosed フィールドがない場合 false になる', () {
-      final hours = BusinessHours.fromMap({'openTime': '09:00', 'closeTime': '18:00'});
+      final hours =
+          BusinessHours.fromMap({'openTime': '09:00', 'closeTime': '18:00'});
       expect(hours.isClosed, false);
     });
 
     test('Shop: id の等価性', () {
       final now = DateTime.now();
-      final a = Shop(id: 'x', name: 'A', type: ShopType.other, createdAt: now, updatedAt: now);
-      final b = Shop(id: 'x', name: 'B', type: ShopType.dealer, createdAt: now, updatedAt: now);
+      final a = Shop(
+          id: 'x',
+          name: 'A',
+          type: ShopType.other,
+          createdAt: now,
+          updatedAt: now);
+      final b = Shop(
+          id: 'x',
+          name: 'B',
+          type: ShopType.dealer,
+          createdAt: now,
+          updatedAt: now);
       expect(a, equals(b));
       expect(a.hashCode, equals(b.hashCode));
     });
 
     test('Shop: 異なる id は等しくない', () {
       final now = DateTime.now();
-      final a = Shop(id: 'x', name: 'A', type: ShopType.other, createdAt: now, updatedAt: now);
-      final b = Shop(id: 'y', name: 'A', type: ShopType.other, createdAt: now, updatedAt: now);
+      final a = Shop(
+          id: 'x',
+          name: 'A',
+          type: ShopType.other,
+          createdAt: now,
+          updatedAt: now);
+      final b = Shop(
+          id: 'y',
+          name: 'A',
+          type: ShopType.other,
+          createdAt: now,
+          updatedAt: now);
       expect(a, isNot(equals(b)));
     });
 

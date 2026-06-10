@@ -56,7 +56,8 @@ class AppUser {
       'photoUrl': photoUrl,
       'notificationSettings': notificationSettings.toMap(),
       'planType': planType.name,
-      if (planExpiresAt != null) 'planExpiresAt': Timestamp.fromDate(planExpiresAt!),
+      if (planExpiresAt != null)
+        'planExpiresAt': Timestamp.fromDate(planExpiresAt!),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -142,7 +143,8 @@ class NotificationSettings {
       maintenanceReminder: maintenanceReminder ?? this.maintenanceReminder,
       oilChangeReminder: oilChangeReminder ?? this.oilChangeReminder,
       tireChangeReminder: tireChangeReminder ?? this.tireChangeReminder,
-      carInspectionReminder: carInspectionReminder ?? this.carInspectionReminder,
+      carInspectionReminder:
+          carInspectionReminder ?? this.carInspectionReminder,
     );
   }
 }

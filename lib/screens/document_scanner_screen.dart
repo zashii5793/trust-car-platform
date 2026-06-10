@@ -131,7 +131,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
   }
 
   Future<void> _captureImage() async {
-    if (_controller == null || !_controller!.value.isInitialized || _isCapturing) {
+    if (_controller == null ||
+        !_controller!.value.isInitialized ||
+        _isCapturing) {
       return;
     }
 
@@ -385,13 +387,14 @@ class _GuideFramePainter extends CustomPainter {
     // 枠のサイズを計算（画面の80%幅、A4比率に近い）
     final frameWidth = size.width * 0.85;
     final frameHeight = documentType == DocumentType.vehicleCertificate
-        ? frameWidth * 0.65  // 車検証は横長
-        : frameWidth * 1.4;  // A4縦向き
+        ? frameWidth * 0.65 // 車検証は横長
+        : frameWidth * 1.4; // A4縦向き
 
     final frameLeft = (size.width - frameWidth) / 2;
-    final frameTop = (size.height - frameHeight) / 2 - 40;  // 少し上寄せ
+    final frameTop = (size.height - frameHeight) / 2 - 40; // 少し上寄せ
 
-    final frameRect = Rect.fromLTWH(frameLeft, frameTop, frameWidth, frameHeight);
+    final frameRect =
+        Rect.fromLTWH(frameLeft, frameTop, frameWidth, frameHeight);
 
     // 暗いオーバーレイ（枠の外側）
     final path = Path()

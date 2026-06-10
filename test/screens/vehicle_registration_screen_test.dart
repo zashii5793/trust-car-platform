@@ -187,8 +187,9 @@ class _StubFirebaseService implements FirebaseService {
       const Result.success([]);
 
   @override
-  Future<Result<String, AppError>> uploadProcessedImage(dynamic bytes,
-          String path, {required dynamic imageService}) async =>
+  Future<Result<String, AppError>> uploadProcessedImage(
+          dynamic bytes, String path,
+          {required dynamic imageService}) async =>
       const Result.success('url');
 
   @override
@@ -224,7 +225,7 @@ class _FakeVehicleProvider extends VehicleProvider {
 
   @override
   Future<bool> isLicensePlateExists(String licensePlate,
-      {String? excludeVehicleId}) async =>
+          {String? excludeVehicleId}) async =>
       false;
 }
 
@@ -313,7 +314,8 @@ void main() {
       expect(find.text('基本情報を入力'), findsOneWidget);
     });
 
-    testWidgets('2a. No back arrow on step 0 (leading is null)', (tester) async {
+    testWidgets('2a. No back arrow on step 0 (leading is null)',
+        (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pump();
 
@@ -372,7 +374,8 @@ void main() {
 
     testWidgets('6. Maker selector placeholder visible', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pumpAndSettle(const Duration(seconds: 10)); // wait for makers to load
+      await tester.pumpAndSettle(
+          const Duration(seconds: 10)); // wait for makers to load
 
       expect(find.text('メーカーを選択 *'), findsOneWidget);
     });
@@ -410,7 +413,8 @@ void main() {
       expect(find.text('年式を入力'), findsOneWidget);
     });
 
-    testWidgets('10. Tapping 次へ with empty mileage shows error', (tester) async {
+    testWidgets('10. Tapping 次へ with empty mileage shows error',
+        (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -496,8 +500,7 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await _fillStep1AndAdvance(tester);
 
-      expect(
-          find.textContaining('期限が近づくと自動でアプリが通知します'), findsOneWidget);
+      expect(find.textContaining('期限が近づくと自動でアプリが通知します'), findsOneWidget);
     });
   });
 
@@ -565,8 +568,7 @@ void main() {
       await tester.pump();
 
       // Trigger system back
-      final NavigatorState navigator =
-          tester.state(find.byType(Navigator));
+      final NavigatorState navigator = tester.state(find.byType(Navigator));
       navigator.maybePop();
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -581,8 +583,7 @@ void main() {
       await tester.enterText(find.byType(TextFormField).at(0), '2023');
       await tester.pump();
 
-      final NavigatorState navigator =
-          tester.state(find.byType(Navigator));
+      final NavigatorState navigator = tester.state(find.byType(Navigator));
       navigator.maybePop();
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -617,8 +618,7 @@ void main() {
       );
 
       // Push registration screen
-      final NavigatorState navigator =
-          tester.state(find.byType(Navigator));
+      final NavigatorState navigator = tester.state(find.byType(Navigator));
       navigator.pushNamed('/register');
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -658,7 +658,8 @@ void main() {
       expect(find.text('車両を登録しました'), findsOneWidget);
     });
 
-    testWidgets('30. addVehicle failure → error snackbar shown', (tester) async {
+    testWidgets('30. addVehicle failure → error snackbar shown',
+        (tester) async {
       _firebaseStub.addVehicleShouldFail = true;
 
       await navigateToStep3(tester);

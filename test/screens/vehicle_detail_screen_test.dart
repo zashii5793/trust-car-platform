@@ -102,10 +102,10 @@ class MockFirebaseService implements FirebaseService {
           const Result.success({});
 
   @override
-  Future<Result<List<MaintenanceRecord>, AppError>> getMaintenanceRecordsForVehicle(
-          String vehicleId,
-          {int limit = 20}) async =>
-      const Result.success([]);
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getMaintenanceRecordsForVehicle(String vehicleId,
+              {int limit = 20}) async =>
+          const Result.success([]);
 
   @override
   Future<Result<String, AppError>> uploadImage(
@@ -200,8 +200,7 @@ void main() {
 
   setUp(() {
     mockFirebase = MockFirebaseService();
-    maintenanceProvider =
-        MaintenanceProvider(firebaseService: mockFirebase);
+    maintenanceProvider = MaintenanceProvider(firebaseService: mockFirebase);
   });
 
   tearDown(() {
@@ -216,8 +215,8 @@ void main() {
   // -------------------------------------------------------------------------
   group('VehicleDetailScreen - 基本表示', () {
     testWidgets('車両名が AppBar に表示される', (tester) async {
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       await tester.pump();
 
       expect(find.text('トヨタ ヴォクシー'), findsWidgets);
@@ -226,8 +225,8 @@ void main() {
     testWidgets('履歴なし → 空状態を表示する', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
 
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -240,8 +239,8 @@ void main() {
     testWidgets('記録が1件あるとき、タイトルと費用が表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
 
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord()]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -254,8 +253,8 @@ void main() {
     testWidgets('複数記録がすべて表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
 
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([
         _testRecord(id: 'r1', title: 'オイル交換テスト', cost: 5000),
         _testRecord(
@@ -273,8 +272,8 @@ void main() {
     testWidgets('shopName があれば店舗名を表示する', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
 
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([
         _testRecord(shopName: 'オートバックス新宿店'),
       ]);
@@ -286,8 +285,8 @@ void main() {
     testWidgets('shopName が null のとき店舗名アイコンを表示しない', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
 
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       // shopName なし（デフォルト null）
       mockFirebase.emitRecords([_testRecord()]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -305,8 +304,8 @@ void main() {
     testWidgets('日付が yyyy/MM/dd 形式で表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
 
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord()]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -338,8 +337,8 @@ void main() {
 
     testWidgets('記録をタップすると BottomSheet が開く', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord()]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -352,8 +351,8 @@ void main() {
 
     testWidgets('BottomSheet に費用が表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord(cost: 12500)]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -365,8 +364,8 @@ void main() {
 
     testWidgets('BottomSheet に shopName が表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord(shopName: 'トヨタカローラ')]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -378,8 +377,8 @@ void main() {
 
     testWidgets('BottomSheet に mileageAtService が表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord(mileageAtService: 15000)]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -397,8 +396,8 @@ void main() {
 
     testWidgets('BottomSheet に description が表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([
         _testRecord(description: '次回は10000km後に交換予定'),
       ]);
@@ -421,8 +420,8 @@ void main() {
   group('BottomSheet open 確認', () {
     testWidgets('カードをタップすると BottomSheet が開く', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord()]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -439,8 +438,8 @@ void main() {
 
     testWidgets('BottomSheet の背景タップで閉じる', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([_testRecord()]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -469,8 +468,8 @@ void main() {
       addTearDown(() async => tester.binding.setSurfaceSize(null));
 
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
 
       mockFirebase.emitRecords([
         MaintenanceRecord(
@@ -505,8 +504,8 @@ void main() {
       addTearDown(() async => tester.binding.setSurfaceSize(null));
 
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
 
       mockFirebase.emitRecords([
         MaintenanceRecord(
@@ -537,8 +536,8 @@ void main() {
 
     testWidgets('記録が0件のとき月ヘッダーは表示されない', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
-      await tester.pumpWidget(
-          _buildScreen(_testVehicle(), maintenanceProvider));
+      await tester
+          .pumpWidget(_buildScreen(_testVehicle(), maintenanceProvider));
       mockFirebase.emitRecords([]);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 

@@ -231,7 +231,8 @@ class RecommendationService {
     } else if (daysUntil <= 30) {
       message = '${vehicle.displayName}の車検期限まであと$daysUntil日です。予約をお忘れなく。';
     } else {
-      message = '${vehicle.displayName}の車検期限まであと約${(daysUntil / 30).round()}ヶ月です。';
+      message =
+          '${vehicle.displayName}の車検期限まであと約${(daysUntil / 30).round()}ヶ月です。';
     }
 
     return AppNotification(
@@ -400,9 +401,8 @@ class RecommendationService {
     required DateTime now,
   }) {
     // 車検記録を検索
-    final inspectionRecords = records
-        .where((r) => r.type == MaintenanceType.carInspection)
-        .toList();
+    final inspectionRecords =
+        records.where((r) => r.type == MaintenanceType.carInspection).toList();
 
     DateTime nextInspectionDate;
 
@@ -421,8 +421,7 @@ class RecommendationService {
           vehicleId: vehicle.id,
           type: NotificationType.inspectionReminder,
           title: '車検情報を登録してください',
-          message:
-              '${vehicle.displayName}の車検満了日が未設定です。車両情報を編集して登録してください。',
+          message: '${vehicle.displayName}の車検満了日が未設定です。車両情報を編集して登録してください。',
           priority: NotificationPriority.medium,
           createdAt: now,
         );
@@ -457,8 +456,7 @@ class RecommendationService {
 
     String message;
     if (daysUntilInspection <= 0) {
-      message =
-          '${vehicle.displayName}の車検期限が過ぎています。早急に車検を受けてください。';
+      message = '${vehicle.displayName}の車検期限が過ぎています。早急に車検を受けてください。';
     } else if (daysUntilInspection <= 30) {
       message =
           '${vehicle.displayName}の車検期限まであと$daysUntilInspection日です。予約をお忘れなく。';
@@ -500,8 +498,7 @@ class RecommendationService {
     // Data point 1: Last service history
     if (lastDate != null) {
       final monthsAgo = now.difference(lastDate).inDays ~/ 30;
-      final dateStr =
-          '${lastDate.year}年${lastDate.month}月${lastDate.day}日';
+      final dateStr = '${lastDate.year}年${lastDate.month}月${lastDate.day}日';
       lines.add('📋 前回の${rule.name}: $dateStr（${monthsAgo}ヶ月前）');
       if (lastMileage != null) {
         final kmSince = vehicle.mileage - lastMileage;
@@ -529,8 +526,7 @@ class RecommendationService {
     } else if (daysUntilDue <= 30) {
       lines.add('✅ 今が交換の最適なタイミングです。');
     } else {
-      lines.add(
-          '🗓 あと約${(daysUntilDue / 30).round()}ヶ月後が交換時期の目安です。');
+      lines.add('🗓 あと約${(daysUntilDue / 30).round()}ヶ月後が交換時期の目安です。');
     }
 
     // Note: what this maintenance does
@@ -564,7 +560,8 @@ class RecommendationService {
       final kmSince = vehicle.mileage - lastMileage;
       final kmRemaining = rule.intervalKm - kmSince;
       if (kmRemaining > 0) {
-        kmContext = '（前回から${kmSince.clamp(0, 999999)}km走行、あと${kmRemaining}kmが目安）';
+        kmContext =
+            '（前回から${kmSince.clamp(0, 999999)}km走行、あと${kmRemaining}kmが目安）';
       } else {
         kmContext = '（交換目安の${rule.intervalKm}kmを超えています）';
       }

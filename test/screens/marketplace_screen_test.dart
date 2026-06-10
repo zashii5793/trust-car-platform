@@ -31,10 +31,12 @@ class MockShopService implements ShopService {
     String? prefecture,
     int limit = 20,
     dynamic startAfter,
-  }) async => shopsResult;
+  }) async =>
+      shopsResult;
 
   @override
-  Future<Result<List<Shop>, AppError>> getFeaturedShops({int limit = 5}) async =>
+  Future<Result<List<Shop>, AppError>> getFeaturedShops(
+          {int limit = 5}) async =>
       const Result.success([]);
 
   @override
@@ -61,31 +63,32 @@ class MockInquiryService implements InquiryService {
 }
 
 class MockPartRecommendationService implements PartRecommendationService {
-  Result<List<PartListing>, AppError> browseResult =
-      const Result.success([]);
+  Result<List<PartListing>, AppError> browseResult = const Result.success([]);
 
   @override
   Future<Result<List<PartListing>, AppError>> getPartsByCategory(
     PartCategory category, {
     int limit = 20,
     dynamic startAfter,
-  }) async => browseResult;
+  }) async =>
+      browseResult;
 
   @override
   Future<Result<List<PartListing>, AppError>> getFeaturedParts({
     int limit = 8,
-  }) async => const Result.success([]);
+  }) async =>
+      const Result.success([]);
 
   @override
   Future<Result<List<PartListing>, AppError>> searchParts(
     String query, {
     PartCategory? category,
     int limit = 20,
-  }) async => const Result.success([]);
+  }) async =>
+      const Result.success([]);
 
   @override
-  Future<Result<PartListing, AppError>> getPartDetail(
-          String partId) async =>
+  Future<Result<PartListing, AppError>> getPartDetail(String partId) async =>
       Result.failure(AppError.notFound('not found'));
 
   @override
@@ -161,8 +164,7 @@ void main() {
   });
 
   group('MarketplaceScreen — タブ切替', () {
-    testWidgets('「パーツ」タブをタップすると PartListScreen に切り替わる',
-        (tester) async {
+    testWidgets('「パーツ」タブをタップすると PartListScreen に切り替わる', (tester) async {
       await tester.pumpWidget(_buildUnderTest());
       await tester.pump();
 
@@ -174,8 +176,7 @@ void main() {
       expect(find.text('パーツ'), findsOneWidget);
     });
 
-    testWidgets('「工場・業者」→「パーツ」→「工場・業者」と切り替えられる',
-        (tester) async {
+    testWidgets('「工場・業者」→「パーツ」→「工場・業者」と切り替えられる', (tester) async {
       await tester.pumpWidget(_buildUnderTest());
       await tester.pump();
 

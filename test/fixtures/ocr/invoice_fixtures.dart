@@ -174,7 +174,6 @@ final invoiceFixtures = <InvoiceFixture>[
     ),
     minimumAccuracy: 0.80,
   ),
-
   InvoiceFixture(
     name: '車検費用（ディーラー発行・複数明細）',
     rawText: _vehicleInspectionRawText,
@@ -188,7 +187,6 @@ final invoiceFixtures = <InvoiceFixture>[
     ),
     minimumAccuracy: 0.70,
   ),
-
   InvoiceFixture(
     name: 'タイヤ交換4本（タイヤ専門店・西暦表記）',
     rawText: _tireChangeRawText,
@@ -203,7 +201,6 @@ final invoiceFixtures = <InvoiceFixture>[
     ),
     minimumAccuracy: 0.75,
   ),
-
   InvoiceFixture(
     name: 'ノイズ入り請求書（印字薄・手書き補足）',
     rawText: _noisyInvoiceRawText,

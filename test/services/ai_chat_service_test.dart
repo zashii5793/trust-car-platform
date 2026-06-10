@@ -38,7 +38,8 @@ void main() {
   // Helper: 有効な dotenv を読み込む
   void loadValidEnv() {
     dotenv.testLoad(
-      fileInput: 'FIREBASE_FUNCTIONS_URL=https://asia-northeast1-test.cloudfunctions.net',
+      fileInput:
+          'FIREBASE_FUNCTIONS_URL=https://asia-northeast1-test.cloudfunctions.net',
     );
   }
 
@@ -48,7 +49,8 @@ void main() {
   }
 
   // Helper: ログイン済みのモックユーザーをセットアップ
-  MockUser _makeAuthUser(MockFirebaseAuth mockAuth, {String idToken = 'test-id-token'}) {
+  MockUser _makeAuthUser(MockFirebaseAuth mockAuth,
+      {String idToken = 'test-id-token'}) {
     final mockUser = MockUser();
     when(mockAuth.currentUser).thenReturn(mockUser);
     when(mockUser.getIdToken(any)).thenAnswer((_) async => idToken);
@@ -72,7 +74,8 @@ void main() {
         final mockAuth = MockFirebaseAuth();
         _makeAuthUser(mockAuth);
 
-        when(mockClient.post(any, headers: anyNamed('headers'), body: anyNamed('body')))
+        when(mockClient.post(any,
+                headers: anyNamed('headers'), body: anyNamed('body')))
             .thenAnswer((_) async => _jsonResponse({'reply': 'テスト回答'}, 200));
 
         final service = AiChatService(httpClient: mockClient, auth: mockAuth);
@@ -98,7 +101,8 @@ void main() {
         final mockAuth = MockFirebaseAuth();
         _makeAuthUser(mockAuth);
 
-        when(mockClient.post(any, headers: anyNamed('headers'), body: anyNamed('body')))
+        when(mockClient.post(any,
+                headers: anyNamed('headers'), body: anyNamed('body')))
             .thenAnswer((_) async => _jsonResponse(
                   {'error': '1日の利用上限に達しました。明日また試してください。'},
                   429,
@@ -117,14 +121,17 @@ void main() {
         expect(error!.message, contains('1日の利用上限'));
       });
 
-      test('500 レスポンスの場合 ServerError(statusCode=500) を含む Result.failure を返す', () async {
+      test('500 レスポンスの場合 ServerError(statusCode=500) を含む Result.failure を返す',
+          () async {
         loadValidEnv();
         final mockClient = MockClient();
         final mockAuth = MockFirebaseAuth();
         _makeAuthUser(mockAuth);
 
-        when(mockClient.post(any, headers: anyNamed('headers'), body: anyNamed('body')))
-            .thenAnswer((_) async => _jsonResponse({'error': 'Internal Server Error'}, 500));
+        when(mockClient.post(any,
+                headers: anyNamed('headers'), body: anyNamed('body')))
+            .thenAnswer((_) async =>
+                _jsonResponse({'error': 'Internal Server Error'}, 500));
 
         final service = AiChatService(httpClient: mockClient, auth: mockAuth);
         final result = await service.ask(
@@ -164,7 +171,8 @@ void main() {
         expect(error!.message, contains('FIREBASE_FUNCTIONS_URL'));
 
         // HTTP リクエストは送信されない
-        verifyNever(mockClient.post(any, headers: anyNamed('headers'), body: anyNamed('body')));
+        verifyNever(mockClient.post(any,
+            headers: anyNamed('headers'), body: anyNamed('body')));
       });
 
       test('未ログイン (currentUser == null) の場合 ServerError を返す', () async {
@@ -186,7 +194,8 @@ void main() {
         expect(error!.message, contains('ログインが必要'));
 
         // HTTP リクエストは送信されない
-        verifyNever(mockClient.post(any, headers: anyNamed('headers'), body: anyNamed('body')));
+        verifyNever(mockClient.post(any,
+            headers: anyNamed('headers'), body: anyNamed('body')));
       });
     });
 
@@ -201,7 +210,8 @@ void main() {
         final mockAuth = MockFirebaseAuth();
         _makeAuthUser(mockAuth);
 
-        when(mockClient.post(any, headers: anyNamed('headers'), body: anyNamed('body')))
+        when(mockClient.post(any,
+                headers: anyNamed('headers'), body: anyNamed('body')))
             .thenThrow(http.ClientException('Connection refused'));
 
         final service = AiChatService(httpClient: mockClient, auth: mockAuth);
@@ -223,8 +233,10 @@ void main() {
         final mockAuth = MockFirebaseAuth();
         _makeAuthUser(mockAuth);
 
-        when(mockClient.post(any, headers: anyNamed('headers'), body: anyNamed('body')))
-            .thenThrow(TimeoutException('Request timed out', const Duration(seconds: 60)));
+        when(mockClient.post(any,
+                headers: anyNamed('headers'), body: anyNamed('body')))
+            .thenThrow(TimeoutException(
+                'Request timed out', const Duration(seconds: 60)));
 
         final service = AiChatService(httpClient: mockClient, auth: mockAuth);
         final result = await service.ask(
@@ -251,7 +263,8 @@ void main() {
         final mockAuth = MockFirebaseAuth();
         _makeAuthUser(mockAuth);
 
-        when(mockClient.post(any, headers: anyNamed('headers'), body: anyNamed('body')))
+        when(mockClient.post(any,
+                headers: anyNamed('headers'), body: anyNamed('body')))
             .thenAnswer((_) async => _jsonResponse({'reply': 'OK'}, 200));
 
         final history = [
@@ -287,7 +300,8 @@ void main() {
           ),
         ).captured;
 
-        final sentBody = jsonDecode(captured.first as String) as Map<String, dynamic>;
+        final sentBody =
+            jsonDecode(captured.first as String) as Map<String, dynamic>;
         final sentHistory = sentBody['history'] as List<dynamic>;
 
         // isLoading=true のローディングメッセージが除外され、2件のみ送信される
@@ -311,12 +325,14 @@ void main() {
         final mockAuth = MockFirebaseAuth();
         _makeAuthUser(mockAuth);
 
-        when(mockClient.post(any, headers: anyNamed('headers'), body: anyNamed('body')))
-            .thenAnswer((_) async => _jsonResponse({'reply': 'Cloud Function 側が処理します'}, 200));
+        when(mockClient.post(any,
+                headers: anyNamed('headers'), body: anyNamed('body')))
+            .thenAnswer((_) async =>
+                _jsonResponse({'reply': 'Cloud Function 側が処理します'}, 200));
 
         final service = AiChatService(httpClient: mockClient, auth: mockAuth);
         final result = await service.ask(
-          userMessage: '',  // 空文字列
+          userMessage: '', // 空文字列
           vehicleContext: 'Toyota Yaris 2023',
           history: [],
         );
@@ -332,7 +348,8 @@ void main() {
             body: captureAnyNamed('body'),
           ),
         ).captured;
-        final sentBody = jsonDecode(captured.first as String) as Map<String, dynamic>;
+        final sentBody =
+            jsonDecode(captured.first as String) as Map<String, dynamic>;
         expect(sentBody['userMessage'], '');
       });
 
@@ -342,14 +359,16 @@ void main() {
         final mockAuth = MockFirebaseAuth();
         _makeAuthUser(mockAuth);
 
-        when(mockClient.post(any, headers: anyNamed('headers'), body: anyNamed('body')))
-            .thenAnswer((_) async => _jsonResponse({'reply': '初めてのご質問ですね'}, 200));
+        when(mockClient.post(any,
+                headers: anyNamed('headers'), body: anyNamed('body')))
+            .thenAnswer(
+                (_) async => _jsonResponse({'reply': '初めてのご質問ですね'}, 200));
 
         final service = AiChatService(httpClient: mockClient, auth: mockAuth);
         final result = await service.ask(
           userMessage: '初めまして',
           vehicleContext: 'Daihatsu Tanto 2022',
-          history: [],  // 空リスト
+          history: [], // 空リスト
         );
 
         expect(result.isSuccess, true);
@@ -361,7 +380,8 @@ void main() {
             body: captureAnyNamed('body'),
           ),
         ).captured;
-        final sentBody = jsonDecode(captured.first as String) as Map<String, dynamic>;
+        final sentBody =
+            jsonDecode(captured.first as String) as Map<String, dynamic>;
         expect(sentBody['history'], isEmpty);
       });
     });

@@ -25,8 +25,7 @@ class AiChatService {
 
   // Cloud Function base URL — set FIREBASE_FUNCTIONS_URL in .env
   // e.g. https://asia-northeast1-trust-car-platform.cloudfunctions.net
-  String get _functionsBaseUrl =>
-      dotenv.env['FIREBASE_FUNCTIONS_URL'] ?? '';
+  String get _functionsBaseUrl => dotenv.env['FIREBASE_FUNCTIONS_URL'] ?? '';
 
   String get _endpoint => '$_functionsBaseUrl/askCarAi';
 

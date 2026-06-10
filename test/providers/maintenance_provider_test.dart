@@ -24,7 +24,8 @@ class MockFirebaseService implements FirebaseService {
   String? get currentUserId => 'test-user-id';
 
   @override
-  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(String vehicleId) =>
+  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(
+          String vehicleId) =>
       _recordsController.stream;
 
   void emitRecords(List<MaintenanceRecord> records) {
@@ -36,7 +37,8 @@ class MockFirebaseService implements FirebaseService {
   }
 
   @override
-  Future<Result<String, AppError>> addMaintenanceRecord(MaintenanceRecord record) async {
+  Future<Result<String, AppError>> addMaintenanceRecord(
+      MaintenanceRecord record) async {
     addRecordCalled = true;
     return addRecordResult ?? const Result.success('new-record-id');
   }
@@ -51,7 +53,8 @@ class MockFirebaseService implements FirebaseService {
   }
 
   @override
-  Future<Result<void, AppError>> deleteMaintenanceRecord(String recordId) async {
+  Future<Result<void, AppError>> deleteMaintenanceRecord(
+      String recordId) async {
     deleteRecordCalled = true;
     return deleteRecordResult ?? const Result.success(null);
   }
@@ -65,7 +68,8 @@ class MockFirebaseService implements FirebaseService {
       const Result.success('vehicle-id');
 
   @override
-  Future<Result<void, AppError>> updateVehicle(String id, Vehicle vehicle) async =>
+  Future<Result<void, AppError>> updateVehicle(
+          String id, Vehicle vehicle) async =>
       const Result.success(null);
 
   @override
@@ -80,18 +84,20 @@ class MockFirebaseService implements FirebaseService {
       const Result.success(false);
 
   @override
-  Future<Result<List<MaintenanceRecord>, AppError>> getMaintenanceRecordsForVehicle(
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getMaintenanceRecordsForVehicle(
     String vehicleId, {
     int limit = 20,
   }) async =>
-      const Result.success([]);
+          const Result.success([]);
 
   @override
-  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>> getMaintenanceRecordsForVehicles(
+  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>>
+      getMaintenanceRecordsForVehicles(
     List<String> vehicleIds, {
     int limitPerVehicle = 20,
   }) async =>
-      const Result.success({});
+          const Result.success({});
 
   @override
   Future<Result<String, AppError>> uploadImageBytes(
@@ -105,7 +111,8 @@ class MockFirebaseService implements FirebaseService {
       const Result.success(null);
 
   @override
-  Future<Result<String, AppError>> uploadImage(dynamic imageFile, String path) async =>
+  Future<Result<String, AppError>> uploadImage(
+          dynamic imageFile, String path) async =>
       const Result.success('http://example.com/image.jpg');
 
   @override
@@ -233,7 +240,8 @@ void main() {
         mockFirebaseService.updateRecordResult = const Result.success(null);
 
         final record = _createTestRecord();
-        final success = await provider.updateMaintenanceRecord('test-id', record);
+        final success =
+            await provider.updateMaintenanceRecord('test-id', record);
 
         expect(success, isTrue);
       });
@@ -244,7 +252,8 @@ void main() {
         );
 
         final record = _createTestRecord();
-        final success = await provider.updateMaintenanceRecord('test-id', record);
+        final success =
+            await provider.updateMaintenanceRecord('test-id', record);
 
         expect(success, isFalse);
         expect(provider.error, isA<PermissionError>());
@@ -290,10 +299,13 @@ void main() {
         mockFirebaseService.emitRecords(records);
         await Future.delayed(const Duration(milliseconds: 50));
 
-        final oilChangeRecords = provider.getRecordsByType(MaintenanceType.oilChange);
+        final oilChangeRecords =
+            provider.getRecordsByType(MaintenanceType.oilChange);
 
         expect(oilChangeRecords.length, equals(2));
-        expect(oilChangeRecords.every((r) => r.type == MaintenanceType.oilChange), isTrue);
+        expect(
+            oilChangeRecords.every((r) => r.type == MaintenanceType.oilChange),
+            isTrue);
       });
 
       test('returns empty list when no records match', () async {

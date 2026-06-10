@@ -27,7 +27,8 @@ class _StubFirebaseService implements FirebaseService {
   Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
 
   @override
-  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(String vehicleId) =>
+  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(
+          String vehicleId) =>
       const Stream.empty();
 
   @override
@@ -35,7 +36,8 @@ class _StubFirebaseService implements FirebaseService {
       const Result.success('id');
 
   @override
-  Future<Result<void, AppError>> updateVehicle(String vehicleId, Vehicle vehicle) async =>
+  Future<Result<void, AppError>> updateVehicle(
+          String vehicleId, Vehicle vehicle) async =>
       const Result.success(null);
 
   @override
@@ -52,15 +54,18 @@ class _StubFirebaseService implements FirebaseService {
       const Result.success(false);
 
   @override
-  Future<Result<String, AppError>> addMaintenanceRecord(MaintenanceRecord record) async =>
+  Future<Result<String, AppError>> addMaintenanceRecord(
+          MaintenanceRecord record) async =>
       const Result.success('id');
 
   @override
-  Future<Result<void, AppError>> updateMaintenanceRecord(String recordId, MaintenanceRecord record) async =>
+  Future<Result<void, AppError>> updateMaintenanceRecord(
+          String recordId, MaintenanceRecord record) async =>
       const Result.success(null);
 
   @override
-  Future<Result<void, AppError>> deleteMaintenanceRecord(String recordId) async =>
+  Future<Result<void, AppError>> deleteMaintenanceRecord(
+          String recordId) async =>
       const Result.success(null);
 
   @override
@@ -70,24 +75,29 @@ class _StubFirebaseService implements FirebaseService {
           const Result.success({});
 
   @override
-  Future<Result<List<MaintenanceRecord>, AppError>> getMaintenanceRecordsForVehicle(
-          String vehicleId, {int limit = 20}) async =>
-      const Result.success([]);
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getMaintenanceRecordsForVehicle(String vehicleId,
+              {int limit = 20}) async =>
+          const Result.success([]);
 
   @override
-  Future<Result<String, AppError>> uploadImage(io.File imageFile, String path) async =>
+  Future<Result<String, AppError>> uploadImage(
+          io.File imageFile, String path) async =>
       const Result.success('url');
 
   @override
-  Future<Result<String, AppError>> uploadImageBytes(Uint8List imageBytes, String path) async =>
+  Future<Result<String, AppError>> uploadImageBytes(
+          Uint8List imageBytes, String path) async =>
       const Result.success('url');
 
   @override
-  Future<Result<List<String>, AppError>> uploadImages(List<io.File> imageFiles, String basePath) async =>
+  Future<Result<List<String>, AppError>> uploadImages(
+          List<io.File> imageFiles, String basePath) async =>
       const Result.success([]);
 
   @override
-  Future<Result<String, AppError>> uploadProcessedImage(Uint8List imageBytes, String path,
+  Future<Result<String, AppError>> uploadProcessedImage(
+          Uint8List imageBytes, String path,
           {required dynamic imageService}) async =>
       const Result.success('url');
 }
@@ -137,10 +147,9 @@ class MockNotificationProvider extends ChangeNotifier
   int get unreadCount => _notifications.where((n) => !n.isRead).length;
 
   @override
-  int get highPriorityUnreadCount =>
-      _notifications
-          .where((n) => !n.isRead && n.priority == NotificationPriority.high)
-          .length;
+  int get highPriorityUnreadCount => _notifications
+      .where((n) => !n.isRead && n.priority == NotificationPriority.high)
+      .length;
 
   @override
   List<AppNotification> get topSuggestions => _notifications.take(3).toList();
@@ -203,8 +212,7 @@ class MockNotificationProvider extends ChangeNotifier
   }) async {}
 
   @override
-  Future<void> generateNotificationsForVehicles(
-      List<dynamic> vehicles) async {}
+  Future<void> generateNotificationsForVehicles(List<dynamic> vehicles) async {}
 
   // Needed by ChangeNotifier interface
   @override

@@ -181,7 +181,8 @@ void main() {
 
   group('PostMedia', () {
     test('toMap で正しく変換される', () {
-      const media = PostMedia(url: 'https://example.com/img.jpg', type: 'image');
+      const media =
+          PostMedia(url: 'https://example.com/img.jpg', type: 'image');
       final map = media.toMap();
 
       expect(map['url'], 'https://example.com/img.jpg');
@@ -276,7 +277,8 @@ void main() {
     });
 
     test('Firestore 接続失敗は NetworkError を返すべき', () {
-      final error = AppError.unknown('投稿の作成に失敗しました', originalError: Exception('network error'));
+      final error = AppError.unknown('投稿の作成に失敗しました',
+          originalError: Exception('network error'));
       // UnknownError にフォールバックするが、isRetryable を確認
       expect(error, isA<UnknownError>());
     });

@@ -167,8 +167,7 @@ class _StubAuthService implements AuthService {
       Result.failure(AppError.unknown('stub'));
 
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
@@ -301,8 +300,7 @@ class _FakeNotificationProvider extends NotificationProvider {
       _fakeNotifications.take(3).toList();
 
   @override
-  Future<void> generateNotificationsForVehicles(
-      List<Vehicle> vehicles) async {}
+  Future<void> generateNotificationsForVehicles(List<Vehicle> vehicles) async {}
 }
 
 class _FakeShopProvider extends ShopProvider {
@@ -354,8 +352,8 @@ class _FakeShopProvider extends ShopProvider {
 // =============================================================================
 
 class _StubVehicleMasterService implements VehicleMasterService {
-  static const _maker = VehicleMaker(
-      id: 'm1', name: 'トヨタ', nameEn: 'Toyota', country: 'JP');
+  static const _maker =
+      VehicleMaker(id: 'm1', name: 'トヨタ', nameEn: 'Toyota', country: 'JP');
   static const _model = VehicleModel(id: 'v1', makerId: 'm1', name: 'プリウス');
   static const _grade = VehicleGrade(id: 'g1', modelId: 'v1', name: 'S');
 
@@ -693,8 +691,7 @@ void main() {
       await tester.pump();
 
       expect(
-        find.descendant(
-            of: find.byType(AppBar), matching: find.text('マイカー')),
+        find.descendant(of: find.byType(AppBar), matching: find.text('マイカー')),
         findsOneWidget,
       );
     });
@@ -814,8 +811,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
-        find.descendant(
-            of: find.byType(AppBar), matching: find.text('みんなの投稿')),
+        find.descendant(of: find.byType(AppBar), matching: find.text('みんなの投稿')),
         findsOneWidget,
       );
     });
@@ -851,8 +847,7 @@ void main() {
       expect(find.text('新規投稿'), findsOneWidget);
     });
 
-    testWidgets('PostCreateScreen で本文入力 → 文字数カウンタが更新される',
-        (tester) async {
+    testWidgets('PostCreateScreen で本文入力 → 文字数カウンタが更新される', (tester) async {
       await _setSurface(tester);
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
@@ -891,8 +886,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
-        find.descendant(
-            of: find.byType(AppBar), matching: find.text('みんなの投稿')),
+        find.descendant(of: find.byType(AppBar), matching: find.text('みんなの投稿')),
         findsOneWidget,
       );
     });
@@ -935,8 +929,7 @@ void main() {
       expect(find.byIcon(Icons.storefront_outlined), findsOneWidget);
     });
 
-    testWidgets('マーケット内に 3 タブ（工場・業者、パーツ、マイ出品）が表示される',
-        (tester) async {
+    testWidgets('マーケット内に 3 タブ（工場・業者、パーツ、マイ出品）が表示される', (tester) async {
       await _setSurface(tester);
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
@@ -1026,8 +1019,7 @@ void main() {
       expect(find.text('まだ問い合わせはありません'), findsOneWidget);
     });
 
-    testWidgets('フィルターチップ（すべて・未対応・対応中・クローズ）が表示される',
-        (tester) async {
+    testWidgets('フィルターチップ（すべて・未対応・対応中・クローズ）が表示される', (tester) async {
       await tester.pumpWidget(_buildShopInquiryApp());
       await tester.pump();
 
@@ -1111,8 +1103,7 @@ void main() {
     setUpAll(() {
       final sl = ServiceLocator.instance;
       if (!sl.isRegistered<FirebaseService>()) {
-        sl.registerLazySingleton<FirebaseService>(
-            () => _StubFirebaseService());
+        sl.registerLazySingleton<FirebaseService>(() => _StubFirebaseService());
       }
       if (!sl.isRegistered<DriveLogService>()) {
         sl.registerLazySingleton<DriveLogService>(
@@ -1157,8 +1148,7 @@ void main() {
       expect(find.text('履歴を追加'), findsOneWidget);
     });
 
-    testWidgets('「履歴を追加」をタップするとAddMaintenanceScreenが開く',
-        (tester) async {
+    testWidgets('「履歴を追加」をタップするとAddMaintenanceScreenが開く', (tester) async {
       await _setSurface(tester);
       await tester.pumpWidget(_buildHomeApp(
         vehicles: [_makeVehicle(maker: 'Subaru', model: 'Forester')],
@@ -1174,8 +1164,7 @@ void main() {
       expect(find.text('メンテナンス履歴を追加'), findsOneWidget);
     });
 
-    testWidgets('AddMaintenanceScreen にメンテナンスタイプチップが表示される',
-        (tester) async {
+    testWidgets('AddMaintenanceScreen にメンテナンスタイプチップが表示される', (tester) async {
       await _setSurface(tester);
       await tester.pumpWidget(_buildHomeApp(
         vehicles: [_makeVehicle(maker: 'Nissan', model: 'Serena')],
@@ -1211,8 +1200,7 @@ void main() {
       expect(find.textContaining('入力してください'), findsWidgets);
     });
 
-    testWidgets('AddMaintenanceScreen でタイトルを入力すると「保存する」が有効になる',
-        (tester) async {
+    testWidgets('AddMaintenanceScreen でタイトルを入力すると「保存する」が有効になる', (tester) async {
       await _setSurface(tester);
       await tester.pumpWidget(_buildHomeApp(
         vehicles: [_makeVehicle(maker: 'Daihatsu', model: 'Tanto')],
@@ -1269,8 +1257,7 @@ void main() {
             () => _StubOcrService());
       }
       if (!sl.isRegistered<FirebaseService>()) {
-        sl.registerLazySingleton<FirebaseService>(
-            () => _StubFirebaseService());
+        sl.registerLazySingleton<FirebaseService>(() => _StubFirebaseService());
       }
     });
 
@@ -1316,8 +1303,7 @@ void main() {
       expect(find.text('車検証をスキャンして自動入力'), findsOneWidget);
     });
 
-    testWidgets('空フォームで「次へ」をタップするとメーカーバリデーションエラーが出る',
-        (tester) async {
+    testWidgets('空フォームで「次へ」をタップするとメーカーバリデーションエラーが出る', (tester) async {
       await _setSurface(tester);
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
@@ -1331,8 +1317,7 @@ void main() {
       expect(find.text('メーカーを選択してください'), findsOneWidget);
     });
 
-    testWidgets('空フォームで「次へ」をタップすると年式・走行距離バリデーションエラーが出る',
-        (tester) async {
+    testWidgets('空フォームで「次へ」をタップすると年式・走行距離バリデーションエラーが出る', (tester) async {
       await _setSurface(tester);
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
@@ -1414,8 +1399,7 @@ void main() {
 
       // HomeScreen の マイカー AppBar タイトルに戻る
       expect(
-        find.descendant(
-            of: find.byType(AppBar), matching: find.text('マイカー')),
+        find.descendant(of: find.byType(AppBar), matching: find.text('マイカー')),
         findsOneWidget,
       );
     });
@@ -1445,7 +1429,8 @@ void main() {
             create: (_) => MaintenanceProvider(firebaseService: fb),
           ),
           ChangeNotifierProvider<AuthProvider>(
-            create: (_) => AuthProvider(authService: _StubAuthServiceResolved()),
+            create: (_) =>
+                AuthProvider(authService: _StubAuthServiceResolved()),
           ),
           ChangeNotifierProvider<NotificationProvider>.value(
             value: _FakeNotificationProvider(),
@@ -1457,8 +1442,8 @@ void main() {
             create: (_) => _FakeShopProvider(),
           ),
           ChangeNotifierProvider<PostProvider>(
-            create: (_) =>
-                PostProvider(postService: PostService(firestore: fakeFirestore)),
+            create: (_) => PostProvider(
+                postService: PostService(firestore: fakeFirestore)),
           ),
           ChangeNotifierProvider<DriveLogProvider>(
             create: (_) => DriveLogProvider(
@@ -1482,8 +1467,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       expect(
-        find.descendant(
-            of: find.byType(AppBar), matching: find.text('プロフィール')),
+        find.descendant(of: find.byType(AppBar), matching: find.text('プロフィール')),
         findsOneWidget,
       );
     });
@@ -1542,13 +1526,13 @@ void main() {
 
       // Still on profile screen
       expect(
-        find.descendant(
-            of: find.byType(AppBar), matching: find.text('プロフィール')),
+        find.descendant(of: find.byType(AppBar), matching: find.text('プロフィール')),
         findsOneWidget,
       );
     });
 
-    testWidgets('UserSubscriptionProvider — free プランは isPremium=false', (tester) async {
+    testWidgets('UserSubscriptionProvider — free プランは isPremium=false',
+        (tester) async {
       final provider = UserSubscriptionProvider();
       provider.loadFromUser(UserPlanType.free, null);
       expect(provider.isPremium, isFalse);
@@ -1556,7 +1540,8 @@ void main() {
       expect(provider.maxMonthlyInquiries, lessThan(9999));
     });
 
-    testWidgets('UserSubscriptionProvider — premium プランは isPremium=true', (tester) async {
+    testWidgets('UserSubscriptionProvider — premium プランは isPremium=true',
+        (tester) async {
       final provider = UserSubscriptionProvider();
       final future = DateTime.now().add(const Duration(days: 30));
       provider.loadFromUser(UserPlanType.premium, future);
@@ -1564,7 +1549,8 @@ void main() {
       expect(provider.canExportPdf, isTrue);
     });
 
-    testWidgets('UserSubscriptionProvider — clear() で free に戻る', (tester) async {
+    testWidgets('UserSubscriptionProvider — clear() で free に戻る',
+        (tester) async {
       final provider = UserSubscriptionProvider();
       provider.loadFromUser(UserPlanType.premium, null);
       expect(provider.isPremium, isTrue);
@@ -1588,7 +1574,8 @@ void main() {
 
     testWidgets('プレミアムプランではプロフィールにプレミアムバッジが表示される', (tester) async {
       await _setSurface(tester);
-      await tester.pumpWidget(buildProfileHomeApp(planType: UserPlanType.premium));
+      await tester
+          .pumpWidget(buildProfileHomeApp(planType: UserPlanType.premium));
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       await tester.tap(find.byIcon(Icons.person_outline));

@@ -73,35 +73,44 @@ class Injection {
     // Core Services
     locator.registerLazySingleton<FirebaseService>(() => FirebaseService());
     locator.registerLazySingleton<AuthService>(() => AuthService());
-    locator.registerLazySingleton<RecommendationService>(() => RecommendationService());
+    locator.registerLazySingleton<RecommendationService>(
+        () => RecommendationService());
 
     // OCR & Export Services
-    locator.registerLazySingleton<VehicleCertificateOcrService>(() => VehicleCertificateOcrService());
+    locator.registerLazySingleton<VehicleCertificateOcrService>(
+        () => VehicleCertificateOcrService());
     locator.registerLazySingleton<InvoiceOcrService>(() => InvoiceOcrService());
     locator.registerLazySingleton<PdfExportService>(() => PdfExportService());
 
     // Push Notification Service
-    locator.registerLazySingleton<PushNotificationService>(() => PushNotificationService());
+    locator.registerLazySingleton<PushNotificationService>(
+        () => PushNotificationService());
 
     // Image Processing Service
-    locator.registerLazySingleton<ImageProcessingService>(() => ImageProcessingService());
+    locator.registerLazySingleton<ImageProcessingService>(
+        () => ImageProcessingService());
 
     // Phase 5: Invoice, Document, ServiceMenu Services
     locator.registerLazySingleton<InvoiceService>(() => InvoiceService());
     locator.registerLazySingleton<DocumentService>(() => DocumentService());
-    locator.registerLazySingleton<ServiceMenuService>(() => ServiceMenuService());
+    locator
+        .registerLazySingleton<ServiceMenuService>(() => ServiceMenuService());
 
     // Vehicle Master Service (for maker/model/grade selection)
-    locator.registerLazySingleton<VehicleMasterService>(() => VehicleMasterService());
+    locator.registerLazySingleton<VehicleMasterService>(
+        () => VehicleMasterService());
 
     // Part Recommendation Service (AI-powered part suggestions)
-    locator.registerLazySingleton<PartRecommendationService>(() => PartRecommendationService());
+    locator.registerLazySingleton<PartRecommendationService>(
+        () => PartRecommendationService());
 
     // BtoB Marketplace Services
     locator.registerLazySingleton<ShopService>(() => ShopService());
-    locator.registerLazySingleton<ShopSubscriptionService>(() => ShopSubscriptionService());
+    locator.registerLazySingleton<ShopSubscriptionService>(
+        () => ShopSubscriptionService());
     locator.registerLazySingleton<InquiryService>(
-      () => InquiryService(subscriptionService: locator.get<ShopSubscriptionService>()),
+      () => InquiryService(
+          subscriptionService: locator.get<ShopSubscriptionService>()),
     );
     locator.registerLazySingleton<RevenueCatService>(() => RevenueCatService());
 
@@ -110,7 +119,8 @@ class Injection {
     locator.registerLazySingleton<FollowService>(() => FollowService());
 
     // Vehicle Listing Service (Purchase Recommendations)
-    locator.registerLazySingleton<VehicleListingService>(() => VehicleListingService());
+    locator.registerLazySingleton<VehicleListingService>(
+        () => VehicleListingService());
 
     // Drive Log Service (Drive Log/Map features)
     locator.registerLazySingleton<DriveLogService>(() => DriveLogService());

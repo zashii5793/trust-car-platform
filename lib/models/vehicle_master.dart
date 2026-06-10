@@ -30,10 +30,10 @@ enum BodyType {
 /// Vehicle maker master data
 class VehicleMaker {
   final String id;
-  final String name;         // Japanese name (e.g., "トヨタ")
-  final String nameEn;       // English name (e.g., "Toyota")
+  final String name; // Japanese name (e.g., "トヨタ")
+  final String nameEn; // English name (e.g., "Toyota")
   final String? logoUrl;
-  final String country;      // "JP", "DE", "US", etc.
+  final String country; // "JP", "DE", "US", etc.
   final int displayOrder;
   final bool isActive;
 
@@ -98,11 +98,11 @@ class VehicleMaker {
 class VehicleModel {
   final String id;
   final String makerId;
-  final String name;           // e.g., "プリウス", "RAV4"
-  final String? nameEn;        // e.g., "Prius", "RAV4"
+  final String name; // e.g., "プリウス", "RAV4"
+  final String? nameEn; // e.g., "Prius", "RAV4"
   final BodyType? bodyType;
   final int? productionStartYear;
-  final int? productionEndYear;  // null means still in production
+  final int? productionEndYear; // null means still in production
   final int displayOrder;
   final bool isActive;
 
@@ -189,10 +189,10 @@ class VehicleModel {
 class VehicleGrade {
   final String id;
   final String modelId;
-  final String name;              // e.g., "S", "G", "Z"
-  final int? engineDisplacement;  // cc
-  final String? fuelType;         // maps to FuelType enum name
-  final String? driveType;        // maps to DriveType enum name
+  final String name; // e.g., "S", "G", "Z"
+  final int? engineDisplacement; // cc
+  final String? fuelType; // maps to FuelType enum name
+  final String? driveType; // maps to DriveType enum name
   final String? transmissionType; // maps to TransmissionType enum name
   final int? availableFromYear;
   final int? availableUntilYear;

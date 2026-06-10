@@ -179,7 +179,8 @@ class _UnregisteredBody extends StatelessWidget {
             icon: const Icon(Icons.add_business_outlined),
             label: const Text('無料で掲載を始める'),
             style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(AppSpacing.tapTargetRecommended),
+              minimumSize:
+                  const Size.fromHeight(AppSpacing.tapTargetRecommended),
             ),
           ),
           AppSpacing.verticalLg,
@@ -210,9 +211,8 @@ class _PlanSummaryCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return AppCard(
-      backgroundColor: isHighlighted
-          ? AppColors.primary.withValues(alpha: 0.05)
-          : null,
+      backgroundColor:
+          isHighlighted ? AppColors.primary.withValues(alpha: 0.05) : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -374,8 +374,7 @@ class _RegisteredBody extends StatelessWidget {
 
     if (confirmed != true || !context.mounted) return;
 
-    final uid =
-        context.read<AuthProvider>().firebaseUser?.uid;
+    final uid = context.read<AuthProvider>().firebaseUser?.uid;
     if (uid == null) return;
 
     final success = await context.read<ShopProvider>().deleteMyShop(uid);
@@ -417,7 +416,8 @@ class _ShopSummaryCard extends StatelessWidget {
             backgroundImage:
                 shop.logoUrl != null ? NetworkImage(shop.logoUrl!) : null,
             child: shop.logoUrl == null
-                ? const Icon(Icons.store, size: 32, color: AppColors.textTertiary)
+                ? const Icon(Icons.store,
+                    size: 32, color: AppColors.textTertiary)
                 : null,
           ),
           AppSpacing.horizontalMd,
@@ -457,9 +457,7 @@ class _ShopSummaryCard extends StatelessWidget {
                 if (shop.prefecture != null || shop.city != null) ...[
                   AppSpacing.verticalXxs,
                   Text(
-                    [shop.prefecture, shop.city]
-                        .whereType<String>()
-                        .join(' '),
+                    [shop.prefecture, shop.city].whereType<String>().join(' '),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -628,63 +626,63 @@ class _InquiryCountBadge extends StatelessWidget {
         ),
       ),
       child: AppCard(
-      backgroundColor: hasUnread
-          ? AppColors.primary.withValues(alpha: 0.12)
-          : theme.colorScheme.surfaceContainerHighest,
-      child: Row(
-        children: [
-          Icon(
-            Icons.mail_outline,
-            color: hasUnread ? AppColors.info : AppColors.textTertiary,
-            size: AppSpacing.iconMd,
-          ),
-          AppSpacing.horizontalMd,
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '問い合わせ',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (hasUnread)
-                  RichText(
-                    text: TextSpan(
-                      style: theme.textTheme.bodySmall,
-                      children: [
-                        TextSpan(
-                          text: '全 $total 件',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const TextSpan(text: '（'),
-                        TextSpan(
-                          text: '未読 $unread 件',
-                          style: TextStyle(
-                            color: AppColors.info,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const TextSpan(text: '）'),
-                      ],
-                    ),
-                  )
-                else
-                  Text(
-                    '問い合わせ $total 件',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-              ],
+        backgroundColor: hasUnread
+            ? AppColors.primary.withValues(alpha: 0.12)
+            : theme.colorScheme.surfaceContainerHighest,
+        child: Row(
+          children: [
+            Icon(
+              Icons.mail_outline,
+              color: hasUnread ? AppColors.info : AppColors.textTertiary,
+              size: AppSpacing.iconMd,
             ),
-          ),
-          const Icon(Icons.chevron_right, color: AppColors.textTertiary),
-        ],
-      ),
+            AppSpacing.horizontalMd,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '問い合わせ',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (hasUnread)
+                    RichText(
+                      text: TextSpan(
+                        style: theme.textTheme.bodySmall,
+                        children: [
+                          TextSpan(
+                            text: '全 $total 件',
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const TextSpan(text: '（'),
+                          TextSpan(
+                            text: '未読 $unread 件',
+                            style: TextStyle(
+                              color: AppColors.info,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const TextSpan(text: '）'),
+                        ],
+                      ),
+                    )
+                  else
+                    Text(
+                      '問い合わせ $total 件',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+          ],
+        ),
       ),
     );
   }

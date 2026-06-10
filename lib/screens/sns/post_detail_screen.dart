@@ -63,13 +63,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final replyTargetId = _replyTarget?.id;
 
     final success = await context.read<PostProvider>().addComment(
-      postId: widget.post.id,
-      userId: userId,
-      content: text,
-      userDisplayName: authProvider.firebaseUser?.displayName,
-      userPhotoUrl: authProvider.firebaseUser?.photoURL,
-      parentCommentId: replyTargetId,
-    );
+          postId: widget.post.id,
+          userId: userId,
+          content: text,
+          userDisplayName: authProvider.firebaseUser?.displayName,
+          userPhotoUrl: authProvider.firebaseUser?.photoURL,
+          parentCommentId: replyTargetId,
+        );
 
     if (success && mounted) {
       _commentController.clear();
@@ -78,8 +78,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
       // 返信投稿の場合は対象コメントタイルの返信リストをリセット・再ロード
       if (replyTargetId != null) {
-        _commentTileKeys[replyTargetId]?.currentState
-            ?.resetAndReloadReplies();
+        _commentTileKeys[replyTargetId]?.currentState?.resetAndReloadReplies();
       }
 
       // 最下部へスクロール
@@ -114,7 +113,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               return IconButton(
                 icon: const Icon(Icons.delete_outline),
                 tooltip: '投稿を削除',
-                onPressed: () => _confirmDeletePost(context, postProvider, userId),
+                onPressed: () =>
+                    _confirmDeletePost(context, postProvider, userId),
               );
             },
           ),
@@ -124,7 +124,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         children: [
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () => context.read<PostProvider>().loadComments(widget.post.id),
+              onRefresh: () =>
+                  context.read<PostProvider>().loadComments(widget.post.id),
               child: ListView(
                 controller: _scrollController,
                 padding: const EdgeInsets.only(bottom: 8),
@@ -174,24 +175,22 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       }
 
                       return Column(
-                        children: provider.comments
-                            .map((comment) {
-                              final key = _commentTileKeys.putIfAbsent(
-                                comment.id,
-                                () => GlobalKey<_CommentTileState>(),
-                              );
-                              return _CommentTile(
-                                key: key,
-                                comment: comment,
-                                postId: widget.post.id,
-                                isDark: isDark,
-                                onReply: (c) {
-                                  setState(() => _replyTarget = c);
-                                  _focusNode.requestFocus();
-                                },
-                              );
-                            })
-                            .toList(),
+                        children: provider.comments.map((comment) {
+                          final key = _commentTileKeys.putIfAbsent(
+                            comment.id,
+                            () => GlobalKey<_CommentTileState>(),
+                          );
+                          return _CommentTile(
+                            key: key,
+                            comment: comment,
+                            postId: widget.post.id,
+                            isDark: isDark,
+                            onReply: (c) {
+                              setState(() => _replyTarget = c);
+                              _focusNode.requestFocus();
+                            },
+                          );
+                        }).toList(),
                       );
                     },
                   ),
@@ -425,8 +424,8 @@ class _PostDetailBody extends StatelessWidget {
                           AppSpacing.horizontalXs,
                           Text(
                             '${post.likeCount}',
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(color: liked ? AppColors.error : tertiary),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: liked ? AppColors.error : tertiary),
                           ),
                         ],
                       ),
@@ -476,7 +475,8 @@ class _MediaGallery extends StatelessWidget {
       padding: EdgeInsets.zero,
       children: media
           .take(4)
-          .map((m) => _buildNetworkImage(m.url, double.infinity, double.infinity))
+          .map((m) =>
+              _buildNetworkImage(m.url, double.infinity, double.infinity))
           .toList(),
     );
   }
@@ -737,7 +737,8 @@ class _CommentTileState extends State<_CommentTile> {
                         ),
                         // 自分のコメントなら削除ボタン
                         Consumer2<PostProvider, AuthProvider>(
-                          builder: (context, postProvider, authProvider, child) {
+                          builder:
+                              (context, postProvider, authProvider, child) {
                             final userId = authProvider.firebaseUser?.uid ?? '';
                             if (widget.comment.userId != userId ||
                                 userId.isEmpty) {
@@ -862,8 +863,7 @@ class _ReplyTile extends StatelessWidget {
           // アバター（やや小さめ）
           CircleAvatar(
             radius: 13,
-            backgroundColor:
-                theme.colorScheme.primary.withValues(alpha: 0.15),
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.15),
             backgroundImage: reply.userPhotoUrl != null
                 ? NetworkImage(reply.userPhotoUrl!)
                 : null,
@@ -973,9 +973,8 @@ class _CommentInputBar extends StatelessWidget {
           color: isDark ? AppColors.darkSurface : Colors.white,
           border: Border(
             top: BorderSide(
-              color: isDark
-                  ? AppColors.darkCard
-                  : AppColors.backgroundSecondary,
+              color:
+                  isDark ? AppColors.darkCard : AppColors.backgroundSecondary,
             ),
           ),
         ),
@@ -996,9 +995,8 @@ class _CommentInputBar extends StatelessWidget {
                         : AppColors.textTertiary,
                   ),
                   filled: true,
-                  fillColor: isDark
-                      ? AppColors.darkCard
-                      : AppColors.backgroundLight,
+                  fillColor:
+                      isDark ? AppColors.darkCard : AppColors.backgroundLight,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
                     borderSide: BorderSide.none,
@@ -1015,8 +1013,7 @@ class _CommentInputBar extends StatelessWidget {
             Consumer<PostProvider>(
               builder: (context, provider, child) {
                 return IconButton(
-                  onPressed:
-                      provider.isSubmittingComment ? null : onSubmit,
+                  onPressed: provider.isSubmittingComment ? null : onSubmit,
                   icon: provider.isSubmittingComment
                       ? SizedBox(
                           width: 20,
@@ -1031,8 +1028,8 @@ class _CommentInputBar extends StatelessWidget {
                           color: theme.colorScheme.primary,
                         ),
                   style: IconButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary
-                        .withValues(alpha: 0.1),
+                    backgroundColor:
+                        theme.colorScheme.primary.withValues(alpha: 0.1),
                     shape: const CircleBorder(),
                   ),
                 );

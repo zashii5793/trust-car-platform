@@ -209,7 +209,8 @@ void main() {
       expect(inq.vehicleDisplay, 'トヨタ プリウス');
     });
 
-    test('vehicleMaker + vehicleModel + vehicleYear のとき「maker model (year年式)」', () {
+    test('vehicleMaker + vehicleModel + vehicleYear のとき「maker model (year年式)」',
+        () {
       final inq = _makeInquiry(
         vehicleMaker: 'トヨタ',
         vehicleModel: 'プリウス',
@@ -398,7 +399,8 @@ void main() {
       expect(result.errorOrNull, isA<PlanLimitError>());
     });
 
-    test('standard plan allows inquiry even when free limit would be hit', () async {
+    test('standard plan allows inquiry even when free limit would be hit',
+        () async {
       await _seedShop(
         'shop1',
         planType: ShopPlanType.standard,

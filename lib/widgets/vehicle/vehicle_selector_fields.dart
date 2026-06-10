@@ -74,24 +74,31 @@ class _MakerSelectorFieldState extends State<MakerSelectorField> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             InkWell(
-              onTap: widget.enabled ? () => _showMakerPicker(context, state) : null,
+              onTap: widget.enabled
+                  ? () => _showMakerPicker(context, state)
+                  : null,
               borderRadius: AppSpacing.borderRadiusSm,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                 decoration: BoxDecoration(
                   color: isDark ? AppColors.darkCard : Colors.white,
                   borderRadius: AppSpacing.borderRadiusSm,
                   border: Border.all(
                     color: state.hasError
                         ? theme.colorScheme.error
-                        : (isDark ? AppColors.darkTextTertiary : AppColors.border),
+                        : (isDark
+                            ? AppColors.darkTextTertiary
+                            : AppColors.border),
                   ),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       Icons.business,
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary,
                     ),
                     AppSpacing.horizontalMd,
                     Expanded(
@@ -99,14 +106,18 @@ class _MakerSelectorFieldState extends State<MakerSelectorField> {
                         widget.selectedMaker?.name ?? 'メーカーを選択 *',
                         style: theme.textTheme.bodyLarge?.copyWith(
                           color: widget.selectedMaker == null
-                              ? (isDark ? AppColors.darkTextTertiary : AppColors.textTertiary)
+                              ? (isDark
+                                  ? AppColors.darkTextTertiary
+                                  : AppColors.textTertiary)
                               : null,
                         ),
                       ),
                     ),
                     Icon(
                       Icons.arrow_drop_down,
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary,
                     ),
                   ],
                 ),
@@ -128,7 +139,8 @@ class _MakerSelectorFieldState extends State<MakerSelectorField> {
     );
   }
 
-  void _showMakerPicker(BuildContext context, FormFieldState<VehicleMaker> state) {
+  void _showMakerPicker(
+      BuildContext context, FormFieldState<VehicleMaker> state) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -168,7 +180,8 @@ class _MakerSelectorFieldState extends State<MakerSelectorField> {
           Text(
             '読み込み中...',
             style: theme.textTheme.bodyLarge?.copyWith(
-              color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+              color:
+                  isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
             ),
           ),
         ],
@@ -214,10 +227,11 @@ class _MakerPickerSheetState extends State<_MakerPickerSheet> {
         _filteredMakers = widget.makers;
       } else {
         final lowerQuery = query.toLowerCase();
-        _filteredMakers = widget.makers.where((maker) =>
-          maker.name.toLowerCase().contains(lowerQuery) ||
-          maker.nameEn.toLowerCase().contains(lowerQuery)
-        ).toList();
+        _filteredMakers = widget.makers
+            .where((maker) =>
+                maker.name.toLowerCase().contains(lowerQuery) ||
+                maker.nameEn.toLowerCase().contains(lowerQuery))
+            .toList();
       }
     });
   }
@@ -262,7 +276,8 @@ class _MakerPickerSheetState extends State<_MakerPickerSheet> {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 16),
                     ),
                     onChanged: _filterMakers,
                   ),
@@ -403,16 +418,21 @@ class _ModelSelectorFieldState extends State<ModelSelectorField> {
               onTap: isDisabled ? null : () => _showModelPicker(context, state),
               borderRadius: AppSpacing.borderRadiusSm,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                 decoration: BoxDecoration(
                   color: isDisabled
-                      ? (isDark ? AppColors.darkCard.withValues(alpha: 0.5) : Colors.grey[100])
+                      ? (isDark
+                          ? AppColors.darkCard.withValues(alpha: 0.5)
+                          : Colors.grey[100])
                       : (isDark ? AppColors.darkCard : Colors.white),
                   borderRadius: AppSpacing.borderRadiusSm,
                   border: Border.all(
                     color: state.hasError
                         ? theme.colorScheme.error
-                        : (isDark ? AppColors.darkTextTertiary : AppColors.border),
+                        : (isDark
+                            ? AppColors.darkTextTertiary
+                            : AppColors.border),
                   ),
                 ),
                 child: Row(
@@ -421,15 +441,20 @@ class _ModelSelectorFieldState extends State<ModelSelectorField> {
                       Icons.directions_car,
                       color: isDisabled
                           ? Colors.grey
-                          : (isDark ? AppColors.darkTextSecondary : AppColors.textSecondary),
+                          : (isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary),
                     ),
                     AppSpacing.horizontalMd,
                     Expanded(
                       child: Text(
-                        widget.selectedModel?.name ?? (widget.makerId == null ? 'メーカーを先に選択' : '車種を選択 *'),
+                        widget.selectedModel?.name ??
+                            (widget.makerId == null ? 'メーカーを先に選択' : '車種を選択 *'),
                         style: theme.textTheme.bodyLarge?.copyWith(
                           color: widget.selectedModel == null || isDisabled
-                              ? (isDark ? AppColors.darkTextTertiary : AppColors.textTertiary)
+                              ? (isDark
+                                  ? AppColors.darkTextTertiary
+                                  : AppColors.textTertiary)
                               : null,
                         ),
                       ),
@@ -438,7 +463,9 @@ class _ModelSelectorFieldState extends State<ModelSelectorField> {
                       Icons.arrow_drop_down,
                       color: isDisabled
                           ? Colors.grey
-                          : (isDark ? AppColors.darkTextSecondary : AppColors.textSecondary),
+                          : (isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary),
                     ),
                   ],
                 ),
@@ -460,7 +487,8 @@ class _ModelSelectorFieldState extends State<ModelSelectorField> {
     );
   }
 
-  void _showModelPicker(BuildContext context, FormFieldState<VehicleModel> state) {
+  void _showModelPicker(
+      BuildContext context, FormFieldState<VehicleModel> state) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -500,7 +528,8 @@ class _ModelSelectorFieldState extends State<ModelSelectorField> {
           Text(
             '読み込み中...',
             style: theme.textTheme.bodyLarge?.copyWith(
-              color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+              color:
+                  isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
             ),
           ),
         ],
@@ -546,10 +575,11 @@ class _ModelPickerSheetState extends State<_ModelPickerSheet> {
         _filteredModels = widget.models;
       } else {
         final lowerQuery = query.toLowerCase();
-        _filteredModels = widget.models.where((model) =>
-          model.name.toLowerCase().contains(lowerQuery) ||
-          (model.nameEn?.toLowerCase().contains(lowerQuery) ?? false)
-        ).toList();
+        _filteredModels = widget.models
+            .where((model) =>
+                model.name.toLowerCase().contains(lowerQuery) ||
+                (model.nameEn?.toLowerCase().contains(lowerQuery) ?? false))
+            .toList();
       }
     });
   }
@@ -594,7 +624,8 @@ class _ModelPickerSheetState extends State<_ModelPickerSheet> {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 16),
                     ),
                     onChanged: _filterModels,
                   ),
@@ -771,16 +802,21 @@ class _GradeSelectorFieldState extends State<GradeSelectorField> {
               onTap: isDisabled ? null : () => _showGradePicker(context, state),
               borderRadius: AppSpacing.borderRadiusSm,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                 decoration: BoxDecoration(
                   color: isDisabled
-                      ? (isDark ? AppColors.darkCard.withValues(alpha: 0.5) : Colors.grey[100])
+                      ? (isDark
+                          ? AppColors.darkCard.withValues(alpha: 0.5)
+                          : Colors.grey[100])
                       : (isDark ? AppColors.darkCard : Colors.white),
                   borderRadius: AppSpacing.borderRadiusSm,
                   border: Border.all(
                     color: state.hasError
                         ? theme.colorScheme.error
-                        : (isDark ? AppColors.darkTextTertiary : AppColors.border),
+                        : (isDark
+                            ? AppColors.darkTextTertiary
+                            : AppColors.border),
                   ),
                 ),
                 child: Row(
@@ -789,15 +825,20 @@ class _GradeSelectorFieldState extends State<GradeSelectorField> {
                       Icons.star_outline,
                       color: isDisabled
                           ? Colors.grey
-                          : (isDark ? AppColors.darkTextSecondary : AppColors.textSecondary),
+                          : (isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary),
                     ),
                     AppSpacing.horizontalMd,
                     Expanded(
                       child: Text(
-                        widget.selectedGrade?.name ?? (widget.modelId == null ? '車種を先に選択' : 'グレードを選択 *'),
+                        widget.selectedGrade?.name ??
+                            (widget.modelId == null ? '車種を先に選択' : 'グレードを選択 *'),
                         style: theme.textTheme.bodyLarge?.copyWith(
                           color: widget.selectedGrade == null || isDisabled
-                              ? (isDark ? AppColors.darkTextTertiary : AppColors.textTertiary)
+                              ? (isDark
+                                  ? AppColors.darkTextTertiary
+                                  : AppColors.textTertiary)
                               : null,
                         ),
                       ),
@@ -806,7 +847,9 @@ class _GradeSelectorFieldState extends State<GradeSelectorField> {
                       Icons.arrow_drop_down,
                       color: isDisabled
                           ? Colors.grey
-                          : (isDark ? AppColors.darkTextSecondary : AppColors.textSecondary),
+                          : (isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary),
                     ),
                   ],
                 ),
@@ -828,7 +871,8 @@ class _GradeSelectorFieldState extends State<GradeSelectorField> {
     );
   }
 
-  void _showGradePicker(BuildContext context, FormFieldState<VehicleGrade> state) {
+  void _showGradePicker(
+      BuildContext context, FormFieldState<VehicleGrade> state) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -870,7 +914,8 @@ class _GradeSelectorFieldState extends State<GradeSelectorField> {
           Text(
             '読み込み中...',
             style: theme.textTheme.bodyLarge?.copyWith(
-              color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+              color:
+                  isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
             ),
           ),
         ],
@@ -955,7 +1000,8 @@ class _GradePickerSheetState extends State<_GradePickerSheet> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 16),
                         ),
                         autofocus: true,
                       ),

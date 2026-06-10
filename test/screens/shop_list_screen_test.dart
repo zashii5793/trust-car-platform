@@ -40,7 +40,8 @@ class MockShopService implements ShopService {
   }
 
   @override
-  Future<Result<List<Shop>, AppError>> getFeaturedShops({int limit = 5}) async =>
+  Future<Result<List<Shop>, AppError>> getFeaturedShops(
+          {int limit = 5}) async =>
       const Result.success([]);
 
   @override
@@ -59,13 +60,15 @@ class MockShopService implements ShopService {
       const Result.success([]);
 
   @override
-  Future<Result<List<Shop>, AppError>> getNearbyShops(dynamic center,
-          double radiusKm, {int limit = 20}) async =>
+  Future<Result<List<Shop>, AppError>> getNearbyShops(
+          dynamic center, double radiusKm,
+          {int limit = 20}) async =>
       const Result.success([]);
 
   @override
   Future<Result<List<Shop>, AppError>> getShopsByService(
-          ServiceCategory category, {int limit = 20}) async =>
+          ServiceCategory category,
+          {int limit = 20}) async =>
       const Result.success([]);
 }
 
@@ -132,7 +135,8 @@ class MockInquiryService implements InquiryService {
       const Result.success(0);
 
   @override
-  Stream<List<Inquiry>> streamUserInquiries(String userId) => const Stream.empty();
+  Stream<List<Inquiry>> streamUserInquiries(String userId) =>
+      const Stream.empty();
 
   @override
   Stream<List<InquiryMessage>> streamMessages(String inquiryId) =>
@@ -238,8 +242,8 @@ void main() {
     });
 
     testWidgets('エラー時にエラーUIが表示される', (tester) async {
-      mockShop.shopsResult = Result.failure(
-          AppError.network('connection failed'));
+      mockShop.shopsResult =
+          Result.failure(AppError.network('connection failed'));
 
       await tester.pumpWidget(_buildApp(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -286,8 +290,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.clear));
       await tester.pump();
 
-      final textField =
-          tester.widget<TextField>(find.byType(TextField));
+      final textField = tester.widget<TextField>(find.byType(TextField));
       expect(textField.controller?.text, isEmpty);
     });
 

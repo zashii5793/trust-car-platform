@@ -72,27 +72,27 @@ enum FileMimeType {
 class Document {
   final String id;
   final String userId;
-  final String? vehicleId;                 // 車両に紐付く場合
-  final String? maintenanceRecordId;       // 整備記録に紐付く場合
-  final String? invoiceId;                 // 請求書に紐付く場合
+  final String? vehicleId; // 車両に紐付く場合
+  final String? maintenanceRecordId; // 整備記録に紐付く場合
+  final String? invoiceId; // 請求書に紐付く場合
 
   final DocumentType type;
-  final String title;                      // タイトル
-  final String? description;               // 説明
-  final String fileUrl;                    // ファイルURL (Firebase Storage)
-  final String? thumbnailUrl;              // サムネイルURL（画像の場合）
-  final FileMimeType mimeType;             // ファイル形式
-  final int? fileSize;                     // ファイルサイズ（バイト）
+  final String title; // タイトル
+  final String? description; // 説明
+  final String fileUrl; // ファイルURL (Firebase Storage)
+  final String? thumbnailUrl; // サムネイルURL（画像の場合）
+  final FileMimeType mimeType; // ファイル形式
+  final int? fileSize; // ファイルサイズ（バイト）
 
-  final DateTime? documentDate;            // 書類の日付（発行日等）
-  final DateTime? expiryDate;              // 有効期限（保険証など）
+  final DateTime? documentDate; // 書類の日付（発行日等）
+  final DateTime? expiryDate; // 有効期限（保険証など）
 
-  final String? uploadedBy;                // アップロード者ID
-  final String? uploadedByName;            // アップロード者名
-  final DateTime uploadedAt;               // アップロード日時
+  final String? uploadedBy; // アップロード者ID
+  final String? uploadedByName; // アップロード者名
+  final DateTime uploadedAt; // アップロード日時
 
-  final bool isArchived;                   // アーカイブ済みか
-  final Map<String, dynamic>? metadata;    // その他メタデータ
+  final bool isArchived; // アーカイブ済みか
+  final Map<String, dynamic>? metadata; // その他メタデータ
 
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -123,10 +123,10 @@ class Document {
 
   /// 画像ファイルかどうか
   bool get isImage => [
-    FileMimeType.jpeg,
-    FileMimeType.png,
-    FileMimeType.webp,
-  ].contains(mimeType);
+        FileMimeType.jpeg,
+        FileMimeType.png,
+        FileMimeType.webp,
+      ].contains(mimeType);
 
   /// PDFかどうか
   bool get isPdf => mimeType == FileMimeType.pdf;
@@ -149,7 +149,8 @@ class Document {
   String get fileSizeDisplay {
     if (fileSize == null) return '不明';
     if (fileSize! < 1024) return '$fileSize B';
-    if (fileSize! < 1024 * 1024) return '${(fileSize! / 1024).toStringAsFixed(1)} KB';
+    if (fileSize! < 1024 * 1024)
+      return '${(fileSize! / 1024).toStringAsFixed(1)} KB';
     return '${(fileSize! / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
@@ -172,7 +173,8 @@ class Document {
       expiryDate: (data['expiryDate'] as Timestamp?)?.toDate(),
       uploadedBy: data['uploadedBy'],
       uploadedByName: data['uploadedByName'],
-      uploadedAt: (data['uploadedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      uploadedAt:
+          (data['uploadedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isArchived: data['isArchived'] ?? false,
       metadata: data['metadata'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -193,7 +195,8 @@ class Document {
       'thumbnailUrl': thumbnailUrl,
       'mimeType': mimeType.name,
       'fileSize': fileSize,
-      'documentDate': documentDate != null ? Timestamp.fromDate(documentDate!) : null,
+      'documentDate':
+          documentDate != null ? Timestamp.fromDate(documentDate!) : null,
       'expiryDate': expiryDate != null ? Timestamp.fromDate(expiryDate!) : null,
       'uploadedBy': uploadedBy,
       'uploadedByName': uploadedByName,

@@ -90,8 +90,7 @@ class _StubAuthService implements AuthService {
       const Result.success(null);
 
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
@@ -332,8 +331,8 @@ void main() {
     });
 
     testWidgets('shows Free plan badge', (tester) async {
-      final provider = _FakeShopProvider(
-          shop: _makeShop(planType: ShopPlanType.free));
+      final provider =
+          _FakeShopProvider(shop: _makeShop(planType: ShopPlanType.free));
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -343,8 +342,8 @@ void main() {
     });
 
     testWidgets('shows Standard plan badge', (tester) async {
-      final provider = _FakeShopProvider(
-          shop: _makeShop(planType: ShopPlanType.standard));
+      final provider =
+          _FakeShopProvider(shop: _makeShop(planType: ShopPlanType.standard));
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -352,8 +351,8 @@ void main() {
     });
 
     testWidgets('shows Premium plan badge', (tester) async {
-      final provider = _FakeShopProvider(
-          shop: _makeShop(planType: ShopPlanType.premium));
+      final provider =
+          _FakeShopProvider(shop: _makeShop(planType: ShopPlanType.premium));
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -371,8 +370,7 @@ void main() {
     });
 
     testWidgets('shows star rating when available', (tester) async {
-      final provider =
-          _FakeShopProvider(shop: _makeShop(rating: 4.3));
+      final provider = _FakeShopProvider(shop: _makeShop(rating: 4.3));
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -398,8 +396,8 @@ void main() {
 
   group('ShopOwnerScreen — Inquiry count badge', () {
     testWidgets('shows inquiry count when no unread', (tester) async {
-      final provider =
-          _FakeShopProvider(shop: _makeShop(), inquiryTotal: 5, inquiryUnread: 0);
+      final provider = _FakeShopProvider(
+          shop: _makeShop(), inquiryTotal: 5, inquiryUnread: 0);
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -466,8 +464,8 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('掲載を削除しますか?'), findsOneWidget);
-      expect(find.text('この操作は取り消せません。\n掲載情報・問い合わせ履歴はすべて削除されます。'),
-          findsOneWidget);
+      expect(
+          find.text('この操作は取り消せません。\n掲載情報・問い合わせ履歴はすべて削除されます。'), findsOneWidget);
       expect(find.text('キャンセル'), findsOneWidget);
       expect(find.text('削除する'), findsOneWidget);
     });
@@ -489,8 +487,8 @@ void main() {
     });
 
     testWidgets("tapping '削除する' calls deleteMyShop", (tester) async {
-      final provider = _FakeShopProvider(
-          shop: _makeShop(), deleteShouldSucceed: true);
+      final provider =
+          _FakeShopProvider(shop: _makeShop(), deleteShouldSucceed: true);
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -504,8 +502,8 @@ void main() {
     });
 
     testWidgets('shows success snackbar after delete', (tester) async {
-      final provider = _FakeShopProvider(
-          shop: _makeShop(), deleteShouldSucceed: true);
+      final provider =
+          _FakeShopProvider(shop: _makeShop(), deleteShouldSucceed: true);
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -520,8 +518,7 @@ void main() {
 
   group('ShopOwnerScreen — Edge cases', () {
     testWidgets('no crash when shop has no rating', (tester) async {
-      final provider =
-          _FakeShopProvider(shop: _makeShop(rating: null));
+      final provider = _FakeShopProvider(shop: _makeShop(rating: null));
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 

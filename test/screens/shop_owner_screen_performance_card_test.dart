@@ -362,8 +362,7 @@ void main() {
     // -----------------------------------------------------------------------
     // 8. Stat item labels
     // -----------------------------------------------------------------------
-    testWidgets('shows 掲載日数, 累計問い合わせ, and プラン stat labels',
-        (tester) async {
+    testWidgets('shows 掲載日数, 累計問い合わせ, and プラン stat labels', (tester) async {
       final provider = _FakeShopProvider(shop: _makeShop());
 
       await tester.pumpWidget(_buildScreen(provider));

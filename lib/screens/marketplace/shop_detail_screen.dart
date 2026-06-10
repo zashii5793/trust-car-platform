@@ -460,9 +460,8 @@ class _BusinessHoursExpansion extends StatelessWidget {
                                 fontWeight: isToday
                                     ? FontWeight.bold
                                     : FontWeight.normal,
-                                color: isToday
-                                    ? theme.colorScheme.primary
-                                    : null,
+                                color:
+                                    isToday ? theme.colorScheme.primary : null,
                               ),
                             ),
                           ),

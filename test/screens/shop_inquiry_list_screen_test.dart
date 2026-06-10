@@ -129,7 +129,8 @@ class _FakeShopProvider extends ShopProvider {
   List<Inquiry> get shopInquiries => _inquiries;
 
   @override
-  Future<void> loadShopInquiries(String shopId, {InquiryStatus? status}) async {}
+  Future<void> loadShopInquiries(String shopId,
+      {InquiryStatus? status}) async {}
 
   @override
   void markInquiryAsReadLocally(String inquiryId) {
@@ -283,9 +284,7 @@ void main() {
       await tester.pumpWidget(
         _buildScreen(
           shopProvider: _FakeShopProvider(
-            inquiries: [
-              _makeInquiry(initialMessage: 'オイル交換の料金を教えてください')
-            ],
+            inquiries: [_makeInquiry(initialMessage: 'オイル交換の料金を教えてください')],
           ),
         ),
       );
@@ -294,7 +293,8 @@ void main() {
       expect(find.text('オイル交換の料金を教えてください'), findsOneWidget);
     });
 
-    testWidgets('11. shows unread badge when unreadCountShop > 0', (tester) async {
+    testWidgets('11. shows unread badge when unreadCountShop > 0',
+        (tester) async {
       await tester.pumpWidget(
         _buildScreen(
           shopProvider: _FakeShopProvider(
@@ -308,7 +308,8 @@ void main() {
       expect(find.text('3'), findsOneWidget);
     });
 
-    testWidgets('12. unread badge hidden when unreadCountShop = 0', (tester) async {
+    testWidgets('12. unread badge hidden when unreadCountShop = 0',
+        (tester) async {
       await tester.pumpWidget(
         _buildScreen(
           shopProvider: _FakeShopProvider(
@@ -324,7 +325,8 @@ void main() {
   });
 
   group('ShopInquiryListScreen — Bottom sheet', () {
-    testWidgets('13. tapping inquiry shows detail bottom sheet', (tester) async {
+    testWidgets('13. tapping inquiry shows detail bottom sheet',
+        (tester) async {
       await tester.pumpWidget(
         _buildScreen(
           shopProvider: _FakeShopProvider(

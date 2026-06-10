@@ -13,7 +13,9 @@ class MaintenanceProvider with ChangeNotifier {
   final FirebaseService _firebaseService;
   final AnalyticsService? _analytics;
 
-  MaintenanceProvider({required FirebaseService firebaseService, AnalyticsService? analyticsService})
+  MaintenanceProvider(
+      {required FirebaseService firebaseService,
+      AnalyticsService? analyticsService})
       : _firebaseService = firebaseService,
         _analytics = analyticsService;
 
@@ -42,7 +44,8 @@ class MaintenanceProvider with ChangeNotifier {
     _recordsSubscription?.cancel();
     _currentVehicleId = vehicleId;
 
-    _recordsSubscription = _firebaseService.getVehicleMaintenanceRecords(vehicleId).listen(
+    _recordsSubscription =
+        _firebaseService.getVehicleMaintenanceRecords(vehicleId).listen(
       (records) {
         _records = records;
         _error = null;
@@ -66,7 +69,8 @@ class MaintenanceProvider with ChangeNotifier {
   void _scheduleRetry(VoidCallback action) {
     if (_retryCount >= _maxRetries) return;
     _retryTimer?.cancel();
-    final delay = Duration(seconds: RetryConfig.baseDelaySeconds << _retryCount);
+    final delay =
+        Duration(seconds: RetryConfig.baseDelaySeconds << _retryCount);
     _retryCount++;
     _retryTimer = Timer(delay, action);
   }
@@ -126,12 +130,14 @@ class MaintenanceProvider with ChangeNotifier {
   }
 
   /// 履歴を更新
-  Future<bool> updateMaintenanceRecord(String recordId, MaintenanceRecord record) async {
+  Future<bool> updateMaintenanceRecord(
+      String recordId, MaintenanceRecord record) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    final result = await _firebaseService.updateMaintenanceRecord(recordId, record);
+    final result =
+        await _firebaseService.updateMaintenanceRecord(recordId, record);
 
     return result.when(
       success: (_) {

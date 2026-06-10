@@ -158,7 +158,8 @@ class NotificationProvider extends ChangeNotifier {
 
   /// すべての通知を既読にする
   Future<void> markAllAsRead() async {
-    _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
+    _notifications =
+        _notifications.map((n) => n.copyWith(isRead: true)).toList();
     notifyListeners();
   }
 

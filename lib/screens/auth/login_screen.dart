@@ -189,7 +189,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ? Icons.visibility_off
                                     : Icons.visibility,
                               ),
-                              tooltip: _obscurePassword ? 'パスワードを表示' : 'パスワードを隠す',
+                              tooltip:
+                                  _obscurePassword ? 'パスワードを表示' : 'パスワードを隠す',
                               onPressed: () {
                                 setState(() {
                                   _obscurePassword = !_obscurePassword;

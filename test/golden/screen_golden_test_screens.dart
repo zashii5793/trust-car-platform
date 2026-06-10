@@ -373,8 +373,8 @@ void main() {
     });
 
     testWidgets('recording_loading: CircularProgressIndicator', (tester) async {
-      await tester.pumpWidget(
-          _buildDriveScreen(_FakeDriveProvider(isLoading: true)));
+      await tester
+          .pumpWidget(_buildDriveScreen(_FakeDriveProvider(isLoading: true)));
       await tester.pump();
 
       await expectLater(
@@ -412,7 +412,8 @@ void main() {
       );
     });
 
-    testWidgets('recording_km: distance shown as km (12.34 km)', (tester) async {
+    testWidgets('recording_km: distance shown as km (12.34 km)',
+        (tester) async {
       await tester.pumpWidget(_buildDriveScreen(
         _FakeDriveProvider(distanceKm: 12.34),
       ));
@@ -455,8 +456,8 @@ void main() {
     });
 
     testWidgets('shop_loading: loading indicator', (tester) async {
-      await tester.pumpWidget(
-          _buildShopScreen(_FakeShopProvider(isLoading: true)));
+      await tester
+          .pumpWidget(_buildShopScreen(_FakeShopProvider(isLoading: true)));
       await tester.pump();
 
       await expectLater(

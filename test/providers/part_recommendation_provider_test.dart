@@ -22,7 +22,8 @@ class MockPartRecommendationService implements PartRecommendationService {
   PartCategory? lastSearchCategory;
 
   @override
-  Future<Result<List<PartRecommendation>, AppError>> getRecommendationsForVehicle(
+  Future<Result<List<PartRecommendation>, AppError>>
+      getRecommendationsForVehicle(
     Vehicle vehicle, {
     PartCategory? category,
     int limit = 10,
@@ -33,7 +34,8 @@ class MockPartRecommendationService implements PartRecommendationService {
   }
 
   @override
-  Future<Result<List<PartListing>, AppError>> getFeaturedParts({int limit = 5}) async {
+  Future<Result<List<PartListing>, AppError>> getFeaturedParts(
+      {int limit = 5}) async {
     return featuredPartsResult ?? const Result.success([]);
   }
 
@@ -208,13 +210,15 @@ void main() {
       });
 
       test('passes selected category to service', () async {
-        await provider.loadRecommendations(vehicle, category: PartCategory.wheel);
+        await provider.loadRecommendations(vehicle,
+            category: PartCategory.wheel);
 
         expect(mockService.lastCategory, PartCategory.wheel);
       });
 
       test('clears error on subsequent successful load', () async {
-        mockService.recommendationsResult = Result.failure(AppError.server('err'));
+        mockService.recommendationsResult =
+            Result.failure(AppError.server('err'));
         await provider.loadRecommendations(vehicle);
         expect(provider.error, isNotNull);
 
@@ -359,7 +363,8 @@ void main() {
         expect(mockService.lastCategory, isNull);
       });
 
-      test('calls getPartsByCategory when category specified and no query', () async {
+      test('calls getPartsByCategory when category specified and no query',
+          () async {
         mockService.partsByCategoryResult = Result.success([
           _makePart(id: 'c1', category: PartCategory.tire),
           _makePart(id: 'c2', category: PartCategory.tire),
@@ -384,7 +389,9 @@ void main() {
         expect(provider.searchQuery, 'ブレーキ');
       });
 
-      test('passes category to searchParts when both query and category specified', () async {
+      test(
+          'passes category to searchParts when both query and category specified',
+          () async {
         mockService.searchPartsResult = Result.success([_makePart()]);
 
         await provider.loadBrowseParts(
@@ -427,7 +434,8 @@ void main() {
         expect(provider.error, isNull);
       });
 
-      test('whitespace-only query is treated as empty (calls getFeaturedParts)', () async {
+      test('whitespace-only query is treated as empty (calls getFeaturedParts)',
+          () async {
         mockService.featuredPartsResult = Result.success([_makePart()]);
 
         await provider.loadBrowseParts(query: '   ');
@@ -452,7 +460,8 @@ void main() {
     // -----------------------------------------------------------------------
 
     group('Edge Cases', () {
-      test('concurrent loadRecommendations calls do not corrupt state', () async {
+      test('concurrent loadRecommendations calls do not corrupt state',
+          () async {
         mockService.recommendationsResult = Result.success([
           _makeRecommendation(partId: 'p1'),
         ]);
@@ -466,7 +475,8 @@ void main() {
         expect(provider.isLoading, isFalse);
       });
 
-      test('loadRecommendations with empty vehicle maker still calls service', () async {
+      test('loadRecommendations with empty vehicle maker still calls service',
+          () async {
         final emptyVehicle = Vehicle(
           id: 'v-empty',
           userId: 'u1',

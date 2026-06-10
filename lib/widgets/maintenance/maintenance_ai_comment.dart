@@ -88,8 +88,7 @@ class MaintenanceAiComment extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.calendar_today_outlined,
-                    size: 13,
-                    color: theme.colorScheme.outline),
+                    size: 13, color: theme.colorScheme.outline),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
@@ -112,7 +111,10 @@ class MaintenanceAiComment extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return switch (tone) {
       CommentTone.good => (Colors.green.shade600, Icons.check_circle_outline),
-      CommentTone.acceptable => (Colors.amber.shade700, Icons.warning_amber_outlined),
+      CommentTone.acceptable => (
+          Colors.amber.shade700,
+          Icons.warning_amber_outlined
+        ),
       CommentTone.overdue => (cs.error, Icons.error_outline),
       CommentTone.noHistory => (cs.primary, Icons.info_outline),
     };

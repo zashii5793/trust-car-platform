@@ -107,9 +107,8 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
           ],
           bottom: TabBar(
             labelColor: theme.colorScheme.primary,
-            unselectedLabelColor: isDark
-                ? AppColors.darkTextSecondary
-                : AppColors.textSecondary,
+            unselectedLabelColor:
+                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
             indicatorColor: theme.colorScheme.primary,
             indicatorWeight: 3,
             tabs: const [
@@ -175,13 +174,13 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                             label: '自賠責満了日',
                             value: DateFormat('yyyy年MM月dd日')
                                 .format(_vehicle.insuranceExpiryDate!),
-                            valueColor: (_vehicle.daysUntilInsuranceExpiry !=
-                                        null &&
-                                    _vehicle.daysUntilInsuranceExpiry! < 0)
-                                ? AppColors.error
-                                : _vehicle.isInsuranceDueSoon
-                                    ? AppColors.warning
-                                    : null,
+                            valueColor:
+                                (_vehicle.daysUntilInsuranceExpiry != null &&
+                                        _vehicle.daysUntilInsuranceExpiry! < 0)
+                                    ? AppColors.error
+                                    : _vehicle.isInsuranceDueSoon
+                                        ? AppColors.warning
+                                        : null,
                           ),
                       ],
                     ),
@@ -321,9 +320,7 @@ class _VehicleImage extends StatelessWidget {
                 end: Alignment.bottomCenter,
                 colors: [
                   Colors.transparent,
-                  (isDark
-                          ? AppColors.darkBackground
-                          : Colors.white)
+                  (isDark ? AppColors.darkBackground : Colors.white)
                       .withValues(alpha: 0.85),
                 ],
               ),
@@ -397,8 +394,7 @@ class _InfoRow extends StatelessWidget {
             value,
             style: theme.textTheme.bodyLarge?.copyWith(
               color: valueColor,
-              fontWeight:
-                  valueColor != null ? FontWeight.bold : null,
+              fontWeight: valueColor != null ? FontWeight.bold : null,
             ),
           ),
         ],
@@ -878,8 +874,8 @@ class _MaintenanceTimelineItem extends StatelessWidget {
                                   children: [
                                     Text(
                                       dateFormat.format(record.date),
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
                                         color: isDark
                                             ? AppColors.darkTextTertiary
                                             : AppColors.textTertiary,
@@ -892,7 +888,8 @@ class _MaintenanceTimelineItem extends StatelessWidget {
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: typeColor.withValues(alpha: 0.12),
+                                        color:
+                                            typeColor.withValues(alpha: 0.12),
                                         borderRadius: AppSpacing.borderRadiusXs,
                                       ),
                                       child: Text(
@@ -920,8 +917,8 @@ class _MaintenanceTimelineItem extends StatelessWidget {
                                   children: [
                                     Text(
                                       '¥${NumberFormat('#,###').format(record.cost)}',
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
+                                      style:
+                                          theme.textTheme.bodyMedium?.copyWith(
                                         fontWeight: FontWeight.bold,
                                         color: typeColor,
                                       ),
@@ -938,8 +935,8 @@ class _MaintenanceTimelineItem extends StatelessWidget {
                                       const SizedBox(width: 2),
                                       Text(
                                         '${NumberFormat('#,###').format(record.mileageAtService!)} km',
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
                                           color: isDark
                                               ? AppColors.darkTextTertiary
                                               : AppColors.textTertiary,
@@ -1025,9 +1022,7 @@ class _DriveTimelineItem extends StatelessWidget {
         : null;
     final durationMin = log.statistics.totalDuration ~/ 60;
     final title = log.title ??
-        (log.startAddress != null
-            ? '${log.startAddress} 発'
-            : 'ドライブ記録');
+        (log.startAddress != null ? '${log.startAddress} 発' : 'ドライブ記録');
 
     return IntrinsicHeight(
       child: Row(

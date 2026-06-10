@@ -66,7 +66,8 @@ void main() {
       expect(vehicle.vinNumber, 'JH4KA8260MC000001');
     });
 
-    test('Update: Vehicle.copyWith creates new instance with updated fields', () {
+    test('Update: Vehicle.copyWith creates new instance with updated fields',
+        () {
       final now = DateTime.now();
       final original = Vehicle(
         id: 'v1',
@@ -783,8 +784,10 @@ void main() {
     });
 
     test('AuthError types have correct retryable status', () {
-      const userNotFound = AppError.auth('Not found', type: AuthErrorType.userNotFound);
-      const tooManyRequests = AppError.auth('Rate limited', type: AuthErrorType.tooManyRequests);
+      const userNotFound =
+          AppError.auth('Not found', type: AuthErrorType.userNotFound);
+      const tooManyRequests =
+          AppError.auth('Rate limited', type: AuthErrorType.tooManyRequests);
 
       expect(userNotFound.isRetryable, false);
       expect(tooManyRequests.isRetryable, true);
@@ -816,7 +819,8 @@ void main() {
       final wrongPassword = mapFirebaseError(
           Exception('[firebase_auth/wrong-password] Wrong password'));
       expect(wrongPassword, isA<AuthError>());
-      expect((wrongPassword as AuthError).type, AuthErrorType.invalidCredentials);
+      expect(
+          (wrongPassword as AuthError).type, AuthErrorType.invalidCredentials);
     });
 
     test('mapFirebaseError maps firestore errors correctly', () {
@@ -896,7 +900,8 @@ void main() {
       expect(restored.vehicleId, original.vehicleId);
       expect(restored.status, original.status);
       expect(restored.title, original.title);
-      expect(restored.statistics.totalDistance, original.statistics.totalDistance);
+      expect(
+          restored.statistics.totalDistance, original.statistics.totalDistance);
     });
 
     test('DriveSpot roundtrip preserves data', () {

@@ -108,7 +108,8 @@ class _StubFirebaseService implements FirebaseService {
       const Result.success('url');
 
   @override
-  Future<Result<String, AppError>> uploadImageBytes(dynamic b, String path) async =>
+  Future<Result<String, AppError>> uploadImageBytes(
+          dynamic b, String path) async =>
       const Result.success('url');
 
   @override
@@ -153,8 +154,7 @@ class _StubAuthService implements AuthService {
       Result.failure(AppError.unknown('stub'));
 
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
@@ -264,7 +264,8 @@ class _FakeNotificationProvider extends NotificationProvider {
   int get unreadCount => _fakeNotifications.where((n) => !n.isRead).length;
 
   @override
-  List<AppNotification> get topSuggestions => _fakeNotifications.take(3).toList();
+  List<AppNotification> get topSuggestions =>
+      _fakeNotifications.take(3).toList();
 
   @override
   Future<void> generateNotificationsForVehicles(List<Vehicle> vehicles) async {}
@@ -699,7 +700,8 @@ void main() {
       );
     });
 
-    testWidgets('「車両を登録する」ElevatedButton が onPressed を持ちアクセス可能', (tester) async {
+    testWidgets('「車両を登録する」ElevatedButton が onPressed を持ちアクセス可能',
+        (tester) async {
       final vp = _FakeVehicleProvider();
       await tester.pumpWidget(_buildApp(vehicleProvider: vp));
       await tester.pump();

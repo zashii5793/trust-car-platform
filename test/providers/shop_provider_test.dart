@@ -64,20 +64,23 @@ class MockShopService implements ShopService {
   Future<Result<List<Shop>, AppError>> getShopsForMaker(
     String makerId, {
     int limit = 20,
-  }) async => const Result.success([]);
+  }) async =>
+      const Result.success([]);
 
   @override
   Future<Result<List<Shop>, AppError>> getNearbyShops(
     dynamic center,
     double radiusKm, {
     int limit = 20,
-  }) async => const Result.success([]);
+  }) async =>
+      const Result.success([]);
 
   @override
   Future<Result<List<Shop>, AppError>> getShopsByService(
     ServiceCategory category, {
     int limit = 20,
-  }) async => const Result.success([]);
+  }) async =>
+      const Result.success([]);
 
   // Fallback for newer ShopService methods (createMyShop, deleteMyShop, etc.)
   // not exercised by these provider-level tests.
@@ -142,7 +145,8 @@ class MockInquiryService implements InquiryService {
     InquiryStatus? status,
     int limit = 20,
     dynamic startAfter,
-  }) async => const Result.success([]);
+  }) async =>
+      const Result.success([]);
 
   @override
   Future<Result<InquiryMessage, AppError>> sendMessage({
@@ -151,26 +155,30 @@ class MockInquiryService implements InquiryService {
     required bool isFromShop,
     required String content,
     List<String> attachmentUrls = const [],
-  }) async => Result.failure(AppError.server('not implemented'));
+  }) async =>
+      Result.failure(AppError.server('not implemented'));
 
   @override
   Future<Result<List<InquiryMessage>, AppError>> getMessages(
     String inquiryId, {
     int limit = 50,
     dynamic startAfter,
-  }) async => const Result.success([]);
+  }) async =>
+      const Result.success([]);
 
   @override
   Future<Result<void, AppError>> markAsRead({
     required String inquiryId,
     required bool isUser,
-  }) async => const Result.success(null);
+  }) async =>
+      const Result.success(null);
 
   @override
   Future<Result<Inquiry, AppError>> updateStatus(
     String inquiryId,
     InquiryStatus status,
-  ) async => Result.failure(AppError.server('not implemented'));
+  ) async =>
+      Result.failure(AppError.server('not implemented'));
 
   @override
   Future<Result<int, AppError>> getUnreadCountForUser(String userId) async =>
@@ -180,7 +188,8 @@ class MockInquiryService implements InquiryService {
   Stream<List<Inquiry>> streamUserInquiries(String userId) => Stream.empty();
 
   @override
-  Stream<List<InquiryMessage>> streamMessages(String inquiryId) => Stream.empty();
+  Stream<List<InquiryMessage>> streamMessages(String inquiryId) =>
+      Stream.empty();
 }
 
 // ---------------------------------------------------------------------------
@@ -316,8 +325,7 @@ void main() {
       });
 
       test('sets error on failure', () async {
-        mockShopService.shopsResult =
-            Result.failure(AppError.server('接続エラー'));
+        mockShopService.shopsResult = Result.failure(AppError.server('接続エラー'));
 
         await provider.loadShops();
 
@@ -390,8 +398,7 @@ void main() {
       });
 
       test('featuredShops is empty on failure', () async {
-        mockShopService.featuredResult =
-            Result.failure(AppError.server('err'));
+        mockShopService.featuredResult = Result.failure(AppError.server('err'));
 
         await provider.loadFeaturedShops();
 
@@ -424,8 +431,7 @@ void main() {
       });
 
       test('sets error when service fails', () async {
-        mockShopService.shopResult =
-            Result.failure(AppError.server('サーバーエラー'));
+        mockShopService.shopResult = Result.failure(AppError.server('サーバーエラー'));
 
         await provider.loadShop('s1');
 
@@ -549,7 +555,8 @@ void main() {
       });
 
       test('returns created inquiry on success', () async {
-        mockInquiryService.createResult = Result.success(_makeInquiry(id: 'new-inq'));
+        mockInquiryService.createResult =
+            Result.success(_makeInquiry(id: 'new-inq'));
 
         final result = await provider.submitInquiry(
           userId: 'user1',
@@ -640,8 +647,7 @@ void main() {
 
     group('clear', () {
       test('resets all state', () async {
-        mockShopService.shopsResult =
-            Result.success([_makeShop(id: 's1')]);
+        mockShopService.shopsResult = Result.success([_makeShop(id: 's1')]);
         mockShopService.featuredResult =
             Result.success([_makeShop(id: 'fs1', isFeatured: true)]);
         mockShopService.shopResult = Result.success(_makeShop(id: 's1'));

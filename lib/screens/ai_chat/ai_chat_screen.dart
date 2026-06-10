@@ -177,11 +177,9 @@ class _EmptyState extends StatelessWidget {
     // EV: no engine oil, no coolant, different focus
     if (fuel == FuelType.electric) {
       return [
-        if (name != null) '$name のバッテリー劣化の確認方法は？'
-        else 'EVバッテリーの劣化確認方法は？',
+        if (name != null) '$name のバッテリー劣化の確認方法は？' else 'EVバッテリーの劣化確認方法は？',
         'EVの冬場の航続距離低下対策は？',
-        if (km != null) '${km}km走行後のタイヤ点検ポイントは？'
-        else 'タイヤの点検ポイントは？',
+        if (km != null) '${km}km走行後のタイヤ点検ポイントは？' else 'タイヤの点検ポイントは？',
         '車検でEVならではの確認事項は？',
       ];
     }
@@ -189,11 +187,9 @@ class _EmptyState extends StatelessWidget {
     // Hybrid: mostly gas-like but no oil change urgency
     if (fuel == FuelType.hybrid || fuel == FuelType.phev) {
       return [
-        if (name != null) '$name のオイル交換時期は？'
-        else 'ハイブリッド車のオイル交換時期は？',
+        if (name != null) '$name のオイル交換時期は？' else 'ハイブリッド車のオイル交換時期は？',
         'ハイブリッドバッテリーの寿命と交換費用は？',
-        if (km != null) '${km}km走行後に確認すべきことは？'
-        else 'タイヤの寿命は？',
+        if (km != null) '${km}km走行後に確認すべきことは？' else 'タイヤの寿命は？',
         'ハイブリッド車の燃費を悪化させる原因は？',
       ];
     }
@@ -205,8 +201,7 @@ class _EmptyState extends StatelessWidget {
       else
         'オイル交換はいつ？',
       'ワイパー交換の時期と選び方は？',
-      if (km != null) '${km}km走行後のタイヤ点検ポイントは？'
-      else 'タイヤの寿命と点検方法は？',
+      if (km != null) '${km}km走行後のタイヤ点検ポイントは？' else 'タイヤの寿命と点検方法は？',
       'バッテリー上がりのサインと対処法は？',
     ];
   }
@@ -351,8 +346,8 @@ class _ChatBubble extends StatelessWidget {
                       DateFormat('HH:mm').format(message.createdAt),
                       style: theme.textTheme.bodySmall?.copyWith(
                         fontSize: 10,
-                        color: theme.colorScheme.onSurface
-                            .withValues(alpha: 0.4),
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.4),
                       ),
                     ),
                   ),
@@ -431,7 +426,8 @@ class _TypingIndicatorState extends State<_TypingIndicator>
     const phaseShift = 1.0 / 3.0;
     final phase = (_controller.value + index * phaseShift) % 1.0;
     // Sine wave between 0.2 and 1.0
-    return 0.2 + 0.8 * (0.5 + 0.5 * (1 - (2 * phase - 1).abs() * 2).clamp(0.0, 1.0));
+    return 0.2 +
+        0.8 * (0.5 + 0.5 * (1 - (2 * phase - 1).abs() * 2).clamp(0.0, 1.0));
   }
 }
 

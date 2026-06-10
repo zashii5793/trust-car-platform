@@ -122,49 +122,62 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
-        ChangeNotifierProvider(create: (_) => AuthProvider(
-          authService: sl.get<AuthService>(),
-          analyticsService: sl.get<AnalyticsService>(),
-        )),
-        ChangeNotifierProvider(create: (_) => VehicleProvider(
-          firebaseService: sl.get<FirebaseService>(),
-          analyticsService: sl.get<AnalyticsService>(),
-        )),
-        ChangeNotifierProvider(create: (_) => MaintenanceProvider(
-          firebaseService: sl.get<FirebaseService>(),
-          analyticsService: sl.get<AnalyticsService>(),
-        )),
-        ChangeNotifierProvider(create: (_) => NotificationProvider(
-          firebaseService: sl.get<FirebaseService>(),
-          recommendationService: sl.get<RecommendationService>(),
-        )),
-        ChangeNotifierProvider(create: (_) => PartRecommendationProvider(
-          partRecommendationService: sl.get<PartRecommendationService>(),
-        )),
-        ChangeNotifierProvider(create: (_) => ShopProvider(
-          shopService: sl.get<ShopService>(),
-          inquiryService: sl.get<InquiryService>(),
-          analyticsService: sl.get<AnalyticsService>(),
-        )),
-        ChangeNotifierProvider(create: (_) => SubscriptionProvider(
-          subscriptionService: sl.get<ShopSubscriptionService>(),
-        )),
-        ChangeNotifierProvider(create: (_) => UserSubscriptionProvider(
-          service: sl.get<UserSubscriptionService>(),
-        )),
-        ChangeNotifierProvider(create: (_) => PostProvider(
-          postService: sl.get<PostService>(),
-        )),
-        ChangeNotifierProvider(create: (_) => DriveLogProvider(
-          driveLogService: sl.get<DriveLogService>(),
-        )),
-        ChangeNotifierProvider(create: (_) => DriveRecordingProvider(
-          driveLogService: sl.get<DriveLogService>(),
-          analyticsService: sl.get<AnalyticsService>(),
-        )),
-        ChangeNotifierProvider(create: (_) => AiChatProvider(
-          service: sl.get<AiChatService>(),
-        )),
+        ChangeNotifierProvider(
+            create: (_) => AuthProvider(
+                  authService: sl.get<AuthService>(),
+                  analyticsService: sl.get<AnalyticsService>(),
+                )),
+        ChangeNotifierProvider(
+            create: (_) => VehicleProvider(
+                  firebaseService: sl.get<FirebaseService>(),
+                  analyticsService: sl.get<AnalyticsService>(),
+                )),
+        ChangeNotifierProvider(
+            create: (_) => MaintenanceProvider(
+                  firebaseService: sl.get<FirebaseService>(),
+                  analyticsService: sl.get<AnalyticsService>(),
+                )),
+        ChangeNotifierProvider(
+            create: (_) => NotificationProvider(
+                  firebaseService: sl.get<FirebaseService>(),
+                  recommendationService: sl.get<RecommendationService>(),
+                )),
+        ChangeNotifierProvider(
+            create: (_) => PartRecommendationProvider(
+                  partRecommendationService:
+                      sl.get<PartRecommendationService>(),
+                )),
+        ChangeNotifierProvider(
+            create: (_) => ShopProvider(
+                  shopService: sl.get<ShopService>(),
+                  inquiryService: sl.get<InquiryService>(),
+                  analyticsService: sl.get<AnalyticsService>(),
+                )),
+        ChangeNotifierProvider(
+            create: (_) => SubscriptionProvider(
+                  subscriptionService: sl.get<ShopSubscriptionService>(),
+                )),
+        ChangeNotifierProvider(
+            create: (_) => UserSubscriptionProvider(
+                  service: sl.get<UserSubscriptionService>(),
+                )),
+        ChangeNotifierProvider(
+            create: (_) => PostProvider(
+                  postService: sl.get<PostService>(),
+                )),
+        ChangeNotifierProvider(
+            create: (_) => DriveLogProvider(
+                  driveLogService: sl.get<DriveLogService>(),
+                )),
+        ChangeNotifierProvider(
+            create: (_) => DriveRecordingProvider(
+                  driveLogService: sl.get<DriveLogService>(),
+                  analyticsService: sl.get<AnalyticsService>(),
+                )),
+        ChangeNotifierProvider(
+            create: (_) => AiChatProvider(
+                  service: sl.get<AiChatService>(),
+                )),
       ],
       child: MaterialApp(
         title: 'クルマ統合管理',

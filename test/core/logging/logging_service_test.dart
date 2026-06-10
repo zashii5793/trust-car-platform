@@ -153,7 +153,8 @@ void main() {
     });
 
     test('logs AuthError as error', () {
-      const error = AuthError('Auth failed', type: AuthErrorType.invalidCredentials);
+      const error =
+          AuthError('Auth failed', type: AuthErrorType.invalidCredentials);
       expect(
         () => service.logAppError(error, tag: 'Test'),
         returnsNormally,
@@ -193,7 +194,8 @@ void main() {
     });
 
     test('logs AuthError with type data', () {
-      const error = AuthError('Auth failed', type: AuthErrorType.tooManyRequests);
+      const error =
+          AuthError('Auth failed', type: AuthErrorType.tooManyRequests);
       expect(
         () => service.logAppError(error),
         returnsNormally,
@@ -265,19 +267,22 @@ void main() {
     test('mapFirebaseError returns AuthError for wrong-password', () {
       final error = mapFirebaseError(Exception('wrong-password'));
       expect(error, isA<AuthError>());
-      expect((error as AuthError).type, equals(AuthErrorType.invalidCredentials));
+      expect(
+          (error as AuthError).type, equals(AuthErrorType.invalidCredentials));
     });
 
     test('mapFirebaseError returns AuthError for invalid-credential', () {
       final error = mapFirebaseError(Exception('invalid-credential'));
       expect(error, isA<AuthError>());
-      expect((error as AuthError).type, equals(AuthErrorType.invalidCredentials));
+      expect(
+          (error as AuthError).type, equals(AuthErrorType.invalidCredentials));
     });
 
     test('mapFirebaseError returns AuthError for email-already-in-use', () {
       final error = mapFirebaseError(Exception('email-already-in-use'));
       expect(error, isA<AuthError>());
-      expect((error as AuthError).type, equals(AuthErrorType.emailAlreadyInUse));
+      expect(
+          (error as AuthError).type, equals(AuthErrorType.emailAlreadyInUse));
     });
 
     test('mapFirebaseError returns AuthError for weak-password', () {

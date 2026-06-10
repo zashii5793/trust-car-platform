@@ -7,17 +7,17 @@ import '../models/maintenance_record.dart';
 
 /// 請求書から抽出されたデータ
 class InvoiceData {
-  final DateTime? date;              // 請求日/作業日
-  final int? totalAmount;            // 合計金額
-  final int? taxAmount;              // 消費税
-  final int? subtotalAmount;         // 小計（税抜）
-  final String? shopName;            // 店舗名/整備工場名
-  final String? shopAddress;         // 店舗住所
-  final String? shopPhone;           // 電話番号
-  final String? invoiceNumber;       // 請求書番号
-  final List<InvoiceItem> items;     // 明細項目
-  final String? vehicleInfo;         // 車両情報（ナンバー等）
-  final int? mileage;                // 走行距離
+  final DateTime? date; // 請求日/作業日
+  final int? totalAmount; // 合計金額
+  final int? taxAmount; // 消費税
+  final int? subtotalAmount; // 小計（税抜）
+  final String? shopName; // 店舗名/整備工場名
+  final String? shopAddress; // 店舗住所
+  final String? shopPhone; // 電話番号
+  final String? invoiceNumber; // 請求書番号
+  final List<InvoiceItem> items; // 明細項目
+  final String? vehicleInfo; // 車両情報（ナンバー等）
+  final int? mileage; // 走行距離
 
   InvoiceData({
     this.date,
@@ -124,11 +124,11 @@ InvoiceData(
 
 /// 請求書の明細項目
 class InvoiceItem {
-  final String name;           // 項目名
-  final int? quantity;         // 数量
-  final int? unitPrice;        // 単価
-  final int? amount;           // 金額
-  final String? partNumber;    // 部品番号
+  final String name; // 項目名
+  final int? quantity; // 数量
+  final int? unitPrice; // 単価
+  final int? amount; // 金額
+  final String? partNumber; // 部品番号
 
   InvoiceItem({
     required this.name,
@@ -147,7 +147,8 @@ class InvoiceOcrService {
   final TextRecognizer _textRecognizer;
 
   InvoiceOcrService()
-      : _textRecognizer = TextRecognizer(script: TextRecognitionScript.japanese);
+      : _textRecognizer =
+            TextRecognizer(script: TextRecognitionScript.japanese);
 
   /// 画像ファイルから請求書情報を抽出
   Future<Result<InvoiceData, AppError>> extractFromImage(File imageFile) async {
@@ -224,7 +225,8 @@ class InvoiceOcrService {
       if (taxAmount == null && _containsKeyword(line, ['消費税', '税額'])) {
         taxAmount = _extractAmount(line);
       }
-      if (subtotalAmount == null && _containsKeyword(line, ['小計', '税抜', '本体'])) {
+      if (subtotalAmount == null &&
+          _containsKeyword(line, ['小計', '税抜', '本体'])) {
         subtotalAmount = _extractAmount(line);
       }
 
@@ -235,7 +237,8 @@ class InvoiceOcrService {
       shopPhone ??= _extractPhoneNumber(line);
 
       // 請求書番号
-      if (invoiceNumber == null && _containsKeyword(line, ['請求書番号', '伝票番号', 'No.', 'NO.'])) {
+      if (invoiceNumber == null &&
+          _containsKeyword(line, ['請求書番号', '伝票番号', 'No.', 'NO.'])) {
         invoiceNumber = _extractInvoiceNumber(line);
       }
 
@@ -243,7 +246,8 @@ class InvoiceOcrService {
       vehicleInfo ??= _extractVehicleInfo(line);
 
       // 走行距離
-      if (mileage == null && _containsKeyword(line, ['走行', 'km', 'KM', 'ODO'])) {
+      if (mileage == null &&
+          _containsKeyword(line, ['走行', 'km', 'KM', 'ODO'])) {
         mileage = _extractMileage(line);
       }
 
@@ -256,7 +260,8 @@ class InvoiceOcrService {
 
     // 合計金額が取れなかった場合、最大金額を合計とする
     if (totalAmount == null && items.isNotEmpty) {
-      final amounts = items.where((i) => i.amount != null).map((i) => i.amount!);
+      final amounts =
+          items.where((i) => i.amount != null).map((i) => i.amount!);
       if (amounts.isNotEmpty) {
         totalAmount = amounts.reduce((a, b) => a > b ? a : b);
       }
@@ -326,7 +331,7 @@ class InvoiceOcrService {
     final patterns = [
       RegExp(r'[¥￥]\s*([\d,]+)'),
       RegExp(r'([\d,]+)\s*円'),
-      RegExp(r'([\d,]{4,})'),  // 4桁以上の数字
+      RegExp(r'([\d,]{4,})'), // 4桁以上の数字
     ];
 
     for (final pattern in patterns) {
@@ -334,7 +339,8 @@ class InvoiceOcrService {
       if (match != null) {
         final amountStr = match.group(1)!.replaceAll(',', '');
         final amount = int.tryParse(amountStr);
-        if (amount != null && amount >= 100) {  // 100円以上を金額とみなす
+        if (amount != null && amount >= 100) {
+          // 100円以上を金額とみなす
           return amount;
         }
       }
@@ -345,10 +351,19 @@ class InvoiceOcrService {
   /// 店舗名らしいかどうか判定
   bool _isLikelyShopName(String line) {
     final shopKeywords = [
-      '株式会社', '有限会社', '合同会社',
-      'オートバックス', 'イエローハット', 'タイヤ館',
-      '整備', '工場', 'サービス', 'モータース',
-      'カーショップ', 'ガレージ', 'ディーラー',
+      '株式会社',
+      '有限会社',
+      '合同会社',
+      'オートバックス',
+      'イエローハット',
+      'タイヤ館',
+      '整備',
+      '工場',
+      'サービス',
+      'モータース',
+      'カーショップ',
+      'ガレージ',
+      'ディーラー',
     ];
 
     for (final keyword in shopKeywords) {
@@ -388,7 +403,8 @@ class InvoiceOcrService {
 
   /// 車両情報（ナンバー）を抽出
   String? _extractVehicleInfo(String line) {
-    final pattern = RegExp(r'([一-龥ぁ-んァ-ヶ]{2,4})\s*(\d{3})\s*([あ-んア-ン])\s*(\d{1,4}[-−]?\d{1,4}|\d{2,4})');
+    final pattern = RegExp(
+        r'([一-龥ぁ-んァ-ヶ]{2,4})\s*(\d{3})\s*([あ-んア-ン])\s*(\d{1,4}[-−]?\d{1,4}|\d{2,4})');
     final match = pattern.firstMatch(line);
     if (match != null) {
       return '${match.group(1)} ${match.group(2)} ${match.group(3)} ${match.group(4)}';

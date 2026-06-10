@@ -59,7 +59,8 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 // ---------------------------------------------------------------------------
 
 class _StubPartListingService implements PartListingService {
-  Result<String, AppError> createResult = const Result.success('new-listing-id');
+  Result<String, AppError> createResult =
+      const Result.success('new-listing-id');
   Result<void, AppError> updateResult = const Result.success(null);
 
   bool createCalled = false;
@@ -147,18 +148,23 @@ Widget _buildEdit(UserPartListing listing, {_StubPartListingService? stub}) {
 // ---------------------------------------------------------------------------
 
 /// Builds and pumps _buildNew() with a large enough surface to render the full form.
-Future<void> _pumpNew(WidgetTester tester, {_StubPartListingService? stub}) async {
+Future<void> _pumpNew(WidgetTester tester,
+    {_StubPartListingService? stub}) async {
   await tester.binding.setSurfaceSize(const Size(800, 2000));
-  addTearDown(() async { await tester.binding.setSurfaceSize(null); });
+  addTearDown(() async {
+    await tester.binding.setSurfaceSize(null);
+  });
   await tester.pumpWidget(_buildNew(stub: stub));
   await tester.pump();
 }
 
 /// Builds and pumps _buildEdit() with a large enough surface to render the full form.
-Future<void> _pumpEdit(
-    WidgetTester tester, UserPartListing listing, {_StubPartListingService? stub}) async {
+Future<void> _pumpEdit(WidgetTester tester, UserPartListing listing,
+    {_StubPartListingService? stub}) async {
   await tester.binding.setSurfaceSize(const Size(800, 2000));
-  addTearDown(() async { await tester.binding.setSurfaceSize(null); });
+  addTearDown(() async {
+    await tester.binding.setSurfaceSize(null);
+  });
   await tester.pumpWidget(_buildEdit(listing, stub: stub));
   await tester.pump();
 }
@@ -387,7 +393,8 @@ void main() {
 
   // =========================================================================
   group('CreateListingScreen — Commission hint', () {
-    testWidgets('19. Commission hint hidden when price is empty', (tester) async {
+    testWidgets('19. Commission hint hidden when price is empty',
+        (tester) async {
       await _pumpNew(tester);
 
       expect(find.textContaining('受取金額'), findsNothing);
@@ -516,8 +523,7 @@ void main() {
     });
 
     testWidgets('27. Service failure → error snackbar shown', (tester) async {
-      stub.createResult =
-          Result.failure(AppError.server('Firestore error'));
+      stub.createResult = Result.failure(AppError.server('Firestore error'));
 
       await _pumpNew(tester);
 

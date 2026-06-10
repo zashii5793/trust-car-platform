@@ -152,7 +152,8 @@ void main() {
     });
 
     test('goodCondition が存在する', () {
-      expect(PartCondition.fromString('goodCondition'), PartCondition.goodCondition);
+      expect(PartCondition.fromString('goodCondition'),
+          PartCondition.goodCondition);
     });
   });
 
@@ -387,9 +388,12 @@ void main() {
 
     group('Edge Cases', () {
       test('全ステータスのリスティングをフィルタなしで取得する', () async {
-        await _seedListing(fakeFs, sellerId: 'user1', status: PartListingStatus.active);
-        await _seedListing(fakeFs, sellerId: 'user1', status: PartListingStatus.soldOut);
-        await _seedListing(fakeFs, sellerId: 'user1', status: PartListingStatus.cancelled);
+        await _seedListing(fakeFs,
+            sellerId: 'user1', status: PartListingStatus.active);
+        await _seedListing(fakeFs,
+            sellerId: 'user1', status: PartListingStatus.soldOut);
+        await _seedListing(fakeFs,
+            sellerId: 'user1', status: PartListingStatus.cancelled);
 
         final result = await service.getMyListings('user1');
         expect(result.valueOrNull?.length, 3);
@@ -508,7 +512,8 @@ void main() {
     });
 
     test('price が 0 のとき ValidationError(field=price) を確認 (Result パターン)', () {
-      const error = AppError.validation('Price must be greater than 0', field: 'price');
+      const error =
+          AppError.validation('Price must be greater than 0', field: 'price');
       expect(error, isA<ValidationError>());
       expect((error as ValidationError).field, 'price');
     });

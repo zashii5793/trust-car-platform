@@ -63,7 +63,8 @@ class MockPostService implements PostService {
 
   @override
   Future<bool> isPostLiked(
-          {required String postId, required String userId}) async => false;
+          {required String postId, required String userId}) async =>
+      false;
 
   @override
   Future<Result<void, AppError>> deletePost(
@@ -315,11 +316,9 @@ void main() {
       testWidgets('カテゴリを複数回変更しても最後に選んだものが送信される', (tester) async {
         await pumpApp(tester, mockService);
 
-        await tester.tap(
-            find.text(PostCategory.drive.displayName).first);
+        await tester.tap(find.text(PostCategory.drive.displayName).first);
         await tester.pump();
-        await tester.tap(
-            find.text(PostCategory.review.displayName).first);
+        await tester.tap(find.text(PostCategory.review.displayName).first);
         await tester.pump();
 
         await tester.enterText(find.byType(TextField).first, 'レビュー投稿');

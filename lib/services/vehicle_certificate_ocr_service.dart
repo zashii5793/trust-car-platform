@@ -7,21 +7,21 @@ import '../models/vehicle.dart';
 
 /// 車検証から抽出されたデータ
 class VehicleCertificateData {
-  final String? registrationNumber;    // 登録番号（ナンバープレート）
-  final String? vinNumber;             // 車台番号
-  final String? modelCode;             // 型式
-  final String? maker;                 // 車名（メーカー）
-  final String? model;                 // 車名（モデル）
-  final int? year;                     // 初度登録年
+  final String? registrationNumber; // 登録番号（ナンバープレート）
+  final String? vinNumber; // 車台番号
+  final String? modelCode; // 型式
+  final String? maker; // 車名（メーカー）
+  final String? model; // 車名（モデル）
+  final int? year; // 初度登録年
   final DateTime? inspectionExpiryDate; // 有効期間の満了する日
-  final String? ownerName;             // 所有者の氏名又は名称
-  final String? ownerAddress;          // 所有者の住所
-  final int? engineDisplacement;       // 総排気量
-  final String? fuelType;              // 燃料の種類
-  final String? color;                 // 色
-  final int? maxCapacity;              // 乗車定員
-  final int? vehicleWeight;            // 車両重量
-  final int? grossWeight;              // 車両総重量
+  final String? ownerName; // 所有者の氏名又は名称
+  final String? ownerAddress; // 所有者の住所
+  final int? engineDisplacement; // 総排気量
+  final String? fuelType; // 燃料の種類
+  final String? color; // 色
+  final int? maxCapacity; // 乗車定員
+  final int? vehicleWeight; // 車両重量
+  final int? grossWeight; // 車両総重量
 
   VehicleCertificateData({
     this.registrationNumber,
@@ -95,7 +95,8 @@ class VehicleCertificateOcrService {
   final TextRecognizer _textRecognizer;
 
   VehicleCertificateOcrService()
-      : _textRecognizer = TextRecognizer(script: TextRecognitionScript.japanese);
+      : _textRecognizer =
+            TextRecognizer(script: TextRecognitionScript.japanese);
 
   /// 画像ファイルから車検証情報を抽出
   Future<Result<VehicleCertificateData, AppError>> extractFromImage(
@@ -129,7 +130,8 @@ class VehicleCertificateOcrService {
 
   /// Parses raw OCR text without MLKit dependency — exposed for accuracy testing.
   @visibleForTesting
-  VehicleCertificateData parseRawTextForTest(String rawText) => _parseText(rawText);
+  VehicleCertificateData parseRawTextForTest(String rawText) =>
+      _parseText(rawText);
 
   VehicleCertificateData _parseText(String fullText) {
     final lines = fullText.split('\n');
@@ -207,7 +209,8 @@ class VehicleCertificateOcrService {
       }
 
       // 総排気量
-      if (engineDisplacement == null && _containsKeyword(line, ['総排気量', '排気量'])) {
+      if (engineDisplacement == null &&
+          _containsKeyword(line, ['総排気量', '排気量'])) {
         engineDisplacement = _extractEngineDisplacement(line, nextLine);
       }
 
@@ -272,7 +275,8 @@ class VehicleCertificateOcrService {
     // 地名 + 数字 + ひらがな + 数字のパターン
     final patterns = [
       // 標準的なパターン: "品川 300 あ 12-34"
-      RegExp(r'([一-龥ぁ-んァ-ヶ]{2,4})\s*(\d{3})\s*([あ-んア-ン])\s*(\d{1,4}[-−]\d{1,4}|\d{2,4})'),
+      RegExp(
+          r'([一-龥ぁ-んァ-ヶ]{2,4})\s*(\d{3})\s*([あ-んア-ン])\s*(\d{1,4}[-−]\d{1,4}|\d{2,4})'),
       // スペースなしパターン
       RegExp(r'([一-龥]{2,4})(\d{3})([あ-ん])(\d{2,4})'),
     ];
@@ -330,7 +334,8 @@ class VehicleCertificateOcrService {
     if (afterKeyword != null && afterKeyword.isNotEmpty) {
       return afterKeyword;
     }
-    if (nextLine.isNotEmpty && !_containsKeyword(nextLine, ['型式', '車台', '番号'])) {
+    if (nextLine.isNotEmpty &&
+        !_containsKeyword(nextLine, ['型式', '車台', '番号'])) {
       return nextLine;
     }
     return null;
@@ -340,20 +345,49 @@ class VehicleCertificateOcrService {
   Map<String, String?> _parseCarName(String carName) {
     // 日本の主要メーカー
     final makers = [
-      'トヨタ', 'TOYOTA', 'ニッサン', '日産', 'NISSAN',
-      'ホンダ', 'HONDA', 'マツダ', 'MAZDA',
-      'スバル', 'SUBARU', '富士重工',
-      'スズキ', 'SUZUKI', 'ダイハツ', 'DAIHATSU',
-      '三菱', 'MITSUBISHI', 'レクサス', 'LEXUS',
-      'BMW', 'メルセデス', 'ベンツ', 'MERCEDES',
-      'アウディ', 'AUDI', 'フォルクスワーゲン', 'VW', 'VOLKSWAGEN',
-      'ポルシェ', 'PORSCHE', 'フェラーリ', 'FERRARI',
-      'ボルボ', 'VOLVO', 'ジャガー', 'JAGUAR',
+      'トヨタ',
+      'TOYOTA',
+      'ニッサン',
+      '日産',
+      'NISSAN',
+      'ホンダ',
+      'HONDA',
+      'マツダ',
+      'MAZDA',
+      'スバル',
+      'SUBARU',
+      '富士重工',
+      'スズキ',
+      'SUZUKI',
+      'ダイハツ',
+      'DAIHATSU',
+      '三菱',
+      'MITSUBISHI',
+      'レクサス',
+      'LEXUS',
+      'BMW',
+      'メルセデス',
+      'ベンツ',
+      'MERCEDES',
+      'アウディ',
+      'AUDI',
+      'フォルクスワーゲン',
+      'VW',
+      'VOLKSWAGEN',
+      'ポルシェ',
+      'PORSCHE',
+      'フェラーリ',
+      'FERRARI',
+      'ボルボ',
+      'VOLVO',
+      'ジャガー',
+      'JAGUAR',
     ];
 
     for (final maker in makers) {
       if (carName.toUpperCase().contains(maker.toUpperCase())) {
-        final model = carName.replaceAll(RegExp(maker, caseSensitive: false), '').trim();
+        final model =
+            carName.replaceAll(RegExp(maker, caseSensitive: false), '').trim();
         return {'maker': maker, 'model': model.isNotEmpty ? model : null};
       }
     }
@@ -394,7 +428,8 @@ class VehicleCertificateOcrService {
 
     // 西暦パターン
     final yearPattern = RegExp(r'(19|20)\d{2}');
-    final match = yearPattern.firstMatch(currentLine) ?? yearPattern.firstMatch(nextLine);
+    final match =
+        yearPattern.firstMatch(currentLine) ?? yearPattern.firstMatch(nextLine);
     if (match != null) {
       return int.tryParse(match.group(0)!);
     }
@@ -507,9 +542,28 @@ class VehicleCertificateOcrService {
   /// 色を抽出
   String? _extractColor(String currentLine, String nextLine) {
     final colors = [
-      '白', 'ホワイト', '黒', 'ブラック', '銀', 'シルバー', 'グレー', '灰',
-      '赤', 'レッド', '青', 'ブルー', '緑', 'グリーン', '黄', 'イエロー',
-      '茶', 'ブラウン', 'ベージュ', 'パール', 'ワイン', 'オレンジ',
+      '白',
+      'ホワイト',
+      '黒',
+      'ブラック',
+      '銀',
+      'シルバー',
+      'グレー',
+      '灰',
+      '赤',
+      'レッド',
+      '青',
+      'ブルー',
+      '緑',
+      'グリーン',
+      '黄',
+      'イエロー',
+      '茶',
+      'ブラウン',
+      'ベージュ',
+      'パール',
+      'ワイン',
+      'オレンジ',
     ];
 
     for (final color in colors) {

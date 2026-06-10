@@ -49,8 +49,8 @@ enum InquiryType {
 /// Message in an inquiry thread
 class InquiryMessage {
   final String id;
-  final String senderId;      // User ID or Shop ID
-  final bool isFromShop;      // true if sent by shop
+  final String senderId; // User ID or Shop ID
+  final bool isFromShop; // true if sent by shop
   final String content;
   final List<String> attachmentUrls;
   final DateTime sentAt;
@@ -95,14 +95,14 @@ class Inquiry {
   final String id;
   final String userId;
   final String shopId;
-  final String? vehicleId;      // Related vehicle (optional)
-  final String? partListingId;  // Related part (optional)
+  final String? vehicleId; // Related vehicle (optional)
+  final String? partListingId; // Related part (optional)
 
   final InquiryType type;
   final InquiryStatus status;
 
   final String subject;
-  final String initialMessage;  // First message content
+  final String initialMessage; // First message content
   final List<String> attachmentUrls;
 
   // Vehicle info snapshot (for context)
@@ -113,13 +113,13 @@ class Inquiry {
   // Timestamps
   final DateTime createdAt;
   final DateTime updatedAt;
-  final DateTime? repliedAt;    // First reply from shop
+  final DateTime? repliedAt; // First reply from shop
   final DateTime? closedAt;
 
   // Counts
   final int messageCount;
-  final int unreadCountUser;    // Unread messages for user
-  final int unreadCountShop;    // Unread messages for shop
+  final int unreadCountUser; // Unread messages for user
+  final int unreadCountShop; // Unread messages for shop
 
   const Inquiry({
     required this.id,

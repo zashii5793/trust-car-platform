@@ -227,8 +227,7 @@ class MockUser extends _i1.Mock implements _i2.User {
       ) as bool);
 
   @override
-  _i4.Future<String?> getIdToken([bool? forceRefresh]) =>
-      (super.noSuchMethod(
+  _i4.Future<String?> getIdToken([bool? forceRefresh]) => (super.noSuchMethod(
         Invocation.method(#getIdToken, [forceRefresh]),
         returnValue: _i4.Future<String?>.value('mock-id-token'),
       ) as _i4.Future<String?>);

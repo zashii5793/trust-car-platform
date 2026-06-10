@@ -12,7 +12,8 @@ class PartRecommendationService {
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Get recommended parts for a vehicle
-  Future<Result<List<PartRecommendation>, AppError>> getRecommendationsForVehicle(
+  Future<Result<List<PartRecommendation>, AppError>>
+      getRecommendationsForVehicle(
     Vehicle vehicle, {
     PartCategory? category,
     int limit = 10,
@@ -30,7 +31,7 @@ class PartRecommendationService {
       query = query
           .orderBy('isFeatured', descending: true)
           .orderBy('rating', descending: true)
-          .limit(limit * 2);  // Get more to filter by compatibility
+          .limit(limit * 2); // Get more to filter by compatibility
 
       final snapshot = await query.get();
 
@@ -53,7 +54,8 @@ class PartRecommendationService {
         }
 
         // Calculate relevance score
-        final relevance = _calculateRelevanceScore(part, vehicle, compatibility);
+        final relevance =
+            _calculateRelevanceScore(part, vehicle, compatibility);
 
         recommendations.add(PartRecommendation(
           part: part,
@@ -94,9 +96,8 @@ class PartRecommendationService {
 
       final snapshot = await query.get();
 
-      final parts = snapshot.docs
-          .map((doc) => PartListing.fromFirestore(doc))
-          .toList();
+      final parts =
+          snapshot.docs.map((doc) => PartListing.fromFirestore(doc)).toList();
 
       return Result.success(parts);
     } catch (e) {
@@ -124,9 +125,8 @@ class PartRecommendationService {
 
       final snapshot = await query.get();
 
-      final parts = snapshot.docs
-          .map((doc) => PartListing.fromFirestore(doc))
-          .toList();
+      final parts =
+          snapshot.docs.map((doc) => PartListing.fromFirestore(doc)).toList();
 
       return Result.success(parts);
     } catch (e) {
@@ -147,9 +147,8 @@ class PartRecommendationService {
           .limit(limit)
           .get();
 
-      final parts = snapshot.docs
-          .map((doc) => PartListing.fromFirestore(doc))
-          .toList();
+      final parts =
+          snapshot.docs.map((doc) => PartListing.fromFirestore(doc)).toList();
 
       return Result.success(parts);
     } catch (e) {
@@ -160,10 +159,8 @@ class PartRecommendationService {
   /// Get part detail
   Future<Result<PartListing, AppError>> getPartDetail(String partId) async {
     try {
-      final doc = await _firestore
-          .collection('part_listings')
-          .doc(partId)
-          .get();
+      final doc =
+          await _firestore.collection('part_listings').doc(partId).get();
 
       if (!doc.exists) {
         return Result.failure(AppError.notFound('パーツが見つかりません'));
@@ -190,7 +187,8 @@ class PartRecommendationService {
       case PartCategory.wheel:
         prosAndCons.add(const PartProCon(text: '足元の印象を大きく変えられる', isPro: true));
         prosAndCons.add(const PartProCon(text: '軽量化で燃費向上の可能性', isPro: true));
-        prosAndCons.add(const PartProCon(text: 'タイヤサイズ変更が必要な場合あり', isPro: false));
+        prosAndCons
+            .add(const PartProCon(text: 'タイヤサイズ変更が必要な場合あり', isPro: false));
         break;
 
       case PartCategory.suspension:
@@ -207,7 +205,8 @@ class PartRecommendationService {
 
       case PartCategory.audio:
         prosAndCons.add(const PartProCon(text: '音質の大幅向上', isPro: true));
-        prosAndCons.add(const PartProCon(text: 'Bluetooth等の最新機能追加', isPro: true));
+        prosAndCons
+            .add(const PartProCon(text: 'Bluetooth等の最新機能追加', isPro: true));
         prosAndCons.add(const PartProCon(text: '取付工賃が別途必要', isPro: false));
         break;
 
@@ -255,7 +254,8 @@ class PartRecommendationService {
   // Helper: Generate model ID
   String _getModelId(String makerName, String modelName) {
     final makerId = _getMakerId(makerName);
-    final modelId = modelName.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_');
+    final modelId =
+        modelName.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_');
     return '${makerId}_$modelId';
   }
 
@@ -285,7 +285,7 @@ class PartRecommendationService {
 
     // Rating boost
     if (part.rating != null) {
-      score += (part.rating! - 3) * 0.05;  // 3 is neutral
+      score += (part.rating! - 3) * 0.05; // 3 is neutral
     }
 
     // Featured boost

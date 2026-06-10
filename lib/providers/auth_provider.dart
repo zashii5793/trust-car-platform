@@ -20,7 +20,8 @@ class AuthProvider with ChangeNotifier {
   AppError? _error;
   StreamSubscription<User?>? _authSubscription;
 
-  AuthProvider({required AuthService authService, AnalyticsService? analyticsService})
+  AuthProvider(
+      {required AuthService authService, AnalyticsService? analyticsService})
       : _authService = authService,
         _analytics = analyticsService {
     _init();
@@ -58,7 +59,8 @@ class AuthProvider with ChangeNotifier {
           success: (profile) => _appUser = profile,
           failure: (error) {
             assert(() {
-              debugPrint('AuthProvider: getUserProfile failed: ${error.message}');
+              debugPrint(
+                  'AuthProvider: getUserProfile failed: ${error.message}');
               return true;
             }());
             _appUser = null;

@@ -354,7 +354,8 @@ class ShopProvider with ChangeNotifier {
     _isLoadingShopInquiries = true;
     notifyListeners();
 
-    final result = await _inquiryService.getShopInquiries(shopId, status: status);
+    final result =
+        await _inquiryService.getShopInquiries(shopId, status: status);
 
     result.when(
       success: (inquiries) {

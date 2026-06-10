@@ -17,8 +17,7 @@ class ShopRegistrationScreen extends StatefulWidget {
   const ShopRegistrationScreen({super.key, this.existingShop});
 
   @override
-  State<ShopRegistrationScreen> createState() =>
-      _ShopRegistrationScreenState();
+  State<ShopRegistrationScreen> createState() => _ShopRegistrationScreenState();
 }
 
 class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
@@ -321,7 +320,8 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
                     '問い合わせ受付',
                   ],
                   selected: _selectedPlan == ShopPlanType.free,
-                  onTap: () => setState(() => _selectedPlan = ShopPlanType.free),
+                  onTap: () =>
+                      setState(() => _selectedPlan = ShopPlanType.free),
                 ),
                 AppSpacing.verticalSm,
                 _PlanCard(
@@ -515,9 +515,8 @@ class _PlanCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AppCard(
-        backgroundColor: selected
-            ? AppColors.primary.withValues(alpha: 0.06)
-            : null,
+        backgroundColor:
+            selected ? AppColors.primary.withValues(alpha: 0.06) : null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -537,7 +536,8 @@ class _PlanCard extends StatelessWidget {
                   price,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: selected ? AppColors.primary : AppColors.textSecondary,
+                    color:
+                        selected ? AppColors.primary : AppColors.textSecondary,
                   ),
                 ),
                 AppSpacing.horizontalSm,
@@ -545,8 +545,7 @@ class _PlanCard extends StatelessWidget {
                   selected
                       ? Icons.radio_button_checked
                       : Icons.radio_button_off,
-                  color:
-                      selected ? AppColors.primary : AppColors.textTertiary,
+                  color: selected ? AppColors.primary : AppColors.textTertiary,
                 ),
               ],
             ),
@@ -589,7 +588,10 @@ class _PlanCard extends StatelessWidget {
   Widget get _planIcon {
     final (icon, color) = switch (plan) {
       ShopPlanType.free => (Icons.store_outlined, AppColors.textTertiary),
-      ShopPlanType.standard => (Icons.workspace_premium_outlined, AppColors.info),
+      ShopPlanType.standard => (
+          Icons.workspace_premium_outlined,
+          AppColors.info
+        ),
       ShopPlanType.premium => (Icons.diamond_outlined, AppColors.accentCustom),
       ShopPlanType.enterprise => (Icons.corporate_fare, AppColors.primary),
     };

@@ -33,7 +33,8 @@ void main() {
         expect(
           report.accuracy,
           greaterThanOrEqualTo(fixture.minimumAccuracy),
-          reason: '${fixture.name}: accuracy ${(report.accuracy * 100).toStringAsFixed(1)}% '
+          reason:
+              '${fixture.name}: accuracy ${(report.accuracy * 100).toStringAsFixed(1)}% '
               '< minimum ${(fixture.minimumAccuracy * 100).toStringAsFixed(0)}%',
         );
       });
@@ -51,7 +52,8 @@ void main() {
         expect(
           report.accuracy,
           greaterThanOrEqualTo(fixture.minimumAccuracy),
-          reason: '${fixture.name}: accuracy ${(report.accuracy * 100).toStringAsFixed(1)}% '
+          reason:
+              '${fixture.name}: accuracy ${(report.accuracy * 100).toStringAsFixed(1)}% '
               '< minimum ${(fixture.minimumAccuracy * 100).toStringAsFixed(0)}%',
         );
       });
@@ -68,7 +70,8 @@ void main() {
       // BNR35 (5 chars) causes extraction to return a partial match.
       // This documents the known limitation — not a pass/fail regression.
       // See REAL_DATA_VALIDATION_CHECKLIST.md § Known Limitations.
-      printOnFailure('VIN extracted: ${result.vinNumber} (expected BNR35-123456)');
+      printOnFailure(
+          'VIN extracted: ${result.vinNumber} (expected BNR35-123456)');
       // We do NOT assert equality here — just document the behaviour.
     });
 
@@ -80,8 +83,7 @@ void main() {
       final result = vcService.parseRawTextForTest(
         '自動車検査証\n品川 300 あ 1234\n（所有者情報はICタグに格納）',
       );
-      expect(result.ownerName, isNull,
-          reason: '新様式ICカードではOCRで所有者名は取得できない（仕様）');
+      expect(result.ownerName, isNull, reason: '新様式ICカードではOCRで所有者名は取得できない（仕様）');
     });
   });
 }
@@ -114,7 +116,8 @@ class _AccuracyReport {
   _AccuracyReport(this.results);
 
   int get totalFields => results.where((r) => r.expected != null).length;
-  int get passedFields => results.where((r) => r.expected != null && r.passed).length;
+  int get passedFields =>
+      results.where((r) => r.expected != null && r.passed).length;
   double get accuracy => totalFields == 0 ? 1.0 : passedFields / totalFields;
 }
 
@@ -123,15 +126,18 @@ _AccuracyReport _evaluateVehicleCertificate(
   ExpectedVehicleCertificate expected,
 ) {
   return _AccuracyReport([
-    _FieldResult('registrationNumber', expected.registrationNumber, actual.registrationNumber),
+    _FieldResult('registrationNumber', expected.registrationNumber,
+        actual.registrationNumber),
     _FieldResult('vinNumber', expected.vinNumber, actual.vinNumber),
     _FieldResult('modelCode', expected.modelCode, actual.modelCode),
     _FieldResult('maker', expected.maker, actual.maker),
     _FieldResult('model', expected.model, actual.model),
     _FieldResult('year', expected.year, actual.year),
-    _FieldResult('inspectionExpiryDate', expected.inspectionExpiryDate, actual.inspectionExpiryDate),
+    _FieldResult('inspectionExpiryDate', expected.inspectionExpiryDate,
+        actual.inspectionExpiryDate),
     _FieldResult('ownerName', expected.ownerName, actual.ownerName),
-    _FieldResult('engineDisplacement', expected.engineDisplacement, actual.engineDisplacement),
+    _FieldResult('engineDisplacement', expected.engineDisplacement,
+        actual.engineDisplacement),
     _FieldResult('fuelType', expected.fuelType, actual.fuelType),
     _FieldResult('color', expected.color, actual.color),
     _FieldResult('maxCapacity', expected.maxCapacity, actual.maxCapacity),
@@ -149,11 +155,13 @@ _AccuracyReport _evaluateInvoice(
     _FieldResult('date', expected.date, actual.date),
     _FieldResult('totalAmount', expected.totalAmount, actual.totalAmount),
     _FieldResult('taxAmount', expected.taxAmount, actual.taxAmount),
-    _FieldResult('subtotalAmount', expected.subtotalAmount, actual.subtotalAmount),
+    _FieldResult(
+        'subtotalAmount', expected.subtotalAmount, actual.subtotalAmount),
     _FieldResult('shopName', expected.shopName, actual.shopName),
     _FieldResult('shopPhone', expected.shopPhone, actual.shopPhone),
     _FieldResult('mileage', expected.mileage, actual.mileage),
-    _FieldResult('itemCount', expected.itemCount, actualItemCount > 0 ? actualItemCount : null),
+    _FieldResult('itemCount', expected.itemCount,
+        actualItemCount > 0 ? actualItemCount : null),
   ]);
 }
 

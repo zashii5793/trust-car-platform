@@ -200,8 +200,7 @@ class _FilterChipRow extends StatelessWidget {
                 checkmarkColor: primary,
                 labelStyle: TextStyle(
                   color: isSelected ? primary : theme.colorScheme.onSurface,
-                  fontWeight:
-                      isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   fontSize: 13,
                 ),
                 side: isSelected
@@ -346,10 +345,19 @@ class _StatusIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, color) = switch (status) {
-      InquiryStatus.pending => (Icons.mark_email_unread_outlined, AppColors.info),
+      InquiryStatus.pending => (
+          Icons.mark_email_unread_outlined,
+          AppColors.info
+        ),
       InquiryStatus.inProgress => (Icons.pending_outlined, AppColors.warning),
-      InquiryStatus.replied => (Icons.mark_email_read_outlined, AppColors.success),
-      InquiryStatus.closed => (Icons.check_circle_outline, AppColors.textTertiary),
+      InquiryStatus.replied => (
+          Icons.mark_email_read_outlined,
+          AppColors.success
+        ),
+      InquiryStatus.closed => (
+          Icons.check_circle_outline,
+          AppColors.textTertiary
+        ),
       InquiryStatus.cancelled => (Icons.cancel_outlined, AppColors.error),
     };
 
@@ -666,8 +674,8 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
                   AppSpacing.verticalMd,
                   // Real-time message thread
                   StreamBuilder<List<InquiryMessage>>(
-                    stream: widget.shopProvider
-                        .streamInquiryMessages(_inquiry.id),
+                    stream:
+                        widget.shopProvider.streamInquiryMessages(_inquiry.id),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(

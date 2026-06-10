@@ -56,7 +56,8 @@ class VehicleMasterService {
   }
 
   /// Get vehicle models for a specific maker
-  Future<Result<List<VehicleModel>, AppError>> getModelsForMaker(String makerId) async {
+  Future<Result<List<VehicleModel>, AppError>> getModelsForMaker(
+      String makerId) async {
     // Return cached data if available
     if (_modelsCache.containsKey(makerId)) {
       return Result.success(_modelsCache[makerId]!);
@@ -93,7 +94,8 @@ class VehicleMasterService {
   }
 
   /// Get vehicle grades for a specific model
-  Future<Result<List<VehicleGrade>, AppError>> getGradesForModel(String modelId) async {
+  Future<Result<List<VehicleGrade>, AppError>> getGradesForModel(
+      String modelId) async {
     // Return cached data if available
     if (_gradesCache.containsKey(modelId)) {
       return Result.success(_gradesCache[modelId]!);
@@ -136,10 +138,11 @@ class VehicleMasterService {
     }
 
     final lowerQuery = query.toLowerCase();
-    return _makersCache!.where((maker) =>
-      maker.name.toLowerCase().contains(lowerQuery) ||
-      maker.nameEn.toLowerCase().contains(lowerQuery)
-    ).toList();
+    return _makersCache!
+        .where((maker) =>
+            maker.name.toLowerCase().contains(lowerQuery) ||
+            maker.nameEn.toLowerCase().contains(lowerQuery))
+        .toList();
   }
 
   /// Search models by name (Japanese or English)
@@ -150,10 +153,11 @@ class VehicleMasterService {
     }
 
     final lowerQuery = query.toLowerCase();
-    return models.where((model) =>
-      model.name.toLowerCase().contains(lowerQuery) ||
-      (model.nameEn?.toLowerCase().contains(lowerQuery) ?? false)
-    ).toList();
+    return models
+        .where((model) =>
+            model.name.toLowerCase().contains(lowerQuery) ||
+            (model.nameEn?.toLowerCase().contains(lowerQuery) ?? false))
+        .toList();
   }
 
   /// Get models available in a specific year

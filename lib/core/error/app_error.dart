@@ -14,15 +14,21 @@ sealed class AppError implements Exception {
   const AppError();
 
   // ファクトリコンストラクタ
-  const factory AppError.network(String message, {String? userMessage}) = NetworkError;
+  const factory AppError.network(String message, {String? userMessage}) =
+      NetworkError;
   const factory AppError.auth(String message, {AuthErrorType type}) = AuthError;
-  const factory AppError.validation(String message, {String? field}) = ValidationError;
-  const factory AppError.notFound(String message, {String? resourceType}) = NotFoundError;
+  const factory AppError.validation(String message, {String? field}) =
+      ValidationError;
+  const factory AppError.notFound(String message, {String? resourceType}) =
+      NotFoundError;
   const factory AppError.permission(String message) = PermissionError;
-  const factory AppError.server(String message, {int? statusCode}) = ServerError;
+  const factory AppError.server(String message, {int? statusCode}) =
+      ServerError;
   const factory AppError.cache(String message) = CacheError;
-  const factory AppError.planLimit(String message, {String? planName}) = PlanLimitError;
-  const factory AppError.unknown(String message, {Object? originalError}) = UnknownError;
+  const factory AppError.planLimit(String message, {String? planName}) =
+      PlanLimitError;
+  const factory AppError.unknown(String message, {Object? originalError}) =
+      UnknownError;
 }
 
 /// ネットワークエラー
@@ -32,7 +38,8 @@ final class NetworkError extends AppError {
 
   final String? _userMessage;
 
-  const NetworkError(this.message, {String? userMessage}) : _userMessage = userMessage;
+  const NetworkError(this.message, {String? userMessage})
+      : _userMessage = userMessage;
 
   @override
   String get userMessage => _userMessage ?? 'ネットワーク接続を確認してください';
@@ -55,14 +62,14 @@ final class AuthError extends AppError {
 
   @override
   String get userMessage => switch (type) {
-    AuthErrorType.invalidCredentials => 'メールアドレスまたはパスワードが正しくありません',
-    AuthErrorType.userNotFound => 'メールアドレスまたはパスワードが正しくありません',
-    AuthErrorType.emailAlreadyInUse => 'このメールアドレスはすでに登録されています',
-    AuthErrorType.weakPassword => 'パスワードは8文字以上で設定してください',
-    AuthErrorType.sessionExpired => 'セッションが期限切れです。再度ログインしてください',
-    AuthErrorType.tooManyRequests => 'ログイン試行が多すぎます。しばらく待ってからお試しください',
-    AuthErrorType.unknown => 'ログインに失敗しました。再度お試しください',
-  };
+        AuthErrorType.invalidCredentials => 'メールアドレスまたはパスワードが正しくありません',
+        AuthErrorType.userNotFound => 'メールアドレスまたはパスワードが正しくありません',
+        AuthErrorType.emailAlreadyInUse => 'このメールアドレスはすでに登録されています',
+        AuthErrorType.weakPassword => 'パスワードは8文字以上で設定してください',
+        AuthErrorType.sessionExpired => 'セッションが期限切れです。再度ログインしてください',
+        AuthErrorType.tooManyRequests => 'ログイン試行が多すぎます。しばらく待ってからお試しください',
+        AuthErrorType.unknown => 'ログインに失敗しました。再度お試しください',
+      };
 
   @override
   bool get isRetryable => type == AuthErrorType.tooManyRequests;
@@ -92,13 +99,15 @@ final class ValidationError extends AppError {
   const ValidationError(this.message, {this.field});
 
   @override
-  String get userMessage => field != null ? '$fieldの入力内容を確認してください' : '入力内容を確認してください';
+  String get userMessage =>
+      field != null ? '$fieldの入力内容を確認してください' : '入力内容を確認してください';
 
   @override
   bool get isRetryable => false;
 
   @override
-  String toString() => 'ValidationError${field != null ? '($field)' : ''}: $message';
+  String toString() =>
+      'ValidationError${field != null ? '($field)' : ''}: $message';
 }
 
 /// リソース未発見エラー
@@ -111,13 +120,15 @@ final class NotFoundError extends AppError {
   const NotFoundError(this.message, {this.resourceType});
 
   @override
-  String get userMessage => resourceType != null ? '$resourceTypeが見つかりません' : 'データが見つかりません';
+  String get userMessage =>
+      resourceType != null ? '$resourceTypeが見つかりません' : 'データが見つかりません';
 
   @override
   bool get isRetryable => false;
 
   @override
-  String toString() => 'NotFoundError${resourceType != null ? '($resourceType)' : ''}: $message';
+  String toString() =>
+      'NotFoundError${resourceType != null ? '($resourceType)' : ''}: $message';
 }
 
 /// 権限エラー
@@ -153,7 +164,8 @@ final class ServerError extends AppError {
   bool get isRetryable => true;
 
   @override
-  String toString() => 'ServerError${statusCode != null ? '($statusCode)' : ''}: $message';
+  String toString() =>
+      'ServerError${statusCode != null ? '($statusCode)' : ''}: $message';
 }
 
 /// キャッシュエラー
@@ -191,7 +203,8 @@ final class PlanLimitError extends AppError {
   bool get isRetryable => false;
 
   @override
-  String toString() => 'PlanLimitError${planName != null ? '($planName)' : ''}: $message';
+  String toString() =>
+      'PlanLimitError${planName != null ? '($planName)' : ''}: $message';
 }
 
 /// 不明なエラー
@@ -210,7 +223,8 @@ final class UnknownError extends AppError {
   bool get isRetryable => false;
 
   @override
-  String toString() => 'UnknownError: $message${originalError != null ? ' (original: $originalError)' : ''}';
+  String toString() =>
+      'UnknownError: $message${originalError != null ? ' (original: $originalError)' : ''}';
 }
 
 /// Firebaseエラーを AppError に変換するヘルパー
@@ -231,19 +245,25 @@ AppError _mapFirebaseErrorInternal(dynamic error) {
 
   // Firebase Auth エラー
   if (errorString.contains('user-not-found')) {
-    return const AppError.auth('User not found', type: AuthErrorType.userNotFound);
+    return const AppError.auth('User not found',
+        type: AuthErrorType.userNotFound);
   }
-  if (errorString.contains('wrong-password') || errorString.contains('invalid-credential')) {
-    return const AppError.auth('Invalid credentials', type: AuthErrorType.invalidCredentials);
+  if (errorString.contains('wrong-password') ||
+      errorString.contains('invalid-credential')) {
+    return const AppError.auth('Invalid credentials',
+        type: AuthErrorType.invalidCredentials);
   }
   if (errorString.contains('email-already-in-use')) {
-    return const AppError.auth('Email already in use', type: AuthErrorType.emailAlreadyInUse);
+    return const AppError.auth('Email already in use',
+        type: AuthErrorType.emailAlreadyInUse);
   }
   if (errorString.contains('weak-password')) {
-    return const AppError.auth('Weak password', type: AuthErrorType.weakPassword);
+    return const AppError.auth('Weak password',
+        type: AuthErrorType.weakPassword);
   }
   if (errorString.contains('too-many-requests')) {
-    return const AppError.auth('Too many requests', type: AuthErrorType.tooManyRequests);
+    return const AppError.auth('Too many requests',
+        type: AuthErrorType.tooManyRequests);
   }
 
   // Firebase Firestore エラー
@@ -269,7 +289,8 @@ AppError _mapFirebaseErrorInternal(dynamic error) {
 ///
 /// This is set by injection.dart to enable automatic error logging
 /// without creating circular dependencies.
-typedef AppErrorLogger = void Function(AppError appError, {String? tag, StackTrace? stackTrace});
+typedef AppErrorLogger = void Function(AppError appError,
+    {String? tag, StackTrace? stackTrace});
 AppErrorLogger? _appErrorLogger;
 
 /// Set the error logger callback (called from injection.dart)

@@ -29,7 +29,8 @@ Future<void> _seedShop(
   await fakeFs.collection('shops').doc(shopId).set({
     'planType': planType.name,
     'subscriptionStatus': subscriptionStatus.name,
-    'planExpiresAt': planExpiresAt != null ? Timestamp.fromDate(planExpiresAt) : null,
+    'planExpiresAt':
+        planExpiresAt != null ? Timestamp.fromDate(planExpiresAt) : null,
     'ownerId': 'owner1',
     'isActive': true,
     'name': 'Test Shop',
@@ -143,7 +144,8 @@ void main() {
       expect(result.valueOrNull, isFalse);
     });
 
-    test('standard plan with 100 inquiries -> can receive (unlimited)', () async {
+    test('standard plan with 100 inquiries -> can receive (unlimited)',
+        () async {
       await _seedShop(fakeFs, 'shop1', planType: ShopPlanType.standard);
       for (var i = 0; i < 100; i++) {
         await _seedInquiry(fakeFs, 'shop1');

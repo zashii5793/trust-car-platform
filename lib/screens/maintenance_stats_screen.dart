@@ -40,13 +40,15 @@ class MaintenanceStatsScreen extends StatelessWidget {
                 AppSpacing.verticalLg,
 
                 // 年間コスト推移
-                const _SectionHeader(label: '年間コスト', icon: Icons.calendar_today),
+                const _SectionHeader(
+                    label: '年間コスト', icon: Icons.calendar_today),
                 AppSpacing.verticalSm,
                 _YearlyCostSection(stats: stats),
                 AppSpacing.verticalLg,
 
                 // 月別コスト推移（直近12ヶ月）
-                const _SectionHeader(label: '月別コスト推移（直近12ヶ月）', icon: Icons.bar_chart),
+                const _SectionHeader(
+                    label: '月別コスト推移（直近12ヶ月）', icon: Icons.bar_chart),
                 AppSpacing.verticalSm,
                 _MonthlyCostChart(records: records),
                 AppSpacing.verticalLg,
@@ -121,9 +123,11 @@ class _MaintenanceStats {
     for (final record in records) {
       costByType[record.type] = (costByType[record.type] ?? 0) + record.cost;
       countByType[record.type] = (countByType[record.type] ?? 0) + 1;
-      costByYear[record.date.year] = (costByYear[record.date.year] ?? 0) + record.cost;
+      costByYear[record.date.year] =
+          (costByYear[record.date.year] ?? 0) + record.cost;
       if (record.shopName != null && record.shopName!.isNotEmpty) {
-        shopCosts[record.shopName!] = (shopCosts[record.shopName!] ?? 0) + record.cost;
+        shopCosts[record.shopName!] =
+            (shopCosts[record.shopName!] ?? 0) + record.cost;
       }
     }
 
@@ -277,7 +281,8 @@ class _YearlyCostSection extends StatelessWidget {
                   Expanded(
                     child: _HorizontalBar(
                       value: stats.costByYear[year]!,
-                      maxValue: stats.costByYear.values.reduce((a, b) => a > b ? a : b),
+                      maxValue: stats.costByYear.values
+                          .reduce((a, b) => a > b ? a : b),
                       color: AppColors.primary,
                     ),
                   ),

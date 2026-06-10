@@ -116,8 +116,7 @@ class _StubAuthService implements AuthService {
       const Result.success(null);
 
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
@@ -357,7 +356,8 @@ void main() {
   });
 
   group('ShopRegistrationScreen — ServiceCategory chips', () {
-    testWidgets('17. all 12 ServiceCategory chips are rendered', (tester) async {
+    testWidgets('17. all 12 ServiceCategory chips are rendered',
+        (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -731,7 +731,8 @@ void main() {
       expect(find.text('Premium'), findsOneWidget);
     });
 
-    testWidgets('edit mode uses existingShop id for saved shop', (tester) async {
+    testWidgets('edit mode uses existingShop id for saved shop',
+        (tester) async {
       final shop = _makeExistingShop(id: 'existing-shop-id', name: '既存工場');
       final provider = _FakeShopProvider(saveShouldSucceed: true);
       await tester.pumpWidget(

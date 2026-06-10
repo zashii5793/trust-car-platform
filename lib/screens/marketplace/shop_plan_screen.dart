@@ -264,9 +264,9 @@ class _PlanCard extends StatelessWidget {
 
   String _formatPrice(int price) {
     return price.toString().replaceAllMapped(
-      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]},',
-    );
+          RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+          (m) => '${m[1]},',
+        );
   }
 }
 
@@ -335,7 +335,8 @@ class _PlanButtonState extends State<_PlanButton> {
       return;
     }
 
-    if (widget.planType == ShopPlanType.free && widget.currentPlan != ShopPlanType.free) {
+    if (widget.planType == ShopPlanType.free &&
+        widget.currentPlan != ShopPlanType.free) {
       await _confirmDowngrade();
       return;
     }
@@ -381,7 +382,8 @@ class _PlanButtonState extends State<_PlanButton> {
     final userId = authProvider.firebaseUser?.uid ?? '';
 
     final rcService = ServiceLocator.instance.get<RevenueCatService>();
-    final result = await rcService.purchasePlan(widget.planType, userId: userId);
+    final result =
+        await rcService.purchasePlan(widget.planType, userId: userId);
 
     if (!mounted) return;
     setState(() => _isLoading = false);

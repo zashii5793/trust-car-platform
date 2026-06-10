@@ -157,9 +157,8 @@ class DriveRecordingProvider with ChangeNotifier {
 
     final endLocation = await _resolveCurrentPosition();
 
-    final avgSpeed = _elapsedSeconds > 0
-        ? _distanceKm / (_elapsedSeconds / 3600)
-        : 0.0;
+    final avgSpeed =
+        _elapsedSeconds > 0 ? _distanceKm / (_elapsedSeconds / 3600) : 0.0;
 
     final stats = DriveStatistics(
       totalDistance: _distanceKm,
@@ -182,7 +181,9 @@ class DriveRecordingProvider with ChangeNotifier {
       success: (log) {
         _analytics?.trackDriveLogged(log.statistics.totalDistance);
       },
-      failure: (err) { _error = err; },
+      failure: (err) {
+        _error = err;
+      },
     );
 
     notifyListeners();
@@ -290,7 +291,8 @@ class DriveRecordingProvider with ChangeNotifier {
   Future<GeoPoint2D?> _resolveCurrentPosition() async {
     try {
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.high),
       );
       return GeoPoint2D(latitude: pos.latitude, longitude: pos.longitude);
     } catch (_) {

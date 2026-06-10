@@ -184,8 +184,7 @@ class _NewsletterComposeScreenState extends State<NewsletterComposeScreen> {
                   selectedColor: AppColors.primary.withValues(alpha: 0.15),
                   labelStyle: TextStyle(
                     color: selected ? AppColors.primary : null,
-                    fontWeight:
-                        selected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                   ),
                 );
               }).toList(),

@@ -32,8 +32,7 @@ class NotificationListScreen extends StatelessWidget {
           );
         }
 
-        final hasUnread =
-            provider.notifications.any((n) => !n.isRead);
+        final hasUnread = provider.notifications.any((n) => !n.isRead);
 
         return Column(
           children: [
@@ -500,133 +499,133 @@ class _NotificationCard extends StatelessWidget {
           ),
           child: IntrinsicHeight(
             child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 優先度アクセントバー
-              Container(
-                width: 4,
-                constraints: const BoxConstraints(minHeight: 80),
-                decoration: BoxDecoration(
-                  color: notification.isRead
-                      ? Colors.transparent
-                      : priorityColor,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(AppSpacing.radiusMd),
-                    bottomLeft: Radius.circular(AppSpacing.radiusMd),
-                  ),
-                ),
-              ),
-              // アイコン
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.sm, AppSpacing.md, 0, AppSpacing.md),
-                child: Container(
-                  width: 44,
-                  height: 44,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 優先度アクセントバー
+                Container(
+                  width: 4,
+                  constraints: const BoxConstraints(minHeight: 80),
                   decoration: BoxDecoration(
-                    color: typeColor.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
+                    color: notification.isRead
+                        ? Colors.transparent
+                        : priorityColor,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(AppSpacing.radiusMd),
+                      bottomLeft: Radius.circular(AppSpacing.radiusMd),
+                    ),
                   ),
-                  child: Icon(_getTypeIcon(notification.type),
-                      color: typeColor, size: 22),
                 ),
-              ),
-              // コンテンツ
-              Expanded(
-                child: Padding(
+                // アイコン
+                Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.sm, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // タイプバッジ + 時間
-                      Row(
-                        children: [
-                          _TypeBadge(
-                              label: notification.typeDisplayName,
-                              color: typeColor),
-                          const Spacer(),
-                          Text(
-                            _timeAgo(notification.createdAt),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: isDark
-                                  ? AppColors.darkTextTertiary
-                                  : AppColors.textTertiary,
-                              fontSize: 11,
-                            ),
-                          ),
-                          // 未読ドット
-                          if (!notification.isRead) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              width: 7,
-                              height: 7,
-                              decoration: BoxDecoration(
-                                color: priorityColor,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      // タイトル
-                      Text(
-                        notification.title,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontWeight: notification.isRead
-                              ? FontWeight.w500
-                              : FontWeight.bold,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      // メッセージ
-                      Text(
-                        notification.message,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.textSecondary,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      // 推奨日（ある場合）
-                      if (notification.actionDate != null) ...[
-                        const SizedBox(height: 4),
+                      AppSpacing.sm, AppSpacing.md, 0, AppSpacing.md),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: typeColor.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(_getTypeIcon(notification.type),
+                        color: typeColor, size: 22),
+                  ),
+                ),
+                // コンテンツ
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.sm,
+                        AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // タイプバッジ + 時間
                         Row(
                           children: [
-                            Icon(Icons.event,
-                                size: 12,
-                                color: isDark
-                                    ? AppColors.darkTextTertiary
-                                    : AppColors.textTertiary),
-                            const SizedBox(width: 3),
+                            _TypeBadge(
+                                label: notification.typeDisplayName,
+                                color: typeColor),
+                            const Spacer(),
                             Text(
-                              '推奨日: ${DateFormat('yyyy/MM/dd').format(notification.actionDate!)}',
+                              _timeAgo(notification.createdAt),
                               style: theme.textTheme.bodySmall?.copyWith(
-                                fontSize: 11,
                                 color: isDark
                                     ? AppColors.darkTextTertiary
                                     : AppColors.textTertiary,
+                                fontSize: 11,
                               ),
                             ),
+                            // 未読ドット
+                            if (!notification.isRead) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: priorityColor,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
+                        const SizedBox(height: 4),
+                        // タイトル
+                        Text(
+                          notification.title,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: notification.isRead
+                                ? FontWeight.w500
+                                : FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        // メッセージ
+                        Text(
+                          notification.message,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        // 推奨日（ある場合）
+                        if (notification.actionDate != null) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.event,
+                                  size: 12,
+                                  color: isDark
+                                      ? AppColors.darkTextTertiary
+                                      : AppColors.textTertiary),
+                              const SizedBox(width: 3),
+                              Text(
+                                '推奨日: ${DateFormat('yyyy/MM/dd').format(notification.actionDate!)}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontSize: 11,
+                                  color: isDark
+                                      ? AppColors.darkTextTertiary
+                                      : AppColors.textTertiary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: AppSpacing.xs),
+                        // 優先度バッジ（高・中のみ表示）
+                        if (notification.priority != NotificationPriority.low)
+                          _PriorityBadge(priority: notification.priority),
                       ],
-                      const SizedBox(height: AppSpacing.xs),
-                      // 優先度バッジ（高・中のみ表示）
-                      if (notification.priority != NotificationPriority.low)
-                        _PriorityBadge(priority: notification.priority),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.xs),
-            ],
-          ),
+                const SizedBox(width: AppSpacing.xs),
+              ],
+            ),
           ),
         ),
       ),

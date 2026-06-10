@@ -41,8 +41,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
       _errorMessage = null;
     });
 
-    final uid =
-        context.read<AuthProvider>().firebaseUser?.uid ?? '';
+    final uid = context.read<AuthProvider>().firebaseUser?.uid ?? '';
     final result = await _service.getMyListings(uid);
 
     if (!mounted) return;
@@ -84,7 +83,9 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
           }
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('「${listing.title}」を${newStatus.displayName}にしました')),
+          SnackBar(
+              content:
+                  Text('「${listing.title}」を${newStatus.displayName}にしました')),
         );
       },
       failure: (error) {
@@ -403,9 +404,9 @@ class _StatusBadge extends StatelessWidget {
       child: Text(
         status.displayName,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: _textColor(),
-          fontWeight: FontWeight.bold,
-        ),
+              color: _textColor(),
+              fontWeight: FontWeight.bold,
+            ),
       ),
     );
   }
@@ -442,12 +443,14 @@ class _ListingActionSheet extends StatelessWidget {
           const Divider(height: 1),
           if (isActive) ...[
             ListTile(
-              leading: const Icon(Icons.check_circle_outline, color: AppColors.warning),
+              leading: const Icon(Icons.check_circle_outline,
+                  color: AppColors.warning),
               title: const Text('売り切れにする'),
               onTap: () => Navigator.pop(context, _ListingAction.soldOut),
             ),
             ListTile(
-              leading: const Icon(Icons.remove_circle_outline, color: AppColors.error),
+              leading: const Icon(Icons.remove_circle_outline,
+                  color: AppColors.error),
               title: const Text('取り下げる'),
               onTap: () => Navigator.pop(context, _ListingAction.cancel),
             ),
@@ -467,4 +470,3 @@ class _ListingActionSheet extends StatelessWidget {
     );
   }
 }
-

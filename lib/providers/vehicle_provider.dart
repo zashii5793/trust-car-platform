@@ -13,7 +13,9 @@ class VehicleProvider with ChangeNotifier {
   final FirebaseService _firebaseService;
   final AnalyticsService? _analytics;
 
-  VehicleProvider({required FirebaseService firebaseService, AnalyticsService? analyticsService})
+  VehicleProvider(
+      {required FirebaseService firebaseService,
+      AnalyticsService? analyticsService})
       : _firebaseService = firebaseService,
         _analytics = analyticsService;
 
@@ -63,7 +65,8 @@ class VehicleProvider with ChangeNotifier {
   void _scheduleRetry(VoidCallback action) {
     if (_retryCount >= _maxRetries) return;
     _retryTimer?.cancel();
-    final delay = Duration(seconds: RetryConfig.baseDelaySeconds << _retryCount); // 2s, 4s, 8s
+    final delay = Duration(
+        seconds: RetryConfig.baseDelaySeconds << _retryCount); // 2s, 4s, 8s
     _retryCount++;
     _retryTimer = Timer(delay, action);
   }
@@ -178,7 +181,8 @@ class VehicleProvider with ChangeNotifier {
   }
 
   /// ナンバープレートの重複チェック
-  Future<bool> isLicensePlateExists(String licensePlate, {String? excludeVehicleId}) async {
+  Future<bool> isLicensePlateExists(String licensePlate,
+      {String? excludeVehicleId}) async {
     final result = await _firebaseService.isLicensePlateExists(
       licensePlate,
       excludeVehicleId: excludeVehicleId,

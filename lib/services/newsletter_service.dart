@@ -36,8 +36,7 @@ class NewsletterService {
   }
 
   /// Updates an existing draft newsletter.
-  Future<Result<void, AppError>> updateNewsletter(
-      Newsletter newsletter) async {
+  Future<Result<void, AppError>> updateNewsletter(Newsletter newsletter) async {
     try {
       if (newsletter.status == NewsletterStatus.sent) {
         return const Result.failure(
@@ -120,8 +119,7 @@ class NewsletterService {
   Future<Result<NewsletterSubscription?, AppError>> getSubscription(
       String userId) async {
     try {
-      final doc =
-          await _db.collection(_subscriptions).doc(userId).get();
+      final doc = await _db.collection(_subscriptions).doc(userId).get();
       if (!doc.exists) {
         return const Result.success(null);
       }

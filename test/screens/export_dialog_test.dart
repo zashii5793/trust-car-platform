@@ -168,8 +168,8 @@ void main() {
     testWidgets('4. shows PDFを生成中 while loading', (tester) async {
       await tester.binding.setSurfaceSize(const Size(400, 1600));
       addTearDown(() async => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-          _buildLauncher(vehicle: _makeVehicle(), records: []));
+      await tester
+          .pumpWidget(_buildLauncher(vehicle: _makeVehicle(), records: []));
       await tester.tap(find.text('OPEN'));
       await tester.pump(); // single tick — still loading
 
@@ -178,8 +178,7 @@ void main() {
   });
 
   group('ExportDialog — Actions', () {
-    testWidgets('5. shows プレビュー / 印刷 option after generation',
-        (tester) async {
+    testWidgets('5. shows プレビュー / 印刷 option after generation', (tester) async {
       await _openDialog(tester);
 
       expect(find.text('プレビュー / 印刷'), findsOneWidget);

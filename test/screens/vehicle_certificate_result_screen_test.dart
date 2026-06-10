@@ -106,7 +106,9 @@ void main() {
       // warningまたはinfoアイコンを探す
       final warningIcon = find.byIcon(Icons.warning);
       final infoIcon = find.byIcon(Icons.info);
-      expect(warningIcon.evaluate().isNotEmpty || infoIcon.evaluate().isNotEmpty, true);
+      expect(
+          warningIcon.evaluate().isNotEmpty || infoIcon.evaluate().isNotEmpty,
+          true);
     });
 
     testWidgets('セクションヘッダーが表示される', (tester) async {

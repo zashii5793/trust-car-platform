@@ -166,7 +166,8 @@ class PartListingService {
       // Upload images to Firebase Storage
       List<String> imageUrls = [];
       if (input.images.isNotEmpty) {
-        final basePath = 'user_part_listings/$uid/${DateTime.now().millisecondsSinceEpoch}';
+        final basePath =
+            'user_part_listings/$uid/${DateTime.now().millisecondsSinceEpoch}';
         final uploadResult =
             await _firebaseService.uploadImages(input.images, basePath);
         if (uploadResult.isFailure) {

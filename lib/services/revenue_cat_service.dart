@@ -109,7 +109,8 @@ class RevenueCatService {
       await _initializeExecutor(userId);
       return const Result.success(null);
     } catch (e) {
-      return Result.failure(AppError.server('RevenueCat initialization failed: $e'));
+      return Result.failure(
+          AppError.server('RevenueCat initialization failed: $e'));
     }
   }
 
@@ -181,7 +182,8 @@ class RevenueCatService {
       final entitlements = await _entitlementExecutor(userId);
       return Result.success(entitlements);
     } catch (e) {
-      return Result.failure(AppError.server('Failed to fetch entitlements: $e'));
+      return Result.failure(
+          AppError.server('Failed to fetch entitlements: $e'));
     }
   }
 
@@ -202,7 +204,8 @@ class RevenueCatService {
     final packages = offerings.current?.availablePackages ?? [];
     final package = packages.firstWhere(
       (p) => p.storeProduct.identifier == productId,
-      orElse: () => throw Exception('Product $productId not found in offerings'),
+      orElse: () =>
+          throw Exception('Product $productId not found in offerings'),
     );
     // purchasePackage throws PurchasesError on cancellation or failure.
     await Purchases.purchasePackage(package);

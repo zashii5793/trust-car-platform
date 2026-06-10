@@ -80,11 +80,13 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       if (record.mileageAtService != null) {
         _mileageController.text = record.mileageAtService.toString();
       }
-      if (record.partNumber != null) _partNumberController.text = record.partNumber!;
+      if (record.partNumber != null)
+        _partNumberController.text = record.partNumber!;
       if (record.partManufacturer != null) {
         _partManufacturerController.text = record.partManufacturer!;
       }
-      if (record.description != null) _descriptionController.text = record.description!;
+      if (record.description != null)
+        _descriptionController.text = record.description!;
       // Phase 6: tire fields
       if (record.tireSize != null) _tireSizeController.text = record.tireSize!;
       _tirePosition = record.tirePosition;
@@ -129,7 +131,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
 
       result.when(
         success: (ocrData) async {
-          final registrationData = await Navigator.push<MaintenanceRegistrationData>(
+          final registrationData =
+              await Navigator.push<MaintenanceRegistrationData>(
             context,
             MaterialPageRoute(
               builder: (context) => InvoiceResultScreen(
@@ -222,13 +225,14 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
             : _partManufacturerController.text,
         // Phase 6: tire fields (only persisted for tire-related types)
         tireSize: _isTireType
-            ? (_tireSizeController.text.isEmpty ? null : _tireSizeController.text)
+            ? (_tireSizeController.text.isEmpty
+                ? null
+                : _tireSizeController.text)
             : null,
         tirePosition: _isTireType ? _tirePosition : null,
       );
 
-      final provider =
-          Provider.of<MaintenanceProvider>(context, listen: false);
+      final provider = Provider.of<MaintenanceProvider>(context, listen: false);
       final bool success;
       if (_isEditMode) {
         success = await provider.updateMaintenanceRecord(existing!.id, record);
@@ -316,270 +320,270 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
         if (shouldPop && context.mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditMode ? 'メンテナンス履歴を編集' : 'メンテナンス履歴を追加'),
-      ),
-      body: AppLoadingOverlay(
-        isLoading: _isLoading,
-        message: '保存中...',
-        child: SingleChildScrollView(
-          padding: AppSpacing.paddingScreen,
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 請求書スキャンボタン
-                _buildOcrScanButton(theme),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  child: _ocrAppliedFields.isEmpty
-                      ? const SizedBox.shrink()
-                      : _buildOcrAppliedBanner(fields: _ocrAppliedFields),
-                ),
-                AppSpacing.verticalLg,
-
-                // タイプ選択
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'メンテナンスタイプ',
-                      style: theme.textTheme.labelLarge,
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _showAllTypes = !_showAllTypes;
-                        });
-                      },
-                      child: Text(_showAllTypes ? '簡易表示' : 'すべて表示'),
-                    ),
-                  ],
-                ),
-                AppSpacing.verticalXs,
-
-                if (_showAllTypes)
-                  // カテゴリ別表示
-                  ...MaintenanceType.groupedTypes.entries.map((entry) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: Text(
-                            entry.key,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                        ),
-                        Wrap(
-                          spacing: AppSpacing.xs,
-                          runSpacing: AppSpacing.xs,
-                          children: entry.value.map((type) {
-                            return _buildTypeChip(type);
-                          }).toList(),
-                        ),
-                      ],
-                    );
-                  })
-                else
-                  // よく使うタイプのみ表示
-                  Wrap(
-                    spacing: AppSpacing.xs,
-                    runSpacing: AppSpacing.xs,
-                    children: typesToShow.map((type) {
-                      return _buildTypeChip(type);
-                    }).toList(),
+        appBar: AppBar(
+          title: Text(_isEditMode ? 'メンテナンス履歴を編集' : 'メンテナンス履歴を追加'),
+        ),
+        body: AppLoadingOverlay(
+          isLoading: _isLoading,
+          message: '保存中...',
+          child: SingleChildScrollView(
+            padding: AppSpacing.paddingScreen,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 請求書スキャンボタン
+                  _buildOcrScanButton(theme),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child: _ocrAppliedFields.isEmpty
+                        ? const SizedBox.shrink()
+                        : _buildOcrAppliedBanner(fields: _ocrAppliedFields),
                   ),
+                  AppSpacing.verticalLg,
 
-                AppSpacing.verticalSm,
-
-                // Selected type preview
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  child: _selectedType != null
-                      ? _buildTypePreview(_selectedType!)
-                      : const SizedBox.shrink(),
-                ),
-
-                AppSpacing.verticalLg,
-
-                // タイトル
-                AppTextField(
-                  controller: _titleController,
-                  labelText: 'タイトル',
-                  hintText: '例: 12ヶ月法定点検',
-                  prefixIcon: const Icon(Icons.title),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'タイトルを入力してください';
-                    }
-                    return null;
-                  },
-                ),
-                AppSpacing.verticalMd,
-
-                // 日付
-                AppDateField(
-                  value: _selectedDate,
-                  labelText: '実施日',
-                  onChanged: (date) {
-                    setState(() {
-                      _selectedDate = date;
-                    });
-                  },
-                  lastDate: DateTime.now(),
-                ),
-                AppSpacing.verticalMd,
-
-                // 費用
-                AppTextField.number(
-                  controller: _costController,
-                  labelText: '費用',
-                  hintText: '例: 25000',
-                  prefixText: '¥',
-                  prefixIcon: const Icon(Icons.currency_yen),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return '費用を入力してください';
-                    }
-                    final cost = int.tryParse(value);
-                    if (cost == null || cost < 0) {
-                      return '正しい金額を入力してください';
-                    }
-                    return null;
-                  },
-                ),
-                AppSpacing.verticalMd,
-
-                // 実施工場
-                AppTextField(
-                  controller: _shopNameController,
-                  labelText: '実施工場（任意）',
-                  hintText: '例: トヨタカローラ福岡',
-                  prefixIcon: const Icon(Icons.store),
-                ),
-                AppSpacing.verticalMd,
-
-                // 走行距離
-                AppTextField.number(
-                  controller: _mileageController,
-                  labelText: '実施時の走行距離（任意）',
-                  hintText: '例: 24500',
-                  prefixIcon: const Icon(Icons.speed),
-                  suffixText: 'km',
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return null; // 任意フィールド
-                    }
-                    final mileage = int.tryParse(value);
-                    if (mileage == null || mileage < 0) {
-                      return '正しい走行距離を入力してください';
-                    }
-                    // 走行距離の上限チェック
-                    if (mileage > 2000000) {
-                      return '走行距離が大きすぎます（200万km以下）';
-                    }
-                    // 現在の車両走行距離より大きい場合は警告（将来の記録は不可）
-                    if (widget.currentVehicleMileage != null &&
-                        mileage > widget.currentVehicleMileage!) {
-                      return '車両の現在走行距離(${widget.currentVehicleMileage}km)を超えています';
-                    }
-                    return null;
-                  },
-                ),
-                AppSpacing.verticalMd,
-
-                // 部品情報（消耗品交換などで表示）
-                if (_selectedType.isPeriodicMaintenance) ...[
-                  Text(
-                    '部品情報（任意）',
-                    style: theme.textTheme.labelLarge,
-                  ),
-                  AppSpacing.verticalXs,
+                  // タイプ選択
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
-                        child: AppTextField(
-                          controller: _partManufacturerController,
-                          labelText: 'メーカー',
-                          hintText: '例: WAKO\'S',
-                        ),
+                      Text(
+                        'メンテナンスタイプ',
+                        style: theme.textTheme.labelLarge,
                       ),
-                      AppSpacing.horizontalSm,
-                      Expanded(
-                        child: AppTextField(
-                          controller: _partNumberController,
-                          labelText: '品番',
-                          hintText: '例: E250',
-                        ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _showAllTypes = !_showAllTypes;
+                          });
+                        },
+                        child: Text(_showAllTypes ? '簡易表示' : 'すべて表示'),
                       ),
                     ],
                   ),
-                  AppSpacing.verticalMd,
-                ],
-
-                // タイヤ詳細情報（タイヤ交換・ローテーション時のみ表示）
-                if (_isTireType) ...[
-                  Text(
-                    'タイヤ詳細（任意）',
-                    style: theme.textTheme.labelLarge,
-                  ),
                   AppSpacing.verticalXs,
-                  AppTextField(
-                    controller: _tireSizeController,
-                    labelText: 'タイヤサイズ',
-                    hintText: '例: 215/55R17',
-                    prefixIcon: const Icon(Icons.tire_repair),
-                  ),
-                  AppSpacing.verticalMd,
-                  DropdownButtonFormField<String>(
-                    value: _tirePosition,
-                    decoration: const InputDecoration(
-                      labelText: '交換位置',
-                      prefixIcon: Icon(Icons.swap_vert),
+
+                  if (_showAllTypes)
+                    // カテゴリ別表示
+                    ...MaintenanceType.groupedTypes.entries.map((entry) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: Text(
+                              entry.key,
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                          Wrap(
+                            spacing: AppSpacing.xs,
+                            runSpacing: AppSpacing.xs,
+                            children: entry.value.map((type) {
+                              return _buildTypeChip(type);
+                            }).toList(),
+                          ),
+                        ],
+                      );
+                    })
+                  else
+                    // よく使うタイプのみ表示
+                    Wrap(
+                      spacing: AppSpacing.xs,
+                      runSpacing: AppSpacing.xs,
+                      children: typesToShow.map((type) {
+                        return _buildTypeChip(type);
+                      }).toList(),
                     ),
-                    items: ['全輪', '前輪', '後輪', '左前', '右前', '左後', '右後']
-                        .map(
-                          (p) => DropdownMenuItem(value: p, child: Text(p)),
-                        )
-                        .toList(),
-                    onChanged: (v) => setState(() => _tirePosition = v),
+
+                  AppSpacing.verticalSm,
+
+                  // Selected type preview
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: _selectedType != null
+                        ? _buildTypePreview(_selectedType!)
+                        : const SizedBox.shrink(),
                   ),
-                  AppSpacing.verticalMd,
+
+                  AppSpacing.verticalLg,
+
+                  // タイトル
                   AppTextField(
-                    controller: _partManufacturerController,
-                    labelText: 'タイヤメーカー',
-                    hintText: '例: ブリヂストン、ミシュラン',
-                    prefixIcon: const Icon(Icons.business),
+                    controller: _titleController,
+                    labelText: 'タイトル',
+                    hintText: '例: 12ヶ月法定点検',
+                    prefixIcon: const Icon(Icons.title),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'タイトルを入力してください';
+                      }
+                      return null;
+                    },
                   ),
                   AppSpacing.verticalMd,
+
+                  // 日付
+                  AppDateField(
+                    value: _selectedDate,
+                    labelText: '実施日',
+                    onChanged: (date) {
+                      setState(() {
+                        _selectedDate = date;
+                      });
+                    },
+                    lastDate: DateTime.now(),
+                  ),
+                  AppSpacing.verticalMd,
+
+                  // 費用
+                  AppTextField.number(
+                    controller: _costController,
+                    labelText: '費用',
+                    hintText: '例: 25000',
+                    prefixText: '¥',
+                    prefixIcon: const Icon(Icons.currency_yen),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return '費用を入力してください';
+                      }
+                      final cost = int.tryParse(value);
+                      if (cost == null || cost < 0) {
+                        return '正しい金額を入力してください';
+                      }
+                      return null;
+                    },
+                  ),
+                  AppSpacing.verticalMd,
+
+                  // 実施工場
+                  AppTextField(
+                    controller: _shopNameController,
+                    labelText: '実施工場（任意）',
+                    hintText: '例: トヨタカローラ福岡',
+                    prefixIcon: const Icon(Icons.store),
+                  ),
+                  AppSpacing.verticalMd,
+
+                  // 走行距離
+                  AppTextField.number(
+                    controller: _mileageController,
+                    labelText: '実施時の走行距離（任意）',
+                    hintText: '例: 24500',
+                    prefixIcon: const Icon(Icons.speed),
+                    suffixText: 'km',
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return null; // 任意フィールド
+                      }
+                      final mileage = int.tryParse(value);
+                      if (mileage == null || mileage < 0) {
+                        return '正しい走行距離を入力してください';
+                      }
+                      // 走行距離の上限チェック
+                      if (mileage > 2000000) {
+                        return '走行距離が大きすぎます（200万km以下）';
+                      }
+                      // 現在の車両走行距離より大きい場合は警告（将来の記録は不可）
+                      if (widget.currentVehicleMileage != null &&
+                          mileage > widget.currentVehicleMileage!) {
+                        return '車両の現在走行距離(${widget.currentVehicleMileage}km)を超えています';
+                      }
+                      return null;
+                    },
+                  ),
+                  AppSpacing.verticalMd,
+
+                  // 部品情報（消耗品交換などで表示）
+                  if (_selectedType.isPeriodicMaintenance) ...[
+                    Text(
+                      '部品情報（任意）',
+                      style: theme.textTheme.labelLarge,
+                    ),
+                    AppSpacing.verticalXs,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AppTextField(
+                            controller: _partManufacturerController,
+                            labelText: 'メーカー',
+                            hintText: '例: WAKO\'S',
+                          ),
+                        ),
+                        AppSpacing.horizontalSm,
+                        Expanded(
+                          child: AppTextField(
+                            controller: _partNumberController,
+                            labelText: '品番',
+                            hintText: '例: E250',
+                          ),
+                        ),
+                      ],
+                    ),
+                    AppSpacing.verticalMd,
+                  ],
+
+                  // タイヤ詳細情報（タイヤ交換・ローテーション時のみ表示）
+                  if (_isTireType) ...[
+                    Text(
+                      'タイヤ詳細（任意）',
+                      style: theme.textTheme.labelLarge,
+                    ),
+                    AppSpacing.verticalXs,
+                    AppTextField(
+                      controller: _tireSizeController,
+                      labelText: 'タイヤサイズ',
+                      hintText: '例: 215/55R17',
+                      prefixIcon: const Icon(Icons.tire_repair),
+                    ),
+                    AppSpacing.verticalMd,
+                    DropdownButtonFormField<String>(
+                      value: _tirePosition,
+                      decoration: const InputDecoration(
+                        labelText: '交換位置',
+                        prefixIcon: Icon(Icons.swap_vert),
+                      ),
+                      items: ['全輪', '前輪', '後輪', '左前', '右前', '左後', '右後']
+                          .map(
+                            (p) => DropdownMenuItem(value: p, child: Text(p)),
+                          )
+                          .toList(),
+                      onChanged: (v) => setState(() => _tirePosition = v),
+                    ),
+                    AppSpacing.verticalMd,
+                    AppTextField(
+                      controller: _partManufacturerController,
+                      labelText: 'タイヤメーカー',
+                      hintText: '例: ブリヂストン、ミシュラン',
+                      prefixIcon: const Icon(Icons.business),
+                    ),
+                    AppSpacing.verticalMd,
+                  ],
+
+                  // 説明
+                  AppTextField.multiline(
+                    controller: _descriptionController,
+                    labelText: 'メモ（任意）',
+                    hintText: '詳細な内容を記入できます',
+                  ),
+                  AppSpacing.verticalXl,
+
+                  // 保存ボタン
+                  AppButton.primary(
+                    label: _isEditMode ? '更新する' : '保存する',
+                    onPressed: _isLoading ? null : _saveRecord,
+                    isFullWidth: true,
+                    size: AppButtonSize.large,
+                    icon: Icons.check,
+                  ),
                 ],
-
-                // 説明
-                AppTextField.multiline(
-                  controller: _descriptionController,
-                  labelText: 'メモ（任意）',
-                  hintText: '詳細な内容を記入できます',
-                ),
-                AppSpacing.verticalXl,
-
-                // 保存ボタン
-                AppButton.primary(
-                  label: _isEditMode ? '更新する' : '保存する',
-                  onPressed: _isLoading ? null : _saveRecord,
-                  isFullWidth: true,
-                  size: AppButtonSize.large,
-                  icon: Icons.check,
-                ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
-    ),  // PopScope
+      ), // PopScope
     );
   }
 
@@ -662,7 +666,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.check_circle, size: 14, color: AppColors.success),
+              const Icon(Icons.check_circle,
+                  size: 14, color: AppColors.success),
               AppSpacing.horizontalXs,
               Text(
                 'OCRで ${fields.length} 項目を自動入力しました',
@@ -764,7 +769,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                       Text(
                         '請求書を撮影して自動入力',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+                          color: theme.textTheme.bodySmall?.color
+                              ?.withValues(alpha: 0.7),
                         ),
                       ),
                     ],

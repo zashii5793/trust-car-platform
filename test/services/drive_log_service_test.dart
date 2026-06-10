@@ -31,8 +31,7 @@ void main() {
     test('fromString で name から enum に変換できる', () {
       for (final status in DriveLogStatus.values) {
         final result = DriveLogStatus.fromString(status.name);
-        expect(result, status,
-            reason: '${status.name} の fromString が失敗します');
+        expect(result, status, reason: '${status.name} の fromString が失敗します');
       }
     });
 
@@ -411,7 +410,8 @@ void main() {
   group('Edge Cases', () {
     test('GeoPoint2D の経度が 180 を超えてもクラッシュしない', () {
       const edge = GeoPoint2D(latitude: 0, longitude: 180);
-      expect(() => edge.distanceTo(const GeoPoint2D(latitude: 0, longitude: -180)),
+      expect(
+          () => edge.distanceTo(const GeoPoint2D(latitude: 0, longitude: -180)),
           returnsNormally);
     });
 

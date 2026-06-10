@@ -27,7 +27,8 @@ class SubscriptionProvider with ChangeNotifier {
   String? get errorMessage => _error?.userMessage;
 
   /// Current plan limits (based on active plan and subscription status).
-  ShopPlanLimits get currentLimits => _subscriptionService.getPlanLimits(_effectivePlan);
+  ShopPlanLimits get currentLimits =>
+      _subscriptionService.getPlanLimits(_effectivePlan);
 
   ShopPlanType get _effectivePlan {
     if (_subscriptionStatus == ShopSubscriptionStatus.active ||
@@ -56,7 +57,8 @@ class SubscriptionProvider with ChangeNotifier {
     if (_currentShopId == null) {
       return false;
     }
-    final result = await _subscriptionService.canReceiveInquiry(_currentShopId!);
+    final result =
+        await _subscriptionService.canReceiveInquiry(_currentShopId!);
     return result.valueOrNull ?? false;
   }
 

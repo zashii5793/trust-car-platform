@@ -41,7 +41,8 @@ class PushNotificationService {
   Future<Result<void, AppError>> initialize() async {
     try {
       // Set up background handler
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onBackgroundMessage(
+          _firebaseMessagingBackgroundHandler);
 
       // Initialize local notifications for Android
       if (Platform.isAndroid) {
@@ -82,7 +83,8 @@ class PushNotificationService {
 
       return const Result.success(null);
     } catch (e) {
-      return Result.failure(ServerError('Failed to initialize push notifications: $e'));
+      return Result.failure(
+          ServerError('Failed to initialize push notifications: $e'));
     }
   }
 
@@ -96,12 +98,14 @@ class PushNotificationService {
         provisional: false,
       );
 
-      final granted = settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional;
+      final granted =
+          settings.authorizationStatus == AuthorizationStatus.authorized ||
+              settings.authorizationStatus == AuthorizationStatus.provisional;
 
       return Result.success(granted);
     } catch (e) {
-      return Result.failure(ServerError('Failed to request notification permission: $e'));
+      return Result.failure(
+          ServerError('Failed to request notification permission: $e'));
     }
   }
 
@@ -131,7 +135,8 @@ class PushNotificationService {
       await _messaging.unsubscribeFromTopic(topic);
       return const Result.success(null);
     } catch (e) {
-      return Result.failure(ServerError('Failed to unsubscribe from topic: $e'));
+      return Result.failure(
+          ServerError('Failed to unsubscribe from topic: $e'));
     }
   }
 
@@ -172,7 +177,8 @@ class PushNotificationService {
 
       return const Result.success(null);
     } catch (e) {
-      return Result.failure(ServerError('Failed to show local notification: $e'));
+      return Result.failure(
+          ServerError('Failed to show local notification: $e'));
     }
   }
 
@@ -240,7 +246,8 @@ class PushNotificationService {
       await _localNotifications.cancelAll();
       return const Result.success(null);
     } catch (e) {
-      return Result.failure(ServerError('Failed to cancel all notifications: $e'));
+      return Result.failure(
+          ServerError('Failed to cancel all notifications: $e'));
     }
   }
 

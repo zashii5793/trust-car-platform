@@ -50,7 +50,8 @@ class _SignupScreenState extends State<SignupScreen> {
         Navigator.of(context).pop();
         showSuccessSnackBar(context, 'アカウントを作成しました');
       } else {
-        showErrorSnackBar(context, authProvider.errorMessage ?? 'サインアップに失敗しました');
+        showErrorSnackBar(
+            context, authProvider.errorMessage ?? 'サインアップに失敗しました');
       }
     }
   }
@@ -240,12 +241,14 @@ class _SignupScreenState extends State<SignupScreen> {
                                     onTap: () => Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (_) => const TermsOfServiceScreen(),
+                                        builder: (_) =>
+                                            const TermsOfServiceScreen(),
                                       ),
                                     ),
                                     child: Text(
                                       '利用規約',
-                                      style: theme.textTheme.bodySmall?.copyWith(
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
                                         color: theme.colorScheme.primary,
                                         decoration: TextDecoration.underline,
                                       ),
@@ -258,12 +261,14 @@ class _SignupScreenState extends State<SignupScreen> {
                                     onTap: () => Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (_) => const PrivacyPolicyScreen(),
+                                        builder: (_) =>
+                                            const PrivacyPolicyScreen(),
                                       ),
                                     ),
                                     child: Text(
                                       'プライバシーポリシー',
-                                      style: theme.textTheme.bodySmall?.copyWith(
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
                                         color: theme.colorScheme.primary,
                                         decoration: TextDecoration.underline,
                                       ),

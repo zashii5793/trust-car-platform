@@ -244,9 +244,8 @@ class _ShopMiniCard extends StatelessWidget {
             radius: 20,
             backgroundImage:
                 shop.logoUrl != null ? NetworkImage(shop.logoUrl!) : null,
-            child: shop.logoUrl == null
-                ? const Icon(Icons.store, size: 20)
-                : null,
+            child:
+                shop.logoUrl == null ? const Icon(Icons.store, size: 20) : null,
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -274,7 +273,8 @@ class _ShopMiniCard extends StatelessWidget {
                     if (shop.isVerified)
                       const Padding(
                         padding: EdgeInsets.only(left: 4),
-                        child: Icon(Icons.verified, size: 14, color: Colors.blue),
+                        child:
+                            Icon(Icons.verified, size: 14, color: Colors.blue),
                       ),
                   ],
                 ),
@@ -338,8 +338,7 @@ class _InquiryTypeChips extends StatelessWidget {
               onSelected: (_) => onChanged(type),
               labelStyle: TextStyle(
                 fontSize: 12,
-                fontWeight:
-                    isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
               visualDensity: VisualDensity.compact,
             );

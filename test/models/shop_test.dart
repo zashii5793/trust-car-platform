@@ -23,8 +23,10 @@ void main() {
 
   group('ServiceCategory', () {
     test('fromString returns correct enum value', () {
-      expect(ServiceCategory.fromString('inspection'), ServiceCategory.inspection);
-      expect(ServiceCategory.fromString('maintenance'), ServiceCategory.maintenance);
+      expect(
+          ServiceCategory.fromString('inspection'), ServiceCategory.inspection);
+      expect(ServiceCategory.fromString('maintenance'),
+          ServiceCategory.maintenance);
       expect(ServiceCategory.fromString('repair'), ServiceCategory.repair);
     });
 
@@ -236,16 +238,23 @@ void main() {
   // -------------------------------------------------------------------------
   group('ShopSubscriptionStatus', () {
     test('fromString parses all valid values', () {
-      expect(ShopSubscriptionStatus.fromString('active'), ShopSubscriptionStatus.active);
-      expect(ShopSubscriptionStatus.fromString('trialing'), ShopSubscriptionStatus.trialing);
-      expect(ShopSubscriptionStatus.fromString('expired'), ShopSubscriptionStatus.expired);
-      expect(ShopSubscriptionStatus.fromString('cancelled'), ShopSubscriptionStatus.cancelled);
-      expect(ShopSubscriptionStatus.fromString('free'), ShopSubscriptionStatus.free);
+      expect(ShopSubscriptionStatus.fromString('active'),
+          ShopSubscriptionStatus.active);
+      expect(ShopSubscriptionStatus.fromString('trialing'),
+          ShopSubscriptionStatus.trialing);
+      expect(ShopSubscriptionStatus.fromString('expired'),
+          ShopSubscriptionStatus.expired);
+      expect(ShopSubscriptionStatus.fromString('cancelled'),
+          ShopSubscriptionStatus.cancelled);
+      expect(ShopSubscriptionStatus.fromString('free'),
+          ShopSubscriptionStatus.free);
     });
 
     test('fromString defaults to free for unknown string', () {
-      expect(ShopSubscriptionStatus.fromString('invalid'), ShopSubscriptionStatus.free);
-      expect(ShopSubscriptionStatus.fromString(null), ShopSubscriptionStatus.free);
+      expect(ShopSubscriptionStatus.fromString('invalid'),
+          ShopSubscriptionStatus.free);
+      expect(
+          ShopSubscriptionStatus.fromString(null), ShopSubscriptionStatus.free);
     });
   });
 

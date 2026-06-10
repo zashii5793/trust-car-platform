@@ -113,71 +113,74 @@ class _DriveRecordingScreenState extends State<DriveRecordingScreen> {
                   Expanded(
                     child: provider.isLoading
                         ? const Center(
-                            child: CircularProgressIndicator(
-                                color: Colors.white),
+                            child:
+                                CircularProgressIndicator(color: Colors.white),
                           )
                         : LayoutBuilder(
-                      builder: (context, constraints) => SingleChildScrollView(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                              minHeight: constraints.maxHeight),
-                          child: Padding(
-                            padding: AppSpacing.paddingScreen,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // ── Elapsed time ──────────────────────────────
-                                _StatCard(
-                                  label: '経過時間',
-                                  value: provider.formattedElapsed,
-                                  icon: Icons.timer_outlined,
-                                  large: true,
-                                ),
-                                const SizedBox(height: AppSpacing.md),
-
-                                // ── Distance and speed row ────────────────────
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _StatCard(
-                                        label: '走行距離',
-                                        value: _formatDistance(provider.distanceKm),
-                                        icon: Icons.straighten_outlined,
+                            builder: (context, constraints) =>
+                                SingleChildScrollView(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                    minHeight: constraints.maxHeight),
+                                child: Padding(
+                                  padding: AppSpacing.paddingScreen,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // ── Elapsed time ──────────────────────────────
+                                      _StatCard(
+                                        label: '経過時間',
+                                        value: provider.formattedElapsed,
+                                        icon: Icons.timer_outlined,
+                                        large: true,
                                       ),
-                                    ),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Expanded(
-                                      child: _StatCard(
-                                        label: '現在速度',
+                                      const SizedBox(height: AppSpacing.md),
+
+                                      // ── Distance and speed row ────────────────────
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: _StatCard(
+                                              label: '走行距離',
+                                              value: _formatDistance(
+                                                  provider.distanceKm),
+                                              icon: Icons.straighten_outlined,
+                                            ),
+                                          ),
+                                          const SizedBox(width: AppSpacing.sm),
+                                          Expanded(
+                                            child: _StatCard(
+                                              label: '現在速度',
+                                              value:
+                                                  '${provider.currentSpeedKmh.toStringAsFixed(0)} km/h',
+                                              icon: Icons.speed_outlined,
+                                              accentColor: _speedColor(
+                                                  provider.currentSpeedKmh),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: AppSpacing.sm),
+
+                                      // ── Max speed ─────────────────────────────────
+                                      _StatCard(
+                                        label: '最高速度',
                                         value:
-                                            '${provider.currentSpeedKmh.toStringAsFixed(0)} km/h',
-                                        icon: Icons.speed_outlined,
-                                        accentColor: _speedColor(provider.currentSpeedKmh),
+                                            '${provider.maxSpeedKmh.toStringAsFixed(0)} km/h',
+                                        icon: Icons.rocket_launch_outlined,
                                       ),
-                                    ),
-                                  ],
+
+                                      const SizedBox(height: AppSpacing.xl),
+
+                                      // ── GPS indicator ─────────────────────────────
+                                      const _PulsingGpsIndicator(),
+                                    ],
+                                  ),
                                 ),
-                                const SizedBox(height: AppSpacing.sm),
-
-                                // ── Max speed ─────────────────────────────────
-                                _StatCard(
-                                  label: '最高速度',
-                                  value:
-                                      '${provider.maxSpeedKmh.toStringAsFixed(0)} km/h',
-                                  icon: Icons.rocket_launch_outlined,
-                                ),
-
-                                const SizedBox(height: AppSpacing.xl),
-
-                                // ── GPS indicator ─────────────────────────────
-                                const _PulsingGpsIndicator(),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                    ),
                   ),
 
                   // ── Stop button ───────────────────────────────────────
@@ -191,7 +194,8 @@ class _DriveRecordingScreenState extends State<DriveRecordingScreen> {
                         icon: const Icon(Icons.stop_circle_outlined),
                         label: const Text(
                           '記録を終了',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.redAccent,
@@ -346,7 +350,8 @@ class _PulsingGpsIndicatorState extends State<_PulsingGpsIndicator>
                 height: 18,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.greenAccent.withValues(alpha: _pulse.value * 0.3),
+                  color:
+                      Colors.greenAccent.withValues(alpha: _pulse.value * 0.3),
                 ),
               ),
               Container(

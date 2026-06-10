@@ -133,14 +133,18 @@ void main() {
       final db = FakeFirebaseFirestore();
       final sub = _makeSub();
 
-      await db.collection('newsletter_subscriptions').doc(sub.userId).set(sub.toMap());
+      await db
+          .collection('newsletter_subscriptions')
+          .doc(sub.userId)
+          .set(sub.toMap());
       final snap =
           await db.collection('newsletter_subscriptions').doc(sub.userId).get();
 
       final loaded = NewsletterSubscription.fromFirestore(snap);
       expect(loaded.userId, 'user1');
       expect(loaded.isSubscribed, isTrue);
-      expect(loaded.subscribedCategories, hasLength(NewsletterCategory.values.length));
+      expect(loaded.subscribedCategories,
+          hasLength(NewsletterCategory.values.length));
     });
 
     test('copyWith は指定フィールドのみ変更する', () {

@@ -66,9 +66,11 @@ class _DriveLogScreenState extends State<DriveLogScreen> {
       );
       return;
     }
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const DriveRecordingScreen()),
-    ).then((_) => _load()); // refresh list after returning
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(builder: (_) => const DriveRecordingScreen()),
+        )
+        .then((_) => _load()); // refresh list after returning
   }
 
   @override
@@ -168,8 +170,7 @@ class _DriveLogSummaryCard extends StatelessWidget {
 
     final hours = totalSecs ~/ 3600;
     final minutes = (totalSecs % 3600) ~/ 60;
-    final durationLabel =
-        hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
+    final durationLabel = hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -365,8 +366,7 @@ class _DriveLogCard extends StatelessWidget {
                   ),
                 ),
                 // 天気バッジ
-                if (log.weather != null)
-                  _WeatherBadge(weather: log.weather!),
+                if (log.weather != null) _WeatherBadge(weather: log.weather!),
               ],
             ),
           ),
@@ -650,8 +650,7 @@ class _CardFooter extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   '${log.likeCount}',
-                  style:
-                      theme.textTheme.bodySmall?.copyWith(color: tertiary),
+                  style: theme.textTheme.bodySmall?.copyWith(color: tertiary),
                 ),
               ],
             ),
@@ -699,9 +698,7 @@ class _CardFooter extends StatelessWidget {
     );
 
     if (confirmed == true && context.mounted) {
-      await context
-          .read<DriveLogProvider>()
-          .deleteDriveLog(log.id, userId);
+      await context.read<DriveLogProvider>().deleteDriveLog(log.id, userId);
     }
   }
 }

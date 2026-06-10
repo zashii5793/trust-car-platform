@@ -8,7 +8,8 @@ import 'package:flutter/foundation.dart';
 class AnalyticsService {
   final FirebaseAnalytics? _analytics;
 
-  AnalyticsService() : _analytics = kReleaseMode ? FirebaseAnalytics.instance : null;
+  AnalyticsService()
+      : _analytics = kReleaseMode ? FirebaseAnalytics.instance : null;
 
   /// Named constructor for unit tests — skips Firebase initialization.
   @visibleForTesting
@@ -24,8 +25,7 @@ class AnalyticsService {
   // User events
   // ---------------------------------------------------------------------------
 
-  Future<void> trackLogin(String method) =>
-      _log('login', {'method': method});
+  Future<void> trackLogin(String method) => _log('login', {'method': method});
 
   Future<void> trackSignup(String method) =>
       _log('sign_up', {'method': method});

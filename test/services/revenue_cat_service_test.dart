@@ -116,7 +116,8 @@ void main() {
   group('purchasePlan', () {
     test('returns failure immediately for free plan', () async {
       final svc = RevenueCatService(
-        purchaseExecutor: (_, __) async => throw StateError('should not be called'),
+        purchaseExecutor: (_, __) async =>
+            throw StateError('should not be called'),
       );
 
       final result = await svc.purchasePlan(ShopPlanType.free, userId: 'u1');
@@ -129,28 +130,32 @@ void main() {
       final svc = RevenueCatService(
         purchaseExecutor: (productId, userId) async {
           capturedProduct = productId;
-          return const PurchaseResult(isSuccess: true, productId: 'trustcar_btob_standard_monthly');
+          return const PurchaseResult(
+              isSuccess: true, productId: 'trustcar_btob_standard_monthly');
         },
       );
 
-      final result = await svc.purchasePlan(ShopPlanType.standard, userId: 'u1');
+      final result =
+          await svc.purchasePlan(ShopPlanType.standard, userId: 'u1');
       expect(result.isSuccess, isTrue);
       expect(capturedProduct, 'trustcar_btob_standard_monthly');
     });
 
     test('returns failure when executor throws', () async {
       final svc = RevenueCatService(
-        purchaseExecutor: (_, __) async => throw Exception('Purchase cancelled'),
+        purchaseExecutor: (_, __) async =>
+            throw Exception('Purchase cancelled'),
       );
 
       final result = await svc.purchasePlan(ShopPlanType.premium, userId: 'u1');
       expect(result.isFailure, isTrue);
     });
 
-    test('returns failure when purchase executor returns isSuccess=false', () async {
+    test('returns failure when purchase executor returns isSuccess=false',
+        () async {
       final svc = RevenueCatService(
-        purchaseExecutor: (_, __) async =>
-            const PurchaseResult(isSuccess: false, productId: 'trustcar_btob_premium_monthly'),
+        purchaseExecutor: (_, __) async => const PurchaseResult(
+            isSuccess: false, productId: 'trustcar_btob_premium_monthly'),
       );
 
       final result = await svc.purchasePlan(ShopPlanType.premium, userId: 'u1');
@@ -195,7 +200,8 @@ void main() {
 
     test('returns empty entitlements when no active subscription', () async {
       final svc = RevenueCatService(
-        restoreExecutor: (_) async => const RestoreResult(activeEntitlements: []),
+        restoreExecutor: (_) async =>
+            const RestoreResult(activeEntitlements: []),
       );
 
       final result = await svc.restorePurchases(userId: 'u1');
@@ -254,7 +260,8 @@ void main() {
 
     test('restorePurchases returns failure for empty userId', () async {
       final svc = RevenueCatService(
-        restoreExecutor: (_) async => const RestoreResult(activeEntitlements: []),
+        restoreExecutor: (_) async =>
+            const RestoreResult(activeEntitlements: []),
       );
 
       final result = await svc.restorePurchases(userId: '');

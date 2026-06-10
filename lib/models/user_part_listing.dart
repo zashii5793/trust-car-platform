@@ -67,15 +67,15 @@ class UserPartListing {
       sellerId: data['sellerId'] ?? '',
       title: data['title'] ?? '',
       category: PartCategory.fromString(data['category']) ?? PartCategory.other,
-      condition:
-          PartCondition.fromString(data['condition']) ?? PartCondition.goodCondition,
+      condition: PartCondition.fromString(data['condition']) ??
+          PartCondition.goodCondition,
       price: data['price'] ?? 0,
       payout: data['payout'] ?? 0,
       description: data['description'] ?? '',
       compatibleVehicle: data['compatibleVehicle'],
       imageUrls: List<String>.from(data['imageUrls'] ?? []),
-      shippingMethod:
-          ShippingMethod.fromString(data['shippingMethod']) ?? ShippingMethod.includedInPrice,
+      shippingMethod: ShippingMethod.fromString(data['shippingMethod']) ??
+          ShippingMethod.includedInPrice,
       status: PartListingStatus.fromString(data['status']),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),

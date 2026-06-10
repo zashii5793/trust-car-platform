@@ -192,7 +192,8 @@ void main() {
 
     test('sets error when startDrive fails', () async {
       final service = MockDriveLogService()
-        ..startDriveResult = const Result.failure(AppError.server('Firestore error'));
+        ..startDriveResult =
+            const Result.failure(AppError.server('Firestore error'));
       final provider = _makeProvider(service);
 
       final ok = await provider.startRecording(userId: 'user1');
@@ -260,7 +261,8 @@ void main() {
   group('DriveRecordingProvider — stopRecording', () {
     test('calls endDrive and sets isRecording=false', () async {
       final service = MockDriveLogService()
-        ..endDriveResult = Result.success(_makeLog(id: 'drive1', userId: 'user1'));
+        ..endDriveResult =
+            Result.success(_makeLog(id: 'drive1', userId: 'user1'));
 
       final controller = StreamController<Position>();
       final provider = _makeProvider(service, positionController: controller);
@@ -313,7 +315,8 @@ void main() {
   });
 
   group('Edge Cases', () {
-    test('does not accumulate distance on first position (no previous point)', () async {
+    test('does not accumulate distance on first position (no previous point)',
+        () async {
       final service = MockDriveLogService();
       final controller = StreamController<Position>();
       // No startLocation — first position becomes anchor

@@ -243,8 +243,7 @@ void main() {
       expect(find.text('デメリット'), findsOneWidget);
     });
 
-    testWidgets('prosAndConsが空のときメリット・デメリットセクションが表示されない',
-        (tester) async {
+    testWidgets('prosAndConsが空のときメリット・デメリットセクションが表示されない', (tester) async {
       await tester.pumpWidget(_buildApp(_makePart(prosAndCons: [])));
       await tester.pump();
 
@@ -255,8 +254,8 @@ void main() {
     testWidgets('tagsが表示される', (tester) async {
       await tester.binding.setSurfaceSize(const Size(800, 2000));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-          _buildApp(_makePart(tags: ['スポーツ', '吸気系', 'インプレッサ対応'])));
+      await tester
+          .pumpWidget(_buildApp(_makePart(tags: ['スポーツ', '吸気系', 'インプレッサ対応'])));
       await tester.pump();
 
       expect(find.text('スポーツ'), findsAtLeast(1));
@@ -325,8 +324,7 @@ void main() {
       });
 
       testWidgets('説明文が長くても表示できる', (tester) async {
-        await tester
-            .pumpWidget(_buildApp(_makePart(description: 'あ' * 500)));
+        await tester.pumpWidget(_buildApp(_makePart(description: 'あ' * 500)));
         await tester.pump();
 
         expect(find.byType(PartDetailScreen), findsOneWidget);
@@ -357,8 +355,7 @@ void main() {
 
       testWidgets('エラー後にリトライできる', (tester) async {
         final mockService = MockPartRecommendationService();
-        mockService.detailResult =
-            Result.failure(AppError.network('failed'));
+        mockService.detailResult = Result.failure(AppError.network('failed'));
 
         final part = _makePart();
         await tester.pumpWidget(_buildApp(part, mockService: mockService));

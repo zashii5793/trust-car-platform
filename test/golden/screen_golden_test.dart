@@ -49,8 +49,9 @@ class MockAuthService implements AuthService {
       Result.failure(const AuthError('Not implemented'));
 
   @override
-  Future<Result<firebase_auth.UserCredential?, AppError>> signInWithGoogle() async =>
-      Result.failure(const AuthError('Not implemented'));
+  Future<Result<firebase_auth.UserCredential?, AppError>>
+      signInWithGoogle() async =>
+          Result.failure(const AuthError('Not implemented'));
 
   @override
   Future<Result<void, AppError>> signOut() async => const Result.success(null);
@@ -75,7 +76,6 @@ class MockAuthService implements AuthService {
     NotificationSettings settings,
   ) async =>
       const Result.success(null);
-
 }
 
 // =============================================================================

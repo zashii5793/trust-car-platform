@@ -385,13 +385,13 @@ void main() {
 
       final tokyoResult = await shopService.getShops(prefecture: '東京都');
       expect(tokyoResult.isSuccess, true);
-      expect(tokyoResult.valueOrNull!.every((s) => s.prefecture == '東京都'),
-          true);
+      expect(
+          tokyoResult.valueOrNull!.every((s) => s.prefecture == '東京都'), true);
 
       final osakaResult = await shopService.getShops(prefecture: '大阪府');
       expect(osakaResult.isSuccess, true);
-      expect(osakaResult.valueOrNull!.every((s) => s.prefecture == '大阪府'),
-          true);
+      expect(
+          osakaResult.valueOrNull!.every((s) => s.prefecture == '大阪府'), true);
     });
 
     test('注目ショップ（getFeaturedShops）が取得できる', () async {
@@ -407,8 +407,7 @@ void main() {
         shopId: shopId,
         type: InquiryType.estimate,
         subject: '車検の見積もりについて',
-        message:
-            '2020年式ホンダFitの車検をお願いしたいのですが、費用の目安を教えてください。',
+        message: '2020年式ホンダFitの車検をお願いしたいのですが、費用の目安を教えてください。',
         vehicleId: vehicle1Id,
       );
 
@@ -420,8 +419,7 @@ void main() {
       expect(inquiry.status, InquiryStatus.pending);
 
       // Firestoreへの永続化確認
-      final doc =
-          await firestore.collection('inquiries').doc(inquiry.id).get();
+      final doc = await firestore.collection('inquiries').doc(inquiry.id).get();
       expect(doc.exists, true);
       expect(doc.data()?['type'], 'estimate');
     });
@@ -483,12 +481,7 @@ void main() {
       // ── 車両3台（スポーツカー中心）──────────────────────────────────────
       final vehicleSpecs = [
         {'maker': 'Toyota', 'model': 'GR86', 'year': 2022, 'mileage': 45000},
-        {
-          'maker': 'Subaru',
-          'model': 'WRX STI',
-          'year': 2019,
-          'mileage': 87000
-        },
+        {'maker': 'Subaru', 'model': 'WRX STI', 'year': 2019, 'mileage': 87000},
         {'maker': 'Mazda', 'model': 'RX-7', 'year': 1999, 'mileage': 120000},
       ];
       for (final spec in vehicleSpecs) {
@@ -507,9 +500,16 @@ void main() {
 
       // ── 整備記録: 車両1に10件、車両2に5件、車両3に3件（合計18件）──────────
       const types1 = [
-        'oilChange', 'oilFilterChange', 'tireRotation', 'brakeFluidChange',
-        'brakeInspection', 'airFilterChange', 'sparkPlugChange',
-        'batteryChange', 'coolantChange', 'transmissionFluidChange',
+        'oilChange',
+        'oilFilterChange',
+        'tireRotation',
+        'brakeFluidChange',
+        'brakeInspection',
+        'airFilterChange',
+        'sparkPlugChange',
+        'batteryChange',
+        'coolantChange',
+        'transmissionFluidChange',
       ];
       for (int i = 0; i < types1.length; i++) {
         await firestore.collection('maintenance_records').add(
@@ -663,25 +663,22 @@ void main() {
     // ── 整備記録 ─────────────────────────────────────────────────────────────
 
     test('車両1の整備記録が10件取得できる', () async {
-      final result = await firebaseService.getMaintenanceRecordsForVehicle(
-          vehicleIds[0],
-          limit: 15);
+      final result = await firebaseService
+          .getMaintenanceRecordsForVehicle(vehicleIds[0], limit: 15);
       expect(result.isSuccess, true);
       expect(result.valueOrNull, hasLength(10));
     });
 
     test('車両2の整備記録が5件取得できる', () async {
-      final result = await firebaseService.getMaintenanceRecordsForVehicle(
-          vehicleIds[1],
-          limit: 10);
+      final result = await firebaseService
+          .getMaintenanceRecordsForVehicle(vehicleIds[1], limit: 10);
       expect(result.isSuccess, true);
       expect(result.valueOrNull, hasLength(5));
     });
 
     test('車両3の整備記録が3件取得できる', () async {
-      final result = await firebaseService.getMaintenanceRecordsForVehicle(
-          vehicleIds[2],
-          limit: 10);
+      final result = await firebaseService
+          .getMaintenanceRecordsForVehicle(vehicleIds[2], limit: 10);
       expect(result.isSuccess, true);
       expect(result.valueOrNull, hasLength(3));
     });
@@ -771,8 +768,7 @@ void main() {
     });
 
     test('カテゴリ exhaust でパーツを絞り込める', () async {
-      final result =
-          await partService.getPartsByCategory(PartCategory.exhaust);
+      final result = await partService.getPartsByCategory(PartCategory.exhaust);
       expect(result.isSuccess, true);
       expect(result.valueOrNull!.isNotEmpty, true);
       expect(
@@ -837,7 +833,8 @@ void main() {
             reason: '問い合わせ「${spec['subject']}」の登録に失敗');
       }
 
-      final allResult = await inquiryService.getUserInquiries(userId, limit: 10);
+      final allResult =
+          await inquiryService.getUserInquiries(userId, limit: 10);
       expect(allResult.isSuccess, true);
       expect(allResult.valueOrNull, hasLength(3));
     });
@@ -893,8 +890,8 @@ void main() {
       );
       final inquiryId = inquiryResult.valueOrNull!.id;
 
-      final updateResult =
-          await inquiryService.updateStatus(inquiryId, InquiryStatus.inProgress);
+      final updateResult = await inquiryService.updateStatus(
+          inquiryId, InquiryStatus.inProgress);
       expect(updateResult.isSuccess, true);
 
       final refreshed = await inquiryService.getInquiry(inquiryId);
@@ -957,10 +954,10 @@ void main() {
 
     group('データ整合性', () {
       test('各車両の整備記録が他の車両と混在しない', () async {
-        final r1 = await firebaseService.getMaintenanceRecordsForVehicle(
-            vehicleIds[0]);
-        final r2 = await firebaseService.getMaintenanceRecordsForVehicle(
-            vehicleIds[1]);
+        final r1 = await firebaseService
+            .getMaintenanceRecordsForVehicle(vehicleIds[0]);
+        final r2 = await firebaseService
+            .getMaintenanceRecordsForVehicle(vehicleIds[1]);
 
         for (final record in r1.valueOrNull!) {
           expect(record.vehicleId, vehicleIds[0],
@@ -1021,8 +1018,8 @@ void main() {
       test('他ユーザーのデータを持つvehicleIdへのアクセスは空を返す', () async {
         // 別ユーザーで作成した vehicleId（存在しないもの）を参照
         final fakeVehicleId = 'other-user-vehicle-xyz';
-        final result =
-            await firebaseService.getMaintenanceRecordsForVehicle(fakeVehicleId);
+        final result = await firebaseService
+            .getMaintenanceRecordsForVehicle(fakeVehicleId);
         // エラーにならず空リストを返す（Firestoreの設計）
         expect(result.isSuccess, true);
         expect(result.valueOrNull, isEmpty);

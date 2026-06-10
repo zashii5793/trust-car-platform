@@ -356,7 +356,8 @@ class _PartCard extends StatelessWidget {
     if (vehicle != null) {
       compatibility = part.getCompatibilityFor(
         makerId: _getMakerId(vehicle!.maker),
-        modelId: '${_getMakerId(vehicle!.maker)}_${vehicle!.model.toLowerCase()}',
+        modelId:
+            '${_getMakerId(vehicle!.maker)}_${vehicle!.model.toLowerCase()}',
         year: vehicle!.year,
         grade: vehicle!.grade,
       );
@@ -377,132 +378,131 @@ class _PartCard extends StatelessWidget {
           );
         },
         child: Padding(
-        padding: AppSpacing.paddingCard,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // パーツ画像
-            ClipRRect(
-              borderRadius: AppSpacing.borderRadiusSm,
-              child: SizedBox(
-                width: 80,
-                height: 80,
-                child: part.imageUrls.isNotEmpty
-                    ? Image.network(
-                        part.imageUrls.first,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            _buildImagePlaceholder(theme),
-                      )
-                    : _buildImagePlaceholder(theme),
+          padding: AppSpacing.paddingCard,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // パーツ画像
+              ClipRRect(
+                borderRadius: AppSpacing.borderRadiusSm,
+                child: SizedBox(
+                  width: 80,
+                  height: 80,
+                  child: part.imageUrls.isNotEmpty
+                      ? Image.network(
+                          part.imageUrls.first,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _buildImagePlaceholder(theme),
+                        )
+                      : _buildImagePlaceholder(theme),
+                ),
               ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            // 情報
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // カテゴリ + 広告ラベル
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.secondaryContainer,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          part.category.displayName,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSecondaryContainer,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
-                      if (part.isFeatured) ...[
-                        const SizedBox(width: 4),
+              const SizedBox(width: AppSpacing.md),
+              // 情報
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // カテゴリ + 広告ラベル
+                    Row(
+                      children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color:
-                                theme.colorScheme.surfaceContainerHighest,
+                            color: theme.colorScheme.secondaryContainer,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            '広告',
+                            part.category.displayName,
                             style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSecondaryContainer,
                               fontSize: 10,
                             ),
                           ),
                         ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  // 名前
-                  Text(
-                    part.name,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (part.brand != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      part.brand!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 6),
-                  // 価格 + 評価 + 互換性
-                  Wrap(
-                    spacing: AppSpacing.xs,
-                    runSpacing: 4,
-                    children: [
-                      // 価格
-                      Text(
-                        part.priceDisplay,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: part.priceFrom == null
-                              ? theme.colorScheme.onSurfaceVariant
-                              : theme.colorScheme.primary,
-                        ),
-                      ),
-                      // 評価
-                      if (part.rating != null)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.star_rounded,
-                                size: 13, color: Colors.amber),
-                            const SizedBox(width: 2),
-                            Text(
-                              part.rating!.toStringAsFixed(1),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.bold,
+                        if (part.isFeatured) ...[
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '広告',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                fontSize: 10,
                               ),
                             ),
-                          ],
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // 名前
+                    Text(
+                      part.name,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (part.brand != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        part.brand!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
-                      // 互換性バッジ（車両指定時）
-                      if (compatibility != null)
-                        _CompatibilityBadge(level: compatibility),
+                      ),
                     ],
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    // 価格 + 評価 + 互換性
+                    Wrap(
+                      spacing: AppSpacing.xs,
+                      runSpacing: 4,
+                      children: [
+                        // 価格
+                        Text(
+                          part.priceDisplay,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: part.priceFrom == null
+                                ? theme.colorScheme.onSurfaceVariant
+                                : theme.colorScheme.primary,
+                          ),
+                        ),
+                        // 評価
+                        if (part.rating != null)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star_rounded,
+                                  size: 13, color: Colors.amber),
+                              const SizedBox(width: 2),
+                              Text(
+                                part.rating!.toStringAsFixed(1),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        // 互換性バッジ（車両指定時）
+                        if (compatibility != null)
+                          _CompatibilityBadge(level: compatibility),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-          ],
-        ),
+              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+            ],
+          ),
         ),
       ),
     );

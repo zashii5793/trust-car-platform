@@ -3,26 +3,26 @@ import 'drive_log.dart';
 
 /// Spot category
 enum SpotCategory {
-  scenicView,      // 景勝地
-  restaurant,      // レストラン
-  cafe,            // カフェ
-  gasStation,      // ガソリンスタンド
-  parkingArea,     // 駐車場・PA
-  serviceArea,     // サービスエリア
-  shrine,          // 神社
-  temple,          // 寺院
-  hotSpring,       // 温泉
-  campsite,        // キャンプ場
-  beach,           // ビーチ
-  mountain,        // 山
-  lake,            // 湖
-  waterfall,       // 滝
-  historicSite,    // 史跡
-  museum,          // 博物館
-  park,            // 公園
-  shopping,        // ショッピング
-  carWash,         // 洗車場
-  other,           // その他
+  scenicView, // 景勝地
+  restaurant, // レストラン
+  cafe, // カフェ
+  gasStation, // ガソリンスタンド
+  parkingArea, // 駐車場・PA
+  serviceArea, // サービスエリア
+  shrine, // 神社
+  temple, // 寺院
+  hotSpring, // 温泉
+  campsite, // キャンプ場
+  beach, // ビーチ
+  mountain, // 山
+  lake, // 湖
+  waterfall, // 滝
+  historicSite, // 史跡
+  museum, // 博物館
+  park, // 公園
+  shopping, // ショッピング
+  carWash, // 洗車場
+  other, // その他
   ;
 
   String get displayName {
@@ -156,8 +156,8 @@ class SpotImage {
 
 /// Business hours for a spot
 class SpotBusinessHours {
-  final int dayOfWeek;     // 0 = Sunday, 6 = Saturday
-  final String? openTime;  // "09:00"
+  final int dayOfWeek; // 0 = Sunday, 6 = Saturday
+  final String? openTime; // "09:00"
   final String? closeTime; // "18:00"
   final bool isClosed;
 
@@ -201,8 +201,8 @@ class SpotBusinessHours {
 /// Drive spot / point of interest
 class DriveSpot {
   final String id;
-  final String userId;           // Creator
-  final String? driveLogId;      // Associated drive log (if discovered during drive)
+  final String userId; // Creator
+  final String? driveLogId; // Associated drive log (if discovered during drive)
 
   // Basic info
   final String name;
@@ -228,7 +228,7 @@ class DriveSpot {
   final String? thumbnailUrl;
 
   // Ratings
-  final double averageRating;    // 1.0 - 5.0
+  final double averageRating; // 1.0 - 5.0
   final int ratingCount;
   final int visitCount;
 
@@ -275,7 +275,8 @@ class DriveSpot {
       driveLogId: map['driveLogId'] as String?,
       name: map['name'] as String,
       description: map['description'] as String?,
-      category: SpotCategory.fromString(map['category'] as String?) ?? SpotCategory.other,
+      category: SpotCategory.fromString(map['category'] as String?) ??
+          SpotCategory.other,
       tags: (map['tags'] as List<dynamic>?)?.cast<String>() ?? [],
       location: GeoPoint2D.fromMap(map['location'] as Map<String, dynamic>?),
       address: map['address'] as String?,
@@ -426,7 +427,7 @@ class SpotRating {
   final String userId;
   final String? userName;
   final String? userAvatarUrl;
-  final int rating;              // 1-5
+  final int rating; // 1-5
   final String? comment;
   final List<String> photoUrls;
   final DateTime visitedAt;

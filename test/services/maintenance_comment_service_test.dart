@@ -55,7 +55,9 @@ void main() {
   // Group 1: tone 判定ロジック
   // ==========================================================================
   group('tone 判定ロジック', () {
-    test('正常系（good）: 前回から5ヶ月・4,500km → oilChange(6ヶ月,5000km) → CommentTone.good', () {
+    test(
+        '正常系（good）: 前回から5ヶ月・4,500km → oilChange(6ヶ月,5000km) → CommentTone.good',
+        () {
       // oilChange rule: 6ヶ月, 5000km
       // 前回: 5ヶ月前 = 150日前, 走行 25000km → 現在 29500km
       final prevDate = _baseDate.subtract(const Duration(days: 150));
@@ -84,7 +86,9 @@ void main() {
       expect(comment!.tone, CommentTone.good);
     });
 
-    test('許容範囲（acceptable）: 前回から7ヶ月・5,500km → oilChange → CommentTone.acceptable（1.2倍以内）', () {
+    test(
+        '許容範囲（acceptable）: 前回から7ヶ月・5,500km → oilChange → CommentTone.acceptable（1.2倍以内）',
+        () {
       // 7ヶ月 ≈ 210日, ratio = 7/6 ≈ 1.167 ≤ 1.2
       // km ratio = 5500/5000 = 1.1 ≤ 1.2
       // max ratio = 1.167 → acceptable
@@ -161,7 +165,9 @@ void main() {
       expect(comment!.tone, CommentTone.noHistory);
     });
 
-    test('ルール未定義タイプ（null）: MaintenanceType.washing などルール外 → generateComment returns null', () {
+    test(
+        'ルール未定義タイプ（null）: MaintenanceType.washing などルール外 → generateComment returns null',
+        () {
       final recordDate = _baseDate;
       // washing は _rules に含まれていない
       final record = _makeRecord(
@@ -406,7 +412,8 @@ void main() {
       expect(comment!.tone, CommentTone.noHistory);
     });
 
-    test('allRecords に record と同じ日の別レコードが含まれる → 自分自身 (id == record.id) は除外される', () {
+    test('allRecords に record と同じ日の別レコードが含まれる → 自分自身 (id == record.id) は除外される',
+        () {
       // r1 が対象レコード（id: 'r1'）
       // r_same が同じ日付・同じタイプだが別ID（r_same は前回として使われるべき）
       // r1 自身は allRecords に含まれているが除外される

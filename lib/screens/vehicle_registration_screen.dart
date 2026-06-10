@@ -203,8 +203,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     if (mounted) showSuccessSnackBar(context, '車検証の情報を読み取りました');
   }
 
-  VehicleMaker? _findMatchingMaker(
-      List<VehicleMaker> makers, String ocrText) {
+  VehicleMaker? _findMatchingMaker(List<VehicleMaker> makers, String ocrText) {
     return VehicleOcrMatcher.findMaker(makers, ocrText);
   }
 
@@ -214,8 +213,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         await _masterService.getModelsForMaker(_selectedMaker!.id);
     modelsResult.when(
       success: (models) {
-        final matchedModel =
-            VehicleOcrMatcher.findModel(models, ocrModelName);
+        final matchedModel = VehicleOcrMatcher.findModel(models, ocrModelName);
         if (matchedModel != null) {
           if (mounted) setState(() => _selectedModel = matchedModel);
         }
@@ -333,9 +331,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       );
 
       if (!mounted) return;
-      final success =
-          await Provider.of<VehicleProvider>(context, listen: false)
-              .addVehicle(vehicle);
+      final success = await Provider.of<VehicleProvider>(context, listen: false)
+          .addVehicle(vehicle);
 
       if (success && mounted) {
         showSuccessSnackBar(context, '車両を登録しました');
@@ -395,37 +392,37 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         if (shouldPop && context.mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
-      appBar: AppBar(
-        title: Text(_stepTitle),
-        leading: _currentStep > 0
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: _previousStep,
-              )
-            : null,
-      ),
-      body: AppLoadingOverlay(
-        isLoading: _isLoading,
-        message: '登録中...',
-        child: Column(
-          children: [
-            _WizardStepIndicator(currentStep: _currentStep),
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _buildStep1(),
-                  _buildStep2(),
-                  _buildStep3(),
-                ],
-              ),
-            ),
-            _buildNavigationButtons(),
-          ],
+        appBar: AppBar(
+          title: Text(_stepTitle),
+          leading: _currentStep > 0
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: _previousStep,
+                )
+              : null,
         ),
-      ),
-    ),  // PopScope
+        body: AppLoadingOverlay(
+          isLoading: _isLoading,
+          message: '登録中...',
+          child: Column(
+            children: [
+              _WizardStepIndicator(currentStep: _currentStep),
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _buildStep1(),
+                    _buildStep2(),
+                    _buildStep3(),
+                  ],
+                ),
+              ),
+              _buildNavigationButtons(),
+            ],
+          ),
+        ),
+      ), // PopScope
     );
   }
 
@@ -454,14 +451,12 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               child: Container(
                 height: 120,
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.darkCard
-                      : AppColors.backgroundLight,
+                  color:
+                      isDark ? AppColors.darkCard : AppColors.backgroundLight,
                   borderRadius: AppSpacing.borderRadiusMd,
                   border: Border.all(
-                    color: isDark
-                        ? AppColors.darkTextTertiary
-                        : AppColors.border,
+                    color:
+                        isDark ? AppColors.darkTextTertiary : AppColors.border,
                   ),
                 ),
                 child: _imageBytes != null
@@ -516,8 +511,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                   _selectedGrade = null;
                 });
               },
-              validator: (value) =>
-                  value == null ? 'メーカーを選択してください' : null,
+              validator: (value) => value == null ? 'メーカーを選択してください' : null,
             ),
             AppSpacing.verticalMd,
 
@@ -530,8 +524,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                   _selectedGrade = null;
                 });
               },
-              validator: (value) =>
-                  value == null ? '車種を選択してください' : null,
+              validator: (value) => value == null ? '車種を選択してください' : null,
             ),
             AppSpacing.verticalMd,
 
@@ -560,9 +553,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                   child: GradeSelectorField(
                     modelId: _selectedModel?.id,
                     selectedGrade: _selectedGrade,
-                    onChanged: (grade) => setState(() => _selectedGrade = grade),
-                    validator: (value) =>
-                        value == null ? 'グレードを選択' : null,
+                    onChanged: (grade) =>
+                        setState(() => _selectedGrade = grade),
+                    validator: (value) => value == null ? 'グレードを選択' : null,
                   ),
                 ),
               ],
@@ -608,8 +601,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             decoration: BoxDecoration(
               color: AppColors.info.withValues(alpha: 0.08),
               borderRadius: AppSpacing.borderRadiusMd,
-              border: Border.all(
-                  color: AppColors.info.withValues(alpha: 0.25)),
+              border: Border.all(color: AppColors.info.withValues(alpha: 0.25)),
             ),
             child: Row(
               children: [
@@ -643,11 +635,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             onTap: () => _selectDate(
               title: '車検満了日を選択',
               currentDate: _inspectionExpiryDate,
-              firstDate:
-                  DateTime.now().subtract(const Duration(days: 365)),
+              firstDate: DateTime.now().subtract(const Duration(days: 365)),
               lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
-              onSelected: (d) =>
-                  setState(() => _inspectionExpiryDate = d),
+              onSelected: (d) => setState(() => _inspectionExpiryDate = d),
             ),
           ),
           AppSpacing.verticalSm,
@@ -661,11 +651,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             onTap: () => _selectDate(
               title: '自賠責保険期限を選択',
               currentDate: _insuranceExpiryDate,
-              firstDate:
-                  DateTime.now().subtract(const Duration(days: 365)),
+              firstDate: DateTime.now().subtract(const Duration(days: 365)),
               lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
-              onSelected: (d) =>
-                  setState(() => _insuranceExpiryDate = d),
+              onSelected: (d) => setState(() => _insuranceExpiryDate = d),
             ),
           ),
           AppSpacing.verticalLg,
@@ -705,8 +693,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               decoration: BoxDecoration(
                 color: AppColors.success.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                border: Border.all(
-                    color: AppColors.success.withValues(alpha: 0.3)),
+                border:
+                    Border.all(color: AppColors.success.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -810,7 +798,10 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md, AppSpacing.xs, AppSpacing.md, AppSpacing.md,
+          AppSpacing.md,
+          AppSpacing.xs,
+          AppSpacing.md,
+          AppSpacing.md,
         ),
         child: Row(
           children: [
@@ -925,8 +916,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           children: [
             Icon(
               icon,
-              color:
-                  isWarning ? AppColors.warning : theme.colorScheme.primary,
+              color: isWarning ? AppColors.warning : theme.colorScheme.primary,
             ),
             AppSpacing.horizontalMd,
             Expanded(
@@ -977,8 +967,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       children: [
         Text(
           '燃料タイプ',
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(fontWeight: FontWeight.w500),
+          style:
+              theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
         ),
         AppSpacing.verticalXs,
         Wrap(
@@ -1064,8 +1054,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.secondary.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
@@ -1115,7 +1105,10 @@ class _WizardStepIndicator extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.xs,
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.xs,
       ),
       child: Column(
         children: [
@@ -1165,8 +1158,7 @@ class _WizardStepIndicator extends StatelessWidget {
                             ? primaryColor.withValues(alpha: 0.55)
                             : theme.colorScheme.onSurface
                                 .withValues(alpha: 0.35),
-                    fontWeight:
-                        isCurrent ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
               );

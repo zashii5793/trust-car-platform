@@ -15,8 +15,7 @@ import '../core/result/result.dart';
 class PostProvider with ChangeNotifier {
   final PostService _postService;
 
-  PostProvider({required PostService postService})
-      : _postService = postService;
+  PostProvider({required PostService postService}) : _postService = postService;
 
   // ── フィード状態 ──────────────────────────────────────────────────────────
   List<Post> _feedPosts = [];
@@ -151,7 +150,8 @@ class PostProvider with ChangeNotifier {
       visibility: visibility,
       userDisplayName: userDisplayName,
       userPhotoUrl: userPhotoUrl,
-      media: imageUrls.map((url) => PostMedia(url: url, type: 'image')).toList(),
+      media:
+          imageUrls.map((url) => PostMedia(url: url, type: 'image')).toList(),
     );
 
     bool success = false;
@@ -223,7 +223,8 @@ class PostProvider with ChangeNotifier {
     final idx = _feedPosts.indexWhere((p) => p.id == postId);
     if (idx == -1) return;
     _feedPosts[idx] = _feedPosts[idx].copyWith(
-      likeCount: (_feedPosts[idx].likeCount + delta).clamp(0, double.maxFinite.toInt()),
+      likeCount: (_feedPosts[idx].likeCount + delta)
+          .clamp(0, double.maxFinite.toInt()),
     );
   }
 
@@ -363,7 +364,8 @@ class PostProvider with ChangeNotifier {
         final idx = _feedPosts.indexWhere((p) => p.id == postId);
         if (idx != -1) {
           _feedPosts[idx] = _feedPosts[idx].copyWith(
-            commentCount: (_feedPosts[idx].commentCount - 1).clamp(0, double.maxFinite.toInt()),
+            commentCount: (_feedPosts[idx].commentCount - 1)
+                .clamp(0, double.maxFinite.toInt()),
           );
         }
         notifyListeners();

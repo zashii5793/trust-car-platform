@@ -14,8 +14,7 @@ class VehicleOcrMatcher {
   /// [VehicleMaker.nameEn] matches [ocrText], or `null` if none match.
   ///
   /// Prefer exact match first to avoid false partial matches.
-  static VehicleMaker? findMaker(
-      List<VehicleMaker> makers, String ocrText) {
+  static VehicleMaker? findMaker(List<VehicleMaker> makers, String ocrText) {
     if (ocrText.isEmpty) return null;
     final normalizedText = _normalize(ocrText);
 

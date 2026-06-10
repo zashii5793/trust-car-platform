@@ -273,7 +273,8 @@ void main() {
       expect(find.text('店舗別集計'), findsNothing);
     });
 
-    testWidgets('12. shop section shown when records have shop names', (tester) async {
+    testWidgets('12. shop section shown when records have shop names',
+        (tester) async {
       final provider = _FakeMaintenanceProvider(
         records: [_makeRecord(shopName: 'オートサービス山田')],
       );
@@ -309,7 +310,8 @@ void main() {
       expect(find.text('1件'), findsOneWidget);
     });
 
-    testWidgets('16. records with empty shop name — shop section hidden', (tester) async {
+    testWidgets('16. records with empty shop name — shop section hidden',
+        (tester) async {
       final provider = _FakeMaintenanceProvider(
         records: [_makeRecord(shopName: '')],
       );

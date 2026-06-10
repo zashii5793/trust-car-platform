@@ -21,7 +21,8 @@ class MockConnectivity implements Connectivity {
   }
 
   @override
-  Stream<List<ConnectivityResult>> get onConnectivityChanged => _controller.stream;
+  Stream<List<ConnectivityResult>> get onConnectivityChanged =>
+      _controller.stream;
 
   void dispose() {
     _controller.close();

@@ -113,10 +113,8 @@ class Newsletter {
       scheduledAt: (data['scheduledAt'] as Timestamp?)?.toDate(),
       sentAt: (data['sentAt'] as Timestamp?)?.toDate(),
       recipientCount: (data['recipientCount'] as int?) ?? 0,
-      createdAt:
-          (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt:
-          (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
@@ -128,7 +126,8 @@ class Newsletter {
         'audience': audience.name,
         'category': category.name,
         'status': status.name,
-        if (scheduledAt != null) 'scheduledAt': Timestamp.fromDate(scheduledAt!),
+        if (scheduledAt != null)
+          'scheduledAt': Timestamp.fromDate(scheduledAt!),
         if (sentAt != null) 'sentAt': Timestamp.fromDate(sentAt!),
         'recipientCount': recipientCount,
         'createdAt': Timestamp.fromDate(createdAt),
@@ -202,8 +201,7 @@ class NewsletterSubscription {
               ))
           .toList(),
       unsubscribeToken: data['unsubscribeToken'] as String? ?? '',
-      updatedAt:
-          (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 

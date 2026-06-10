@@ -35,15 +35,15 @@ sealed class Result<T, E> {
 
   /// 成功値を取得（失敗時はnull）
   T? get valueOrNull => switch (this) {
-    Success(:final value) => value,
-    Failure() => null,
-  };
+        Success(:final value) => value,
+        Failure() => null,
+      };
 
   /// エラーを取得（成功時はnull）
   E? get errorOrNull => switch (this) {
-    Success() => null,
-    Failure(:final error) => error,
-  };
+        Success() => null,
+        Failure(:final error) => error,
+      };
 
   /// パターンマッチング
   R when<R>({
@@ -65,7 +65,8 @@ sealed class Result<T, E> {
   }
 
   /// 成功値を変換（非同期）
-  Future<Result<R, E>> mapAsync<R>(Future<R> Function(T value) transform) async {
+  Future<Result<R, E>> mapAsync<R>(
+      Future<R> Function(T value) transform) async {
     return switch (this) {
       Success(:final value) => Result.success(await transform(value)),
       Failure(:final error) => Result.failure(error),

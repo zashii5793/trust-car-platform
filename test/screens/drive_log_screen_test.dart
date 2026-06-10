@@ -40,8 +40,7 @@ class MockAuthService implements AuthService {
       Result.failure(AppError.unknown('not impl'));
 
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
@@ -53,8 +52,7 @@ class MockAuthService implements AuthService {
       Result.failure(AppError.unknown('not impl'));
 
   @override
-  Future<Result<void, AppError>> sendPasswordResetEmail(
-          String email) async =>
+  Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
       const Result.success(null);
 
   @override
@@ -163,8 +161,7 @@ Widget _buildUnderTest({
         create: (_) => _LoggedInAuthProvider(),
       ),
       ChangeNotifierProvider(
-        create: (_) =>
-            DriveLogProvider(driveLogService: driveLogService),
+        create: (_) => DriveLogProvider(driveLogService: driveLogService),
       ),
       ChangeNotifierProvider(
         create: (_) => DriveRecordingProvider(

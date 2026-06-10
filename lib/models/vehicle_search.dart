@@ -2,12 +2,12 @@ import 'vehicle_listing.dart';
 
 /// Sort options for vehicle search
 enum VehicleSortOption {
-  newest,       // 新着順
-  priceAsc,     // 価格安い順
-  priceDesc,    // 価格高い順
-  mileageAsc,   // 走行距離少ない順
-  yearDesc,     // 年式新しい順
-  popular,      // 人気順
+  newest, // 新着順
+  priceAsc, // 価格安い順
+  priceDesc, // 価格高い順
+  mileageAsc, // 走行距離少ない順
+  yearDesc, // 年式新しい順
+  popular, // 人気順
   ;
 
   String get displayName {
@@ -55,16 +55,16 @@ class VehicleSearchCriteria {
 
   // 状態
   final List<ConditionGrade>? conditionGrades;
-  final bool? hasInspection;        // 車検あり
-  final bool? noAccidentHistory;    // 修復歴なし
-  final bool? noSmokingHistory;     // 禁煙車
-  final bool? oneOwnerOnly;         // ワンオーナーのみ
+  final bool? hasInspection; // 車検あり
+  final bool? noAccidentHistory; // 修復歴なし
+  final bool? noSmokingHistory; // 禁煙車
+  final bool? oneOwnerOnly; // ワンオーナーのみ
 
   // 地域
   final List<String>? prefectures;
 
   // 出品者タイプ
-  final bool? shopListingOnly;      // 販売店のみ
+  final bool? shopListingOnly; // 販売店のみ
 
   // 並び順
   final VehicleSortOption sortBy;
@@ -316,8 +316,10 @@ class VehiclePreference {
       maxMileage: maxMileage ?? this.maxMileage,
       minYear: minYear ?? this.minYear,
       preferredFuelTypes: preferredFuelTypes ?? this.preferredFuelTypes,
-      preferredTransmissions: preferredTransmissions ?? this.preferredTransmissions,
-      requiresNoAccidentHistory: requiresNoAccidentHistory ?? this.requiresNoAccidentHistory,
+      preferredTransmissions:
+          preferredTransmissions ?? this.preferredTransmissions,
+      requiresNoAccidentHistory:
+          requiresNoAccidentHistory ?? this.requiresNoAccidentHistory,
       requiresInspection: requiresInspection ?? this.requiresInspection,
       minSeatingCapacity: minSeatingCapacity ?? this.minSeatingCapacity,
       preferredPrefectures: preferredPrefectures ?? this.preferredPrefectures,
@@ -341,7 +343,8 @@ class VehiclePreference {
       noAccidentHistory: requiresNoAccidentHistory ? true : null,
       hasInspection: requiresInspection ? true : null,
       seatingCapacityMin: minSeatingCapacity,
-      prefectures: preferredPrefectures.isNotEmpty ? preferredPrefectures : null,
+      prefectures:
+          preferredPrefectures.isNotEmpty ? preferredPrefectures : null,
     );
   }
 }
@@ -349,7 +352,7 @@ class VehiclePreference {
 /// Recommendation result with score
 class VehicleRecommendation {
   final VehicleListing listing;
-  final double relevanceScore;  // 0.0 - 1.0
+  final double relevanceScore; // 0.0 - 1.0
   final List<String> matchReasons;
 
   const VehicleRecommendation({

@@ -124,7 +124,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     makersResult.when(
       success: (makers) {
         maker = makers.firstWhere(
-          (m) => m.name == v.maker || m.nameEn.toLowerCase() == v.maker.toLowerCase(),
+          (m) =>
+              m.name == v.maker ||
+              m.nameEn.toLowerCase() == v.maker.toLowerCase(),
           orElse: () => makers.firstWhere(
             (m) => m.id == v.maker.toLowerCase(),
             orElse: () => throw StateError('not found'),
@@ -144,7 +146,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         success: (models) {
           try {
             model = models.firstWhere(
-              (m) => m.name == v.model || (m.nameEn?.toLowerCase() == v.model.toLowerCase()),
+              (m) =>
+                  m.name == v.model ||
+                  (m.nameEn?.toLowerCase() == v.model.toLowerCase()),
             );
           } catch (_) {}
         },
@@ -198,7 +202,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         _vinNumberController.text != (v.vinNumber ?? '') ||
         _modelCodeController.text != (v.modelCode ?? '') ||
         _colorController.text != (v.color ?? '') ||
-        _engineDisplacementController.text != (v.engineDisplacement?.toString() ?? '') ||
+        _engineDisplacementController.text !=
+            (v.engineDisplacement?.toString() ?? '') ||
         _selectedFuelType != v.fuelType ||
         _inspectionExpiryDate != v.inspectionExpiryDate ||
         _insuranceExpiryDate != v.insuranceExpiryDate ||
@@ -305,8 +310,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
       // ナンバープレート重複チェック（変更があった場合のみ）
       if (_licensePlateController.text.isNotEmpty &&
           _licensePlateController.text != widget.vehicle.licensePlate) {
-        final exists = await Provider.of<VehicleProvider>(context, listen: false)
-            .isLicensePlateExists(
+        final exists =
+            await Provider.of<VehicleProvider>(context, listen: false)
+                .isLicensePlateExists(
           _licensePlateController.text,
           excludeVehicleId: widget.vehicle.id,
         );
@@ -567,7 +573,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                     },
                     validator: (value) {
                       // 逆引き失敗 or 読み込み中は既存値を使うため null でもOK
-                      if (value == null && _selectedMaker == null && !_masterDataLoading) {
+                      if (value == null &&
+                          _selectedMaker == null &&
+                          !_masterDataLoading) {
                         return 'メーカーを選択してください';
                       }
                       return null;
@@ -587,7 +595,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                       _onFieldChanged();
                     },
                     validator: (value) {
-                      if (value == null && _selectedModel == null && !_masterDataLoading) {
+                      if (value == null &&
+                          _selectedModel == null &&
+                          !_masterDataLoading) {
                         return '車種を選択してください';
                       }
                       return null;
@@ -630,7 +640,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                             _onFieldChanged();
                           },
                           validator: (value) {
-                            if (value == null && _selectedGrade == null && !_masterDataLoading) {
+                            if (value == null &&
+                                _selectedGrade == null &&
+                                !_masterDataLoading) {
                               return 'グレードを選択';
                             }
                             return null;
@@ -670,7 +682,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                   AppSpacing.verticalLg,
 
                   // === 車検・保険セクション ===
-                  _buildSectionHeader(theme, '車検・保険', Icons.verified, isImportant: true),
+                  _buildSectionHeader(theme, '車検・保険', Icons.verified,
+                      isImportant: true),
                   AppSpacing.verticalSm,
 
                   // 車検満了日
@@ -684,9 +697,12 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                     onTap: () => _selectDate(
                       title: '車検満了日を選択',
                       currentDate: _inspectionExpiryDate,
-                      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                      lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
-                      onSelected: (date) => setState(() => _inspectionExpiryDate = date),
+                      firstDate:
+                          DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate:
+                          DateTime.now().add(const Duration(days: 365 * 3)),
+                      onSelected: (date) =>
+                          setState(() => _inspectionExpiryDate = date),
                     ),
                   ),
                   AppSpacing.verticalSm,
@@ -701,9 +717,12 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                     onTap: () => _selectDate(
                       title: '自賠責保険期限を選択',
                       currentDate: _insuranceExpiryDate,
-                      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                      lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
-                      onSelected: (date) => setState(() => _insuranceExpiryDate = date),
+                      firstDate:
+                          DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate:
+                          DateTime.now().add(const Duration(days: 365 * 3)),
+                      onSelected: (date) =>
+                          setState(() => _insuranceExpiryDate = date),
                     ),
                   ),
                   AppSpacing.verticalLg,
@@ -823,7 +842,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                         currentDate: _purchaseDate,
                         firstDate: DateTime(1990),
                         lastDate: DateTime.now(),
-                        onSelected: (date) => setState(() => _purchaseDate = date),
+                        onSelected: (date) =>
+                            setState(() => _purchaseDate = date),
                       ),
                     ),
                   ],
@@ -833,7 +853,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                   // 更新ボタン
                   AppButton.primary(
                     label: '更新する',
-                    onPressed: (_hasChanges && !_isLoading) ? _updateVehicle : null,
+                    onPressed:
+                        (_hasChanges && !_isLoading) ? _updateVehicle : null,
                     isFullWidth: true,
                     size: AppButtonSize.large,
                     icon: Icons.save,
@@ -847,11 +868,13 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                       decoration: BoxDecoration(
                         color: Colors.orange.withValues(alpha: 0.1),
                         borderRadius: AppSpacing.borderRadiusSm,
-                        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                        border: Border.all(
+                            color: Colors.orange.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.warning_amber, color: Colors.orange, size: 20),
+                          const Icon(Icons.warning_amber,
+                              color: Colors.orange, size: 20),
                           AppSpacing.horizontalSm,
                           Expanded(
                             child: Text(
@@ -876,7 +899,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     );
   }
 
-  Widget _buildSectionHeader(ThemeData theme, String title, IconData icon, {bool isImportant = false}) {
+  Widget _buildSectionHeader(ThemeData theme, String title, IconData icon,
+      {bool isImportant = false}) {
     return Row(
       children: [
         Icon(
@@ -960,7 +984,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                     Text(
                       hint,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.6),
+                        color: theme.textTheme.bodySmall?.color
+                            ?.withValues(alpha: 0.6),
                       ),
                     ),
                 ],
@@ -971,7 +996,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
               style: theme.textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: date == null
-                    ? (isWarning ? Colors.orange : theme.textTheme.bodySmall?.color)
+                    ? (isWarning
+                        ? Colors.orange
+                        : theme.textTheme.bodySmall?.color)
                     : theme.colorScheme.primary,
               ),
             ),
@@ -1052,7 +1079,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     }
 
     // 既存の画像がある場合
-    if (widget.vehicle.imageUrl != null && widget.vehicle.imageUrl!.isNotEmpty) {
+    if (widget.vehicle.imageUrl != null &&
+        widget.vehicle.imageUrl!.isNotEmpty) {
       return Stack(
         children: [
           ClipRRect(

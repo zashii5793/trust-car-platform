@@ -393,8 +393,7 @@ void main() {
       testWidgets('複数投稿があるとき各投稿のカテゴリが正しく表示される', (tester) async {
         mockService.feedResult = Result.success([
           _makePost(id: 'p1', category: PostCategory.drive, content: 'ドライブ記事'),
-          _makePost(
-              id: 'p2', category: PostCategory.question, content: '質問です'),
+          _makePost(id: 'p2', category: PostCategory.question, content: '質問です'),
         ]);
 
         await tester.pumpWidget(_buildApp(mockService));

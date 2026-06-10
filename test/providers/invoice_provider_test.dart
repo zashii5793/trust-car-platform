@@ -71,7 +71,8 @@ class MockInvoiceService implements InvoiceService {
     PaymentMethod? method,
     DateTime? paymentDate,
     int? paidAmount,
-  }) async => updatePaymentResult;
+  }) async =>
+      updatePaymentResult;
 
   @override
   Future<Result<void, AppError>> deleteInvoice(String invoiceId) async {
@@ -98,7 +99,8 @@ class MockInvoiceService implements InvoiceService {
   Future<Result<List<Invoice>, AppError>> getInvoicesByDateRange({
     required DateTime start,
     required DateTime end,
-  }) async => byDateRangeResult;
+  }) async =>
+      byDateRangeResult;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -184,7 +186,8 @@ void main() {
       test('Stream から請求書を受け取ると invoices が更新される', () async {
         provider.listenToInvoices();
 
-        mockService.emitInvoices([_makeInvoice(id: 'i1'), _makeInvoice(id: 'i2')]);
+        mockService
+            .emitInvoices([_makeInvoice(id: 'i1'), _makeInvoice(id: 'i2')]);
         await Future.microtask(() {}); // let stream propagate
 
         expect(provider.invoices.length, 2);
@@ -193,7 +196,8 @@ void main() {
 
       test('Stream エラーが発生すると error が設定される', () async {
         provider.listenToInvoices();
-        mockService.emitError(Exception('[cloud_firestore/permission-denied] Access denied'));
+        mockService.emitError(
+            Exception('[cloud_firestore/permission-denied] Access denied'));
         await Future.microtask(() {});
 
         expect(provider.error, isNotNull);
@@ -262,8 +266,7 @@ void main() {
       });
 
       test('作成失敗で null を返しエラーが設定される', () async {
-        mockService.createResult =
-            Result.failure(AppError.network('failed'));
+        mockService.createResult = Result.failure(AppError.network('failed'));
 
         final id = await provider.createInvoice(_makeInvoice());
 
@@ -281,8 +284,7 @@ void main() {
 
     group('updateInvoice', () {
       test('更新成功で true を返す', () async {
-        final success =
-            await provider.updateInvoice('inv1', _makeInvoice());
+        final success = await provider.updateInvoice('inv1', _makeInvoice());
         expect(success, true);
         expect(provider.error, isNull);
       });
@@ -291,8 +293,7 @@ void main() {
         mockService.updateResult =
             Result.failure(AppError.permission('Permission denied'));
 
-        final success =
-            await provider.updateInvoice('inv1', _makeInvoice());
+        final success = await provider.updateInvoice('inv1', _makeInvoice());
 
         expect(success, false);
         expect(provider.error, isNotNull);
@@ -380,7 +381,9 @@ void main() {
         provider.listenToInvoices();
         mockService.emitInvoices([
           _makeInvoice(
-              id: 'i1', totalAmount: 10000, paymentStatus: PaymentStatus.unpaid),
+              id: 'i1',
+              totalAmount: 10000,
+              paymentStatus: PaymentStatus.unpaid),
           _makeInvoice(
               id: 'i2', totalAmount: 5000, paymentStatus: PaymentStatus.paid),
         ]);
@@ -475,7 +478,8 @@ void main() {
 
       test('isRetryable はリトライ可能エラーのとき true', () async {
         provider.listenToInvoices();
-        mockService.emitError(Exception('[cloud_firestore/unavailable] Service unavailable'));
+        mockService.emitError(
+            Exception('[cloud_firestore/unavailable] Service unavailable'));
         await Future.microtask(() {});
 
         expect(provider.isRetryable, true);

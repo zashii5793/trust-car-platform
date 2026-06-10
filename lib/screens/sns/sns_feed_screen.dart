@@ -546,77 +546,80 @@ class _PostFooter extends StatelessWidget {
       children: [
         const Divider(height: 1),
         Padding(
-      padding: const EdgeInsets.fromLTRB(8, 2, 12, 6),
-      child: Row(
-        children: [
-          // いいねボタン
-          Consumer2<PostProvider, AuthProvider>(
-            builder: (context, postProvider, authProvider, child) {
-              final userId = authProvider.firebaseUser?.uid ?? '';
-              final liked = postProvider.isLiked(post.id);
-              return InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: userId.isNotEmpty
-                    ? () => postProvider.toggleLike(post.id, userId)
-                    : null,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        liked ? Icons.favorite : Icons.favorite_border,
-                        size: 18,
-                        color: liked ? AppColors.error : tertiary,
+          padding: const EdgeInsets.fromLTRB(8, 2, 12, 6),
+          child: Row(
+            children: [
+              // いいねボタン
+              Consumer2<PostProvider, AuthProvider>(
+                builder: (context, postProvider, authProvider, child) {
+                  final userId = authProvider.firebaseUser?.uid ?? '';
+                  final liked = postProvider.isLiked(post.id);
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: userId.isNotEmpty
+                        ? () => postProvider.toggleLike(post.id, userId)
+                        : null,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            liked ? Icons.favorite : Icons.favorite_border,
+                            size: 18,
+                            color: liked ? AppColors.error : tertiary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${post.likeCount}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: liked ? AppColors.error : tertiary,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${post.likeCount}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: liked ? AppColors.error : tertiary,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(width: 4),
+              // コメント数（表示のみ）
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.chat_bubble_outline, size: 18, color: tertiary),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${post.commentCount}',
+                      style:
+                          theme.textTheme.bodySmall?.copyWith(color: tertiary),
+                    ),
+                  ],
                 ),
-              );
-            },
+              ),
+              const Spacer(),
+              // 投稿者が自分なら削除ボタン
+              Consumer2<PostProvider, AuthProvider>(
+                builder: (context, postProvider, authProvider, child) {
+                  final userId = authProvider.firebaseUser?.uid ?? '';
+                  if (post.userId != userId || userId.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return IconButton(
+                    icon: Icon(Icons.delete_outline, size: 18, color: tertiary),
+                    onPressed: () =>
+                        _confirmDelete(context, postProvider, userId),
+                    tooltip: '削除',
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(6),
+                  );
+                },
+              ),
+            ],
           ),
-          const SizedBox(width: 4),
-          // コメント数（表示のみ）
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.chat_bubble_outline, size: 18, color: tertiary),
-                const SizedBox(width: 4),
-                Text(
-                  '${post.commentCount}',
-                  style: theme.textTheme.bodySmall?.copyWith(color: tertiary),
-                ),
-              ],
-            ),
-          ),
-          const Spacer(),
-          // 投稿者が自分なら削除ボタン
-          Consumer2<PostProvider, AuthProvider>(
-            builder: (context, postProvider, authProvider, child) {
-              final userId = authProvider.firebaseUser?.uid ?? '';
-              if (post.userId != userId || userId.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              return IconButton(
-                icon: Icon(Icons.delete_outline, size: 18, color: tertiary),
-                onPressed: () => _confirmDelete(context, postProvider, userId),
-                tooltip: '削除',
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(6),
-              );
-            },
-          ),
-        ],
-      ),
         ),
       ],
     );

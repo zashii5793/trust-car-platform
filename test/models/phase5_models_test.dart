@@ -182,8 +182,16 @@ void main() {
           WorkItem(name: '下回り洗浄', laborCost: 3000),
         ],
         parts: const [
-          Part(partNumber: 'FILTER-001', name: 'オイルフィルター', unitPrice: 1500, quantity: 1),
-          Part(partNumber: 'OIL-001', name: 'エンジンオイル', unitPrice: 2500, quantity: 4),
+          Part(
+              partNumber: 'FILTER-001',
+              name: 'オイルフィルター',
+              unitPrice: 1500,
+              quantity: 1),
+          Part(
+              partNumber: 'OIL-001',
+              name: 'エンジンオイル',
+              unitPrice: 2500,
+              quantity: 4),
         ],
       );
 

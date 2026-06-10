@@ -113,8 +113,7 @@ void main() {
       });
 
       test('no match → returns null', () {
-        final result =
-            VehicleOcrMatcher.findMaker(_makers, 'フォルクスワーゲン');
+        final result = VehicleOcrMatcher.findMaker(_makers, 'フォルクスワーゲン');
         expect(result, isNull);
       });
 
@@ -233,7 +232,8 @@ void main() {
         // This tests the normalize function itself via model matching.
         // Create a model named "RAV4" and search with full-width "ＲＡＶ４"
         final models = [
-          VehicleModel(id: 'rav4', makerId: 'toyota', name: 'RAV4', nameEn: 'RAV4'),
+          VehicleModel(
+              id: 'rav4', makerId: 'toyota', name: 'RAV4', nameEn: 'RAV4'),
         ];
         final result = VehicleOcrMatcher.findModel(models, 'ＲＡＶ４');
         expect(result, isNotNull);
@@ -308,7 +308,8 @@ void main() {
         // This test DOCUMENTS a known gap. When half-width katakana normalization
         // is implemented, change expect to isNotNull.
         final result = VehicleOcrMatcher.findMaker(_makers, 'ﾄﾖﾀ');
-        expect(result, isNull); // Known gap — half-width katakana not yet supported
+        expect(result,
+            isNull); // Known gap — half-width katakana not yet supported
       });
     });
   });

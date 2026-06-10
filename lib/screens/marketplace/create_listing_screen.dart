@@ -83,7 +83,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   // Computed helpers
   // -----------------------------------------------------------------------
 
-  int get _price => int.tryParse(_priceController.text.replaceAll(',', '')) ?? 0;
+  int get _price =>
+      int.tryParse(_priceController.text.replaceAll(',', '')) ?? 0;
 
   int get _payout => calculatePayout(_price);
 
@@ -355,7 +356,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             FilledButton(
               onPressed: _canSubmit ? _submit : null,
               style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(AppSpacing.tapTargetRecommended),
+                minimumSize:
+                    const Size.fromHeight(AppSpacing.tapTargetRecommended),
               ),
               child: _isSubmitting
                   ? const SizedBox(
@@ -563,21 +565,21 @@ class _CategoryDropdown extends StatelessWidget {
 
   // Categories shown in the selector (subset matching the task spec)
   static const _categories = [
-    PartCategory.performance,  // エンジン系
-    PartCategory.suspension,   // 足回り
-    PartCategory.exterior,     // 外装
-    PartCategory.interior,     // 内装
-    PartCategory.navigation,   // 電装
-    PartCategory.tire,         // タイヤ
-    PartCategory.wheel,        // ホイール
-    PartCategory.exhaust,      // マフラー
-    PartCategory.brake,        // ブレーキ
-    PartCategory.aero,         // エアロ
-    PartCategory.lighting,     // ライト
-    PartCategory.audio,        // オーディオ
-    PartCategory.maintenance,  // メンテナンス
-    PartCategory.accessory,    // アクセサリー
-    PartCategory.other,        // その他
+    PartCategory.performance, // エンジン系
+    PartCategory.suspension, // 足回り
+    PartCategory.exterior, // 外装
+    PartCategory.interior, // 内装
+    PartCategory.navigation, // 電装
+    PartCategory.tire, // タイヤ
+    PartCategory.wheel, // ホイール
+    PartCategory.exhaust, // マフラー
+    PartCategory.brake, // ブレーキ
+    PartCategory.aero, // エアロ
+    PartCategory.lighting, // ライト
+    PartCategory.audio, // オーディオ
+    PartCategory.maintenance, // メンテナンス
+    PartCategory.accessory, // アクセサリー
+    PartCategory.other, // その他
   ];
 
   const _CategoryDropdown({required this.value, required this.onChanged});

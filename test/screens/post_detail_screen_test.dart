@@ -178,7 +178,8 @@ class _FakePostService implements PostService {
   Future<bool> isPostLiked({
     required String postId,
     required String userId,
-  }) async => false;
+  }) async =>
+      false;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;

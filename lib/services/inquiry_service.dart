@@ -42,7 +42,8 @@ class InquiryService {
     // and exceed the limit by 1. Atomic enforcement requires a Cloud Function
     // with a Firestore transaction; the Firestore security rule provides a
     // server-side backstop for egregious over-use.
-    final canReceiveResult = await _subscriptionService.canReceiveInquiry(shopId);
+    final canReceiveResult =
+        await _subscriptionService.canReceiveInquiry(shopId);
     if (canReceiveResult.isFailure) {
       return Result.failure(canReceiveResult.errorOrNull!);
     }
@@ -111,16 +112,14 @@ class InquiryService {
     DocumentSnapshot? startAfter,
   }) async {
     try {
-      Query<Map<String, dynamic>> query = _inquiriesCollection
-          .where('userId', isEqualTo: userId);
+      Query<Map<String, dynamic>> query =
+          _inquiriesCollection.where('userId', isEqualTo: userId);
 
       if (status != null) {
         query = query.where('status', isEqualTo: status.name);
       }
 
-      query = query
-          .orderBy('updatedAt', descending: true)
-          .limit(limit);
+      query = query.orderBy('updatedAt', descending: true).limit(limit);
 
       if (startAfter != null) {
         query = query.startAfterDocument(startAfter);
@@ -128,9 +127,8 @@ class InquiryService {
 
       final snapshot = await query.get();
 
-      final inquiries = snapshot.docs
-          .map((doc) => Inquiry.fromFirestore(doc))
-          .toList();
+      final inquiries =
+          snapshot.docs.map((doc) => Inquiry.fromFirestore(doc)).toList();
 
       return Result.success(inquiries);
     } catch (e) {
@@ -146,16 +144,14 @@ class InquiryService {
     DocumentSnapshot? startAfter,
   }) async {
     try {
-      Query<Map<String, dynamic>> query = _inquiriesCollection
-          .where('shopId', isEqualTo: shopId);
+      Query<Map<String, dynamic>> query =
+          _inquiriesCollection.where('shopId', isEqualTo: shopId);
 
       if (status != null) {
         query = query.where('status', isEqualTo: status.name);
       }
 
-      query = query
-          .orderBy('updatedAt', descending: true)
-          .limit(limit);
+      query = query.orderBy('updatedAt', descending: true).limit(limit);
 
       if (startAfter != null) {
         query = query.startAfterDocument(startAfter);
@@ -163,9 +159,8 @@ class InquiryService {
 
       final snapshot = await query.get();
 
-      final inquiries = snapshot.docs
-          .map((doc) => Inquiry.fromFirestore(doc))
-          .toList();
+      final inquiries =
+          snapshot.docs.map((doc) => Inquiry.fromFirestore(doc)).toList();
 
       return Result.success(inquiries);
     } catch (e) {
@@ -277,9 +272,8 @@ class InquiryService {
   }) async {
     try {
       // Reset unread count
-      final updateData = isUser
-          ? {'unreadCountUser': 0}
-          : {'unreadCountShop': 0};
+      final updateData =
+          isUser ? {'unreadCountUser': 0} : {'unreadCountShop': 0};
 
       await _inquiriesCollection.doc(inquiryId).update(updateData);
 
@@ -287,7 +281,8 @@ class InquiryService {
       final messages = await _inquiriesCollection
           .doc(inquiryId)
           .collection(FirestoreCollections.messages)
-          .where('isFromShop', isEqualTo: isUser)  // Messages from the other party
+          .where('isFromShop',
+              isEqualTo: isUser) // Messages from the other party
           .where('isRead', isEqualTo: false)
           .get();
 
@@ -348,9 +343,8 @@ class InquiryService {
         .orderBy('updatedAt', descending: true)
         .limit(20)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Inquiry.fromFirestore(doc))
-            .toList());
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => Inquiry.fromFirestore(doc)).toList());
   }
 
   /// Stream messages for real-time chat

@@ -63,7 +63,8 @@ class ProfileScreen extends StatelessWidget {
                 // プロフィールヘッダー
                 _ProfileHeader(
                   photoUrl: user?.photoURL,
-                  displayName: appUser?.displayName ?? user?.displayName ?? 'ユーザー',
+                  displayName:
+                      appUser?.displayName ?? user?.displayName ?? 'ユーザー',
                   email: user?.email ?? '',
                   isPremium: isPremium,
                 ),
@@ -161,7 +162,8 @@ class ProfileScreen extends StatelessWidget {
                           'https://zashii5793.github.io/trust-car-platform/',
                         );
                         if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          await launchUrl(uri,
+                              mode: LaunchMode.externalApplication);
                         } else if (context.mounted) {
                           showErrorSnackBar(context, 'ブラウザを開けませんでした');
                         }
@@ -193,7 +195,8 @@ class ProfileScreen extends StatelessWidget {
                       if (confirmed && context.mounted) {
                         await authProvider.signOut();
                         if (context.mounted) {
-                          Navigator.of(context).popUntil((route) => route.isFirst);
+                          Navigator.of(context)
+                              .popUntil((route) => route.isFirst);
                         }
                       }
                     },
@@ -202,7 +205,8 @@ class ProfileScreen extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.error,
                       side: const BorderSide(color: AppColors.error),
-                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                     ),
                   ),
                 ),
@@ -435,12 +439,16 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
                       backgroundColor: theme.colorScheme.primary,
                       backgroundImage: _pickedImageBytes != null
                           ? MemoryImage(_pickedImageBytes!)
-                          : (widget.currentPhotoUrl != null && widget.currentPhotoUrl!.isNotEmpty
-                              ? NetworkImage(widget.currentPhotoUrl!) as ImageProvider
+                          : (widget.currentPhotoUrl != null &&
+                                  widget.currentPhotoUrl!.isNotEmpty
+                              ? NetworkImage(widget.currentPhotoUrl!)
+                                  as ImageProvider
                               : null),
                       child: (_pickedImageBytes == null &&
-                              (widget.currentPhotoUrl == null || widget.currentPhotoUrl!.isEmpty))
-                          ? const Icon(Icons.person, size: 44, color: Colors.white)
+                              (widget.currentPhotoUrl == null ||
+                                  widget.currentPhotoUrl!.isEmpty))
+                          ? const Icon(Icons.person,
+                              size: 44, color: Colors.white)
                           : null,
                     ),
                     Positioned(
@@ -449,7 +457,8 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
                       child: CircleAvatar(
                         radius: 14,
                         backgroundColor: theme.colorScheme.primary,
-                        child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                        child: const Icon(Icons.camera_alt,
+                            size: 16, color: Colors.white),
                       ),
                     ),
                   ],

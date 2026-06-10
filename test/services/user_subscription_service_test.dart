@@ -28,7 +28,8 @@ void main() {
         );
       });
 
-      test('premium plan with null expiry returns true (lifetime/manual grant)', () {
+      test('premium plan with null expiry returns true (lifetime/manual grant)',
+          () {
         expect(
           UserSubscriptionService.isPremium(UserPlanType.premium, null),
           isTrue,

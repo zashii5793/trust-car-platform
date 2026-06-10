@@ -147,7 +147,8 @@ void main() {
     test('S グレードが含まれる', () {
       final grades = VehicleMasterData.getCommonGrades('any');
       final gradeNames = grades.map((g) => g.name).toList();
-      expect(gradeNames.any((name) => name == 'S' || name.contains('S')), isTrue);
+      expect(
+          gradeNames.any((name) => name == 'S' || name.contains('S')), isTrue);
     });
   });
 

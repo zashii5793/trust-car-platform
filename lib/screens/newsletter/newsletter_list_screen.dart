@@ -61,7 +61,8 @@ class _NewsletterListScreenState extends State<NewsletterListScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('ニュースレターを配信'),
-        content: Text('「${newsletter.title}」を${newsletter.audience.displayName}に配信しますか？'),
+        content: Text(
+            '「${newsletter.title}」を${newsletter.audience.displayName}に配信しますか？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),

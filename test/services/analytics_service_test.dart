@@ -73,7 +73,8 @@ void main() {
 
     group('AI recommendation events', () {
       test('trackRecommendationViewed does not throw', () async {
-        await expectLater(sut.trackRecommendationViewed('oil_change'), completes);
+        await expectLater(
+            sut.trackRecommendationViewed('oil_change'), completes);
       });
 
       test('trackRecommendationActioned does not throw', () async {

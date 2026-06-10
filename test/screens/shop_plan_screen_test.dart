@@ -37,13 +37,15 @@ class _StubAuthService implements AuthService {
     required String email,
     required String password,
     String? displayName,
-  }) async => Result.failure(AppError.server('stub'));
+  }) async =>
+      Result.failure(AppError.server('stub'));
 
   @override
   Future<Result<UserCredential, AppError>> signInWithEmail({
     required String email,
     required String password,
-  }) async => Result.failure(AppError.server('stub'));
+  }) async =>
+      Result.failure(AppError.server('stub'));
 
   @override
   Future<Result<UserCredential?, AppError>> signInWithGoogle() async =>
@@ -54,8 +56,7 @@ class _StubAuthService implements AuthService {
       const Result.success(null);
 
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
@@ -65,12 +66,14 @@ class _StubAuthService implements AuthService {
   Future<Result<void, AppError>> updateUserProfile({
     String? displayName,
     String? photoUrl,
-  }) async => const Result.success(null);
+  }) async =>
+      const Result.success(null);
 
   @override
   Future<Result<void, AppError>> updateNotificationSettings(
     NotificationSettings settings,
-  ) async => const Result.success(null);
+  ) async =>
+      const Result.success(null);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -148,7 +151,8 @@ void main() {
   });
 
   group('ShopPlanScreen — current plan button state', () {
-    testWidgets('current free plan shows disabled "現在のプラン" button', (tester) async {
+    testWidgets('current free plan shows disabled "現在のプラン" button',
+        (tester) async {
       await tester.pumpWidget(_buildScreen(currentPlan: ShopPlanType.free));
       await tester.pump();
 
@@ -163,7 +167,8 @@ void main() {
       expect(find.text('現在のプラン'), findsWidgets);
     });
 
-    testWidgets('upgrade buttons show 30日間無料で始める for standard and premium', (tester) async {
+    testWidgets('upgrade buttons show 30日間無料で始める for standard and premium',
+        (tester) async {
       await tester.pumpWidget(_buildScreen(currentPlan: ShopPlanType.free));
       await tester.pump();
 
@@ -181,7 +186,9 @@ void main() {
   });
 
   group('ShopPlanScreen — downgrade confirmation dialog', () {
-    testWidgets('tapping downgrade button on paid plan shows confirmation dialog', (tester) async {
+    testWidgets(
+        'tapping downgrade button on paid plan shows confirmation dialog',
+        (tester) async {
       await tester.pumpWidget(_buildScreen(currentPlan: ShopPlanType.standard));
       await tester.pump();
 
@@ -198,7 +205,8 @@ void main() {
       expect(find.text('キャンセル'), findsOneWidget);
     });
 
-    testWidgets('tapping キャンセル in dialog closes it without changing plan', (tester) async {
+    testWidgets('tapping キャンセル in dialog closes it without changing plan',
+        (tester) async {
       await tester.pumpWidget(_buildScreen(currentPlan: ShopPlanType.standard));
       await tester.pump();
 
@@ -212,7 +220,8 @@ void main() {
       expect(find.text('スタンダード'), findsOneWidget);
     });
 
-    testWidgets('dialog shows plan cancellation warning message', (tester) async {
+    testWidgets('dialog shows plan cancellation warning message',
+        (tester) async {
       await tester.pumpWidget(_buildScreen(currentPlan: ShopPlanType.premium));
       await tester.pump();
 
@@ -227,7 +236,8 @@ void main() {
   });
 
   group('ShopPlanScreen — recommended badge', () {
-    testWidgets('shows おすすめ badge on standard plan when current is free', (tester) async {
+    testWidgets('shows おすすめ badge on standard plan when current is free',
+        (tester) async {
       await tester.pumpWidget(_buildScreen(currentPlan: ShopPlanType.free));
       await tester.pump();
 

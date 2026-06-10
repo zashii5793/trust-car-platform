@@ -238,7 +238,8 @@ void main() {
       expect(find.text('未設定（タップして設定）'), findsOneWidget);
     });
 
-    testWidgets('14. shows formatted date when ocrData has date', (tester) async {
+    testWidgets('14. shows formatted date when ocrData has date',
+        (tester) async {
       final data = _makeOcrData(date: DateTime(2025, 6, 15));
       await tester.pumpWidget(_buildScreen(data));
       await tester.pump();
@@ -328,7 +329,8 @@ void main() {
   });
 
   group('InvoiceResultScreen — Edge Cases', () {
-    testWidgets('23. empty items → hint text visible in description', (tester) async {
+    testWidgets('23. empty items → hint text visible in description',
+        (tester) async {
       final data = _makeOcrData(items: []);
       await tester.pumpWidget(_buildScreen(data));
       await tester.pump();

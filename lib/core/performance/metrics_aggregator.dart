@@ -48,8 +48,8 @@ class MetricsAggregator {
   List<String> get trackedOperations => _operationDurations.keys.toList();
 
   /// Get total sample count across all operations
-  int get totalSampleCount =>
-      _operationDurations.values.fold(0, (sum, samples) => sum + samples.length);
+  int get totalSampleCount => _operationDurations.values
+      .fold(0, (sum, samples) => sum + samples.length);
 }
 
 /// Snapshot of aggregated metrics at a point in time
@@ -75,7 +75,8 @@ class MetricsSnapshot {
     }
 
     final buffer = StringBuffer();
-    buffer.writeln('=== Performance Metrics (${timestamp.toIso8601String()}) ===');
+    buffer.writeln(
+        '=== Performance Metrics (${timestamp.toIso8601String()}) ===');
 
     // Sort by operation name for consistent output
     final sortedEntries = operations.entries.toList()

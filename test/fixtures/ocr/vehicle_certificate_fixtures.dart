@@ -208,7 +208,6 @@ final vehicleCertificateFixtures = <VehicleCertificateFixture>[
     ),
     minimumAccuracy: 0.90,
   ),
-
   VehicleCertificateFixture(
     name: 'ホンダ フィット（一部フィールド欠損・OCRノイズ軽め）',
     rawText: _hondaFitRawText,
@@ -229,7 +228,6 @@ final vehicleCertificateFixtures = <VehicleCertificateFixture>[
     ),
     minimumAccuracy: 0.85,
   ),
-
   VehicleCertificateFixture(
     name: '日産 リーフ（電気自動車・排気量フィールドなし）',
     rawText: _nissanLeafRawText,
@@ -251,7 +249,6 @@ final vehicleCertificateFixtures = <VehicleCertificateFixture>[
     ),
     minimumAccuracy: 0.85,
   ),
-
   VehicleCertificateFixture(
     name: '重いOCRノイズ（文字化け・キーワード欠け）',
     rawText: _noisyOcrRawText,

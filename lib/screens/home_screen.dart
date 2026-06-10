@@ -54,7 +54,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _initializeData() {
-    final vehicleProvider = Provider.of<VehicleProvider>(context, listen: false);
+    final vehicleProvider =
+        Provider.of<VehicleProvider>(context, listen: false);
     _vehicleProvider = vehicleProvider;
     vehicleProvider.listenToVehicles();
     vehicleProvider.addListener(_onVehiclesChanged);
@@ -62,7 +63,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onVehiclesChanged() {
     if (!mounted) return;
-    final vehicleProvider = Provider.of<VehicleProvider>(context, listen: false);
+    final vehicleProvider =
+        Provider.of<VehicleProvider>(context, listen: false);
     final notificationProvider =
         Provider.of<NotificationProvider>(context, listen: false);
 
@@ -508,9 +510,10 @@ class _ProfileTab extends StatelessWidget {
                 color: AppColors.primary,
                 onTap: isPremium
                     ? () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                      )
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const ProfileScreen()),
+                        )
                     : () => _showUpgradeDialog(context),
               ),
             ],
@@ -529,7 +532,8 @@ class _ProfileTab extends StatelessWidget {
                 color: AppColors.info,
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+                  MaterialPageRoute(
+                      builder: (_) => const PrivacyPolicyScreen()),
                 ),
               ),
               _MenuItemData(
@@ -538,7 +542,8 @@ class _ProfileTab extends StatelessWidget {
                 color: AppColors.info,
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()),
+                  MaterialPageRoute(
+                      builder: (_) => const TermsOfServiceScreen()),
                 ),
               ),
             ],
@@ -637,7 +642,8 @@ class _ProfileTab extends StatelessWidget {
                       ),
                       trailing: Icon(
                         Icons.chevron_right,
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.3),
                         size: AppSpacing.iconMd,
                       ),
                       onTap: item.onTap,
@@ -891,8 +897,8 @@ class _VehicleCard extends StatelessWidget {
                                       AppSpacing.horizontalXs,
                                       Text(
                                         '車検 残${vehicle.daysUntilInspection}日',
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
                                           color: vehicle.isInspectionDueSoon
                                               ? AppColors.warning
                                               : null,
@@ -1116,7 +1122,8 @@ class _VehicleEmptyOnboarding extends StatelessWidget {
               'まず愛車を登録しよう',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                color:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -1125,7 +1132,9 @@ class _VehicleEmptyOnboarding extends StatelessWidget {
           Text(
             '登録するだけで、AIがあなたの愛車に\n合ったお役立ち情報をお知らせします',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textSecondary,
               height: 1.6,
             ),
             textAlign: TextAlign.center,
@@ -1250,7 +1259,8 @@ class _DashboardSummaryCard extends StatelessWidget {
 
     // 警告のある車両を集計
     final expiredCount = vehicles
-        .where((v) => v.isInspectionExpired ||
+        .where((v) =>
+            v.isInspectionExpired ||
             (v.daysUntilInsuranceExpiry != null &&
                 v.daysUntilInsuranceExpiry! < 0))
         .length;
@@ -1342,9 +1352,7 @@ class _DashboardSummaryCard extends StatelessWidget {
                 icon: Icons.warning_amber_outlined,
                 value: '$warnCount',
                 label: '注意',
-                iconColor: warnCount > 0
-                    ? AppColors.warning
-                    : Colors.white54,
+                iconColor: warnCount > 0 ? AppColors.warning : Colors.white54,
               ),
             ],
           ),
@@ -1464,7 +1472,8 @@ class _AiSuggestionSection extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.primary.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                      borderRadius:
+                          BorderRadius.circular(AppSpacing.radiusFull),
                       border: Border.all(
                         color: theme.colorScheme.primary.withValues(alpha: 0.2),
                       ),
@@ -1533,10 +1542,11 @@ class _AiSuggestionSection extends StatelessWidget {
                         ? () {
                             final vehicles =
                                 context.read<VehicleProvider>().vehicles;
-                            final vehicle = vehicles.cast<Vehicle?>().firstWhere(
-                                  (v) => v?.id == n.vehicleId,
-                                  orElse: () => null,
-                                );
+                            final vehicle =
+                                vehicles.cast<Vehicle?>().firstWhere(
+                                      (v) => v?.id == n.vehicleId,
+                                      orElse: () => null,
+                                    );
                             if (vehicle == null || !context.mounted) return;
                             Navigator.push(
                               context,
@@ -1846,8 +1856,7 @@ class _SuggestionDetailSheet extends StatelessWidget {
                     Row(
                       children: [
                         Icon(Icons.info_outline,
-                            size: 15,
-                            color: theme.colorScheme.primary),
+                            size: 15, color: theme.colorScheme.primary),
                         const SizedBox(width: 6),
                         Text(
                           'なぜ今なのか',
@@ -1986,4 +1995,3 @@ class _InfoChip extends StatelessWidget {
     );
   }
 }
-

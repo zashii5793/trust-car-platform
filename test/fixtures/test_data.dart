@@ -120,7 +120,8 @@ abstract final class TestData {
     );
   }
 
-  static AppNotification makeHighPriorityNotification({String id = 'notif-high'}) {
+  static AppNotification makeHighPriorityNotification(
+      {String id = 'notif-high'}) {
     return makeNotification(
       id: id,
       type: NotificationType.inspectionReminder,

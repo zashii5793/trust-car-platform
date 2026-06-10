@@ -198,7 +198,8 @@ class PostService {
       }
 
       final snapshot = await query.get();
-      final posts = snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
+      final posts =
+          snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
       return Result.success(posts);
     } catch (e) {
       return Result.failure(AppError.unknown(
@@ -230,7 +231,8 @@ class PostService {
 
       // Filter by visibility if not own posts
       if (userId != viewerId) {
-        posts = posts.where((p) => p.visibility == PostVisibility.public).toList();
+        posts =
+            posts.where((p) => p.visibility == PostVisibility.public).toList();
       }
 
       return Result.success(posts);
@@ -260,7 +262,8 @@ class PostService {
       }
 
       final snapshot = await query.get();
-      final posts = snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
+      final posts =
+          snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
       return Result.success(posts);
     } catch (e) {
       return Result.failure(AppError.unknown(
@@ -427,7 +430,8 @@ class PostService {
               ? NotificationType.reply
               : NotificationType.comment,
           postId: postId,
-          previewText: content.length > 50 ? '${content.substring(0, 50)}...' : content,
+          previewText:
+              content.length > 50 ? '${content.substring(0, 50)}...' : content,
         ));
       }
 
