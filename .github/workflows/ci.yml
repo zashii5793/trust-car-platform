@@ -102,8 +102,12 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Flutter doctor (diagnostic)
-        run: flutter doctor -v
+      - name: Install Android SDK 36 and NDK
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;28.2.13676358" 2>&1 | tail -5
 
       - name: Place google-services.json
         run: |
@@ -148,7 +152,7 @@ jobs:
 
   build-ios:
     name: Build iOS
-    runs-on: macos-latest
+    runs-on: macos-14
     needs: analyze-and-test
 
     steps:
@@ -164,9 +168,6 @@ jobs:
 
       - name: Get dependencies
         run: flutter pub get
-
-      - name: Flutter doctor (diagnostic)
-        run: flutter doctor -v
 
       - name: Place GoogleService-Info.plist
         run: |
