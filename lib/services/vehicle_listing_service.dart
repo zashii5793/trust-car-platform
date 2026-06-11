@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/vehicle_listing.dart';
@@ -7,18 +9,20 @@ import '../models/vehicle_search.dart';
 /// Service for managing vehicle listings and recommendations
 class VehicleListingService {
   final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
 
-  VehicleListingService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  VehicleListingService({FirebaseFirestore? firestore, FirebaseAuth? auth})
+      : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance;
 
   CollectionReference<Map<String, dynamic>> get _listingsRef =>
-      _firestore.collection('vehicle_listings');
+      _firestore.collection(FirestoreCollections.vehicleListings);
 
   CollectionReference<Map<String, dynamic>> get _favoritesRef =>
-      _firestore.collection('listing_favorites');
+      _firestore.collection(FirestoreCollections.listingFavorites);
 
   CollectionReference<Map<String, dynamic>> get _preferencesRef =>
-      _firestore.collection('vehicle_preferences');
+      _firestore.collection(FirestoreCollections.vehiclePreferences);
 
   // ==================== Listings ====================
 
@@ -48,8 +52,8 @@ class VehicleListingService {
     DocumentSnapshot? startAfter,
   }) async {
     try {
-      Query<Map<String, dynamic>> query = _listingsRef
-          .where('status', isEqualTo: ListingStatus.active.name);
+      Query<Map<String, dynamic>> query =
+          _listingsRef.where('status', isEqualTo: ListingStatus.active.name);
 
       // Apply filters
       if (criteria.makerId != null) {
@@ -136,10 +140,12 @@ class VehicleListingService {
       }
 
       // Mileage range
-      if (criteria.mileageMin != null && listing.mileage < criteria.mileageMin!) {
+      if (criteria.mileageMin != null &&
+          listing.mileage < criteria.mileageMin!) {
         return false;
       }
-      if (criteria.mileageMax != null && listing.mileage > criteria.mileageMax!) {
+      if (criteria.mileageMax != null &&
+          listing.mileage > criteria.mileageMax!) {
         return false;
       }
 
@@ -208,7 +214,7 @@ class VehicleListingService {
       if (criteria.keyword?.isNotEmpty == true) {
         final keyword = criteria.keyword!.toLowerCase();
         final searchableText = '${listing.makerName} ${listing.modelName} '
-            '${listing.gradeName ?? ''} ${listing.description ?? ''}'
+                '${listing.gradeName ?? ''} ${listing.description ?? ''}'
             .toLowerCase();
         if (!searchableText.contains(keyword)) {
           return false;
@@ -224,6 +230,17 @@ class VehicleListingService {
     required String userId,
     int limit = 10,
   }) async {
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null) {
+      return const Result.failure(
+        AppError.auth('認証が必要です', type: AuthErrorType.unknown),
+      );
+    }
+    if (currentUid != userId) {
+      return const Result.failure(
+        AppError.auth('他のユーザーの情報は取得できません', type: AuthErrorType.unknown),
+      );
+    }
     try {
       // Get user preference
       final prefDoc = await _preferencesRef.doc(userId).get();
@@ -234,7 +251,8 @@ class VehicleListingService {
         preference = VehiclePreference(
           userId: userId,
           preferredMakerIds: List<String>.from(data['preferredMakerIds'] ?? []),
-          preferredBodyTypes: List<String>.from(data['preferredBodyTypes'] ?? []),
+          preferredBodyTypes:
+              List<String>.from(data['preferredBodyTypes'] ?? []),
           budgetMin: data['budgetMin'],
           budgetMax: data['budgetMax'],
           maxMileage: data['maxMileage'],
@@ -243,16 +261,19 @@ class VehicleListingService {
               ?.map((e) => FuelType.fromString(e))
               .whereType<FuelType>()
               .toList(),
-          preferredTransmissions: (data['preferredTransmissions'] as List<dynamic>?)
-              ?.map((e) => TransmissionType.fromString(e))
-              .whereType<TransmissionType>()
-              .toList(),
+          preferredTransmissions:
+              (data['preferredTransmissions'] as List<dynamic>?)
+                  ?.map((e) => TransmissionType.fromString(e))
+                  .whereType<TransmissionType>()
+                  .toList(),
           requiresNoAccidentHistory: data['requiresNoAccidentHistory'] ?? false,
           requiresInspection: data['requiresInspection'] ?? false,
           minSeatingCapacity: data['minSeatingCapacity'],
-          preferredPrefectures: List<String>.from(data['preferredPrefectures'] ?? []),
+          preferredPrefectures:
+              List<String>.from(data['preferredPrefectures'] ?? []),
           viewedListingIds: List<String>.from(data['viewedListingIds'] ?? []),
-          favoriteListingIds: List<String>.from(data['favoriteListingIds'] ?? []),
+          favoriteListingIds:
+              List<String>.from(data['favoriteListingIds'] ?? []),
         );
       } else {
         preference = VehiclePreference(userId: userId);
@@ -273,7 +294,8 @@ class VehicleListingService {
       final recommendations = _scoreListings(listings, preference);
 
       // Sort by relevance and take top results
-      recommendations.sort((a, b) => b.relevanceScore.compareTo(a.relevanceScore));
+      recommendations
+          .sort((a, b) => b.relevanceScore.compareTo(a.relevanceScore));
 
       return Result.success(recommendations.take(limit).toList());
     } catch (e) {
@@ -289,91 +311,99 @@ class VehicleListingService {
     List<VehicleListing> listings,
     VehiclePreference preference,
   ) {
-    return listings.map((listing) {
-      var score = 0.0;
-      final reasons = <String>[];
+    return listings
+        .map((listing) {
+          var score = 0.0;
+          final reasons = <String>[];
 
-      // Skip already viewed
-      if (preference.viewedListingIds.contains(listing.id)) {
-        return VehicleRecommendation(
-          listing: listing,
-          relevanceScore: 0,
-        );
-      }
+          // Skip already viewed
+          if (preference.viewedListingIds.contains(listing.id)) {
+            return VehicleRecommendation(
+              listing: listing,
+              relevanceScore: 0,
+            );
+          }
 
-      // Maker preference (weight: 0.2)
-      if (preference.preferredMakerIds.contains(listing.makerId)) {
-        score += 0.2;
-        reasons.add('希望メーカー');
-      }
+          // Maker preference (weight: 0.2)
+          if (preference.preferredMakerIds.contains(listing.makerId)) {
+            score += 0.2;
+            reasons.add('希望メーカー');
+          }
 
-      // Body type preference (weight: 0.15)
-      if (preference.preferredBodyTypes.contains(listing.bodyType)) {
-        score += 0.15;
-        reasons.add('希望ボディタイプ');
-      }
+          // Body type preference (weight: 0.15)
+          if (preference.preferredBodyTypes.contains(listing.bodyType)) {
+            score += 0.15;
+            reasons.add('希望ボディタイプ');
+          }
 
-      // Budget match (weight: 0.25)
-      final budgetScore = _calculateBudgetScore(listing, preference);
-      score += budgetScore * 0.25;
-      if (budgetScore > 0.8) {
-        reasons.add('予算内');
-      }
+          // Budget match (weight: 0.25)
+          final budgetScore = _calculateBudgetScore(listing, preference);
+          score += budgetScore * 0.25;
+          if (budgetScore > 0.8) {
+            reasons.add('予算内');
+          }
 
-      // Mileage score (weight: 0.1)
-      final mileageScore = _calculateMileageScore(listing, preference);
-      score += mileageScore * 0.1;
-      if (mileageScore > 0.8) {
-        reasons.add('走行距離が少ない');
-      }
+          // Mileage score (weight: 0.1)
+          final mileageScore = _calculateMileageScore(listing, preference);
+          score += mileageScore * 0.1;
+          if (mileageScore > 0.8) {
+            reasons.add('走行距離が少ない');
+          }
 
-      // Year score (weight: 0.1)
-      final yearScore = _calculateYearScore(listing, preference);
-      score += yearScore * 0.1;
-      if (yearScore > 0.8) {
-        reasons.add('高年式');
-      }
+          // Year score (weight: 0.1)
+          final yearScore = _calculateYearScore(listing, preference);
+          score += yearScore * 0.1;
+          if (yearScore > 0.8) {
+            reasons.add('高年式');
+          }
 
-      // Fuel type preference (weight: 0.05)
-      if (preference.preferredFuelTypes?.contains(listing.specs.fuelType) == true) {
-        score += 0.05;
-        reasons.add('希望燃料タイプ');
-      }
+          // Fuel type preference (weight: 0.05)
+          if (preference.preferredFuelTypes?.contains(listing.specs.fuelType) ==
+              true) {
+            score += 0.05;
+            reasons.add('希望燃料タイプ');
+          }
 
-      // Transmission preference (weight: 0.05)
-      if (preference.preferredTransmissions?.contains(listing.specs.transmission) == true) {
-        score += 0.05;
-      }
+          // Transmission preference (weight: 0.05)
+          if (preference.preferredTransmissions
+                  ?.contains(listing.specs.transmission) ==
+              true) {
+            score += 0.05;
+          }
 
-      // Condition requirements
-      if (preference.requiresNoAccidentHistory && !listing.hasAccidentHistory) {
-        score += 0.05;
-        reasons.add('修復歴なし');
-      } else if (preference.requiresNoAccidentHistory && listing.hasAccidentHistory) {
-        score -= 0.3; // Penalty
-      }
+          // Condition requirements
+          if (preference.requiresNoAccidentHistory &&
+              !listing.hasAccidentHistory) {
+            score += 0.05;
+            reasons.add('修復歴なし');
+          } else if (preference.requiresNoAccidentHistory &&
+              listing.hasAccidentHistory) {
+            score -= 0.3; // Penalty
+          }
 
-      // Prefecture preference (weight: 0.05)
-      if (preference.preferredPrefectures.contains(listing.prefecture)) {
-        score += 0.05;
-        reasons.add('希望地域');
-      }
+          // Prefecture preference (weight: 0.05)
+          if (preference.preferredPrefectures.contains(listing.prefecture)) {
+            score += 0.05;
+            reasons.add('希望地域');
+          }
 
-      // Similar to favorites bonus
-      if (_isSimilarToFavorites(listing, preference)) {
-        score += 0.1;
-        reasons.add('お気に入りに類似');
-      }
+          // Similar to favorites bonus
+          if (_isSimilarToFavorites(listing, preference)) {
+            score += 0.1;
+            reasons.add('お気に入りに類似');
+          }
 
-      // Normalize score to 0-1
-      score = score.clamp(0.0, 1.0);
+          // Normalize score to 0-1
+          score = score.clamp(0.0, 1.0);
 
-      return VehicleRecommendation(
-        listing: listing,
-        relevanceScore: score,
-        matchReasons: reasons,
-      );
-    }).where((r) => r.relevanceScore > 0).toList();
+          return VehicleRecommendation(
+            listing: listing,
+            relevanceScore: score,
+            matchReasons: reasons,
+          );
+        })
+        .where((r) => r.relevanceScore > 0)
+        .toList();
   }
 
   double _calculateBudgetScore(VehicleListing listing, VehiclePreference pref) {
@@ -392,7 +422,8 @@ class VehicleListingService {
     return (1.0 - overRatio).clamp(0.0, 0.5);
   }
 
-  double _calculateMileageScore(VehicleListing listing, VehiclePreference pref) {
+  double _calculateMileageScore(
+      VehicleListing listing, VehiclePreference pref) {
     if (pref.maxMileage == null) return 0.5;
 
     if (listing.mileage <= pref.maxMileage!) {
@@ -628,10 +659,12 @@ class VehicleListingService {
       if (maxMileage != null) updates['maxMileage'] = maxMileage;
       if (minYear != null) updates['minYear'] = minYear;
       if (preferredFuelTypes != null) {
-        updates['preferredFuelTypes'] = preferredFuelTypes.map((e) => e.name).toList();
+        updates['preferredFuelTypes'] =
+            preferredFuelTypes.map((e) => e.name).toList();
       }
       if (preferredTransmissions != null) {
-        updates['preferredTransmissions'] = preferredTransmissions.map((e) => e.name).toList();
+        updates['preferredTransmissions'] =
+            preferredTransmissions.map((e) => e.name).toList();
       }
       if (requiresNoAccidentHistory != null) {
         updates['requiresNoAccidentHistory'] = requiresNoAccidentHistory;

@@ -30,6 +30,12 @@ class AppNotification {
   final NotificationType type;
   final String title;
   final String message;
+
+  /// Structured explanation of WHY this action is recommended now.
+  /// Built from actual vehicle data (last service date, km driven, etc.)
+  /// so the user can make an informed decision. Never a judgment, just facts.
+  final String? reason;
+
   final NotificationPriority priority;
   final bool isRead;
   final DateTime createdAt;
@@ -43,6 +49,7 @@ class AppNotification {
     required this.type,
     required this.title,
     required this.message,
+    this.reason,
     this.priority = NotificationPriority.medium,
     this.isRead = false,
     required this.createdAt,
@@ -63,6 +70,7 @@ class AppNotification {
       ),
       title: data['title'] ?? '',
       message: data['message'] ?? '',
+      reason: data['reason'],
       priority: NotificationPriority.values.firstWhere(
         (e) => e.name == data['priority'],
         orElse: () => NotificationPriority.medium,
@@ -82,6 +90,7 @@ class AppNotification {
       'type': type.name,
       'title': title,
       'message': message,
+      if (reason != null) 'reason': reason,
       'priority': priority.name,
       'isRead': isRead,
       'createdAt': Timestamp.fromDate(createdAt),
@@ -98,6 +107,7 @@ class AppNotification {
     NotificationType? type,
     String? title,
     String? message,
+    String? reason,
     NotificationPriority? priority,
     bool? isRead,
     DateTime? createdAt,
@@ -111,6 +121,7 @@ class AppNotification {
       type: type ?? this.type,
       title: title ?? this.title,
       message: message ?? this.message,
+      reason: reason ?? this.reason,
       priority: priority ?? this.priority,
       isRead: isRead ?? this.isRead,
       createdAt: createdAt ?? this.createdAt,

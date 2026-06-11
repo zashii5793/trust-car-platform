@@ -160,8 +160,7 @@ void main() {
       expect(result.isSuccess, true);
 
       // Verify in Firestore
-      final doc =
-          await firestore.collection('drive_logs').doc(docRef.id).get();
+      final doc = await firestore.collection('drive_logs').doc(docRef.id).get();
       expect(doc.data()?['status'], 'completed');
       expect(doc.data()?['statistics']['totalDistance'], 15.5);
     });
@@ -189,8 +188,7 @@ void main() {
       // Assert
       expect(result.isSuccess, true);
 
-      final doc =
-          await firestore.collection('drive_logs').doc(docRef.id).get();
+      final doc = await firestore.collection('drive_logs').doc(docRef.id).get();
       expect(doc.data()?['title'], 'Weekend Drive');
       expect(doc.data()?['isPublic'], true);
     });
@@ -213,13 +211,11 @@ void main() {
       // Assert
       expect(result.isSuccess, true);
 
-      final doc =
-          await firestore.collection('drive_logs').doc(docRef.id).get();
+      final doc = await firestore.collection('drive_logs').doc(docRef.id).get();
       expect(doc.exists, false);
     });
 
-    test('Read: getPublicDriveLogs retrieves only public drive logs',
-        () async {
+    test('Read: getPublicDriveLogs retrieves only public drive logs', () async {
       // Arrange: Create public and private drive logs
       await firestore.collection('drive_logs').add({
         ...TestDataGenerator.driveLogData(userId: testUserId),
@@ -712,7 +708,8 @@ void main() {
       });
 
       // Act — uses named parameter
-      final result = await driveLogService.getUserSpotVisits(userId: testUserId);
+      final result =
+          await driveLogService.getUserSpotVisits(userId: testUserId);
 
       // Assert
       expect(result.isSuccess, true);

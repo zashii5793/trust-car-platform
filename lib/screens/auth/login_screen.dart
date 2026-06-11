@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_text_field.dart';
@@ -46,8 +47,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.signInWithGoogle();
 
-    if (!success && mounted && authProvider.errorMessage != null) {
-      showErrorSnackBar(context, authProvider.errorMessage!);
+    if (!success && mounted) {
+      showErrorSnackBar(context, authProvider.errorMessage ?? 'ログインに失敗しました');
     }
   }
 
@@ -98,23 +99,67 @@ class _LoginScreenState extends State<LoginScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // ロゴとタイトル
-                          Icon(
-                            Icons.directions_car,
-                            size: 80,
-                            color: theme.colorScheme.primary,
-                          ),
-                          AppSpacing.verticalMd,
-                          Text(
-                            'クルマ統合管理',
-                            style: theme.textTheme.displayMedium,
-                            textAlign: TextAlign.center,
-                          ),
-                          AppSpacing.verticalXs,
-                          Text(
-                            '信頼を設計する、新時代のカーライフ',
-                            style: theme.textTheme.bodyMedium,
-                            textAlign: TextAlign.center,
+                          // ヒーローセクション（グラデーション）
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 36,
+                              horizontal: AppSpacing.lg,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  AppColors.primary,
+                                  AppColors.primaryHover,
+                                  AppColors.secondary,
+                                ],
+                              ),
+                              borderRadius: AppSpacing.borderRadiusLg,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primary,
+                                  blurRadius: 20,
+                                  offset: Offset(0, 8),
+                                  spreadRadius: -4,
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(AppSpacing.md),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.directions_car,
+                                    size: 52,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                AppSpacing.verticalMd,
+                                const Text(
+                                  'TrustCar',
+                                  style: TextStyle(
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: 2.0,
+                                  ),
+                                ),
+                                AppSpacing.verticalXxs,
+                                Text(
+                                  '信頼を設計する、新時代のカーライフ',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                           AppSpacing.verticalXxl,
 
@@ -144,6 +189,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ? Icons.visibility_off
                                     : Icons.visibility,
                               ),
+                              tooltip:
+                                  _obscurePassword ? 'パスワードを表示' : 'パスワードを隠す',
                               onPressed: () {
                                 setState(() {
                                   _obscurePassword = !_obscurePassword;
@@ -199,13 +246,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           // Google ログイン
                           OutlinedButton.icon(
                             onPressed: _handleGoogleLogin,
-                            icon: Image.network(
-                              'https://www.google.com/favicon.ico',
-                              width: 20,
-                              height: 20,
-                              errorBuilder: (_, __, ___) =>
-                                  const Icon(Icons.g_mobiledata, size: 20),
-                            ),
+                            icon: const Icon(Icons.g_mobiledata, size: 20),
                             label: const Text('Google でログイン'),
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(

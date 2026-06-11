@@ -27,7 +27,7 @@ void main() {
       await pumpMultiple(20);
 
       // ログイン画面が表示されることを確認
-      expect(find.text('クルマ統合管理'), findsOneWidget);
+      expect(find.text('TrustCar'), findsOneWidget);
       debugPrint('✓ ログイン画面表示確認');
 
       // メールアドレスとパスワードを入力

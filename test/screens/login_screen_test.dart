@@ -28,7 +28,8 @@ class MockAuthService implements AuthService {
   Result<void, AppError>? passwordResetResult;
 
   @override
-  Stream<firebase_auth.User?> get authStateChanges => _authStateController.stream;
+  Stream<firebase_auth.User?> get authStateChanges =>
+      _authStateController.stream;
 
   @override
   firebase_auth.User? get currentUser => null;
@@ -52,14 +53,17 @@ class MockAuthService implements AuthService {
   }) async {
     signInCalled = true;
     return signInResult ??
-        Result.failure(const AuthError('Not configured', type: AuthErrorType.unknown));
+        Result.failure(
+            const AuthError('Not configured', type: AuthErrorType.unknown));
   }
 
   @override
-  Future<Result<firebase_auth.UserCredential?, AppError>> signInWithGoogle() async {
+  Future<Result<firebase_auth.UserCredential?, AppError>>
+      signInWithGoogle() async {
     googleSignInCalled = true;
     return googleSignInResult ??
-        Result.failure(const AuthError('Not configured', type: AuthErrorType.unknown));
+        Result.failure(
+            const AuthError('Not configured', type: AuthErrorType.unknown));
   }
 
   @override
@@ -110,7 +114,7 @@ void main() {
       await tester.pumpWidget(createLoginScreen());
       await tester.pump();
 
-      expect(find.text('クルマ統合管理'), findsOneWidget);
+      expect(find.text('TrustCar'), findsOneWidget);
       expect(find.text('信頼を設計する、新時代のカーライフ'), findsOneWidget);
     });
 
@@ -175,7 +179,8 @@ void main() {
       expect(find.text('メールアドレスを入力してください'), findsOneWidget);
     });
 
-    testWidgets('shows validation error when password is empty', (tester) async {
+    testWidgets('shows validation error when password is empty',
+        (tester) async {
       await tester.pumpWidget(createLoginScreen());
       await tester.pump();
 
@@ -190,7 +195,8 @@ void main() {
       expect(find.text('パスワードを入力してください'), findsOneWidget);
     });
 
-    testWidgets('shows validation error for invalid email format', (tester) async {
+    testWidgets('shows validation error for invalid email format',
+        (tester) async {
       await tester.pumpWidget(createLoginScreen());
       await tester.pump();
 

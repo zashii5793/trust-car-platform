@@ -36,7 +36,20 @@ void main() {
 
       test('returns failure for unknown format', () {
         // Random bytes that don't match any known format
-        final unknownBytes = Uint8List.fromList([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B]);
+        final unknownBytes = Uint8List.fromList([
+          0x00,
+          0x01,
+          0x02,
+          0x03,
+          0x04,
+          0x05,
+          0x06,
+          0x07,
+          0x08,
+          0x09,
+          0x0A,
+          0x0B
+        ]);
 
         final result = service.validateImage(unknownBytes);
 
@@ -47,8 +60,22 @@ void main() {
       test('returns success for valid JPEG', () {
         // JPEG magic bytes: FF D8 FF
         final jpegBytes = Uint8List.fromList([
-          0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46,
-          0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,
+          0xFF,
+          0xD8,
+          0xFF,
+          0xE0,
+          0x00,
+          0x10,
+          0x4A,
+          0x46,
+          0x49,
+          0x46,
+          0x00,
+          0x01,
+          0x01,
+          0x00,
+          0x00,
+          0x01,
         ]);
 
         final result = service.validateImage(jpegBytes);
@@ -59,8 +86,22 @@ void main() {
       test('returns success for valid PNG', () {
         // PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
         final pngBytes = Uint8List.fromList([
-          0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-          0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+          0x89,
+          0x50,
+          0x4E,
+          0x47,
+          0x0D,
+          0x0A,
+          0x1A,
+          0x0A,
+          0x00,
+          0x00,
+          0x00,
+          0x0D,
+          0x49,
+          0x48,
+          0x44,
+          0x52,
         ]);
 
         final result = service.validateImage(pngBytes);
@@ -107,7 +148,20 @@ void main() {
       });
 
       test('returns failure for invalid format', () async {
-        final invalidBytes = Uint8List.fromList([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B]);
+        final invalidBytes = Uint8List.fromList([
+          0x00,
+          0x01,
+          0x02,
+          0x03,
+          0x04,
+          0x05,
+          0x06,
+          0x07,
+          0x08,
+          0x09,
+          0x0A,
+          0x0B
+        ]);
 
         final result = await service.processImage(invalidBytes);
 
@@ -127,7 +181,8 @@ void main() {
 
     group('constants', () {
       test('has correct max file size', () {
-        expect(ImageProcessingService.maxFileSizeBytes, equals(10 * 1024 * 1024));
+        expect(
+            ImageProcessingService.maxFileSizeBytes, equals(10 * 1024 * 1024));
       });
 
       test('has correct max dimension', () {

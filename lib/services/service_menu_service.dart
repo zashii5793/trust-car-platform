@@ -29,7 +29,8 @@ class ServiceMenuService {
   }
 
   /// サービスメニューを更新
-  Future<Result<void, AppError>> updateServiceMenu(String menuId, ServiceMenu menu) async {
+  Future<Result<void, AppError>> updateServiceMenu(
+      String menuId, ServiceMenu menu) async {
     try {
       await _serviceMenusCollection.doc(menuId).update(menu.toMap());
       return const Result.success(null);
@@ -59,11 +60,10 @@ class ServiceMenuService {
       query = query.where('shopId', isEqualTo: shopId);
     }
 
-    return query
-        .orderBy('sortOrder')
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) => ServiceMenu.fromFirestore(doc)).toList();
+    return query.orderBy('sortOrder').snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => ServiceMenu.fromFirestore(doc))
+          .toList();
     });
   }
 
@@ -82,7 +82,8 @@ class ServiceMenuService {
       }
 
       final snapshot = await query.orderBy('sortOrder').get();
-      final menus = snapshot.docs.map((doc) => ServiceMenu.fromFirestore(doc)).toList();
+      final menus =
+          snapshot.docs.map((doc) => ServiceMenu.fromFirestore(doc)).toList();
       return Result.success(menus);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -104,7 +105,8 @@ class ServiceMenuService {
       }
 
       final snapshot = await query.orderBy('sortOrder').limit(limit).get();
-      final menus = snapshot.docs.map((doc) => ServiceMenu.fromFirestore(doc)).toList();
+      final menus =
+          snapshot.docs.map((doc) => ServiceMenu.fromFirestore(doc)).toList();
       return Result.success(menus);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -126,7 +128,8 @@ class ServiceMenuService {
       }
 
       final snapshot = await query.orderBy('sortOrder').limit(limit).get();
-      final menus = snapshot.docs.map((doc) => ServiceMenu.fromFirestore(doc)).toList();
+      final menus =
+          snapshot.docs.map((doc) => ServiceMenu.fromFirestore(doc)).toList();
       return Result.success(menus);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -141,14 +144,16 @@ class ServiceMenuService {
     try {
       // Firestoreは部分一致検索をサポートしていないため、
       // 全件取得してクライアントサイドでフィルタリング
-      var firestoreQuery = _serviceMenusCollection.where('isActive', isEqualTo: true);
+      var firestoreQuery =
+          _serviceMenusCollection.where('isActive', isEqualTo: true);
 
       if (shopId != null) {
         firestoreQuery = firestoreQuery.where('shopId', isEqualTo: shopId);
       }
 
       final snapshot = await firestoreQuery.get();
-      final allMenus = snapshot.docs.map((doc) => ServiceMenu.fromFirestore(doc)).toList();
+      final allMenus =
+          snapshot.docs.map((doc) => ServiceMenu.fromFirestore(doc)).toList();
 
       // クライアントサイドでフィルタリング
       final lowerQuery = query.toLowerCase();
@@ -201,7 +206,8 @@ class ServiceMenuService {
   }
 
   /// 表示順を更新
-  Future<Result<void, AppError>> updateSortOrder(String menuId, int sortOrder) async {
+  Future<Result<void, AppError>> updateSortOrder(
+      String menuId, int sortOrder) async {
     try {
       await _serviceMenusCollection.doc(menuId).update({
         'sortOrder': sortOrder,
@@ -214,7 +220,8 @@ class ServiceMenuService {
   }
 
   /// カテゴリ別にグループ化されたメニューを取得
-  Future<Result<Map<ServiceCategory, List<ServiceMenu>>, AppError>> getGroupedServiceMenus({
+  Future<Result<Map<ServiceCategory, List<ServiceMenu>>, AppError>>
+      getGroupedServiceMenus({
     String? shopId,
   }) async {
     try {
@@ -225,7 +232,8 @@ class ServiceMenuService {
       }
 
       final snapshot = await query.orderBy('sortOrder').get();
-      final allMenus = snapshot.docs.map((doc) => ServiceMenu.fromFirestore(doc)).toList();
+      final allMenus =
+          snapshot.docs.map((doc) => ServiceMenu.fromFirestore(doc)).toList();
 
       // カテゴリ別にグループ化
       final grouped = <ServiceCategory, List<ServiceMenu>>{};

@@ -2,16 +2,40 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/maintenance_record.dart';
 import '../services/firebase_service.dart';
+import '../services/analytics_service.dart';
+import '../core/constants/retry_config.dart';
 import '../core/error/app_error.dart';
+
+/// 整備記録の並び順
+enum MaintenanceSortBy {
+  /// 日付が新しい順（デフォルト）
+  dateDesc,
+
+  /// 日付が古い順
+  dateAsc,
+
+  /// 費用が高い順
+  costDesc,
+
+  /// 費用が安い順
+  costAsc,
+
+  /// 整備時走行距離が多い順（未記録は末尾）
+  mileageDesc,
+}
 
 /// 整備記録状態管理Provider
 ///
 /// エラーはAppError型で保持し、型安全なエラーハンドリングを実現
 class MaintenanceProvider with ChangeNotifier {
   final FirebaseService _firebaseService;
+  final AnalyticsService? _analytics;
 
-  MaintenanceProvider({required FirebaseService firebaseService})
-      : _firebaseService = firebaseService;
+  MaintenanceProvider(
+      {required FirebaseService firebaseService,
+      AnalyticsService? analyticsService})
+      : _firebaseService = firebaseService,
+        _analytics = analyticsService;
 
   List<MaintenanceRecord> _records = [];
   bool _isLoading = false;
@@ -38,7 +62,8 @@ class MaintenanceProvider with ChangeNotifier {
     _recordsSubscription?.cancel();
     _currentVehicleId = vehicleId;
 
-    _recordsSubscription = _firebaseService.getVehicleMaintenanceRecords(vehicleId).listen(
+    _recordsSubscription =
+        _firebaseService.getVehicleMaintenanceRecords(vehicleId).listen(
       (records) {
         _records = records;
         _error = null;
@@ -56,13 +81,14 @@ class MaintenanceProvider with ChangeNotifier {
   }
 
   int _retryCount = 0;
-  static const int _maxRetries = 3;
+  static const int _maxRetries = RetryConfig.maxRetries;
   Timer? _retryTimer;
 
   void _scheduleRetry(VoidCallback action) {
     if (_retryCount >= _maxRetries) return;
     _retryTimer?.cancel();
-    final delay = Duration(seconds: 2 << _retryCount);
+    final delay =
+        Duration(seconds: RetryConfig.baseDelaySeconds << _retryCount);
     _retryCount++;
     _retryTimer = Timer(delay, action);
   }
@@ -107,6 +133,7 @@ class MaintenanceProvider with ChangeNotifier {
 
     return result.when(
       success: (_) {
+        _analytics?.trackMaintenanceRecorded(record.type.name);
         _isLoading = false;
         notifyListeners();
         return true;
@@ -121,12 +148,14 @@ class MaintenanceProvider with ChangeNotifier {
   }
 
   /// 履歴を更新
-  Future<bool> updateMaintenanceRecord(String recordId, MaintenanceRecord record) async {
+  Future<bool> updateMaintenanceRecord(
+      String recordId, MaintenanceRecord record) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    final result = await _firebaseService.updateMaintenanceRecord(recordId, record);
+    final result =
+        await _firebaseService.updateMaintenanceRecord(recordId, record);
 
     return result.when(
       success: (_) {
@@ -164,6 +193,70 @@ class MaintenanceProvider with ChangeNotifier {
         return false;
       },
     );
+  }
+
+  /// 読み込み済み記録をキーワード・タイプ・日付範囲・費用範囲で絞り込み、
+  /// 指定の並び順で返す（元のリストは変更しない）
+  ///
+  /// - [keyword]: タイトル・説明・店舗名の部分一致（大文字小文字を区別しない）
+  /// - [types]: 空または null なら全タイプ
+  /// - [from]/[to]: 両端を含む日付範囲
+  /// - [minCost]/[maxCost]: 両端を含む費用範囲
+  List<MaintenanceRecord> searchRecords({
+    String? keyword,
+    Set<MaintenanceType>? types,
+    DateTime? from,
+    DateTime? to,
+    int? minCost,
+    int? maxCost,
+    MaintenanceSortBy sortBy = MaintenanceSortBy.dateDesc,
+  }) {
+    final kw = keyword?.trim().toLowerCase();
+    Iterable<MaintenanceRecord> result = _records;
+
+    if (kw != null && kw.isNotEmpty) {
+      result = result.where((r) =>
+          r.title.toLowerCase().contains(kw) ||
+          (r.description?.toLowerCase().contains(kw) ?? false) ||
+          (r.shopName?.toLowerCase().contains(kw) ?? false));
+    }
+    if (types != null && types.isNotEmpty) {
+      result = result.where((r) => types.contains(r.type));
+    }
+    if (from != null) {
+      result = result.where((r) => !r.date.isBefore(from));
+    }
+    if (to != null) {
+      result = result.where((r) => !r.date.isAfter(to));
+    }
+    if (minCost != null) {
+      result = result.where((r) => r.cost >= minCost);
+    }
+    if (maxCost != null) {
+      result = result.where((r) => r.cost <= maxCost);
+    }
+
+    final list = result.toList();
+    switch (sortBy) {
+      case MaintenanceSortBy.dateDesc:
+        list.sort((a, b) => b.date.compareTo(a.date));
+      case MaintenanceSortBy.dateAsc:
+        list.sort((a, b) => a.date.compareTo(b.date));
+      case MaintenanceSortBy.costDesc:
+        list.sort((a, b) => b.cost.compareTo(a.cost));
+      case MaintenanceSortBy.costAsc:
+        list.sort((a, b) => a.cost.compareTo(b.cost));
+      case MaintenanceSortBy.mileageDesc:
+        list.sort((a, b) {
+          final am = a.mileageAtService;
+          final bm = b.mileageAtService;
+          if (am == null && bm == null) return 0;
+          if (am == null) return 1;
+          if (bm == null) return -1;
+          return bm.compareTo(am);
+        });
+    }
+    return list;
   }
 
   // タイプ別の履歴を取得

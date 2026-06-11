@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/invoice.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 
@@ -23,7 +24,7 @@ class InvoiceService {
 
   // コレクション参照
   CollectionReference<Map<String, dynamic>> get _invoicesCollection =>
-      _firestore.collection('invoices');
+      _firestore.collection(FirestoreCollections.invoices);
 
   /// 請求書を作成
   Future<Result<String, AppError>> createInvoice(Invoice invoice) async {
@@ -36,7 +37,8 @@ class InvoiceService {
   }
 
   /// 請求書を更新
-  Future<Result<void, AppError>> updateInvoice(String invoiceId, Invoice invoice) async {
+  Future<Result<void, AppError>> updateInvoice(
+      String invoiceId, Invoice invoice) async {
     try {
       await _invoicesCollection.doc(invoiceId).update(invoice.toMap());
       return const Result.success(null);
@@ -74,13 +76,15 @@ class InvoiceService {
   }
 
   /// 車両の請求書一覧を取得
-  Future<Result<List<Invoice>, AppError>> getInvoicesByVehicle(String vehicleId) async {
+  Future<Result<List<Invoice>, AppError>> getInvoicesByVehicle(
+      String vehicleId) async {
     try {
       final snapshot = await _invoicesCollection
           .where('vehicleId', isEqualTo: vehicleId)
           .orderBy('issueDate', descending: true)
           .get();
-      final invoices = snapshot.docs.map((doc) => Invoice.fromFirestore(doc)).toList();
+      final invoices =
+          snapshot.docs.map((doc) => Invoice.fromFirestore(doc)).toList();
       return Result.success(invoices);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -88,7 +92,8 @@ class InvoiceService {
   }
 
   /// 整備記録に紐付く請求書を取得
-  Future<Result<Invoice?, AppError>> getInvoiceByMaintenanceRecord(String maintenanceRecordId) async {
+  Future<Result<Invoice?, AppError>> getInvoiceByMaintenanceRecord(
+      String maintenanceRecordId) async {
     try {
       final snapshot = await _invoicesCollection
           .where('maintenanceRecordId', isEqualTo: maintenanceRecordId)
@@ -115,7 +120,8 @@ class InvoiceService {
           .where('paymentStatus', whereIn: ['unpaid', 'partiallyPaid'])
           .orderBy('dueDate')
           .get();
-      final invoices = snapshot.docs.map((doc) => Invoice.fromFirestore(doc)).toList();
+      final invoices =
+          snapshot.docs.map((doc) => Invoice.fromFirestore(doc)).toList();
       return Result.success(invoices);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -174,8 +180,10 @@ class InvoiceService {
       final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
 
       final snapshot = await _invoicesCollection
-          .where('issueDate', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
-          .where('issueDate', isLessThanOrEqualTo: Timestamp.fromDate(endOfMonth))
+          .where('issueDate',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
+          .where('issueDate',
+              isLessThanOrEqualTo: Timestamp.fromDate(endOfMonth))
           .get();
 
       final sequence = (snapshot.docs.length + 1).toString().padLeft(4, '0');
@@ -201,7 +209,8 @@ class InvoiceService {
           .where('issueDate', isLessThanOrEqualTo: Timestamp.fromDate(end))
           .orderBy('issueDate', descending: true)
           .get();
-      final invoices = snapshot.docs.map((doc) => Invoice.fromFirestore(doc)).toList();
+      final invoices =
+          snapshot.docs.map((doc) => Invoice.fromFirestore(doc)).toList();
       return Result.success(invoices);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));

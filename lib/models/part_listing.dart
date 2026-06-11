@@ -61,7 +61,7 @@ class VehicleSpec {
   final String? modelId;
   final int? yearFrom;
   final int? yearTo;
-  final String? gradePattern;  // Regex pattern for grade matching
+  final String? gradePattern; // Regex pattern for grade matching
   final String? bodyType;
 
   const VehicleSpec({
@@ -142,7 +142,7 @@ class VehicleSpec {
 /// Pro/Con for part recommendation
 class PartProCon {
   final String text;
-  final bool isPro;  // true = pro (メリット), false = con (デメリット)
+  final bool isPro; // true = pro (メリット), false = con (デメリット)
 
   const PartProCon({
     required this.text,
@@ -167,7 +167,7 @@ class PartProCon {
 /// Part listing model for marketplace
 class PartListing {
   final String id;
-  final String shopId;          // Shop that offers this part
+  final String shopId; // Shop that offers this part
   final String name;
   final String? nameEn;
   final String description;
@@ -175,8 +175,8 @@ class PartListing {
   final List<String> imageUrls;
 
   // Pricing
-  final int? priceFrom;         // Starting price (null = 要問合せ)
-  final int? priceTo;           // Max price for range display
+  final int? priceFrom; // Starting price (null = 要問合せ)
+  final int? priceTo; // Max price for range display
   final bool isPriceNegotiable;
 
   // Compatibility
@@ -187,15 +187,15 @@ class PartListing {
   final List<PartProCon> prosAndCons;
 
   // Metadata
-  final String? brand;          // Part brand/manufacturer
-  final String? partNumber;     // Manufacturer part number
-  final List<String> tags;      // Search tags
-  final double? rating;         // Average user rating (1-5)
+  final String? brand; // Part brand/manufacturer
+  final String? partNumber; // Manufacturer part number
+  final List<String> tags; // Search tags
+  final double? rating; // Average user rating (1-5)
   final int reviewCount;
 
   // Status
   final bool isActive;
-  final bool isFeatured;        // Featured/promoted listing
+  final bool isFeatured; // Featured/promoted listing
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -235,9 +235,9 @@ class PartListing {
 
   String _formatPrice(int price) {
     return price.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]},',
-    );
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (Match m) => '${m[1]},',
+        );
   }
 
   /// Get pros only
@@ -290,13 +290,16 @@ class PartListing {
       priceTo: data['priceTo'],
       isPriceNegotiable: data['isPriceNegotiable'] ?? false,
       compatibleVehicles: (data['compatibleVehicles'] as List<dynamic>?)
-          ?.map((e) => VehicleSpec.fromMap(e))
-          .toList() ?? [],
-      defaultCompatibility: CompatibilityLevel.fromString(data['defaultCompatibility'])
-          ?? CompatibilityLevel.compatible,
+              ?.map((e) => VehicleSpec.fromMap(e))
+              .toList() ??
+          [],
+      defaultCompatibility:
+          CompatibilityLevel.fromString(data['defaultCompatibility']) ??
+              CompatibilityLevel.compatible,
       prosAndCons: (data['prosAndCons'] as List<dynamic>?)
-          ?.map((e) => PartProCon.fromMap(e))
-          .toList() ?? [],
+              ?.map((e) => PartProCon.fromMap(e))
+              .toList() ??
+          [],
       brand: data['brand'],
       partNumber: data['partNumber'],
       tags: List<String>.from(data['tags'] ?? []),
@@ -401,7 +404,8 @@ class PartRecommendation {
   final PartListing part;
   final CompatibilityLevel compatibility;
   final String? compatibilityNote;
-  final double relevanceScore;  // 0.0 - 1.0, how relevant to user's vehicle/preferences
+  final double
+      relevanceScore; // 0.0 - 1.0, how relevant to user's vehicle/preferences
 
   const PartRecommendation({
     required this.part,

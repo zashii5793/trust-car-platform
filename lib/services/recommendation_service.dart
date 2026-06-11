@@ -231,7 +231,8 @@ class RecommendationService {
     } else if (daysUntil <= 30) {
       message = '${vehicle.displayName}の車検期限まであと$daysUntil日です。予約をお忘れなく。';
     } else {
-      message = '${vehicle.displayName}の車検期限まであと約${(daysUntil / 30).round()}ヶ月です。';
+      message =
+          '${vehicle.displayName}の車検期限まであと約${(daysUntil / 30).round()}ヶ月です。';
     }
 
     return AppNotification(
@@ -367,7 +368,20 @@ class RecommendationService {
       vehicleId: vehicle.id,
       type: NotificationType.maintenanceRecommendation,
       title: '${rule.name}の時期です',
-      message: _generateMessage(rule, daysUntilDue, vehicle),
+      message: _generateMessage(
+        rule,
+        daysUntilDue,
+        vehicle,
+        lastMileage: lastMaintenanceMileage,
+      ),
+      reason: _generateReason(
+        rule: rule,
+        vehicle: vehicle,
+        lastDate: lastMaintenanceDate,
+        lastMileage: lastMaintenanceMileage,
+        now: now,
+        daysUntilDue: daysUntilDue,
+      ),
       priority: priority,
       createdAt: now,
       actionDate: recommendedDate,
@@ -387,9 +401,8 @@ class RecommendationService {
     required DateTime now,
   }) {
     // 車検記録を検索
-    final inspectionRecords = records
-        .where((r) => r.type == MaintenanceType.carInspection)
-        .toList();
+    final inspectionRecords =
+        records.where((r) => r.type == MaintenanceType.carInspection).toList();
 
     DateTime nextInspectionDate;
 
@@ -408,8 +421,7 @@ class RecommendationService {
           vehicleId: vehicle.id,
           type: NotificationType.inspectionReminder,
           title: '車検情報を登録してください',
-          message:
-              '${vehicle.displayName}の車検満了日が未設定です。車両情報を編集して登録してください。',
+          message: '${vehicle.displayName}の車検満了日が未設定です。車両情報を編集して登録してください。',
           priority: NotificationPriority.medium,
           createdAt: now,
         );
@@ -444,8 +456,7 @@ class RecommendationService {
 
     String message;
     if (daysUntilInspection <= 0) {
-      message =
-          '${vehicle.displayName}の車検期限が過ぎています。早急に車検を受けてください。';
+      message = '${vehicle.displayName}の車検期限が過ぎています。早急に車検を受けてください。';
     } else if (daysUntilInspection <= 30) {
       message =
           '${vehicle.displayName}の車検期限まであと$daysUntilInspection日です。予約をお忘れなく。';
@@ -471,18 +482,101 @@ class RecommendationService {
     );
   }
 
+  /// Structured reason explaining WHY this action is recommended now.
+  /// References actual vehicle data so the user can make an informed decision.
+  /// Never a judgment — just facts and options.
+  String _generateReason({
+    required MaintenanceRule rule,
+    required Vehicle vehicle,
+    required DateTime? lastDate,
+    required int? lastMileage,
+    required DateTime now,
+    required int daysUntilDue,
+  }) {
+    final lines = <String>[];
+
+    // Data point 1: Last service history
+    if (lastDate != null) {
+      final monthsAgo = now.difference(lastDate).inDays ~/ 30;
+      final dateStr = '${lastDate.year}年${lastDate.month}月${lastDate.day}日';
+      lines.add('📋 前回の${rule.name}: $dateStr（$monthsAgoヶ月前）');
+      if (lastMileage != null) {
+        final kmSince = vehicle.mileage - lastMileage;
+        lines.add('🚗 前回から走行: ${_formatKm(kmSince)}');
+      }
+    } else {
+      lines.add('📋 ${rule.name}の記録: なし');
+    }
+
+    // Data point 2: Manufacturer recommendation
+    final rec = <String>[];
+    if (rule.intervalMonths > 0) {
+      rec.add('${rule.intervalMonths}ヶ月ごと');
+    }
+    if (rule.intervalKm > 0) {
+      rec.add('${_formatKm(rule.intervalKm)}ごと');
+    }
+    if (rec.isNotEmpty) {
+      lines.add('📌 推奨交換目安: ${rec.join(' または ')}');
+    }
+
+    // Data point 3: Why now
+    if (daysUntilDue <= 0) {
+      lines.add('⚠️ すでに推奨時期を過ぎています。');
+    } else if (daysUntilDue <= 30) {
+      lines.add('✅ 今が交換の最適なタイミングです。');
+    } else {
+      lines.add('🗓 あと約${(daysUntilDue / 30).round()}ヶ月後が交換時期の目安です。');
+    }
+
+    // Note: what this maintenance does
+    lines.add('ℹ️ ${rule.description}');
+
+    return lines.join('\n');
+  }
+
+  String _formatKm(int km) {
+    if (km >= 10000) {
+      return '${(km / 10000).toStringAsFixed(km % 10000 == 0 ? 0 : 1)}万km';
+    }
+    return '${km}km';
+  }
+
   /// メッセージ生成
-  String _generateMessage(MaintenanceRule rule, int daysUntilDue, Vehicle vehicle) {
+  /// Shows km-based context when mileage data is available, otherwise falls
+  /// back to time-based messaging. Follows the design principle: AI proposes
+  /// with reasons, user decides.
+  String _generateMessage(
+    MaintenanceRule rule,
+    int daysUntilDue,
+    Vehicle vehicle, {
+    int? lastMileage,
+  }) {
     final vehicleName = vehicle.displayName;
 
+    // Build a km-context suffix when we have prior mileage data
+    String kmContext = '';
+    if (lastMileage != null && rule.intervalKm > 0) {
+      final kmSince = vehicle.mileage - lastMileage;
+      final kmRemaining = rule.intervalKm - kmSince;
+      if (kmRemaining > 0) {
+        kmContext =
+            '（前回から${kmSince.clamp(0, 999999)}km走行、あと${kmRemaining}kmが目安）';
+      } else {
+        kmContext = '（交換目安の${rule.intervalKm}kmを超えています）';
+      }
+    } else if (rule.intervalKm > 0) {
+      kmContext = '（目安: ${rule.intervalKm}km毎）';
+    }
+
     if (daysUntilDue <= 0) {
-      return '$vehicleNameの${rule.name}の時期を過ぎています。${rule.description}';
+      return '$vehicleNameの${rule.name}の時期です$kmContext。${rule.description}';
     } else if (daysUntilDue <= 7) {
-      return '$vehicleNameの${rule.name}まであと$daysUntilDue日です。${rule.description}';
+      return '$vehicleNameは現在${vehicle.mileage}km。${rule.name}まであと$daysUntilDue日$kmContext。';
     } else if (daysUntilDue <= 30) {
-      return '$vehicleNameの${rule.name}まであと約${(daysUntilDue / 7).round()}週間です。';
+      return '$vehicleNameは現在${vehicle.mileage}km。${rule.name}まであと約${(daysUntilDue / 7).round()}週間$kmContext。';
     } else {
-      return '$vehicleNameの${rule.name}まであと約${(daysUntilDue / 30).round()}ヶ月です。';
+      return '$vehicleNameは現在${vehicle.mileage}km。${rule.name}まであと約${(daysUntilDue / 30).round()}ヶ月$kmContext。';
     }
   }
 

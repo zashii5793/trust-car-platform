@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 
@@ -70,7 +71,11 @@ class AuthService {
       try {
         await _createUserDocument(credential.user!);
       } catch (e) {
-        debugPrint('signInWithEmail: _createUserDocument failed (may be offline): $e');
+        assert(() {
+          debugPrint(
+              'signInWithEmail: _createUserDocument failed (may be offline): $e');
+          return true;
+        }());
       }
 
       return Result.success(credential);
@@ -145,7 +150,8 @@ class AuthService {
 
   /// ユーザードキュメントを Firestore に作成
   Future<void> _createUserDocument(User user, {String? displayName}) async {
-    final userDoc = _firestore.collection('users').doc(user.uid);
+    final userDoc =
+        _firestore.collection(FirestoreCollections.users).doc(user.uid);
     final docSnapshot = await userDoc.get();
 
     if (!docSnapshot.exists) {
@@ -168,11 +174,17 @@ class AuthService {
     if (user == null) return const Result.success(null);
 
     try {
-      final doc = await _firestore.collection('users').doc(user.uid).get();
+      final doc = await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(user.uid)
+          .get();
       if (!doc.exists) {
         // ドキュメントが存在しない場合は作成
         await _createUserDocument(user);
-        final newDoc = await _firestore.collection('users').doc(user.uid).get();
+        final newDoc = await _firestore
+            .collection(FirestoreCollections.users)
+            .doc(user.uid)
+            .get();
         if (!newDoc.exists) return const Result.success(null);
         return Result.success(AppUser.fromFirestore(newDoc));
       }
@@ -189,7 +201,8 @@ class AuthService {
   }) async {
     final user = currentUser;
     if (user == null) {
-      return const Result.failure(AppError.auth('User not logged in', type: AuthErrorType.sessionExpired));
+      return const Result.failure(AppError.auth('User not logged in',
+          type: AuthErrorType.sessionExpired));
     }
 
     try {
@@ -207,7 +220,10 @@ class AuthService {
         await user.updatePhotoURL(photoUrl);
       }
 
-      await _firestore.collection('users').doc(user.uid).update(updates);
+      await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(user.uid)
+          .update(updates);
       return const Result.success(null);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -219,11 +235,15 @@ class AuthService {
       NotificationSettings settings) async {
     final user = currentUser;
     if (user == null) {
-      return const Result.failure(AppError.auth('User not logged in', type: AuthErrorType.sessionExpired));
+      return const Result.failure(AppError.auth('User not logged in',
+          type: AuthErrorType.sessionExpired));
     }
 
     try {
-      await _firestore.collection('users').doc(user.uid).update({
+      await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(user.uid)
+          .update({
         'notificationSettings': settings.toMap(),
         'updatedAt': Timestamp.now(),
       });
@@ -236,15 +256,25 @@ class AuthService {
   /// Firebase Auth エラーを AppError に変換
   AppError _mapAuthError(FirebaseAuthException e) {
     return switch (e.code) {
-      'user-not-found' => const AppError.auth('User not found', type: AuthErrorType.userNotFound),
-      'wrong-password' || 'invalid-credential' => const AppError.auth('Invalid credentials', type: AuthErrorType.invalidCredentials),
-      'email-already-in-use' => const AppError.auth('Email already in use', type: AuthErrorType.emailAlreadyInUse),
-      'weak-password' => const AppError.auth('Weak password', type: AuthErrorType.weakPassword),
-      'invalid-email' => const AppError.auth('Invalid email', type: AuthErrorType.invalidCredentials),
-      'user-disabled' => const AppError.auth('User disabled', type: AuthErrorType.unknown),
-      'too-many-requests' => const AppError.auth('Too many requests', type: AuthErrorType.tooManyRequests),
-      'network-request-failed' => AppError.network(e.message ?? 'Network error'),
-      _ => AppError.auth(e.message ?? 'Auth error', type: AuthErrorType.unknown),
+      'user-not-found' =>
+        const AppError.auth('User not found', type: AuthErrorType.userNotFound),
+      'wrong-password' || 'invalid-credential' => const AppError.auth(
+          'Invalid credentials',
+          type: AuthErrorType.invalidCredentials),
+      'email-already-in-use' => const AppError.auth('Email already in use',
+          type: AuthErrorType.emailAlreadyInUse),
+      'weak-password' =>
+        const AppError.auth('Weak password', type: AuthErrorType.weakPassword),
+      'invalid-email' => const AppError.auth('Invalid email',
+          type: AuthErrorType.invalidCredentials),
+      'user-disabled' =>
+        const AppError.auth('User disabled', type: AuthErrorType.unknown),
+      'too-many-requests' => const AppError.auth('Too many requests',
+          type: AuthErrorType.tooManyRequests),
+      'network-request-failed' =>
+        AppError.network(e.message ?? 'Network error'),
+      _ =>
+        AppError.auth(e.message ?? 'Auth error', type: AuthErrorType.unknown),
     };
   }
 }

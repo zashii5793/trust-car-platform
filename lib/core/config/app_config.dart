@@ -111,17 +111,17 @@ class AppConfig {
 
   /// API ベースURL
   String get apiBaseUrl => switch (_environment) {
-    AppEnvironment.development => 'https://dev-api.trust-car.example.com',
-    AppEnvironment.staging => 'https://staging-api.trust-car.example.com',
-    AppEnvironment.production => 'https://api.trust-car.example.com',
-  };
+        AppEnvironment.development => 'https://dev-api.trust-car.example.com',
+        AppEnvironment.staging => 'https://staging-api.trust-car.example.com',
+        AppEnvironment.production => 'https://api.trust-car.example.com',
+      };
 
   /// Firebase プロジェクトID
   String get firebaseProjectId => switch (_environment) {
-    AppEnvironment.development => 'trust-car-platform-dev',
-    AppEnvironment.staging => 'trust-car-platform-staging',
-    AppEnvironment.production => 'trust-car-platform',
-  };
+        AppEnvironment.development => 'trust-car-platform-dev',
+        AppEnvironment.staging => 'trust-car-platform-staging',
+        AppEnvironment.production => 'trust-car-platform',
+      };
 
   /// 設定のスナップショットを取得（デバッグ用）
   Map<String, dynamic> toDebugMap() {

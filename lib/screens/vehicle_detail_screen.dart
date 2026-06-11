@@ -3,15 +3,23 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
+import '../models/drive_log.dart';
+import '../models/app_notification.dart';
 import '../providers/maintenance_provider.dart';
+import '../providers/notification_provider.dart';
+import '../services/drive_log_service.dart';
+import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../widgets/common/app_card.dart';
 import '../widgets/common/loading_indicator.dart';
 import 'add_maintenance_screen.dart';
+import '../widgets/maintenance/maintenance_ai_comment.dart';
 import 'export/export_dialog.dart';
+import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
 import 'maintenance_stats_screen.dart';
+import 'maintenance_search_screen.dart';
 
 class VehicleDetailScreen extends StatefulWidget {
   final Vehicle vehicle;
@@ -56,144 +64,238 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${_vehicle.maker} ${_vehicle.model}'),
-        actions: [
-          // PDF出力ボタン
-          Consumer<MaintenanceProvider>(
-            builder: (context, provider, child) {
-              return IconButton(
-                icon: const Icon(Icons.picture_as_pdf),
-                tooltip: 'PDFで出力',
-                onPressed: provider.records.isEmpty
-                    ? null
-                    : () {
-                        showExportDialog(
-                          context: context,
-                          vehicle: _vehicle,
-                          records: provider.records,
-                        );
-                      },
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: '編集',
-            onPressed: _navigateToEdit,
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 車両画像
-            _VehicleImage(
-              imageUrl: _vehicle.imageUrl,
-              isDark: isDark,
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('${_vehicle.maker} ${_vehicle.model}'),
+          actions: [
+            // 整備履歴検索ボタン
+            Consumer<MaintenanceProvider>(
+              builder: (context, provider, child) {
+                return IconButton(
+                  icon: const Icon(Icons.search),
+                  tooltip: '整備履歴を検索',
+                  onPressed: provider.records.isEmpty
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MaintenanceSearchScreen(),
+                            ),
+                          );
+                        },
+                );
+              },
             ),
-
-            // 車両基本情報
-            Padding(
-              padding: AppSpacing.paddingScreen,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${_vehicle.maker} ${_vehicle.model}',
-                    style: theme.textTheme.displayMedium,
-                  ),
-                  AppSpacing.verticalSm,
-                  _InfoRow(
-                    icon: Icons.calendar_today,
-                    label: '年式',
-                    value: '${_vehicle.year}年',
-                  ),
-                  _InfoRow(
-                    icon: Icons.star_outline,
-                    label: 'グレード',
-                    value: _vehicle.grade,
-                  ),
-                  _InfoRow(
-                    icon: Icons.speed,
-                    label: '走行距離',
-                    value: '${_formatNumber(_vehicle.mileage)} km',
-                  ),
-                ],
-              ),
+            // PDF出力ボタン
+            Consumer<MaintenanceProvider>(
+              builder: (context, provider, child) {
+                return IconButton(
+                  icon: const Icon(Icons.picture_as_pdf),
+                  tooltip: 'PDFで出力',
+                  onPressed: provider.records.isEmpty
+                      ? null
+                      : () {
+                          showExportDialog(
+                            context: context,
+                            vehicle: _vehicle,
+                            records: provider.records,
+                          );
+                        },
+                );
+              },
             ),
-
-            const Divider(height: 1),
-
-            // 統計情報
-            _StatisticsSection(
-              vehicleId: _vehicle.id,
-              onDetailsTap: () {
+            IconButton(
+              icon: const Icon(Icons.build_circle_outlined),
+              tooltip: 'パーツ提案',
+              onPressed: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => MaintenanceStatsScreen(
-                      vehicleName: '${_vehicle.maker} ${_vehicle.model}',
-                    ),
+                    builder: (_) => PartRecommendationScreen(vehicle: _vehicle),
                   ),
                 );
               },
             ),
-
-            const Divider(height: 1),
-
-            // 履歴セクション
-            Padding(
-              padding: AppSpacing.paddingScreen,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: '編集',
+              onPressed: _navigateToEdit,
+            ),
+          ],
+          bottom: TabBar(
+            labelColor: theme.colorScheme.primary,
+            unselectedLabelColor:
+                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+            indicatorColor: theme.colorScheme.primary,
+            indicatorWeight: 3,
+            tabs: const [
+              Tab(icon: Icon(Icons.timeline, size: 18), text: 'すべて'),
+              Tab(icon: Icon(Icons.build_outlined, size: 18), text: '整備記録'),
+              Tab(
+                icon: Icon(Icons.directions_car_outlined, size: 18),
+                text: 'ドライブ',
+              ),
+            ],
+          ),
+        ),
+        body: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'メンテナンス履歴',
-                    style: theme.textTheme.headlineLarge,
+                  // 車両画像
+                  _VehicleImage(imageUrl: _vehicle.imageUrl, isDark: isDark),
+
+                  // 車両基本情報
+                  Padding(
+                    padding: AppSpacing.paddingScreen,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_vehicle.maker} ${_vehicle.model}',
+                          style: theme.textTheme.displayMedium,
+                        ),
+                        AppSpacing.verticalSm,
+                        _InfoRow(
+                          icon: Icons.calendar_today,
+                          label: '年式',
+                          value: '${_vehicle.year}年',
+                        ),
+                        _InfoRow(
+                          icon: Icons.star_outline,
+                          label: 'グレード',
+                          value: _vehicle.grade,
+                        ),
+                        _InfoRow(
+                          icon: Icons.speed,
+                          label: '走行距離',
+                          value: '${_formatNumber(_vehicle.mileage)} km',
+                        ),
+                        if (_vehicle.inspectionExpiryDate != null)
+                          _InfoRow(
+                            icon: Icons.verified_outlined,
+                            label: '車検満了日',
+                            value: DateFormat('yyyy年MM月dd日')
+                                .format(_vehicle.inspectionExpiryDate!),
+                            valueColor: _vehicle.isInspectionExpired
+                                ? AppColors.error
+                                : _vehicle.isInspectionDueSoon
+                                    ? AppColors.warning
+                                    : null,
+                          ),
+                        if (_vehicle.insuranceExpiryDate != null)
+                          _InfoRow(
+                            icon: Icons.shield_outlined,
+                            label: '自賠責満了日',
+                            value: DateFormat('yyyy年MM月dd日')
+                                .format(_vehicle.insuranceExpiryDate!),
+                            valueColor:
+                                (_vehicle.daysUntilInsuranceExpiry != null &&
+                                        _vehicle.daysUntilInsuranceExpiry! < 0)
+                                    ? AppColors.error
+                                    : _vehicle.isInsuranceDueSoon
+                                        ? AppColors.warning
+                                        : null,
+                          ),
+                      ],
+                    ),
                   ),
-                  TextButton.icon(
-                    onPressed: () {
+
+                  const Divider(height: 1),
+
+                  // 統計情報
+                  _StatisticsSection(
+                    vehicleId: _vehicle.id,
+                    onDetailsTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => AddMaintenanceScreen(
-                            vehicleId: _vehicle.id,
-                            currentVehicleMileage: _vehicle.mileage,
+                          builder: (context) => MaintenanceStatsScreen(
+                            vehicleName: '${_vehicle.maker} ${_vehicle.model}',
                           ),
                         ),
                       );
                     },
-                    icon: const Icon(Icons.add),
-                    label: const Text('追加'),
                   ),
+
+                  // AI提案
+                  Consumer<NotificationProvider>(
+                    builder: (context, notifProvider, _) {
+                      final suggestions = notifProvider
+                          .getNotificationsForVehicle(_vehicle.id)
+                          .where((n) => !n.isRead)
+                          .take(3)
+                          .toList();
+                      if (suggestions.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return Column(
+                        children: [
+                          const Divider(height: 1),
+                          _VehicleAiSuggestions(
+                            suggestions: suggestions,
+                            vehicleId: _vehicle.id,
+                            vehicleMileage: _vehicle.mileage,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+
+                  const Divider(height: 1),
                 ],
               ),
             ),
-
-            // 履歴タイムライン
-            _MaintenanceTimeline(vehicleId: _vehicle.id),
-
-            AppSpacing.verticalLg,
           ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AddMaintenanceScreen(
-                vehicleId: _vehicle.id,
-                currentVehicleMileage: _vehicle.mileage,
+          body: TabBarView(
+            children: [
+              _VehicleTimeline(
+                vehicle: _vehicle,
+                filter: _TimelineFilter.all,
               ),
-            ),
-          );
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('履歴を追加'),
+              _VehicleTimeline(
+                vehicle: _vehicle,
+                filter: _TimelineFilter.maintenance,
+              ),
+              _VehicleTimeline(
+                vehicle: _vehicle,
+                filter: _TimelineFilter.drive,
+              ),
+            ],
+          ),
+        ),
+        // ドライブタブ(index=2)では非表示
+        floatingActionButton: Builder(
+          builder: (context) {
+            final tabController = DefaultTabController.of(context);
+            return AnimatedBuilder(
+              animation: tabController,
+              builder: (context, child) {
+                if (tabController.index == 2) return const SizedBox.shrink();
+                return FloatingActionButton.extended(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AddMaintenanceScreen(
+                          vehicleId: _vehicle.id,
+                          currentVehicleMileage: _vehicle.mileage,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('履歴を追加'),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -207,25 +309,65 @@ class _VehicleImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const height = 220.0;
+    Widget image;
+
     if (imageUrl != null && imageUrl!.isNotEmpty) {
-      return Image.network(
+      image = Image.network(
         imageUrl!,
-        height: 250,
+        height: height,
+        width: double.infinity,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _buildPlaceholder(),
+        errorBuilder: (_, __, ___) => _buildPlaceholder(height),
       );
+    } else {
+      image = _buildPlaceholder(height);
     }
-    return _buildPlaceholder();
+
+    // Gradient overlay at the bottom for smooth transition into content
+    return Stack(
+      children: [
+        image,
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 80,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  (isDark ? AppColors.darkBackground : Colors.white)
+                      .withValues(alpha: 0.85),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
-  Widget _buildPlaceholder() {
+  Widget _buildPlaceholder(double height) {
     return Container(
-      height: 250,
-      color: isDark ? AppColors.darkCard : AppColors.backgroundLight,
+      height: height,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [AppColors.darkCard, AppColors.darkSurface]
+              : [AppColors.backgroundLight, AppColors.backgroundSecondary],
+        ),
+      ),
       child: Center(
         child: Icon(
           Icons.directions_car,
-          size: 100,
+          size: 80,
           color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
         ),
       ),
@@ -237,11 +379,13 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final Color? valueColor;
 
   const _InfoRow({
     required this.icon,
     required this.label,
     required this.value,
+    this.valueColor,
   });
 
   @override
@@ -268,7 +412,10 @@ class _InfoRow extends StatelessWidget {
           ),
           Text(
             value,
-            style: theme.textTheme.bodyLarge,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: valueColor,
+              fontWeight: valueColor != null ? FontWeight.bold : null,
+            ),
           ),
         ],
       ),
@@ -375,65 +522,223 @@ class _StatCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Timeline: replaces the old flat list
+// Unified Vehicle Timeline (maintenance records + drive logs)
 // ---------------------------------------------------------------------------
 
-class _MaintenanceTimeline extends StatelessWidget {
-  final String vehicleId;
+/// タイムラインの表示フィルタ
+enum _TimelineFilter { all, maintenance, drive }
 
-  const _MaintenanceTimeline({required this.vehicleId});
+/// Timeline entry: either a maintenance record or a drive log
+sealed class _TimelineEntry {
+  DateTime get date;
+}
+
+class _MaintenanceEntry extends _TimelineEntry {
+  final MaintenanceRecord record;
+  _MaintenanceEntry(this.record);
+  @override
+  DateTime get date => record.date;
+}
+
+class _DriveEntry extends _TimelineEntry {
+  final DriveLog log;
+  _DriveEntry(this.log);
+  @override
+  DateTime get date => log.startTime;
+}
+
+/// List item in the timeline ListView — either a month header or a timeline entry
+sealed class _TimelineListItem {}
+
+class _TimelineMonthHeader extends _TimelineListItem {
+  final int year;
+  final int month;
+  _TimelineMonthHeader(this.year, this.month);
+}
+
+class _TimelineEntryItem extends _TimelineListItem {
+  final _TimelineEntry entry;
+  final bool isFirst;
+  final bool isLast;
+  _TimelineEntryItem(this.entry, {required this.isFirst, required this.isLast});
+}
+
+class _VehicleTimeline extends StatefulWidget {
+  final Vehicle vehicle;
+  final _TimelineFilter filter;
+
+  const _VehicleTimeline({
+    required this.vehicle,
+    this.filter = _TimelineFilter.all,
+  });
+
+  @override
+  State<_VehicleTimeline> createState() => _VehicleTimelineState();
+}
+
+class _VehicleTimelineState extends State<_VehicleTimeline> {
+  List<DriveLog> _driveLogs = [];
+  bool _driveLogsLoaded = false;
+
+  DriveLogService get _driveLogService => sl.get<DriveLogService>();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDriveLogs();
+  }
+
+  Future<void> _loadDriveLogs() async {
+    // 整備記録のみ表示の場合はドライブログを取得しない
+    if (widget.filter == _TimelineFilter.maintenance) {
+      if (mounted) setState(() => _driveLogsLoaded = true);
+      return;
+    }
+    final result = await _driveLogService.getVehicleDriveLogs(
+      vehicleId: widget.vehicle.id,
+      userId: widget.vehicle.userId,
+    );
+    if (mounted) {
+      setState(() {
+        _driveLogs = result.getOrElse([]);
+        _driveLogsLoaded = true;
+      });
+    }
+  }
+
+  String get _emptyTitle {
+    switch (widget.filter) {
+      case _TimelineFilter.maintenance:
+        return 'メンテナンス記録がありません';
+      case _TimelineFilter.drive:
+        return 'ドライブログがありません';
+      case _TimelineFilter.all:
+        return '記録がありません';
+    }
+  }
+
+  String get _emptyDescription {
+    switch (widget.filter) {
+      case _TimelineFilter.maintenance:
+        return '整備・点検・オイル交換などの記録を追加すると\nここに履歴が表示されます';
+      case _TimelineFilter.drive:
+        return 'ドライブログを記録してみましょう';
+      case _TimelineFilter.all:
+        return '整備履歴や走行記録を追加してみましょう';
+    }
+  }
+
+  IconData get _emptyIcon {
+    switch (widget.filter) {
+      case _TimelineFilter.maintenance:
+        return Icons.build_outlined;
+      case _TimelineFilter.drive:
+        return Icons.directions_car_outlined;
+      case _TimelineFilter.all:
+        return Icons.history;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<MaintenanceProvider>(
       builder: (context, maintenanceProvider, child) {
-        if (maintenanceProvider.isLoading) {
-          return const Padding(
-            padding: EdgeInsets.all(AppSpacing.xl),
-            child: AppLoadingCenter(),
+        if (maintenanceProvider.isLoading || !_driveLogsLoaded) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        // Sort entries newest-first
+        final entries = <_TimelineEntry>[
+          if (widget.filter != _TimelineFilter.drive)
+            ...maintenanceProvider.records.map(_MaintenanceEntry.new),
+          if (widget.filter != _TimelineFilter.maintenance)
+            ..._driveLogs.map(_DriveEntry.new),
+        ]..sort((a, b) => b.date.compareTo(a.date));
+
+        if (entries.isEmpty) {
+          return AppEmptyState(
+            icon: _emptyIcon,
+            title: _emptyTitle,
+            description: _emptyDescription,
           );
         }
 
-        if (maintenanceProvider.records.isEmpty) {
-          return const AppEmptyState(
-            icon: Icons.history,
-            title: 'メンテナンス履歴がありません',
-            description: '「履歴を追加」ボタンから追加できます',
+        // Build the flat list: insert a month-header before each new year/month group
+        final items = <_TimelineListItem>[];
+        int? lastYear;
+        int? lastMonth;
+        // Track entry indices to set isFirst/isLast relative to actual entries only
+        final entryIndices = <int>[]; // positions in `items` that hold entries
+        for (final entry in entries) {
+          final y = entry.date.year;
+          final m = entry.date.month;
+          if (y != lastYear || m != lastMonth) {
+            items.add(_TimelineMonthHeader(y, m));
+            lastYear = y;
+            lastMonth = m;
+          }
+          entryIndices.add(items.length);
+          items.add(_TimelineEntryItem(
+            entry,
+            isFirst: entryIndices.length == 1,
+            isLast: false, // updated below
+          ));
+        }
+        // Mark the last actual entry
+        if (entryIndices.isNotEmpty) {
+          final lastPos = entryIndices.last;
+          final last = items[lastPos] as _TimelineEntryItem;
+          items[lastPos] = _TimelineEntryItem(
+            last.entry,
+            isFirst: last.isFirst,
+            isLast: true,
           );
         }
-
-        final records = maintenanceProvider.records;
 
         return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.xs,
+          padding: const EdgeInsets.only(
+            left: AppSpacing.md,
+            right: AppSpacing.md,
+            top: AppSpacing.xs,
+            bottom: AppSpacing.xxl,
           ),
-          itemCount: records.length,
+          itemCount: items.length,
           itemBuilder: (context, index) {
-            return _TimelineItem(
-              record: records[index],
-              isFirst: index == 0,
-              isLast: index == records.length - 1,
-              onTap: () => _showMaintenanceDetailSheet(
-                context,
-                records[index],
-                maintenanceProvider,
-              ),
-            );
+            final item = items[index];
+            return switch (item) {
+              _TimelineMonthHeader(:final year, :final month) =>
+                _MonthSectionHeader(year: year, month: month),
+              _TimelineEntryItem(:final entry, :final isFirst, :final isLast) =>
+                switch (entry) {
+                  _MaintenanceEntry(:final record) => _MaintenanceTimelineItem(
+                      record: record,
+                      isFirst: isFirst,
+                      isLast: isLast,
+                      onTap: () => _showMaintenanceDetailSheet(
+                        context,
+                        record,
+                        maintenanceProvider,
+                        widget.vehicle.mileage,
+                      ),
+                    ),
+                  _DriveEntry(:final log) => _DriveTimelineItem(
+                      log: log,
+                      isFirst: isFirst,
+                      isLast: isLast,
+                    ),
+                },
+            };
           },
         );
       },
     );
   }
 
-  /// Show the record detail as a modal BottomSheet.
   void _showMaintenanceDetailSheet(
     BuildContext context,
     MaintenanceRecord record,
     MaintenanceProvider provider,
+    int currentVehicleMileage,
   ) {
     showModalBottomSheet<void>(
       context: context,
@@ -445,22 +750,56 @@ class _MaintenanceTimeline extends StatelessWidget {
       builder: (sheetContext) => _MaintenanceDetailSheet(
         record: record,
         provider: provider,
+        currentVehicleMileage: currentVehicleMileage,
       ),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Single timeline row
+// Month section header
 // ---------------------------------------------------------------------------
 
-class _TimelineItem extends StatelessWidget {
+class _MonthSectionHeader extends StatelessWidget {
+  final int year;
+  final int month;
+
+  const _MonthSectionHeader({required this.year, required this.month});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: AppSpacing.md,
+        bottom: AppSpacing.xs,
+        left: 48 + AppSpacing.sm, // align with card content
+      ),
+      child: Text(
+        '$year年$month月',
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Timeline rows
+// ---------------------------------------------------------------------------
+
+/// Maintenance record row
+class _MaintenanceTimelineItem extends StatelessWidget {
   final MaintenanceRecord record;
   final bool isFirst;
   final bool isLast;
   final VoidCallback onTap;
 
-  const _TimelineItem({
+  const _MaintenanceTimelineItem({
     required this.record,
     required this.isFirst,
     required this.isLast,
@@ -530,77 +869,305 @@ class _TimelineItem extends StatelessWidget {
                 top: AppSpacing.xs,
                 bottom: AppSpacing.md,
               ),
-              child: GestureDetector(
-                onTap: onTap,
-                child: AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Date + type badge
+              child: Card(
+                elevation: 2,
+                margin: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                    borderRadius: AppSpacing.borderRadiusMd),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: onTap,
+                  child: IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Left type-color accent bar
+                        Container(width: 4, color: typeColor),
+                        Expanded(
+                          child: Padding(
+                            padding: AppSpacing.paddingCard,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Date + type badge
+                                Row(
+                                  children: [
+                                    Text(
+                                      dateFormat.format(record.date),
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
+                                        color: isDark
+                                            ? AppColors.darkTextTertiary
+                                            : AppColors.textTertiary,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.xs,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            typeColor.withValues(alpha: 0.12),
+                                        borderRadius: AppSpacing.borderRadiusXs,
+                                      ),
+                                      child: Text(
+                                        record.typeDisplayName,
+                                        style: TextStyle(
+                                          color: typeColor,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                AppSpacing.verticalXxs,
+                                // Title
+                                Text(
+                                  record.title,
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                AppSpacing.verticalXxs,
+                                // Cost + mileage at service
+                                Row(
+                                  children: [
+                                    Text(
+                                      '¥${NumberFormat('#,###').format(record.cost)}',
+                                      style:
+                                          theme.textTheme.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: typeColor,
+                                      ),
+                                    ),
+                                    if (record.mileageAtService != null) ...[
+                                      const Spacer(),
+                                      Icon(
+                                        Icons.speed,
+                                        size: 12,
+                                        color: isDark
+                                            ? AppColors.darkTextTertiary
+                                            : AppColors.textTertiary,
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        '${NumberFormat('#,###').format(record.mileageAtService!)} km',
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          color: isDark
+                                              ? AppColors.darkTextTertiary
+                                              : AppColors.textTertiary,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                // Shop name (optional)
+                                if (record.shopName != null &&
+                                    record.shopName!.isNotEmpty) ...[
+                                  AppSpacing.verticalXxs,
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.store_outlined,
+                                        size: 13,
+                                        color: isDark
+                                            ? AppColors.darkTextTertiary
+                                            : AppColors.textTertiary,
+                                      ),
+                                      AppSpacing.horizontalXxs,
+                                      Flexible(
+                                        child: Text(
+                                          record.shopName!,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                            color: isDark
+                                                ? AppColors.darkTextTertiary
+                                                : AppColors.textTertiary,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Drive log timeline row
+// ---------------------------------------------------------------------------
+
+class _DriveTimelineItem extends StatelessWidget {
+  final DriveLog log;
+  final bool isFirst;
+  final bool isLast;
+
+  const _DriveTimelineItem({
+    required this.log,
+    required this.isFirst,
+    required this.isLast,
+  });
+
+  static const double _lineWidth = 2.0;
+  static const double _leftColumnWidth = 48.0;
+  static const double _avatarRadius = 18.0;
+  static const Color _driveColor = AppColors.info;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final lineColor = isDark ? AppColors.darkCard : AppColors.divider;
+    final dateFormat = DateFormat('yyyy/MM/dd');
+    final distanceStr = log.statistics.totalDistance > 0
+        ? '${log.statistics.totalDistance.toStringAsFixed(1)} km'
+        : null;
+    final durationMin = log.statistics.totalDuration ~/ 60;
+    final title = log.title ??
+        (log.startAddress != null ? '${log.startAddress} 発' : 'ドライブ記録');
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ---- Left: timeline line + icon ----
+          SizedBox(
+            width: _leftColumnWidth,
+            child: Column(
+              children: [
+                SizedBox(
+                  width: _lineWidth,
+                  height: _avatarRadius + 4,
+                  child: isFirst
+                      ? const SizedBox.shrink()
+                      : ColoredBox(color: lineColor),
+                ),
+                CircleAvatar(
+                  radius: _avatarRadius,
+                  backgroundColor: _driveColor,
+                  child: const Icon(
+                    Icons.directions_car_outlined,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+                Expanded(
+                  child: isLast
+                      ? const SizedBox.shrink()
+                      : Center(
+                          child: SizedBox(
+                            width: _lineWidth,
+                            child: ColoredBox(color: lineColor),
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+
+          AppSpacing.horizontalSm,
+
+          // ---- Right: card ----
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(
+                top: AppSpacing.xs,
+                bottom: AppSpacing.md,
+              ),
+              child: AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          dateFormat.format(log.startTime),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: isDark
+                                ? AppColors.darkTextTertiary
+                                : AppColors.textTertiary,
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xs,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _driveColor.withValues(alpha: 0.12),
+                            borderRadius: AppSpacing.borderRadiusXs,
+                          ),
+                          child: const Text(
+                            'ドライブ',
+                            style: TextStyle(
+                              color: _driveColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    AppSpacing.verticalXxs,
+                    Text(
+                      title,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (distanceStr != null || durationMin > 0) ...[
+                      AppSpacing.verticalXxs,
                       Row(
                         children: [
-                          Text(
-                            dateFormat.format(record.date),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: isDark
-                                  ? AppColors.darkTextTertiary
-                                  : AppColors.textTertiary,
-                            ),
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.xs,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: typeColor.withValues(alpha: 0.12),
-                              borderRadius: AppSpacing.borderRadiusXs,
-                            ),
-                            child: Text(
-                              record.typeDisplayName,
-                              style: TextStyle(
-                                color: typeColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      AppSpacing.verticalXxs,
-                      // Title
-                      Text(
-                        record.title,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      AppSpacing.verticalXxs,
-                      // Cost
-                      Text(
-                        '¥${NumberFormat('#,###').format(record.cost)}',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: typeColor,
-                        ),
-                      ),
-                      // Shop name (optional)
-                      if (record.shopName != null &&
-                          record.shopName!.isNotEmpty) ...[
-                        AppSpacing.verticalXxs,
-                        Row(
-                          children: [
+                          if (distanceStr != null) ...[
                             Icon(
-                              Icons.store_outlined,
+                              Icons.straighten,
                               size: 13,
                               color: isDark
                                   ? AppColors.darkTextTertiary
                                   : AppColors.textTertiary,
                             ),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 3),
                             Text(
-                              record.shopName!,
+                              distanceStr,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: isDark
+                                    ? AppColors.darkTextTertiary
+                                    : AppColors.textTertiary,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                          ],
+                          if (durationMin > 0) ...[
+                            Icon(
+                              Icons.timer_outlined,
+                              size: 13,
+                              color: isDark
+                                  ? AppColors.darkTextTertiary
+                                  : AppColors.textTertiary,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '$durationMin分',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: isDark
                                     ? AppColors.darkTextTertiary
@@ -608,10 +1175,10 @@ class _TimelineItem extends StatelessWidget {
                               ),
                             ),
                           ],
-                        ),
-                      ],
+                        ],
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -629,10 +1196,12 @@ class _TimelineItem extends StatelessWidget {
 class _MaintenanceDetailSheet extends StatelessWidget {
   final MaintenanceRecord record;
   final MaintenanceProvider provider;
+  final int currentVehicleMileage;
 
   const _MaintenanceDetailSheet({
     required this.record,
     required this.provider,
+    required this.currentVehicleMileage,
   });
 
   @override
@@ -718,6 +1287,15 @@ class _MaintenanceDetailSheet extends StatelessWidget {
                   ),
 
                   AppSpacing.verticalMd,
+
+                  // AI comment — why this maintenance matters and next schedule
+                  MaintenanceAiComment(
+                    record: record,
+                    allRecords: provider.records,
+                    currentMileage: currentVehicleMileage,
+                  ),
+
+                  AppSpacing.verticalMd,
                   const Divider(),
                   AppSpacing.verticalSm,
 
@@ -796,14 +1374,41 @@ class _MaintenanceDetailSheet extends StatelessWidget {
 
                   AppSpacing.verticalLg,
 
+                  // Edit button
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AddMaintenanceScreen(
+                              vehicleId: record.vehicleId,
+                              currentVehicleMileage: currentVehicleMileage,
+                              existingRecord: record,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('この記録を編集'),
+                    ),
+                  ),
+
+                  AppSpacing.verticalSm,
+
                   // Delete button
-                  OutlinedButton.icon(
-                    onPressed: () => _confirmDelete(context),
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('この記録を削除'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _confirmDelete(context),
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('この記録を削除'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                      ),
                     ),
                   ),
 
@@ -838,9 +1443,13 @@ class _MaintenanceDetailSheet extends StatelessWidget {
     );
 
     if (confirmed == true && context.mounted) {
-      await provider.deleteMaintenanceRecord(record.id);
+      final success = await provider.deleteMaintenanceRecord(record.id);
       if (context.mounted) {
-        Navigator.pop(context); // close the sheet
+        if (success) {
+          Navigator.pop(context); // close the sheet only on success
+        } else {
+          showErrorSnackBar(context, '削除に失敗しました。再度お試しください。');
+        }
       }
     }
   }
@@ -882,5 +1491,380 @@ class _DetailRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suggestion detail bottom sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+void _showSuggestionDetail(
+  BuildContext context,
+  AppNotification notification, {
+  String vehicleId = '',
+  int vehicleMileage = 0,
+}) {
+  final theme = Theme.of(context);
+  final dateFormat = DateFormat('yyyy/MM/dd');
+  final color = _SuggestionRow._typeColor(notification.type);
+
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (sheetContext) {
+      return DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (_, scrollController) {
+          return SingleChildScrollView(
+            controller: scrollController,
+            padding: AppSpacing.paddingScreen,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+
+                // Icon + type badge + priority
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: color,
+                      child: Icon(
+                        _SuggestionRow._typeIcon(notification.type),
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    AppSpacing.horizontalSm,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs,
+                        vertical: AppSpacing.xxs,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        borderRadius: AppSpacing.borderRadiusXs,
+                      ),
+                      child: Text(
+                        notification.typeDisplayName,
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    if (notification.priority == NotificationPriority.high)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.1),
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.radiusFull),
+                        ),
+                        child: const Text(
+                          '緊急',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                AppSpacing.verticalMd,
+
+                // Title
+                Text(notification.title, style: theme.textTheme.headlineLarge),
+                AppSpacing.verticalSm,
+
+                // Message
+                Text(notification.message, style: theme.textTheme.bodyLarge),
+                AppSpacing.verticalLg,
+
+                // Reason
+                if (notification.reason != null) ...[
+                  Container(
+                    padding: AppSpacing.paddingCard,
+                    decoration: BoxDecoration(
+                      color: AppColors.infoBackground,
+                      borderRadius: AppSpacing.borderRadiusMd,
+                      border: Border.all(
+                          color: AppColors.info.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.auto_awesome,
+                                size: 14, color: AppColors.info),
+                            AppSpacing.horizontalXs,
+                            Text(
+                              'なぜ今なのか',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: AppColors.info,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        AppSpacing.verticalXxs,
+                        Text(notification.reason!,
+                            style: theme.textTheme.bodyMedium),
+                      ],
+                    ),
+                  ),
+                  AppSpacing.verticalMd,
+                ],
+
+                // Action date
+                if (notification.actionDate != null) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.event,
+                          size: 16, color: AppColors.textTertiary),
+                      AppSpacing.horizontalXs,
+                      Text(
+                        '推奨日: ${dateFormat.format(notification.actionDate!)}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                  AppSpacing.verticalSm,
+                ],
+
+                AppSpacing.verticalLg,
+
+                // CTA: record maintenance
+                if (vehicleId.isNotEmpty) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AddMaintenanceScreen(
+                                vehicleId: vehicleId,
+                                currentVehicleMileage: vehicleMileage,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('今すぐ記録する'),
+                    ),
+                  ),
+                  AppSpacing.verticalSm,
+                ],
+
+                // Close button
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    child: const Text('閉じる'),
+                  ),
+                ),
+                AppSpacing.verticalMd,
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Vehicle AI suggestions — shows unread AI recommendations for this vehicle
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _VehicleAiSuggestions extends StatelessWidget {
+  final List<AppNotification> suggestions;
+  final String vehicleId;
+  final int vehicleMileage;
+
+  const _VehicleAiSuggestions({
+    required this.suggestions,
+    required this.vehicleId,
+    required this.vehicleMileage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: AppSpacing.paddingScreen,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section header pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+              border: Border.all(
+                color: theme.colorScheme.primary.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.auto_awesome,
+                  size: 13,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'AIからの提案',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.verticalSm,
+
+          // Suggestion rows
+          ...suggestions.map(
+            (n) => Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: _SuggestionRow(
+                notification: n,
+                onTap: () => _showSuggestionDetail(
+                  context,
+                  n,
+                  vehicleId: vehicleId,
+                  vehicleMileage: vehicleMileage,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SuggestionRow extends StatelessWidget {
+  final AppNotification notification;
+  final VoidCallback? onTap;
+
+  const _SuggestionRow({required this.notification, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = _typeColor(notification.type);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppSpacing.borderRadiusSm,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.06),
+          borderRadius: AppSpacing.borderRadiusSm,
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            Icon(_typeIcon(notification.type), size: 16, color: color),
+            AppSpacing.horizontalXs,
+            Expanded(
+              child: Text(
+                notification.title,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            if (notification.priority == NotificationPriority.high)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                ),
+                child: const Text(
+                  '緊急',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.error,
+                  ),
+                ),
+              ),
+            if (onTap != null) ...[
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right,
+                size: 16,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Color _typeColor(NotificationType type) {
+    switch (type) {
+      case NotificationType.inspectionReminder:
+        return AppColors.maintenanceCarInspection;
+      case NotificationType.partsReplacement:
+        return AppColors.maintenanceParts;
+      case NotificationType.system:
+        return AppColors.info;
+      case NotificationType.maintenanceRecommendation:
+        return AppColors.maintenanceRepair;
+    }
+  }
+
+  static IconData _typeIcon(NotificationType type) {
+    switch (type) {
+      case NotificationType.inspectionReminder:
+        return Icons.verified_outlined;
+      case NotificationType.partsReplacement:
+        return Icons.build_outlined;
+      case NotificationType.system:
+        return Icons.info_outline;
+      case NotificationType.maintenanceRecommendation:
+        return Icons.car_repair;
+    }
   }
 }

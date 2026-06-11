@@ -25,8 +25,10 @@ void main() {
           },
         );
 
-        expect(AppConfig.instance.isFeatureEnabled(FeatureFlag.offlineMode), true);
-        expect(AppConfig.instance.isFeatureEnabled(FeatureFlag.premiumFeatures), true);
+        expect(
+            AppConfig.instance.isFeatureEnabled(FeatureFlag.offlineMode), true);
+        expect(AppConfig.instance.isFeatureEnabled(FeatureFlag.premiumFeatures),
+            true);
       });
 
       test('設定値を設定できる', () {
@@ -49,12 +51,18 @@ void main() {
 
         // デフォルトで有効なもの
         expect(AppConfig.instance.isFeatureEnabled(FeatureFlag.darkMode), true);
-        expect(AppConfig.instance.isFeatureEnabled(FeatureFlag.pushNotifications), true);
-        expect(AppConfig.instance.isFeatureEnabled(FeatureFlag.aiRecommendations), true);
+        expect(
+            AppConfig.instance.isFeatureEnabled(FeatureFlag.pushNotifications),
+            true);
+        expect(
+            AppConfig.instance.isFeatureEnabled(FeatureFlag.aiRecommendations),
+            true);
 
         // デフォルトで無効なもの
-        expect(AppConfig.instance.isFeatureEnabled(FeatureFlag.offlineMode), false);
-        expect(AppConfig.instance.isFeatureEnabled(FeatureFlag.premiumFeatures), false);
+        expect(AppConfig.instance.isFeatureEnabled(FeatureFlag.offlineMode),
+            false);
+        expect(AppConfig.instance.isFeatureEnabled(FeatureFlag.premiumFeatures),
+            false);
       });
     });
 
@@ -62,11 +70,13 @@ void main() {
       test('Feature Flagを動的に変更できる', () {
         AppConfig.instance.init(environment: AppEnvironment.production);
 
-        expect(AppConfig.instance.isFeatureEnabled(FeatureFlag.offlineMode), false);
+        expect(AppConfig.instance.isFeatureEnabled(FeatureFlag.offlineMode),
+            false);
 
         AppConfig.instance.setFeatureFlag(FeatureFlag.offlineMode, true);
 
-        expect(AppConfig.instance.isFeatureEnabled(FeatureFlag.offlineMode), true);
+        expect(
+            AppConfig.instance.isFeatureEnabled(FeatureFlag.offlineMode), true);
       });
     });
 

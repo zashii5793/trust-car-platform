@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/service_menu.dart';
 import '../services/service_menu_service.dart';
+import '../core/constants/retry_config.dart';
 import '../core/error/app_error.dart';
 
 /// サービスメニュー状態管理Provider
@@ -37,14 +38,15 @@ class ServiceMenuProvider with ChangeNotifier {
   bool get isRetryable => _error?.isRetryable ?? false;
 
   int _retryCount = 0;
-  static const int _maxRetries = 3;
+  static const int _maxRetries = RetryConfig.maxRetries;
   Timer? _retryTimer;
 
   /// サービスメニュー一覧をリスニング
   void listenToMenus({String? shopId}) {
     _menusSubscription?.cancel();
 
-    _menusSubscription = _serviceMenuService.getActiveServiceMenus(shopId: shopId).listen(
+    _menusSubscription =
+        _serviceMenuService.getActiveServiceMenus(shopId: shopId).listen(
       (menus) {
         _menus = menus;
         _error = null;
@@ -71,7 +73,8 @@ class ServiceMenuProvider with ChangeNotifier {
   void _scheduleRetry(VoidCallback action) {
     if (_retryCount >= _maxRetries) return;
     _retryTimer?.cancel();
-    final delay = Duration(seconds: 2 << _retryCount);
+    final delay =
+        Duration(seconds: RetryConfig.baseDelaySeconds << _retryCount);
     _retryCount++;
     _retryTimer = Timer(delay, action);
   }
@@ -146,7 +149,8 @@ class ServiceMenuProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    final result = await _serviceMenuService.getGroupedServiceMenus(shopId: shopId);
+    final result =
+        await _serviceMenuService.getGroupedServiceMenus(shopId: shopId);
     result.when(
       success: (grouped) {
         _groupedMenus = grouped;

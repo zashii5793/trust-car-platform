@@ -38,7 +38,8 @@ class PartRecommendationCard extends StatelessWidget {
                     Image.network(
                       part.imageUrls.first,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildPlaceholderImage(theme),
+                      errorBuilder: (_, __, ___) =>
+                          _buildPlaceholderImage(theme),
                     )
                   else
                     _buildPlaceholderImage(theme),
@@ -55,7 +56,8 @@ class PartRecommendationCard extends StatelessWidget {
                     top: 8,
                     right: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.black54,
                         borderRadius: BorderRadius.circular(4),
@@ -115,14 +117,16 @@ class PartRecommendationCard extends StatelessWidget {
                         Icon(
                           _getCompatibilityIcon(recommendation.compatibility),
                           size: 16,
-                          color: _getCompatibilityColor(recommendation.compatibility),
+                          color: _getCompatibilityColor(
+                              recommendation.compatibility),
                         ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             recommendation.compatibilityNote!,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: _getCompatibilityColor(recommendation.compatibility),
+                              color: _getCompatibilityColor(
+                                  recommendation.compatibility),
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -159,7 +163,6 @@ class PartRecommendationCard extends StatelessWidget {
                         const Spacer(),
                       ] else
                         const Spacer(),
-
                       if (onInquiry != null)
                         TextButton.icon(
                           onPressed: onInquiry,
@@ -214,9 +217,9 @@ class PartRecommendationCard extends StatelessWidget {
           Text(
             recommendation.compatibility.displayName,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
           ),
         ],
       ),
@@ -236,41 +239,42 @@ class PartRecommendationCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ...pros.map((p) => Padding(
-          padding: const EdgeInsets.only(bottom: 2),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.check_circle, size: 14, color: Colors.green),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  p.text,
-                  style: theme.textTheme.bodySmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.check_circle, size: 14, color: Colors.green),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      p.text,
+                      style: theme.textTheme.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        )),
+            )),
         ...cons.map((c) => Padding(
-          padding: const EdgeInsets.only(bottom: 2),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.info_outline, size: 14, color: Colors.orange),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  c.text,
-                  style: theme.textTheme.bodySmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline,
+                      size: 14, color: Colors.orange),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      c.text,
+                      style: theme.textTheme.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        )),
+            )),
       ],
     );
   }
@@ -350,7 +354,6 @@ class PartRecommendationList extends StatelessWidget {
               ],
             ),
           ),
-
         SizedBox(
           height: 380,
           child: ListView.builder(

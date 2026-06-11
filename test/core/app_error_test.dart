@@ -41,8 +41,10 @@ void main() {
       });
 
       test('tooManyRequestsのみリトライ可能', () {
-        const retryable = AppError.auth('', type: AuthErrorType.tooManyRequests);
-        const notRetryable = AppError.auth('', type: AuthErrorType.invalidCredentials);
+        const retryable =
+            AppError.auth('', type: AuthErrorType.tooManyRequests);
+        const notRetryable =
+            AppError.auth('', type: AuthErrorType.invalidCredentials);
 
         expect(retryable.isRetryable, true);
         expect(notRetryable.isRetryable, false);

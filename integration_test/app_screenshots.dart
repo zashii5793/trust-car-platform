@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_print
 // Screenshot capture with simulator screenshot commands
 // This test navigates through screens and pauses for external screenshot capture
 

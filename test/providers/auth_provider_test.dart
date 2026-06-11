@@ -31,7 +31,8 @@ class MockAuthService implements AuthService {
   Result<AppUser?, AppError>? getUserProfileResult;
 
   @override
-  Stream<firebase_auth.User?> get authStateChanges => _authStateController.stream;
+  Stream<firebase_auth.User?> get authStateChanges =>
+      _authStateController.stream;
 
   @override
   firebase_auth.User? get currentUser => null;
@@ -48,7 +49,8 @@ class MockAuthService implements AuthService {
   }) async {
     signUpCalled = true;
     return signUpResult ??
-        Result.failure(const AuthError('Not configured', type: AuthErrorType.unknown));
+        Result.failure(
+            const AuthError('Not configured', type: AuthErrorType.unknown));
   }
 
   @override
@@ -58,14 +60,17 @@ class MockAuthService implements AuthService {
   }) async {
     signInCalled = true;
     return signInResult ??
-        Result.failure(const AuthError('Not configured', type: AuthErrorType.unknown));
+        Result.failure(
+            const AuthError('Not configured', type: AuthErrorType.unknown));
   }
 
   @override
-  Future<Result<firebase_auth.UserCredential?, AppError>> signInWithGoogle() async {
+  Future<Result<firebase_auth.UserCredential?, AppError>>
+      signInWithGoogle() async {
     googleSignInCalled = true;
     return googleSignInResult ??
-        Result.failure(const AuthError('Not configured', type: AuthErrorType.unknown));
+        Result.failure(
+            const AuthError('Not configured', type: AuthErrorType.unknown));
   }
 
   @override
@@ -148,7 +153,8 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 50));
 
         mockAuthService.signUpResult = Result.failure(
-          const AuthError('Email in use', type: AuthErrorType.emailAlreadyInUse),
+          const AuthError('Email in use',
+              type: AuthErrorType.emailAlreadyInUse),
         );
 
         await provider.signUpWithEmail(
@@ -165,7 +171,8 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 50));
 
         mockAuthService.signUpResult = Result.failure(
-          const AuthError('Email in use', type: AuthErrorType.emailAlreadyInUse),
+          const AuthError('Email in use',
+              type: AuthErrorType.emailAlreadyInUse),
         );
 
         final success = await provider.signUpWithEmail(
@@ -176,7 +183,8 @@ void main() {
         expect(success, isFalse);
         expect(provider.error, isNotNull);
         expect(provider.error, isA<AuthError>());
-        expect((provider.error as AuthError).type, equals(AuthErrorType.emailAlreadyInUse));
+        expect((provider.error as AuthError).type,
+            equals(AuthErrorType.emailAlreadyInUse));
       });
 
       test('clears error and sets loading during operation', () async {
@@ -221,7 +229,8 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 50));
 
         mockAuthService.signInResult = Result.failure(
-          const AuthError('Wrong password', type: AuthErrorType.invalidCredentials),
+          const AuthError('Wrong password',
+              type: AuthErrorType.invalidCredentials),
         );
 
         final success = await provider.signInWithEmail(
@@ -231,7 +240,8 @@ void main() {
 
         expect(success, isFalse);
         expect(provider.error, isA<AuthError>());
-        expect((provider.error as AuthError).type, equals(AuthErrorType.invalidCredentials));
+        expect((provider.error as AuthError).type,
+            equals(AuthErrorType.invalidCredentials));
       });
     });
 
@@ -286,10 +296,12 @@ void main() {
           const AuthError('User not found', type: AuthErrorType.userNotFound),
         );
 
-        final success = await provider.sendPasswordResetEmail('notfound@test.com');
+        final success =
+            await provider.sendPasswordResetEmail('notfound@test.com');
 
         expect(success, isFalse);
-        expect((provider.error as AuthError).type, equals(AuthErrorType.userNotFound));
+        expect((provider.error as AuthError).type,
+            equals(AuthErrorType.userNotFound));
       });
     });
 
@@ -321,7 +333,8 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 50));
 
         mockAuthService.signInResult = Result.failure(
-          const AuthError('Wrong password', type: AuthErrorType.invalidCredentials),
+          const AuthError('Wrong password',
+              type: AuthErrorType.invalidCredentials),
         );
 
         await provider.signInWithEmail(
@@ -358,7 +371,8 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 50));
 
         mockAuthService.signInResult = Result.failure(
-          const AuthError('Wrong password', type: AuthErrorType.invalidCredentials),
+          const AuthError('Wrong password',
+              type: AuthErrorType.invalidCredentials),
         );
 
         await provider.signInWithEmail(
@@ -375,7 +389,8 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 50));
 
         mockAuthService.signInResult = Result.failure(
-          const AuthError('Too many requests', type: AuthErrorType.tooManyRequests),
+          const AuthError('Too many requests',
+              type: AuthErrorType.tooManyRequests),
         );
 
         await provider.signInWithEmail(

@@ -2,10 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Vehicle listing status
 enum ListingStatus {
-  active,     // 販売中
-  reserved,   // 商談中
-  sold,       // 売約済み
-  withdrawn,  // 取り下げ
+  active, // 販売中
+  reserved, // 商談中
+  sold, // 売約済み
+  withdrawn, // 取り下げ
   ;
 
   static ListingStatus? fromString(String? value) {
@@ -29,11 +29,11 @@ enum ListingStatus {
 
 /// Vehicle condition grade
 enum ConditionGrade {
-  s,    // 新車・未使用車
-  a,    // 極上車
-  b,    // 良好
-  c,    // 普通
-  d,    // 要整備
+  s, // 新車・未使用車
+  a, // 極上車
+  b, // 良好
+  c, // 普通
+  d, // 要整備
   ;
 
   static ConditionGrade? fromString(String? value) {
@@ -74,10 +74,10 @@ enum ConditionGrade {
 
 /// Transmission type
 enum TransmissionType {
-  at,     // オートマチック
-  mt,     // マニュアル
-  cvt,    // CVT
-  dct,    // デュアルクラッチ
+  at, // オートマチック
+  mt, // マニュアル
+  cvt, // CVT
+  dct, // デュアルクラッチ
   ;
 
   static TransmissionType? fromString(String? value) {
@@ -101,12 +101,12 @@ enum TransmissionType {
 
 /// Fuel type
 enum FuelType {
-  gasoline,   // ガソリン
-  diesel,     // ディーゼル
-  hybrid,     // ハイブリッド
-  phev,       // プラグインハイブリッド
-  ev,         // 電気自動車
-  lpg,        // LPG
+  gasoline, // ガソリン
+  diesel, // ディーゼル
+  hybrid, // ハイブリッド
+  phev, // プラグインハイブリッド
+  ev, // 電気自動車
+  lpg, // LPG
   ;
 
   static FuelType? fromString(String? value) {
@@ -134,9 +134,9 @@ enum FuelType {
 
 /// Drive type
 enum DriveType {
-  fwd,    // 前輪駆動
-  rwd,    // 後輪駆動
-  awd,    // 四輪駆動
+  fwd, // 前輪駆動
+  rwd, // 後輪駆動
+  awd, // 四輪駆動
   fourWd, // 4WD
   ;
 
@@ -204,12 +204,12 @@ class ListingImage {
 
 /// Vehicle specifications
 class VehicleSpecs {
-  final int? engineDisplacement;    // 排気量 (cc)
-  final int? maxPower;              // 最高出力 (ps)
-  final int? maxTorque;             // 最大トルク (Nm)
-  final double? fuelEfficiency;     // 燃費 (km/L)
-  final int? seatingCapacity;       // 乗車定員
-  final int? doorCount;             // ドア数
+  final int? engineDisplacement; // 排気量 (cc)
+  final int? maxPower; // 最高出力 (ps)
+  final int? maxTorque; // 最大トルク (Nm)
+  final double? fuelEfficiency; // 燃費 (km/L)
+  final int? seatingCapacity; // 乗車定員
+  final int? doorCount; // ドア数
   final TransmissionType? transmission;
   final FuelType? fuelType;
   final DriveType? driveType;
@@ -259,8 +259,8 @@ class VehicleSpecs {
 /// Vehicle listing model (for sale)
 class VehicleListing {
   final String id;
-  final String sellerId;            // 出品者（個人 or 販売店）
-  final String? shopId;             // 販売店ID（販売店出品の場合）
+  final String sellerId; // 出品者（個人 or 販売店）
+  final String? shopId; // 販売店ID（販売店出品の場合）
   final ListingStatus status;
 
   // 車両基本情報
@@ -270,30 +270,30 @@ class VehicleListing {
   final String modelName;
   final String? gradeId;
   final String? gradeName;
-  final int modelYear;              // 年式
+  final int modelYear; // 年式
   final String? bodyType;
   final String? color;
   final String? colorCode;
 
   // 状態情報
-  final int mileage;                // 走行距離 (km)
+  final int mileage; // 走行距離 (km)
   final ConditionGrade conditionGrade;
-  final String? inspectionDate;     // 車検満了日 (YYYY-MM)
-  final bool hasAccidentHistory;    // 修復歴
-  final bool hasSmokingHistory;     // 喫煙歴
-  final bool isOneOwner;            // ワンオーナー
-  final String? conditionNote;      // 状態備考
+  final String? inspectionDate; // 車検満了日 (YYYY-MM)
+  final bool hasAccidentHistory; // 修復歴
+  final bool hasSmokingHistory; // 喫煙歴
+  final bool isOneOwner; // ワンオーナー
+  final String? conditionNote; // 状態備考
 
   // スペック
   final VehicleSpecs specs;
 
   // 装備
-  final List<String> features;      // 装備・オプション
+  final List<String> features; // 装備・オプション
 
   // 価格
-  final int price;                  // 車両本体価格
-  final int? totalPrice;            // 支払総額
-  final bool isPriceNegotiable;     // 価格交渉可
+  final int price; // 車両本体価格
+  final int? totalPrice; // 支払総額
+  final bool isPriceNegotiable; // 価格交渉可
 
   // 画像
   final List<ListingImage> images;
@@ -374,7 +374,8 @@ class VehicleListing {
       color: data['color'],
       colorCode: data['colorCode'],
       mileage: data['mileage'] ?? 0,
-      conditionGrade: ConditionGrade.fromString(data['conditionGrade']) ?? ConditionGrade.c,
+      conditionGrade:
+          ConditionGrade.fromString(data['conditionGrade']) ?? ConditionGrade.c,
       inspectionDate: data['inspectionDate'],
       hasAccidentHistory: data['hasAccidentHistory'] ?? false,
       hasSmokingHistory: data['hasSmokingHistory'] ?? false,
@@ -386,8 +387,9 @@ class VehicleListing {
       totalPrice: data['totalPrice'],
       isPriceNegotiable: data['isPriceNegotiable'] ?? false,
       images: (data['images'] as List<dynamic>?)
-          ?.map((e) => ListingImage.fromMap(e as Map<String, dynamic>))
-          .toList() ?? [],
+              ?.map((e) => ListingImage.fromMap(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       description: data['description'],
       sellerComment: data['sellerComment'],
       prefecture: data['prefecture'] ?? '',
@@ -523,13 +525,15 @@ class VehicleListing {
   }
 
   /// 表示用タイトル
-  String get displayTitle => '$makerName $modelName${gradeName != null ? ' $gradeName' : ''}';
+  String get displayTitle =>
+      '$makerName $modelName${gradeName != null ? ' $gradeName' : ''}';
 
   /// 価格表示
   String get displayPrice => '¥${_formatPrice(price)}';
 
   /// 支払総額表示
-  String? get displayTotalPrice => totalPrice != null ? '¥${_formatPrice(totalPrice!)}' : null;
+  String? get displayTotalPrice =>
+      totalPrice != null ? '¥${_formatPrice(totalPrice!)}' : null;
 
   /// 走行距離表示
   String get displayMileage {
@@ -566,7 +570,9 @@ class VehicleListing {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is VehicleListing && runtimeType == other.runtimeType && id == other.id;
+      other is VehicleListing &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
 
   @override
   int get hashCode => id.hashCode;

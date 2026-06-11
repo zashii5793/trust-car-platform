@@ -1,5 +1,58 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Listing plan type for BtoB shop registration
+enum ShopPlanType {
+  free, // Free listing: 5 inquiries/month, 3 photos
+  standard, // Standard: ¥3,980/month — unlimited inquiries, 20 photos
+  premium, // Premium: ¥9,800/month — priority display, monthly report
+  enterprise, // Enterprise: ¥14,800/month — up to 5 shops, API access
+
+  ;
+
+  static ShopPlanType fromString(String? value) {
+    if (value == null) return ShopPlanType.free;
+    try {
+      return ShopPlanType.values.firstWhere((e) => e.name == value);
+    } catch (_) {
+      return ShopPlanType.free;
+    }
+  }
+
+  String get displayName => switch (this) {
+        ShopPlanType.free => 'フリー',
+        ShopPlanType.standard => 'スタンダード',
+        ShopPlanType.premium => 'プレミアム',
+        ShopPlanType.enterprise => 'エンタープライズ',
+      };
+
+  int? get monthlyPrice => switch (this) {
+        ShopPlanType.free => null,
+        ShopPlanType.standard => 3980,
+        ShopPlanType.premium => 9800,
+        ShopPlanType.enterprise => 14800,
+      };
+}
+
+/// Subscription status for BtoB shops
+enum ShopSubscriptionStatus {
+  active, // Subscription active
+  trialing, // Within trial period
+  expired, // Past expiration date
+  cancelled, // Cancelled (will expire at period end)
+  free, // No paid subscription
+
+  ;
+
+  static ShopSubscriptionStatus fromString(String? value) {
+    if (value == null) return ShopSubscriptionStatus.free;
+    try {
+      return ShopSubscriptionStatus.values.firstWhere((e) => e.name == value);
+    } catch (_) {
+      return ShopSubscriptionStatus.free;
+    }
+  }
+}
+
 /// Shop type classification
 enum ShopType {
   maintenanceShop('整備工場', 'Maintenance Shop'),
@@ -56,8 +109,8 @@ enum ServiceCategory {
 
 /// Business hours for a day
 class BusinessHours {
-  final String? openTime;   // "09:00"
-  final String? closeTime;  // "18:00"
+  final String? openTime; // "09:00"
+  final String? closeTime; // "18:00"
   final bool isClosed;
 
   const BusinessHours({
@@ -106,26 +159,34 @@ class Shop {
 
   // Location
   final String? address;
-  final String? prefecture;  // 都道府県
-  final String? city;        // 市区町村
-  final GeoPoint? location;  // For map display
+  final String? prefecture; // 都道府県
+  final String? city; // 市区町村
+  final GeoPoint? location; // For map display
 
   // Services
   final List<ServiceCategory> services;
-  final List<String> supportedMakerIds;  // Supported vehicle makers
+  final List<String> supportedMakerIds; // Supported vehicle makers
 
   // Business hours (indexed by weekday: 0=Sun, 1=Mon, ... 6=Sat)
   final Map<int, BusinessHours> businessHours;
-  final String? businessHoursNote;  // Additional notes like "祝日休み"
+  final String? businessHoursNote; // Additional notes like "祝日休み"
 
   // Rating & Reviews
-  final double? rating;       // Average rating (1-5)
+  final double? rating; // Average rating (1-5)
   final int reviewCount;
 
   // Verification
-  final bool isVerified;      // Platform verified
-  final bool isFeatured;      // Featured/promoted
+  final bool isVerified; // Platform verified
+  final bool isFeatured; // Featured/promoted
   final DateTime? verifiedAt;
+
+  // Plan & Subscription
+  final ShopPlanType planType; // Listing plan (default: free)
+  final DateTime? planExpiresAt; // Plan expiration date
+  final ShopSubscriptionStatus subscriptionStatus; // Current subscription state
+  final String? revenueCatUserId; // RevenueCat customer ID
+  final DateTime? trialStartedAt; // 30-day trial start
+  final String? ownerId; // Owner's UID
 
   // Status
   final bool isActive;
@@ -155,6 +216,12 @@ class Shop {
     this.isVerified = false,
     this.isFeatured = false,
     this.verifiedAt,
+    this.planType = ShopPlanType.free,
+    this.planExpiresAt,
+    this.subscriptionStatus = ShopSubscriptionStatus.free,
+    this.revenueCatUserId,
+    this.trialStartedAt,
+    this.ownerId,
     this.isActive = true,
     required this.createdAt,
     required this.updatedAt,
@@ -171,7 +238,7 @@ class Shop {
 
   /// Check if shop supports a specific maker
   bool supportsMaker(String makerId) {
-    if (supportedMakerIds.isEmpty) return true;  // Supports all if not specified
+    if (supportedMakerIds.isEmpty) return true; // Supports all if not specified
     return supportedMakerIds.contains(makerId);
   }
 
@@ -182,7 +249,7 @@ class Shop {
 
   /// Get today's business hours
   BusinessHours? getTodayHours() {
-    final weekday = DateTime.now().weekday % 7;  // Convert to 0=Sun format
+    final weekday = DateTime.now().weekday % 7; // Convert to 0=Sun format
     return businessHours[weekday];
   }
 
@@ -193,10 +260,11 @@ class Shop {
     if (hours.openTime == null || hours.closeTime == null) return false;
 
     final now = DateTime.now();
-    final currentTime = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final currentTime =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
     return currentTime.compareTo(hours.openTime!) >= 0 &&
-           currentTime.compareTo(hours.closeTime!) <= 0;
+        currentTime.compareTo(hours.closeTime!) <= 0;
   }
 
   factory Shop.fromFirestore(DocumentSnapshot doc) {
@@ -216,21 +284,30 @@ class Shop {
       city: data['city'],
       location: data['location'] as GeoPoint?,
       services: (data['services'] as List<dynamic>?)
-          ?.map((e) => ServiceCategory.fromString(e))
-          .whereType<ServiceCategory>()
-          .toList() ?? [],
+              ?.map((e) => ServiceCategory.fromString(e))
+              .whereType<ServiceCategory>()
+              .toList() ??
+          [],
       supportedMakerIds: List<String>.from(data['supportedMakerIds'] ?? []),
       businessHours: (data['businessHours'] as Map<String, dynamic>?)
-          ?.map((key, value) => MapEntry(
-              int.tryParse(key) ?? 0,
-              BusinessHours.fromMap(value as Map<String, dynamic>?),
-          )) ?? {},
+              ?.map((key, value) => MapEntry(
+                    int.tryParse(key) ?? 0,
+                    BusinessHours.fromMap(value as Map<String, dynamic>?),
+                  )) ??
+          {},
       businessHoursNote: data['businessHoursNote'],
       rating: data['rating']?.toDouble(),
       reviewCount: data['reviewCount'] ?? 0,
       isVerified: data['isVerified'] ?? false,
       isFeatured: data['isFeatured'] ?? false,
       verifiedAt: (data['verifiedAt'] as Timestamp?)?.toDate(),
+      planType: ShopPlanType.fromString(data['planType']),
+      planExpiresAt: (data['planExpiresAt'] as Timestamp?)?.toDate(),
+      subscriptionStatus:
+          ShopSubscriptionStatus.fromString(data['subscriptionStatus']),
+      revenueCatUserId: data['revenueCatUserId'],
+      trialStartedAt: (data['trialStartedAt'] as Timestamp?)?.toDate(),
+      ownerId: data['ownerId'],
       isActive: data['isActive'] ?? true,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -262,6 +339,14 @@ class Shop {
       'isVerified': isVerified,
       'isFeatured': isFeatured,
       'verifiedAt': verifiedAt != null ? Timestamp.fromDate(verifiedAt!) : null,
+      'planType': planType.name,
+      'planExpiresAt':
+          planExpiresAt != null ? Timestamp.fromDate(planExpiresAt!) : null,
+      'subscriptionStatus': subscriptionStatus.name,
+      'revenueCatUserId': revenueCatUserId,
+      'trialStartedAt':
+          trialStartedAt != null ? Timestamp.fromDate(trialStartedAt!) : null,
+      'ownerId': ownerId,
       'isActive': isActive,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -291,6 +376,12 @@ class Shop {
     bool? isVerified,
     bool? isFeatured,
     DateTime? verifiedAt,
+    ShopPlanType? planType,
+    DateTime? planExpiresAt,
+    ShopSubscriptionStatus? subscriptionStatus,
+    String? revenueCatUserId,
+    DateTime? trialStartedAt,
+    String? ownerId,
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -318,6 +409,12 @@ class Shop {
       isVerified: isVerified ?? this.isVerified,
       isFeatured: isFeatured ?? this.isFeatured,
       verifiedAt: verifiedAt ?? this.verifiedAt,
+      planType: planType ?? this.planType,
+      planExpiresAt: planExpiresAt ?? this.planExpiresAt,
+      subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
+      revenueCatUserId: revenueCatUserId ?? this.revenueCatUserId,
+      trialStartedAt: trialStartedAt ?? this.trialStartedAt,
+      ownerId: ownerId ?? this.ownerId,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

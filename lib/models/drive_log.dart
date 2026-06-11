@@ -2,9 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Drive log status
 enum DriveLogStatus {
-  recording,   // 記録中
-  completed,   // 完了
-  paused,      // 一時停止
+  recording, // 記録中
+  completed, // 完了
+  paused, // 一時停止
   ;
 
   String get displayName {
@@ -26,11 +26,11 @@ enum DriveLogStatus {
 
 /// Weather condition during drive
 enum WeatherCondition {
-  sunny,       // 晴れ
-  cloudy,      // 曇り
-  rainy,       // 雨
-  snowy,       // 雪
-  foggy,       // 霧
+  sunny, // 晴れ
+  cloudy, // 曇り
+  rainy, // 雨
+  snowy, // 雪
+  foggy, // 霧
   ;
 
   String get displayName {
@@ -71,12 +71,12 @@ enum WeatherCondition {
 
 /// Road type for route segments
 enum RoadType {
-  highway,      // 高速道路
+  highway, // 高速道路
   nationalRoad, // 国道
   prefecturalRoad, // 県道
-  cityRoad,     // 市道
+  cityRoad, // 市道
   mountainRoad, // 山道
-  coastalRoad,  // 海岸道路
+  coastalRoad, // 海岸道路
   ;
 
   String get displayName {
@@ -166,6 +166,7 @@ class GeoPoint2D {
     }
     return guess;
   }
+
   double _atan2(double y, double x) {
     if (x > 0) return _atan(y / x);
     if (x < 0 && y >= 0) return _atan(y / x) + 3.141592653589793;
@@ -174,6 +175,7 @@ class GeoPoint2D {
     if (x == 0 && y < 0) return -3.141592653589793 / 2;
     return 0;
   }
+
   double _atan(double x) {
     if (x.abs() > 1) {
       return (x > 0 ? 1 : -1) * (3.141592653589793 / 2 - _atan(1 / x.abs()));
@@ -186,16 +188,22 @@ class GeoPoint2D {
     }
     return result;
   }
+
   double _taylor(double x, bool isSin) {
     // Normalize x to [-pi, pi]
     const pi = 3.141592653589793;
-    while (x > pi) x -= 2 * pi;
-    while (x < -pi) x += 2 * pi;
+    while (x > pi) {
+      x -= 2 * pi;
+    }
+    while (x < -pi) {
+      x += 2 * pi;
+    }
 
     double result = isSin ? x : 1;
     double term = isSin ? x : 1;
     for (int i = 1; i <= 10; i++) {
-      term *= -x * x / ((isSin ? 2 * i : 2 * i - 1) * (isSin ? 2 * i + 1 : 2 * i));
+      term *=
+          -x * x / ((isSin ? 2 * i : 2 * i - 1) * (isSin ? 2 * i + 1 : 2 * i));
       result += term;
     }
     return result;
@@ -216,10 +224,10 @@ class GeoPoint2D {
 class DriveWaypoint {
   final GeoPoint2D location;
   final DateTime timestamp;
-  final double? speed;       // km/h
-  final double? altitude;    // meters
-  final double? heading;     // degrees (0-360)
-  final double? accuracy;    // GPS accuracy in meters
+  final double? speed; // km/h
+  final double? altitude; // meters
+  final double? heading; // degrees (0-360)
+  final double? accuracy; // GPS accuracy in meters
 
   const DriveWaypoint({
     required this.location,
@@ -255,16 +263,16 @@ class DriveWaypoint {
 
 /// Statistics for a drive
 class DriveStatistics {
-  final double totalDistance;     // km
-  final int totalDuration;        // seconds
-  final double averageSpeed;      // km/h
-  final double maxSpeed;          // km/h
-  final double? fuelConsumed;     // liters
-  final double? fuelEfficiency;   // km/L
-  final int? elevationGain;       // meters
-  final int? elevationLoss;       // meters
-  final int stopCount;            // number of stops
-  final int totalStopDuration;    // seconds
+  final double totalDistance; // km
+  final int totalDuration; // seconds
+  final double averageSpeed; // km/h
+  final double maxSpeed; // km/h
+  final double? fuelConsumed; // liters
+  final double? fuelEfficiency; // km/L
+  final int? elevationGain; // meters
+  final int? elevationLoss; // meters
+  final int stopCount; // number of stops
+  final int totalStopDuration; // seconds
 
   const DriveStatistics({
     required this.totalDistance,
@@ -323,9 +331,9 @@ class DriveStatistics {
     final minutes = (totalDuration % 3600) ~/ 60;
     final seconds = totalDuration % 60;
     if (hours > 0) {
-      return '$hours時間${minutes}分';
+      return '$hours時間$minutes分';
     }
-    return '$minutes分${seconds}秒';
+    return '$minutes分$seconds秒';
   }
 
   /// Format distance
@@ -341,7 +349,7 @@ class DriveStatistics {
 class DriveLog {
   final String id;
   final String userId;
-  final String? vehicleId;        // Associated vehicle
+  final String? vehicleId; // Associated vehicle
   final DriveLogStatus status;
 
   // Route info
@@ -408,7 +416,8 @@ class DriveLog {
       id: id,
       userId: map['userId'] as String,
       vehicleId: map['vehicleId'] as String?,
-      status: DriveLogStatus.fromString(map['status'] as String?) ?? DriveLogStatus.completed,
+      status: DriveLogStatus.fromString(map['status'] as String?) ??
+          DriveLogStatus.completed,
       title: map['title'] as String?,
       description: map['description'] as String?,
       startLocation: map['startLocation'] != null
@@ -423,7 +432,8 @@ class DriveLog {
       endTime: map['endTime'] != null
           ? (map['endTime'] as Timestamp).toDate()
           : null,
-      statistics: DriveStatistics.fromMap(map['statistics'] as Map<String, dynamic>?),
+      statistics:
+          DriveStatistics.fromMap(map['statistics'] as Map<String, dynamic>?),
       weather: WeatherCondition.fromString(map['weather'] as String?),
       roadTypes: (map['roadTypes'] as List<dynamic>?)
               ?.map((e) => RoadType.fromString(e as String))
@@ -549,7 +559,8 @@ class DriveLog {
   int get hashCode => id.hashCode;
 
   @override
-  String toString() => 'DriveLog($displayTitle, ${statistics.formattedDistance})';
+  String toString() =>
+      'DriveLog($displayTitle, ${statistics.formattedDistance})';
 }
 
 /// Like for drive log

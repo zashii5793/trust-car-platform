@@ -12,13 +12,15 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 class MockFirebaseService implements FirebaseService {
   bool getMaintenanceRecordsCalled = false;
   Result<List<MaintenanceRecord>, AppError>? getMaintenanceRecordsResult;
-  Result<Map<String, List<MaintenanceRecord>>, AppError>? getMaintenanceRecordsForVehiclesResult;
+  Result<Map<String, List<MaintenanceRecord>>, AppError>?
+      getMaintenanceRecordsForVehiclesResult;
 
   @override
   String? get currentUserId => 'test-user-id';
 
   @override
-  Future<Result<List<MaintenanceRecord>, AppError>> getMaintenanceRecordsForVehicle(
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getMaintenanceRecordsForVehicle(
     String vehicleId, {
     int limit = 20,
   }) async {
@@ -27,7 +29,8 @@ class MockFirebaseService implements FirebaseService {
   }
 
   @override
-  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>> getMaintenanceRecordsForVehicles(
+  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>>
+      getMaintenanceRecordsForVehicles(
     List<String> vehicleIds, {
     int limitPerVehicle = 20,
   }) async {
@@ -39,13 +42,15 @@ class MockFirebaseService implements FirebaseService {
   @override
   Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
   @override
-  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(String vehicleId) =>
+  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(
+          String vehicleId) =>
       const Stream.empty();
   @override
   Future<Result<String, AppError>> addVehicle(Vehicle vehicle) async =>
       const Result.success('id');
   @override
-  Future<Result<void, AppError>> updateVehicle(String id, Vehicle vehicle) async =>
+  Future<Result<void, AppError>> updateVehicle(
+          String id, Vehicle vehicle) async =>
       const Result.success(null);
   @override
   Future<Result<void, AppError>> deleteVehicle(String vehicleId) async =>
@@ -57,7 +62,8 @@ class MockFirebaseService implements FirebaseService {
   }) async =>
       const Result.success(false);
   @override
-  Future<Result<String, AppError>> addMaintenanceRecord(MaintenanceRecord record) async =>
+  Future<Result<String, AppError>> addMaintenanceRecord(
+          MaintenanceRecord record) async =>
       const Result.success('id');
   @override
   Future<Result<void, AppError>> updateMaintenanceRecord(
@@ -66,16 +72,19 @@ class MockFirebaseService implements FirebaseService {
   ) async =>
       const Result.success(null);
   @override
-  Future<Result<void, AppError>> deleteMaintenanceRecord(String recordId) async =>
+  Future<Result<void, AppError>> deleteMaintenanceRecord(
+          String recordId) async =>
       const Result.success(null);
   @override
-  Future<Result<String, AppError>> uploadImageBytes(dynamic bytes, String path) async =>
+  Future<Result<String, AppError>> uploadImageBytes(
+          dynamic bytes, String path) async =>
       const Result.success('url');
   @override
   Future<Result<Vehicle?, AppError>> getVehicle(String vehicleId) async =>
       const Result.success(null);
   @override
-  Future<Result<String, AppError>> uploadImage(dynamic imageFile, String path) async =>
+  Future<Result<String, AppError>> uploadImage(
+          dynamic imageFile, String path) async =>
       const Result.success('url');
   @override
   Future<Result<List<String>, AppError>> uploadImages(
@@ -241,7 +250,8 @@ void main() {
         mockRecommendationService.mockRecommendations = [
           _createTestNotification(id: '1', priority: NotificationPriority.low),
           _createTestNotification(id: '2', priority: NotificationPriority.high),
-          _createTestNotification(id: '3', priority: NotificationPriority.medium),
+          _createTestNotification(
+              id: '3', priority: NotificationPriority.medium),
         ];
 
         await provider.generateRecommendations(
@@ -250,9 +260,12 @@ void main() {
         );
 
         expect(provider.notifications.length, equals(3));
-        expect(provider.notifications[0].priority, equals(NotificationPriority.high));
-        expect(provider.notifications[1].priority, equals(NotificationPriority.medium));
-        expect(provider.notifications[2].priority, equals(NotificationPriority.low));
+        expect(provider.notifications[0].priority,
+            equals(NotificationPriority.high));
+        expect(provider.notifications[1].priority,
+            equals(NotificationPriority.medium));
+        expect(provider.notifications[2].priority,
+            equals(NotificationPriority.low));
       });
     });
 
@@ -275,9 +288,12 @@ void main() {
       test('counts high priority unread notifications', () async {
         final vehicles = [_createTestVehicle()];
         mockRecommendationService.mockRecommendations = [
-          _createTestNotification(id: '1', priority: NotificationPriority.high, isRead: false),
-          _createTestNotification(id: '2', priority: NotificationPriority.high, isRead: true),
-          _createTestNotification(id: '3', priority: NotificationPriority.medium, isRead: false),
+          _createTestNotification(
+              id: '1', priority: NotificationPriority.high, isRead: false),
+          _createTestNotification(
+              id: '2', priority: NotificationPriority.high, isRead: true),
+          _createTestNotification(
+              id: '3', priority: NotificationPriority.medium, isRead: false),
         ];
 
         await provider.generateNotificationsForVehicles(vehicles);
@@ -457,14 +473,118 @@ void main() {
 
         await provider.generateNotificationsForVehicles(vehicles);
 
-        final maintenanceNotifications =
-            provider.getNotificationsByType(NotificationType.maintenanceRecommendation);
+        final maintenanceNotifications = provider
+            .getNotificationsByType(NotificationType.maintenanceRecommendation);
 
         expect(maintenanceNotifications.length, equals(1));
         expect(
           maintenanceNotifications.first.type,
           equals(NotificationType.maintenanceRecommendation),
         );
+      });
+    });
+
+    group('topSuggestions', () {
+      test('returns empty list when no notifications', () {
+        expect(provider.topSuggestions, isEmpty);
+      });
+
+      test('returns only high and medium priority notifications', () async {
+        final vehicles = [_createTestVehicle()];
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: '1', priority: NotificationPriority.high),
+          _createTestNotification(
+              id: '2', priority: NotificationPriority.medium),
+          _createTestNotification(id: '3', priority: NotificationPriority.low),
+        ];
+
+        await provider.generateNotificationsForVehicles(vehicles);
+
+        final suggestions = provider.topSuggestions;
+        expect(suggestions.length, equals(2));
+        expect(suggestions.any((n) => n.priority == NotificationPriority.low),
+            isFalse);
+      });
+
+      test('excludes system type notifications', () async {
+        final vehicles = [_createTestVehicle()];
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: '1', priority: NotificationPriority.high),
+          AppNotification(
+            id: 'sys',
+            userId: 'test-user-id',
+            vehicleId: 'test-vehicle-id',
+            type: NotificationType.system,
+            title: 'System',
+            message: 'System message',
+            priority: NotificationPriority.high,
+            isRead: false,
+            createdAt: DateTime.now(),
+          ),
+        ];
+
+        await provider.generateNotificationsForVehicles(vehicles);
+
+        final suggestions = provider.topSuggestions;
+        expect(suggestions.length, equals(1));
+        expect(
+            suggestions.any((n) => n.type == NotificationType.system), isFalse);
+      });
+
+      test('returns at most 3 items', () async {
+        final vehicles = [_createTestVehicle()];
+        mockRecommendationService.mockRecommendations = List.generate(
+          6,
+          (i) => _createTestNotification(
+            id: 'n$i',
+            priority: NotificationPriority.high,
+          ),
+        );
+
+        await provider.generateNotificationsForVehicles(vehicles);
+
+        expect(provider.topSuggestions.length, equals(3));
+      });
+
+      test('high priority appears before medium priority', () async {
+        final vehicles = [_createTestVehicle()];
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(
+              id: 'med', priority: NotificationPriority.medium),
+          _createTestNotification(
+              id: 'high', priority: NotificationPriority.high),
+        ];
+
+        await provider.generateRecommendations(
+          vehicles: vehicles,
+          maintenanceRecords: {'test-vehicle-id': []},
+        );
+
+        final suggestions = provider.topSuggestions;
+        expect(suggestions.first.priority, equals(NotificationPriority.high));
+      });
+
+      test('returns empty when only low priority or system notifications exist',
+          () async {
+        final vehicles = [_createTestVehicle()];
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: '1', priority: NotificationPriority.low),
+          AppNotification(
+            id: 'sys',
+            userId: 'test-user-id',
+            vehicleId: 'test-vehicle-id',
+            type: NotificationType.system,
+            title: 'System',
+            message: 'System message',
+            priority: NotificationPriority.medium,
+            isRead: false,
+            createdAt: DateTime.now(),
+          ),
+        ];
+
+        await provider.generateNotificationsForVehicles(vehicles);
+
+        expect(provider.topSuggestions, isEmpty);
       });
     });
   });
@@ -476,29 +596,33 @@ class _MockFirebaseServiceNullUser implements FirebaseService {
   String? get currentUserId => null;
 
   @override
-  Future<Result<List<MaintenanceRecord>, AppError>> getMaintenanceRecordsForVehicle(
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getMaintenanceRecordsForVehicle(
     String vehicleId, {
     int limit = 20,
   }) async =>
-      const Result.success([]);
+          const Result.success([]);
 
   @override
-  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>> getMaintenanceRecordsForVehicles(
+  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>>
+      getMaintenanceRecordsForVehicles(
     List<String> vehicleIds, {
     int limitPerVehicle = 20,
   }) async =>
-      const Result.success({});
+          const Result.success({});
 
   @override
   Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
   @override
-  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(String vehicleId) =>
+  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(
+          String vehicleId) =>
       const Stream.empty();
   @override
   Future<Result<String, AppError>> addVehicle(Vehicle vehicle) async =>
       const Result.success('id');
   @override
-  Future<Result<void, AppError>> updateVehicle(String id, Vehicle vehicle) async =>
+  Future<Result<void, AppError>> updateVehicle(
+          String id, Vehicle vehicle) async =>
       const Result.success(null);
   @override
   Future<Result<void, AppError>> deleteVehicle(String vehicleId) async =>
@@ -510,7 +634,8 @@ class _MockFirebaseServiceNullUser implements FirebaseService {
   }) async =>
       const Result.success(false);
   @override
-  Future<Result<String, AppError>> addMaintenanceRecord(MaintenanceRecord record) async =>
+  Future<Result<String, AppError>> addMaintenanceRecord(
+          MaintenanceRecord record) async =>
       const Result.success('id');
   @override
   Future<Result<void, AppError>> updateMaintenanceRecord(
@@ -519,16 +644,19 @@ class _MockFirebaseServiceNullUser implements FirebaseService {
   ) async =>
       const Result.success(null);
   @override
-  Future<Result<void, AppError>> deleteMaintenanceRecord(String recordId) async =>
+  Future<Result<void, AppError>> deleteMaintenanceRecord(
+          String recordId) async =>
       const Result.success(null);
   @override
-  Future<Result<String, AppError>> uploadImageBytes(dynamic bytes, String path) async =>
+  Future<Result<String, AppError>> uploadImageBytes(
+          dynamic bytes, String path) async =>
       const Result.success('url');
   @override
   Future<Result<Vehicle?, AppError>> getVehicle(String vehicleId) async =>
       const Result.success(null);
   @override
-  Future<Result<String, AppError>> uploadImage(dynamic imageFile, String path) async =>
+  Future<Result<String, AppError>> uploadImage(
+          dynamic imageFile, String path) async =>
       const Result.success('url');
   @override
   Future<Result<List<String>, AppError>> uploadImages(
@@ -551,7 +679,8 @@ class _MockFirebaseServiceThrowing implements FirebaseService {
   String? get currentUserId => 'test-user-id';
 
   @override
-  Future<Result<List<MaintenanceRecord>, AppError>> getMaintenanceRecordsForVehicle(
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getMaintenanceRecordsForVehicle(
     String vehicleId, {
     int limit = 20,
   }) async {
@@ -559,7 +688,8 @@ class _MockFirebaseServiceThrowing implements FirebaseService {
   }
 
   @override
-  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>> getMaintenanceRecordsForVehicles(
+  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>>
+      getMaintenanceRecordsForVehicles(
     List<String> vehicleIds, {
     int limitPerVehicle = 20,
   }) async {
@@ -569,13 +699,15 @@ class _MockFirebaseServiceThrowing implements FirebaseService {
   @override
   Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
   @override
-  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(String vehicleId) =>
+  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(
+          String vehicleId) =>
       const Stream.empty();
   @override
   Future<Result<String, AppError>> addVehicle(Vehicle vehicle) async =>
       const Result.success('id');
   @override
-  Future<Result<void, AppError>> updateVehicle(String id, Vehicle vehicle) async =>
+  Future<Result<void, AppError>> updateVehicle(
+          String id, Vehicle vehicle) async =>
       const Result.success(null);
   @override
   Future<Result<void, AppError>> deleteVehicle(String vehicleId) async =>
@@ -587,7 +719,8 @@ class _MockFirebaseServiceThrowing implements FirebaseService {
   }) async =>
       const Result.success(false);
   @override
-  Future<Result<String, AppError>> addMaintenanceRecord(MaintenanceRecord record) async =>
+  Future<Result<String, AppError>> addMaintenanceRecord(
+          MaintenanceRecord record) async =>
       const Result.success('id');
   @override
   Future<Result<void, AppError>> updateMaintenanceRecord(
@@ -596,16 +729,19 @@ class _MockFirebaseServiceThrowing implements FirebaseService {
   ) async =>
       const Result.success(null);
   @override
-  Future<Result<void, AppError>> deleteMaintenanceRecord(String recordId) async =>
+  Future<Result<void, AppError>> deleteMaintenanceRecord(
+          String recordId) async =>
       const Result.success(null);
   @override
-  Future<Result<String, AppError>> uploadImageBytes(dynamic bytes, String path) async =>
+  Future<Result<String, AppError>> uploadImageBytes(
+          dynamic bytes, String path) async =>
       const Result.success('url');
   @override
   Future<Result<Vehicle?, AppError>> getVehicle(String vehicleId) async =>
       const Result.success(null);
   @override
-  Future<Result<String, AppError>> uploadImage(dynamic imageFile, String path) async =>
+  Future<Result<String, AppError>> uploadImage(
+          dynamic imageFile, String path) async =>
       const Result.success('url');
   @override
   Future<Result<List<String>, AppError>> uploadImages(

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/document.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 
@@ -28,7 +29,7 @@ class DocumentService {
 
   // コレクション参照
   CollectionReference<Map<String, dynamic>> get _documentsCollection =>
-      _firestore.collection('documents');
+      _firestore.collection(FirestoreCollections.documents);
 
   /// 書類をアップロードして登録
   Future<Result<String, AppError>> uploadDocument({
@@ -94,7 +95,8 @@ class DocumentService {
   }
 
   /// 書類情報を更新（ファイル以外）
-  Future<Result<void, AppError>> updateDocument(String documentId, {
+  Future<Result<void, AppError>> updateDocument(
+    String documentId, {
     String? title,
     String? description,
     DateTime? documentDate,
@@ -108,8 +110,12 @@ class DocumentService {
 
       if (title != null) updates['title'] = title;
       if (description != null) updates['description'] = description;
-      if (documentDate != null) updates['documentDate'] = Timestamp.fromDate(documentDate);
-      if (expiryDate != null) updates['expiryDate'] = Timestamp.fromDate(expiryDate);
+      if (documentDate != null) {
+        updates['documentDate'] = Timestamp.fromDate(documentDate);
+      }
+      if (expiryDate != null) {
+        updates['expiryDate'] = Timestamp.fromDate(expiryDate);
+      }
       if (isArchived != null) updates['isArchived'] = isArchived;
 
       await _documentsCollection.doc(documentId).update(updates);
@@ -138,8 +144,7 @@ class DocumentService {
       return Stream.value([]);
     }
 
-    var query = _documentsCollection
-        .where('userId', isEqualTo: currentUserId);
+    var query = _documentsCollection.where('userId', isEqualTo: currentUserId);
 
     if (!includeArchived) {
       query = query.where('isArchived', isEqualTo: false);
@@ -154,14 +159,16 @@ class DocumentService {
   }
 
   /// 車両に紐付く書類一覧を取得
-  Future<Result<List<Document>, AppError>> getDocumentsByVehicle(String vehicleId) async {
+  Future<Result<List<Document>, AppError>> getDocumentsByVehicle(
+      String vehicleId) async {
     try {
       final snapshot = await _documentsCollection
           .where('vehicleId', isEqualTo: vehicleId)
           .where('isArchived', isEqualTo: false)
           .orderBy('uploadedAt', descending: true)
           .get();
-      final documents = snapshot.docs.map((doc) => Document.fromFirestore(doc)).toList();
+      final documents =
+          snapshot.docs.map((doc) => Document.fromFirestore(doc)).toList();
       return Result.success(documents);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -169,13 +176,15 @@ class DocumentService {
   }
 
   /// 整備記録に紐付く書類一覧を取得
-  Future<Result<List<Document>, AppError>> getDocumentsByMaintenanceRecord(String maintenanceRecordId) async {
+  Future<Result<List<Document>, AppError>> getDocumentsByMaintenanceRecord(
+      String maintenanceRecordId) async {
     try {
       final snapshot = await _documentsCollection
           .where('maintenanceRecordId', isEqualTo: maintenanceRecordId)
           .orderBy('uploadedAt', descending: true)
           .get();
-      final documents = snapshot.docs.map((doc) => Document.fromFirestore(doc)).toList();
+      final documents =
+          snapshot.docs.map((doc) => Document.fromFirestore(doc)).toList();
       return Result.success(documents);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -183,7 +192,8 @@ class DocumentService {
   }
 
   /// 種別で書類を検索
-  Future<Result<List<Document>, AppError>> getDocumentsByType(DocumentType type) async {
+  Future<Result<List<Document>, AppError>> getDocumentsByType(
+      DocumentType type) async {
     if (currentUserId == null) {
       return Result.success([]);
     }
@@ -195,7 +205,8 @@ class DocumentService {
           .where('isArchived', isEqualTo: false)
           .orderBy('uploadedAt', descending: true)
           .get();
-      final documents = snapshot.docs.map((doc) => Document.fromFirestore(doc)).toList();
+      final documents =
+          snapshot.docs.map((doc) => Document.fromFirestore(doc)).toList();
       return Result.success(documents);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -215,10 +226,12 @@ class DocumentService {
       final snapshot = await _documentsCollection
           .where('userId', isEqualTo: currentUserId)
           .where('expiryDate', isGreaterThanOrEqualTo: Timestamp.fromDate(now))
-          .where('expiryDate', isLessThanOrEqualTo: Timestamp.fromDate(thirtyDaysLater))
+          .where('expiryDate',
+              isLessThanOrEqualTo: Timestamp.fromDate(thirtyDaysLater))
           .where('isArchived', isEqualTo: false)
           .get();
-      final documents = snapshot.docs.map((doc) => Document.fromFirestore(doc)).toList();
+      final documents =
+          snapshot.docs.map((doc) => Document.fromFirestore(doc)).toList();
       return Result.success(documents);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -236,7 +249,8 @@ class DocumentService {
       // まず書類情報を取得
       final docResult = await getDocument(documentId);
       if (docResult.isFailure) {
-        return Result.failure(docResult.errorOrNull!);
+        return Result.failure(docResult.errorOrNull ??
+            const AppError.unknown('Failed to fetch document'));
       }
 
       final document = docResult.valueOrNull;

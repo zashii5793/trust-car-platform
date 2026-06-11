@@ -2,71 +2,87 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../models/app_notification.dart';
+import '../../models/vehicle.dart';
+import '../../providers/maintenance_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../providers/vehicle_provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../vehicle_detail_screen.dart';
 
-/// 通知一覧画面
+/// 通知一覧（Scaffold なし — HomeScreen の AppBar に統合）
 class NotificationListScreen extends StatelessWidget {
   const NotificationListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('通知'),
-        actions: [
-          Consumer<NotificationProvider>(
-            builder: (context, provider, child) {
-              if (provider.unreadCount > 0) {
-                return TextButton(
-                  onPressed: () => provider.markAllAsRead(),
-                  child: const Text('すべて既読にする'),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-        ],
-      ),
-      body: Consumer<NotificationProvider>(
-        builder: (context, provider, child) {
-          if (provider.isLoading) {
-            return const AppLoadingCenter();
-          }
+    return Consumer<NotificationProvider>(
+      builder: (context, provider, child) {
+        if (provider.isLoading) {
+          return const AppLoadingCenter();
+        }
 
-          if (provider.notifications.isEmpty) {
-            return const AppEmptyState(
-              icon: Icons.notifications_none,
-              title: '通知はありません',
-              description: 'メンテナンスの推奨がある場合はここに表示されます',
-            );
-          }
-
-          return ListView.builder(
-            padding: AppSpacing.paddingScreen,
-            itemCount: provider.notifications.length,
-            itemBuilder: (context, index) {
-              final notification = provider.notifications[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                child: _NotificationCard(
-                  notification: notification,
-                  onTap: () {
-                    provider.markAsRead(notification.id);
-                    _showNotificationDetail(context, notification);
-                  },
-                  onDismiss: () {
-                    provider.removeNotification(notification.id);
-                  },
-                ),
-              );
-            },
+        if (provider.notifications.isEmpty) {
+          return const AppEmptyState(
+            icon: Icons.notifications_none,
+            title: '通知はありません',
+            description: 'メンテナンスの推奨がある場合はここに表示されます',
           );
-        },
-      ),
+        }
+
+        final hasUnread = provider.notifications.any((n) => !n.isRead);
+
+        return Column(
+          children: [
+            if (hasUnread)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      icon: const Icon(Icons.done_all, size: 16),
+                      label: const Text('全て既読'),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: AppColors.primary,
+                      ),
+                      onPressed: () => provider.markAllAsRead(),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: ListView.builder(
+                padding: AppSpacing.paddingScreen,
+                itemCount: provider.notifications.length,
+                itemBuilder: (context, index) {
+                  final notification = provider.notifications[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: _NotificationCard(
+                      notification: notification,
+                      onTap: () {
+                        provider.markAsRead(notification.id);
+                        _showNotificationDetail(context, notification);
+                      },
+                      onDismiss: () {
+                        provider.removeNotification(notification.id);
+                      },
+                      onMarkRead: notification.isRead
+                          ? null
+                          : () => provider.markAsRead(notification.id),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -81,7 +97,7 @@ class NotificationListScreen extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) {
+      builder: (sheetContext) {
         return DraggableScrollableSheet(
           initialChildSize: 0.5,
           minChildSize: 0.3,
@@ -151,6 +167,48 @@ class NotificationListScreen extends StatelessWidget {
                   ),
                   AppSpacing.verticalLg,
 
+                  // AI提案理由
+                  if (notification.reason != null) ...[
+                    Container(
+                      padding: AppSpacing.paddingCard,
+                      decoration: BoxDecoration(
+                        color: AppColors.infoBackground,
+                        borderRadius: AppSpacing.borderRadiusMd,
+                        border: Border.all(
+                          color: AppColors.info.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.auto_awesome,
+                                size: 14,
+                                color: AppColors.info,
+                              ),
+                              AppSpacing.horizontalXs,
+                              Text(
+                                'なぜ今なのか',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: AppColors.info,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          AppSpacing.verticalXxs,
+                          Text(
+                            notification.reason!,
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                    AppSpacing.verticalMd,
+                  ],
+
                   // 詳細情報
                   if (notification.actionDate != null) ...[
                     _DetailRow(
@@ -168,11 +226,19 @@ class NotificationListScreen extends StatelessWidget {
 
                   AppSpacing.verticalXl,
 
+                  // 車両詳細へ移動するボタン（vehicleId がある場合のみ）
+                  if (notification.vehicleId != null) ...[
+                    _VehicleNavigationButton(
+                      vehicleId: notification.vehicleId!,
+                    ),
+                    AppSpacing.verticalSm,
+                  ],
+
                   // 閉じるボタン
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => Navigator.pop(sheetContext),
                       child: const Text('閉じる'),
                     ),
                   ),
@@ -264,134 +330,317 @@ class NotificationListScreen extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 車両詳細への導線ボタン
+// ---------------------------------------------------------------------------
+
+class _VehicleNavigationButton extends StatelessWidget {
+  final String vehicleId;
+
+  const _VehicleNavigationButton({required this.vehicleId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<VehicleProvider>(
+      builder: (context, vehicleProvider, child) {
+        final Vehicle? vehicle = vehicleProvider.vehicles
+            .where((v) => v.id == vehicleId)
+            .firstOrNull;
+
+        if (vehicle == null) return const SizedBox.shrink();
+
+        return SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: () {
+              // Provider を pop 前に取得
+              final maintenanceProvider =
+                  Provider.of<MaintenanceProvider>(context, listen: false);
+              vehicleProvider.selectVehicle(vehicle);
+              maintenanceProvider.listenToMaintenanceRecords(vehicle.id);
+              Navigator.pop(context); // BottomSheet を閉じる
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => VehicleDetailScreen(vehicle: vehicle),
+                ),
+              );
+            },
+            icon: const Icon(Icons.directions_car),
+            label: Text('${vehicle.maker} ${vehicle.model} を確認する'),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Notification Card
+// ---------------------------------------------------------------------------
+
 class _NotificationCard extends StatelessWidget {
   final AppNotification notification;
   final VoidCallback onTap;
   final VoidCallback onDismiss;
+  final VoidCallback? onMarkRead;
 
   const _NotificationCard({
     required this.notification,
     required this.onTap,
     required this.onDismiss,
+    this.onMarkRead,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final dateFormat = DateFormat('MM/dd');
+    final priorityColor = _getPriorityColor(notification.priority);
+    final typeColor = _getTypeColor(notification.type);
 
     return Dismissible(
       key: Key(notification.id),
-      direction: DismissDirection.endToStart,
+      direction: DismissDirection.horizontal,
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.endToStart) {
+          // Delete: show brief confirmation
+          return await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('通知を削除'),
+                  content: const Text('この通知を削除しますか？'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('キャンセル'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: TextButton.styleFrom(
+                          foregroundColor: AppColors.error),
+                      child: const Text('削除'),
+                    ),
+                  ],
+                ),
+              ) ??
+              false;
+        }
+        // startToEnd: mark as read (only if unread)
+        if (!notification.isRead) {
+          onMarkRead?.call();
+        }
+        return false; // don't dismiss the card
+      },
       onDismissed: (_) => onDismiss(),
+      // startToEnd background: mark as read (green) — grey if already read
       background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: AppSpacing.md),
+        decoration: BoxDecoration(
+          color: notification.isRead
+              ? AppColors.textTertiary.withValues(alpha: 0.3)
+              : AppColors.success,
+          borderRadius: AppSpacing.borderRadiusMd,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              notification.isRead ? Icons.done : Icons.done,
+              color: Colors.white,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              notification.isRead ? '既読済み' : '既読',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+      // endToStart background: delete (red)
+      secondaryBackground: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: AppSpacing.md),
         decoration: BoxDecoration(
           color: AppColors.error,
           borderRadius: AppSpacing.borderRadiusMd,
         ),
-        child: const Icon(Icons.delete, color: Colors.white),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.delete, color: Colors.white),
+            SizedBox(height: 2),
+            Text(
+              '削除',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
       child: AppCard(
         onTap: onTap,
         padding: EdgeInsets.zero,
         child: Container(
           decoration: BoxDecoration(
-            border: notification.isRead
+            borderRadius: AppSpacing.borderRadiusMd,
+            // 未読時は優先度カラーで薄く染める
+            color: notification.isRead
                 ? null
-                : Border(
-                    left: BorderSide(
-                      color: _getPriorityColor(notification.priority),
-                      width: 4,
+                : priorityColor.withValues(alpha: isDark ? 0.07 : 0.05),
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 優先度アクセントバー
+                Container(
+                  width: 4,
+                  constraints: const BoxConstraints(minHeight: 80),
+                  decoration: BoxDecoration(
+                    color: notification.isRead
+                        ? Colors.transparent
+                        : priorityColor,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(AppSpacing.radiusMd),
+                      bottomLeft: Radius.circular(AppSpacing.radiusMd),
                     ),
                   ),
-          ),
-          child: ListTile(
-            leading: _buildLeadingIcon(),
-            title: Text(
-              notification.title,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontWeight:
-                    notification.isRead ? FontWeight.normal : FontWeight.bold,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppSpacing.verticalXxs,
-                Text(
-                  notification.message,
-                  style: theme.textTheme.bodySmall,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                AppSpacing.verticalXxs,
-                Text(
-                  notification.actionDate != null
-                      ? '推奨日: ${dateFormat.format(notification.actionDate!)}'
-                      : dateFormat.format(notification.createdAt),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color:
-                        isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
-                  ),
-                ),
-              ],
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildPriorityIndicator(),
-                if (!notification.isRead) ...[
-                  AppSpacing.verticalXxs,
-                  Container(
-                    width: 8,
-                    height: 8,
+                // アイコン
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.sm, AppSpacing.md, 0, AppSpacing.md),
+                  child: Container(
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.primary,
+                      color: typeColor.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                     ),
+                    child: Icon(_getTypeIcon(notification.type),
+                        color: typeColor, size: 22),
                   ),
-                ],
+                ),
+                // コンテンツ
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.sm,
+                        AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // タイプバッジ + 時間
+                        Row(
+                          children: [
+                            _TypeBadge(
+                                label: notification.typeDisplayName,
+                                color: typeColor),
+                            const Spacer(),
+                            Text(
+                              _timeAgo(notification.createdAt),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: isDark
+                                    ? AppColors.darkTextTertiary
+                                    : AppColors.textTertiary,
+                                fontSize: 11,
+                              ),
+                            ),
+                            // 未読ドット
+                            if (!notification.isRead) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: priorityColor,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        // タイトル
+                        Text(
+                          notification.title,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: notification.isRead
+                                ? FontWeight.w500
+                                : FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        // メッセージ
+                        Text(
+                          notification.message,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        // 推奨日（ある場合）
+                        if (notification.actionDate != null) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.event,
+                                  size: 12,
+                                  color: isDark
+                                      ? AppColors.darkTextTertiary
+                                      : AppColors.textTertiary),
+                              const SizedBox(width: 3),
+                              Text(
+                                '推奨日: ${DateFormat('yyyy/MM/dd').format(notification.actionDate!)}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontSize: 11,
+                                  color: isDark
+                                      ? AppColors.darkTextTertiary
+                                      : AppColors.textTertiary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: AppSpacing.xs),
+                        // 優先度バッジ（高・中のみ表示）
+                        if (notification.priority != NotificationPriority.low)
+                          _PriorityBadge(priority: notification.priority),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
               ],
             ),
-            contentPadding: AppSpacing.paddingCard,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildLeadingIcon() {
-    final color = _getTypeColor(notification.type);
-    final icon = _getTypeIcon(notification.type);
-
-    return CircleAvatar(
-      backgroundColor: color.withValues(alpha: 0.1),
-      child: Icon(icon, color: color, size: 20),
-    );
-  }
-
-  Widget _buildPriorityIndicator() {
-    final color = _getPriorityColor(notification.priority);
-    IconData icon;
-
-    switch (notification.priority) {
-      case NotificationPriority.high:
-        icon = Icons.priority_high;
-        break;
-      case NotificationPriority.medium:
-        icon = Icons.remove;
-        break;
-      case NotificationPriority.low:
-        icon = Icons.arrow_downward;
-        break;
-    }
-
-    return Icon(icon, color: color, size: 16);
+  /// 相対時間文字列を返す（例: 3分前、2時間前、5日前）
+  String _timeAgo(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'たった今';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}分前';
+    if (diff.inHours < 24) return '${diff.inHours}時間前';
+    if (diff.inDays < 30) return '${diff.inDays}日前';
+    return DateFormat('MM/dd').format(dt);
   }
 
   Color _getTypeColor(NotificationType type) {
@@ -410,13 +659,13 @@ class _NotificationCard extends StatelessWidget {
   IconData _getTypeIcon(NotificationType type) {
     switch (type) {
       case NotificationType.maintenanceRecommendation:
-        return Icons.build;
+        return Icons.build_rounded;
       case NotificationType.inspectionReminder:
-        return Icons.verified;
+        return Icons.verified_rounded;
       case NotificationType.partsReplacement:
-        return Icons.settings;
+        return Icons.settings_rounded;
       case NotificationType.system:
-        return Icons.info;
+        return Icons.info_rounded;
     }
   }
 
@@ -429,6 +678,79 @@ class _NotificationCard extends StatelessWidget {
       case NotificationPriority.low:
         return AppColors.info;
     }
+  }
+}
+
+class _TypeBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _TypeBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _PriorityBadge extends StatelessWidget {
+  final NotificationPriority priority;
+
+  const _PriorityBadge({required this.priority});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color;
+    final String label;
+    final IconData icon;
+
+    switch (priority) {
+      case NotificationPriority.high:
+        color = AppColors.error;
+        label = '重要';
+        icon = Icons.priority_high_rounded;
+        break;
+      case NotificationPriority.medium:
+        color = AppColors.warning;
+        label = '要注意';
+        icon = Icons.warning_amber_rounded;
+        break;
+      case NotificationPriority.low:
+        color = AppColors.info;
+        label = '情報';
+        icon = Icons.info_outline_rounded;
+        break;
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
   }
 }
 

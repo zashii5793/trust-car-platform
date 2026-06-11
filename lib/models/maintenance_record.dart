@@ -97,98 +97,98 @@ enum MaintenanceType {
 
   /// カテゴリ別にグループ化
   static Map<String, List<MaintenanceType>> get groupedTypes => {
-    '点検・車検': [
-      legalInspection12,
-      legalInspection24,
-      carInspection,
-    ],
-    'オイル関連': [
-      oilChange,
-      oilFilterChange,
-    ],
-    'タイヤ関連': [
-      tireChange,
-      tireRotation,
-      wheelAlignment,
-    ],
-    'ブレーキ関連': [
-      brakePadChange,
-      brakeFluidChange,
-    ],
-    'フィルター関連': [
-      airFilterChange,
-      cabinFilterChange,
-    ],
-    'その他消耗品': [
-      batteryChange,
-      coolantChange,
-      wiperChange,
-      lightBulbChange,
-      transmissionFluidChange,
-    ],
-    '板金・塗装': [
-      bodyRepair,
-      paintCorrection,
-    ],
-    'コーティング': [
-      glassCoating,
-      bodyCoating,
-      washing,
-    ],
-    'フィルム施工': [
-      carFilm,
-      protectionFilm,
-    ],
-    'カスタム': [
-      customization,
-      audioInstall,
-      accessoryInstall,
-    ],
-    'その他サービス': [
-      airConditionerService,
-      repair,
-      partsReplacement,
-      other,
-    ],
-  };
+        '点検・車検': [
+          legalInspection12,
+          legalInspection24,
+          carInspection,
+        ],
+        'オイル関連': [
+          oilChange,
+          oilFilterChange,
+        ],
+        'タイヤ関連': [
+          tireChange,
+          tireRotation,
+          wheelAlignment,
+        ],
+        'ブレーキ関連': [
+          brakePadChange,
+          brakeFluidChange,
+        ],
+        'フィルター関連': [
+          airFilterChange,
+          cabinFilterChange,
+        ],
+        'その他消耗品': [
+          batteryChange,
+          coolantChange,
+          wiperChange,
+          lightBulbChange,
+          transmissionFluidChange,
+        ],
+        '板金・塗装': [
+          bodyRepair,
+          paintCorrection,
+        ],
+        'コーティング': [
+          glassCoating,
+          bodyCoating,
+          washing,
+        ],
+        'フィルム施工': [
+          carFilm,
+          protectionFilm,
+        ],
+        'カスタム': [
+          customization,
+          audioInstall,
+          accessoryInstall,
+        ],
+        'その他サービス': [
+          airConditionerService,
+          repair,
+          partsReplacement,
+          other,
+        ],
+      };
 
   /// 定期交換が必要なタイプかどうか
   bool get isPeriodicMaintenance => [
-    oilChange,
-    oilFilterChange,
-    tireRotation,
-    brakePadChange,
-    brakeFluidChange,
-    coolantChange,
-    airFilterChange,
-    cabinFilterChange,
-    wiperChange,
-    transmissionFluidChange,
-  ].contains(this);
+        oilChange,
+        oilFilterChange,
+        tireRotation,
+        brakePadChange,
+        brakeFluidChange,
+        coolantChange,
+        airFilterChange,
+        cabinFilterChange,
+        wiperChange,
+        transmissionFluidChange,
+      ].contains(this);
 
   /// 法定点検・車検かどうか
   bool get isLegalInspection => [
-    legalInspection12,
-    legalInspection24,
-    carInspection,
-  ].contains(this);
+        legalInspection12,
+        legalInspection24,
+        carInspection,
+      ].contains(this);
 
   /// 板金・塗装・コーティング系かどうか
   bool get isBodyWork => [
-    bodyRepair,
-    paintCorrection,
-    glassCoating,
-    bodyCoating,
-    carFilm,
-    protectionFilm,
-  ].contains(this);
+        bodyRepair,
+        paintCorrection,
+        glassCoating,
+        bodyCoating,
+        carFilm,
+        protectionFilm,
+      ].contains(this);
 
   /// カスタム系かどうか
   bool get isCustomization => [
-    customization,
-    audioInstall,
-    accessoryInstall,
-  ].contains(this);
+        customization,
+        audioInstall,
+        accessoryInstall,
+      ].contains(this);
 }
 
 /// 車検・点検結果
@@ -212,11 +212,11 @@ enum InspectionResult {
 
 /// 作業項目
 class WorkItem {
-  final String name;              // 作業項目名
-  final String? description;      // 詳細説明
-  final int laborCost;            // 工賃
-  final double? laborHours;       // 作業時間
-  final String? workerName;       // 作業者名
+  final String name; // 作業項目名
+  final String? description; // 詳細説明
+  final int laborCost; // 工賃
+  final double? laborHours; // 作業時間
+  final String? workerName; // 作業者名
 
   const WorkItem({
     required this.name,
@@ -249,11 +249,11 @@ class WorkItem {
 
 /// 使用部品
 class Part {
-  final String partNumber;        // 部品番号
-  final String name;              // 部品名
-  final String? manufacturer;     // メーカー
-  final int unitPrice;            // 単価
-  final int quantity;             // 数量
+  final String partNumber; // 部品番号
+  final String name; // 部品名
+  final String? manufacturer; // メーカー
+  final int unitPrice; // 単価
+  final int quantity; // 数量
 
   const Part({
     required this.partNumber,
@@ -302,28 +302,33 @@ class MaintenanceRecord {
   final DateTime createdAt;
 
   // Phase 1.5 追加フィールド
-  final String? partNumber;        // 部品番号（単一部品用、後方互換）
-  final String? partManufacturer;  // 部品メーカー（単一部品用、後方互換）
-  final int? nextReplacementMileage;  // 次回交換推奨走行距離
-  final DateTime? nextReplacementDate;  // 次回交換推奨日
+  final String? partNumber; // 部品番号（単一部品用、後方互換）
+  final String? partManufacturer; // 部品メーカー（単一部品用、後方互換）
+  final int? nextReplacementMileage; // 次回交換推奨走行距離
+  final DateTime? nextReplacementDate; // 次回交換推奨日
 
   // Phase 5 追加フィールド: 車検・点検詳細
-  final String? staffId;                    // 担当スタッフID
-  final String? staffName;                  // 担当スタッフ名
+  final String? staffId; // 担当スタッフID
+  final String? staffName; // 担当スタッフ名
   final InspectionResult? inspectionResult; // 合否結果（車検・点検時）
-  final bool certificateUpdated;            // 車検証更新済みフラグ
+  final bool certificateUpdated; // 車検証更新済みフラグ
   final String? safetyStandardsCertificate; // 保安基準適合証番号
 
   // Phase 5 追加フィールド: 作業・部品詳細
-  final List<WorkItem> workItems;           // 作業項目リスト
-  final List<Part> parts;                   // 使用部品リスト
+  final List<WorkItem> workItems; // 作業項目リスト
+  final List<Part> parts; // 使用部品リスト
 
   // Phase 5 追加フィールド: 金額内訳
-  final int? partsCost;                     // 部品代合計
-  final int? laborCost;                     // 工賃合計
-  final int? miscCost;                      // 諸費用（印紙代等）
-  final int? taxAmount;                     // 消費税額
-  final int? discountAmount;                // 割引額
+  final int? partsCost; // 部品代合計
+  final int? laborCost; // 工賃合計
+  final int? miscCost; // 諸費用（印紙代等）
+  final int? taxAmount; // 消費税額
+  final int? discountAmount; // 割引額
+
+  // Phase 6 追加フィールド: タイヤ詳細
+  final String? tireSize; // e.g., "215/55R17"
+  final String? tirePosition; // "全輪" | "前輪" | "後輪" | "左前" | "右前" | "左後" | "右後"
+  final int? tireTreadDepth; // 溝の深さ (mm, optional)
 
   MaintenanceRecord({
     required this.id,
@@ -356,6 +361,10 @@ class MaintenanceRecord {
     this.miscCost,
     this.taxAmount,
     this.discountAmount,
+    // Phase 6 追加
+    this.tireSize,
+    this.tirePosition,
+    this.tireTreadDepth,
   });
 
   // Firestoreからデータを取得
@@ -386,16 +395,22 @@ class MaintenanceRecord {
       certificateUpdated: data['certificateUpdated'] ?? false,
       safetyStandardsCertificate: data['safetyStandardsCertificate'],
       workItems: (data['workItems'] as List<dynamic>?)
-          ?.map((e) => WorkItem.fromMap(e as Map<String, dynamic>))
-          .toList() ?? [],
+              ?.map((e) => WorkItem.fromMap(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       parts: (data['parts'] as List<dynamic>?)
-          ?.map((e) => Part.fromMap(e as Map<String, dynamic>))
-          .toList() ?? [],
+              ?.map((e) => Part.fromMap(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       partsCost: data['partsCost'],
       laborCost: data['laborCost'],
       miscCost: data['miscCost'],
       taxAmount: data['taxAmount'],
       discountAmount: data['discountAmount'],
+      // Phase 6 追加
+      tireSize: data['tireSize'],
+      tirePosition: data['tirePosition'],
+      tireTreadDepth: data['tireTreadDepth'] as int?,
     );
   }
 
@@ -434,11 +449,16 @@ class MaintenanceRecord {
     if (value is int) {
       // 旧バージョンとの互換性マッピング
       switch (value) {
-        case 0: return MaintenanceType.repair;
-        case 1: return MaintenanceType.legalInspection12; // 旧inspection
-        case 2: return MaintenanceType.partsReplacement;
-        case 3: return MaintenanceType.carInspection;
-        default: return MaintenanceType.repair;
+        case 0:
+          return MaintenanceType.repair;
+        case 1:
+          return MaintenanceType.legalInspection12; // 旧inspection
+        case 2:
+          return MaintenanceType.partsReplacement;
+        case 3:
+          return MaintenanceType.carInspection;
+        default:
+          return MaintenanceType.repair;
       }
     }
     return MaintenanceType.repair;
@@ -478,6 +498,10 @@ class MaintenanceRecord {
       'miscCost': miscCost,
       'taxAmount': taxAmount,
       'discountAmount': discountAmount,
+      // Phase 6 追加 (only written when non-null)
+      if (tireSize != null) 'tireSize': tireSize,
+      if (tirePosition != null) 'tirePosition': tirePosition,
+      if (tireTreadDepth != null) 'tireTreadDepth': tireTreadDepth,
     };
   }
 
@@ -550,6 +574,10 @@ class MaintenanceRecord {
     int? miscCost,
     int? taxAmount,
     int? discountAmount,
+    // Phase 6 追加
+    String? tireSize,
+    String? tirePosition,
+    int? tireTreadDepth,
   }) {
     return MaintenanceRecord(
       id: id ?? this.id,
@@ -566,14 +594,16 @@ class MaintenanceRecord {
       createdAt: createdAt ?? this.createdAt,
       partNumber: partNumber ?? this.partNumber,
       partManufacturer: partManufacturer ?? this.partManufacturer,
-      nextReplacementMileage: nextReplacementMileage ?? this.nextReplacementMileage,
+      nextReplacementMileage:
+          nextReplacementMileage ?? this.nextReplacementMileage,
       nextReplacementDate: nextReplacementDate ?? this.nextReplacementDate,
       // Phase 5 追加
       staffId: staffId ?? this.staffId,
       staffName: staffName ?? this.staffName,
       inspectionResult: inspectionResult ?? this.inspectionResult,
       certificateUpdated: certificateUpdated ?? this.certificateUpdated,
-      safetyStandardsCertificate: safetyStandardsCertificate ?? this.safetyStandardsCertificate,
+      safetyStandardsCertificate:
+          safetyStandardsCertificate ?? this.safetyStandardsCertificate,
       workItems: workItems ?? this.workItems,
       parts: parts ?? this.parts,
       partsCost: partsCost ?? this.partsCost,
@@ -581,6 +611,10 @@ class MaintenanceRecord {
       miscCost: miscCost ?? this.miscCost,
       taxAmount: taxAmount ?? this.taxAmount,
       discountAmount: discountAmount ?? this.discountAmount,
+      // Phase 6 追加
+      tireSize: tireSize ?? this.tireSize,
+      tirePosition: tirePosition ?? this.tirePosition,
+      tireTreadDepth: tireTreadDepth ?? this.tireTreadDepth,
     );
   }
 

@@ -240,7 +240,8 @@ void main() {
     });
 
     group('Edge Cases', () {
-      test('createPost: empty content still creates post (no validation in service)',
+      test(
+          'createPost: empty content still creates post (no validation in service)',
           () async {
         // The service does not validate content length — this tests actual behavior
         final result = await postService.createPost(
@@ -564,8 +565,7 @@ void main() {
 
         expect(result.isFailure, true);
         // Comment should still exist
-        final doc =
-            await firestore.collection('comments').doc(commentId).get();
+        final doc = await firestore.collection('comments').doc(commentId).get();
         expect(doc.exists, true);
       });
     });

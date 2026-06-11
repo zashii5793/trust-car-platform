@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/document.dart';
 import '../services/document_service.dart';
+import '../core/constants/retry_config.dart';
 import '../core/error/app_error.dart';
 
 /// 書類管理状態管理Provider
@@ -37,14 +38,16 @@ class DocumentProvider with ChangeNotifier {
   bool get isRetryable => _error?.isRetryable ?? false;
 
   int _retryCount = 0;
-  static const int _maxRetries = 3;
+  static const int _maxRetries = RetryConfig.maxRetries;
   Timer? _retryTimer;
 
   /// ユーザーの書類一覧をリスニング
   void listenToDocuments({bool includeArchived = false}) {
     _documentsSubscription?.cancel();
 
-    _documentsSubscription = _documentService.getUserDocuments(includeArchived: includeArchived).listen(
+    _documentsSubscription = _documentService
+        .getUserDocuments(includeArchived: includeArchived)
+        .listen(
       (documents) {
         _documents = documents;
         _error = null;
@@ -54,7 +57,8 @@ class DocumentProvider with ChangeNotifier {
       onError: (error) {
         _error = mapFirebaseError(error);
         notifyListeners();
-        _scheduleRetry(() => listenToDocuments(includeArchived: includeArchived));
+        _scheduleRetry(
+            () => listenToDocuments(includeArchived: includeArchived));
       },
     );
   }
@@ -62,7 +66,8 @@ class DocumentProvider with ChangeNotifier {
   void _scheduleRetry(VoidCallback action) {
     if (_retryCount >= _maxRetries) return;
     _retryTimer?.cancel();
-    final delay = Duration(seconds: 2 << _retryCount);
+    final delay =
+        Duration(seconds: RetryConfig.baseDelaySeconds << _retryCount);
     _retryCount++;
     _retryTimer = Timer(delay, action);
   }
@@ -156,7 +161,8 @@ class DocumentProvider with ChangeNotifier {
   }
 
   /// 書類情報を更新
-  Future<bool> updateDocument(String documentId, {
+  Future<bool> updateDocument(
+    String documentId, {
     String? title,
     String? description,
     DateTime? documentDate,
@@ -244,8 +250,10 @@ class DocumentProvider with ChangeNotifier {
   }
 
   /// 整備記録の書類を取得
-  Future<List<Document>> getDocumentsByMaintenanceRecord(String maintenanceRecordId) async {
-    final result = await _documentService.getDocumentsByMaintenanceRecord(maintenanceRecordId);
+  Future<List<Document>> getDocumentsByMaintenanceRecord(
+      String maintenanceRecordId) async {
+    final result = await _documentService
+        .getDocumentsByMaintenanceRecord(maintenanceRecordId);
     return result.getOrElse([]);
   }
 

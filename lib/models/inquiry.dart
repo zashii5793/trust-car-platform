@@ -49,8 +49,8 @@ enum InquiryType {
 /// Message in an inquiry thread
 class InquiryMessage {
   final String id;
-  final String senderId;      // User ID or Shop ID
-  final bool isFromShop;      // true if sent by shop
+  final String senderId; // User ID or Shop ID
+  final bool isFromShop; // true if sent by shop
   final String content;
   final List<String> attachmentUrls;
   final DateTime sentAt;
@@ -95,17 +95,18 @@ class Inquiry {
   final String id;
   final String userId;
   final String shopId;
-  final String? vehicleId;      // Related vehicle (optional)
-  final String? partListingId;  // Related part (optional)
+  final String? vehicleId; // Related vehicle (optional)
+  final String? partListingId; // Related part (optional)
 
   final InquiryType type;
   final InquiryStatus status;
 
   final String subject;
-  final String initialMessage;  // First message content
+  final String initialMessage; // First message content
   final List<String> attachmentUrls;
 
-  // Vehicle info snapshot (for context)
+  // Snapshot fields (captured at creation time to avoid extra queries)
+  final String? shopName;
   final String? vehicleMaker;
   final String? vehicleModel;
   final int? vehicleYear;
@@ -113,13 +114,13 @@ class Inquiry {
   // Timestamps
   final DateTime createdAt;
   final DateTime updatedAt;
-  final DateTime? repliedAt;    // First reply from shop
+  final DateTime? repliedAt; // First reply from shop
   final DateTime? closedAt;
 
   // Counts
   final int messageCount;
-  final int unreadCountUser;    // Unread messages for user
-  final int unreadCountShop;    // Unread messages for shop
+  final int unreadCountUser; // Unread messages for user
+  final int unreadCountShop; // Unread messages for shop
 
   const Inquiry({
     required this.id,
@@ -132,6 +133,7 @@ class Inquiry {
     required this.subject,
     required this.initialMessage,
     this.attachmentUrls = const [],
+    this.shopName,
     this.vehicleMaker,
     this.vehicleModel,
     this.vehicleYear,
@@ -164,7 +166,7 @@ class Inquiry {
     if (vehicleMaker == null) return null;
     final parts = <String>[vehicleMaker!];
     if (vehicleModel != null) parts.add(vehicleModel!);
-    if (vehicleYear != null) parts.add('(${vehicleYear}年式)');
+    if (vehicleYear != null) parts.add('($vehicleYear年式)');
     return parts.join(' ');
   }
 
@@ -181,6 +183,7 @@ class Inquiry {
       subject: data['subject'] ?? '',
       initialMessage: data['initialMessage'] ?? '',
       attachmentUrls: List<String>.from(data['attachmentUrls'] ?? []),
+      shopName: data['shopName'],
       vehicleMaker: data['vehicleMaker'],
       vehicleModel: data['vehicleModel'],
       vehicleYear: data['vehicleYear'],
@@ -205,6 +208,7 @@ class Inquiry {
       'subject': subject,
       'initialMessage': initialMessage,
       'attachmentUrls': attachmentUrls,
+      'shopName': shopName,
       'vehicleMaker': vehicleMaker,
       'vehicleModel': vehicleModel,
       'vehicleYear': vehicleYear,
@@ -229,6 +233,7 @@ class Inquiry {
     String? subject,
     String? initialMessage,
     List<String>? attachmentUrls,
+    String? shopName,
     String? vehicleMaker,
     String? vehicleModel,
     int? vehicleYear,
@@ -251,6 +256,7 @@ class Inquiry {
       subject: subject ?? this.subject,
       initialMessage: initialMessage ?? this.initialMessage,
       attachmentUrls: attachmentUrls ?? this.attachmentUrls,
+      shopName: shopName ?? this.shopName,
       vehicleMaker: vehicleMaker ?? this.vehicleMaker,
       vehicleModel: vehicleModel ?? this.vehicleModel,
       vehicleYear: vehicleYear ?? this.vehicleYear,

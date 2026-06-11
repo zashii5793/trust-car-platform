@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'user_plan.dart';
 
 /// ユーザーモデル
 class AppUser {
@@ -7,6 +8,8 @@ class AppUser {
   final String? displayName;
   final String? photoUrl;
   final NotificationSettings notificationSettings;
+  final UserPlanType planType;
+  final DateTime? planExpiresAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -16,6 +19,8 @@ class AppUser {
     this.displayName,
     this.photoUrl,
     NotificationSettings? notificationSettings,
+    this.planType = UserPlanType.free,
+    this.planExpiresAt,
     required this.createdAt,
     required this.updatedAt,
   }) : notificationSettings = notificationSettings ?? NotificationSettings();
@@ -31,9 +36,16 @@ class AppUser {
       notificationSettings: data['notificationSettings'] != null
           ? NotificationSettings.fromMap(data['notificationSettings'])
           : NotificationSettings(),
+      planType: _parsePlanType(data['planType']),
+      planExpiresAt: (data['planExpiresAt'] as Timestamp?)?.toDate(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
+  }
+
+  static UserPlanType _parsePlanType(dynamic value) {
+    if (value == 'premium') return UserPlanType.premium;
+    return UserPlanType.free;
   }
 
   /// Firestore に保存するための Map に変換
@@ -43,6 +55,9 @@ class AppUser {
       'displayName': displayName,
       'photoUrl': photoUrl,
       'notificationSettings': notificationSettings.toMap(),
+      'planType': planType.name,
+      if (planExpiresAt != null)
+        'planExpiresAt': Timestamp.fromDate(planExpiresAt!),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -55,6 +70,8 @@ class AppUser {
     String? displayName,
     String? photoUrl,
     NotificationSettings? notificationSettings,
+    UserPlanType? planType,
+    DateTime? planExpiresAt,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -64,6 +81,8 @@ class AppUser {
       displayName: displayName ?? this.displayName,
       photoUrl: photoUrl ?? this.photoUrl,
       notificationSettings: notificationSettings ?? this.notificationSettings,
+      planType: planType ?? this.planType,
+      planExpiresAt: planExpiresAt ?? this.planExpiresAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -124,7 +143,8 @@ class NotificationSettings {
       maintenanceReminder: maintenanceReminder ?? this.maintenanceReminder,
       oilChangeReminder: oilChangeReminder ?? this.oilChangeReminder,
       tireChangeReminder: tireChangeReminder ?? this.tireChangeReminder,
-      carInspectionReminder: carInspectionReminder ?? this.carInspectionReminder,
+      carInspectionReminder:
+          carInspectionReminder ?? this.carInspectionReminder,
     );
   }
 }

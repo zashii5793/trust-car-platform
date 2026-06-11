@@ -494,10 +494,12 @@ class _VehicleCertificateResultScreenState
       licensePlate: _licensePlateController.text.isNotEmpty
           ? _licensePlateController.text
           : null,
-      vinNumber:
-          _vinNumberController.text.isNotEmpty ? _vinNumberController.text : null,
-      modelCode:
-          _modelCodeController.text.isNotEmpty ? _modelCodeController.text : null,
+      vinNumber: _vinNumberController.text.isNotEmpty
+          ? _vinNumberController.text
+          : null,
+      modelCode: _modelCodeController.text.isNotEmpty
+          ? _modelCodeController.text
+          : null,
       inspectionExpiryDate: _inspectionExpiryDate,
       engineDisplacement: int.tryParse(_engineDisplacementController.text),
       fuelType: _selectedFuelType,

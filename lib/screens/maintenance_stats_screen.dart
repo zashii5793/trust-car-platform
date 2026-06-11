@@ -15,8 +15,6 @@ class MaintenanceStatsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('メンテナンス統計'),
@@ -42,26 +40,30 @@ class MaintenanceStatsScreen extends StatelessWidget {
                 AppSpacing.verticalLg,
 
                 // 年間コスト推移
-                Text('年間コスト', style: theme.textTheme.headlineLarge),
+                const _SectionHeader(
+                    label: '年間コスト', icon: Icons.calendar_today),
                 AppSpacing.verticalSm,
                 _YearlyCostSection(stats: stats),
                 AppSpacing.verticalLg,
 
                 // 月別コスト推移（直近12ヶ月）
-                Text('月別コスト推移（直近12ヶ月）', style: theme.textTheme.headlineLarge),
+                const _SectionHeader(
+                    label: '月別コスト推移（直近12ヶ月）', icon: Icons.bar_chart),
                 AppSpacing.verticalSm,
                 _MonthlyCostChart(records: records),
                 AppSpacing.verticalLg,
 
                 // タイプ別内訳
-                Text('タイプ別内訳', style: theme.textTheme.headlineLarge),
+                const _SectionHeader(label: 'タイプ別内訳', icon: Icons.donut_large),
+                AppSpacing.verticalSm,
+                _TypeProportionBar(stats: stats),
                 AppSpacing.verticalSm,
                 _TypeBreakdown(stats: stats),
                 AppSpacing.verticalLg,
 
                 // 店舗別集計
                 if (stats.shopCosts.isNotEmpty) ...[
-                  Text('店舗別集計', style: theme.textTheme.headlineLarge),
+                  const _SectionHeader(label: '店舗別集計', icon: Icons.store),
                   AppSpacing.verticalSm,
                   _ShopBreakdown(stats: stats),
                   AppSpacing.verticalLg,
@@ -121,9 +123,11 @@ class _MaintenanceStats {
     for (final record in records) {
       costByType[record.type] = (costByType[record.type] ?? 0) + record.cost;
       countByType[record.type] = (countByType[record.type] ?? 0) + 1;
-      costByYear[record.date.year] = (costByYear[record.date.year] ?? 0) + record.cost;
+      costByYear[record.date.year] =
+          (costByYear[record.date.year] ?? 0) + record.cost;
       if (record.shopName != null && record.shopName!.isNotEmpty) {
-        shopCosts[record.shopName!] = (shopCosts[record.shopName!] ?? 0) + record.cost;
+        shopCosts[record.shopName!] =
+            (shopCosts[record.shopName!] ?? 0) + record.cost;
       }
     }
 
@@ -277,7 +281,8 @@ class _YearlyCostSection extends StatelessWidget {
                   Expanded(
                     child: _HorizontalBar(
                       value: stats.costByYear[year]!,
-                      maxValue: stats.costByYear.values.reduce((a, b) => a > b ? a : b),
+                      maxValue: stats.costByYear.values
+                          .reduce((a, b) => a > b ? a : b),
                       color: AppColors.primary,
                     ),
                   ),
@@ -487,6 +492,84 @@ class _ShopBreakdown extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Section header (pill style)
+// ---------------------------------------------------------------------------
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xxs,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: AppColors.primary),
+              AppSpacing.horizontalXs,
+              Text(
+                label,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Proportional stacked bar for type breakdown
+// ---------------------------------------------------------------------------
+
+class _TypeProportionBar extends StatelessWidget {
+  const _TypeProportionBar({required this.stats});
+
+  final _MaintenanceStats stats;
+
+  @override
+  Widget build(BuildContext context) {
+    if (stats.totalCost == 0) return const SizedBox.shrink();
+
+    final sorted = stats.costByType.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return ClipRRect(
+      borderRadius: AppSpacing.borderRadiusXs,
+      child: SizedBox(
+        height: 12,
+        child: Row(
+          children: sorted.map((e) {
+            final ratio = e.value / stats.totalCost;
+            return Flexible(
+              flex: (ratio * 1000).round().clamp(1, 1000),
+              child: Container(color: e.key.color),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
