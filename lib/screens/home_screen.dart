@@ -11,6 +11,7 @@ import '../models/vehicle.dart';
 import '../models/app_notification.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
+import '../core/utils/inspection_urgency.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/common/offline_banner.dart';
 import 'vehicle_registration_screen.dart';
@@ -1356,39 +1357,79 @@ class _DashboardSummaryCard extends StatelessWidget {
           ),
 
           // ---- 次回車検 ----
-          if (nextInspectionVehicle != null) ...[
-            AppSpacing.verticalSm,
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm,
-                vertical: AppSpacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: AppSpacing.borderRadiusSm,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.verified_outlined,
-                      size: 14, color: Colors.white70),
-                  AppSpacing.horizontalXs,
-                  Text(
-                    '次の車検: '
-                    '${nextInspectionVehicle.maker} '
-                    '${nextInspectionVehicle.model} '
-                    '— あと$minDays日',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          if (nextInspectionVehicle != null)
+            _buildInspectionChip(nextInspectionVehicle, minDays!),
         ],
       ),
+    );
+  }
+
+  /// Inspection-deadline chip with urgency-based emphasis so the core
+  /// promise (車検を見落とさない) is visible at a glance.
+  Widget _buildInspectionChip(Vehicle vehicle, int days) {
+    final urgency = inspectionUrgencyForDays(days);
+
+    final Color background;
+    final Color iconColor;
+    final IconData icon;
+    final FontWeight fontWeight;
+    final String keySuffix;
+    switch (urgency) {
+      case InspectionUrgency.critical:
+        background = AppColors.error.withValues(alpha: 0.45);
+        iconColor = Colors.white;
+        icon = Icons.error_outline;
+        fontWeight = FontWeight.bold;
+        keySuffix = 'critical';
+      case InspectionUrgency.warning:
+        background = AppColors.warning.withValues(alpha: 0.35);
+        iconColor = Colors.white;
+        icon = Icons.warning_amber_outlined;
+        fontWeight = FontWeight.bold;
+        keySuffix = 'warning';
+      case InspectionUrgency.normal:
+      case InspectionUrgency.none:
+        background = Colors.white.withValues(alpha: 0.12);
+        iconColor = Colors.white70;
+        icon = Icons.verified_outlined;
+        fontWeight = FontWeight.normal;
+        keySuffix = 'normal';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppSpacing.verticalSm,
+        Container(
+          key: Key('dashboard_inspection_chip_$keySuffix'),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: AppSpacing.borderRadiusSm,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: iconColor),
+              AppSpacing.horizontalXs,
+              Text(
+                '次の車検: '
+                '${vehicle.maker} '
+                '${vehicle.model} '
+                '— あと$days日',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white,
+                  fontWeight: fontWeight,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

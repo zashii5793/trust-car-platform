@@ -750,4 +750,69 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('HomeScreen — ダッシュボード車検アラート', () {
+    Vehicle vehicleWithInspection(int daysFromNow) => Vehicle(
+          id: 'v-insp',
+          userId: 'u1',
+          maker: 'Toyota',
+          model: 'Prius',
+          year: 2021,
+          grade: 'S',
+          mileage: 30000,
+          // +1h: daysUntilInspection truncates partial days, keep N days
+          inspectionExpiryDate: DateTime.now()
+              .add(Duration(days: daysFromNow, hours: 1)),
+          createdAt: DateTime(2024, 1, 1),
+          updatedAt: DateTime(2024, 1, 1),
+        );
+
+    testWidgets('車検まで31日以上 → 通常表示チップ', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([vehicleWithInspection(60)]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('dashboard_inspection_chip_normal')),
+          findsOneWidget);
+    });
+
+    testWidgets('車検まで30日以内 → 警告スタイルのチップ', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([vehicleWithInspection(10)]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('dashboard_inspection_chip_warning')),
+          findsOneWidget);
+    });
+
+    testWidgets('車検まで7日以内 → 重大スタイルのチップ', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([vehicleWithInspection(3)]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('dashboard_inspection_chip_critical')),
+          findsOneWidget);
+    });
+
+    testWidgets('車検日未設定 → チップ非表示', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([_makeVehicle('v1')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('dashboard_inspection_chip_normal')),
+          findsNothing);
+      expect(find.byKey(const Key('dashboard_inspection_chip_warning')),
+          findsNothing);
+      expect(find.byKey(const Key('dashboard_inspection_chip_critical')),
+          findsNothing);
+    });
+  });
 }

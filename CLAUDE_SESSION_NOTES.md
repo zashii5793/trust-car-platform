@@ -1,20 +1,42 @@
 # Claude Session Notes
 
-最終更新: 2026-06-10
+最終更新: 2026-06-11
 
 ---
 
 ## 現在の状態
 
-**ブランチ**: `claude/continue-development-WYZZp`
-**ベース**: `main`（PR #20）
-**CI**: ✅ 全ジョブパス（run #185 / commit `c2a5213`）
-**テスト**: 2719件 全パス（`--exclude-tags emulator`）
-**解析**: `flutter analyze lib/` 0件
+**ブランチ**: `claude/continue-development-WYZZp`（PR #20 マージ済み・main取り込み済み）
+**テスト**: 2719件+ 全パス（`--exclude-tags emulator`）
 
 ---
 
-## 直近セッション（2026-06-10）の成果
+## 直近セッション（2026-06-11）の成果
+
+### ビジネスモデル検証（PM/UX/QA 3観点並列調査）
+- **結論: モデルは筋が良いが価値導線が3箇所切れていた**
+- BtoB: 4プラン（¥0/¥3,980/¥9,800/¥14,800）+ RevenueCat実装済み（完成度90%）
+- BtoC: プレミアムゲートに漏れ（PDF出力が車両詳細から素通し）
+
+### 価値導線修正（TDD実装）
+1. **PDF出力プレミアムゲート**: `vehicle_detail_screen.dart` のPDFボタンに
+   `UserSubscriptionProvider.canExportPdf` チェック + アップグレード案内ダイアログ
+2. **車検期限の視覚強調**: `core/utils/inspection_urgency.dart` 新設
+   （≤7日 critical / ≤30日 warning）。ダッシュボード「次の車検」チップを
+   緊急度で色分け（Key: `dashboard_inspection_chip_{normal,warning,critical}`）
+3. **整備記録空状態CTA**: タイムライン空状態に「整備記録を追加」ボタン
+   （ドライブタブ除く）→ AddMaintenanceScreen 遷移
+
+### 残課題（次セッション候補）
+- ユーザー側問い合わせ月3件制限のUI事前警告（inquiry_screen）
+- isFeatured広告枠の上部固定表示+「広告」バッジ常時表示
+- 車検期限リマインダーの定期スケジューリング（現状アプリ起動時のみ）
+- PdfExportService の Result<T> 化（規約違反）
+- mileage_notification_service / ai_chat_provider のテスト追加
+
+---
+
+## 過去セッション（2026-06-10）の成果
 
 ### CI 完全修復
 - `dart format lib test`（Dart 3.10.0 一致）

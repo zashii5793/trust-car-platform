@@ -7,6 +7,7 @@ import '../models/drive_log.dart';
 import '../models/app_notification.dart';
 import '../providers/maintenance_provider.dart';
 import '../providers/notification_provider.dart';
+import '../providers/user_subscription_provider.dart';
 import '../services/drive_log_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
@@ -42,6 +43,25 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   String _formatNumber(int number) {
     final formatter = NumberFormat('#,###');
     return formatter.format(number);
+  }
+
+  void _showPdfUpgradeDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('プレミアムプランが必要です'),
+        content: const Text(
+          'PDF出力はプレミアムプランの機能です。\n'
+          'プレミアムプランにアップグレードしてご利用ください。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _navigateToEdit() async {
@@ -89,7 +109,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                 );
               },
             ),
-            // PDF出力ボタン
+            // PDF出力ボタン（プレミアム機能）
             Consumer<MaintenanceProvider>(
               builder: (context, provider, child) {
                 return IconButton(
@@ -98,6 +118,13 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                   onPressed: provider.records.isEmpty
                       ? null
                       : () {
+                          final canExport = context
+                              .read<UserSubscriptionProvider>()
+                              .canExportPdf;
+                          if (!canExport) {
+                            _showPdfUpgradeDialog(context);
+                            return;
+                          }
                           showExportDialog(
                             context: context,
                             vehicle: _vehicle,
@@ -656,10 +683,27 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
         ]..sort((a, b) => b.date.compareTo(a.date));
 
         if (entries.isEmpty) {
+          // Maintenance CTA starts the core value loop (record → AI提案).
+          // The drive-only tab has its own recording flow, so no CTA there.
+          final showAddCta = widget.filter != _TimelineFilter.drive;
           return AppEmptyState(
             icon: _emptyIcon,
             title: _emptyTitle,
             description: _emptyDescription,
+            buttonLabel: showAddCta ? '整備記録を追加' : null,
+            onButtonPressed: showAddCta
+                ? () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AddMaintenanceScreen(
+                          vehicleId: widget.vehicle.id,
+                          currentVehicleMileage: widget.vehicle.mileage,
+                        ),
+                      ),
+                    );
+                  }
+                : null,
           );
         }
 

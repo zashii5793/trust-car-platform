@@ -15,7 +15,11 @@ import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
 import 'package:trust_car_platform/providers/notification_provider.dart';
+import 'package:trust_car_platform/providers/user_subscription_provider.dart';
+import 'package:trust_car_platform/models/user_plan.dart';
+import 'package:trust_car_platform/screens/add_maintenance_screen.dart';
 import 'package:trust_car_platform/screens/vehicle_detail_screen.dart';
+import 'package:trust_car_platform/services/pdf_export_service.dart';
 import 'package:trust_car_platform/services/recommendation_service.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:trust_car_platform/models/drive_log.dart';
@@ -37,6 +41,26 @@ class MockDriveLogService extends DriveLogService {
   }) async =>
       const Result.success([]);
 }
+
+class _StubPdfExportService implements PdfExportService {
+  @override
+  Future<Uint8List> generateMaintenanceReport({
+    required Vehicle vehicle,
+    required List<MaintenanceRecord> records,
+  }) async {
+    return Uint8List(0);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+/// Builds a premium-plan subscription provider for gate tests.
+UserSubscriptionProvider _premiumSubscription() => UserSubscriptionProvider()
+  ..loadFromUser(
+    UserPlanType.premium,
+    DateTime.now().add(const Duration(days: 365)),
+  );
 
 class MockFirebaseService implements FirebaseService {
   final StreamController<List<MaintenanceRecord>> _recordsController =
@@ -172,8 +196,9 @@ MaintenanceRecord _testRecord({
 
 Widget _buildScreen(
   Vehicle vehicle,
-  MaintenanceProvider provider,
-) {
+  MaintenanceProvider provider, {
+  UserSubscriptionProvider? subscriptionProvider,
+}) {
   return MaterialApp(
     home: MultiProvider(
       providers: [
@@ -183,6 +208,9 @@ Widget _buildScreen(
             firebaseService: MockFirebaseService(),
             recommendationService: RecommendationService(),
           ),
+        ),
+        ChangeNotifierProvider<UserSubscriptionProvider>.value(
+          value: subscriptionProvider ?? UserSubscriptionProvider(),
         ),
       ],
       child: VehicleDetailScreen(vehicle: vehicle),
@@ -195,11 +223,16 @@ Widget _buildScreen(
 /// surface.
 Future<void> _pumpScreen(
   WidgetTester tester,
-  MaintenanceProvider provider,
-) async {
+  MaintenanceProvider provider, {
+  UserSubscriptionProvider? subscriptionProvider,
+}) async {
   await tester.binding.setSurfaceSize(const Size(800, 1600));
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpWidget(_buildScreen(_testVehicle(), provider));
+  await tester.pumpWidget(_buildScreen(
+    _testVehicle(),
+    provider,
+    subscriptionProvider: subscriptionProvider,
+  ));
 }
 
 // ---------------------------------------------------------------------------
@@ -217,6 +250,9 @@ void main() {
     }
     if (!sl.isRegistered<DriveLogService>()) {
       sl.registerLazySingleton<DriveLogService>(() => MockDriveLogService());
+    }
+    if (!sl.isRegistered<PdfExportService>()) {
+      sl.registerLazySingleton<PdfExportService>(() => _StubPdfExportService());
     }
   });
 
@@ -538,6 +574,104 @@ void main() {
       // The header section shows '年式' / '2023年', so match only the
       // month-header format (e.g. 2024年3月).
       expect(find.textContaining(RegExp(r'\d{4}年\d{1,2}月')), findsNothing);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  group('PDF出力 — プレミアムゲート', () {
+    testWidgets('フリープラン: PDFボタンタップでアップグレード案内が表示される',
+        (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([_testRecord()]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byIcon(Icons.picture_as_pdf));
+      await tester.pumpAndSettle();
+
+      expect(find.text('プレミアムプランが必要です'), findsOneWidget);
+    });
+
+    testWidgets('フリープラン: アップグレード案内を閉じられる', (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([_testRecord()]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byIcon(Icons.picture_as_pdf));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('閉じる'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('プレミアムプランが必要です'), findsNothing);
+    });
+
+    testWidgets('プレミアム: PDFボタンタップでアップグレード案内は出ない',
+        (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(
+        tester,
+        maintenanceProvider,
+        subscriptionProvider: _premiumSubscription(),
+      );
+      mockFirebase.emitRecords([_testRecord()]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byIcon(Icons.picture_as_pdf));
+      await tester.pumpAndSettle();
+
+      expect(find.text('プレミアムプランが必要です'), findsNothing);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('記録0件のときPDFボタンは無効（ゲート以前にタップ不可）',
+          (tester) async {
+        maintenanceProvider.listenToMaintenanceRecords('v1');
+        await _pumpScreen(tester, maintenanceProvider);
+        mockFirebase.emitRecords([]);
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        final pdfButton = tester.widget<IconButton>(
+          find.ancestor(
+            of: find.byIcon(Icons.picture_as_pdf),
+            matching: find.byType(IconButton),
+          ),
+        );
+        expect(pdfButton.onPressed, isNull);
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  group('空状態 — 記録追加CTA', () {
+    testWidgets('記録なしのとき「整備記録を追加」ボタンが表示される', (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('整備記録を追加'), findsOneWidget);
+    });
+
+    testWidgets('CTAタップで整備記録追加画面に遷移する', (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('整備記録を追加'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AddMaintenanceScreen), findsOneWidget);
+    });
+
+    testWidgets('記録ありのときCTAは表示されない', (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([_testRecord()]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('整備記録を追加'), findsNothing);
     });
   });
 }
