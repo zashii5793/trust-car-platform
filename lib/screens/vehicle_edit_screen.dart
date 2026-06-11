@@ -48,6 +48,10 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   DateTime? _inspectionExpiryDate;
   DateTime? _insuranceExpiryDate;
 
+  // 任意保険
+  late TextEditingController _voluntaryInsuranceCompanyController;
+  DateTime? _voluntaryInsuranceExpiryDate;
+
   // Phase 1.5: 詳細情報
   late TextEditingController _colorController;
   late TextEditingController _engineDisplacementController;
@@ -80,6 +84,12 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     _inspectionExpiryDate = v.inspectionExpiryDate;
     _insuranceExpiryDate = v.insuranceExpiryDate;
 
+    // 任意保険
+    _voluntaryInsuranceCompanyController = TextEditingController(
+      text: v.voluntaryInsurance?.companyName ?? '',
+    );
+    _voluntaryInsuranceExpiryDate = v.voluntaryInsurance?.expiryDate;
+
     // Phase 1.5: 詳細情報
     _colorController = TextEditingController(text: v.color ?? '');
     _engineDisplacementController = TextEditingController(
@@ -107,6 +117,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     _modelCodeController.addListener(_onFieldChanged);
     _colorController.addListener(_onFieldChanged);
     _engineDisplacementController.addListener(_onFieldChanged);
+    _voluntaryInsuranceCompanyController.addListener(_onFieldChanged);
 
     // 既存車両データからマスタオブジェクトを逆引きしてセット
     _initMasterSelections();
@@ -207,6 +218,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         _selectedFuelType != v.fuelType ||
         _inspectionExpiryDate != v.inspectionExpiryDate ||
         _insuranceExpiryDate != v.insuranceExpiryDate ||
+        _voluntaryInsuranceCompanyController.text !=
+            (v.voluntaryInsurance?.companyName ?? '') ||
+        _voluntaryInsuranceExpiryDate != v.voluntaryInsurance?.expiryDate ||
         _purchaseDate != v.purchaseDate ||
         _newImageBytes != null;
 
@@ -226,6 +240,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     _modelCodeController.dispose();
     _colorController.dispose();
     _engineDisplacementController.dispose();
+    _voluntaryInsuranceCompanyController.dispose();
     super.dispose();
   }
 
@@ -362,6 +377,17 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         // Phase 1.5: 車検・保険
         inspectionExpiryDate: _inspectionExpiryDate,
         insuranceExpiryDate: _insuranceExpiryDate,
+        // 任意保険（証券番号等の未編集フィールドは既存値を引き継ぐ）
+        voluntaryInsurance: VoluntaryInsurance(
+          companyName: _voluntaryInsuranceCompanyController.text.isEmpty
+              ? null
+              : _voluntaryInsuranceCompanyController.text,
+          expiryDate: _voluntaryInsuranceExpiryDate,
+          policyNumber: widget.vehicle.voluntaryInsurance?.policyNumber,
+          coverageType: widget.vehicle.voluntaryInsurance?.coverageType,
+          agentName: widget.vehicle.voluntaryInsurance?.agentName,
+          agentPhone: widget.vehicle.voluntaryInsurance?.agentPhone,
+        ),
         // Phase 1.5: 詳細情報
         color: _colorController.text.isEmpty ? null : _colorController.text,
         engineDisplacement: _engineDisplacementController.text.isEmpty
@@ -723,6 +749,33 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                           DateTime.now().add(const Duration(days: 365 * 3)),
                       onSelected: (date) =>
                           setState(() => _insuranceExpiryDate = date),
+                    ),
+                  ),
+                  AppSpacing.verticalSm,
+
+                  // 任意保険（会社名・満期日）
+                  AppTextField(
+                    controller: _voluntaryInsuranceCompanyController,
+                    labelText: '任意保険会社（任意）',
+                    hintText: '例: ○○損害保険',
+                    prefixIcon: const Icon(Icons.security),
+                  ),
+                  AppSpacing.verticalSm,
+                  _buildDatePickerTile(
+                    context: context,
+                    title: '任意保険満期日',
+                    icon: Icons.shield_outlined,
+                    date: _voluntaryInsuranceExpiryDate,
+                    hint: '任意保険証券に記載の満期日',
+                    onTap: () => _selectDate(
+                      title: '任意保険満期日を選択',
+                      currentDate: _voluntaryInsuranceExpiryDate,
+                      firstDate:
+                          DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate:
+                          DateTime.now().add(const Duration(days: 365 * 3)),
+                      onSelected: (date) =>
+                          setState(() => _voluntaryInsuranceExpiryDate = date),
                     ),
                   ),
                   AppSpacing.verticalLg,

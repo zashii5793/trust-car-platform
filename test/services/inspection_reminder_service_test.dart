@@ -29,6 +29,11 @@ class _RecordingPlugin implements FlutterLocalNotificationsPlugin {
     if (invocation.memberName == #pendingNotificationRequests) {
       return Future<List<PendingNotificationRequest>>.value(pending);
     }
+    // Permission request resolves the platform implementation; returning
+    // null means "platform unavailable" and the request is skipped.
+    if (invocation.memberName == #resolvePlatformSpecificImplementation) {
+      return null;
+    }
     return Future<void>.value();
   }
 }
@@ -40,6 +45,7 @@ class _RecordingPlugin implements FlutterLocalNotificationsPlugin {
 Vehicle _makeVehicle({
   String id = 'v1',
   DateTime? inspectionExpiryDate,
+  DateTime? voluntaryInsuranceExpiryDate,
 }) =>
     Vehicle(
       id: id,
@@ -50,6 +56,9 @@ Vehicle _makeVehicle({
       grade: 'S',
       mileage: 30000,
       inspectionExpiryDate: inspectionExpiryDate,
+      voluntaryInsurance: voluntaryInsuranceExpiryDate != null
+          ? VoluntaryInsurance(expiryDate: voluntaryInsuranceExpiryDate)
+          : null,
       createdAt: DateTime(2024, 1, 1),
       updatedAt: DateTime(2024, 1, 1),
     );
@@ -136,6 +145,72 @@ void main() {
 
         expect(plugin.zonedScheduleCalls, isEmpty);
       });
+    });
+  });
+
+  group('InspectionReminderService — 任意保険リマインダー', () {
+    test('任意保険60日後 → 30/7/1日前の3件がスケジュールされる', () async {
+      final vehicle = _makeVehicle(
+        voluntaryInsuranceExpiryDate:
+            DateTime.now().add(const Duration(days: 60)),
+      );
+
+      await service.scheduleForVehicles([vehicle]);
+
+      expect(plugin.zonedScheduleCalls.length, 3);
+    });
+
+    test('車検と任意保険の両方がある車両 → 合計6件', () async {
+      final vehicle = _makeVehicle(
+        inspectionExpiryDate: DateTime.now().add(const Duration(days: 90)),
+        voluntaryInsuranceExpiryDate:
+            DateTime.now().add(const Duration(days: 60)),
+      );
+
+      await service.scheduleForVehicles([vehicle]);
+
+      expect(plugin.zonedScheduleCalls.length, 6);
+    });
+
+    test('任意保険IDレンジ（8000-8899）の既存通知もキャンセルされる', () async {
+      plugin.pending = [
+        const PendingNotificationRequest(8100, 'old', 'old', null),
+        const PendingNotificationRequest(9001, 'mileage', 'keep', null),
+      ];
+
+      await service.scheduleForVehicles([]);
+
+      expect(plugin.cancelledIds, [8100]);
+    });
+
+    test('任意保険の満期が過去 → スケジュールなし', () async {
+      final vehicle = _makeVehicle(
+        voluntaryInsuranceExpiryDate:
+            DateTime.now().subtract(const Duration(days: 10)),
+      );
+
+      await service.scheduleForVehicles([vehicle]);
+
+      expect(plugin.zonedScheduleCalls, isEmpty);
+    });
+  });
+
+  group('InspectionReminderService.insuranceNotificationId', () {
+    test('車検IDと任意保険IDはレンジが重ならない', () {
+      final inspectionId =
+          InspectionReminderService.notificationId('vehicle-abc', 0);
+      final insuranceId =
+          InspectionReminderService.insuranceNotificationId('vehicle-abc', 0);
+      expect(inspectionId, inInclusiveRange(7000, 7899));
+      expect(insuranceId, inInclusiveRange(8000, 8899));
+    });
+
+    test('同じ入力には常に同じIDを返す（決定的）', () {
+      final a =
+          InspectionReminderService.insuranceNotificationId('vehicle-abc', 1);
+      final b =
+          InspectionReminderService.insuranceNotificationId('vehicle-abc', 1);
+      expect(a, b);
     });
   });
 

@@ -16,10 +16,24 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/services/pdf_export_service.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
+import 'package:trust_car_platform/models/vehicle.dart';
 import '../fixtures/test_data.dart';
 
 void main() {
   late PdfExportService service;
+
+  // Unwraps the Result so existing byte-level assertions stay unchanged.
+  Future<Uint8List> generateBytes({
+    required Vehicle vehicle,
+    required List<MaintenanceRecord> records,
+  }) async {
+    final result = await service.generateMaintenanceReport(
+      vehicle: vehicle,
+      records: records,
+    );
+    expect(result.isSuccess, isTrue);
+    return result.valueOrNull!;
+  }
 
   setUp(() {
     service = PdfExportService();
@@ -47,7 +61,7 @@ void main() {
   group('generateMaintenanceReport — 基本動作', () {
     test('空の記録でも PDF が生成される', () async {
       final vehicle = TestData.makeVehicle();
-      final bytes = await service.generateMaintenanceReport(
+      final bytes = await generateBytes(
         vehicle: vehicle,
         records: [],
       );
@@ -58,7 +72,7 @@ void main() {
     test('1件の記録で PDF が生成される', () async {
       final vehicle = TestData.makeVehicle();
       final record = TestData.makeMaintenanceRecord(cost: 5000);
-      final bytes = await service.generateMaintenanceReport(
+      final bytes = await generateBytes(
         vehicle: vehicle,
         records: [record],
       );
@@ -76,7 +90,7 @@ void main() {
           cost: (i + 1) * 1000,
         ),
       );
-      final bytes = await service.generateMaintenanceReport(
+      final bytes = await generateBytes(
         vehicle: vehicle,
         records: testRecords,
       );
@@ -86,7 +100,7 @@ void main() {
 
     test('返り値は有効なPDFヘッダーで始まる（%PDF）', () async {
       final vehicle = TestData.makeVehicle();
-      final bytes = await service.generateMaintenanceReport(
+      final bytes = await generateBytes(
         vehicle: vehicle,
         records: [],
       );
@@ -274,7 +288,7 @@ void main() {
 
     test('グレードが空でも車両情報は表示できる', () async {
       final vehicle = TestData.makeVehicle(grade: '');
-      final bytes = await service.generateMaintenanceReport(
+      final bytes = await generateBytes(
         vehicle: vehicle,
         records: [],
       );
@@ -283,7 +297,7 @@ void main() {
 
     test('メーカー名に特殊文字が含まれてもクラッシュしない', () async {
       final vehicle = TestData.makeVehicle(maker: 'メーカー(特殊)＆テスト');
-      final bytes = await service.generateMaintenanceReport(
+      final bytes = await generateBytes(
         vehicle: vehicle,
         records: [],
       );
@@ -305,7 +319,7 @@ void main() {
           date: DateTime.now().subtract(Duration(days: i)),
         ),
       );
-      final bytes = await service.generateMaintenanceReport(
+      final bytes = await generateBytes(
         vehicle: vehicle,
         records: records,
       );
@@ -323,7 +337,7 @@ void main() {
             ),
           )
           .toList();
-      final bytes = await service.generateMaintenanceReport(
+      final bytes = await generateBytes(
         vehicle: vehicle,
         records: records,
       );
@@ -349,7 +363,7 @@ void main() {
       final record = TestData.makeMaintenanceRecord(
         mileageAtService: 0, // mileageAtService=0で代替
       );
-      final bytes = await service.generateMaintenanceReport(
+      final bytes = await generateBytes(
         vehicle: vehicle,
         records: [record],
       );
@@ -362,7 +376,7 @@ void main() {
       final record = TestData.makeMaintenanceRecord(
         description: longDesc,
       );
-      final bytes = await service.generateMaintenanceReport(
+      final bytes = await generateBytes(
         vehicle: vehicle,
         records: [record],
       );
@@ -375,7 +389,7 @@ void main() {
         date: DateTime(1990, 1, 1),
         cost: 5000,
       );
-      final bytes = await service.generateMaintenanceReport(
+      final bytes = await generateBytes(
         vehicle: vehicle,
         records: [record],
       );
@@ -388,7 +402,7 @@ void main() {
         date: DateTime.now().add(const Duration(days: 30)),
         cost: 5000,
       );
-      final bytes = await service.generateMaintenanceReport(
+      final bytes = await generateBytes(
         vehicle: vehicle,
         records: [record],
       );
@@ -399,7 +413,7 @@ void main() {
       final vehicle = TestData.makeVehicle();
       final record = TestData.makeMaintenanceRecord();
       for (int i = 0; i < 3; i++) {
-        final bytes = await service.generateMaintenanceReport(
+        final bytes = await generateBytes(
           vehicle: vehicle,
           records: [record],
         );

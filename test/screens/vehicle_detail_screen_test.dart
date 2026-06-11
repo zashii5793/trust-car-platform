@@ -53,11 +53,11 @@ class _StubInvoiceOcrService implements InvoiceOcrService {
 
 class _StubPdfExportService implements PdfExportService {
   @override
-  Future<Uint8List> generateMaintenanceReport({
+  Future<Result<Uint8List, AppError>> generateMaintenanceReport({
     required Vehicle vehicle,
     required List<MaintenanceRecord> records,
   }) async {
-    return Uint8List(0);
+    return Result.success(Uint8List(0));
   }
 
   @override

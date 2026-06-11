@@ -58,20 +58,17 @@ class _ExportDialogState extends State<_ExportDialog> {
   Future<void> _generatePdf() async {
     setState(() => _isLoading = true);
 
-    try {
-      _pdfData = await _pdfService.generateMaintenanceReport(
-        vehicle: widget.vehicle,
-        records: widget.records,
-      );
-    } catch (e) {
-      if (mounted) {
-        showErrorSnackBar(context, 'PDFの生成に失敗しました: $e');
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+    final result = await _pdfService.generateMaintenanceReport(
+      vehicle: widget.vehicle,
+      records: widget.records,
+    );
+
+    if (!mounted) return;
+    result.when(
+      success: (data) => _pdfData = data,
+      failure: (error) => showAppErrorSnackBar(context, error),
+    );
+    setState(() => _isLoading = false);
   }
 
   Future<void> _previewPdf() async {

@@ -178,6 +178,18 @@ class RecommendationService {
       }
     }
 
+    // 任意保険チェック
+    if (vehicle.voluntaryInsurance?.expiryDate != null) {
+      final voluntaryNotification = _checkVoluntaryInsuranceExpiryDate(
+        vehicle: vehicle,
+        userId: userId,
+        now: now,
+      );
+      if (voluntaryNotification != null) {
+        recommendations.add(voluntaryNotification);
+      }
+    }
+
     // 各ルールをチェック
     for (final rule in _rules) {
       final recommendation = _checkRule(
@@ -292,6 +304,55 @@ class RecommendationService {
       actionDate: vehicle.insuranceExpiryDate,
       metadata: {
         'insuranceExpiryDate': vehicle.insuranceExpiryDate!.toIso8601String(),
+        'daysUntilExpiry': daysUntil,
+      },
+    );
+  }
+
+  /// 任意保険満期日からの通知生成
+  AppNotification? _checkVoluntaryInsuranceExpiryDate({
+    required Vehicle vehicle,
+    required String userId,
+    required DateTime now,
+  }) {
+    final expiryDate = vehicle.voluntaryInsurance!.expiryDate!;
+    final daysUntil = vehicle.daysUntilVoluntaryInsuranceExpiry!;
+
+    if (daysUntil > 60) return null; // 60日以上先は通知不要
+
+    NotificationPriority priority;
+    if (daysUntil <= 14) {
+      priority = NotificationPriority.high;
+    } else if (daysUntil <= 30) {
+      priority = NotificationPriority.medium;
+    } else {
+      priority = NotificationPriority.low;
+    }
+
+    final companyName = vehicle.voluntaryInsurance!.companyName;
+    final companyLabel = companyName != null ? '（$companyName）' : '';
+
+    String message;
+    if (daysUntil <= 0) {
+      message = '${vehicle.displayName}の任意保険$companyLabelが満期を過ぎています。'
+          '更新手続きをご確認ください。';
+    } else {
+      message = '${vehicle.displayName}の任意保険$companyLabelの満期まで'
+          'あと$daysUntil日です。更新や見直しのタイミングです。';
+    }
+
+    return AppNotification(
+      id: '${vehicle.id}_voluntary_insurance_${now.millisecondsSinceEpoch}',
+      userId: userId,
+      vehicleId: vehicle.id,
+      type: NotificationType.maintenanceRecommendation,
+      title: '任意保険のお知らせ',
+      message: message,
+      priority: priority,
+      createdAt: now,
+      actionDate: expiryDate,
+      metadata: {
+        'voluntaryInsuranceExpiryDate': expiryDate.toIso8601String(),
         'daysUntilExpiry': daysUntil,
       },
     );
