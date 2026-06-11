@@ -143,10 +143,11 @@ jobs:
 
       - name: Build APK (debug)
         run: |
-          flutter build apk --debug --verbose 2>&1 | tee /tmp/apk_build.log
+          flutter build apk --debug 2>&1 | tee /tmp/apk_build.log
           BUILD_STATUS=${PIPESTATUS[0]}
           if [ $BUILD_STATUS -ne 0 ]; then
-            grep -iE "error|FAILED|Exception|resolve|require|minSdk|compileSdk|Dependency|issue was found|checkAar" /tmp/apk_build.log | tail -50 | while IFS= read -r line; do
+            echo "::error::=== GRADLE FAILURE SECTION ==="
+            awk '/^FAILURE:/,0' /tmp/apk_build.log | head -80 | while IFS= read -r line; do
               echo "::error::$line"
             done
             exit $BUILD_STATUS
