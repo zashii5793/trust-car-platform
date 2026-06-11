@@ -69,7 +69,17 @@
       "Bash(firebase firestore:indexes:*)",
       "Bash(firebase use:*)",
       "Bash(firebase firestore:databases:create:*)",
-      "Bash(firebase deploy:*)"
+      "Bash(firebase deploy:*)",
+      "Bash(firebase auth:export:*)",
+      "Bash(chmod:*)",
+      "Bash(dart analyze:*)",
+      "Bash(git -C /Users/zashii/development/trust_car_platform status)",
+      "Bash(git -C /Users/zashii/development/trust_car_platform commit -m \"$\\(cat <<''EOF''\ndocs: Add pitch deck HTML for Trust Car Platform\n\nCreated interactive pitch deck \\(9 slides\\) covering concept,\nproblem/solution, features, market size, business model,\nroadmap, and traction. Printable as PDF via browser.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C /Users/zashii/development/trust_car_platform push origin main)",
+      "Bash(dart scripts/import_vehicle_master.dart:*)",
+      "Bash(gh:*)",
+      "Bash(git pull:*)",
+      "Bash(export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\")"
     ]
   }
 }
