@@ -142,7 +142,15 @@ jobs:
           fi
 
       - name: Build APK (debug)
-        run: flutter build apk --debug --verbose
+        run: |
+          flutter build apk --debug --verbose 2>&1 | tee /tmp/apk_build.log
+          BUILD_STATUS=${PIPESTATUS[0]}
+          if [ $BUILD_STATUS -ne 0 ]; then
+            grep -E "error:|BUILD FAILED|Exception|Could not resolve" /tmp/apk_build.log | tail -30 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit $BUILD_STATUS
+          fi
 
       - name: Locate APK (diagnostic)
         if: always()
@@ -214,8 +222,20 @@ jobs:
           EOF
           fi
 
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        run: pod install
+
       - name: Build iOS (no codesign)
-        run: flutter build ios --no-codesign --debug --verbose
+        run: |
+          flutter build ios --no-codesign --debug --verbose 2>&1 | tee /tmp/ios_build.log
+          BUILD_STATUS=${PIPESTATUS[0]}
+          if [ $BUILD_STATUS -ne 0 ]; then
+            grep -E "error:|BUILD FAILED|fatal error:" /tmp/ios_build.log | tail -30 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit $BUILD_STATUS
+          fi
 
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
