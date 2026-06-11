@@ -40,6 +40,12 @@
 	<string>整備記録やSNS投稿に使用する写真をフォトライブラリから選択します。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>作成したPDFレポートをフォトライブラリに保存します。</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>パフォーマンス計測のためにローカルネットワークを使用します。</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_googlemeasurement._tcp</string>
+	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
