@@ -9,6 +9,7 @@ import '../providers/connectivity_provider.dart';
 import '../providers/user_subscription_provider.dart';
 import '../models/vehicle.dart';
 import '../models/app_notification.dart';
+import '../models/fleet_plan.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../core/utils/inspection_urgency.dart';
@@ -1359,8 +1360,55 @@ class _DashboardSummaryCard extends StatelessWidget {
           // ---- 次回車検 ----
           if (nextInspectionVehicle != null)
             _buildInspectionChip(nextInspectionVehicle, minDays!),
+
+          // ---- フリートプラン案内（5台以上で表示・現在は無料開放中） ----
+          if (FleetPlan.requiresPaidPlan(vehicles.length))
+            _buildFleetPlanBanner(vehicles.length),
         ],
       ),
+    );
+  }
+
+  /// SMB fleet upsell: shown from the 5th vehicle. During the promotional
+  /// free period it only sets pricing expectations (no payment action).
+  Widget _buildFleetPlanBanner(int vehicleCount) {
+    final price = FleetPlan.monthlyPriceFor(vehicleCount);
+    final priceLabel =
+        price != null ? '月額¥${NumberFormat('#,###').format(price)}' : '個別見積もり';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppSpacing.verticalSm,
+        Container(
+          key: const Key('fleet_plan_banner'),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.12),
+            borderRadius: AppSpacing.borderRadiusSm,
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.business, size: 14, color: Colors.white70),
+              AppSpacing.horizontalXs,
+              Expanded(
+                child: Text(
+                  FleetPlan.isPromotionalFreePeriod
+                      ? '$vehicleCount台を管理中 — 法人向け'
+                          '${FleetPlan.planLabelFor(vehicleCount)}プラン対象'
+                          '（現在無料開放中・正式リリース後 $priceLabel 予定）'
+                      : '$vehicleCount台を管理中 — '
+                          '${FleetPlan.planLabelFor(vehicleCount)}プラン'
+                          '（$priceLabel）',
+                  style: const TextStyle(fontSize: 11, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

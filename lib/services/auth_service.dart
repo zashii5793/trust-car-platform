@@ -230,6 +230,32 @@ class AuthService {
     }
   }
 
+  /// 法人アカウント情報を更新（アカウント種別・会社名）
+  Future<Result<void, AppError>> updateBusinessProfile({
+    required AccountType accountType,
+    required String companyName,
+  }) async {
+    final user = currentUser;
+    if (user == null) {
+      return const Result.failure(AppError.auth('User not logged in',
+          type: AuthErrorType.sessionExpired));
+    }
+
+    try {
+      await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(user.uid)
+          .update({
+        'accountType': accountType.name,
+        'companyName': companyName,
+        'updatedAt': Timestamp.now(),
+      });
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
   /// 通知設定を更新
   Future<Result<void, AppError>> updateNotificationSettings(
       NotificationSettings settings) async {

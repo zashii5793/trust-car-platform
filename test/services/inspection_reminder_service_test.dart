@@ -46,6 +46,7 @@ Vehicle _makeVehicle({
   String id = 'v1',
   DateTime? inspectionExpiryDate,
   DateTime? voluntaryInsuranceExpiryDate,
+  DateTime? leaseContractEndDate,
 }) =>
     Vehicle(
       id: id,
@@ -58,6 +59,9 @@ Vehicle _makeVehicle({
       inspectionExpiryDate: inspectionExpiryDate,
       voluntaryInsurance: voluntaryInsuranceExpiryDate != null
           ? VoluntaryInsurance(expiryDate: voluntaryInsuranceExpiryDate)
+          : null,
+      leaseInfo: leaseContractEndDate != null
+          ? LeaseInfo(contractEndDate: leaseContractEndDate)
           : null,
       createdAt: DateTime(2024, 1, 1),
       updatedAt: DateTime(2024, 1, 1),
@@ -73,19 +77,29 @@ void main() {
   });
 
   group('InspectionReminderService.scheduleForVehicles', () {
-    test('車検60日後 → 30/7/1日前の3件がスケジュールされる', () async {
+    test('車検60日後 → 30/7日前の2件がスケジュールされる', () async {
       final vehicle = _makeVehicle(
         inspectionExpiryDate: DateTime.now().add(const Duration(days: 60)),
       );
 
       await service.scheduleForVehicles([vehicle]);
 
-      expect(plugin.zonedScheduleCalls.length, 3);
+      expect(plugin.zonedScheduleCalls.length, 2);
     });
 
-    test('車検5日後 → 1日前リマインダーのみスケジュールされる', () async {
+    test('車検5日後 → 30/7日前とも過去なのでスケジュールなし（1日前通知は廃止）', () async {
       final vehicle = _makeVehicle(
         inspectionExpiryDate: DateTime.now().add(const Duration(days: 5)),
+      );
+
+      await service.scheduleForVehicles([vehicle]);
+
+      expect(plugin.zonedScheduleCalls, isEmpty);
+    });
+
+    test('車検10日後 → 7日前リマインダーのみスケジュールされる', () async {
+      final vehicle = _makeVehicle(
+        inspectionExpiryDate: DateTime.now().add(const Duration(days: 10)),
       );
 
       await service.scheduleForVehicles([vehicle]);
@@ -101,13 +115,13 @@ void main() {
         ),
         _makeVehicle(
           id: 'v2',
-          inspectionExpiryDate: DateTime.now().add(const Duration(days: 5)),
+          inspectionExpiryDate: DateTime.now().add(const Duration(days: 10)),
         ),
       ];
 
       await service.scheduleForVehicles(vehicles);
 
-      expect(plugin.zonedScheduleCalls.length, 4); // 3 + 1
+      expect(plugin.zonedScheduleCalls.length, 3); // 2 + 1
     });
 
     test('既存の車検リマインダーは再スケジュール前にキャンセルされる', () async {
@@ -149,7 +163,7 @@ void main() {
   });
 
   group('InspectionReminderService — 任意保険リマインダー', () {
-    test('任意保険60日後 → 30/7/1日前の3件がスケジュールされる', () async {
+    test('任意保険60日後 → 30/7日前の2件がスケジュールされる', () async {
       final vehicle = _makeVehicle(
         voluntaryInsuranceExpiryDate:
             DateTime.now().add(const Duration(days: 60)),
@@ -157,10 +171,10 @@ void main() {
 
       await service.scheduleForVehicles([vehicle]);
 
-      expect(plugin.zonedScheduleCalls.length, 3);
+      expect(plugin.zonedScheduleCalls.length, 2);
     });
 
-    test('車検と任意保険の両方がある車両 → 合計6件', () async {
+    test('車検と任意保険の両方がある車両 → 合計4件', () async {
       final vehicle = _makeVehicle(
         inspectionExpiryDate: DateTime.now().add(const Duration(days: 90)),
         voluntaryInsuranceExpiryDate:
@@ -169,10 +183,10 @@ void main() {
 
       await service.scheduleForVehicles([vehicle]);
 
-      expect(plugin.zonedScheduleCalls.length, 6);
+      expect(plugin.zonedScheduleCalls.length, 4);
     });
 
-    test('任意保険IDレンジ（8000-8899）の既存通知もキャンセルされる', () async {
+    test('任意保険IDレンジ（8000-8599）の既存通知もキャンセルされる', () async {
       plugin.pending = [
         const PendingNotificationRequest(8100, 'old', 'old', null),
         const PendingNotificationRequest(9001, 'mileage', 'keep', null),
@@ -195,14 +209,56 @@ void main() {
     });
   });
 
+  group('InspectionReminderService — リースリマインダー', () {
+    test('リース満了60日後 → 30/7日前の2件がスケジュールされる', () async {
+      final vehicle = _makeVehicle(
+        leaseContractEndDate: DateTime.now().add(const Duration(days: 60)),
+      );
+
+      await service.scheduleForVehicles([vehicle]);
+
+      expect(plugin.zonedScheduleCalls.length, 2);
+    });
+
+    test('車検・任意保険・リースすべてあり → 合計6件', () async {
+      final vehicle = _makeVehicle(
+        inspectionExpiryDate: DateTime.now().add(const Duration(days: 90)),
+        voluntaryInsuranceExpiryDate:
+            DateTime.now().add(const Duration(days: 60)),
+        leaseContractEndDate: DateTime.now().add(const Duration(days: 45)),
+      );
+
+      await service.scheduleForVehicles([vehicle]);
+
+      expect(plugin.zonedScheduleCalls.length, 6);
+    });
+
+    test('リースIDレンジ（6000-6599）の既存通知もキャンセルされる', () async {
+      plugin.pending = [
+        const PendingNotificationRequest(6100, 'old', 'old', null),
+        const PendingNotificationRequest(9001, 'mileage', 'keep', null),
+      ];
+
+      await service.scheduleForVehicles([]);
+
+      expect(plugin.cancelledIds, [6100]);
+    });
+
+    test('リースIDは予約レンジ内（6000-6599）に収まり車検と重ならない', () {
+      final leaseId =
+          InspectionReminderService.leaseNotificationId('vehicle-abc', 0);
+      expect(leaseId, inInclusiveRange(6000, 6599));
+    });
+  });
+
   group('InspectionReminderService.insuranceNotificationId', () {
     test('車検IDと任意保険IDはレンジが重ならない', () {
       final inspectionId =
           InspectionReminderService.notificationId('vehicle-abc', 0);
       final insuranceId =
           InspectionReminderService.insuranceNotificationId('vehicle-abc', 0);
-      expect(inspectionId, inInclusiveRange(7000, 7899));
-      expect(insuranceId, inInclusiveRange(8000, 8899));
+      expect(inspectionId, inInclusiveRange(7000, 7599));
+      expect(insuranceId, inInclusiveRange(8000, 8599));
     });
 
     test('同じ入力には常に同じIDを返す（決定的）', () {
@@ -224,15 +280,14 @@ void main() {
     test('オフセットが異なればIDも異なる', () {
       final a = InspectionReminderService.notificationId('vehicle-abc', 0);
       final b = InspectionReminderService.notificationId('vehicle-abc', 1);
-      final c = InspectionReminderService.notificationId('vehicle-abc', 2);
-      expect({a, b, c}.length, 3);
+      expect({a, b}.length, 2);
     });
 
-    test('IDは予約レンジ内（7000〜7899）に収まる', () {
+    test('IDは予約レンジ内（7000〜7599）に収まる', () {
       for (final id in ['v1', 'long-vehicle-id-12345', '日本語ID']) {
-        for (var i = 0; i < 3; i++) {
+        for (var i = 0; i < 2; i++) {
           final n = InspectionReminderService.notificationId(id, i);
-          expect(n, inInclusiveRange(7000, 7899));
+          expect(n, inInclusiveRange(7000, 7599));
         }
       }
     });

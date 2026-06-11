@@ -190,6 +190,18 @@ class RecommendationService {
       }
     }
 
+    // リース契約満了チェック
+    if (vehicle.leaseInfo?.contractEndDate != null) {
+      final leaseNotification = _checkLeaseContractEndDate(
+        vehicle: vehicle,
+        userId: userId,
+        now: now,
+      );
+      if (leaseNotification != null) {
+        recommendations.add(leaseNotification);
+      }
+    }
+
     // 各ルールをチェック
     for (final rule in _rules) {
       final recommendation = _checkRule(
@@ -353,6 +365,58 @@ class RecommendationService {
       actionDate: expiryDate,
       metadata: {
         'voluntaryInsuranceExpiryDate': expiryDate.toIso8601String(),
+        'daysUntilExpiry': daysUntil,
+      },
+    );
+  }
+
+  /// リース契約満了日からの通知生成
+  ///
+  /// 返却・再リース・買い取りの判断には時間がかかるため、
+  /// 他の期限より早い90日前から通知する。
+  AppNotification? _checkLeaseContractEndDate({
+    required Vehicle vehicle,
+    required String userId,
+    required DateTime now,
+  }) {
+    final endDate = vehicle.leaseInfo!.contractEndDate!;
+    final daysUntil = vehicle.daysUntilLeaseExpiry!;
+
+    if (daysUntil > 90) return null; // 90日以上先は通知不要
+
+    NotificationPriority priority;
+    if (daysUntil <= 30) {
+      priority = NotificationPriority.high;
+    } else if (daysUntil <= 60) {
+      priority = NotificationPriority.medium;
+    } else {
+      priority = NotificationPriority.low;
+    }
+
+    final lessorName = vehicle.leaseInfo!.lessorName;
+    final lessorLabel = lessorName != null ? '（$lessorName）' : '';
+
+    String message;
+    if (daysUntil <= 0) {
+      message = '${vehicle.displayName}のリース契約$lessorLabelが満了しています。'
+          '返却・再リースの手続きをご確認ください。';
+    } else {
+      message = '${vehicle.displayName}のリース契約$lessorLabelの満了まで'
+          'あと$daysUntil日です。返却・再リース・買い取りの検討時期です。';
+    }
+
+    return AppNotification(
+      id: '${vehicle.id}_lease_end_${now.millisecondsSinceEpoch}',
+      userId: userId,
+      vehicleId: vehicle.id,
+      type: NotificationType.maintenanceRecommendation,
+      title: 'リース契約のお知らせ',
+      message: message,
+      priority: priority,
+      createdAt: now,
+      actionDate: endDate,
+      metadata: {
+        'leaseContractEndDate': endDate.toIso8601String(),
         'daysUntilExpiry': daysUntil,
       },
     );

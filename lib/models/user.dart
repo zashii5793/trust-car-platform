@@ -1,6 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'user_plan.dart';
 
+/// アカウント種別（個人 / 法人）
+enum AccountType {
+  personal,
+  business;
+
+  static AccountType fromString(String? value) {
+    if (value == 'business') return AccountType.business;
+    return AccountType.personal;
+  }
+}
+
 /// ユーザーモデル
 class AppUser {
   final String id;
@@ -10,6 +21,8 @@ class AppUser {
   final NotificationSettings notificationSettings;
   final UserPlanType planType;
   final DateTime? planExpiresAt;
+  final AccountType accountType;
+  final String? companyName; // 法人アカウントの会社名
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -21,9 +34,14 @@ class AppUser {
     NotificationSettings? notificationSettings,
     this.planType = UserPlanType.free,
     this.planExpiresAt,
+    this.accountType = AccountType.personal,
+    this.companyName,
     required this.createdAt,
     required this.updatedAt,
   }) : notificationSettings = notificationSettings ?? NotificationSettings();
+
+  /// 法人アカウントか
+  bool get isBusiness => accountType == AccountType.business;
 
   /// Firestore ドキュメントからモデルを生成
   factory AppUser.fromFirestore(DocumentSnapshot doc) {
@@ -38,6 +56,8 @@ class AppUser {
           : NotificationSettings(),
       planType: _parsePlanType(data['planType']),
       planExpiresAt: (data['planExpiresAt'] as Timestamp?)?.toDate(),
+      accountType: AccountType.fromString(data['accountType']),
+      companyName: data['companyName'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -58,6 +78,8 @@ class AppUser {
       'planType': planType.name,
       if (planExpiresAt != null)
         'planExpiresAt': Timestamp.fromDate(planExpiresAt!),
+      'accountType': accountType.name,
+      if (companyName != null) 'companyName': companyName,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -72,6 +94,8 @@ class AppUser {
     NotificationSettings? notificationSettings,
     UserPlanType? planType,
     DateTime? planExpiresAt,
+    AccountType? accountType,
+    String? companyName,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -83,6 +107,8 @@ class AppUser {
       notificationSettings: notificationSettings ?? this.notificationSettings,
       planType: planType ?? this.planType,
       planExpiresAt: planExpiresAt ?? this.planExpiresAt,
+      accountType: accountType ?? this.accountType,
+      companyName: companyName ?? this.companyName,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

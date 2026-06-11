@@ -52,6 +52,12 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   late TextEditingController _voluntaryInsuranceCompanyController;
   DateTime? _voluntaryInsuranceExpiryDate;
 
+  // リース情報
+  late TextEditingController _lessorNameController;
+  late TextEditingController _leaseMonthlyFeeController;
+  late TextEditingController _maintenancePackController;
+  DateTime? _leaseContractEndDate;
+
   // Phase 1.5: 詳細情報
   late TextEditingController _colorController;
   late TextEditingController _engineDisplacementController;
@@ -90,6 +96,17 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     );
     _voluntaryInsuranceExpiryDate = v.voluntaryInsurance?.expiryDate;
 
+    // リース情報
+    _lessorNameController =
+        TextEditingController(text: v.leaseInfo?.lessorName ?? '');
+    _leaseMonthlyFeeController = TextEditingController(
+      text: v.leaseInfo?.monthlyFee?.toString() ?? '',
+    );
+    _maintenancePackController = TextEditingController(
+      text: v.leaseInfo?.maintenancePackDetails ?? '',
+    );
+    _leaseContractEndDate = v.leaseInfo?.contractEndDate;
+
     // Phase 1.5: 詳細情報
     _colorController = TextEditingController(text: v.color ?? '');
     _engineDisplacementController = TextEditingController(
@@ -118,6 +135,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     _colorController.addListener(_onFieldChanged);
     _engineDisplacementController.addListener(_onFieldChanged);
     _voluntaryInsuranceCompanyController.addListener(_onFieldChanged);
+    _lessorNameController.addListener(_onFieldChanged);
+    _leaseMonthlyFeeController.addListener(_onFieldChanged);
+    _maintenancePackController.addListener(_onFieldChanged);
 
     // 既存車両データからマスタオブジェクトを逆引きしてセット
     _initMasterSelections();
@@ -221,6 +241,12 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         _voluntaryInsuranceCompanyController.text !=
             (v.voluntaryInsurance?.companyName ?? '') ||
         _voluntaryInsuranceExpiryDate != v.voluntaryInsurance?.expiryDate ||
+        _lessorNameController.text != (v.leaseInfo?.lessorName ?? '') ||
+        _leaseMonthlyFeeController.text !=
+            (v.leaseInfo?.monthlyFee?.toString() ?? '') ||
+        _maintenancePackController.text !=
+            (v.leaseInfo?.maintenancePackDetails ?? '') ||
+        _leaseContractEndDate != v.leaseInfo?.contractEndDate ||
         _purchaseDate != v.purchaseDate ||
         _newImageBytes != null;
 
@@ -229,6 +255,25 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         _hasChanges = changed;
       });
     }
+  }
+
+  /// Builds the LeaseInfo to save; returns null when every field is empty
+  /// so non-leased vehicles don't store an empty object.
+  LeaseInfo? _buildLeaseInfo() {
+    final lease = LeaseInfo(
+      lessorName: _lessorNameController.text.isEmpty
+          ? null
+          : _lessorNameController.text,
+      monthlyFee: _leaseMonthlyFeeController.text.isEmpty
+          ? null
+          : int.tryParse(_leaseMonthlyFeeController.text),
+      contractStartDate: widget.vehicle.leaseInfo?.contractStartDate,
+      contractEndDate: _leaseContractEndDate,
+      maintenancePackDetails: _maintenancePackController.text.isEmpty
+          ? null
+          : _maintenancePackController.text,
+    );
+    return lease.hasAnyValue ? lease : null;
   }
 
   @override
@@ -241,6 +286,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     _colorController.dispose();
     _engineDisplacementController.dispose();
     _voluntaryInsuranceCompanyController.dispose();
+    _lessorNameController.dispose();
+    _leaseMonthlyFeeController.dispose();
+    _maintenancePackController.dispose();
     super.dispose();
   }
 
@@ -388,6 +436,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           agentName: widget.vehicle.voluntaryInsurance?.agentName,
           agentPhone: widget.vehicle.voluntaryInsurance?.agentPhone,
         ),
+        // リース情報（契約開始日は未編集なら既存値を引き継ぐ）
+        leaseInfo: _buildLeaseInfo(),
         // Phase 1.5: 詳細情報
         color: _colorController.text.isEmpty ? null : _colorController.text,
         engineDisplacement: _engineDisplacementController.text.isEmpty
@@ -777,6 +827,50 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                       onSelected: (date) =>
                           setState(() => _voluntaryInsuranceExpiryDate = date),
                     ),
+                  ),
+                  AppSpacing.verticalLg,
+
+                  // === リース情報セクション（リース車両のみ入力） ===
+                  _buildSectionHeader(theme, 'リース情報', Icons.assignment),
+                  AppSpacing.verticalSm,
+                  AppTextField(
+                    controller: _lessorNameController,
+                    labelText: 'リース会社（リース車両の場合）',
+                    hintText: '例: ○○オートリース',
+                    prefixIcon: const Icon(Icons.business),
+                  ),
+                  AppSpacing.verticalSm,
+                  AppTextField.number(
+                    controller: _leaseMonthlyFeeController,
+                    labelText: '月額リース料（円）',
+                    hintText: '例: 45000',
+                    prefixIcon: const Icon(Icons.payments_outlined),
+                  ),
+                  AppSpacing.verticalSm,
+                  _buildDatePickerTile(
+                    context: context,
+                    title: 'リース契約満了日',
+                    icon: Icons.event_busy,
+                    date: _leaseContractEndDate,
+                    hint: '返却・再リースの判断時期をお知らせします',
+                    onTap: () => _selectDate(
+                      title: 'リース契約満了日を選択',
+                      currentDate: _leaseContractEndDate,
+                      firstDate:
+                          DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate:
+                          DateTime.now().add(const Duration(days: 365 * 7)),
+                      onSelected: (date) =>
+                          setState(() => _leaseContractEndDate = date),
+                    ),
+                  ),
+                  AppSpacing.verticalSm,
+                  AppTextField(
+                    controller: _maintenancePackController,
+                    labelText: 'メンテナンスパック内容',
+                    hintText: '例: オイル交換・タイヤローテーション込み',
+                    prefixIcon: const Icon(Icons.build_outlined),
+                    maxLines: 3,
                   ),
                   AppSpacing.verticalLg,
 

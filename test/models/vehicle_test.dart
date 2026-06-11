@@ -174,6 +174,81 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // LeaseInfo
+  // -------------------------------------------------------------------------
+  group('LeaseInfo', () {
+    test('fromMap(null) でインスタンスが生成される（全フィールドnull）', () {
+      final lease = LeaseInfo.fromMap(null);
+      expect(lease.lessorName, isNull);
+      expect(lease.monthlyFee, isNull);
+      expect(lease.contractEndDate, isNull);
+      expect(lease.hasAnyValue, isFalse);
+    });
+
+    test('toMap / fromMap ラウンドトリップ', () {
+      final lease = LeaseInfo(
+        lessorName: '○○オートリース',
+        monthlyFee: 45000,
+        contractStartDate: DateTime(2024, 4, 1),
+        contractEndDate: DateTime(2027, 3, 31),
+        maintenancePackDetails: 'オイル交換・タイヤローテーション込み',
+      );
+
+      final map = lease.toMap();
+      expect(map['lessorName'], '○○オートリース');
+      expect(map['monthlyFee'], 45000);
+      expect(map['contractEndDate'], isA<Timestamp>());
+
+      final restored = LeaseInfo.fromMap(map);
+      expect(restored.lessorName, '○○オートリース');
+      expect(restored.monthlyFee, 45000);
+      expect(restored.maintenancePackDetails, 'オイル交換・タイヤローテーション込み');
+      expect(restored.contractEndDate, DateTime(2027, 3, 31));
+    });
+
+    test('hasAnyValue は1フィールドでも入力があれば true', () {
+      expect(const LeaseInfo(lessorName: 'A社').hasAnyValue, isTrue);
+      expect(const LeaseInfo(monthlyFee: 30000).hasAnyValue, isTrue);
+      expect(const LeaseInfo().hasAnyValue, isFalse);
+    });
+
+    test('isExpiringSoon は60日以内で true', () {
+      final lease = LeaseInfo(
+        contractEndDate: DateTime.now().add(const Duration(days: 30)),
+      );
+      expect(lease.isExpiringSoon, isTrue);
+    });
+
+    test('isExpiringSoon は61日以上先で false', () {
+      final lease = LeaseInfo(
+        contractEndDate: DateTime.now().add(const Duration(days: 90)),
+      );
+      expect(lease.isExpiringSoon, isFalse);
+    });
+
+    test('Vehicle.daysUntilLeaseExpiry はリース情報なしのとき null', () {
+      expect(_make().daysUntilLeaseExpiry, isNull);
+    });
+
+    test('Vehicle の toMap に leaseInfo が含まれラウンドトリップできる', () {
+      final v = _make().copyWith(
+        leaseInfo: LeaseInfo(
+          lessorName: 'B社リース',
+          monthlyFee: 52000,
+          contractEndDate: DateTime(2026, 12, 31),
+        ),
+      );
+
+      final map = v.toMap();
+      expect(map['leaseInfo'], isNotNull);
+      expect(map['leaseInfo']['lessorName'], 'B社リース');
+
+      final restored = LeaseInfo.fromMap(map['leaseInfo']);
+      expect(restored.monthlyFee, 52000);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Vehicle — construction
   // -------------------------------------------------------------------------
   group('Vehicle.construction', () {

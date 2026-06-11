@@ -140,6 +140,83 @@ class VoluntaryInsurance {
   }
 }
 
+/// リース契約情報（法人・個人リース車両向け）
+class LeaseInfo {
+  final String? lessorName; // リース会社名
+  final int? monthlyFee; // 月額リース料（円）
+  final DateTime? contractStartDate; // 契約開始日
+  final DateTime? contractEndDate; // 契約満了日
+  final String? maintenancePackDetails; // メンテナンスパック内容
+
+  const LeaseInfo({
+    this.lessorName,
+    this.monthlyFee,
+    this.contractStartDate,
+    this.contractEndDate,
+    this.maintenancePackDetails,
+  });
+
+  factory LeaseInfo.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const LeaseInfo();
+    return LeaseInfo(
+      lessorName: map['lessorName'],
+      monthlyFee: map['monthlyFee'],
+      contractStartDate: map['contractStartDate'] != null
+          ? (map['contractStartDate'] as Timestamp).toDate()
+          : null,
+      contractEndDate: map['contractEndDate'] != null
+          ? (map['contractEndDate'] as Timestamp).toDate()
+          : null,
+      maintenancePackDetails: map['maintenancePackDetails'],
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'lessorName': lessorName,
+      'monthlyFee': monthlyFee,
+      'contractStartDate': contractStartDate != null
+          ? Timestamp.fromDate(contractStartDate!)
+          : null,
+      'contractEndDate':
+          contractEndDate != null ? Timestamp.fromDate(contractEndDate!) : null,
+      'maintenancePackDetails': maintenancePackDetails,
+    };
+  }
+
+  /// 何か1つでも入力されているか（空のリース情報は保存しない判定に使う）
+  bool get hasAnyValue =>
+      lessorName != null ||
+      monthlyFee != null ||
+      contractStartDate != null ||
+      contractEndDate != null ||
+      maintenancePackDetails != null;
+
+  /// 契約満了が近いか（60日以内）
+  bool get isExpiringSoon {
+    if (contractEndDate == null) return false;
+    final days = contractEndDate!.difference(DateTime.now()).inDays;
+    return days <= 60 && days >= 0;
+  }
+
+  LeaseInfo copyWith({
+    String? lessorName,
+    int? monthlyFee,
+    DateTime? contractStartDate,
+    DateTime? contractEndDate,
+    String? maintenancePackDetails,
+  }) {
+    return LeaseInfo(
+      lessorName: lessorName ?? this.lessorName,
+      monthlyFee: monthlyFee ?? this.monthlyFee,
+      contractStartDate: contractStartDate ?? this.contractStartDate,
+      contractEndDate: contractEndDate ?? this.contractEndDate,
+      maintenancePackDetails:
+          maintenancePackDetails ?? this.maintenancePackDetails,
+    );
+  }
+}
+
 /// 車両情報
 class Vehicle {
   final String id;
@@ -179,6 +256,9 @@ class Vehicle {
   // Phase 5 追加フィールド: 任意保険情報
   final VoluntaryInsurance? voluntaryInsurance;
 
+  // リース契約情報（法人・個人リース車両）
+  final LeaseInfo? leaseInfo;
+
   Vehicle({
     required this.id,
     required this.userId,
@@ -208,6 +288,7 @@ class Vehicle {
     this.vehicleWeight,
     this.seatingCapacity,
     this.voluntaryInsurance,
+    this.leaseInfo,
   });
 
   /// 車検までの残日数（null: 車検日未設定）
@@ -282,6 +363,9 @@ class Vehicle {
       seatingCapacity: data['seatingCapacity'],
       voluntaryInsurance:
           VoluntaryInsurance.fromMap(data['voluntaryInsurance']),
+      leaseInfo: data['leaseInfo'] != null
+          ? LeaseInfo.fromMap(data['leaseInfo'])
+          : null,
     );
   }
 
@@ -346,6 +430,7 @@ class Vehicle {
       'vehicleWeight': vehicleWeight,
       'seatingCapacity': seatingCapacity,
       'voluntaryInsurance': voluntaryInsurance?.toMap(),
+      'leaseInfo': leaseInfo?.toMap(),
     };
   }
 
@@ -379,6 +464,7 @@ class Vehicle {
     int? vehicleWeight,
     int? seatingCapacity,
     VoluntaryInsurance? voluntaryInsurance,
+    LeaseInfo? leaseInfo,
   }) {
     return Vehicle(
       id: id ?? this.id,
@@ -410,7 +496,14 @@ class Vehicle {
       vehicleWeight: vehicleWeight ?? this.vehicleWeight,
       seatingCapacity: seatingCapacity ?? this.seatingCapacity,
       voluntaryInsurance: voluntaryInsurance ?? this.voluntaryInsurance,
+      leaseInfo: leaseInfo ?? this.leaseInfo,
     );
+  }
+
+  /// リース契約満了までの残日数（null: リース情報なし/満了日未設定）
+  int? get daysUntilLeaseExpiry {
+    if (leaseInfo?.contractEndDate == null) return null;
+    return leaseInfo!.contractEndDate!.difference(DateTime.now()).inDays;
   }
 
   /// 任意保険期限までの残日数

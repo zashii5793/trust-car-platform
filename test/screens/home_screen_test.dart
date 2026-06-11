@@ -815,4 +815,36 @@ void main() {
           findsNothing);
     });
   });
+
+  group('HomeScreen — フリートプランバナー', () {
+    testWidgets('5台以上でフリートプランバナーが表示される', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles(List.generate(5, (i) => _makeVehicle('v$i')));
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('fleet_plan_banner')), findsOneWidget);
+    });
+
+    testWidgets('4台以下ではバナー非表示', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles(List.generate(4, (i) => _makeVehicle('v$i')));
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('fleet_plan_banner')), findsNothing);
+    });
+
+    testWidgets('無料開放中の文言が表示される', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles(List.generate(5, (i) => _makeVehicle('v$i')));
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.textContaining('無料開放中'), findsOneWidget);
+    });
+  });
 }
