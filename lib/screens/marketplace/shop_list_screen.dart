@@ -556,7 +556,9 @@ class _ShopCard extends StatelessWidget {
                               color: Colors.blue,
                             ),
                           ),
-                        if (shop.isFeatured && !shop.isVerified)
+                        // Transparency principle: a featured (paid) placement
+                        // must always carry the 広告 label, even when verified.
+                        if (shop.isFeatured)
                           Padding(
                             padding: const EdgeInsets.only(left: AppSpacing.xs),
                             child: Container(

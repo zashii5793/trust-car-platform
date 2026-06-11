@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import 'package:trust_car_platform/screens/marketplace/inquiry_screen.dart';
 import 'package:trust_car_platform/providers/shop_provider.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
+import 'package:trust_car_platform/providers/user_subscription_provider.dart';
+import 'package:trust_car_platform/models/user_plan.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
@@ -91,6 +93,21 @@ class MockInquiryService implements InquiryService {
   bool shouldFail = false;
   Inquiry? createdInquiry;
   int createCallCount = 0;
+
+  /// Inquiries already sent this month (for the monthly-limit gate).
+  int monthlyCount = 0;
+
+  /// When true, the count query fails — the gate must fail open.
+  bool shouldFailCount = false;
+
+  @override
+  Future<Result<int, AppError>> countUserInquiriesThisMonth(
+      String userId) async {
+    if (shouldFailCount) {
+      return Result.failure(AppError.server('count error'));
+    }
+    return Result.success(monthlyCount);
+  }
 
   @override
   Future<Result<Inquiry, AppError>> createInquiry({
@@ -256,21 +273,56 @@ Shop _testShop({
   );
 }
 
+class _FakeUser implements User {
+  @override
+  String get uid => 'user-1';
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _LoggedInAuthProvider extends AuthProvider {
+  _LoggedInAuthProvider() : super(authService: MockAuthService());
+
+  @override
+  User? get firebaseUser => _FakeUser();
+  @override
+  bool get isAuthenticated => true;
+  @override
+  bool get isLoading => false;
+}
+
+UserSubscriptionProvider _premiumSubscription() => UserSubscriptionProvider()
+  ..loadFromUser(
+    UserPlanType.premium,
+    DateTime.now().add(const Duration(days: 365)),
+  );
+
 Widget _buildApp(
   Shop shop, {
   String? vehicleId,
   required ShopProvider shopProvider,
   required AuthProvider authProvider,
+  UserSubscriptionProvider? subscriptionProvider,
 }) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<ShopProvider>.value(value: shopProvider),
       ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+      ChangeNotifierProvider<UserSubscriptionProvider>.value(
+        value: subscriptionProvider ?? UserSubscriptionProvider(),
+      ),
     ],
     child: MaterialApp(
       home: InquiryScreen(shop: shop, vehicleId: vehicleId),
     ),
   );
+}
+
+/// Fills both form fields with valid input so _submit passes validation.
+Future<void> _fillValidForm(WidgetTester tester) async {
+  final textFields = find.byType(TextFormField);
+  await tester.enterText(textFields.first, 'オイル交換の見積もり');
+  await tester.enterText(textFields.last, '見積もりをお願いします。');
 }
 
 // ---------------------------------------------------------------------------
@@ -515,6 +567,102 @@ void main() {
         // カウンタが 500 を示すテキストが存在する
         expect(find.textContaining('500'), findsWidgets);
         expect(tester.takeException(), isNull);
+      });
+    });
+
+    group('月次問い合わせ上限ゲート', () {
+      testWidgets('フリープランで月3件到達 → 上限ダイアログが出て送信されない', (tester) async {
+        mockInquiry.monthlyCount = 3;
+
+        await tester.pumpWidget(_buildApp(
+          _testShop(),
+          shopProvider: shopProvider,
+          authProvider: _LoggedInAuthProvider(),
+        ));
+        await tester.pump();
+
+        await _fillValidForm(tester);
+        await tester.tap(find.textContaining('送信').last);
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('今月の問い合わせ上限に達しました'), findsOneWidget);
+        expect(mockInquiry.createCallCount, 0);
+      });
+
+      testWidgets('フリープランで月2件 → 送信できる', (tester) async {
+        mockInquiry.monthlyCount = 2;
+
+        await tester.pumpWidget(_buildApp(
+          _testShop(),
+          shopProvider: shopProvider,
+          authProvider: _LoggedInAuthProvider(),
+        ));
+        await tester.pump();
+
+        await _fillValidForm(tester);
+        await tester.tap(find.textContaining('送信').last);
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('今月の問い合わせ上限に達しました'), findsNothing);
+        expect(mockInquiry.createCallCount, 1);
+      });
+
+      testWidgets('プレミアムプラン → 多数送信済みでも上限なし', (tester) async {
+        mockInquiry.monthlyCount = 100;
+
+        await tester.pumpWidget(_buildApp(
+          _testShop(),
+          shopProvider: shopProvider,
+          authProvider: _LoggedInAuthProvider(),
+          subscriptionProvider: _premiumSubscription(),
+        ));
+        await tester.pump();
+
+        await _fillValidForm(tester);
+        await tester.tap(find.textContaining('送信').last);
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('今月の問い合わせ上限に達しました'), findsNothing);
+        expect(mockInquiry.createCallCount, 1);
+      });
+
+      group('Edge Cases', () {
+        testWidgets('カウント取得失敗 → fail-openで送信される', (tester) async {
+          mockInquiry.shouldFailCount = true;
+
+          await tester.pumpWidget(_buildApp(
+            _testShop(),
+            shopProvider: shopProvider,
+            authProvider: _LoggedInAuthProvider(),
+          ));
+          await tester.pump();
+
+          await _fillValidForm(tester);
+          await tester.tap(find.textContaining('送信').last);
+          await tester.pumpAndSettle(const Duration(seconds: 10));
+
+          expect(find.text('今月の問い合わせ上限に達しました'), findsNothing);
+          expect(mockInquiry.createCallCount, 1);
+        });
+
+        testWidgets('上限ダイアログは閉じられる', (tester) async {
+          mockInquiry.monthlyCount = 3;
+
+          await tester.pumpWidget(_buildApp(
+            _testShop(),
+            shopProvider: shopProvider,
+            authProvider: _LoggedInAuthProvider(),
+          ));
+          await tester.pump();
+
+          await _fillValidForm(tester);
+          await tester.tap(find.textContaining('送信').last);
+          await tester.pumpAndSettle(const Duration(seconds: 10));
+          await tester.tap(find.text('閉じる'));
+          await tester.pumpAndSettle();
+
+          expect(find.text('今月の問い合わせ上限に達しました'), findsNothing);
+        });
       });
     });
   });

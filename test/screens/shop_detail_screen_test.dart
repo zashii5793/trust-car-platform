@@ -146,6 +146,11 @@ class MockInquiryService implements InquiryService {
       const Result.success(0);
 
   @override
+  Future<Result<int, AppError>> countUserInquiriesThisMonth(
+          String userId) async =>
+      const Result.success(0);
+
+  @override
   Stream<List<Inquiry>> streamUserInquiries(String userId) =>
       const Stream.empty();
 

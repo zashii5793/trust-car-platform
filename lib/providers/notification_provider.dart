@@ -4,18 +4,22 @@ import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
 import '../services/recommendation_service.dart';
 import '../services/firebase_service.dart';
+import '../services/inspection_reminder_service.dart';
 import '../core/error/app_error.dart';
 
 /// 通知状態管理Provider
 class NotificationProvider extends ChangeNotifier {
   final FirebaseService _firebaseService;
   final RecommendationService _recommendationService;
+  final InspectionReminderService? _inspectionReminderService;
 
   NotificationProvider({
     required FirebaseService firebaseService,
     required RecommendationService recommendationService,
+    InspectionReminderService? inspectionReminderService,
   })  : _firebaseService = firebaseService,
-        _recommendationService = recommendationService;
+        _recommendationService = recommendationService,
+        _inspectionReminderService = inspectionReminderService;
 
   List<AppNotification> _notifications = [];
   bool _isLoading = false;
@@ -72,6 +76,13 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> generateNotificationsForVehicles(List<Vehicle> vehicles) async {
     final userId = _firebaseService.currentUserId;
     if (userId == null || vehicles.isEmpty) return;
+
+    // Schedule OS-level inspection reminders so the user is notified even
+    // when the app stays closed. Fire-and-forget: scheduling failures must
+    // never block in-app notification generation.
+    _inspectionReminderService
+        ?.scheduleForVehicles(vehicles)
+        .catchError((_) {});
 
     _isLoading = true;
     _error = null;

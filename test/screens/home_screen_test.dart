@@ -761,8 +761,8 @@ void main() {
           grade: 'S',
           mileage: 30000,
           // +1h: daysUntilInspection truncates partial days, keep N days
-          inspectionExpiryDate: DateTime.now()
-              .add(Duration(days: daysFromNow, hours: 1)),
+          inspectionExpiryDate:
+              DateTime.now().add(Duration(days: daysFromNow, hours: 1)),
           createdAt: DateTime(2024, 1, 1),
           updatedAt: DateTime(2024, 1, 1),
         );

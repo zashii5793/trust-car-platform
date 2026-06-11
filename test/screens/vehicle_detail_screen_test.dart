@@ -19,6 +19,7 @@ import 'package:trust_car_platform/providers/user_subscription_provider.dart';
 import 'package:trust_car_platform/models/user_plan.dart';
 import 'package:trust_car_platform/screens/add_maintenance_screen.dart';
 import 'package:trust_car_platform/screens/vehicle_detail_screen.dart';
+import 'package:trust_car_platform/services/invoice_ocr_service.dart';
 import 'package:trust_car_platform/services/pdf_export_service.dart';
 import 'package:trust_car_platform/services/recommendation_service.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
@@ -40,6 +41,14 @@ class MockDriveLogService extends DriveLogService {
     int limit = 30,
   }) async =>
       const Result.success([]);
+}
+
+class _StubInvoiceOcrService implements InvoiceOcrService {
+  @override
+  void dispose() {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 class _StubPdfExportService implements PdfExportService {
@@ -253,6 +262,12 @@ void main() {
     }
     if (!sl.isRegistered<PdfExportService>()) {
       sl.registerLazySingleton<PdfExportService>(() => _StubPdfExportService());
+    }
+    // AddMaintenanceScreen (pushed via the empty-state CTA) resolves this
+    // lazily in dispose().
+    if (!sl.isRegistered<InvoiceOcrService>()) {
+      sl.registerLazySingleton<InvoiceOcrService>(
+          () => _StubInvoiceOcrService());
     }
   });
 
@@ -579,8 +594,7 @@ void main() {
 
   // -------------------------------------------------------------------------
   group('PDF出力 — プレミアムゲート', () {
-    testWidgets('フリープラン: PDFボタンタップでアップグレード案内が表示される',
-        (tester) async {
+    testWidgets('フリープラン: PDFボタンタップでアップグレード案内が表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
       await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([_testRecord()]);
@@ -606,8 +620,7 @@ void main() {
       expect(find.text('プレミアムプランが必要です'), findsNothing);
     });
 
-    testWidgets('プレミアム: PDFボタンタップでアップグレード案内は出ない',
-        (tester) async {
+    testWidgets('プレミアム: PDFボタンタップでアップグレード案内は出ない', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
       await _pumpScreen(
         tester,
@@ -624,8 +637,7 @@ void main() {
     });
 
     group('Edge Cases', () {
-      testWidgets('記録0件のときPDFボタンは無効（ゲート以前にタップ不可）',
-          (tester) async {
+      testWidgets('記録0件のときPDFボタンは無効（ゲート以前にタップ不可）', (tester) async {
         maintenanceProvider.listenToMaintenanceRecords('v1');
         await _pumpScreen(tester, maintenanceProvider);
         mockFirebase.emitRecords([]);

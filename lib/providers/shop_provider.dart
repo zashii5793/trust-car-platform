@@ -210,6 +210,15 @@ class ShopProvider with ChangeNotifier {
   /// 問い合わせを送信する
   ///
   /// 成功時は Inquiry を返す、失敗時は null を返す
+  /// Counts inquiries the user sent this month.
+  ///
+  /// Returns null on failure so callers fail open — the count is a UX
+  /// pre-check; the server-side rule remains the enforcement backstop.
+  Future<int?> countUserInquiriesThisMonth(String userId) async {
+    final result = await _inquiryService.countUserInquiriesThisMonth(userId);
+    return result.valueOrNull;
+  }
+
   Future<Inquiry?> submitInquiry({
     required String userId,
     required String shopId,
