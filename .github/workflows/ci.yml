@@ -117,10 +117,7 @@ jobs:
 
       - name: Place google-services.json
         run: |
-          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
-            echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
-          else
-            cat > android/app/google-services.json <<'EOF'
+          cat > android/app/google-services.json <<'EOF'
           {
             "project_info": {
               "project_number": "31421119456",
@@ -139,7 +136,6 @@ jobs:
             "configuration_version": "1"
           }
           EOF
-          fi
 
       - name: Build APK (debug)
         run: |
