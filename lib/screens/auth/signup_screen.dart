@@ -50,7 +50,8 @@ class _SignupScreenState extends State<SignupScreen> {
         Navigator.of(context).pop();
         showSuccessSnackBar(context, 'アカウントを作成しました');
       } else {
-        showErrorSnackBar(context, authProvider.errorMessage ?? 'サインアップに失敗しました');
+        showErrorSnackBar(
+            context, authProvider.errorMessage ?? 'サインアップに失敗しました');
       }
     }
   }
@@ -106,7 +107,7 @@ class _SignupScreenState extends State<SignupScreen> {
                             hintText: '例: 山田太郎',
                             prefixIcon: const Icon(Icons.person_outlined),
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
+                              if (value == null || value.trim().isEmpty) {
                                 return '表示名を入力してください';
                               }
                               return null;
@@ -218,13 +219,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           // Google サインアップ
                           OutlinedButton.icon(
                             onPressed: _handleGoogleSignup,
-                            icon: Image.network(
-                              'https://www.google.com/favicon.ico',
-                              width: 20,
-                              height: 20,
-                              errorBuilder: (_, __, ___) =>
-                                  const Icon(Icons.g_mobiledata, size: 20),
-                            ),
+                            icon: const Icon(Icons.g_mobiledata, size: 20),
                             label: const Text('Google で登録'),
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
@@ -246,12 +241,14 @@ class _SignupScreenState extends State<SignupScreen> {
                                     onTap: () => Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (_) => const TermsOfServiceScreen(),
+                                        builder: (_) =>
+                                            const TermsOfServiceScreen(),
                                       ),
                                     ),
                                     child: Text(
                                       '利用規約',
-                                      style: theme.textTheme.bodySmall?.copyWith(
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
                                         color: theme.colorScheme.primary,
                                         decoration: TextDecoration.underline,
                                       ),
@@ -264,12 +261,14 @@ class _SignupScreenState extends State<SignupScreen> {
                                     onTap: () => Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (_) => const PrivacyPolicyScreen(),
+                                        builder: (_) =>
+                                            const PrivacyPolicyScreen(),
                                       ),
                                     ),
                                     child: Text(
                                       'プライバシーポリシー',
-                                      style: theme.textTheme.bodySmall?.copyWith(
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
                                         color: theme.colorScheme.primary,
                                         decoration: TextDecoration.underline,
                                       ),

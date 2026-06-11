@@ -17,10 +17,14 @@ void main() {
 
       test('fromStringで文字列からMaintenanceTypeを取得できる', () {
         expect(MaintenanceType.fromString('repair'), MaintenanceType.repair);
-        expect(MaintenanceType.fromString('oilChange'), MaintenanceType.oilChange);
-        expect(MaintenanceType.fromString('legalInspection12'), MaintenanceType.legalInspection12);
-        expect(MaintenanceType.fromString('invalid'), MaintenanceType.repair); // デフォルト
-        expect(MaintenanceType.fromString(null), MaintenanceType.repair); // null
+        expect(
+            MaintenanceType.fromString('oilChange'), MaintenanceType.oilChange);
+        expect(MaintenanceType.fromString('legalInspection12'),
+            MaintenanceType.legalInspection12);
+        expect(MaintenanceType.fromString('invalid'),
+            MaintenanceType.repair); // デフォルト
+        expect(
+            MaintenanceType.fromString(null), MaintenanceType.repair); // null
       });
 
       test('fromIndexで数値からMaintenanceTypeを取得できる（後方互換性）', () {

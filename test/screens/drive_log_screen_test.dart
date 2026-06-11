@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:trust_car_platform/screens/drive/drive_log_screen.dart';
 import 'package:trust_car_platform/providers/drive_log_provider.dart';
+import 'package:trust_car_platform/providers/drive_recording_provider.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
@@ -39,8 +40,7 @@ class MockAuthService implements AuthService {
       Result.failure(AppError.unknown('not impl'));
 
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
@@ -52,11 +52,9 @@ class MockAuthService implements AuthService {
       Result.failure(AppError.unknown('not impl'));
 
   @override
-  Future<Result<void, AppError>> sendPasswordResetEmail(
-          String email) async =>
+  Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
       const Result.success(null);
 
-  @override
   Future<Result<void, AppError>> deleteAccount() async =>
       const Result.success(null);
 
@@ -127,7 +125,6 @@ class MockDriveLogService implements DriveLogService {
 DriveLog _makeDriveLog({
   String id = 'log1',
   String userId = 'user1',
-  String? title,
   double distance = 42.5,
   int durationSecs = 3600,
 }) {
@@ -154,7 +151,6 @@ DriveLog _makeDriveLog({
 
 Widget _buildUnderTest({
   required MockDriveLogService driveLogService,
-  String? userId,
 }) {
   return MultiProvider(
     providers: [
@@ -162,8 +158,14 @@ Widget _buildUnderTest({
         create: (_) => _LoggedInAuthProvider(),
       ),
       ChangeNotifierProvider(
-        create: (_) =>
-            DriveLogProvider(driveLogService: driveLogService),
+        create: (_) => DriveLogProvider(driveLogService: driveLogService),
+      ),
+      ChangeNotifierProvider(
+        create: (_) => DriveRecordingProvider(
+          driveLogService: driveLogService,
+          permissionChecker: () async => false,
+          positionStreamFactory: () => const Stream.empty(),
+        ),
       ),
     ],
     child: const MaterialApp(home: DriveLogScreen()),
@@ -260,7 +262,7 @@ void main() {
       final deleteButtons = find.byTooltip('削除');
       if (deleteButtons.evaluate().isNotEmpty) {
         await tester.tap(deleteButtons.first);
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(find.text('ドライブログを削除'), findsOneWidget);
         expect(find.text('このドライブログを削除しますか？'), findsOneWidget);
@@ -276,14 +278,49 @@ void main() {
       final deleteButtons = find.byTooltip('削除');
       if (deleteButtons.evaluate().isNotEmpty) {
         await tester.tap(deleteButtons.first);
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         await tester.tap(find.text('キャンセル'));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(find.text('ドライブログを削除'), findsNothing);
         expect(service.lastDeleteId, isNull);
       }
+    });
+  });
+
+  group('アクセシビリティ — 走行サマリー', () {
+    testWidgets('サマリーカードの統計が統合セマンティクスラベルで読み上げ可能', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'log1', distance: 30000.0, durationSecs: 3600),
+      ]);
+
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      // Two pumps: one for the post-frame load, one for the loaded rebuild.
+      await tester.pump();
+      await tester.pump();
+
+      // The summary card merges all stats into one semantics node, so match
+      // the label+value pairs inside the merged announcement.
+      expect(find.bySemanticsLabel(RegExp('総走行距離 30\\.0 km')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('総時間 1h 0m')), findsOneWidget);
+
+      // Must be disposed before the end-of-test verifications run.
+      handle.dispose();
+    });
+
+    testWidgets('サマリーカード表示時にレイアウト例外が発生しない', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'log1', distance: 30000.0),
+        _makeDriveLog(id: 'log2', distance: 15000.0),
+      ]);
+
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.textContaining('走行サマリー'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 

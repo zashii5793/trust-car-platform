@@ -67,12 +67,12 @@ enum TransmissionType {
 
 /// 任意保険情報
 class VoluntaryInsurance {
-  final String? companyName;      // 保険会社名
-  final String? policyNumber;     // 証券番号
-  final DateTime? expiryDate;     // 満了日
-  final String? coverageType;     // 補償内容
-  final String? agentName;        // 代理店名
-  final String? agentPhone;       // 代理店電話番号
+  final String? companyName; // 保険会社名
+  final String? policyNumber; // 証券番号
+  final DateTime? expiryDate; // 満了日
+  final String? coverageType; // 補償内容
+  final String? agentName; // 代理店名
+  final String? agentPhone; // 代理店電話番号
 
   const VoluntaryInsurance({
     this.companyName,
@@ -149,31 +149,32 @@ class Vehicle {
   final int year;
   final String grade;
   final int mileage;
+  final DateTime? mileageUpdatedAt; // Last updated date of mileage
   final String? imageUrl;
   final DateTime createdAt;
   final DateTime updatedAt;
 
   // Phase 1.5 追加フィールド: 識別情報
-  final String? licensePlate;     // ナンバープレート（例: "品川 300 あ 12-34"）
-  final String? vinNumber;        // 車台番号（17桁）
-  final String? modelCode;        // 型式（例: "DBA-GRB"）
+  final String? licensePlate; // ナンバープレート（例: "品川 300 あ 12-34"）
+  final String? vinNumber; // 車台番号（17桁）
+  final String? modelCode; // 型式（例: "DBA-GRB"）
 
   // Phase 1.5 追加フィールド: 車検・保険
-  final DateTime? inspectionExpiryDate;  // 車検満了日 ★最重要
-  final DateTime? insuranceExpiryDate;   // 自賠責保険期限
+  final DateTime? inspectionExpiryDate; // 車検満了日 ★最重要
+  final DateTime? insuranceExpiryDate; // 自賠責保険期限
 
   // Phase 1.5 追加フィールド: 詳細情報
-  final String? color;            // 車体色
-  final int? engineDisplacement;  // 排気量(cc)
-  final FuelType? fuelType;       // 燃料タイプ
-  final DateTime? purchaseDate;   // 購入日/納車日
+  final String? color; // 車体色
+  final int? engineDisplacement; // 排気量(cc)
+  final FuelType? fuelType; // 燃料タイプ
+  final DateTime? purchaseDate; // 購入日/納車日
 
   // Phase 5 追加フィールド: 車両詳細
-  final DateTime? firstRegistrationDate;  // 初年度登録日
-  final DriveType? driveType;             // 駆動方式
-  final TransmissionType? transmissionType;  // ミッション種別
-  final int? vehicleWeight;               // 車両重量(kg)
-  final int? seatingCapacity;             // 乗車定員
+  final DateTime? firstRegistrationDate; // 初年度登録日
+  final DriveType? driveType; // 駆動方式
+  final TransmissionType? transmissionType; // ミッション種別
+  final int? vehicleWeight; // 車両重量(kg)
+  final int? seatingCapacity; // 乗車定員
 
   // Phase 5 追加フィールド: 任意保険情報
   final VoluntaryInsurance? voluntaryInsurance;
@@ -186,6 +187,7 @@ class Vehicle {
     required this.year,
     required this.grade,
     required this.mileage,
+    this.mileageUpdatedAt,
     this.imageUrl,
     required this.createdAt,
     required this.updatedAt,
@@ -242,7 +244,8 @@ class Vehicle {
   String get displayName => '$maker $model';
 
   /// 車両の完全な表示名（メーカー + 車種 + グレード）
-  String get fullDisplayName => grade.isNotEmpty ? '$maker $model $grade' : '$maker $model';
+  String get fullDisplayName =>
+      grade.isNotEmpty ? '$maker $model $grade' : '$maker $model';
 
   // Firestoreからデータを取得
   factory Vehicle.fromFirestore(DocumentSnapshot doc) {
@@ -255,6 +258,7 @@ class Vehicle {
       year: data['year'] ?? 0,
       grade: data['grade'] ?? '',
       mileage: data['mileage'] ?? 0,
+      mileageUpdatedAt: _parseTimestampNullable(data['mileageUpdatedAt']),
       imageUrl: data['imageUrl'],
       createdAt: _parseTimestamp(data['createdAt']),
       updatedAt: _parseTimestamp(data['updatedAt']),
@@ -262,19 +266,22 @@ class Vehicle {
       licensePlate: data['licensePlate'],
       vinNumber: data['vinNumber'],
       modelCode: data['modelCode'],
-      inspectionExpiryDate: _parseTimestampNullable(data['inspectionExpiryDate']),
+      inspectionExpiryDate:
+          _parseTimestampNullable(data['inspectionExpiryDate']),
       insuranceExpiryDate: _parseTimestampNullable(data['insuranceExpiryDate']),
       color: data['color'],
       engineDisplacement: data['engineDisplacement'],
       fuelType: FuelType.fromString(data['fuelType']),
       purchaseDate: _parseTimestampNullable(data['purchaseDate']),
       // Phase 5 追加フィールド
-      firstRegistrationDate: _parseTimestampNullable(data['firstRegistrationDate']),
+      firstRegistrationDate:
+          _parseTimestampNullable(data['firstRegistrationDate']),
       driveType: DriveType.fromString(data['driveType']),
       transmissionType: TransmissionType.fromString(data['transmissionType']),
       vehicleWeight: data['vehicleWeight'],
       seatingCapacity: data['seatingCapacity'],
-      voluntaryInsurance: VoluntaryInsurance.fromMap(data['voluntaryInsurance']),
+      voluntaryInsurance:
+          VoluntaryInsurance.fromMap(data['voluntaryInsurance']),
     );
   }
 
@@ -309,6 +316,9 @@ class Vehicle {
       'year': year,
       'grade': grade,
       'mileage': mileage,
+      'mileageUpdatedAt': mileageUpdatedAt != null
+          ? Timestamp.fromDate(mileageUpdatedAt!)
+          : null,
       'imageUrl': imageUrl,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -325,9 +335,8 @@ class Vehicle {
       'color': color,
       'engineDisplacement': engineDisplacement,
       'fuelType': fuelType?.name,
-      'purchaseDate': purchaseDate != null
-          ? Timestamp.fromDate(purchaseDate!)
-          : null,
+      'purchaseDate':
+          purchaseDate != null ? Timestamp.fromDate(purchaseDate!) : null,
       // Phase 5 追加フィールド
       'firstRegistrationDate': firstRegistrationDate != null
           ? Timestamp.fromDate(firstRegistrationDate!)
@@ -349,6 +358,7 @@ class Vehicle {
     int? year,
     String? grade,
     int? mileage,
+    DateTime? mileageUpdatedAt,
     String? imageUrl,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -378,6 +388,7 @@ class Vehicle {
       year: year ?? this.year,
       grade: grade ?? this.grade,
       mileage: mileage ?? this.mileage,
+      mileageUpdatedAt: mileageUpdatedAt ?? this.mileageUpdatedAt,
       imageUrl: imageUrl ?? this.imageUrl,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -392,7 +403,8 @@ class Vehicle {
       fuelType: fuelType ?? this.fuelType,
       purchaseDate: purchaseDate ?? this.purchaseDate,
       // Phase 5 追加
-      firstRegistrationDate: firstRegistrationDate ?? this.firstRegistrationDate,
+      firstRegistrationDate:
+          firstRegistrationDate ?? this.firstRegistrationDate,
       driveType: driveType ?? this.driveType,
       transmissionType: transmissionType ?? this.transmissionType,
       vehicleWeight: vehicleWeight ?? this.vehicleWeight,

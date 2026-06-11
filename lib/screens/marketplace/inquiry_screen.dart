@@ -17,10 +17,18 @@ class InquiryScreen extends StatefulWidget {
   final Shop shop;
   final String? vehicleId;
 
+  /// Pre-fills the subject field. Used when navigating from an AI suggestion.
+  final String? prefillSubject;
+
+  /// Pre-fills the message body. Used when navigating from an AI suggestion.
+  final String? prefillMessage;
+
   const InquiryScreen({
     super.key,
     required this.shop,
     this.vehicleId,
+    this.prefillSubject,
+    this.prefillMessage,
   });
 
   @override
@@ -40,6 +48,13 @@ class _InquiryScreenState extends State<InquiryScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.prefillSubject != null) {
+      _subjectController.text = widget.prefillSubject!;
+    }
+    if (widget.prefillMessage != null) {
+      _messageController.text = widget.prefillMessage!;
+      _messageLength = widget.prefillMessage!.length;
+    }
     _messageController.addListener(() {
       setState(() => _messageLength = _messageController.text.length);
     });
@@ -229,9 +244,8 @@ class _ShopMiniCard extends StatelessWidget {
             radius: 20,
             backgroundImage:
                 shop.logoUrl != null ? NetworkImage(shop.logoUrl!) : null,
-            child: shop.logoUrl == null
-                ? const Icon(Icons.store, size: 20)
-                : null,
+            child:
+                shop.logoUrl == null ? const Icon(Icons.store, size: 20) : null,
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -259,7 +273,8 @@ class _ShopMiniCard extends StatelessWidget {
                     if (shop.isVerified)
                       const Padding(
                         padding: EdgeInsets.only(left: 4),
-                        child: Icon(Icons.verified, size: 14, color: Colors.blue),
+                        child:
+                            Icon(Icons.verified, size: 14, color: Colors.blue),
                       ),
                   ],
                 ),
@@ -323,8 +338,7 @@ class _InquiryTypeChips extends StatelessWidget {
               onSelected: (_) => onChanged(type),
               labelStyle: TextStyle(
                 fontSize: 12,
-                fontWeight:
-                    isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
               visualDensity: VisualDensity.compact,
             );

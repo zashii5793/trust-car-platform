@@ -28,7 +28,8 @@ void main() {
   group('InquiryType', () {
     test('fromString returns correct enum value', () {
       expect(InquiryType.fromString('partInquiry'), InquiryType.partInquiry);
-      expect(InquiryType.fromString('serviceInquiry'), InquiryType.serviceInquiry);
+      expect(
+          InquiryType.fromString('serviceInquiry'), InquiryType.serviceInquiry);
       expect(InquiryType.fromString('estimate'), InquiryType.estimate);
       expect(InquiryType.fromString('appointment'), InquiryType.appointment);
     });
@@ -170,7 +171,6 @@ void main() {
     });
 
     test('vehicleDisplay returns null when no maker', () {
-      final noVehicle = inquiry.copyWith(vehicleMaker: null);
       // Note: copyWith doesn't allow setting to null, so we create a new inquiry
       final noVehicleInquiry = Inquiry(
         id: 'inq2',

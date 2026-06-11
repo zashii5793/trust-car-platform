@@ -43,7 +43,8 @@ class MockFirebaseService implements FirebaseService {
   }
 
   @override
-  Future<Result<void, AppError>> updateVehicle(String vehicleId, Vehicle vehicle) async {
+  Future<Result<void, AppError>> updateVehicle(
+      String vehicleId, Vehicle vehicle) async {
     updateVehicleCalled = true;
     return updateVehicleResult ?? const Result.success(null);
   }
@@ -65,25 +66,29 @@ class MockFirebaseService implements FirebaseService {
 
   // Unused methods for this test
   @override
-  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(String vehicleId) =>
+  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(
+          String vehicleId) =>
       const Stream.empty();
 
   @override
-  Future<Result<List<MaintenanceRecord>, AppError>> getMaintenanceRecordsForVehicle(
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getMaintenanceRecordsForVehicle(
     String vehicleId, {
     int limit = 20,
   }) async =>
-      const Result.success([]);
+          const Result.success([]);
 
   @override
-  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>> getMaintenanceRecordsForVehicles(
+  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>>
+      getMaintenanceRecordsForVehicles(
     List<String> vehicleIds, {
     int limitPerVehicle = 20,
   }) async =>
-      const Result.success({});
+          const Result.success({});
 
   @override
-  Future<Result<String, AppError>> addMaintenanceRecord(MaintenanceRecord record) async =>
+  Future<Result<String, AppError>> addMaintenanceRecord(
+          MaintenanceRecord record) async =>
       const Result.success('record-id');
 
   @override
@@ -94,7 +99,8 @@ class MockFirebaseService implements FirebaseService {
       const Result.success(null);
 
   @override
-  Future<Result<void, AppError>> deleteMaintenanceRecord(String recordId) async =>
+  Future<Result<void, AppError>> deleteMaintenanceRecord(
+          String recordId) async =>
       const Result.success(null);
 
   @override
@@ -109,7 +115,8 @@ class MockFirebaseService implements FirebaseService {
       const Result.success(null);
 
   @override
-  Future<Result<String, AppError>> uploadImage(dynamic imageFile, String path) async =>
+  Future<Result<String, AppError>> uploadImage(
+          dynamic imageFile, String path) async =>
       const Result.success('http://example.com/image.jpg');
 
   @override
@@ -307,7 +314,8 @@ void main() {
         expect(provider.selectedVehicle, isNull);
       });
 
-      test('does not clear selectedVehicle if different vehicle deleted', () async {
+      test('does not clear selectedVehicle if different vehicle deleted',
+          () async {
         final vehicle = _createTestVehicle(id: 'selected-vehicle');
         provider.selectVehicle(vehicle);
 
@@ -326,7 +334,8 @@ void main() {
       });
 
       test('returns true when license plate exists', () async {
-        mockFirebaseService.isLicensePlateExistsResult = const Result.success(true);
+        mockFirebaseService.isLicensePlateExistsResult =
+            const Result.success(true);
 
         final exists = await provider.isLicensePlateExists('ABC-1234');
 
@@ -334,7 +343,8 @@ void main() {
       });
 
       test('returns false when license plate does not exist', () async {
-        mockFirebaseService.isLicensePlateExistsResult = const Result.success(false);
+        mockFirebaseService.isLicensePlateExistsResult =
+            const Result.success(false);
 
         final exists = await provider.isLicensePlateExists('NEW-1234');
 

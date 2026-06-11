@@ -19,6 +19,7 @@ import '../widgets/vehicle/vehicle_selector_fields.dart';
 import 'package:uuid/uuid.dart';
 import 'document_scanner_screen.dart';
 import 'vehicle_certificate_result_screen.dart';
+import 'vehicle/vehicle_ocr_matcher.dart';
 
 class VehicleRegistrationScreen extends StatefulWidget {
   const VehicleRegistrationScreen({super.key});
@@ -64,6 +65,20 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       sl.get<VehicleCertificateOcrService>();
   FirebaseService get _firebaseService => sl.get<FirebaseService>();
   VehicleMasterService get _masterService => sl.get<VehicleMasterService>();
+
+  @override
+  void initState() {
+    super.initState();
+    // _isDirty depends on these controllers; rebuild so PopScope.canPop
+    // stays in sync when the user types (otherwise the discard-confirmation
+    // dialog never appears for text-only input).
+    _yearController.addListener(_onDirtyStateChanged);
+    _licensePlateController.addListener(_onDirtyStateChanged);
+  }
+
+  void _onDirtyStateChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
@@ -159,7 +174,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           }
         },
         failure: (error) {
-          showErrorSnackBar(context, error.userMessage);
+          if (mounted) showErrorSnackBar(context, error.userMessage);
         },
       );
     } finally {
@@ -202,18 +217,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     if (mounted) showSuccessSnackBar(context, '車検証の情報を読み取りました');
   }
 
-  VehicleMaker? _findMatchingMaker(
-      List<VehicleMaker> makers, String ocrText) {
-    final lowerText = ocrText.toLowerCase();
-    for (final maker in makers) {
-      if (maker.name.toLowerCase().contains(lowerText) ||
-          maker.nameEn.toLowerCase().contains(lowerText) ||
-          lowerText.contains(maker.name.toLowerCase()) ||
-          lowerText.contains(maker.nameEn.toLowerCase())) {
-        return maker;
-      }
-    }
-    return null;
+  VehicleMaker? _findMatchingMaker(List<VehicleMaker> makers, String ocrText) {
+    return VehicleOcrMatcher.findMaker(makers, ocrText);
   }
 
   Future<void> _loadAndMatchModel(String ocrModelName) async {
@@ -222,14 +227,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         await _masterService.getModelsForMaker(_selectedMaker!.id);
     modelsResult.when(
       success: (models) {
-        final lowerText = ocrModelName.toLowerCase();
-        for (final model in models) {
-          if (model.name.toLowerCase().contains(lowerText) ||
-              (model.nameEn?.toLowerCase().contains(lowerText) ?? false) ||
-              lowerText.contains(model.name.toLowerCase())) {
-            if (mounted) setState(() => _selectedModel = model);
-            break;
-          }
+        final matchedModel = VehicleOcrMatcher.findModel(models, ocrModelName);
+        if (matchedModel != null) {
+          if (mounted) setState(() => _selectedModel = matchedModel);
         }
       },
       failure: (_) {},
@@ -298,17 +298,30 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           _imageBytes!,
           'vehicles/$uuid.jpg',
         );
-        imageUrl = uploadResult.getOrThrow();
+        if (uploadResult.isFailure) {
+          if (mounted) {
+            showErrorSnackBar(context, '画像のアップロードに失敗しました。もう一度お試しください');
+            setState(() => _isLoading = false);
+          }
+          return;
+        }
+        imageUrl = uploadResult.valueOrNull;
+      }
+
+      final currentUserId = _firebaseService.currentUserId;
+      if (currentUserId == null) {
+        if (mounted) showErrorSnackBar(context, 'ログインセッションが切れました。再ログインしてください');
+        return;
       }
 
       final vehicle = Vehicle(
         id: '',
-        userId: _firebaseService.currentUserId ?? '',
+        userId: currentUserId,
         maker: _selectedMaker?.name ?? '',
         model: _selectedModel?.name ?? '',
-        year: int.parse(_yearController.text),
+        year: int.tryParse(_yearController.text) ?? DateTime.now().year,
         grade: _selectedGrade?.name ?? '',
-        mileage: int.parse(_mileageController.text),
+        mileage: int.tryParse(_mileageController.text) ?? 0,
         imageUrl: imageUrl,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -332,13 +345,15 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       );
 
       if (!mounted) return;
-      final success =
-          await Provider.of<VehicleProvider>(context, listen: false)
-              .addVehicle(vehicle);
+      final provider = Provider.of<VehicleProvider>(context, listen: false);
+      final success = await provider.addVehicle(vehicle);
 
-      if (success && mounted) {
+      if (!mounted) return;
+      if (success) {
         showSuccessSnackBar(context, '車両を登録しました');
         Navigator.pop(context);
+      } else {
+        showErrorSnackBar(context, provider.errorMessage ?? '登録に失敗しました');
       }
     } catch (e) {
       if (mounted) showErrorSnackBar(context, '登録に失敗しました: $e');
@@ -356,39 +371,75 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   // ビルド
   // ---------------------------------------------------------------------------
 
+  bool get _isDirty =>
+      _currentStep > 0 ||
+      _selectedMaker != null ||
+      _yearController.text.isNotEmpty ||
+      _licensePlateController.text.isNotEmpty ||
+      _imageBytes != null;
+
+  Future<bool> _confirmDiscard(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('登録を中断しますか？'),
+        content: const Text('入力中のデータは保存されません。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('続ける'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('中断する', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_stepTitle),
-        leading: _currentStep > 0
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: _previousStep,
-              )
-            : null,
-      ),
-      body: AppLoadingOverlay(
-        isLoading: _isLoading,
-        message: '登録中...',
-        child: Column(
-          children: [
-            _WizardStepIndicator(currentStep: _currentStep),
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _buildStep1(),
-                  _buildStep2(),
-                  _buildStep3(),
-                ],
-              ),
-            ),
-            _buildNavigationButtons(),
-          ],
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldPop = await _confirmDiscard(context);
+        if (shouldPop && context.mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_stepTitle),
+          leading: _currentStep > 0
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: _previousStep,
+                )
+              : null,
         ),
-      ),
+        body: AppLoadingOverlay(
+          isLoading: _isLoading,
+          message: '登録中...',
+          child: Column(
+            children: [
+              _WizardStepIndicator(currentStep: _currentStep),
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _buildStep1(),
+                    _buildStep2(),
+                    _buildStep3(),
+                  ],
+                ),
+              ),
+              _buildNavigationButtons(),
+            ],
+          ),
+        ),
+      ), // PopScope
     );
   }
 
@@ -417,14 +468,12 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               child: Container(
                 height: 120,
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.darkCard
-                      : AppColors.backgroundLight,
+                  color:
+                      isDark ? AppColors.darkCard : AppColors.backgroundLight,
                   borderRadius: AppSpacing.borderRadiusMd,
                   border: Border.all(
-                    color: isDark
-                        ? AppColors.darkTextTertiary
-                        : AppColors.border,
+                    color:
+                        isDark ? AppColors.darkTextTertiary : AppColors.border,
                   ),
                 ),
                 child: _imageBytes != null
@@ -479,8 +528,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                   _selectedGrade = null;
                 });
               },
-              validator: (value) =>
-                  value == null ? 'メーカーを選択してください' : null,
+              validator: (value) => value == null ? 'メーカーを選択してください' : null,
             ),
             AppSpacing.verticalMd,
 
@@ -493,8 +541,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                   _selectedGrade = null;
                 });
               },
-              validator: (value) =>
-                  value == null ? '車種を選択してください' : null,
+              validator: (value) => value == null ? '車種を選択してください' : null,
             ),
             AppSpacing.verticalMd,
 
@@ -523,9 +570,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                   child: GradeSelectorField(
                     modelId: _selectedModel?.id,
                     selectedGrade: _selectedGrade,
-                    onChanged: (grade) => setState(() => _selectedGrade = grade),
-                    validator: (value) =>
-                        value == null ? 'グレードを選択' : null,
+                    onChanged: (grade) =>
+                        setState(() => _selectedGrade = grade),
+                    validator: (value) => value == null ? 'グレードを選択' : null,
                   ),
                 ),
               ],
@@ -571,8 +618,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             decoration: BoxDecoration(
               color: AppColors.info.withValues(alpha: 0.08),
               borderRadius: AppSpacing.borderRadiusMd,
-              border: Border.all(
-                  color: AppColors.info.withValues(alpha: 0.25)),
+              border: Border.all(color: AppColors.info.withValues(alpha: 0.25)),
             ),
             child: Row(
               children: [
@@ -606,11 +652,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             onTap: () => _selectDate(
               title: '車検満了日を選択',
               currentDate: _inspectionExpiryDate,
-              firstDate:
-                  DateTime.now().subtract(const Duration(days: 365)),
+              firstDate: DateTime.now().subtract(const Duration(days: 365)),
               lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
-              onSelected: (d) =>
-                  setState(() => _inspectionExpiryDate = d),
+              onSelected: (d) => setState(() => _inspectionExpiryDate = d),
             ),
           ),
           AppSpacing.verticalSm,
@@ -624,11 +668,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             onTap: () => _selectDate(
               title: '自賠責保険期限を選択',
               currentDate: _insuranceExpiryDate,
-              firstDate:
-                  DateTime.now().subtract(const Duration(days: 365)),
+              firstDate: DateTime.now().subtract(const Duration(days: 365)),
               lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
-              onSelected: (d) =>
-                  setState(() => _insuranceExpiryDate = d),
+              onSelected: (d) => setState(() => _insuranceExpiryDate = d),
             ),
           ),
           AppSpacing.verticalLg,
@@ -668,8 +710,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               decoration: BoxDecoration(
                 color: AppColors.success.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                border: Border.all(
-                    color: AppColors.success.withValues(alpha: 0.3)),
+                border:
+                    Border.all(color: AppColors.success.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -773,7 +815,10 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md, AppSpacing.xs, AppSpacing.md, AppSpacing.md,
+          AppSpacing.md,
+          AppSpacing.xs,
+          AppSpacing.md,
+          AppSpacing.md,
         ),
         child: Row(
           children: [
@@ -800,7 +845,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                     )
                   : AppButton.primary(
                       label: '登録する',
-                      onPressed: _registerVehicle,
+                      onPressed: _isLoading ? null : _registerVehicle,
                       isFullWidth: true,
                       icon: Icons.check,
                       size: AppButtonSize.large,
@@ -888,8 +933,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           children: [
             Icon(
               icon,
-              color:
-                  isWarning ? AppColors.warning : theme.colorScheme.primary,
+              color: isWarning ? AppColors.warning : theme.colorScheme.primary,
             ),
             AppSpacing.horizontalMd,
             Expanded(
@@ -940,8 +984,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       children: [
         Text(
           '燃料タイプ',
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(fontWeight: FontWeight.w500),
+          style:
+              theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
         ),
         AppSpacing.verticalXs,
         Wrap(
@@ -1027,8 +1071,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.secondary.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
@@ -1078,7 +1122,10 @@ class _WizardStepIndicator extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.xs,
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.xs,
       ),
       child: Column(
         children: [
@@ -1128,8 +1175,7 @@ class _WizardStepIndicator extends StatelessWidget {
                             ? primaryColor.withValues(alpha: 0.55)
                             : theme.colorScheme.onSurface
                                 .withValues(alpha: 0.35),
-                    fontWeight:
-                        isCurrent ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
               );

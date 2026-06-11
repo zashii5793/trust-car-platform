@@ -84,19 +84,52 @@ class CreatePartListingInput {
   });
 }
 
+/// Data class for updating an existing user-submitted part listing.
+///
+/// [existingImageUrls] contains URLs to keep without re-uploading.
+/// [newImages] contains new files that will be uploaded before the update.
+class UpdatePartListingInput {
+  final String listingId;
+  final String title;
+  final PartCategory category;
+  final PartCondition condition;
+  final int price;
+  final String description;
+  final String? compatibleVehicle;
+  final List<String> existingImageUrls;
+  final List<File> newImages;
+  final ShippingMethod shippingMethod;
+
+  const UpdatePartListingInput({
+    required this.listingId,
+    required this.title,
+    required this.category,
+    required this.condition,
+    required this.price,
+    required this.description,
+    this.compatibleVehicle,
+    this.existingImageUrls = const [],
+    this.newImages = const [],
+    required this.shippingMethod,
+  });
+}
+
 /// Service for user-submitted part listings in the marketplace
 class PartListingService {
   final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
   final FirebaseService _firebaseService;
+  // Injectable for testability (mirrors DriveRecordingProvider pattern)
+  final String? Function() _getCurrentUid;
 
   PartListingService({
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
     FirebaseService? firebaseService,
+    String? Function()? getCurrentUid,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance,
-        _firebaseService = firebaseService ?? FirebaseService();
+        _firebaseService = firebaseService ?? FirebaseService(),
+        _getCurrentUid = getCurrentUid ??
+            (() => (auth ?? FirebaseAuth.instance).currentUser?.uid);
 
   static const String _collection = 'user_part_listings';
 
@@ -108,7 +141,7 @@ class PartListingService {
   Future<Result<String, AppError>> createListing(
     CreatePartListingInput input,
   ) async {
-    final uid = _auth.currentUser?.uid;
+    final uid = _getCurrentUid();
     if (uid == null) {
       return const Result.failure(
         AppError.auth('Not authenticated', type: AuthErrorType.unknown),
@@ -131,7 +164,8 @@ class PartListingService {
       // Upload images to Firebase Storage
       List<String> imageUrls = [];
       if (input.images.isNotEmpty) {
-        final basePath = 'user_part_listings/$uid/${DateTime.now().millisecondsSinceEpoch}';
+        final basePath =
+            'user_part_listings/$uid/${DateTime.now().millisecondsSinceEpoch}';
         final uploadResult =
             await _firebaseService.uploadImages(input.images, basePath);
         if (uploadResult.isFailure) {
@@ -174,6 +208,79 @@ class PartListingService {
     }
   }
 
+  /// Update an existing part listing.
+  ///
+  /// Uploads [input.newImages] to Firebase Storage, then combines their URLs
+  /// with [input.existingImageUrls] and writes the updated Firestore document.
+  Future<Result<void, AppError>> updateListing(
+    UpdatePartListingInput input,
+  ) async {
+    if (input.listingId.isEmpty) {
+      return const Result.failure(
+        AppError.validation('Listing ID is required', field: 'listingId'),
+      );
+    }
+    if (input.title.trim().isEmpty) {
+      return const Result.failure(
+        AppError.validation('Title is required', field: 'title'),
+      );
+    }
+    if (input.price <= 0) {
+      return const Result.failure(
+        AppError.validation('Price must be greater than 0', field: 'price'),
+      );
+    }
+
+    final uid = _getCurrentUid();
+    if (uid == null) {
+      return const Result.failure(
+        AppError.auth('Not authenticated', type: AuthErrorType.unknown),
+      );
+    }
+
+    try {
+      // Upload any newly selected images
+      List<String> newUrls = [];
+      if (input.newImages.isNotEmpty) {
+        final basePath =
+            'user_part_listings/$uid/${DateTime.now().millisecondsSinceEpoch}';
+        final uploadResult =
+            await _firebaseService.uploadImages(input.newImages, basePath);
+        if (uploadResult.isFailure) {
+          return Result.failure(uploadResult.errorOrNull!);
+        }
+        newUrls = uploadResult.valueOrNull!;
+      }
+
+      final combinedImageUrls = [...input.existingImageUrls, ...newUrls];
+
+      await _ref.doc(input.listingId).update({
+        'title': input.title.trim(),
+        'category': input.category.name,
+        'condition': input.condition.name,
+        'price': input.price,
+        'description': input.description.trim(),
+        'compatibleVehicle': input.compatibleVehicle?.trim(),
+        'imageUrls': combinedImageUrls,
+        'shippingMethod': input.shippingMethod.name,
+        'payout': calculatePayout(input.price),
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+
+      return const Result.success(null);
+    } on FirebaseException catch (e) {
+      return Result.failure(AppError.unknown(
+        'Firestore update failed: ${e.message}',
+        originalError: e,
+      ));
+    } catch (e) {
+      return Result.failure(AppError.unknown(
+        'Failed to update listing',
+        originalError: e,
+      ));
+    }
+  }
+
   /// Get listings created by the specified seller, ordered by createdAt descending.
   Future<Result<List<UserPartListing>, AppError>> getMyListings(
     String sellerId,
@@ -181,6 +288,17 @@ class PartListingService {
     if (sellerId.isEmpty) {
       return const Result.failure(
         AppError.validation('Seller ID is required', field: 'sellerId'),
+      );
+    }
+    final currentUid = _getCurrentUid();
+    if (currentUid == null) {
+      return const Result.failure(
+        AppError.auth('認証が必要です', type: AuthErrorType.unknown),
+      );
+    }
+    if (currentUid != sellerId) {
+      return const Result.failure(
+        AppError.auth('他のユーザーの出品一覧は取得できません', type: AuthErrorType.unknown),
       );
     }
 

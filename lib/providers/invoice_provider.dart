@@ -59,7 +59,8 @@ class InvoiceProvider with ChangeNotifier {
   void _scheduleRetry(VoidCallback action) {
     if (_retryCount >= _maxRetries) return;
     _retryTimer?.cancel();
-    final delay = Duration(seconds: RetryConfig.baseDelaySeconds << _retryCount);
+    final delay =
+        Duration(seconds: RetryConfig.baseDelaySeconds << _retryCount);
     _retryCount++;
     _retryTimer = Timer(delay, action);
   }
@@ -221,8 +222,10 @@ class InvoiceProvider with ChangeNotifier {
   }
 
   /// 整備記録の請求書を取得
-  Future<Invoice?> getInvoiceByMaintenanceRecord(String maintenanceRecordId) async {
-    final result = await _invoiceService.getInvoiceByMaintenanceRecord(maintenanceRecordId);
+  Future<Invoice?> getInvoiceByMaintenanceRecord(
+      String maintenanceRecordId) async {
+    final result = await _invoiceService
+        .getInvoiceByMaintenanceRecord(maintenanceRecordId);
     return result.getOrElse(null);
   }
 
@@ -231,7 +234,8 @@ class InvoiceProvider with ChangeNotifier {
     required DateTime start,
     required DateTime end,
   }) async {
-    final result = await _invoiceService.getInvoicesByDateRange(start: start, end: end);
+    final result =
+        await _invoiceService.getInvoicesByDateRange(start: start, end: end);
     return result.getOrElse([]);
   }
 

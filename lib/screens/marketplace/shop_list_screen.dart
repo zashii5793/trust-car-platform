@@ -12,8 +12,12 @@ import 'shop_detail_screen.dart';
 /// - ユーザーが工場を探す（工場からの売り込みは排除）
 /// - FABなし・業者起点のアクションなし
 /// - isFeatured は「広告」ラベルで明示（ソート優先度を隠さない）
+/// - [maintenanceContext] が渡された場合はAI提案起点のコンテキストバナーを表示
 class ShopListScreen extends StatefulWidget {
-  const ShopListScreen({super.key});
+  /// Optional search keyword pre-populated from an AI suggestion.
+  final String? maintenanceContext;
+
+  const ShopListScreen({super.key, this.maintenanceContext});
 
   @override
   State<ShopListScreen> createState() => _ShopListScreenState();
@@ -26,7 +30,12 @@ class _ShopListScreenState extends State<ShopListScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ShopProvider>().loadShops();
+      final provider = context.read<ShopProvider>();
+      provider.loadShops();
+      if (widget.maintenanceContext != null) {
+        _searchController.text = widget.maintenanceContext!;
+        provider.searchShops(widget.maintenanceContext!);
+      }
     });
   }
 
@@ -63,6 +72,8 @@ class _ShopListScreenState extends State<ShopListScreen> {
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (widget.maintenanceContext != null)
+                _AiContextBanner(context: widget.maintenanceContext!),
               _SearchBar(
                 controller: _searchController,
                 onChanged: _onSearchChanged,
@@ -92,11 +103,9 @@ class _ShopListScreenState extends State<ShopListScreen> {
 
     if (provider.shops.isEmpty) {
       return AppEmptyState(
-        icon: Icons.store_mall_directory_outlined,
-        title: '工場が見つかりません',
-        description: 'フィルタや検索条件を変えてお試しください',
-        buttonLabel: 'フィルタをリセット',
-        onButtonPressed: provider.clearFilters,
+        icon: Icons.store_outlined,
+        title: '整備工場・業者が見つかりません',
+        description: '検索条件を変えるか、\nしばらく経ってから再度お試しください',
       );
     }
 
@@ -118,6 +127,47 @@ class _ShopListScreenState extends State<ShopListScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AIコンテキストバナー（AI提案から遷移した場合のみ表示）
+// ---------------------------------------------------------------------------
+
+class _AiContextBanner extends StatelessWidget {
+  final String context;
+
+  const _AiContextBanner({required this.context});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final theme = Theme.of(ctx);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.6),
+      child: Row(
+        children: [
+          Icon(
+            Icons.smart_toy_outlined,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              'AIの提案: $context に対応できる工場を表示しています',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -303,7 +353,8 @@ class _FilterDropdownChip<T> extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.lg)),
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppSpacing.lg)),
       ),
       builder: (ctx) {
         return Column(
@@ -391,14 +442,53 @@ class _ResultCount extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 const _prefectures = [
-  '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県',
-  '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県',
-  '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県',
-  '岐阜県', '静岡県', '愛知県', '三重県',
-  '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県', '和歌山県',
-  '鳥取県', '島根県', '岡山県', '広島県', '山口県',
-  '徳島県', '香川県', '愛媛県', '高知県',
-  '福岡県', '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県',
+  '北海道',
+  '青森県',
+  '岩手県',
+  '宮城県',
+  '秋田県',
+  '山形県',
+  '福島県',
+  '茨城県',
+  '栃木県',
+  '群馬県',
+  '埼玉県',
+  '千葉県',
+  '東京都',
+  '神奈川県',
+  '新潟県',
+  '富山県',
+  '石川県',
+  '福井県',
+  '山梨県',
+  '長野県',
+  '岐阜県',
+  '静岡県',
+  '愛知県',
+  '三重県',
+  '滋賀県',
+  '京都府',
+  '大阪府',
+  '兵庫県',
+  '奈良県',
+  '和歌山県',
+  '鳥取県',
+  '島根県',
+  '岡山県',
+  '広島県',
+  '山口県',
+  '徳島県',
+  '香川県',
+  '愛媛県',
+  '高知県',
+  '福岡県',
+  '佐賀県',
+  '長崎県',
+  '熊本県',
+  '大分県',
+  '宮崎県',
+  '鹿児島県',
+  '沖縄県',
 ];
 
 // ---------------------------------------------------------------------------
@@ -432,9 +522,8 @@ class _ShopCard extends StatelessWidget {
               // ロゴ/アバター
               CircleAvatar(
                 radius: 28,
-                backgroundImage: shop.logoUrl != null
-                    ? NetworkImage(shop.logoUrl!)
-                    : null,
+                backgroundImage:
+                    shop.logoUrl != null ? NetworkImage(shop.logoUrl!) : null,
                 child: shop.logoUrl == null
                     ? const Icon(Icons.store, size: 28)
                     : null,
@@ -474,7 +563,8 @@ class _ShopCard extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 6, vertical: 1),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceContainerHighest,
+                                color:
+                                    theme.colorScheme.surfaceContainerHighest,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -577,4 +667,3 @@ class _ShopCard extends StatelessWidget {
     );
   }
 }
-

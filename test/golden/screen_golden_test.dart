@@ -2,7 +2,6 @@
 // Run: flutter test --update-goldens test/golden/
 // Images saved to: test/golden/goldens/
 
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -24,14 +23,12 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 // =============================================================================
 
 class MockAuthService implements AuthService {
-  final StreamController<firebase_auth.User?> _authStateController =
-      StreamController<firebase_auth.User?>.broadcast();
-
   @override
   GoogleSignIn get googleSignIn => GoogleSignIn();
 
+  // Emit null immediately so AuthProvider sets isLoading=false and pumpAndSettle resolves.
   @override
-  Stream<firebase_auth.User?> get authStateChanges => _authStateController.stream;
+  Stream<firebase_auth.User?> get authStateChanges => Stream.value(null);
 
   @override
   firebase_auth.User? get currentUser => null;
@@ -52,8 +49,9 @@ class MockAuthService implements AuthService {
       Result.failure(const AuthError('Not implemented'));
 
   @override
-  Future<Result<firebase_auth.UserCredential?, AppError>> signInWithGoogle() async =>
-      Result.failure(const AuthError('Not implemented'));
+  Future<Result<firebase_auth.UserCredential?, AppError>>
+      signInWithGoogle() async =>
+          Result.failure(const AuthError('Not implemented'));
 
   @override
   Future<Result<void, AppError>> signOut() async => const Result.success(null);
@@ -78,10 +76,6 @@ class MockAuthService implements AuthService {
     NotificationSettings settings,
   ) async =>
       const Result.success(null);
-
-  void dispose() {
-    _authStateController.close();
-  }
 }
 
 // =============================================================================
@@ -127,8 +121,7 @@ void main() {
   group('Screen Golden Tests - Auth Screens', () {
     testWidgets('LoginScreen - initial state', (tester) async {
       await tester.pumpWidget(createLoginScreen());
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
@@ -138,8 +131,7 @@ void main() {
 
     testWidgets('SignupScreen - initial state', (tester) async {
       await tester.pumpWidget(createSignupScreen());
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
@@ -149,13 +141,12 @@ void main() {
 
     testWidgets('LoginScreen - with input', (tester) async {
       await tester.pumpWidget(createLoginScreen());
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      // Enter email and password
       final textFields = find.byType(TextFormField);
       await tester.enterText(textFields.at(0), 'test@example.com');
       await tester.enterText(textFields.at(1), 'password123');
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
@@ -165,11 +156,10 @@ void main() {
 
     testWidgets('LoginScreen - validation error', (tester) async {
       await tester.pumpWidget(createLoginScreen());
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      // Tap login without input to trigger validation
       await tester.tap(find.text('ログイン'));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
@@ -179,11 +169,10 @@ void main() {
 
     testWidgets('SignupScreen - validation error', (tester) async {
       await tester.pumpWidget(createSignupScreen());
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      // Tap register without input to trigger validation
       await tester.tap(find.text('アカウントを作成'));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),

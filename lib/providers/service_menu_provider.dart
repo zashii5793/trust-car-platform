@@ -45,7 +45,8 @@ class ServiceMenuProvider with ChangeNotifier {
   void listenToMenus({String? shopId}) {
     _menusSubscription?.cancel();
 
-    _menusSubscription = _serviceMenuService.getActiveServiceMenus(shopId: shopId).listen(
+    _menusSubscription =
+        _serviceMenuService.getActiveServiceMenus(shopId: shopId).listen(
       (menus) {
         _menus = menus;
         _error = null;
@@ -72,7 +73,8 @@ class ServiceMenuProvider with ChangeNotifier {
   void _scheduleRetry(VoidCallback action) {
     if (_retryCount >= _maxRetries) return;
     _retryTimer?.cancel();
-    final delay = Duration(seconds: RetryConfig.baseDelaySeconds << _retryCount);
+    final delay =
+        Duration(seconds: RetryConfig.baseDelaySeconds << _retryCount);
     _retryCount++;
     _retryTimer = Timer(delay, action);
   }
@@ -147,7 +149,8 @@ class ServiceMenuProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    final result = await _serviceMenuService.getGroupedServiceMenus(shopId: shopId);
+    final result =
+        await _serviceMenuService.getGroupedServiceMenus(shopId: shopId);
     result.when(
       success: (grouped) {
         _groupedMenus = grouped;

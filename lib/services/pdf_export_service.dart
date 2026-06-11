@@ -40,7 +40,8 @@ class PdfExportService {
           pw.SizedBox(height: 20),
 
           // メンテナンス履歴テーブル（スパニング対応のためテーブル直接配置）
-          ..._buildMaintenanceTableWidgets(sortedRecords, dateFormat, numberFormat),
+          ..._buildMaintenanceTableWidgets(
+              sortedRecords, dateFormat, numberFormat),
         ],
       ),
     );
@@ -125,7 +126,8 @@ class PdfExportService {
   }
 
   /// 車両情報セクション
-  pw.Widget _buildVehicleInfoSection(Vehicle vehicle, NumberFormat numberFormat) {
+  pw.Widget _buildVehicleInfoSection(
+      Vehicle vehicle, NumberFormat numberFormat) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(15),
       decoration: pw.BoxDecoration(
@@ -155,7 +157,8 @@ class PdfExportService {
           pw.Row(
             children: [
               _buildInfoItem('グレード', vehicle.grade),
-              _buildInfoItem('走行距離', '${numberFormat.format(vehicle.mileage)} km'),
+              _buildInfoItem(
+                  '走行距離', '${numberFormat.format(vehicle.mileage)} km'),
               pw.Expanded(child: pw.SizedBox()),
             ],
           ),
@@ -278,7 +281,9 @@ class PdfExportService {
     DateFormat dateFormat,
     NumberFormat numberFormat,
   ) =>
-      pw.Column(children: _buildMaintenanceTableWidgets(records, dateFormat, numberFormat));
+      pw.Column(
+          children:
+              _buildMaintenanceTableWidgets(records, dateFormat, numberFormat));
 
   /// テーブルをリストで返すことで MultiPage のスパニングに対応
   List<pw.Widget> _buildMaintenanceTableWidgets(

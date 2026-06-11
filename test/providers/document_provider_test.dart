@@ -70,7 +70,8 @@ class MockDocumentService implements DocumentService {
     DateTime? documentDate,
     DateTime? expiryDate,
     bool? isArchived,
-  }) async => updateResult;
+  }) async =>
+      updateResult;
 
   @override
   Future<Result<void, AppError>> archiveDocument(String documentId) async {
@@ -222,8 +223,7 @@ void main() {
       });
 
       test('失敗時にエラーが設定される', () async {
-        mockService.expiringResult =
-            Result.failure(AppError.network('failed'));
+        mockService.expiringResult = Result.failure(AppError.network('failed'));
 
         await provider.loadExpiringDocuments();
 
@@ -353,8 +353,7 @@ void main() {
         mockService.emitDocuments([_makeDoc(id: 'd1')]);
         await Future.microtask(() {});
 
-        mockService.deleteResult =
-            Result.failure(AppError.network('failed'));
+        mockService.deleteResult = Result.failure(AppError.network('failed'));
         final success = await provider.deleteDocument('d1');
 
         expect(success, false);

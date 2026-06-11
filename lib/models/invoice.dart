@@ -45,36 +45,36 @@ enum PaymentStatus {
 /// 請求書モデル
 class Invoice {
   final String id;
-  final String maintenanceRecordId;   // 紐付く整備記録ID
+  final String maintenanceRecordId; // 紐付く整備記録ID
   final String vehicleId;
   final String userId;
 
   // 請求書情報
-  final String invoiceNumber;         // 請求書番号
-  final String? estimateNumber;       // 見積書番号
-  final DateTime issueDate;           // 発行日
-  final DateTime? dueDate;            // 支払期限
+  final String invoiceNumber; // 請求書番号
+  final String? estimateNumber; // 見積書番号
+  final DateTime issueDate; // 発行日
+  final DateTime? dueDate; // 支払期限
 
   // 金額内訳
-  final int partsCost;                // 部品代合計
-  final int laborCost;                // 工賃合計
-  final int miscCost;                 // 諸費用（印紙代、重量税等）
-  final int subtotal;                 // 小計（税抜）
-  final int taxAmount;                // 消費税額
-  final int discountAmount;           // 割引額
-  final int totalAmount;              // 総額
+  final int partsCost; // 部品代合計
+  final int laborCost; // 工賃合計
+  final int miscCost; // 諸費用（印紙代、重量税等）
+  final int subtotal; // 小計（税抜）
+  final int taxAmount; // 消費税額
+  final int discountAmount; // 割引額
+  final int totalAmount; // 総額
 
   // 諸費用内訳（車検時など）
-  final int? stampDuty;               // 印紙代
-  final int? weightTax;               // 重量税
-  final int? liabilityInsurance;      // 自賠責保険料
-  final int? recyclingFee;            // リサイクル料
+  final int? stampDuty; // 印紙代
+  final int? weightTax; // 重量税
+  final int? liabilityInsurance; // 自賠責保険料
+  final int? recyclingFee; // リサイクル料
 
   // 支払情報
   final PaymentMethod? paymentMethod;
   final PaymentStatus paymentStatus;
-  final DateTime? paymentDate;        // 入金日
-  final int? paidAmount;              // 入金額（一部入金の場合）
+  final DateTime? paymentDate; // 入金日
+  final int? paidAmount; // 入金額（一部入金の場合）
 
   // 顧客情報（スナップショット）
   final String? customerName;
@@ -82,7 +82,7 @@ class Invoice {
   final String? customerPhone;
 
   // メタデータ
-  final String? notes;                // 備考
+  final String? notes; // 備考
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -196,7 +196,8 @@ class Invoice {
       'recyclingFee': recyclingFee,
       'paymentMethod': paymentMethod?.name,
       'paymentStatus': paymentStatus.name,
-      'paymentDate': paymentDate != null ? Timestamp.fromDate(paymentDate!) : null,
+      'paymentDate':
+          paymentDate != null ? Timestamp.fromDate(paymentDate!) : null,
       'paidAmount': paidAmount,
       'customerName': customerName,
       'customerAddress': customerAddress,

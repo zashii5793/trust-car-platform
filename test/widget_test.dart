@@ -37,7 +37,8 @@ void main() {
   });
 
   group('AppButton Widget Tests', () {
-    testWidgets('Primary button renders correctly', (WidgetTester tester) async {
+    testWidgets('Primary button renders correctly',
+        (WidgetTester tester) async {
       bool pressed = false;
 
       await tester.pumpWidget(
@@ -57,7 +58,8 @@ void main() {
       expect(pressed, isTrue);
     });
 
-    testWidgets('Secondary button renders correctly', (WidgetTester tester) async {
+    testWidgets('Secondary button renders correctly',
+        (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -88,7 +90,8 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('Disabled button should not respond to tap', (WidgetTester tester) async {
+    testWidgets('Disabled button should not respond to tap',
+        (WidgetTester tester) async {
       bool pressed = false;
 
       await tester.pumpWidget(
@@ -154,7 +157,8 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('AppLoadingCenter renders with message', (WidgetTester tester) async {
+    testWidgets('AppLoadingCenter renders with message',
+        (WidgetTester tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -184,7 +188,8 @@ void main() {
       expect(find.byIcon(Icons.inbox), findsOneWidget);
     });
 
-    testWidgets('AppErrorState renders with retry button', (WidgetTester tester) async {
+    testWidgets('AppErrorState renders with retry button',
+        (WidgetTester tester) async {
       bool retried = false;
 
       await tester.pumpWidget(

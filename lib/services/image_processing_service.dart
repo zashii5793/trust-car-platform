@@ -129,7 +129,8 @@ class ImageProcessingService {
     // Validate first
     final validationResult = validateImage(bytes);
     if (validationResult.isFailure) {
-      return Result.failure(validationResult.errorOrNull ?? const AppError.unknown('Image validation failed'));
+      return Result.failure(validationResult.errorOrNull ??
+          const AppError.unknown('Image validation failed'));
     }
 
     // Then compress
@@ -185,7 +186,8 @@ class ImageProcessingService {
   }
 
   /// Get image dimensions without fully decoding
-  Result<({int width, int height}), AppError> getImageDimensions(Uint8List bytes) {
+  Result<({int width, int height}), AppError> getImageDimensions(
+      Uint8List bytes) {
     try {
       final image = img.decodeImage(bytes);
       if (image == null) {

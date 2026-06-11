@@ -182,13 +182,18 @@ void main() {
     });
 
     test('type が文字列として保存される', () {
-      final map = _make(type: NotificationType.inspectionReminder).toFirestore();
+      final map =
+          _make(type: NotificationType.inspectionReminder).toFirestore();
       expect(map['type'], 'inspectionReminder');
     });
 
     test('priority が文字列として保存される', () {
-      expect(_make(priority: NotificationPriority.high).toFirestore()['priority'], 'high');
-      expect(_make(priority: NotificationPriority.low).toFirestore()['priority'], 'low');
+      expect(
+          _make(priority: NotificationPriority.high).toFirestore()['priority'],
+          'high');
+      expect(
+          _make(priority: NotificationPriority.low).toFirestore()['priority'],
+          'low');
     });
 
     test('isRead が bool として保存される', () {

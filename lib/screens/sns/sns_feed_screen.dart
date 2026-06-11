@@ -63,16 +63,29 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
 
                 if (provider.error != null && provider.feedPosts.isEmpty) {
                   return AppErrorState(
-                    message: provider.errorMessage ?? 'エラーが発生しました',
+                    message: provider.errorMessage ?? 'データを読み込めませんでした',
                     onRetry: () => provider.refreshFeed(),
                   );
                 }
 
                 if (provider.feedPosts.isEmpty) {
+                  // Category filter active but no results
+                  if (provider.selectedCategory != null) {
+                    return AppEmptyState(
+                      icon: Icons.filter_list_off,
+                      title: 'この絞り込みには投稿がありません',
+                      description:
+                          '「${provider.selectedCategory!.displayName}」カテゴリの投稿がまだありません。\n他のカテゴリも探してみましょう。',
+                      buttonLabel: 'すべて表示',
+                      onButtonPressed: () => provider.selectCategory(null),
+                    );
+                  }
+                  // No posts at all
                   return AppEmptyState(
-                    icon: Icons.article_outlined,
-                    title: '投稿がありません',
-                    description: 'まだ投稿がありません。最初の投稿をしてみましょう！',
+                    icon: Icons.forum_outlined,
+                    title: '投稿がまだありません',
+                    description:
+                        '他のユーザーの投稿や、\n気になるハッシュタグを探してみましょう\n\n右下のボタンから最初の投稿をしてみましょう',
                     buttonLabel: '投稿する',
                     onButtonPressed: () => _openCreatePost(context),
                   );
@@ -125,6 +138,24 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
 // ---------------------------------------------------------------------------
 // カテゴリフィルタバー
 // ---------------------------------------------------------------------------
+
+/// カテゴリに対応するアクセントカラーを返す
+Color _categoryColor(PostCategory cat) {
+  switch (cat) {
+    case PostCategory.maintenance:
+      return AppColors.info;
+    case PostCategory.customization:
+      return AppColors.secondary;
+    case PostCategory.drive:
+      return AppColors.success;
+    case PostCategory.question:
+      return AppColors.warning;
+    case PostCategory.sale:
+      return AppColors.error;
+    default:
+      return AppColors.textTertiary;
+  }
+}
 
 /// カテゴリに対応するアイコンを返す
 IconData _categoryIcon(PostCategory cat) {
@@ -244,36 +275,38 @@ class _PostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final accentColor = _categoryColor(post.category);
 
-    return GestureDetector(
-      onTap: () => _openDetail(context),
-      child: Container(
+    return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: AppSpacing.borderRadiusLg,
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+      elevation: isDark ? 0 : 2,
+      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusLg),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _openDetail(context),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // カテゴリ別左アクセントバー
+              Container(width: 4, color: accentColor),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _PostHeader(post: post),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: _PostContent(post: post),
+                    ),
+                    if (post.media.isNotEmpty) _PostMediaRow(media: post.media),
+                    _PostFooter(post: post),
+                  ],
                 ),
-              ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _PostHeader(post: post),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: _PostContent(post: post),
+              ),
+            ],
           ),
-          if (post.media.isNotEmpty) _PostMediaRow(media: post.media),
-          _PostFooter(post: post),
-        ],
-      ),
+        ),
       ),
     );
   }
@@ -360,26 +393,9 @@ class _CategoryBadge extends StatelessWidget {
 
   const _CategoryBadge({required this.category});
 
-  Color _color(PostCategory cat) {
-    switch (cat) {
-      case PostCategory.maintenance:
-        return AppColors.info;
-      case PostCategory.customization:
-        return AppColors.secondary;
-      case PostCategory.drive:
-        return AppColors.success;
-      case PostCategory.question:
-        return AppColors.warning;
-      case PostCategory.sale:
-        return AppColors.error;
-      default:
-        return AppColors.textTertiary;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final color = _color(category);
+    final color = _categoryColor(category);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -428,17 +444,42 @@ class _PostContent extends StatelessWidget {
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
-            runSpacing: 2,
-            children: post.hashtags
-                .map((tag) => Text(
-                      '#$tag',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ))
-                .toList(),
+            runSpacing: 4,
+            children: post.hashtags.map((tag) {
+              return InkWell(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('#$tag のハッシュタグ検索は近日公開予定です'),
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                    border: Border.all(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Text(
+                    '#$tag',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ],
         const SizedBox(height: 8),
@@ -505,77 +546,80 @@ class _PostFooter extends StatelessWidget {
       children: [
         const Divider(height: 1),
         Padding(
-      padding: const EdgeInsets.fromLTRB(8, 2, 12, 6),
-      child: Row(
-        children: [
-          // いいねボタン
-          Consumer2<PostProvider, AuthProvider>(
-            builder: (context, postProvider, authProvider, child) {
-              final userId = authProvider.firebaseUser?.uid ?? '';
-              final liked = postProvider.isLiked(post.id);
-              return InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: userId.isNotEmpty
-                    ? () => postProvider.toggleLike(post.id, userId)
-                    : null,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        liked ? Icons.favorite : Icons.favorite_border,
-                        size: 18,
-                        color: liked ? AppColors.error : tertiary,
+          padding: const EdgeInsets.fromLTRB(8, 2, 12, 6),
+          child: Row(
+            children: [
+              // いいねボタン
+              Consumer2<PostProvider, AuthProvider>(
+                builder: (context, postProvider, authProvider, child) {
+                  final userId = authProvider.firebaseUser?.uid ?? '';
+                  final liked = postProvider.isLiked(post.id);
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: userId.isNotEmpty
+                        ? () => postProvider.toggleLike(post.id, userId)
+                        : null,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            liked ? Icons.favorite : Icons.favorite_border,
+                            size: 18,
+                            color: liked ? AppColors.error : tertiary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${post.likeCount}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: liked ? AppColors.error : tertiary,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${post.likeCount}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: liked ? AppColors.error : tertiary,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(width: 4),
+              // コメント数（表示のみ）
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.chat_bubble_outline, size: 18, color: tertiary),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${post.commentCount}',
+                      style:
+                          theme.textTheme.bodySmall?.copyWith(color: tertiary),
+                    ),
+                  ],
                 ),
-              );
-            },
+              ),
+              const Spacer(),
+              // 投稿者が自分なら削除ボタン
+              Consumer2<PostProvider, AuthProvider>(
+                builder: (context, postProvider, authProvider, child) {
+                  final userId = authProvider.firebaseUser?.uid ?? '';
+                  if (post.userId != userId || userId.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return IconButton(
+                    icon: Icon(Icons.delete_outline, size: 18, color: tertiary),
+                    onPressed: () =>
+                        _confirmDelete(context, postProvider, userId),
+                    tooltip: '削除',
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(6),
+                  );
+                },
+              ),
+            ],
           ),
-          const SizedBox(width: 4),
-          // コメント数（表示のみ）
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.chat_bubble_outline, size: 18, color: tertiary),
-                const SizedBox(width: 4),
-                Text(
-                  '${post.commentCount}',
-                  style: theme.textTheme.bodySmall?.copyWith(color: tertiary),
-                ),
-              ],
-            ),
-          ),
-          const Spacer(),
-          // 投稿者が自分なら削除ボタン
-          Consumer2<PostProvider, AuthProvider>(
-            builder: (context, postProvider, authProvider, child) {
-              final userId = authProvider.firebaseUser?.uid ?? '';
-              if (post.userId != userId || userId.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              return IconButton(
-                icon: Icon(Icons.delete_outline, size: 18, color: tertiary),
-                onPressed: () => _confirmDelete(context, postProvider, userId),
-                tooltip: '削除',
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(6),
-              );
-            },
-          ),
-        ],
-      ),
         ),
       ],
     );

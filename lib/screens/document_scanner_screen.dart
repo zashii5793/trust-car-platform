@@ -37,6 +37,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
   bool _isCapturing = false;
   bool _hasError = false;
   String? _errorMessage;
+  FlashMode _flashMode = FlashMode.auto;
   final ImagePicker _imagePicker = ImagePicker();
 
   @override
@@ -63,6 +64,29 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
     } else if (state == AppLifecycleState.resumed) {
       _initializeCamera();
     }
+  }
+
+  Future<void> _toggleFlash() async {
+    final controller = _controller;
+    if (controller == null || !_isInitialized) return;
+
+    final FlashMode next;
+    if (_flashMode == FlashMode.auto) {
+      next = FlashMode.torch;
+    } else if (_flashMode == FlashMode.torch) {
+      next = FlashMode.off;
+    } else {
+      next = FlashMode.auto;
+    }
+
+    await controller.setFlashMode(next);
+    setState(() => _flashMode = next);
+  }
+
+  IconData get _flashIcon {
+    if (_flashMode == FlashMode.torch) return Icons.flash_on;
+    if (_flashMode == FlashMode.off) return Icons.flash_off;
+    return Icons.flash_auto;
   }
 
   Future<void> _initializeCamera() async {
@@ -107,7 +131,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
   }
 
   Future<void> _captureImage() async {
-    if (_controller == null || !_controller!.value.isInitialized || _isCapturing) {
+    if (_controller == null ||
+        !_controller!.value.isInitialized ||
+        _isCapturing) {
       return;
     }
 
@@ -332,12 +358,10 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
               ),
             ),
 
-            // フラッシュボタン（プレースホルダー）
+            // フラッシュボタン
             IconButton(
-              onPressed: () {
-                // TODO: フラッシュ切り替え
-              },
-              icon: const Icon(Icons.flash_auto, size: 32),
+              onPressed: _isInitialized ? _toggleFlash : null,
+              icon: Icon(_flashIcon, size: 32),
               color: Colors.white,
               tooltip: 'フラッシュ',
             ),
@@ -363,13 +387,14 @@ class _GuideFramePainter extends CustomPainter {
     // 枠のサイズを計算（画面の80%幅、A4比率に近い）
     final frameWidth = size.width * 0.85;
     final frameHeight = documentType == DocumentType.vehicleCertificate
-        ? frameWidth * 0.65  // 車検証は横長
-        : frameWidth * 1.4;  // A4縦向き
+        ? frameWidth * 0.65 // 車検証は横長
+        : frameWidth * 1.4; // A4縦向き
 
     final frameLeft = (size.width - frameWidth) / 2;
-    final frameTop = (size.height - frameHeight) / 2 - 40;  // 少し上寄せ
+    final frameTop = (size.height - frameHeight) / 2 - 40; // 少し上寄せ
 
-    final frameRect = Rect.fromLTWH(frameLeft, frameTop, frameWidth, frameHeight);
+    final frameRect =
+        Rect.fromLTWH(frameLeft, frameTop, frameWidth, frameHeight);
 
     // 暗いオーバーレイ（枠の外側）
     final path = Path()

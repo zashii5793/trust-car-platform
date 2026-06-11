@@ -63,9 +63,12 @@ void main() {
     });
 
     test('fromString が既知の値を正しく変換する', () {
-      expect(ServiceCategory.fromString('inspection'), ServiceCategory.inspection);
-      expect(ServiceCategory.fromString('maintenance'), ServiceCategory.maintenance);
-      expect(ServiceCategory.fromString('oilChange'), ServiceCategory.oilChange);
+      expect(
+          ServiceCategory.fromString('inspection'), ServiceCategory.inspection);
+      expect(ServiceCategory.fromString('maintenance'),
+          ServiceCategory.maintenance);
+      expect(
+          ServiceCategory.fromString('oilChange'), ServiceCategory.oilChange);
       expect(ServiceCategory.fromString('tire'), ServiceCategory.tire);
       expect(ServiceCategory.fromString('coating'), ServiceCategory.coating);
       expect(ServiceCategory.fromString('washing'), ServiceCategory.washing);
@@ -77,7 +80,8 @@ void main() {
 
     test('fromString 不明な文字列は other を返す', () {
       expect(ServiceCategory.fromString(''), ServiceCategory.other);
-      expect(ServiceCategory.fromString('invalid_category'), ServiceCategory.other);
+      expect(ServiceCategory.fromString('invalid_category'),
+          ServiceCategory.other);
     });
 
     test('全 enum 値を往復変換できる', () {
@@ -143,28 +147,30 @@ void main() {
 
   group('ServiceMenu.priceDisplay — perHour', () {
     test('laborCostPerHour あり → 「¥X,XXX/時間」', () {
-      final menu = _makeMenu(
-        pricingType: PricingType.perHour, laborCostPerHour: 8000);
+      final menu =
+          _makeMenu(pricingType: PricingType.perHour, laborCostPerHour: 8000);
       expect(menu.priceDisplay, '¥8,000/時間');
     });
 
     test('laborCostPerHour なし → 「要問合せ」', () {
-      final menu = _makeMenu(
-        pricingType: PricingType.perHour, laborCostPerHour: null);
+      final menu =
+          _makeMenu(pricingType: PricingType.perHour, laborCostPerHour: null);
       expect(menu.priceDisplay, '要問合せ');
     });
 
     test('laborCostPerHour=1000 → 「¥1,000/時間」', () {
-      final menu = _makeMenu(
-        pricingType: PricingType.perHour, laborCostPerHour: 1000);
+      final menu =
+          _makeMenu(pricingType: PricingType.perHour, laborCostPerHour: 1000);
       expect(menu.priceDisplay, '¥1,000/時間');
     });
   });
 
   group('ServiceMenu.priceDisplay — estimate', () {
     test('basePrice あり・なし関わらず「要見積」', () {
-      final withPrice = _makeMenu(pricingType: PricingType.estimate, basePrice: 50000);
-      final withoutPrice = _makeMenu(pricingType: PricingType.estimate, basePrice: null);
+      final withPrice =
+          _makeMenu(pricingType: PricingType.estimate, basePrice: 50000);
+      final withoutPrice =
+          _makeMenu(pricingType: PricingType.estimate, basePrice: null);
       expect(withPrice.priceDisplay, '要見積');
       expect(withoutPrice.priceDisplay, '要見積');
     });
@@ -172,17 +178,20 @@ void main() {
 
   group('ServiceMenu.priceDisplay — fromPrice', () {
     test('basePrice あり → 「¥X,XXX〜」', () {
-      final menu = _makeMenu(pricingType: PricingType.fromPrice, basePrice: 30000);
+      final menu =
+          _makeMenu(pricingType: PricingType.fromPrice, basePrice: 30000);
       expect(menu.priceDisplay, '¥30,000〜');
     });
 
     test('basePrice なし → 「要問合せ」', () {
-      final menu = _makeMenu(pricingType: PricingType.fromPrice, basePrice: null);
+      final menu =
+          _makeMenu(pricingType: PricingType.fromPrice, basePrice: null);
       expect(menu.priceDisplay, '要問合せ');
     });
 
     test('basePrice=500 → 「¥500〜」', () {
-      final menu = _makeMenu(pricingType: PricingType.fromPrice, basePrice: 500);
+      final menu =
+          _makeMenu(pricingType: PricingType.fromPrice, basePrice: 500);
       expect(menu.priceDisplay, '¥500〜');
     });
   });
@@ -294,7 +303,8 @@ void main() {
 
   group('Edge Cases', () {
     test('priceDisplay: 1,000,000 円（百万円）のカンマ区切り', () {
-      final menu = _makeMenu(pricingType: PricingType.fixed, basePrice: 1000000);
+      final menu =
+          _makeMenu(pricingType: PricingType.fixed, basePrice: 1000000);
       expect(menu.priceDisplay, '¥1,000,000');
     });
 

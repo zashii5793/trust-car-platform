@@ -207,7 +207,8 @@ void main() {
 
     test('fullDisplayName はグレードあり→ "maker model grade"', () {
       expect(
-        _make(maker: 'Subaru', model: 'Impreza', grade: 'Sport').fullDisplayName,
+        _make(maker: 'Subaru', model: 'Impreza', grade: 'Sport')
+            .fullDisplayName,
         'Subaru Impreza Sport',
       );
     });
@@ -259,7 +260,8 @@ void main() {
 
     test('車検まで31日のとき isInspectionDueSoon は false（境界値外）', () {
       final v = _make(
-        inspectionExpiryDate: DateTime.now().add(const Duration(days: 31, hours: 12)),
+        inspectionExpiryDate:
+            DateTime.now().add(const Duration(days: 31, hours: 12)),
       );
       expect(v.isInspectionDueSoon, isFalse);
     });
@@ -335,7 +337,8 @@ void main() {
 
     test('transmissionType が文字列として保存される', () {
       expect(
-        _make(transmissionType: TransmissionType.mt).toMap()['transmissionType'],
+        _make(transmissionType: TransmissionType.mt)
+            .toMap()['transmissionType'],
         'mt',
       );
     });
@@ -369,7 +372,8 @@ void main() {
     });
 
     test('fuelType を変更できる', () {
-      final copy = _make(fuelType: FuelType.gasoline).copyWith(fuelType: FuelType.electric);
+      final copy = _make(fuelType: FuelType.gasoline)
+          .copyWith(fuelType: FuelType.electric);
       expect(copy.fuelType, FuelType.electric);
     });
   });

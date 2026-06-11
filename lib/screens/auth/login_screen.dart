@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_text_field.dart';
@@ -46,8 +47,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.signInWithGoogle();
 
-    if (!success && mounted && authProvider.errorMessage != null) {
-      showErrorSnackBar(context, authProvider.errorMessage!);
+    if (!success && mounted) {
+      showErrorSnackBar(context, authProvider.errorMessage ?? 'ログインに失敗しました');
     }
   }
 
@@ -110,15 +111,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                                 colors: [
-                                  Color(0xFF1A4D8F), // primary
-                                  Color(0xFF2563B8), // primaryHover
-                                  Color(0xFF2D7A5F), // secondary
+                                  AppColors.primary,
+                                  AppColors.primaryHover,
+                                  AppColors.secondary,
                                 ],
                               ),
                               borderRadius: AppSpacing.borderRadiusLg,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Color(0xFF1A4D8F),
+                                  color: AppColors.primary,
                                   blurRadius: 20,
                                   offset: Offset(0, 8),
                                   spreadRadius: -4,
@@ -188,6 +189,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ? Icons.visibility_off
                                     : Icons.visibility,
                               ),
+                              tooltip:
+                                  _obscurePassword ? 'パスワードを表示' : 'パスワードを隠す',
                               onPressed: () {
                                 setState(() {
                                   _obscurePassword = !_obscurePassword;
@@ -243,13 +246,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           // Google ログイン
                           OutlinedButton.icon(
                             onPressed: _handleGoogleLogin,
-                            icon: Image.network(
-                              'https://www.google.com/favicon.ico',
-                              width: 20,
-                              height: 20,
-                              errorBuilder: (_, __, ___) =>
-                                  const Icon(Icons.g_mobiledata, size: 20),
-                            ),
+                            icon: const Icon(Icons.g_mobiledata, size: 20),
                             label: const Text('Google でログイン'),
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(

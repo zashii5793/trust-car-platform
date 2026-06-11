@@ -27,9 +27,7 @@ class _PartDetailScreenState extends State<PartDetailScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context
-          .read<PartRecommendationProvider>()
-          .loadPartDetail(widget.part.id);
+      context.read<PartRecommendationProvider>().loadPartDetail(widget.part.id);
     });
   }
 
@@ -76,8 +74,7 @@ class _PartDetailScreenState extends State<PartDetailScreen> {
               : provider.detailErrorMessage != null
                   ? AppErrorState(
                       message: provider.detailErrorMessage!,
-                      onRetry: () =>
-                          provider.loadPartDetail(widget.part.id),
+                      onRetry: () => provider.loadPartDetail(widget.part.id),
                     )
                   : _buildBody(context, part, isDark),
           bottomNavigationBar: provider.detailErrorMessage == null
@@ -129,13 +126,12 @@ class _PartDetailScreenState extends State<PartDetailScreen> {
           rows: [
             _InfoRow('カテゴリ', part.category.displayName),
             if (part.brand != null) _InfoRow('ブランド', part.brand!),
-            if (part.partNumber != null)
-              _InfoRow('品番', part.partNumber!),
+            if (part.partNumber != null) _InfoRow('品番', part.partNumber!),
             _InfoRow('価格', part.priceDisplay),
-            if (part.isPriceNegotiable)
-              _InfoRow('価格交渉', '応相談'),
+            if (part.isPriceNegotiable) _InfoRow('価格交渉', '応相談'),
             if (part.rating != null)
-              _InfoRow('評価', '★ ${part.rating!.toStringAsFixed(1)} (${part.reviewCount}件)'),
+              _InfoRow('評価',
+                  '★ ${part.rating!.toStringAsFixed(1)} (${part.reviewCount}件)'),
           ],
           isDark: isDark,
         ),
@@ -419,7 +415,8 @@ class _CompatibilitySection extends StatelessWidget {
 
         // 自車との互換性（車両指定時）
         if (vehicle != null)
-          _MyCarCompatibilityCard(part: part, vehicle: vehicle!, isDark: isDark),
+          _MyCarCompatibilityCard(
+              part: part, vehicle: vehicle!, isDark: isDark),
 
         if (vehicle != null) AppSpacing.verticalSm,
 
@@ -459,9 +456,8 @@ class _CompatibilitySection extends StatelessWidget {
           Text(
             '対応確認済み車種（${part.compatibleVehicles.length}台）:',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: isDark
-                  ? AppColors.darkTextTertiary
-                  : AppColors.textTertiary,
+              color:
+                  isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
             ),
           ),
           AppSpacing.verticalXs,

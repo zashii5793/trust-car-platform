@@ -53,7 +53,8 @@ void main() {
     });
 
     test('fromString が既知の値を正しく変換する', () {
-      expect(DocumentType.fromString('vehicleRegistration'), DocumentType.vehicleRegistration);
+      expect(DocumentType.fromString('vehicleRegistration'),
+          DocumentType.vehicleRegistration);
       expect(DocumentType.fromString('invoice'), DocumentType.invoice);
       expect(DocumentType.fromString('manual'), DocumentType.manual);
       expect(DocumentType.fromString('other'), DocumentType.other);
@@ -316,9 +317,15 @@ void main() {
     test('Result.success に Document を格納できる', () {
       final now = DateTime.now();
       final doc = Document(
-        id: 'd1', userId: 'u1', type: DocumentType.other,
-        title: 'T', fileUrl: 'url', mimeType: FileMimeType.pdf,
-        uploadedAt: now, createdAt: now, updatedAt: now,
+        id: 'd1',
+        userId: 'u1',
+        type: DocumentType.other,
+        title: 'T',
+        fileUrl: 'url',
+        mimeType: FileMimeType.pdf,
+        uploadedAt: now,
+        createdAt: now,
+        updatedAt: now,
       );
       final result = Result<Document, AppError>.success(doc);
       expect(result.isSuccess, true);

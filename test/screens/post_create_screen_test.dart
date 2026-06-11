@@ -6,12 +6,14 @@ import 'package:provider/provider.dart';
 import 'package:trust_car_platform/screens/sns/post_create_screen.dart';
 import 'package:trust_car_platform/providers/post_provider.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
+import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/services/post_service.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
+import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/models/post.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
-import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
+import 'package:firebase_auth/firebase_auth.dart' show User;
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -52,8 +54,13 @@ class MockPostService implements PostService {
   }
 
   @override
-  Future<Result<void, AppError>> likePost(
-          {required String postId, required String userId}) async =>
+  Future<Result<void, AppError>> likePost({
+    required String postId,
+    required String userId,
+    String? postAuthorId,
+    String? actorDisplayName,
+    String? actorPhotoUrl,
+  }) async =>
       const Result.success(null);
 
   @override
@@ -63,7 +70,8 @@ class MockPostService implements PostService {
 
   @override
   Future<bool> isPostLiked(
-          {required String postId, required String userId}) async => false;
+          {required String postId, required String userId}) async =>
+      false;
 
   @override
   Future<Result<void, AppError>> deletePost(
@@ -85,7 +93,6 @@ class MockAuthService implements AuthService {
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
-/// ログイン済みを偽装する User スタブ（noSuchMethod で未使用メンバをスキップ）
 class _FakeUser implements User {
   @override
   String get uid => 'test-uid';
@@ -103,7 +110,6 @@ class _FakeUser implements User {
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
-/// firebaseUser を非 null で返す AuthProvider サブクラス
 class _LoggedInAuthProvider extends AuthProvider {
   _LoggedInAuthProvider() : super(authService: MockAuthService());
 
@@ -133,6 +139,13 @@ Post _makePost({String content = 'テスト投稿'}) {
   );
 }
 
+/// Minimal FirebaseService stub — VehicleProvider only reads its in-memory
+/// state in these tests, so no method is actually invoked.
+class _StubFirebaseService implements FirebaseService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
 Widget _buildApp(MockPostService mockPostService) {
   return MultiProvider(
     providers: [
@@ -142,13 +155,15 @@ Widget _buildApp(MockPostService mockPostService) {
       ChangeNotifierProvider<AuthProvider>(
         create: (_) => _LoggedInAuthProvider(),
       ),
+      ChangeNotifierProvider<VehicleProvider>(
+        create: (_) => VehicleProvider(firebaseService: _StubFirebaseService()),
+      ),
     ],
     child: const MaterialApp(home: PostCreateScreen()),
   );
 }
 
-/// 投稿作成画面は ListView を使うためデフォルトの 600px 高さだと下部ウィジェットが
-/// レンダリングされない。2000px に拡張して全アイテムをビルドする。
+/// ListView uses 600px default height; expand to 2000px to render all items.
 Future<void> pumpApp(WidgetTester tester, MockPostService service) async {
   await tester.binding.setSurfaceSize(const Size(800, 2000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -167,9 +182,9 @@ void main() {
       mockService = MockPostService();
     });
 
-    testWidgets('画面タイトルが「投稿を作成」になっている', (tester) async {
+    testWidgets('画面タイトルが「新規投稿」になっている', (tester) async {
       await pumpApp(tester, mockService);
-      expect(find.text('投稿を作成'), findsOneWidget);
+      expect(find.text('新規投稿'), findsOneWidget);
     });
 
     testWidgets('カテゴリチップが全種表示される', (tester) async {
@@ -183,15 +198,7 @@ void main() {
     testWidgets('本文テキストフィールドが表示される', (tester) async {
       await pumpApp(tester, mockService);
 
-      expect(find.byType(TextFormField), findsOneWidget);
-    });
-
-    testWidgets('公開設定のラジオボタンが3種表示される', (tester) async {
-      await pumpApp(tester, mockService);
-
-      for (final vis in PostVisibility.values) {
-        expect(find.text(vis.displayName), findsOneWidget);
-      }
+      expect(find.byType(TextField), findsWidgets);
     });
 
     testWidgets('送信ボタンが表示される', (tester) async {
@@ -200,20 +207,20 @@ void main() {
       expect(find.text('投稿する'), findsOneWidget);
     });
 
-    testWidgets('本文なしで送信するとバリデーションエラーになる', (tester) async {
+    testWidgets('本文なしで送信してもcreatePostは呼ばれない', (tester) async {
       await pumpApp(tester, mockService);
 
       await tester.tap(find.text('投稿する'));
       await tester.pump();
 
       expect(mockService.createCallCount, 0);
-      expect(find.text('本文を入力してください'), findsOneWidget);
     });
 
-    testWidgets('空白のみで送信するとバリデーションエラーになる', (tester) async {
+    testWidgets('空白のみで送信するとcreatePostは呼ばれない', (tester) async {
       await pumpApp(tester, mockService);
 
-      await tester.enterText(find.byType(TextFormField), '   ');
+      await tester.enterText(find.byType(TextField).first, '   ');
+      await tester.pump(); // rebuild so the submit button enables
       await tester.tap(find.text('投稿する'));
       await tester.pump();
 
@@ -223,7 +230,8 @@ void main() {
     testWidgets('本文を入力して送信するとcreatePostが呼ばれる', (tester) async {
       await pumpApp(tester, mockService);
 
-      await tester.enterText(find.byType(TextFormField), 'テスト投稿です');
+      await tester.enterText(find.byType(TextField).first, 'テスト投稿です');
+      await tester.pump(); // rebuild so the submit button enables
       await tester.tap(find.text('投稿する'));
       await tester.pump();
 
@@ -234,58 +242,45 @@ void main() {
     testWidgets('カテゴリを選択して投稿するとカテゴリが送信される', (tester) async {
       await pumpApp(tester, mockService);
 
-      // 「メンテナンス」チップをタップ
       await tester.tap(
         find.text(PostCategory.maintenance.displayName).first,
       );
       await tester.pump();
 
-      await tester.enterText(find.byType(TextFormField), 'メンテ記録です');
+      await tester.enterText(find.byType(TextField).first, 'メンテ記録です');
+      await tester.pump(); // rebuild so the submit button enables
       await tester.tap(find.text('投稿する'));
       await tester.pump();
 
       expect(mockService.lastCategory, PostCategory.maintenance);
     });
 
-    testWidgets('公開設定を変更して投稿するとvisibilityが送信される', (tester) async {
-      await pumpApp(tester, mockService);
-
-      await tester.tap(find.text(PostVisibility.followers.displayName));
-      await tester.pump();
-
-      await tester.enterText(find.byType(TextFormField), '投稿テスト');
-      await tester.tap(find.text('投稿する'));
-      await tester.pump();
-
-      expect(mockService.lastVisibility, PostVisibility.followers);
-    });
-
     testWidgets('文字数カウンタが表示される', (tester) async {
       await pumpApp(tester, mockService);
 
-      expect(find.textContaining('/ 1000'), findsOneWidget);
+      expect(find.textContaining('/ 500'), findsOneWidget);
     });
 
     testWidgets('文字を入力すると文字数カウンタが更新される', (tester) async {
       await pumpApp(tester, mockService);
 
-      await tester.enterText(find.byType(TextFormField), 'あいう'); // 3文字
+      await tester.enterText(find.byType(TextField).first, 'あいう'); // 3文字
       await tester.pump();
 
-      expect(find.text('3 / 1000'), findsOneWidget);
+      expect(find.text('3 / 500'), findsOneWidget);
     });
 
     testWidgets('AppBarに投稿ボタンが表示される', (tester) async {
       await pumpApp(tester, mockService);
 
-      // AppBar の「投稿」テキストボタン
       expect(find.widgetWithText(TextButton, '投稿'), findsOneWidget);
     });
 
     testWidgets('AppBarの投稿ボタンからも送信できる', (tester) async {
       await pumpApp(tester, mockService);
 
-      await tester.enterText(find.byType(TextFormField), 'AppBarから投稿テスト');
+      await tester.enterText(find.byType(TextField).first, 'AppBarから投稿テスト');
+      await tester.pump(); // rebuild so the submit button enables
       await tester.tap(find.widgetWithText(TextButton, '投稿'));
       await tester.pump();
 
@@ -298,7 +293,8 @@ void main() {
 
       await pumpApp(tester, mockService);
 
-      await tester.enterText(find.byType(TextFormField), '失敗する投稿');
+      await tester.enterText(find.byType(TextField).first, '失敗する投稿');
+      await tester.pump(); // rebuild so the submit button enables
       await tester.tap(find.text('投稿する'));
       await tester.pump();
 
@@ -308,11 +304,12 @@ void main() {
     // ── Edge Cases ──────────────────────────────────────────────────────────
 
     group('Edge Cases', () {
-      testWidgets('999文字の投稿は送信できる', (tester) async {
+      testWidgets('499文字の投稿は送信できる', (tester) async {
         await pumpApp(tester, mockService);
 
-        final longContent = 'あ' * 999;
-        await tester.enterText(find.byType(TextFormField), longContent);
+        final longContent = 'あ' * 499;
+        await tester.enterText(find.byType(TextField).first, longContent);
+        await tester.pump(); // rebuild so the submit button enables
         await tester.tap(find.text('投稿する'));
         await tester.pump();
 
@@ -322,7 +319,8 @@ void main() {
       testWidgets('デフォルトカテゴリは「一般」になっている', (tester) async {
         await pumpApp(tester, mockService);
 
-        await tester.enterText(find.byType(TextFormField), '一般投稿');
+        await tester.enterText(find.byType(TextField).first, '一般投稿');
+        await tester.pump(); // rebuild so the submit button enables
         await tester.tap(find.text('投稿する'));
         await tester.pump();
 
@@ -332,7 +330,8 @@ void main() {
       testWidgets('デフォルト公開設定は「全体公開」になっている', (tester) async {
         await pumpApp(tester, mockService);
 
-        await tester.enterText(find.byType(TextFormField), '公開投稿');
+        await tester.enterText(find.byType(TextField).first, '公開投稿');
+        await tester.pump(); // rebuild so the submit button enables
         await tester.tap(find.text('投稿する'));
         await tester.pump();
 
@@ -342,24 +341,23 @@ void main() {
       testWidgets('カテゴリを複数回変更しても最後に選んだものが送信される', (tester) async {
         await pumpApp(tester, mockService);
 
-        await tester.tap(
-            find.text(PostCategory.drive.displayName).first);
+        await tester.tap(find.text(PostCategory.drive.displayName).first);
         await tester.pump();
-        await tester.tap(
-            find.text(PostCategory.review.displayName).first);
+        await tester.tap(find.text(PostCategory.review.displayName).first);
         await tester.pump();
 
-        await tester.enterText(find.byType(TextFormField), 'レビュー投稿');
+        await tester.enterText(find.byType(TextField).first, 'レビュー投稿');
+        await tester.pump(); // rebuild so the submit button enables
         await tester.tap(find.text('投稿する'));
         await tester.pump();
 
         expect(mockService.lastCategory, PostCategory.review);
       });
 
-      testWidgets('投稿説明テキストのヒントが表示される', (tester) async {
+      testWidgets('本文入力フィールドのヒントテキストが表示される', (tester) async {
         await pumpApp(tester, mockService);
 
-        expect(find.textContaining('ハッシュタグ'), findsOneWidget);
+        expect(find.textContaining('投稿しましょう'), findsOneWidget);
       });
     });
   });

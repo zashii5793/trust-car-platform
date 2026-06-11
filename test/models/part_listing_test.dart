@@ -25,8 +25,10 @@ void main() {
     });
 
     test('fromString returns correct enum', () {
-      expect(CompatibilityLevel.fromString('perfect'), CompatibilityLevel.perfect);
-      expect(CompatibilityLevel.fromString('conditional'), CompatibilityLevel.conditional);
+      expect(
+          CompatibilityLevel.fromString('perfect'), CompatibilityLevel.perfect);
+      expect(CompatibilityLevel.fromString('conditional'),
+          CompatibilityLevel.conditional);
       expect(CompatibilityLevel.fromString('invalid'), null);
     });
   });
@@ -172,7 +174,6 @@ void main() {
     });
 
     test('priceDisplay shows 要問合せ when null', () {
-      final noPrice = testListing.copyWith(priceFrom: null, priceTo: null);
       // copyWith doesn't allow setting to null, so create new instance
       final noPriceListing = PartListing(
         id: 'part1',
@@ -211,7 +212,7 @@ void main() {
     test('getCompatibilityFor returns conditional for same maker', () {
       final compatibility = testListing.getCompatibilityFor(
         makerId: 'toyota',
-        modelId: 'toyota_corolla',  // Different model
+        modelId: 'toyota_corolla', // Different model
         year: 2020,
       );
 
@@ -225,7 +226,7 @@ void main() {
         year: 2020,
       );
 
-      expect(compatibility, CompatibilityLevel.compatible);  // default
+      expect(compatibility, CompatibilityLevel.compatible); // default
     });
 
     test('equality works correctly', () {
@@ -241,8 +242,8 @@ void main() {
         updatedAt: DateTime(2024, 1, 1),
       );
 
-      expect(part1 == part2, true);  // Same ID
-      expect(part1 == part3, false);  // Different ID
+      expect(part1 == part2, true); // Same ID
+      expect(part1 == part3, false); // Different ID
     });
   });
 
@@ -294,9 +295,9 @@ void main() {
       list.sort(PartRecommendation.compare);
 
       // Perfect compatibility should come first, then sorted by relevance
-      expect(list[0].part.id, '2');  // perfectHigh
-      expect(list[1].part.id, '1');  // perfectLow
-      expect(list[2].part.id, '3');  // conditional (lower compatibility)
+      expect(list[0].part.id, '2'); // perfectHigh
+      expect(list[1].part.id, '1'); // perfectLow
+      expect(list[2].part.id, '3'); // conditional (lower compatibility)
     });
   });
 }

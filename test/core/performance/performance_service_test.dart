@@ -358,8 +358,8 @@ void main() {
         },
       );
 
-      final warning = mockLogging.entries
-          .firstWhere((e) => e.level == LogLevel.warning);
+      final warning =
+          mockLogging.entries.firstWhere((e) => e.level == LogLevel.warning);
       expect(warning.message, contains('my.slow.operation'));
     });
   });
@@ -374,8 +374,10 @@ void main() {
     });
 
     test('maintenance operation names are consistent', () {
-      expect(TraceNames.addMaintenanceRecord, equals('firebase.maintenance.add'));
-      expect(TraceNames.getMaintenanceRecords, equals('firebase.maintenance.list'));
+      expect(
+          TraceNames.addMaintenanceRecord, equals('firebase.maintenance.add'));
+      expect(TraceNames.getMaintenanceRecords,
+          equals('firebase.maintenance.list'));
     });
 
     test('auth operation names are consistent', () {
@@ -386,7 +388,8 @@ void main() {
 
     test('CPU operation names are consistent', () {
       expect(TraceNames.compressImage, equals('image.compress'));
-      expect(TraceNames.ocrVehicleCertificate, equals('ocr.vehicle_certificate'));
+      expect(
+          TraceNames.ocrVehicleCertificate, equals('ocr.vehicle_certificate'));
     });
   });
 

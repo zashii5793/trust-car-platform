@@ -7,11 +7,17 @@
 //   4. Inquiry.displayStatus
 //   5. Inquiry.vehicleDisplay (formatted vehicle info string)
 //   6. AppError patterns
+//   7. createInquiry — monthly inquiry limit check (plan limit enforcement)
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trust_car_platform/models/inquiry.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/result/result.dart';
+import 'package:trust_car_platform/models/inquiry.dart';
+import 'package:trust_car_platform/models/shop.dart';
+import 'package:trust_car_platform/services/inquiry_service.dart';
+import 'package:trust_car_platform/services/shop_subscription_service.dart';
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -203,7 +209,8 @@ void main() {
       expect(inq.vehicleDisplay, 'トヨタ プリウス');
     });
 
-    test('vehicleMaker + vehicleModel + vehicleYear のとき「maker model (year年式)」', () {
+    test('vehicleMaker + vehicleModel + vehicleYear のとき「maker model (year年式)」',
+        () {
       final inq = _makeInquiry(
         vehicleMaker: 'トヨタ',
         vehicleModel: 'プリウス',
@@ -301,6 +308,162 @@ void main() {
           returnsNormally,
         );
       }
+    });
+  });
+
+  // ── createInquiry — plan limit enforcement ───────────────────────────────
+
+  group('createInquiry — plan limit check', () {
+    late FakeFirebaseFirestore fakeFs;
+    late ShopSubscriptionService subscriptionService;
+
+    Future<void> seedShop(
+      String shopId, {
+      ShopPlanType planType = ShopPlanType.free,
+      ShopSubscriptionStatus status = ShopSubscriptionStatus.active,
+    }) async {
+      await fakeFs.collection('shops').doc(shopId).set({
+        'planType': planType.name,
+        'subscriptionStatus': status.name,
+        'ownerId': 'owner1',
+        'isActive': true,
+        'name': 'Test Shop',
+        'type': 'maintenanceShop',
+        'createdAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
+      });
+    }
+
+    Future<void> seedInquiries(String shopId, int count) async {
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+      for (var i = 0; i < count; i++) {
+        await fakeFs.collection('inquiries').add({
+          'shopId': shopId,
+          'userId': 'user1',
+          'type': 'general',
+          'status': 'pending',
+          'subject': 'test $i',
+          'initialMessage': 'msg',
+          'createdAt': Timestamp.fromDate(
+            monthStart.add(Duration(hours: i)),
+          ),
+          'updatedAt': Timestamp.now(),
+        });
+      }
+    }
+
+    setUp(() {
+      fakeFs = FakeFirebaseFirestore();
+      subscriptionService = ShopSubscriptionService(firestore: fakeFs);
+    });
+
+    test('creates inquiry when shop is under the free plan limit', () async {
+      await seedShop('shop1', planType: ShopPlanType.free);
+      await seedInquiries('shop1', 3); // 3 of 5 used
+
+      final svc = InquiryService(
+        firestore: fakeFs,
+        subscriptionService: subscriptionService,
+      );
+
+      final result = await svc.createInquiry(
+        userId: 'user1',
+        shopId: 'shop1',
+        type: InquiryType.general,
+        subject: 'テスト',
+        message: 'テストメッセージ',
+      );
+
+      expect(result.isSuccess, isTrue);
+    });
+
+    test('returns PlanLimitError when free plan limit is reached', () async {
+      await seedShop('shop1', planType: ShopPlanType.free);
+      await seedInquiries('shop1', 5); // all 5 used
+
+      final svc = InquiryService(
+        firestore: fakeFs,
+        subscriptionService: subscriptionService,
+      );
+
+      final result = await svc.createInquiry(
+        userId: 'user1',
+        shopId: 'shop1',
+        type: InquiryType.general,
+        subject: 'テスト',
+        message: 'テストメッセージ',
+      );
+
+      expect(result.isFailure, isTrue);
+      expect(result.errorOrNull, isA<PlanLimitError>());
+    });
+
+    test('standard plan allows inquiry even when free limit would be hit',
+        () async {
+      await seedShop(
+        'shop1',
+        planType: ShopPlanType.standard,
+        status: ShopSubscriptionStatus.active,
+      );
+      await seedInquiries('shop1', 10); // standard = unlimited
+
+      final svc = InquiryService(
+        firestore: fakeFs,
+        subscriptionService: subscriptionService,
+      );
+
+      final result = await svc.createInquiry(
+        userId: 'user1',
+        shopId: 'shop1',
+        type: InquiryType.general,
+        subject: 'テスト',
+        message: 'テストメッセージ',
+      );
+
+      expect(result.isSuccess, isTrue);
+    });
+
+    test('expired subscription is treated as free — limit enforced', () async {
+      await seedShop(
+        'shop1',
+        planType: ShopPlanType.premium,
+        status: ShopSubscriptionStatus.expired,
+      );
+      await seedInquiries('shop1', 5); // 5 = free plan limit
+
+      final svc = InquiryService(
+        firestore: fakeFs,
+        subscriptionService: subscriptionService,
+      );
+
+      final result = await svc.createInquiry(
+        userId: 'user1',
+        shopId: 'shop1',
+        type: InquiryType.general,
+        subject: 'テスト',
+        message: 'テストメッセージ',
+      );
+
+      expect(result.isFailure, isTrue);
+      expect(result.errorOrNull, isA<PlanLimitError>());
+    });
+
+    test('returns ValidationError for non-existent shopId', () async {
+      final svc = InquiryService(
+        firestore: fakeFs,
+        subscriptionService: subscriptionService,
+      );
+
+      final result = await svc.createInquiry(
+        userId: 'user1',
+        shopId: 'nonexistent',
+        type: InquiryType.general,
+        subject: 'テスト',
+        message: 'テストメッセージ',
+      );
+
+      expect(result.isFailure, isTrue);
     });
   });
 }

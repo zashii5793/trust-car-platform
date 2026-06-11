@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Follow relationship between users
 class Follow {
   final String id;
-  final String followerId;  // User who follows
+  final String followerId; // User who follows
   final String followingId; // User being followed
   final DateTime createdAt;
 
@@ -136,11 +136,11 @@ class UserProfile {
 
 /// Notification types for social features
 enum NotificationType {
-  like,           // Someone liked your post
-  comment,        // Someone commented on your post
-  follow,         // Someone followed you
-  mention,        // Someone mentioned you
-  reply,          // Someone replied to your comment
+  like, // Someone liked your post
+  comment, // Someone commented on your post
+  follow, // Someone followed you
+  mention, // Someone mentioned you
+  reply, // Someone replied to your comment
   ;
 
   static NotificationType? fromString(String? value) {
@@ -167,8 +167,8 @@ enum NotificationType {
 /// Social notification model
 class SocialNotification {
   final String id;
-  final String userId;        // Recipient
-  final String actorId;       // Who triggered the notification
+  final String userId; // Recipient
+  final String actorId; // Who triggered the notification
   final String? actorDisplayName;
   final String? actorPhotoUrl;
   final NotificationType type;

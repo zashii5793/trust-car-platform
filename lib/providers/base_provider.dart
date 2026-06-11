@@ -91,7 +91,8 @@ mixin BaseProviderMixin on ChangeNotifier {
   void scheduleRetry(VoidCallback action) {
     if (_retryCount >= RetryConfig.maxRetries) return;
     _retryTimer?.cancel();
-    final delay = Duration(seconds: RetryConfig.baseDelaySeconds << _retryCount);
+    final delay =
+        Duration(seconds: RetryConfig.baseDelaySeconds << _retryCount);
     _retryCount++;
     _retryTimer = Timer(delay, action);
   }

@@ -13,7 +13,6 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:trust_car_platform/services/push_notification_service.dart';
 import 'package:trust_car_platform/services/recommendation_service.dart';
 import 'package:trust_car_platform/models/app_notification.dart';
@@ -68,28 +67,28 @@ void main() {
     // Notification Channel Constants
     // -------------------------------------------------------------------------
     group('Notification Channel Constants', () {
-      const _channelId = 'trust_car_high_importance';
-      const _channelName = '車両管理通知';
-      const _channelDescription = '車検・保険期限などの重要な通知';
+      const channelId = 'trust_car_high_importance';
+      const channelName = '車両管理通知';
+      const channelDescription = '車検・保険期限などの重要な通知';
 
       test('channel ID は "trust_car_high_importance"', () {
-        expect(_channelId, 'trust_car_high_importance');
+        expect(channelId, 'trust_car_high_importance');
       });
 
       test('channel name は "車両管理通知"', () {
-        expect(_channelName, '車両管理通知');
+        expect(channelName, '車両管理通知');
       });
 
       test('channel description には "車検" が含まれる', () {
-        expect(_channelDescription, contains('車検'));
+        expect(channelDescription, contains('車検'));
       });
 
       test('channel description には "保険期限" が含まれる', () {
-        expect(_channelDescription, contains('保険期限'));
+        expect(channelDescription, contains('保険期限'));
       });
 
       test('channel ID は空文字でない', () {
-        expect(_channelId, isNotEmpty);
+        expect(channelId, isNotEmpty);
       });
     });
 
@@ -144,8 +143,7 @@ void main() {
         // 全ルールが通知を生成できることを、ルール数で担保する
         const expectedRuleCount = 13;
         // generateRecommendations を使って全ルールが処理されることを確認
-        final service = RecommendationService();
-        const vehicle = null;
+        expect(RecommendationService(), isNotNull);
         // ルール数の参照はコードの static const フィールドから
         // ここでは expectedRuleCount が正しいことのドキュメントテスト
         expect(expectedRuleCount, 13);

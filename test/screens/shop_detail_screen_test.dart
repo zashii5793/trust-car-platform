@@ -30,10 +30,12 @@ class MockShopService implements ShopService {
     String? prefecture,
     int limit = 20,
     dynamic startAfter,
-  }) async => const Result.success([]);
+  }) async =>
+      const Result.success([]);
 
   @override
-  Future<Result<List<Shop>, AppError>> getFeaturedShops({int limit = 5}) async =>
+  Future<Result<List<Shop>, AppError>> getFeaturedShops(
+          {int limit = 5}) async =>
       const Result.success([]);
 
   @override
@@ -47,24 +49,58 @@ class MockShopService implements ShopService {
       const Result.success([]);
 
   @override
-  Future<Result<List<Shop>, AppError>> getNearbyShops(dynamic center,
-          double radiusKm, {int limit = 20}) async =>
+  Future<Result<List<Shop>, AppError>> getNearbyShops(
+          dynamic center, double radiusKm,
+          {int limit = 20}) async =>
       const Result.success([]);
 
   @override
   Future<Result<List<Shop>, AppError>> getShopsByService(
-          ServiceCategory category, {int limit = 20}) async =>
+          ServiceCategory category,
+          {int limit = 20}) async =>
       const Result.success([]);
+
+  @override
+  Future<Result<Shop, AppError>> createMyShop(Shop shop) async =>
+      Result.failure(AppError.unknown('not impl'));
+
+  @override
+  Future<Result<Shop, AppError>> updateMyShop(Shop shop) async =>
+      Result.failure(AppError.unknown('not impl'));
+
+  @override
+  Future<Result<Shop?, AppError>> getMyShop(String uid) async =>
+      const Result.success(null);
+
+  @override
+  Stream<Map<String, int>> watchInquiryCount(String shopId) =>
+      Stream.value(const {'total': 0, 'unread': 0});
+
+  @override
+  Future<Result<Map<String, int>, AppError>> getInquiryCount(
+          String shopId) async =>
+      const Result.success({'total': 0, 'unread': 0});
+
+  @override
+  Future<Result<void, AppError>> deleteMyShop(String uid) async =>
+      const Result.success(null);
 }
 
 class MockInquiryService implements InquiryService {
   @override
   Future<Result<Inquiry, AppError>> createInquiry({
-    required String userId, required String shopId,
-    required InquiryType type, required String subject,
-    required String message, String? vehicleId, String? partListingId,
-    dynamic vehicle, List<String> attachmentUrls = const [],
-  }) async => Result.failure(AppError.unknown('not impl'));
+    required String userId,
+    required String shopId,
+    required InquiryType type,
+    required String subject,
+    required String message,
+    String? vehicleId,
+    String? partListingId,
+    dynamic vehicle,
+    List<String> attachmentUrls = const [],
+    String? shopName,
+  }) async =>
+      Result.failure(AppError.unknown('not impl'));
 
   @override
   Future<Result<Inquiry, AppError>> getInquiry(String id) async =>
@@ -82,10 +118,13 @@ class MockInquiryService implements InquiryService {
 
   @override
   Future<Result<InquiryMessage, AppError>> sendMessage({
-    required String inquiryId, required String senderId,
-    required bool isFromShop, required String content,
+    required String inquiryId,
+    required String senderId,
+    required bool isFromShop,
+    required String content,
     List<String> attachmentUrls = const [],
-  }) async => Result.failure(AppError.unknown('not impl'));
+  }) async =>
+      Result.failure(AppError.unknown('not impl'));
 
   @override
   Future<Result<List<InquiryMessage>, AppError>> getMessages(String id,
@@ -98,7 +137,8 @@ class MockInquiryService implements InquiryService {
       const Result.success(null);
 
   @override
-  Future<Result<Inquiry, AppError>> updateStatus(String id, dynamic status) async =>
+  Future<Result<Inquiry, AppError>> updateStatus(
+          String id, dynamic status) async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
@@ -106,10 +146,12 @@ class MockInquiryService implements InquiryService {
       const Result.success(0);
 
   @override
-  Stream<List<Inquiry>> streamUserInquiries(String userId) => const Stream.empty();
+  Stream<List<Inquiry>> streamUserInquiries(String userId) =>
+      const Stream.empty();
 
   @override
-  Stream<List<InquiryMessage>> streamMessages(String inquiryId) => const Stream.empty();
+  Stream<List<InquiryMessage>> streamMessages(String inquiryId) =>
+      const Stream.empty();
 }
 
 // ---------------------------------------------------------------------------
@@ -190,7 +232,7 @@ void main() {
       mockShop.shopResult = Result.success(_fullShop(name: 'プレミアムガレージ'));
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('プレミアムガレージ'), findsWidgets);
     });
@@ -201,7 +243,7 @@ void main() {
       );
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('最高のサービスを提供します。'), findsOneWidget);
     });
@@ -210,7 +252,7 @@ void main() {
       mockShop.shopResult = Result.success(_fullShop(isVerified: true));
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // 認証アイコン or "認証済み" テキスト
       expect(
@@ -224,7 +266,7 @@ void main() {
       mockShop.shopResult = Result.success(_fullShop(phone: '03-9876-5432'));
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('03-9876-5432'), findsOneWidget);
     });
@@ -235,7 +277,7 @@ void main() {
       );
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('東京都新宿区'), findsOneWidget);
     });
@@ -249,7 +291,7 @@ void main() {
       );
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // サービスに対応するChipやテキストが存在する
       expect(find.byType(Chip).evaluate().isNotEmpty, isTrue);
@@ -259,7 +301,7 @@ void main() {
       mockShop.shopResult = Result.success(_fullShop());
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('問い合わせ'), findsWidgets);
     });
@@ -268,7 +310,7 @@ void main() {
       mockShop.shopResult = Result.success(_fullShop(imageUrls: []));
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byIcon(Icons.store), findsWidgets);
     });
@@ -277,7 +319,7 @@ void main() {
       mockShop.shopResult = Result.success(_fullShop());
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('営業'), findsWidgets);
     });
@@ -288,7 +330,7 @@ void main() {
       );
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('広告'), findsOneWidget);
     });
@@ -299,7 +341,7 @@ void main() {
       );
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // エラー状態（再試行ボタンやメッセージ）が表示される
       expect(tester.takeException(), isNull);
@@ -310,7 +352,7 @@ void main() {
         mockShop.shopResult = Result.success(_fullShop(description: null));
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });
@@ -319,7 +361,7 @@ void main() {
         mockShop.shopResult = Result.success(_fullShop(phone: null));
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });
@@ -328,7 +370,7 @@ void main() {
         mockShop.shopResult = Result.success(_fullShop(rating: null));
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });
@@ -337,7 +379,7 @@ void main() {
         mockShop.shopResult = Result.success(_fullShop(services: []));
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });

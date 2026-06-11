@@ -40,7 +40,8 @@ class MockShopService implements ShopService {
   }
 
   @override
-  Future<Result<List<Shop>, AppError>> getFeaturedShops({int limit = 5}) async =>
+  Future<Result<List<Shop>, AppError>> getFeaturedShops(
+          {int limit = 5}) async =>
       const Result.success([]);
 
   @override
@@ -59,14 +60,41 @@ class MockShopService implements ShopService {
       const Result.success([]);
 
   @override
-  Future<Result<List<Shop>, AppError>> getNearbyShops(dynamic center,
-          double radiusKm, {int limit = 20}) async =>
+  Future<Result<List<Shop>, AppError>> getNearbyShops(
+          dynamic center, double radiusKm,
+          {int limit = 20}) async =>
       const Result.success([]);
 
   @override
   Future<Result<List<Shop>, AppError>> getShopsByService(
-          ServiceCategory category, {int limit = 20}) async =>
+          ServiceCategory category,
+          {int limit = 20}) async =>
       const Result.success([]);
+
+  @override
+  Future<Result<Shop, AppError>> createMyShop(Shop shop) async =>
+      Result.failure(AppError.unknown('not impl'));
+
+  @override
+  Future<Result<Shop, AppError>> updateMyShop(Shop shop) async =>
+      Result.failure(AppError.unknown('not impl'));
+
+  @override
+  Future<Result<Shop?, AppError>> getMyShop(String uid) async =>
+      const Result.success(null);
+
+  @override
+  Stream<Map<String, int>> watchInquiryCount(String shopId) =>
+      Stream.value(const {'total': 0, 'unread': 0});
+
+  @override
+  Future<Result<Map<String, int>, AppError>> getInquiryCount(
+          String shopId) async =>
+      const Result.success({'total': 0, 'unread': 0});
+
+  @override
+  Future<Result<void, AppError>> deleteMyShop(String uid) async =>
+      const Result.success(null);
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +113,7 @@ class MockInquiryService implements InquiryService {
     String? partListingId,
     dynamic vehicle,
     List<String> attachmentUrls = const [],
+    String? shopName,
   }) async =>
       Result.failure(AppError.unknown('not implemented'));
 
@@ -132,7 +161,8 @@ class MockInquiryService implements InquiryService {
       const Result.success(0);
 
   @override
-  Stream<List<Inquiry>> streamUserInquiries(String userId) => const Stream.empty();
+  Stream<List<Inquiry>> streamUserInquiries(String userId) =>
+      const Stream.empty();
 
   @override
   Stream<List<InquiryMessage>> streamMessages(String inquiryId) =>
@@ -206,9 +236,9 @@ void main() {
       mockShop.shopsResult = const Result.success([]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('工場が見つかりません'), findsOneWidget);
+      expect(find.text('整備工場・業者が見つかりません'), findsOneWidget);
     });
 
     testWidgets('ショップリストが正常に表示される', (tester) async {
@@ -218,7 +248,7 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('ガレージA'), findsOneWidget);
       expect(find.text('ガレージB'), findsOneWidget);
@@ -232,17 +262,17 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.textContaining('3'), findsWidgets);
     });
 
     testWidgets('エラー時にエラーUIが表示される', (tester) async {
-      mockShop.shopsResult = Result.failure(
-          AppError.network('connection failed'));
+      mockShop.shopsResult =
+          Result.failure(AppError.network('connection failed'));
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // エラー状態のUI（リトライボタンなど）が存在する
       expect(find.byIcon(Icons.refresh), findsWidgets);
@@ -250,14 +280,14 @@ void main() {
 
     testWidgets('検索バーが表示される', (tester) async {
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byType(TextField), findsOneWidget);
     });
 
     testWidgets('フィルタ行のDropdownChipが3つ表示される', (tester) async {
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // 業種・サービス・地域の3ラベルが存在する
       expect(find.text('業種'), findsOneWidget);
@@ -268,7 +298,7 @@ void main() {
     testWidgets('検索テキスト入力でclearアイコンが出現する', (tester) async {
       mockShop.shopsResult = const Result.success([]);
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextField), 'トヨタ');
       await tester.pump();
@@ -279,15 +309,14 @@ void main() {
     testWidgets('clearアイコンタップで検索テキストがクリアされる', (tester) async {
       mockShop.shopsResult = const Result.success([]);
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.enterText(find.byType(TextField), 'テスト');
       await tester.pump();
       await tester.tap(find.byIcon(Icons.clear));
       await tester.pump();
 
-      final textField =
-          tester.widget<TextField>(find.byType(TextField));
+      final textField = tester.widget<TextField>(find.byType(TextField));
       expect(textField.controller?.text, isEmpty);
     });
 
@@ -297,7 +326,7 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byIcon(Icons.verified), findsOneWidget);
     });
@@ -308,7 +337,7 @@ void main() {
       ]);
 
       await tester.pumpWidget(_buildApp(provider));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('広告'), findsOneWidget);
     });
@@ -320,7 +349,7 @@ void main() {
         ]);
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });
@@ -331,7 +360,7 @@ void main() {
         ]);
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
       });
@@ -345,7 +374,7 @@ void main() {
         );
 
         await tester.pumpWidget(_buildApp(provider));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(find.byType(ListView), findsOneWidget);
         expect(tester.takeException(), isNull);

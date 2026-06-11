@@ -1,27 +1,27 @@
 #!/usr/bin/env dart
 // ignore_for_file: avoid_print
-/// Shop Seed Data — Firestore 登録スクリプト
-///
-/// Usage:
-///   dart scripts/seed_shops.dart [--dry-run] [--emulator]
-///
-/// Options:
-///   --dry-run    Firestore に書かず、登録予定データを標準出力に表示する
-///   --emulator   Firebase Emulator (localhost:8080) に接続する
-///
-/// Requirements:
-///   - GOOGLE_APPLICATION_CREDENTIALS に Firebase サービスアカウントキーを設定
-///   - または --emulator フラグで Emulator に接続
-///
-/// Example:
-///   # Emulator で動作確認
-///   firebase emulators:start --only firestore
-///   dart scripts/seed_shops.dart --dry-run
-///   dart scripts/seed_shops.dart --emulator
-///
-///   # 本番に登録（要サービスアカウントキー設定）
-///   export GOOGLE_APPLICATION_CREDENTIALS=path/to/serviceAccount.json
-///   dart scripts/seed_shops.dart
+// Shop Seed Data — Firestore 登録スクリプト
+//
+// Usage:
+//   dart scripts/seed_shops.dart [--dry-run] [--emulator]
+//
+// Options:
+//   --dry-run    Firestore に書かず、登録予定データを標準出力に表示する
+//   --emulator   Firebase Emulator (localhost:8080) に接続する
+//
+// Requirements:
+//   - GOOGLE_APPLICATION_CREDENTIALS に Firebase サービスアカウントキーを設定
+//   - または --emulator フラグで Emulator に接続
+//
+// Example:
+//   # Emulator で動作確認
+//   firebase emulators:start --only firestore
+//   dart scripts/seed_shops.dart --dry-run
+//   dart scripts/seed_shops.dart --emulator
+//
+//   # 本番に登録（要サービスアカウントキー設定）
+//   export GOOGLE_APPLICATION_CREDENTIALS=path/to/serviceAccount.json
+//   dart scripts/seed_shops.dart
 
 import 'dart:convert';
 import 'dart:io';

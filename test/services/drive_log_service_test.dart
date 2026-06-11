@@ -31,8 +31,7 @@ void main() {
     test('fromString で name から enum に変換できる', () {
       for (final status in DriveLogStatus.values) {
         final result = DriveLogStatus.fromString(status.name);
-        expect(result, status,
-            reason: '${status.name} の fromString が失敗します');
+        expect(result, status, reason: '${status.name} の fromString が失敗します');
       }
     });
 
@@ -344,7 +343,7 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('DriveLog モデル', () {
-    DriveLog _makeLog({
+    DriveLog makeLog({
       String id = 'log1',
       String userId = 'user1',
       DriveLogStatus status = DriveLogStatus.completed,
@@ -367,14 +366,14 @@ void main() {
     }
 
     test('DriveLog インスタンスを作成できる', () {
-      final log = _makeLog();
+      final log = makeLog();
       expect(log.id, 'log1');
       expect(log.userId, 'user1');
       expect(log.status, DriveLogStatus.completed);
     });
 
     test('copyWith で status を更新できる', () {
-      final log = _makeLog(status: DriveLogStatus.recording);
+      final log = makeLog(status: DriveLogStatus.recording);
       final updated = log.copyWith(status: DriveLogStatus.completed);
 
       expect(updated.status, DriveLogStatus.completed);
@@ -382,23 +381,23 @@ void main() {
     });
 
     test('recording ステータスは endTime が null', () {
-      final log = _makeLog(status: DriveLogStatus.recording);
+      final log = makeLog(status: DriveLogStatus.recording);
       expect(log.endTime, isNull);
     });
 
     test('statistics.totalDistance はデフォルト値が正しい', () {
-      final log = _makeLog();
+      final log = makeLog();
       expect(log.statistics.totalDistance, 50.0);
     });
 
     test('toMap で userId が含まれる', () {
-      final log = _makeLog(userId: 'u1');
+      final log = makeLog(userId: 'u1');
       final map = log.toMap();
       expect(map['userId'], 'u1');
     });
 
     test('toMap で status が文字列で含まれる', () {
-      final log = _makeLog(status: DriveLogStatus.completed);
+      final log = makeLog(status: DriveLogStatus.completed);
       final map = log.toMap();
       expect(map['status'], 'completed');
     });
@@ -411,7 +410,8 @@ void main() {
   group('Edge Cases', () {
     test('GeoPoint2D の経度が 180 を超えてもクラッシュしない', () {
       const edge = GeoPoint2D(latitude: 0, longitude: 180);
-      expect(() => edge.distanceTo(const GeoPoint2D(latitude: 0, longitude: -180)),
+      expect(
+          () => edge.distanceTo(const GeoPoint2D(latitude: 0, longitude: -180)),
           returnsNormally);
     });
 

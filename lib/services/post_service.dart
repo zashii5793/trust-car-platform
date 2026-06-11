@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/post.dart';
 import '../models/comment.dart';
+import '../models/follow.dart';
 
 /// Service for managing posts and comments
 class PostService {
@@ -19,10 +22,14 @@ class PostService {
       _firestore.collection(FirestoreCollections.comments);
 
   CollectionReference<Map<String, dynamic>> get _postLikesRef =>
-      _firestore.collection('post_likes');
+      _firestore.collection(FirestoreCollections.postLikes);
 
   CollectionReference<Map<String, dynamic>> get _commentLikesRef =>
-      _firestore.collection('comment_likes');
+      _firestore.collection(FirestoreCollections.commentLikes);
+
+  // social_notifications — shared with FollowService
+  CollectionReference<Map<String, dynamic>> get _notificationsRef =>
+      _firestore.collection('social_notifications');
 
   // ==================== Posts ====================
 
@@ -191,7 +198,8 @@ class PostService {
       }
 
       final snapshot = await query.get();
-      final posts = snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
+      final posts =
+          snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
       return Result.success(posts);
     } catch (e) {
       return Result.failure(AppError.unknown(
@@ -223,7 +231,8 @@ class PostService {
 
       // Filter by visibility if not own posts
       if (userId != viewerId) {
-        posts = posts.where((p) => p.visibility == PostVisibility.public).toList();
+        posts =
+            posts.where((p) => p.visibility == PostVisibility.public).toList();
       }
 
       return Result.success(posts);
@@ -253,7 +262,8 @@ class PostService {
       }
 
       final snapshot = await query.get();
-      final posts = snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
+      final posts =
+          snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
       return Result.success(posts);
     } catch (e) {
       return Result.failure(AppError.unknown(
@@ -265,10 +275,15 @@ class PostService {
 
   // ==================== Likes ====================
 
-  /// Like a post
+  /// Like a post.
+  ///
+  /// Pass [postAuthorId] + actor display info to trigger an in-app notification.
   Future<Result<void, AppError>> likePost({
     required String postId,
     required String userId,
+    String? postAuthorId,
+    String? actorDisplayName,
+    String? actorPhotoUrl,
   }) async {
     try {
       final likeId = '${postId}_$userId';
@@ -291,6 +306,19 @@ class PostService {
       });
 
       await batch.commit();
+
+      // In-app notification (fire-and-forget; skip self-notification)
+      if (postAuthorId != null && postAuthorId != userId) {
+        unawaited(_writeNotification(
+          recipientId: postAuthorId,
+          actorId: userId,
+          actorDisplayName: actorDisplayName,
+          actorPhotoUrl: actorPhotoUrl,
+          type: NotificationType.like,
+          postId: postId,
+        ));
+      }
+
       return Result.success(null);
     } catch (e) {
       return Result.failure(AppError.unknown(
@@ -347,7 +375,9 @@ class PostService {
 
   // ==================== Comments ====================
 
-  /// Add a comment to a post
+  /// Add a comment to a post.
+  ///
+  /// Pass [postAuthorId] to trigger an in-app notification to the post author.
   Future<Result<Comment, AppError>> addComment({
     required String postId,
     required String userId,
@@ -355,6 +385,7 @@ class PostService {
     String? userPhotoUrl,
     required String content,
     String? parentCommentId,
+    String? postAuthorId,
   }) async {
     try {
       final now = DateTime.now();
@@ -387,6 +418,23 @@ class PostService {
       }
 
       await batch.commit();
+
+      // In-app notification (fire-and-forget)
+      if (postAuthorId != null && postAuthorId != userId) {
+        unawaited(_writeNotification(
+          recipientId: postAuthorId,
+          actorId: userId,
+          actorDisplayName: userDisplayName,
+          actorPhotoUrl: userPhotoUrl,
+          type: parentCommentId != null
+              ? NotificationType.reply
+              : NotificationType.comment,
+          postId: postId,
+          previewText:
+              content.length > 50 ? '${content.substring(0, 50)}...' : content,
+        ));
+      }
+
       return Result.success(comment.copyWith(id: commentRef.id));
     } catch (e) {
       return Result.failure(AppError.unknown(
@@ -540,6 +588,36 @@ class PostService {
       });
     } catch (_) {
       // Silently fail
+    }
+  }
+
+  // ── Internal helpers ────────────────────────────────────────────────────
+
+  Future<void> _writeNotification({
+    required String recipientId,
+    required String actorId,
+    String? actorDisplayName,
+    String? actorPhotoUrl,
+    required NotificationType type,
+    String? postId,
+    String? commentId,
+    String? previewText,
+  }) async {
+    try {
+      await _notificationsRef.add({
+        'userId': recipientId,
+        'actorId': actorId,
+        if (actorDisplayName != null) 'actorDisplayName': actorDisplayName,
+        if (actorPhotoUrl != null) 'actorPhotoUrl': actorPhotoUrl,
+        'type': type.name,
+        if (postId != null) 'postId': postId,
+        if (commentId != null) 'commentId': commentId,
+        if (previewText != null) 'previewText': previewText,
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Notification failures must not surface to the user
     }
   }
 

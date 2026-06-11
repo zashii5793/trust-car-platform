@@ -8,7 +8,9 @@ import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'shop_inquiry_list_screen.dart';
+import 'shop_plan_screen.dart';
 import 'shop_registration_screen.dart';
+import '../newsletter/newsletter_list_screen.dart';
 
 /// Shop owner hub screen.
 ///
@@ -23,6 +25,10 @@ class ShopOwnerScreen extends StatefulWidget {
 }
 
 class _ShopOwnerScreenState extends State<ShopOwnerScreen> {
+  // Captured in initState because looking up ancestors (context.read)
+  // inside dispose() throws once the element is deactivated.
+  ShopProvider? _shopProvider;
+
   @override
   void initState() {
     super.initState();
@@ -31,9 +37,11 @@ class _ShopOwnerScreenState extends State<ShopOwnerScreen> {
       if (uid == null) return;
 
       final provider = context.read<ShopProvider>();
+      _shopProvider = provider;
       await provider.loadMyShop(uid);
 
       // Start real-time inquiry count stream once the shop is known
+      if (!mounted) return;
       if (provider.myShop != null) {
         provider.startWatchingInquiries(provider.myShop!.id);
       }
@@ -42,7 +50,7 @@ class _ShopOwnerScreenState extends State<ShopOwnerScreen> {
 
   @override
   void dispose() {
-    context.read<ShopProvider>().stopWatchingInquiries();
+    _shopProvider?.stopWatchingInquiries();
     super.dispose();
   }
 
@@ -176,7 +184,8 @@ class _UnregisteredBody extends StatelessWidget {
             icon: const Icon(Icons.add_business_outlined),
             label: const Text('無料で掲載を始める'),
             style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(AppSpacing.tapTargetRecommended),
+              minimumSize:
+                  const Size.fromHeight(AppSpacing.tapTargetRecommended),
             ),
           ),
           AppSpacing.verticalLg,
@@ -207,9 +216,8 @@ class _PlanSummaryCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return AppCard(
-      backgroundColor: isHighlighted
-          ? AppColors.primary.withValues(alpha: 0.05)
-          : null,
+      backgroundColor:
+          isHighlighted ? AppColors.primary.withValues(alpha: 0.05) : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -280,8 +288,29 @@ class _RegisteredBody extends StatelessWidget {
           // Shop summary card
           _ShopSummaryCard(shop: shop),
           AppSpacing.verticalMd,
+          // Performance summary card
+          _PerformanceSummaryCard(shop: shop, provider: provider),
+          AppSpacing.verticalMd,
           // Inquiry count badge (tappable → ShopInquiryListScreen)
           _InquiryCountBadge(provider: provider, shopId: shop.id),
+          AppSpacing.verticalMd,
+          // Newsletter management button
+          OutlinedButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => NewsletterListScreen(
+                  authorId: shop.id,
+                  authorName: shop.name,
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.mail_outline),
+            label: const Text('ニュースレター管理'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(AppSpacing.tapTargetMin),
+            ),
+          ),
           AppSpacing.verticalMd,
           // Edit button
           OutlinedButton.icon(
@@ -350,8 +379,7 @@ class _RegisteredBody extends StatelessWidget {
 
     if (confirmed != true || !context.mounted) return;
 
-    final uid =
-        context.read<AuthProvider>().firebaseUser?.uid;
+    final uid = context.read<AuthProvider>().firebaseUser?.uid;
     if (uid == null) return;
 
     final success = await context.read<ShopProvider>().deleteMyShop(uid);
@@ -393,7 +421,8 @@ class _ShopSummaryCard extends StatelessWidget {
             backgroundImage:
                 shop.logoUrl != null ? NetworkImage(shop.logoUrl!) : null,
             child: shop.logoUrl == null
-                ? const Icon(Icons.store, size: 32, color: AppColors.textTertiary)
+                ? const Icon(Icons.store,
+                    size: 32, color: AppColors.textTertiary)
                 : null,
           ),
           AppSpacing.horizontalMd,
@@ -433,9 +462,7 @@ class _ShopSummaryCard extends StatelessWidget {
                 if (shop.prefecture != null || shop.city != null) ...[
                   AppSpacing.verticalXxs,
                   Text(
-                    [shop.prefecture, shop.city]
-                        .whereType<String>()
-                        .join(' '),
+                    [shop.prefecture, shop.city].whereType<String>().join(' '),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -453,6 +480,132 @@ class _ShopSummaryCard extends StatelessWidget {
 /// Badge showing inquiry count for the shop owner.
 ///
 /// Tapping navigates to [ShopInquiryListScreen].
+/// Quick performance summary shown on the registered shop owner screen.
+class _PerformanceSummaryCard extends StatelessWidget {
+  final Shop shop;
+  final ShopProvider provider;
+
+  const _PerformanceSummaryCard({
+    required this.shop,
+    required this.provider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final daysSince = DateTime.now().difference(shop.createdAt).inDays;
+    final total = provider.inquiryTotal;
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '掲載実績',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          AppSpacing.verticalSm,
+          Row(
+            children: [
+              _StatItem(
+                icon: Icons.calendar_today_outlined,
+                label: '掲載日数',
+                value: '$daysSince 日',
+              ),
+              _StatDivider(),
+              _StatItem(
+                icon: Icons.mail_outline,
+                label: '累計問い合わせ',
+                value: '$total 件',
+                valueColor: total > 0 ? AppColors.info : null,
+              ),
+              _StatDivider(),
+              _StatItem(
+                icon: Icons.workspace_premium_outlined,
+                label: 'プラン',
+                value: shop.planType.displayName,
+                valueColor: shop.planType != ShopPlanType.free
+                    ? AppColors.warning
+                    : null,
+              ),
+            ],
+          ),
+          if (shop.planExpiresAt != null) ...[
+            AppSpacing.verticalXs,
+            Text(
+              'プラン期限: ${_formatDate(shop.planExpiresAt!)}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime dt) =>
+      '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+}
+
+class _StatItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  const _StatItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+          AppSpacing.verticalXxs,
+          Text(
+            value,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: valueColor,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: VerticalDivider(
+        color: Theme.of(context).dividerColor,
+        thickness: 1,
+        width: AppSpacing.md,
+      ),
+    );
+  }
+}
+
 class _InquiryCountBadge extends StatelessWidget {
   final ShopProvider provider;
   final String shopId;
@@ -478,63 +631,63 @@ class _InquiryCountBadge extends StatelessWidget {
         ),
       ),
       child: AppCard(
-      backgroundColor: hasUnread
-          ? AppColors.primary.withValues(alpha: 0.12)
-          : theme.colorScheme.surfaceContainerHighest,
-      child: Row(
-        children: [
-          Icon(
-            Icons.mail_outline,
-            color: hasUnread ? AppColors.info : AppColors.textTertiary,
-            size: AppSpacing.iconMd,
-          ),
-          AppSpacing.horizontalMd,
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '問い合わせ',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (hasUnread)
-                  RichText(
-                    text: TextSpan(
-                      style: theme.textTheme.bodySmall,
-                      children: [
-                        TextSpan(
-                          text: '全 $total 件',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const TextSpan(text: '（'),
-                        TextSpan(
-                          text: '未読 $unread 件',
-                          style: TextStyle(
-                            color: AppColors.info,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const TextSpan(text: '）'),
-                      ],
-                    ),
-                  )
-                else
-                  Text(
-                    '問い合わせ $total 件',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-              ],
+        backgroundColor: hasUnread
+            ? AppColors.primary.withValues(alpha: 0.12)
+            : theme.colorScheme.surfaceContainerHighest,
+        child: Row(
+          children: [
+            Icon(
+              Icons.mail_outline,
+              color: hasUnread ? AppColors.info : AppColors.textTertiary,
+              size: AppSpacing.iconMd,
             ),
-          ),
-          const Icon(Icons.chevron_right, color: AppColors.textTertiary),
-        ],
-      ),
+            AppSpacing.horizontalMd,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '問い合わせ',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (hasUnread)
+                    RichText(
+                      text: TextSpan(
+                        style: theme.textTheme.bodySmall,
+                        children: [
+                          TextSpan(
+                            text: '全 $total 件',
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const TextSpan(text: '（'),
+                          TextSpan(
+                            text: '未読 $unread 件',
+                            style: TextStyle(
+                              color: AppColors.info,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const TextSpan(text: '）'),
+                        ],
+                      ),
+                    )
+                  else
+                    Text(
+                      '問い合わせ $total 件',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+          ],
+        ),
       ),
     );
   }
@@ -583,7 +736,10 @@ class _UpgradeBanner extends StatelessWidget {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => ShopRegistrationScreen(existingShop: shop),
+                builder: (_) => ShopPlanScreen(
+                  shopId: shop.id,
+                  currentPlan: shop.planType,
+                ),
               ),
             ),
             child: const Text('変更'),
@@ -609,6 +765,7 @@ class _PlanBadge extends StatelessWidget {
       ShopPlanType.free => ('Free', AppColors.textTertiary),
       ShopPlanType.standard => ('Standard', AppColors.info),
       ShopPlanType.premium => ('Premium', AppColors.accentCustom),
+      ShopPlanType.enterprise => ('Enterprise', AppColors.primary),
     };
 
     return Container(

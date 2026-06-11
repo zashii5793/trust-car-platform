@@ -27,30 +27,64 @@ class MockShopService implements ShopService {
 
   @override
   Future<Result<List<Shop>, AppError>> getShops(
-          {ShopType? type, ServiceCategory? serviceCategory,
-          String? prefecture, int limit = 20, dynamic startAfter}) async =>
+          {ShopType? type,
+          ServiceCategory? serviceCategory,
+          String? prefecture,
+          int limit = 20,
+          dynamic startAfter}) async =>
       const Result.success([]);
 
   @override
-  Future<Result<List<Shop>, AppError>> getFeaturedShops({int limit = 5}) async =>
+  Future<Result<List<Shop>, AppError>> getFeaturedShops(
+          {int limit = 5}) async =>
       const Result.success([]);
 
   @override
   Future<Result<List<Shop>, AppError>> searchShops(String query,
-          {int limit = 20}) async => const Result.success([]);
+          {int limit = 20}) async =>
+      const Result.success([]);
 
   @override
   Future<Result<List<Shop>, AppError>> getShopsForMaker(String makerId,
-          {int limit = 20}) async => const Result.success([]);
+          {int limit = 20}) async =>
+      const Result.success([]);
 
   @override
-  Future<Result<List<Shop>, AppError>> getNearbyShops(dynamic center,
-          double radiusKm, {int limit = 20}) async => const Result.success([]);
+  Future<Result<List<Shop>, AppError>> getNearbyShops(
+          dynamic center, double radiusKm,
+          {int limit = 20}) async =>
+      const Result.success([]);
 
   @override
   Future<Result<List<Shop>, AppError>> getShopsByService(
-          ServiceCategory category, {int limit = 20}) async =>
+          ServiceCategory category,
+          {int limit = 20}) async =>
       const Result.success([]);
+
+  @override
+  Future<Result<Shop, AppError>> createMyShop(Shop shop) async =>
+      Result.failure(AppError.unknown('not impl'));
+
+  @override
+  Future<Result<Shop, AppError>> updateMyShop(Shop shop) async =>
+      Result.failure(AppError.unknown('not impl'));
+
+  @override
+  Future<Result<Shop?, AppError>> getMyShop(String uid) async =>
+      const Result.success(null);
+
+  @override
+  Stream<Map<String, int>> watchInquiryCount(String shopId) =>
+      Stream.value(const {'total': 0, 'unread': 0});
+
+  @override
+  Future<Result<Map<String, int>, AppError>> getInquiryCount(
+          String shopId) async =>
+      const Result.success({'total': 0, 'unread': 0});
+
+  @override
+  Future<Result<void, AppError>> deleteMyShop(String uid) async =>
+      const Result.success(null);
 }
 
 class MockInquiryService implements InquiryService {
@@ -69,6 +103,7 @@ class MockInquiryService implements InquiryService {
     String? partListingId,
     dynamic vehicle,
     List<String> attachmentUrls = const [],
+    String? shopName,
   }) async {
     createCallCount++;
     if (shouldFail) {
@@ -110,10 +145,13 @@ class MockInquiryService implements InquiryService {
 
   @override
   Future<Result<InquiryMessage, AppError>> sendMessage({
-    required String inquiryId, required String senderId,
-    required bool isFromShop, required String content,
+    required String inquiryId,
+    required String senderId,
+    required bool isFromShop,
+    required String content,
     List<String> attachmentUrls = const [],
-  }) async => Result.failure(AppError.unknown('not impl'));
+  }) async =>
+      Result.failure(AppError.unknown('not impl'));
 
   @override
   Future<Result<List<InquiryMessage>, AppError>> getMessages(String id,
@@ -126,7 +164,8 @@ class MockInquiryService implements InquiryService {
       const Result.success(null);
 
   @override
-  Future<Result<Inquiry, AppError>> updateStatus(String id, dynamic status) async =>
+  Future<Result<Inquiry, AppError>> updateStatus(
+          String id, dynamic status) async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
@@ -134,7 +173,8 @@ class MockInquiryService implements InquiryService {
       const Result.success(0);
 
   @override
-  Stream<List<Inquiry>> streamUserInquiries(String userId) => const Stream.empty();
+  Stream<List<Inquiry>> streamUserInquiries(String userId) =>
+      const Stream.empty();
 
   @override
   Stream<List<InquiryMessage>> streamMessages(String inquiryId) =>
@@ -150,7 +190,8 @@ class MockAuthService implements AuthService {
 
   @override
   Future<Result<UserCredential, AppError>> signUpWithEmail(
-          {required String email, required String password,
+          {required String email,
+          required String password,
           String? displayName}) async =>
       Result.failure(AppError.unknown('not impl'));
 
@@ -168,8 +209,7 @@ class MockAuthService implements AuthService {
       const Result.success(null);
 
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
@@ -334,7 +374,7 @@ void main() {
       await tester.enterText(textFields.last, 'メッセージ内容です。');
 
       await tester.tap(find.textContaining('送信').last);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       // バリデーションエラーが表示される（例外なし）
       expect(tester.takeException(), isNull);
@@ -355,7 +395,7 @@ void main() {
       await tester.enterText(textFields.first, '件名です');
 
       await tester.tap(find.textContaining('送信').last);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(tester.takeException(), isNull);
       expect(mockInquiry.createCallCount, 0);
@@ -450,7 +490,8 @@ void main() {
         final shop = _testShop(name: '株式会社テスト長い名前モータース渋谷本店プレミアム');
 
         await tester.pumpWidget(
-          _buildApp(shop, shopProvider: shopProvider, authProvider: authProvider),
+          _buildApp(shop,
+              shopProvider: shopProvider, authProvider: authProvider),
         );
         await tester.pump();
 
@@ -461,7 +502,8 @@ void main() {
         final shop = _testShop();
 
         await tester.pumpWidget(
-          _buildApp(shop, shopProvider: shopProvider, authProvider: authProvider),
+          _buildApp(shop,
+              shopProvider: shopProvider, authProvider: authProvider),
         );
         await tester.pump();
 

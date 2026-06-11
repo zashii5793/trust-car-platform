@@ -129,7 +129,8 @@ class PartRecommendationProvider with ChangeNotifier {
         },
       );
     } else if (category != null) {
-      final result = await _service.getPartsByCategory(category, limit: Pagination.partsPageSize);
+      final result = await _service.getPartsByCategory(category,
+          limit: Pagination.partsPageSize);
       result.when(
         success: (parts) {
           _browseParts = parts;
@@ -141,7 +142,8 @@ class PartRecommendationProvider with ChangeNotifier {
         },
       );
     } else {
-      final result = await _service.getFeaturedParts(limit: Pagination.defaultPageSize);
+      final result =
+          await _service.getFeaturedParts(limit: Pagination.defaultPageSize);
       result.when(
         success: (parts) {
           _browseParts = parts;

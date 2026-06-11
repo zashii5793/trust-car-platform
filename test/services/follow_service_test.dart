@@ -333,7 +333,8 @@ void main() {
 
   group('AppError パターン（サービスエラーシナリオ）', () {
     test('validation error は isRetryable=false', () {
-      const error = AppError.validation('自分自身をフォローすることはできません', field: 'followingId');
+      const error =
+          AppError.validation('自分自身をフォローすることはできません', field: 'followingId');
       expect(error.isRetryable, false);
     });
 

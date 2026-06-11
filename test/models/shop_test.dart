@@ -23,8 +23,10 @@ void main() {
 
   group('ServiceCategory', () {
     test('fromString returns correct enum value', () {
-      expect(ServiceCategory.fromString('inspection'), ServiceCategory.inspection);
-      expect(ServiceCategory.fromString('maintenance'), ServiceCategory.maintenance);
+      expect(
+          ServiceCategory.fromString('inspection'), ServiceCategory.inspection);
+      expect(ServiceCategory.fromString('maintenance'),
+          ServiceCategory.maintenance);
       expect(ServiceCategory.fromString('repair'), ServiceCategory.repair);
     });
 
@@ -200,6 +202,132 @@ void main() {
 
     test('toString returns readable format', () {
       expect(shop.toString(), 'Shop(テスト整備工場, 整備工場)');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // ShopPlanType — Phase 7 (enterprise tier & helpers)
+  // -------------------------------------------------------------------------
+  group('ShopPlanType', () {
+    test('fromString returns enterprise for "enterprise"', () {
+      expect(ShopPlanType.fromString('enterprise'), ShopPlanType.enterprise);
+    });
+
+    test('fromString defaults to free for unknown string', () {
+      expect(ShopPlanType.fromString('unknown'), ShopPlanType.free);
+      expect(ShopPlanType.fromString(null), ShopPlanType.free);
+    });
+
+    test('displayName returns correct Japanese labels', () {
+      expect(ShopPlanType.free.displayName, 'フリー');
+      expect(ShopPlanType.standard.displayName, 'スタンダード');
+      expect(ShopPlanType.premium.displayName, 'プレミアム');
+      expect(ShopPlanType.enterprise.displayName, 'エンタープライズ');
+    });
+
+    test('monthlyPrice is null for free and set for paid tiers', () {
+      expect(ShopPlanType.free.monthlyPrice, isNull);
+      expect(ShopPlanType.standard.monthlyPrice, 3980);
+      expect(ShopPlanType.premium.monthlyPrice, 9800);
+      expect(ShopPlanType.enterprise.monthlyPrice, 14800);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // ShopSubscriptionStatus
+  // -------------------------------------------------------------------------
+  group('ShopSubscriptionStatus', () {
+    test('fromString parses all valid values', () {
+      expect(ShopSubscriptionStatus.fromString('active'),
+          ShopSubscriptionStatus.active);
+      expect(ShopSubscriptionStatus.fromString('trialing'),
+          ShopSubscriptionStatus.trialing);
+      expect(ShopSubscriptionStatus.fromString('expired'),
+          ShopSubscriptionStatus.expired);
+      expect(ShopSubscriptionStatus.fromString('cancelled'),
+          ShopSubscriptionStatus.cancelled);
+      expect(ShopSubscriptionStatus.fromString('free'),
+          ShopSubscriptionStatus.free);
+    });
+
+    test('fromString defaults to free for unknown string', () {
+      expect(ShopSubscriptionStatus.fromString('invalid'),
+          ShopSubscriptionStatus.free);
+      expect(
+          ShopSubscriptionStatus.fromString(null), ShopSubscriptionStatus.free);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Shop model — subscription fields
+  // -------------------------------------------------------------------------
+  group('Shop subscription fields', () {
+    final now = DateTime(2026, 4, 29);
+    final expiresAt = DateTime(2026, 5, 29);
+
+    test('toMap serializes subscriptionStatus and revenueCatUserId', () {
+      final s = Shop(
+        id: 'shop1',
+        name: 'Test',
+        type: ShopType.maintenanceShop,
+        planType: ShopPlanType.standard,
+        subscriptionStatus: ShopSubscriptionStatus.active,
+        revenueCatUserId: 'rc_123',
+        planExpiresAt: expiresAt,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final map = s.toMap();
+      expect(map['planType'], 'standard');
+      expect(map['subscriptionStatus'], 'active');
+      expect(map['revenueCatUserId'], 'rc_123');
+      expect(map['planExpiresAt'], isNotNull);
+    });
+
+    test('copyWith preserves subscriptionStatus', () {
+      final s = Shop(
+        id: 'shop1',
+        name: 'Test',
+        type: ShopType.maintenanceShop,
+        subscriptionStatus: ShopSubscriptionStatus.trialing,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final copy = s.copyWith(planType: ShopPlanType.premium);
+      expect(copy.subscriptionStatus, ShopSubscriptionStatus.trialing);
+      expect(copy.planType, ShopPlanType.premium);
+    });
+
+    test('default subscriptionStatus is free', () {
+      final s = Shop(
+        id: 'shop1',
+        name: 'Test',
+        type: ShopType.maintenanceShop,
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(s.subscriptionStatus, ShopSubscriptionStatus.free);
+    });
+
+    test('enterprise plan fields round-trip through copyWith', () {
+      final s = Shop(
+        id: 'shop1',
+        name: 'Test',
+        type: ShopType.maintenanceShop,
+        planType: ShopPlanType.enterprise,
+        subscriptionStatus: ShopSubscriptionStatus.active,
+        revenueCatUserId: 'rc_ent',
+        trialStartedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final copy = s.copyWith(name: 'Updated');
+      expect(copy.planType, ShopPlanType.enterprise);
+      expect(copy.revenueCatUserId, 'rc_ent');
+      expect(copy.trialStartedAt, now);
     });
   });
 }

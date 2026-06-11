@@ -185,7 +185,8 @@ void main() {
     });
 
     test('toString formats correctly', () {
-      final metrics = OperationMetrics.fromSamples('test.operation', [100, 200, 300]);
+      final metrics =
+          OperationMetrics.fromSamples('test.operation', [100, 200, 300]);
       final output = metrics.toString();
 
       expect(output, contains('test.operation'));

@@ -61,3 +61,23 @@ app.*.map.json
 *.jks
 google-services.json
 GoogleService-Info.plist
+
+# Business strategy & customer acquisition (keep off GitHub)
+docs/pitch_deck.html
+docs/BUSINESS_PLAN.md
+docs/PHASE7_MONETIZATION_PLAN.md
+docs/STORE_METADATA.md
+docs/LAUNCH_PLAN.md
+docs/LAUNCH_CHECKLIST.md
+docs/FEATURE_ROADMAP.md
+docs/ROADMAP.md
+
+# Internal AI session logs & task management (keep off GitHub)
+CLAUDE_SESSION_NOTES.md
+docs/HUMAN_TASKS.md
+docs/HOLIDAY_HUMAN_TASK_GUIDE.md
+docs/P0_TASKS_TODAY.md
+docs/PM_EVALUATION_REPORT_2026-04-29.md
+docs/DEPLOY_READINESS_REPORT.md
+docs/REAL_DATA_VALIDATION_CHECKLIST.md
+docs/REPORT_AI_DEV_STATUS.md

@@ -189,9 +189,8 @@ class FollowService {
   /// Get follower IDs for timeline filtering
   Future<List<String>> getFollowingIds(String userId) async {
     try {
-      final snapshot = await _followsRef
-          .where('followerId', isEqualTo: userId)
-          .get();
+      final snapshot =
+          await _followsRef.where('followerId', isEqualTo: userId).get();
 
       return snapshot.docs
           .map((doc) => doc.data()['followingId'] as String)

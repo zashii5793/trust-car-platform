@@ -167,4 +167,111 @@ void main() {
       expect(str.contains('confidenceScore:'), true);
     });
   });
+
+  group('InvoiceOcrService', () {
+    late InvoiceOcrService service;
+
+    setUp(() {
+      service = InvoiceOcrService();
+    });
+
+    group('totalAmount priority', () {
+      test('"ご請求金額" header before "合計" line → uses "合計" value', () {
+        final result = service.parseRawTextForTest(
+          'ご請求金額 ¥120000\n合計 ¥99404',
+        );
+        expect(result.totalAmount, 99404);
+      });
+
+      test('only header, no "合計" line → falls back to header value', () {
+        final result = service.parseRawTextForTest('ご請求金額 ¥50000');
+        expect(result.totalAmount, 50000);
+      });
+
+      test('multiple "合計" lines → last one wins', () {
+        final result = service.parseRawTextForTest('合計 ¥10000\n合計 ¥20000');
+        expect(result.totalAmount, 20000);
+      });
+    });
+
+    group('taxAmount specificity', () {
+      test('"自動車重量税" line is NOT captured as taxAmount', () {
+        final result = service.parseRawTextForTest(
+          '自動車重量税 ¥24600\n消費税 ¥5764',
+        );
+        expect(result.taxAmount, 5764);
+      });
+
+      test('"消費税" line IS captured as taxAmount', () {
+        final result = service.parseRawTextForTest('消費税 ¥5764');
+        expect(result.taxAmount, 5764);
+      });
+    });
+
+    group('shaken item recognition', () {
+      test('"自動車重量税 ¥24600" recognized as a line item', () {
+        final result = service.parseRawTextForTest('自動車重量税 ¥24600');
+        expect(result.items.length, 1);
+        expect(result.items.first.amount, 24600);
+      });
+
+      test('"自賠責保険料 ¥17540" recognized as a line item', () {
+        final result = service.parseRawTextForTest('自賠責保険料 ¥17540');
+        expect(result.items.length, 1);
+        expect(result.items.first.amount, 17540);
+      });
+
+      test('regular maintenance "エンジンオイル交換 ¥3800" still recognized', () {
+        final result = service.parseRawTextForTest('エンジンオイル交換 ¥3800');
+        expect(result.items.length, 1);
+        expect(result.items.first.amount, 3800);
+      });
+    });
+
+    group('edge cases', () {
+      test('空文字列 → 全フィールドnull、items空', () {
+        final result = service.parseRawTextForTest('');
+        expect(result.hasMaintenanceInfo, false);
+        expect(result.date, isNull);
+        expect(result.totalAmount, isNull);
+        expect(result.items, isEmpty);
+      });
+
+      test('数字のみの行（金額なし）→ totalAmount null', () {
+        // 3桁以下の数字はamountとして認識されない（100円以上かつ4桁以上パターン）
+        // 整備キーワードがないため明細にもならず、合計金額も設定されない
+        final result = service.parseRawTextForTest('123\n456\n789');
+        expect(result.totalAmount, isNull);
+      });
+
+      test('日付のみ → date設定される、totalAmount null', () {
+        final result = service.parseRawTextForTest('令和6年1月15日');
+        expect(result.date, isNotNull);
+        expect(result.date, DateTime(2024, 1, 15));
+        expect(result.totalAmount, isNull);
+      });
+
+      test('複数の店舗候補行 → shopNameは最初の候補', () {
+        final input = '株式会社オートサービス\n有限会社カーガレージ';
+        final result = service.parseRawTextForTest(input);
+        // _isLikelyShopName は最初にマッチした行を shopName に設定する
+        expect(result.shopName, isNotNull);
+        expect(result.shopName, contains('株式会社オートサービス'));
+      });
+
+      test('¥記号なし数字行 → _extractInvoiceItemは整備キーワードがないと明細を抽出しない', () {
+        // 整備キーワードを含まない純粋な数字行は明細として認識されない
+        final result = service.parseRawTextForTest('99999\n88888\n77777');
+        expect(result.items, isEmpty);
+      });
+
+      test('非常に長い行（500文字）→ クラッシュしない', () {
+        final longLine = 'A' * 500 + ' ¥99999';
+        expect(() => service.parseRawTextForTest(longLine), returnsNormally);
+        final result = service.parseRawTextForTest(longLine);
+        // 例外が発生しないこと、かつ金額は抽出される（¥記号あり）
+        expect(result.totalAmount, isNull); // 整備キーワードなし・合計キーワードなし
+      });
+    });
+  });
 }

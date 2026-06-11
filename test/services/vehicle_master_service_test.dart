@@ -147,7 +147,8 @@ void main() {
     test('S グレードが含まれる', () {
       final grades = VehicleMasterData.getCommonGrades('any');
       final gradeNames = grades.map((g) => g.name).toList();
-      expect(gradeNames.any((name) => name == 'S' || name.contains('S')), isTrue);
+      expect(
+          gradeNames.any((name) => name == 'S' || name.contains('S')), isTrue);
     });
   });
 
@@ -232,7 +233,7 @@ void main() {
     });
 
     test('getCommonGrades で非常に長い modelId でもクラッシュしない', () {
-      final longId = 'model_' + 'x' * 200;
+      final longId = 'model_${'x' * 200}';
       expect(() => VehicleMasterData.getCommonGrades(longId), returnsNormally);
     });
 

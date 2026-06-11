@@ -83,7 +83,8 @@ class _MockFirebaseService implements FirebaseService {
       const Result.success(false);
 
   @override
-  Future<Result<String, AppError>> uploadImageBytes(dynamic b, String path) async =>
+  Future<Result<String, AppError>> uploadImageBytes(
+          dynamic b, String path) async =>
       const Result.success('url');
 
   @override
@@ -247,7 +248,8 @@ void main() {
       await tester.pumpWidget(_buildNew());
       await tester.pump();
 
-      expect(find.text('修理'), findsOneWidget);
+      // チップが複数箇所（選択行と一覧）に表示されうるため findsWidgets
+      expect(find.text('修理'), findsWidgets);
     });
 
     testWidgets('保存 / 登録ボタンが存在する', (tester) async {
@@ -289,7 +291,7 @@ void main() {
       final btn = find.textContaining('すべて表示');
       if (btn.evaluate().isNotEmpty) {
         await tester.tap(btn);
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
       }
 
       expect(tester.takeException(), isNull);
@@ -320,16 +322,16 @@ void main() {
     });
 
     testWidgets('既存の店舗名が TextFormField に表示される', (tester) async {
-      await tester.pumpWidget(
-          _buildEdit(record: _makeRecord(shopName: 'トラストモータース')));
+      await tester
+          .pumpWidget(_buildEdit(record: _makeRecord(shopName: 'トラストモータース')));
       await tester.pump();
 
       expect(find.text('トラストモータース'), findsOneWidget);
     });
 
     testWidgets('既存の備考が TextFormField に表示される', (tester) async {
-      await tester.pumpWidget(
-          _buildEdit(record: _makeRecord(description: '既存の備考内容')));
+      await tester
+          .pumpWidget(_buildEdit(record: _makeRecord(description: '既存の備考内容')));
       await tester.pump();
 
       expect(find.text('既存の備考内容'), findsOneWidget);
@@ -372,7 +374,8 @@ void main() {
 
     testWidgets('超長いタイトル（100文字超）でもクラッシュしない', (tester) async {
       final longTitle = 'メンテナンス' * 15;
-      await tester.pumpWidget(_buildEdit(record: _makeRecord(title: longTitle)));
+      await tester
+          .pumpWidget(_buildEdit(record: _makeRecord(title: longTitle)));
       await tester.pump();
 
       expect(tester.takeException(), isNull);

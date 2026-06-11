@@ -7,6 +7,7 @@ import '../../core/di/service_locator.dart';
 import '../../models/user_part_listing.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/part_listing_service.dart';
+import '../../widgets/common/loading_indicator.dart';
 import 'create_listing_screen.dart';
 
 /// Screen that shows all listings created by the current user.
@@ -40,8 +41,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
       _errorMessage = null;
     });
 
-    final uid =
-        context.read<AuthProvider>().firebaseUser?.uid ?? '';
+    final uid = context.read<AuthProvider>().firebaseUser?.uid ?? '';
     final result = await _service.getMyListings(uid);
 
     if (!mounted) return;
@@ -83,7 +83,9 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
           }
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('「${listing.title}」を${newStatus.displayName}にしました')),
+          SnackBar(
+              content:
+                  Text('「${listing.title}」を${newStatus.displayName}にしました')),
         );
       },
       failure: (error) {
@@ -157,7 +159,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppLoadingCenter();
     }
 
     if (_errorMessage != null) {
@@ -189,7 +191,13 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
     }
 
     if (_listings.isEmpty) {
-      return _EmptyState(onCreateTap: _openCreateListing);
+      return AppEmptyState(
+        icon: Icons.sell_outlined,
+        title: '出品中のパーツがありません',
+        description: 'パーツを出品して、\n他のユーザーと取引しましょう',
+        buttonLabel: 'パーツを出品する',
+        onButtonPressed: _openCreateListing,
+      );
     }
 
     return RefreshIndicator(
@@ -396,9 +404,9 @@ class _StatusBadge extends StatelessWidget {
       child: Text(
         status.displayName,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: _textColor(),
-          fontWeight: FontWeight.bold,
-        ),
+              color: _textColor(),
+              fontWeight: FontWeight.bold,
+            ),
       ),
     );
   }
@@ -435,12 +443,14 @@ class _ListingActionSheet extends StatelessWidget {
           const Divider(height: 1),
           if (isActive) ...[
             ListTile(
-              leading: const Icon(Icons.check_circle_outline, color: AppColors.warning),
+              leading: const Icon(Icons.check_circle_outline,
+                  color: AppColors.warning),
               title: const Text('売り切れにする'),
               onTap: () => Navigator.pop(context, _ListingAction.soldOut),
             ),
             ListTile(
-              leading: const Icon(Icons.remove_circle_outline, color: AppColors.error),
+              leading: const Icon(Icons.remove_circle_outline,
+                  color: AppColors.error),
               title: const Text('取り下げる'),
               onTap: () => Navigator.pop(context, _ListingAction.cancel),
             ),
@@ -456,56 +466,6 @@ class _ListingActionSheet extends StatelessWidget {
             onTap: () => Navigator.pop(context),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _EmptyState
-// ---------------------------------------------------------------------------
-
-class _EmptyState extends StatelessWidget {
-  final VoidCallback onCreateTap;
-
-  const _EmptyState({required this.onCreateTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: Padding(
-        padding: AppSpacing.paddingScreen,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.inventory_2_outlined,
-              size: AppSpacing.iconEmpty,
-              color: AppColors.textTertiary,
-            ),
-            AppSpacing.verticalMd,
-            Text(
-              'まだ出品していません',
-              style: theme.textTheme.titleMedium,
-            ),
-            AppSpacing.verticalXs,
-            Text(
-              '不要になったパーツを出品してみましょう',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            AppSpacing.verticalLg,
-            FilledButton.icon(
-              onPressed: onCreateTap,
-              icon: const Icon(Icons.add),
-              label: const Text('出品する'),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -47,13 +47,15 @@ class MockServiceMenuService implements ServiceMenuService {
   Future<Result<List<ServiceMenu>, AppError>> getPopularMenus({
     String? shopId,
     int limit = 10,
-  }) async => popularResult;
+  }) async =>
+      popularResult;
 
   @override
   Future<Result<List<ServiceMenu>, AppError>> getRecommendedMenus({
     String? shopId,
     int limit = 10,
-  }) async => recommendedResult;
+  }) async =>
+      recommendedResult;
 
   @override
   Future<Result<Map<ServiceCategory, List<ServiceMenu>>, AppError>>
@@ -72,7 +74,8 @@ class MockServiceMenuService implements ServiceMenuService {
   Future<Result<List<ServiceMenu>, AppError>> getServiceMenusByCategory(
     ServiceCategory category, {
     String? shopId,
-  }) async => byCategoryResult;
+  }) async =>
+      byCategoryResult;
 
   @override
   Future<Result<String, AppError>> createServiceMenu(ServiceMenu menu) async {
@@ -82,7 +85,8 @@ class MockServiceMenuService implements ServiceMenuService {
 
   @override
   Future<Result<void, AppError>> updateServiceMenu(
-      String menuId, ServiceMenu menu) async => updateResult;
+          String menuId, ServiceMenu menu) async =>
+      updateResult;
 
   @override
   Future<Result<void, AppError>> deactivateServiceMenu(String menuId) async =>
@@ -232,8 +236,7 @@ void main() {
       });
 
       test('失敗時にエラーが設定される', () async {
-        mockService.popularResult =
-            Result.failure(AppError.network('failed'));
+        mockService.popularResult = Result.failure(AppError.network('failed'));
 
         await provider.loadPopularMenus();
 
@@ -282,8 +285,7 @@ void main() {
       });
 
       test('失敗時にエラーが設定される', () async {
-        mockService.groupedResult =
-            Result.failure(AppError.network('failed'));
+        mockService.groupedResult = Result.failure(AppError.network('failed'));
 
         await provider.loadGroupedMenus();
 
@@ -311,8 +313,7 @@ void main() {
       });
 
       test('失敗時は空リストで返る', () async {
-        mockService.searchResult =
-            Result.failure(AppError.network('failed'));
+        mockService.searchResult = Result.failure(AppError.network('failed'));
 
         final results = await provider.searchMenus('検索語');
 
@@ -443,8 +444,7 @@ void main() {
         mockService.emitMenus([_makeMenu(id: 'm1')]);
         await Future.microtask(() {});
 
-        mockService.deleteResult =
-            Result.failure(AppError.network('failed'));
+        mockService.deleteResult = Result.failure(AppError.network('failed'));
         final success = await provider.deleteMenu('m1');
 
         expect(success, false);
@@ -571,7 +571,9 @@ void main() {
         provider.listenToMenus();
         mockService.emitMenus(
           List.generate(
-              10, (i) => _makeMenu(id: 'm$i', category: ServiceCategory.maintenance)),
+              10,
+              (i) =>
+                  _makeMenu(id: 'm$i', category: ServiceCategory.maintenance)),
         );
         await Future.microtask(() {});
 

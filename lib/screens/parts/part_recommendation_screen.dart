@@ -58,8 +58,7 @@ class _PartRecommendationScreenState extends State<PartRecommendationScreen> {
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   tooltip: '再読み込み',
-                  onPressed: () =>
-                      provider.loadRecommendations(widget.vehicle),
+                  onPressed: () => provider.loadRecommendations(widget.vehicle),
                 ),
             ],
           ),
@@ -81,7 +80,7 @@ class _PartRecommendationScreenState extends State<PartRecommendationScreen> {
 
     if (provider.error != null) {
       return _ErrorState(
-        message: provider.errorMessage ?? 'エラーが発生しました',
+        message: provider.errorMessage ?? 'データを読み込めませんでした',
         onRetry: () => provider.loadRecommendations(widget.vehicle),
       );
     }
@@ -438,7 +437,8 @@ class _RelevanceBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: score,
               minHeight: 4,
-              backgroundColor: AppColors.border.withValues(alpha: isDark ? 0.3 : 0.5),
+              backgroundColor:
+                  AppColors.border.withValues(alpha: isDark ? 0.3 : 0.5),
               valueColor: AlwaysStoppedAnimation<Color>(
                 score >= 0.7
                     ? AppColors.success
@@ -589,7 +589,8 @@ class _PartDetailSheet extends StatelessWidget {
                   color: AppColors.warning,
                 ),
                 AppSpacing.verticalSm,
-                ...cons.map((c) => _ProConDetailRow(text: c.text, isPro: false)),
+                ...cons
+                    .map((c) => _ProConDetailRow(text: c.text, isPro: false)),
                 AppSpacing.verticalMd,
               ],
 

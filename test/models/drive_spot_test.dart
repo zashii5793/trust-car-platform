@@ -451,7 +451,10 @@ void main() {
         'driveLogId': 'log789',
         'visitedAt': Timestamp.fromDate(now),
         'note': '天気が良くて最高でした',
-        'photoUrls': ['https://example.com/photo1.jpg', 'https://example.com/photo2.jpg'],
+        'photoUrls': [
+          'https://example.com/photo1.jpg',
+          'https://example.com/photo2.jpg'
+        ],
       };
 
       final visit = SpotVisit.fromMap(map, 'visit123');

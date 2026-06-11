@@ -59,8 +59,13 @@ class MockPostService implements PostService {
   }
 
   @override
-  Future<Result<void, AppError>> likePost(
-      {required String postId, required String userId}) async {
+  Future<Result<void, AppError>> likePost({
+    required String postId,
+    required String userId,
+    String? postAuthorId,
+    String? actorDisplayName,
+    String? actorPhotoUrl,
+  }) async {
     likeCallCount++;
     return likeResult;
   }
@@ -205,7 +210,8 @@ void main() {
         await provider.loadFeed();
         expect(provider.feedPosts.length, 1);
 
-        mockService.feedResult = Result.success([_makePost(id: 'p2'), _makePost(id: 'p3')]);
+        mockService.feedResult =
+            Result.success([_makePost(id: 'p2'), _makePost(id: 'p3')]);
         await provider.loadFeed();
         expect(provider.feedPosts.length, 2);
       });
@@ -330,7 +336,8 @@ void main() {
       });
 
       test('いいねするとlikeCountがローカルで+1される', () async {
-        mockService.feedResult = Result.success([_makePost(id: 'p1', likeCount: 5)]);
+        mockService.feedResult =
+            Result.success([_makePost(id: 'p1', likeCount: 5)]);
         await provider.loadFeed();
 
         await provider.toggleLike('p1', 'user1');
@@ -339,7 +346,8 @@ void main() {
       });
 
       test('いいね解除するとlikeCountがローカルで-1される', () async {
-        mockService.feedResult = Result.success([_makePost(id: 'p1', likeCount: 5)]);
+        mockService.feedResult =
+            Result.success([_makePost(id: 'p1', likeCount: 5)]);
         await provider.loadFeed();
 
         await provider.toggleLike('p1', 'user1'); // like → 6
@@ -349,7 +357,8 @@ void main() {
       });
 
       test('likeCountが0のときいいね解除してもマイナスにならない', () async {
-        mockService.feedResult = Result.success([_makePost(id: 'p1', likeCount: 0)]);
+        mockService.feedResult =
+            Result.success([_makePost(id: 'p1', likeCount: 0)]);
         await provider.loadFeed();
 
         // Force unlike by directly setting liked state via double toggle
@@ -362,7 +371,8 @@ void main() {
 
       test('サービス失敗時にいいね状態がロールバックされる', () async {
         mockService.likeResult = Result.failure(AppError.network('failed'));
-        mockService.feedResult = Result.success([_makePost(id: 'p1', likeCount: 5)]);
+        mockService.feedResult =
+            Result.success([_makePost(id: 'p1', likeCount: 5)]);
         await provider.loadFeed();
 
         await provider.toggleLike('p1', 'user1');
@@ -491,7 +501,8 @@ void main() {
       });
 
       test('同一投稿に複数回いいね・解除してもカウントが整合する', () async {
-        mockService.feedResult = Result.success([_makePost(id: 'p1', likeCount: 10)]);
+        mockService.feedResult =
+            Result.success([_makePost(id: 'p1', likeCount: 10)]);
         await provider.loadFeed();
 
         await provider.toggleLike('p1', 'user1'); // like → 11

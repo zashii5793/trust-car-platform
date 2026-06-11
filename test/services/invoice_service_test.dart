@@ -61,9 +61,11 @@ void main() {
     test('fromString が既知の値を正しく変換する', () {
       expect(PaymentMethod.fromString('cash'), PaymentMethod.cash);
       expect(PaymentMethod.fromString('creditCard'), PaymentMethod.creditCard);
-      expect(PaymentMethod.fromString('bankTransfer'), PaymentMethod.bankTransfer);
+      expect(
+          PaymentMethod.fromString('bankTransfer'), PaymentMethod.bankTransfer);
       expect(PaymentMethod.fromString('loan'), PaymentMethod.loan);
-      expect(PaymentMethod.fromString('electronicMoney'), PaymentMethod.electronicMoney);
+      expect(PaymentMethod.fromString('electronicMoney'),
+          PaymentMethod.electronicMoney);
       expect(PaymentMethod.fromString('other'), PaymentMethod.other);
     });
 
@@ -92,7 +94,8 @@ void main() {
 
     test('fromString が既知の値を正しく変換する', () {
       expect(PaymentStatus.fromString('unpaid'), PaymentStatus.unpaid);
-      expect(PaymentStatus.fromString('partiallyPaid'), PaymentStatus.partiallyPaid);
+      expect(PaymentStatus.fromString('partiallyPaid'),
+          PaymentStatus.partiallyPaid);
       expect(PaymentStatus.fromString('paid'), PaymentStatus.paid);
       expect(PaymentStatus.fromString('overdue'), PaymentStatus.overdue);
     });
@@ -337,10 +340,12 @@ void main() {
     });
 
     test('PaymentMethod と PaymentStatus の displayName が全て異なる', () {
-      final methodNames = PaymentMethod.values.map((m) => m.displayName).toSet();
+      final methodNames =
+          PaymentMethod.values.map((m) => m.displayName).toSet();
       expect(methodNames.length, PaymentMethod.values.length);
 
-      final statusNames = PaymentStatus.values.map((s) => s.displayName).toSet();
+      final statusNames =
+          PaymentStatus.values.map((s) => s.displayName).toSet();
       expect(statusNames.length, PaymentStatus.values.length);
     });
 

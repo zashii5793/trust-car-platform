@@ -140,13 +140,16 @@ class AppEmptyState extends StatelessWidget {
             Icon(
               icon,
               size: AppSpacing.iconEmpty,
-              color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+              color:
+                  isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
             ),
             AppSpacing.verticalMd,
             Text(
               title,
               style: theme.textTheme.headlineMedium?.copyWith(
-                color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textSecondary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -309,6 +312,7 @@ IconData _getErrorIcon(AppError error) {
     PermissionError() => Icons.block,
     ServerError() => Icons.cloud_off,
     CacheError() => Icons.storage,
+    PlanLimitError() => Icons.upgrade,
     UnknownError() => Icons.error_outline,
   };
 }

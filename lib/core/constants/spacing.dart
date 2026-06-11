@@ -98,6 +98,9 @@ class AppSpacing {
   // Common SizedBox Widgets
   // ========================================
 
+  /// 水平方向のXXS間隔 (4px)
+  static const SizedBox horizontalXxs = SizedBox(width: xxs);
+
   /// 水平方向のXS間隔 (8px)
   static const SizedBox horizontalXs = SizedBox(width: xs);
 

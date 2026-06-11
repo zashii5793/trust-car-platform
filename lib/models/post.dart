@@ -2,15 +2,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Post category types
 enum PostCategory {
-  general,      // 一般
-  carLife,      // カーライフ
-  maintenance,  // メンテナンス
-  customization,// カスタム
-  drive,        // ドライブ
-  review,       // レビュー
-  question,     // 質問
-  event,        // イベント
-  sale,         // 売買
+  general, // 一般
+  carLife, // カーライフ
+  maintenance, // メンテナンス
+  customization, // カスタム
+  drive, // ドライブ
+  review, // レビュー
+  question, // 質問
+  event, // イベント
+  sale, // 売買
   ;
 
   static PostCategory? fromString(String? value) {
@@ -44,9 +44,9 @@ enum PostCategory {
 
 /// Post visibility settings
 enum PostVisibility {
-  public,       // 全体公開
-  followers,    // フォロワーのみ
-  private_,     // 自分のみ
+  public, // 全体公開
+  followers, // フォロワーのみ
+  private_, // 自分のみ
   ;
 
   static PostVisibility? fromString(String? value) {
@@ -162,7 +162,12 @@ class PostVehicleTag {
     return parts.join(' ');
   }
 
-  bool get isEmpty => vehicleId == null && makerId == null && modelId == null && makerName == null && modelName == null;
+  bool get isEmpty =>
+      vehicleId == null &&
+      makerId == null &&
+      modelId == null &&
+      makerName == null &&
+      modelName == null;
 }
 
 /// Social media post model
@@ -214,12 +219,15 @@ class Post {
       userId: data['userId'] ?? '',
       userDisplayName: data['userDisplayName'],
       userPhotoUrl: data['userPhotoUrl'],
-      category: PostCategory.fromString(data['category']) ?? PostCategory.general,
-      visibility: PostVisibility.fromString(data['visibility']) ?? PostVisibility.public,
+      category:
+          PostCategory.fromString(data['category']) ?? PostCategory.general,
+      visibility: PostVisibility.fromString(data['visibility']) ??
+          PostVisibility.public,
       content: data['content'] ?? '',
       media: (data['media'] as List<dynamic>?)
-          ?.map((e) => PostMedia.fromMap(e as Map<String, dynamic>))
-          .toList() ?? [],
+              ?.map((e) => PostMedia.fromMap(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       vehicleTag: data['vehicleTag'] != null
           ? PostVehicleTag.fromMap(data['vehicleTag'] as Map<String, dynamic>)
           : null,
@@ -328,7 +336,8 @@ class Post {
   int get hashCode => id.hashCode;
 
   @override
-  String toString() => 'Post(${content.length > 30 ? '${content.substring(0, 30)}...' : content})';
+  String toString() =>
+      'Post(${content.length > 30 ? '${content.substring(0, 30)}...' : content})';
 }
 
 /// Like record for posts

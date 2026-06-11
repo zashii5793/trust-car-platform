@@ -26,7 +26,9 @@ class FirebaseService {
   /// 車両を登録
   Future<Result<String, AppError>> addVehicle(Vehicle vehicle) async {
     try {
-      final docRef = await _firestore.collection(FirestoreCollections.vehicles).add(vehicle.toMap());
+      final docRef = await _firestore
+          .collection(FirestoreCollections.vehicles)
+          .add(vehicle.toMap());
       return Result.success(docRef.id);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -34,9 +36,13 @@ class FirebaseService {
   }
 
   /// 車両情報を更新
-  Future<Result<void, AppError>> updateVehicle(String vehicleId, Vehicle vehicle) async {
+  Future<Result<void, AppError>> updateVehicle(
+      String vehicleId, Vehicle vehicle) async {
     try {
-      await _firestore.collection(FirestoreCollections.vehicles).doc(vehicleId).update(vehicle.toMap());
+      await _firestore
+          .collection(FirestoreCollections.vehicles)
+          .doc(vehicleId)
+          .update(vehicle.toMap());
       return const Result.success(null);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -62,7 +68,10 @@ class FirebaseService {
   /// 特定の車両を取得
   Future<Result<Vehicle?, AppError>> getVehicle(String vehicleId) async {
     try {
-      final doc = await _firestore.collection(FirestoreCollections.vehicles).doc(vehicleId).get();
+      final doc = await _firestore
+          .collection(FirestoreCollections.vehicles)
+          .doc(vehicleId)
+          .get();
       if (doc.exists) {
         return Result.success(Vehicle.fromFirestore(doc));
       }
@@ -88,7 +97,8 @@ class FirebaseService {
       }
 
       // 車両本体を削除
-      batch.delete(_firestore.collection(FirestoreCollections.vehicles).doc(vehicleId));
+      batch.delete(
+          _firestore.collection(FirestoreCollections.vehicles).doc(vehicleId));
 
       await batch.commit();
       return const Result.success(null);
@@ -98,7 +108,8 @@ class FirebaseService {
   }
 
   /// ナンバープレートの重複チェック
-  Future<Result<bool, AppError>> isLicensePlateExists(String licensePlate, {String? excludeVehicleId}) async {
+  Future<Result<bool, AppError>> isLicensePlateExists(String licensePlate,
+      {String? excludeVehicleId}) async {
     try {
       final query = _firestore
           .collection(FirestoreCollections.vehicles)
@@ -122,9 +133,12 @@ class FirebaseService {
   // === メンテナンス履歴関連 ===
 
   /// 履歴を追加
-  Future<Result<String, AppError>> addMaintenanceRecord(MaintenanceRecord record) async {
+  Future<Result<String, AppError>> addMaintenanceRecord(
+      MaintenanceRecord record) async {
     try {
-      final docRef = await _firestore.collection(FirestoreCollections.maintenanceRecords).add(record.toMap());
+      final docRef = await _firestore
+          .collection(FirestoreCollections.maintenanceRecords)
+          .add(record.toMap());
       return Result.success(docRef.id);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -132,9 +146,13 @@ class FirebaseService {
   }
 
   /// 履歴を更新
-  Future<Result<void, AppError>> updateMaintenanceRecord(String recordId, MaintenanceRecord record) async {
+  Future<Result<void, AppError>> updateMaintenanceRecord(
+      String recordId, MaintenanceRecord record) async {
     try {
-      await _firestore.collection(FirestoreCollections.maintenanceRecords).doc(recordId).update(record.toMap());
+      await _firestore
+          .collection(FirestoreCollections.maintenanceRecords)
+          .doc(recordId)
+          .update(record.toMap());
       return const Result.success(null);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -142,19 +160,23 @@ class FirebaseService {
   }
 
   /// 車両の履歴一覧を取得（Stream版は後方互換性のため維持）
-  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(String vehicleId) {
+  Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(
+      String vehicleId) {
     return _firestore
         .collection(FirestoreCollections.maintenanceRecords)
         .where('vehicleId', isEqualTo: vehicleId)
         .orderBy('date', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => MaintenanceRecord.fromFirestore(doc)).toList();
+      return snapshot.docs
+          .map((doc) => MaintenanceRecord.fromFirestore(doc))
+          .toList();
     });
   }
 
   /// 車両の履歴一覧を取得（Future版、通知生成用）
-  Future<Result<List<MaintenanceRecord>, AppError>> getMaintenanceRecordsForVehicle(
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getMaintenanceRecordsForVehicle(
     String vehicleId, {
     int limit = 20,
   }) async {
@@ -176,9 +198,13 @@ class FirebaseService {
   }
 
   /// 履歴を削除
-  Future<Result<void, AppError>> deleteMaintenanceRecord(String recordId) async {
+  Future<Result<void, AppError>> deleteMaintenanceRecord(
+      String recordId) async {
     try {
-      await _firestore.collection(FirestoreCollections.maintenanceRecords).doc(recordId).delete();
+      await _firestore
+          .collection(FirestoreCollections.maintenanceRecords)
+          .doc(recordId)
+          .delete();
       return const Result.success(null);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -187,7 +213,8 @@ class FirebaseService {
 
   /// 複数車両の履歴を一括取得（N+1クエリ最適化）
   /// Firestoreの制限（whereIn最大30件）を考慮してバッチ処理
-  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>> getMaintenanceRecordsForVehicles(
+  Future<Result<Map<String, List<MaintenanceRecord>>, AppError>>
+      getMaintenanceRecordsForVehicles(
     List<String> vehicleIds, {
     int limitPerVehicle = 20,
   }) async {
@@ -234,7 +261,8 @@ class FirebaseService {
   // === 画像アップロード ===
 
   /// 画像をアップロード（ファイル版）
-  Future<Result<String, AppError>> uploadImage(io.File imageFile, String path) async {
+  Future<Result<String, AppError>> uploadImage(
+      io.File imageFile, String path) async {
     try {
       final ref = _storage.ref().child(path);
       final uploadTask = await ref.putFile(imageFile);
@@ -246,7 +274,8 @@ class FirebaseService {
   }
 
   /// 画像をアップロード（バイト列版）- Web対応
-  Future<Result<String, AppError>> uploadImageBytes(Uint8List imageBytes, String path) async {
+  Future<Result<String, AppError>> uploadImageBytes(
+      Uint8List imageBytes, String path) async {
     try {
       final ref = _storage.ref().child(path);
       final uploadTask = await ref.putData(imageBytes);
@@ -258,13 +287,16 @@ class FirebaseService {
   }
 
   /// 複数画像をアップロード
-  Future<Result<List<String>, AppError>> uploadImages(List<io.File> imageFiles, String basePath) async {
+  Future<Result<List<String>, AppError>> uploadImages(
+      List<io.File> imageFiles, String basePath) async {
     try {
       List<String> urls = [];
       for (int i = 0; i < imageFiles.length; i++) {
-        final result = await uploadImage(imageFiles[i], '$basePath/image_$i.jpg');
+        final result =
+            await uploadImage(imageFiles[i], '$basePath/image_$i.jpg');
         if (result.isFailure) {
-          return Result.failure(result.errorOrNull ?? const AppError.unknown('Upload failed'));
+          return Result.failure(
+              result.errorOrNull ?? const AppError.unknown('Upload failed'));
         }
         urls.add(result.valueOrNull!);
       }
@@ -287,7 +319,8 @@ class FirebaseService {
       // Validate and compress
       final processResult = await imageService.processImage(imageBytes);
       if (processResult.isFailure) {
-        return Result.failure(processResult.errorOrNull ?? const AppError.unknown('Image processing failed'));
+        return Result.failure(processResult.errorOrNull ??
+            const AppError.unknown('Image processing failed'));
       }
 
       final processedBytes = processResult.valueOrNull!;
@@ -304,5 +337,4 @@ class FirebaseService {
       return Result.failure(mapFirebaseError(e));
     }
   }
-
 }

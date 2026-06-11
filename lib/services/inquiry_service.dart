@@ -1,16 +1,29 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/inquiry.dart';
 import '../models/vehicle.dart';
+import 'shop_subscription_service.dart';
 
 /// Service for inquiry (user-to-shop communication) operations
 class InquiryService {
   final FirebaseFirestore _firestore;
+  final FirebaseAuth? _authOverride;
+  final ShopSubscriptionService _subscriptionService;
 
-  InquiryService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  InquiryService({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+    ShopSubscriptionService? subscriptionService,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _authOverride = auth,
+        _subscriptionService = subscriptionService ?? ShopSubscriptionService();
+
+  /// Resolved lazily so tests can construct this service with a fake
+  /// Firestore only, without calling Firebase.initializeApp().
+  FirebaseAuth get _auth => _authOverride ?? FirebaseAuth.instance;
 
   CollectionReference<Map<String, dynamic>> get _inquiriesCollection =>
       _firestore.collection(FirestoreCollections.inquiries);
@@ -25,8 +38,29 @@ class InquiryService {
     String? vehicleId,
     String? partListingId,
     Vehicle? vehicle,
+    String? shopName,
     List<String> attachmentUrls = const [],
   }) async {
+    // Enforce monthly inquiry limit for the shop's subscription plan.
+    // NOTE: There is a known TOCTOU race condition between this check and the
+    // document write below. Two simultaneous requests could both pass the check
+    // and exceed the limit by 1. Atomic enforcement requires a Cloud Function
+    // with a Firestore transaction; the Firestore security rule provides a
+    // server-side backstop for egregious over-use.
+    final canReceiveResult =
+        await _subscriptionService.canReceiveInquiry(shopId);
+    if (canReceiveResult.isFailure) {
+      return Result.failure(canReceiveResult.errorOrNull!);
+    }
+    if (canReceiveResult.valueOrNull == false) {
+      return const Result.failure(
+        AppError.planLimit(
+          'This shop has reached its monthly inquiry limit',
+          planName: 'フリー',
+        ),
+      );
+    }
+
     try {
       final now = DateTime.now();
       final inquiryData = {
@@ -39,6 +73,7 @@ class InquiryService {
         'subject': subject,
         'initialMessage': message,
         'attachmentUrls': attachmentUrls,
+        'shopName': shopName,
         'vehicleMaker': vehicle?.maker,
         'vehicleModel': vehicle?.model,
         'vehicleYear': vehicle?.year,
@@ -83,16 +118,14 @@ class InquiryService {
     DocumentSnapshot? startAfter,
   }) async {
     try {
-      Query<Map<String, dynamic>> query = _inquiriesCollection
-          .where('userId', isEqualTo: userId);
+      Query<Map<String, dynamic>> query =
+          _inquiriesCollection.where('userId', isEqualTo: userId);
 
       if (status != null) {
         query = query.where('status', isEqualTo: status.name);
       }
 
-      query = query
-          .orderBy('updatedAt', descending: true)
-          .limit(limit);
+      query = query.orderBy('updatedAt', descending: true).limit(limit);
 
       if (startAfter != null) {
         query = query.startAfterDocument(startAfter);
@@ -100,9 +133,8 @@ class InquiryService {
 
       final snapshot = await query.get();
 
-      final inquiries = snapshot.docs
-          .map((doc) => Inquiry.fromFirestore(doc))
-          .toList();
+      final inquiries =
+          snapshot.docs.map((doc) => Inquiry.fromFirestore(doc)).toList();
 
       return Result.success(inquiries);
     } catch (e) {
@@ -118,16 +150,14 @@ class InquiryService {
     DocumentSnapshot? startAfter,
   }) async {
     try {
-      Query<Map<String, dynamic>> query = _inquiriesCollection
-          .where('shopId', isEqualTo: shopId);
+      Query<Map<String, dynamic>> query =
+          _inquiriesCollection.where('shopId', isEqualTo: shopId);
 
       if (status != null) {
         query = query.where('status', isEqualTo: status.name);
       }
 
-      query = query
-          .orderBy('updatedAt', descending: true)
-          .limit(limit);
+      query = query.orderBy('updatedAt', descending: true).limit(limit);
 
       if (startAfter != null) {
         query = query.startAfterDocument(startAfter);
@@ -135,9 +165,8 @@ class InquiryService {
 
       final snapshot = await query.get();
 
-      final inquiries = snapshot.docs
-          .map((doc) => Inquiry.fromFirestore(doc))
-          .toList();
+      final inquiries =
+          snapshot.docs.map((doc) => Inquiry.fromFirestore(doc)).toList();
 
       return Result.success(inquiries);
     } catch (e) {
@@ -153,6 +182,17 @@ class InquiryService {
     required String content,
     List<String> attachmentUrls = const [],
   }) async {
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null) {
+      return const Result.failure(
+        AppError.auth('認証が必要です', type: AuthErrorType.unknown),
+      );
+    }
+    if (currentUid != senderId) {
+      return const Result.failure(
+        AppError.auth('操作が許可されていません', type: AuthErrorType.unknown),
+      );
+    }
     try {
       final now = DateTime.now();
       final messageData = {
@@ -167,7 +207,7 @@ class InquiryService {
       // Add message to subcollection
       final messageRef = await _inquiriesCollection
           .doc(inquiryId)
-          .collection('messages')
+          .collection(FirestoreCollections.messages)
           .add(messageData);
 
       // Update inquiry
@@ -211,7 +251,7 @@ class InquiryService {
     try {
       Query<Map<String, dynamic>> query = _inquiriesCollection
           .doc(inquiryId)
-          .collection('messages')
+          .collection(FirestoreCollections.messages)
           .orderBy('sentAt', descending: false)
           .limit(limit);
 
@@ -238,17 +278,17 @@ class InquiryService {
   }) async {
     try {
       // Reset unread count
-      final updateData = isUser
-          ? {'unreadCountUser': 0}
-          : {'unreadCountShop': 0};
+      final updateData =
+          isUser ? {'unreadCountUser': 0} : {'unreadCountShop': 0};
 
       await _inquiriesCollection.doc(inquiryId).update(updateData);
 
       // Mark individual messages as read
       final messages = await _inquiriesCollection
           .doc(inquiryId)
-          .collection('messages')
-          .where('isFromShop', isEqualTo: isUser)  // Messages from the other party
+          .collection(FirestoreCollections.messages)
+          .where('isFromShop',
+              isEqualTo: isUser) // Messages from the other party
           .where('isRead', isEqualTo: false)
           .get();
 
@@ -309,16 +349,15 @@ class InquiryService {
         .orderBy('updatedAt', descending: true)
         .limit(20)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Inquiry.fromFirestore(doc))
-            .toList());
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => Inquiry.fromFirestore(doc)).toList());
   }
 
   /// Stream messages for real-time chat
   Stream<List<InquiryMessage>> streamMessages(String inquiryId) {
     return _inquiriesCollection
         .doc(inquiryId)
-        .collection('messages')
+        .collection(FirestoreCollections.messages)
         .orderBy('sentAt', descending: false)
         .snapshots()
         .map((snapshot) => snapshot.docs

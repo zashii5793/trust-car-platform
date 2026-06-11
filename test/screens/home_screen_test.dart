@@ -7,7 +7,7 @@
 // Coverage:
 //   - Initial tab index (マイカー)
 //   - AppBar title per tab
-//   - BottomNavigationBar items & tap
+//   - NavigationBar items & tap
 //   - Vehicle loading / empty / error states
 //   - Notification badge when unread count > 0
 //   - Offline banner (ConnectivityProvider.isOffline = true)
@@ -38,6 +38,7 @@ import 'package:trust_car_platform/providers/post_provider.dart';
 import 'package:trust_car_platform/services/post_service.dart';
 import 'package:trust_car_platform/providers/drive_log_provider.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
+import 'package:trust_car_platform/providers/user_subscription_provider.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 
 // ---------------------------------------------------------------------------
@@ -107,7 +108,8 @@ class _StubFirebaseService implements FirebaseService {
       const Result.success('url');
 
   @override
-  Future<Result<String, AppError>> uploadImageBytes(dynamic b, String path) async =>
+  Future<Result<String, AppError>> uploadImageBytes(
+          dynamic b, String path) async =>
       const Result.success('url');
 
   @override
@@ -152,8 +154,7 @@ class _StubAuthService implements AuthService {
       Result.failure(AppError.unknown('stub'));
 
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
   Future<Result<AppUser?, AppError>> getUserProfile() async =>
@@ -168,7 +169,6 @@ class _StubAuthService implements AuthService {
   Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
       const Result.success(null);
 
-  @override
   Future<Result<void, AppError>> deleteAccount() async =>
       const Result.success(null);
 
@@ -263,7 +263,8 @@ class _FakeNotificationProvider extends NotificationProvider {
   int get unreadCount => _fakeNotifications.where((n) => !n.isRead).length;
 
   @override
-  List<AppNotification> get topSuggestions => _fakeNotifications.take(3).toList();
+  List<AppNotification> get topSuggestions =>
+      _fakeNotifications.take(3).toList();
 
   @override
   Future<void> generateNotificationsForVehicles(List<Vehicle> vehicles) async {}
@@ -336,6 +337,9 @@ Widget _buildApp({
           driveLogService: DriveLogService(firestore: FakeFirebaseFirestore()),
         ),
       ),
+      ChangeNotifierProvider<UserSubscriptionProvider>(
+        create: (_) => UserSubscriptionProvider(),
+      ),
     ],
     child: const MaterialApp(home: HomeScreen()),
   );
@@ -391,7 +395,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.byIcon(Icons.store_outlined));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
         find.descendant(
@@ -407,7 +411,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.byIcon(Icons.forum_outlined));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
         find.descendant(
@@ -423,7 +427,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.byIcon(Icons.notifications_outlined));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
         find.descendant(
@@ -439,7 +443,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.byIcon(Icons.person_outline));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(
         find.descendant(
@@ -451,12 +455,12 @@ void main() {
     });
   });
 
-  group('HomeScreen — BottomNavigationBar', () {
-    testWidgets('BottomNavigationBar が表示される', (tester) async {
+  group('HomeScreen — NavigationBar', () {
+    testWidgets('NavigationBar が表示される', (tester) async {
       await tester.pumpWidget(_buildApp());
       await tester.pump();
 
-      expect(find.byType(BottomNavigationBar), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
     });
 
     testWidgets('5つのタブアイコンが存在する', (tester) async {
@@ -479,20 +483,21 @@ void main() {
       await tester.pump();
 
       // 全タブを一巡
+      // NavigationBar shows the outlined icon for unselected destinations
       final icons = [
         Icons.store_outlined,
         Icons.forum_outlined,
         Icons.notifications_outlined,
         Icons.person_outline,
-        Icons.directions_car,
+        Icons.directions_car_outlined,
       ];
       for (final icon in icons) {
         final iconFinder = find.descendant(
-          of: find.byType(BottomNavigationBar),
+          of: find.byType(NavigationBar),
           matching: find.byIcon(icon),
         );
         await tester.tap(iconFinder);
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 10));
       }
 
       // クラッシュしない
@@ -506,7 +511,7 @@ void main() {
       await tester.pumpWidget(_buildApp(vehicleProvider: vp));
       await tester.pump();
 
-      expect(find.byType(BottomNavigationBar), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
     });
 
     testWidgets('車両あり → リストに表示される', (tester) async {
@@ -611,18 +616,126 @@ void main() {
     });
   });
 
+  group('HomeScreen — 車両未登録オンボーディング', () {
+    testWidgets('車両0台のとき "まず愛車を登録しよう" が表示される', (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.text('まず愛車を登録しよう'), findsOneWidget);
+    });
+
+    testWidgets('3つの機能ハイライトラベルが表示される', (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.text('整備履歴を正確に記録'), findsOneWidget);
+      expect(find.text('AIが次の点検をお知らせ'), findsOneWidget);
+      expect(find.text('信頼できる整備工場と繋がる'), findsOneWidget);
+    });
+
+    testWidgets('「車両を登録する」CTAボタンが表示される', (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.text('車両を登録する'), findsOneWidget);
+    });
+
+    testWidgets('「車両を登録する」タップで VehicleRegistrationScreen に遷移する',
+        (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      await tester.tap(find.text('車両を登録する'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // VehicleRegistrationScreen のコンテンツが存在する
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('車両が1台登録されたらオンボーディングが消える', (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+      expect(find.text('まず愛車を登録しよう'), findsOneWidget);
+
+      vp.setVehicles([_makeVehicle('v1')]);
+      await tester.pump();
+
+      expect(find.text('まず愛車を登録しよう'), findsNothing);
+    });
+  });
+
+  group('アクセシビリティ — _VehicleEmptyOnboarding', () {
+    testWidgets('ヘッダーテキストに header セマンティクスが付与されている', (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      // Semantics(header: true) が「まず愛車を登録しよう」テキストの先祖に存在する
+      final semanticsWidgets = tester.widgetList<Semantics>(
+        find.ancestor(
+          of: find.text('まず愛車を登録しよう'),
+          matching: find.byType(Semantics),
+        ),
+      );
+      expect(semanticsWidgets.any((s) => s.properties.header == true), isTrue);
+    });
+
+    testWidgets('装飾的なアイコンに ExcludeSemantics が付与されている', (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      // ヒーローアイコンと各 _FeatureRow アイコンが ExcludeSemantics 配下にある
+      for (final icon in [
+        Icons.history,
+        Icons.notifications_active,
+        Icons.handshake,
+      ]) {
+        expect(
+          find.ancestor(
+            of: find.byIcon(icon),
+            matching: find.byType(ExcludeSemantics),
+          ),
+          findsWidgets,
+          reason: '$icon should be wrapped in ExcludeSemantics',
+        );
+      }
+    });
+
+    testWidgets('「車両を登録する」ElevatedButton が onPressed を持ちアクセス可能',
+        (tester) async {
+      final vp = _FakeVehicleProvider();
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      // ElevatedButton.icon creates a private subclass, so match by subtype
+      final button = tester.widget<ElevatedButton>(
+        find.ancestor(
+          of: find.text('車両を登録する'),
+          matching: find.bySubtype<ElevatedButton>(),
+        ),
+      );
+      expect(button.onPressed, isNotNull);
+    });
+  });
+
   group('Edge Cases', () {
     testWidgets('同じタブを連続タップしてもクラッシュしない', (tester) async {
       await tester.pumpWidget(_buildApp());
       await tester.pump();
 
       final carTabIcon = find.descendant(
-        of: find.byType(BottomNavigationBar),
+        of: find.byType(NavigationBar),
         matching: find.byIcon(Icons.directions_car),
       );
       await tester.tap(carTabIcon);
       await tester.tap(carTabIcon);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(tester.takeException(), isNull);
     });

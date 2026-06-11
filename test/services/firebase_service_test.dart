@@ -56,42 +56,48 @@ void main() {
 
     group('AppError Firebase Mapping', () {
       test('maps user-not-found to AuthError', () {
-        final error = mapFirebaseError(Exception('[firebase_auth/user-not-found] User not found'));
+        final error = mapFirebaseError(
+            Exception('[firebase_auth/user-not-found] User not found'));
 
         expect(error, isA<AuthError>());
         expect((error as AuthError).type, AuthErrorType.userNotFound);
       });
 
       test('maps wrong-password to AuthError', () {
-        final error = mapFirebaseError(Exception('[firebase_auth/wrong-password] Wrong password'));
+        final error = mapFirebaseError(
+            Exception('[firebase_auth/wrong-password] Wrong password'));
 
         expect(error, isA<AuthError>());
         expect((error as AuthError).type, AuthErrorType.invalidCredentials);
       });
 
       test('maps invalid-credential to AuthError', () {
-        final error = mapFirebaseError(Exception('[firebase_auth/invalid-credential] Invalid'));
+        final error = mapFirebaseError(
+            Exception('[firebase_auth/invalid-credential] Invalid'));
 
         expect(error, isA<AuthError>());
         expect((error as AuthError).type, AuthErrorType.invalidCredentials);
       });
 
       test('maps email-already-in-use to AuthError', () {
-        final error = mapFirebaseError(Exception('[firebase_auth/email-already-in-use] Email in use'));
+        final error = mapFirebaseError(
+            Exception('[firebase_auth/email-already-in-use] Email in use'));
 
         expect(error, isA<AuthError>());
         expect((error as AuthError).type, AuthErrorType.emailAlreadyInUse);
       });
 
       test('maps weak-password to AuthError', () {
-        final error = mapFirebaseError(Exception('[firebase_auth/weak-password] Too weak'));
+        final error = mapFirebaseError(
+            Exception('[firebase_auth/weak-password] Too weak'));
 
         expect(error, isA<AuthError>());
         expect((error as AuthError).type, AuthErrorType.weakPassword);
       });
 
       test('maps too-many-requests to AuthError', () {
-        final error = mapFirebaseError(Exception('[firebase_auth/too-many-requests] Rate limited'));
+        final error = mapFirebaseError(
+            Exception('[firebase_auth/too-many-requests] Rate limited'));
 
         expect(error, isA<AuthError>());
         expect((error as AuthError).type, AuthErrorType.tooManyRequests);
@@ -99,21 +105,24 @@ void main() {
       });
 
       test('maps permission-denied to PermissionError', () {
-        final error = mapFirebaseError(Exception('[cloud_firestore/permission-denied] Access denied'));
+        final error = mapFirebaseError(
+            Exception('[cloud_firestore/permission-denied] Access denied'));
 
         expect(error, isA<PermissionError>());
         expect(error.isRetryable, false);
       });
 
       test('maps not-found to NotFoundError', () {
-        final error = mapFirebaseError(Exception('[cloud_firestore/not-found] Document not found'));
+        final error = mapFirebaseError(
+            Exception('[cloud_firestore/not-found] Document not found'));
 
         expect(error, isA<NotFoundError>());
         expect(error.isRetryable, false);
       });
 
       test('maps unavailable to NetworkError', () {
-        final error = mapFirebaseError(Exception('[cloud_firestore/unavailable] Service unavailable'));
+        final error = mapFirebaseError(
+            Exception('[cloud_firestore/unavailable] Service unavailable'));
 
         expect(error, isA<NetworkError>());
         expect(error.isRetryable, true);
@@ -346,13 +355,19 @@ void main() {
         expect(const NetworkError('test').isRetryable, true);
         expect(const ServerError('test').isRetryable, true);
         expect(const CacheError('test').isRetryable, true);
-        expect(const AuthError('test', type: AuthErrorType.tooManyRequests).isRetryable, true);
+        expect(
+            const AuthError('test', type: AuthErrorType.tooManyRequests)
+                .isRetryable,
+            true);
 
         expect(const ValidationError('test').isRetryable, false);
         expect(const NotFoundError('test').isRetryable, false);
         expect(const PermissionError('test').isRetryable, false);
         expect(const UnknownError('test').isRetryable, false);
-        expect(const AuthError('test', type: AuthErrorType.invalidCredentials).isRetryable, false);
+        expect(
+            const AuthError('test', type: AuthErrorType.invalidCredentials)
+                .isRetryable,
+            false);
       });
     });
   });

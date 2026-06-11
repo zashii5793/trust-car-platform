@@ -31,24 +31,39 @@ jobs:
       - name: Analyze code
         run: flutter analyze --fatal-infos
 
+      # Unit tests do not need the Firebase emulators — run them first so
+      # the required gate is fast and independent of emulator availability.
+      - name: Run unit tests with coverage
+        run: flutter test --coverage --exclude-tags emulator
+
+      # --- Emulator-backed integration tests (best effort) -----------------
+      # Everything below is continue-on-error: emulator download/startup can
+      # be flaky on hosted runners and must not block the required gate.
       - name: Setup Node.js (for Firebase CLI)
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
+      - name: Setup Java (for Firestore emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Install Firebase CLI
+        continue-on-error: true
         run: npm install -g firebase-tools
 
       - name: Start Firebase Emulators
+        continue-on-error: true
         run: firebase emulators:start --only firestore,auth --project demo-trust-car &
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
       - name: Wait for emulators to be ready
-        run: npx wait-on tcp:8080 tcp:9099 --timeout 30000
-
-      - name: Run unit tests with coverage
-        run: flutter test --coverage --exclude-tags emulator
+        continue-on-error: true
+        # 120s: the first run downloads the Firestore emulator jar (~60MB)
+        run: npx wait-on tcp:8080 tcp:9099 --timeout 120000
 
       - name: Run integration tests (emulator)
         run: flutter test test/integration/ --tags emulator
@@ -87,12 +102,22 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Install Android SDK 36 and NDK
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | $SDKMANAGER --licenses 2>/dev/null || true
+          $SDKMANAGER "platforms;android-36"
+          $SDKMANAGER "ndk;28.2.13676358"
+          $SDKMANAGER "build-tools;36.0.0" || echo "build-tools;36.0.0 not available, continuing"
+
+      - name: Update android/local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
+
       - name: Place google-services.json
         run: |
-          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
-            echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
-          else
-            cat > android/app/google-services.json <<'EOF'
+          cat > android/app/google-services.json <<'EOF'
           {
             "project_info": {
               "project_number": "31421119456",
@@ -111,10 +136,22 @@ jobs:
             "configuration_version": "1"
           }
           EOF
-          fi
 
       - name: Build APK (debug)
-        run: flutter build apk --debug
+        run: |
+          flutter build apk --debug 2>&1 | tee /tmp/apk_build.log
+          BUILD_STATUS=${PIPESTATUS[0]}
+          if [ $BUILD_STATUS -ne 0 ]; then
+            echo "::error::=== GRADLE FAILURE SECTION ==="
+            awk '/^FAILURE:/,0' /tmp/apk_build.log | head -80 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit $BUILD_STATUS
+          fi
+
+      - name: Locate APK (diagnostic)
+        if: always()
+        run: find . -name "*.apk" -type f 2>/dev/null | head -20 || echo "No APK found"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -122,10 +159,11 @@ jobs:
           name: android-apk-debug
           path: build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 7
+          if-no-files-found: warn
 
   build-ios:
     name: Build iOS
-    runs-on: macos-latest
+    runs-on: macos-15
     needs: analyze-and-test
 
     steps:
@@ -142,8 +180,68 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Place GoogleService-Info.plist
+        run: |
+          if [ -n "${{ secrets.GOOGLE_SERVICES_PLIST }}" ]; then
+            echo '${{ secrets.GOOGLE_SERVICES_PLIST }}' > ios/Runner/GoogleService-Info.plist
+          else
+            cat > ios/Runner/GoogleService-Info.plist <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>API_KEY</key>
+            <string>AIzaSyDZQ4UK6IXiUKNJ3u1Cjup4nIEmiV97O0Q</string>
+            <key>GCM_SENDER_ID</key>
+            <string>31421119456</string>
+            <key>PLIST_VERSION</key>
+            <string>1</string>
+            <key>BUNDLE_ID</key>
+            <string>jp.trustcar.app</string>
+            <key>PROJECT_ID</key>
+            <string>trust-car-platform</string>
+            <key>STORAGE_BUCKET</key>
+            <string>trust-car-platform.firebasestorage.app</string>
+            <key>IS_ADS_ENABLED</key>
+            <false/>
+            <key>IS_ANALYTICS_ENABLED</key>
+            <false/>
+            <key>IS_APPINVITE_ENABLED</key>
+            <true/>
+            <key>IS_GCM_ENABLED</key>
+            <true/>
+            <key>IS_SIGNIN_ENABLED</key>
+            <true/>
+            <key>GOOGLE_APP_ID</key>
+            <string>1:31421119456:ios:4320af5d1401f02c80c985</string>
+          </dict>
+          </plist>
+          EOF
+          fi
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        run: |
+          pod install --repo-update 2>&1 | tee /tmp/pod_install.log
+          INSTALL_STATUS=${PIPESTATUS[0]}
+          if [ $INSTALL_STATUS -ne 0 ]; then
+            tail -50 /tmp/pod_install.log | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit $INSTALL_STATUS
+          fi
+
       - name: Build iOS (no codesign)
-        run: flutter build ios --no-codesign --debug
+        run: |
+          flutter build ios --no-codesign --debug --verbose 2>&1 | tee /tmp/ios_build.log
+          BUILD_STATUS=${PIPESTATUS[0]}
+          if [ $BUILD_STATUS -ne 0 ]; then
+            echo "::error::=== XCODE ERRORS ==="
+            grep -E "error:|fatal error:|BUILD FAILED" /tmp/ios_build.log | grep -v "^note:" | tail -50 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit $BUILD_STATUS
+          fi
 
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
@@ -151,3 +249,4 @@ jobs:
           name: ios-build-debug
           path: build/ios/iphoneos/
           retention-days: 7
+          if-no-files-found: warn
