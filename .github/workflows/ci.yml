@@ -105,11 +105,10 @@ jobs:
       - name: Install Android SDK 36 and NDK
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          echo "y" | $SDKMANAGER "platforms;android-36" 2>&1 | tail -3
-          echo "y" | $SDKMANAGER "ndk;28.2.13676358" 2>&1 | tail -3
-          echo "y" | $SDKMANAGER "build-tools;36.0.0" 2>&1 | tail -3 || \
-            echo "build-tools;36.0.0 not found, using existing build-tools"
-          echo "y" | $SDKMANAGER --licenses 2>&1 | tail -3
+          yes | $SDKMANAGER --licenses 2>/dev/null || true
+          $SDKMANAGER "platforms;android-36"
+          $SDKMANAGER "ndk;28.2.13676358"
+          $SDKMANAGER "build-tools;36.0.0" || echo "build-tools;36.0.0 not available, continuing"
 
       - name: Place google-services.json
         run: |
