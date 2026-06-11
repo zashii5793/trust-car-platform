@@ -110,6 +110,11 @@ jobs:
           $SDKMANAGER "ndk;28.2.13676358"
           $SDKMANAGER "build-tools;36.0.0" || echo "build-tools;36.0.0 not available, continuing"
 
+      - name: Update android/local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
+
       - name: Place google-services.json
         run: |
           if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
