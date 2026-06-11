@@ -224,7 +224,15 @@ jobs:
 
       - name: Install CocoaPods dependencies
         working-directory: ios
-        run: pod install
+        run: |
+          pod install --repo-update 2>&1 | tee /tmp/pod_install.log
+          INSTALL_STATUS=${PIPESTATUS[0]}
+          if [ $INSTALL_STATUS -ne 0 ]; then
+            tail -50 /tmp/pod_install.log | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit $INSTALL_STATUS
+          fi
 
       - name: Build iOS (no codesign)
         run: |
