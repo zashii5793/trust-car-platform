@@ -233,15 +233,11 @@ jobs:
 
       - name: Build iOS (no codesign)
         run: |
-          flutter build ios --no-codesign --debug 2>&1 | tee /tmp/ios_build.log
+          flutter build ios --no-codesign --debug --verbose 2>&1 | tee /tmp/ios_build.log
           BUILD_STATUS=${PIPESTATUS[0]}
           if [ $BUILD_STATUS -ne 0 ]; then
-            echo "::error::=== IOS BUILD FAILURE SECTION ==="
-            grep -E "error:|BUILD FAILED|fatal error:|warning:.*required" /tmp/ios_build.log | tail -40 | while IFS= read -r line; do
-              echo "::error::$line"
-            done
-            echo "::error::=== LAST 30 LINES ==="
-            tail -30 /tmp/ios_build.log | while IFS= read -r line; do
+            echo "::error::=== XCODE ERRORS ==="
+            grep -E "error:|fatal error:|BUILD FAILED" /tmp/ios_build.log | grep -v "^note:" | tail -50 | while IFS= read -r line; do
               echo "::error::$line"
             done
             exit $BUILD_STATUS
