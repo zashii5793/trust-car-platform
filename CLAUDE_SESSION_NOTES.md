@@ -120,10 +120,34 @@
 **テスト**: MaintenanceScheduleService 19件・FleetService +10件追加（合計 2432件+）
 **全テスト**: `+2432 -31`（31件は前セッションから続く既存の失敗）
 
+### 第7弾（2026-06-12実装・コミュニティ仕様データ）
+
+**マスタデータ戦略の決定**: カーセンサー等に公開APIは存在しない。
+外部データ購入ではなく**「ユーザー手動入力 → コミュニティ蓄積」**方式を採用
+（プロダクト戦略「同車種オーナーの実例で戦う」と整合）。
+
+1. **VehicleSpecService 新規**（`vehicle_grade_specs` コレクション）:
+   - specId = `{maker}_{model}_{year}_{grade}`（小文字・スペース→`_`）
+   - fetchSpec: grade選択時にコミュニティデータを取得して自動入力
+   - saveSpec: 車両保存時に貢献。**最初の投稿者データを正**とし、
+     以降は contributorCount++ のみ（データ汚染防止）
+2. **実車写真表示**: `sampleImageUrl` — 最初に写真付きで登録した
+   オーナーの実車写真をグレード選択時に表示。null の場合のみ後続が補完
+   （firestore.rules で強制）
+3. **コミュニティ確認バッジ**: contributorCount >= 3 で
+   `isVerified` → 緑バッジ「X人が確認」。3人未満はグレーテキスト
+4. **フリートCSVエクスポート**: `FleetCsvExportService`
+   （RFC 4180・UTF-8 BOM で Excel 日本語対応）。
+   FleetDashboardScreen → share_plus で共有
+5. **ai_chat_provider テスト16件追加**（カバレッジギャップ解消）
+
+**テスト追加**: vehicle_spec 15件 / fleet_csv 10件 / ai_chat_provider 16件
+**人間タスク**: `firebase deploy --only firestore:rules`（vehicle_grade_specs ルール反映）
+
 ### 残課題（次セッション候補）
-- ai_chat_provider のテスト追加
-- フリート向け車両一覧の CSV エクスポート
-- 車種グレードマスタデータの実データ整備（現状はダミーデータ）
+- 車検証OCR読取値（型式等）から specId を引いて登録時に自動サジェスト
+- パーツ提案画面に「同車種オーナーの装着例」セクション（SNS実例連携）
+- フリートCSVに整備履歴サマリー（直近整備日・累計費用）を追加
 
 ---
 
