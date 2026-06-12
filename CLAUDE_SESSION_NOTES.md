@@ -7,8 +7,8 @@
 ## 現在の状態
 
 **ブランチ**: `claude/continue-development-WYZZp`（PR #20 マージ済み・main取り込み済み）
-**テスト**: 2963件 全パス・失敗0件（`--exclude-tags emulator`）
-**テストユーザー受け入れ準備**: 第9弾完了。写真同意・車検プロンプト・フォロワー限定投稿UI全て実装済み
+**テスト**: 3021件 全パス・失敗0件（`--exclude-tags emulator`）
+**テストユーザー受け入れ準備**: 第10弾完了。貨物車・フリート一括問い合わせ・距離表示・ペルソナ総合テスト追加
 
 ## 人間タスク（テストユーザー配布前に必須）
 
@@ -200,11 +200,40 @@
 **静的解析**: No issues found
 **コミット**: `0a0701f`
 
+### 第10弾（2026-06-12実装・ペルソナ駆動の機能追加 + 総合テスト）
+
+**ユーザー視点ギャップ分析（3エージェント並列調査）の結論**:
+- 実装済み確認: 問い合わせ双方向スレッド / 工場側返信UI / AIパーツ提案（ルールベース・
+  複数候補+理由）/ AIチャット（claude-haiku via Cloud Functions・20回/日）/
+  質問カテゴリ+コメント / 同車種フィルタ / 整備記録→SNS共有
+- ギャップ→実装: 貨物車区分なし / getNearbyShops未配線 / 一括問い合わせなし
+
+1. **VehicleUseCategory（用途区分）**: 貨物車（1・4ナンバー）は毎年車検、
+   自家用乗用は2年。`suggestedNextInspectionDate` で区分別サイクル自動計算。
+   車両編集画面の車検セクションにドロップダウン（Key: `use_category_dropdown`）+
+   毎年車検の警告ノート。null = 自家用乗用車として扱う（後方互換）
+2. **フリート車検一括問い合わせ**: `FleetInquiryComposer`（純粋関数・15テスト）。
+   車検60日以内を抽出→確認ダイアログ→ShopListScreen(selectMode)で工場選択→
+   InquiryScreen プリフィル。貨物車は文面に区分明記（工場が毎年車検と分かる）
+3. **近隣工場の距離表示**: `ShopProvider.sortByDistanceFrom`（dart:math 正確版
+   Haversine）。「近い順」ボタン（位置権限拒否/サービス無効をSnackBar案内）。
+   カードに「現在地から X.Xkm」
+4. **ペルソナ総合テスト**（`test/integration/persona_scenarios_test.dart` 23件）:
+   - Persona A: 個人4台（貨物・リース・車検未登録の混在）
+   - Persona B: 中小企業20台（critical/warning分類・CSV・権限違反・一括問い合わせ）
+   - Persona C: 近所の3工場（得意サービス・評価/レビュー数・距離で比較）
+
+**テスト**: 3021件パス（+58件）/ コミット: `ae8553d`
+
 ### 残課題（次セッション候補）
 - 装着例セクションの再読み込み対応（現在initState時のみ取得）
 - `isViewerFollowing` サーバーサイド検証（Cloud Function推奨。現在はクライアントのみ）
 - スペック貢献ロジックのテスト: `spec.sampleImageUrl` が既に存在する場合
 - `getUserPosts` ページネーション + フォロワーフィルタの統合テスト
+- 店舗比較画面（2〜3工場を表形式で並べて比較）— ペルソナC調査で未実装と判明
+- フリートメンバー権限モデル（総務担当ロール。現在はオーナーのみ書き込み可）
+- 法人向けウェブ管理画面（工場側の問い合わせ対応をPCブラウザで）— Enterprise プラン向け
+- ShopService の手書きTaylor級数Haversineを dart:math 版に置換（精度改善）
 
 ---
 
