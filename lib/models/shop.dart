@@ -205,6 +205,10 @@ class Shop {
   final bool isFeatured; // Featured/promoted
   final DateTime? verifiedAt;
 
+  // Chain affiliation (e.g., コバック, ジェームス)
+  final String? chainId; // Parent ShopChain document ID
+  final String? chainName; // Denormalized chain name for display
+
   // Plan & Subscription
   final ShopPlanType planType; // Listing plan (default: free)
   final DateTime? planExpiresAt; // Plan expiration date
@@ -232,6 +236,8 @@ class Shop {
     this.bookingUrl,
     this.reservationMethods = const [],
     this.appealPoints = const [],
+    this.chainId,
+    this.chainName,
     this.address,
     this.prefecture,
     this.city,
@@ -316,6 +322,8 @@ class Shop {
               .toList() ??
           [],
       appealPoints: List<String>.from(data['appealPoints'] ?? []),
+      chainId: data['chainId'],
+      chainName: data['chainName'],
       address: data['address'],
       prefecture: data['prefecture'],
       city: data['city'],
@@ -365,6 +373,8 @@ class Shop {
       'bookingUrl': bookingUrl,
       'reservationMethods': reservationMethods.map((e) => e.name).toList(),
       'appealPoints': appealPoints,
+      'chainId': chainId,
+      'chainName': chainName,
       'address': address,
       'prefecture': prefecture,
       'city': city,
@@ -408,6 +418,8 @@ class Shop {
     String? bookingUrl,
     List<ReservationMethod>? reservationMethods,
     List<String>? appealPoints,
+    String? chainId,
+    String? chainName,
     String? address,
     String? prefecture,
     String? city,
@@ -445,6 +457,8 @@ class Shop {
       bookingUrl: bookingUrl ?? this.bookingUrl,
       reservationMethods: reservationMethods ?? this.reservationMethods,
       appealPoints: appealPoints ?? this.appealPoints,
+      chainId: chainId ?? this.chainId,
+      chainName: chainName ?? this.chainName,
       address: address ?? this.address,
       prefecture: prefecture ?? this.prefecture,
       city: city ?? this.city,

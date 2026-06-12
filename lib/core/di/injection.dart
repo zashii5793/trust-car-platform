@@ -43,6 +43,7 @@ import '../../services/community_trend_service.dart';
 import '../../services/faq_service.dart';
 import '../../services/vehicle_history_sharing_service.dart';
 import '../../services/license_plate_masking_service.dart';
+import '../../services/shop_chain_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -197,6 +198,9 @@ class Injection {
     // License Plate Masking Service (privacy: black-mask plate numbers on photos)
     locator.registerLazySingleton<LicensePlateMaskingService>(
         () => const LicensePlateMaskingService());
+
+    // Shop Chain Service (multi-branch chains like コバック, ジェームス)
+    locator.registerLazySingleton<ShopChainService>(() => ShopChainService());
 
     _initialized = true;
   }
