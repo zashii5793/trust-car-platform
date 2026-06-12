@@ -477,6 +477,10 @@ class _PostHeader extends StatelessWidget {
           ),
           // カテゴリバッジ
           _CategoryBadge(category: post.category),
+          if (post.visibility != PostVisibility.public) ...[
+            const SizedBox(width: 4),
+            _VisibilityBadge(visibility: post.visibility),
+          ],
         ],
       ),
     );
@@ -589,6 +593,49 @@ class _PostContent extends StatelessWidget {
         ],
         const SizedBox(height: 8),
       ],
+    );
+  }
+}
+
+// ---- 公開範囲バッジ（public 以外のみ表示） ----
+
+class _VisibilityBadge extends StatelessWidget {
+  final PostVisibility visibility;
+
+  const _VisibilityBadge({required this.visibility});
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, label, color) = switch (visibility) {
+      PostVisibility.followers => (Icons.group, 'フォロワー', Colors.blue),
+      PostVisibility.private_ => (Icons.lock, '非公開', Colors.grey),
+      PostVisibility.public => (Icons.public, '', Colors.green),
+    };
+
+    if (visibility == PostVisibility.public) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

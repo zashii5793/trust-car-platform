@@ -239,13 +239,17 @@ service cloud.firestore {
 
     // 投稿データ
     match /posts/{postId} {
-      // 公開投稿は認証済みユーザーなら誰でも閲覧可能。
-      // 非公開・フォロワー限定は本人のみ（クライアント側フィルタだけでは
-      // SDK直接クエリで全件取得できてしまうため、ルールで強制する）。
-      // クエリは必ず visibility == 'public' か userId == 自分 を条件に含めること。
+      // 公開投稿: 認証済みユーザーなら誰でも閲覧可能。
+      // フォロワー限定: 投稿者をフォロー中のユーザーのみ
+      //   (follows/{viewerUid}_{authorUid} ドキュメントの存在で確認)。
+      // 非公開: 本人のみ。
+      // クライアント側フィルタだけでは SDK 直接クエリで全件取得できてしまうため
+      // ルールで強制する。クエリは必ず visibility か userId に条件を含めること。
       allow read: if isAuthenticated() &&
         (resource.data.visibility == 'public' ||
-         resource.data.userId == request.auth.uid);
+         resource.data.userId == request.auth.uid ||
+         (resource.data.visibility == 'followers' &&
+          exists(/databases/$(database)/documents/follows/$(request.auth.uid + '_' + resource.data.userId))));
 
       // 作成時は自分のユーザーIDを設定していること
       allow create: if isCreatingOwnDocument();

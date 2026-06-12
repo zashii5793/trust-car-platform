@@ -7,9 +7,13 @@
 //   3. PostMedia / PostVehicleTag モデルの toMap/fromMap
 //   4. AppError 型の利用パターン（Post サービス内で発生しうるエラー）
 //   5. エッジケース
+//   6. PostService.getUserPosts — フォロワー限定投稿可視性（Item 3）
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/models/post.dart';
+import 'package:trust_car_platform/services/post_service.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 
@@ -364,6 +368,188 @@ void main() {
         updatedAt: now,
       );
       expect(post.likeCount, greaterThanOrEqualTo(0));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Item 3: PostService.getUserPosts — フォロワー限定投稿可視性
+  // ---------------------------------------------------------------------------
+
+  /// Minimal Firestore document for a post
+  Map<String, dynamic> _postDoc({
+    required String userId,
+    required String visibility,
+    String content = 'test',
+  }) =>
+      {
+        'userId': userId,
+        'visibility': visibility,
+        'content': content,
+        'category': 'general',
+        'hashtags': <String>[],
+        'mentionedUserIds': <String>[],
+        'likeCount': 0,
+        'commentCount': 0,
+        'shareCount': 0,
+        'viewCount': 0,
+        'isEdited': false,
+        'media': <dynamic>[],
+        'createdAt': Timestamp.fromDate(DateTime(2024, 1, 1)),
+        'updatedAt': Timestamp.fromDate(DateTime(2024, 1, 1)),
+      };
+
+  group('PostService.getUserPosts — フォロワー限定投稿', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    setUp(() async {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+
+      // Seed 3 posts from 'author-uid' with different visibilities
+      await fakeFirestore
+          .collection('posts')
+          .add(_postDoc(userId: 'author-uid', visibility: 'public'));
+      await fakeFirestore
+          .collection('posts')
+          .add(_postDoc(userId: 'author-uid', visibility: 'followers'));
+      await fakeFirestore
+          .collection('posts')
+          .add(_postDoc(userId: 'author-uid', visibility: 'private'));
+    });
+
+    test('非フォロワーは公開投稿のみ取得できる', () async {
+      final result = await service.getUserPosts(
+        userId: 'author-uid',
+        viewerId: 'stranger-uid',
+        isViewerFollowing: false,
+      );
+
+      result.when(
+        success: (posts) {
+          expect(posts.length, 1);
+          expect(posts.first.visibility, PostVisibility.public);
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('フォロワーは公開+フォロワー限定投稿を取得できる', () async {
+      final result = await service.getUserPosts(
+        userId: 'author-uid',
+        viewerId: 'follower-uid',
+        isViewerFollowing: true,
+      );
+
+      result.when(
+        success: (posts) {
+          expect(posts.length, 2);
+          final visibilities = posts.map((p) => p.visibility).toSet();
+          expect(visibilities, {PostVisibility.public, PostVisibility.followers});
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('本人は全投稿（公開・フォロワー限定・非公開）を取得できる', () async {
+      final result = await service.getUserPosts(
+        userId: 'author-uid',
+        viewerId: 'author-uid',
+      );
+
+      result.when(
+        success: (posts) {
+          expect(posts.length, 3);
+          final visibilities = posts.map((p) => p.visibility).toSet();
+          expect(visibilities, {
+            PostVisibility.public,
+            PostVisibility.followers,
+            PostVisibility.private_,
+          });
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('フォロワー限定のみのユーザー — 非フォロワーには空リスト', () async {
+      await fakeFirestore
+          .collection('posts')
+          .add(_postDoc(userId: 'private-author', visibility: 'followers'));
+
+      final result = await service.getUserPosts(
+        userId: 'private-author',
+        viewerId: 'stranger-uid',
+        isViewerFollowing: false,
+      );
+
+      result.when(
+        success: (posts) => expect(posts, isEmpty),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    group('Edge Cases', () {
+      test('存在しないユーザーIDは空リストを返す', () async {
+        final result = await service.getUserPosts(
+          userId: 'nonexistent-user-xyz',
+          viewerId: 'viewer-uid',
+        );
+
+        result.when(
+          success: (posts) => expect(posts, isEmpty),
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+
+      test('isViewerFollowing=false のデフォルト動作は public のみ', () async {
+        // Default value: no isViewerFollowing arg → same as false
+        final result = await service.getUserPosts(
+          userId: 'author-uid',
+          viewerId: 'stranger-uid',
+        );
+
+        result.when(
+          success: (posts) {
+            for (final p in posts) {
+              expect(p.visibility, PostVisibility.public);
+            }
+          },
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+
+      test('フォロワー本人 viewerId==userId 全件返す（isViewerFollowing 無視）', () async {
+        // Even if isViewerFollowing=false, when viewerId==userId all posts returned
+        final result = await service.getUserPosts(
+          userId: 'author-uid',
+          viewerId: 'author-uid',
+          isViewerFollowing: false,
+        );
+
+        result.when(
+          success: (posts) => expect(posts.length, 3),
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+
+      test('複数ユーザー混在 — userId フィルタが正しく機能する', () async {
+        // Add posts from another user
+        await fakeFirestore
+            .collection('posts')
+            .add(_postDoc(userId: 'other-user', visibility: 'public'));
+
+        final result = await service.getUserPosts(
+          userId: 'author-uid',
+          viewerId: 'stranger-uid',
+        );
+
+        result.when(
+          success: (posts) {
+            expect(posts.every((p) => p.userId == 'author-uid'), isTrue);
+          },
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
     });
   });
 }

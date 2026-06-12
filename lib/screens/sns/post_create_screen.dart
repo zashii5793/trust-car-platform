@@ -44,6 +44,9 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
 
   PostCategory _selectedCategory = PostCategory.general;
 
+  /// Visibility setting for this post
+  PostVisibility _selectedVisibility = PostVisibility.public;
+
   /// Selected vehicle for tagging
   Vehicle? _selectedVehicle;
 
@@ -169,6 +172,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       userId: user.uid,
       content: content,
       category: _selectedCategory,
+      visibility: _selectedVisibility,
       userDisplayName: user.displayName,
       userPhotoUrl: user.photoURL,
       imageUrls: imageUrls,
@@ -254,6 +258,16 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
           _CategoryChipRow(
             selected: _selectedCategory,
             onSelected: (cat) => setState(() => _selectedCategory = cat),
+          ),
+
+          AppSpacing.verticalLg,
+
+          // ── Visibility selector ───────────────────────────────────────────
+          _SectionLabel(label: '公開範囲'),
+          AppSpacing.verticalSm,
+          _VisibilitySelector(
+            selected: _selectedVisibility,
+            onChanged: (v) => setState(() => _selectedVisibility = v),
           ),
 
           AppSpacing.verticalLg,
@@ -350,6 +364,50 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Visibility selector
+// ---------------------------------------------------------------------------
+
+class _VisibilitySelector extends StatelessWidget {
+  final PostVisibility selected;
+  final ValueChanged<PostVisibility> onChanged;
+
+  const _VisibilitySelector({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<PostVisibility>(
+      segments: const [
+        ButtonSegment(
+          value: PostVisibility.public,
+          icon: Icon(Icons.public, size: 16),
+          label: Text('全体公開'),
+        ),
+        ButtonSegment(
+          value: PostVisibility.followers,
+          icon: Icon(Icons.group, size: 16),
+          label: Text('フォロワーのみ'),
+        ),
+        ButtonSegment(
+          value: PostVisibility.private_,
+          icon: Icon(Icons.lock, size: 16),
+          label: Text('自分のみ'),
+        ),
+      ],
+      selected: {selected},
+      onSelectionChanged: (set) {
+        if (set.isNotEmpty) onChanged(set.first);
+      },
+      style: const ButtonStyle(
+        visualDensity: VisualDensity.compact,
       ),
     );
   }

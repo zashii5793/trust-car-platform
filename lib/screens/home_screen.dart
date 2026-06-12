@@ -16,6 +16,7 @@ import '../core/utils/inspection_urgency.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/common/offline_banner.dart';
 import 'vehicle_registration_screen.dart';
+import 'vehicle_edit_screen.dart';
 import 'vehicle_detail_screen.dart';
 import 'profile/profile_screen.dart';
 import 'profile/settings_screen.dart';
@@ -349,22 +350,26 @@ class _VehicleTab extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ListView.builder(
-            padding: AppSpacing.paddingScreen,
-            itemCount: vehicleProvider.vehicles.length + 2,
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return _DashboardSummaryCard(
-                  vehicles: vehicleProvider.vehicles,
-                );
-              }
-              if (index == 1) {
-                return _AiSuggestionSection(onSeeAll: onNavigateToMarketplace);
-              }
-              final vehicle = vehicleProvider.vehicles[index - 2];
-              return _VehicleCard(vehicle: vehicle);
-            },
-          ),
+          child: Builder(builder: (context) {
+            final vehicles = vehicleProvider.vehicles;
+            final hasVehicleWithoutInspection =
+                vehicles.any((v) => v.inspectionExpiryDate == null);
+
+            // Build item list: fixed cards + optional prompt + vehicle rows
+            final items = <Widget>[
+              _DashboardSummaryCard(vehicles: vehicles),
+              if (hasVehicleWithoutInspection)
+                _InspectionSetupCard(vehicles: vehicles),
+              _AiSuggestionSection(onSeeAll: onNavigateToMarketplace),
+              ...vehicles.map((v) => _VehicleCard(vehicle: v)),
+            ];
+
+            return ListView.builder(
+              padding: AppSpacing.paddingScreen,
+              itemCount: items.length,
+              itemBuilder: (_, i) => items[i],
+            );
+          }),
         ),
       ],
     );
@@ -1079,6 +1084,87 @@ class _VehicleCard extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 // 車両未登録時オンボーディングガイド
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// 車検日未設定プロンプトカード
+// Shown when one or more vehicles have no inspectionExpiryDate.
+// ---------------------------------------------------------------------------
+
+class _InspectionSetupCard extends StatelessWidget {
+  final List<Vehicle> vehicles;
+
+  const _InspectionSetupCard({required this.vehicles});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Find the first vehicle without an inspection date as the action target
+    final target = vehicles.firstWhere((v) => v.inspectionExpiryDate == null);
+
+    return Container(
+      key: const Key('inspection_setup_card'),
+      margin: AppSpacing.marginListItem,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.darkCard
+            : AppColors.warning.withValues(alpha: 0.08),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(
+          color: AppColors.warning.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.event_busy_outlined,
+            color: AppColors.warning,
+            size: AppSpacing.iconMd,
+          ),
+          AppSpacing.horizontalMd,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '車検満了日を登録しよう',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                AppSpacing.verticalXxs,
+                Text(
+                  '車検期限を登録すると、満了前に通知でお知らせします。',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.horizontalSm,
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => VehicleEditScreen(vehicle: target),
+                ),
+              );
+            },
+            child: const Text('登録する'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 
 class _VehicleEmptyOnboarding extends StatelessWidget {

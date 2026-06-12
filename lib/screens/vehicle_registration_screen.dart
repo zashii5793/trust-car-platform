@@ -60,6 +60,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   DateTime? _purchaseDate;
 
   Uint8List? _imageBytes;
+  bool _sharePhotoConsent = false;
   bool _isLoading = false;
   bool _isOcrProcessing = false;
 
@@ -295,7 +296,12 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
       final bytes = await pickedFile.readAsBytes();
-      setState(() => _imageBytes = bytes);
+      // Reset consent when a new photo is picked so the user explicitly
+      // re-evaluates whether the new image is safe to share.
+      setState(() {
+        _imageBytes = bytes;
+        _sharePhotoConsent = false;
+      });
     }
   }
 
@@ -314,32 +320,6 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       helpText: title,
     );
     if (picked != null) onSelected(picked);
-  }
-
-  /// Asks for explicit consent before sharing the vehicle photo with the
-  /// community. Defaults to NOT sharing (privacy-safe).
-  Future<bool> _askPhotoShareConsent() async {
-    final consent = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('実車写真の共有（任意）'),
-        content: const Text(
-            '車両の保存は完了しています。\n\n'
-            'あなたの車の写真を、同じ車種を登録する他のユーザーへの参考写真として共有しますか？\n\n'
-            'ナンバープレートや個人情報が写っている場合は「共有しない」を選んでください。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('共有しない'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('共有する'),
-          ),
-        ],
-      ),
-    );
-    return consent ?? false;
   }
 
   Future<void> _fetchCommunitySpec(VehicleGrade grade) async {
@@ -487,13 +467,14 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                   vehicle.maker, vehicle.model, vehicle.year, vehicle.grade))
               .valueOrNull;
           if (spec == null || !spec.isContributor(currentUserId)) {
-            String? imageToShare;
-            if (vehicle.imageUrl != null &&
-                (spec == null || spec.sampleImageUrl == null) &&
-                mounted) {
-              imageToShare =
-                  await _askPhotoShareConsent() ? vehicle.imageUrl : null;
-            }
+            // Use the checkbox state set in Step 1 instead of a post-save dialog.
+            // Consent is false by default (privacy-safe).
+            final imageToShare =
+                (_sharePhotoConsent &&
+                        vehicle.imageUrl != null &&
+                        (spec == null || spec.sampleImageUrl == null))
+                    ? vehicle.imageUrl
+                    : null;
             _specService.saveSpec(
               vehicle.maker,
               vehicle.model,
@@ -672,6 +653,25 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                       ),
               ),
             ),
+            // Show photo-consent checkbox only when a photo has been selected.
+            // Asking before save (checkbox) is better UX than a post-save dialog:
+            // the user sees the choice while still in context of "I'm uploading."
+            if (_imageBytes != null) ...[
+              AppSpacing.verticalXs,
+              CheckboxListTile(
+                key: const Key('photo_consent_checkbox'),
+                value: _sharePhotoConsent,
+                onChanged: (v) =>
+                    setState(() => _sharePhotoConsent = v ?? false),
+                title: const Text('写真をコミュニティと共有する（任意）'),
+                subtitle: const Text(
+                  'ナンバーや個人情報が写り込んでいない場合のみ選択してください',
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
+            ],
             AppSpacing.verticalLg,
 
             _buildSectionHeader(theme, '車両情報', Icons.directions_car),

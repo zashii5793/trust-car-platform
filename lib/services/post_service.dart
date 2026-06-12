@@ -214,10 +214,16 @@ class PostService {
     }
   }
 
-  /// Get posts by user
+  /// Get posts by user.
+  ///
+  /// [isViewerFollowing] — when true and [viewerId] != [userId], the query
+  /// includes both 'public' and 'followers' posts.  When false (default), only
+  /// 'public' posts are returned to non-owners.  The Firestore security rule
+  /// enforces the same constraint server-side via an `exists(follows/...)` check.
   Future<Result<List<Post>, AppError>> getUserPosts({
     required String userId,
     required String viewerId,
+    bool isViewerFollowing = false,
     int limit = 20,
     DocumentSnapshot? startAfter,
   }) async {
@@ -225,13 +231,20 @@ class PostService {
       Query<Map<String, dynamic>> query =
           _postsRef.where('userId', isEqualTo: userId);
 
-      // Other users may only see public posts. This must be a server-side
-      // filter: Firestore rules reject queries that could match non-public
-      // documents, and client-side filtering would leak data via direct
-      // SDK queries anyway.
+      // Apply visibility filter only for other users.
+      // This must be server-side: Firestore rules reject queries that could
+      // match restricted documents and client-side filtering leaks data anyway.
       if (userId != viewerId) {
-        query = query.where('visibility',
-            isEqualTo: PostVisibility.public.storageName);
+        if (isViewerFollowing) {
+          // Followers can read both public and followers-only posts.
+          query = query.where('visibility', whereIn: [
+            PostVisibility.public.storageName,
+            PostVisibility.followers.storageName,
+          ]);
+        } else {
+          query = query.where('visibility',
+              isEqualTo: PostVisibility.public.storageName);
+        }
       }
 
       query = query.orderBy('createdAt', descending: true).limit(limit);
