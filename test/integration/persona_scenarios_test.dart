@@ -11,11 +11,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/core/result/result.dart';
+import 'package:trust_car_platform/models/faq.dart';
+import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/shop.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
+import 'package:trust_car_platform/services/community_trend_service.dart';
+import 'package:trust_car_platform/services/faq_service.dart';
 import 'package:trust_car_platform/services/fleet_csv_export_service.dart';
 import 'package:trust_car_platform/services/fleet_inquiry_composer.dart';
 import 'package:trust_car_platform/services/fleet_service.dart';
+import 'package:trust_car_platform/services/maintenance_trend_service.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -466,4 +471,267 @@ void main() {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Persona D: 整備履歴トレンド分析 + コミュニティQ&A
+  //   「4年間マイカーを乗り続けているプリウスオーナー。
+  //    過去の整備履歴から次のオイル交換のタイミングを確認したい。
+  //    また、同じ車種のオーナーがどんな整備をしているか知りたい。
+  //    整備工場の許可を得て車検費用についてQ&Aで聞きたい。」
+  // ---------------------------------------------------------------------------
+  group('Persona D: プリウスオーナーのトレンド分析とQ&A', () {
+    late MaintenanceTrendService trendService;
+    late CommunityTrendService communityService;
+    late FaqService faqService;
+    late FakeFirebaseFirestore fakeFirestore;
+
+    // Prius owner maintenance records over 4 years
+    late List<MaintenanceRecord> priusHistory;
+
+    setUp(() async {
+      trendService = const MaintenanceTrendService();
+      fakeFirestore = FakeFirebaseFirestore();
+      communityService = CommunityTrendService(firestore: fakeFirestore);
+      faqService = FaqService(firestore: fakeFirestore);
+
+      final base = DateTime(2020, 6, 1);
+      priusHistory = [
+        // Oil changes every ~5000km / 6 months
+        _maintenanceRecord(type: MaintenanceType.oilChange, date: base, mileage: 10000, cost: 4200),
+        _maintenanceRecord(type: MaintenanceType.oilChange, date: base.add(const Duration(days: 180)), mileage: 15000, cost: 4400),
+        _maintenanceRecord(type: MaintenanceType.oilChange, date: base.add(const Duration(days: 360)), mileage: 20000, cost: 4100),
+        _maintenanceRecord(type: MaintenanceType.oilChange, date: base.add(const Duration(days: 540)), mileage: 25000, cost: 4300),
+        // Tire change every ~2 years
+        _maintenanceRecord(type: MaintenanceType.tireChange, date: base.add(const Duration(days: 365)), mileage: 18000, cost: 32000),
+        _maintenanceRecord(type: MaintenanceType.tireChange, date: base.add(const Duration(days: 730)), mileage: 28000, cost: 34000),
+        // Battery change once
+        _maintenanceRecord(type: MaintenanceType.batteryChange, date: base.add(const Duration(days: 1200)), mileage: 40000, cost: 15000),
+      ];
+
+      // Seed community trend data for Prius
+      await fakeFirestore
+          .collection('community_maintenance_trends')
+          .doc('Toyota_Prius')
+          .set({
+        'maker': 'Toyota',
+        'model': 'Prius',
+        'sampleVehicleCount': 156,
+        'lastUpdated': Timestamp.now(),
+        'insights': [
+          {
+            'type': 'oilChange',
+            'medianIntervalKm': 5000.0,
+            'medianIntervalDays': 183.0,
+            'medianCost': 4200.0,
+            'sampleCount': 152,
+            'popularityPercent': 97.4,
+          },
+          {
+            'type': 'tireChange',
+            'medianIntervalKm': 25000.0,
+            'medianIntervalDays': 730.0,
+            'medianCost': 33000.0,
+            'sampleCount': 138,
+            'popularityPercent': 88.5,
+          },
+        ],
+      });
+    });
+
+    test('オイル交換の平均間隔（km・日数）が計算される', () {
+      final trends = trendService.analyzeHistory(
+        priusHistory.where((r) => r.type == MaintenanceType.oilChange).toList(),
+        currentMileage: 28000,
+      );
+      final oilTrend = trends.first;
+
+      expect(oilTrend.averageIntervalKm, closeTo(5000, 50));
+      expect(oilTrend.averageIntervalDays, closeTo(180, 5));
+      expect(oilTrend.confidence, equals(TrendConfidence.high));
+    });
+
+    test('次回オイル交換の予測走行距離が計算される', () {
+      final trends = trendService.analyzeHistory(
+        priusHistory.where((r) => r.type == MaintenanceType.oilChange).toList(),
+        currentMileage: 28000,
+      );
+      final oilTrend = trends.first;
+
+      // Last oil at 25000, avg interval ~5000 → next at ~30000
+      expect(oilTrend.predictedNextMileage, closeTo(30000, 200));
+    });
+
+    test('タイヤ交換は2年毎のパターンが信頼度mediumで認識される', () {
+      final trends = trendService.analyzeHistory(
+        priusHistory.where((r) => r.type == MaintenanceType.tireChange).toList(),
+      );
+      final tireTrend = trends.first;
+
+      expect(tireTrend.averageIntervalDays, closeTo(365, 5));
+      expect(tireTrend.confidence, equals(TrendConfidence.medium));
+    });
+
+    test('バッテリー交換は1件のみで confidence=low', () {
+      final trends = trendService.analyzeHistory(
+        priusHistory.where((r) => r.type == MaintenanceType.batteryChange).toList(),
+      );
+      expect(trends.first.confidence, equals(TrendConfidence.low));
+      expect(trends.first.averageIntervalKm, isNull);
+    });
+
+    test('sortByUrgency: オイル交換が最も緊急として上位に来る', () {
+      final now = DateTime(2021, 7, 1); // last oil at day 540 → ~22 days overdue
+      final trends = trendService.analyzeHistory(priusHistory, currentMileage: 28000, currentDate: now);
+      final sorted = trendService.sortByUrgency(trends, currentDate: now);
+
+      expect(sorted.first.type, equals(MaintenanceType.oilChange));
+    });
+
+    test('同車種コミュニティのプリウストレンドを取得できる', () async {
+      final result = await communityService.getTrendsForVehicle(
+        maker: 'Toyota',
+        model: 'Prius',
+      );
+
+      expect(result.isSuccess, isTrue);
+      final data = result.valueOrNull!;
+      expect(data.sampleVehicleCount, equals(156));
+      expect(data.insights.any((i) => i.typeKey == 'oilChange'), isTrue);
+    });
+
+    test('コミュニティトレンドのdescriptionにPriusが含まれる', () async {
+      final result = await communityService.getTrendsForVehicle(
+        maker: 'Toyota',
+        model: 'Prius',
+      );
+      final oilInsight = result.valueOrNull!.insights
+          .firstWhere((i) => i.typeKey == 'oilChange');
+      expect(oilInsight.description, contains('Prius'));
+    });
+
+    test('ユーザーが車検費用についてFAQを作成できる（店舗回答許可あり）', () async {
+      final result = await faqService.createFaq(
+        question: 'プリウスの車検費用の相場を教えてください',
+        category: FaqCategory.inspection,
+        authorId: 'persona-d-user',
+        allowShopResponse: true,
+        vehicleMaker: 'Toyota',
+        vehicleModel: 'Prius',
+        tags: ['車検', '費用', 'プリウス'],
+      );
+
+      expect(result.isSuccess, isTrue);
+    });
+
+    test('他のプリウスオーナーがFAQに回答できる', () async {
+      final faqId = (await faqService.createFaq(
+        question: 'プリウスの車検費用は？',
+        category: FaqCategory.inspection,
+        authorId: 'persona-d-user',
+        allowShopResponse: true,
+      )).valueOrNull!;
+
+      final answer = await faqService.addAnswer(
+        faqId: faqId,
+        content: '私のプリウス（5年前の型）は先日7万5千円でした。',
+        authorId: 'other-prius-owner',
+        isShopResponse: false,
+      );
+
+      expect(answer.isSuccess, isTrue);
+
+      final faq = (await faqService.getFaq(faqId)).valueOrNull!;
+      expect(faq.answerCount, equals(1));
+    });
+
+    test('整備工場が許可制で回答できる（非セールス）', () async {
+      final faqId = (await faqService.createFaq(
+        question: '車検費用の内訳を教えてください',
+        category: FaqCategory.inspection,
+        authorId: 'persona-d-user',
+        allowShopResponse: true,
+      )).valueOrNull!;
+
+      final shopAnswer = await faqService.addAnswer(
+        faqId: faqId,
+        content: '法定費用（自賠責・重量税・印紙代）と整備代に分かれます。法定費用は車種共通で約3.6万円です。',
+        authorId: 'shop-staff-1',
+        isShopResponse: true,
+        shopId: 'inspection-pro-shop',
+      );
+
+      expect(shopAnswer.isSuccess, isTrue);
+
+      final answers = (await faqService.getAnswers(faqId)).valueOrNull!;
+      final shopAns = answers.firstWhere((a) => a.isShopResponse);
+      expect(shopAns.shopId, equals('inspection-pro-shop'));
+    });
+
+    test('allowShopResponse=false のFAQに店舗は回答できない', () async {
+      final faqId = (await faqService.createFaq(
+        question: '個人的な質問です',
+        category: FaqCategory.general,
+        authorId: 'persona-d-user',
+        allowShopResponse: false,
+      )).valueOrNull!;
+
+      final result = await faqService.addAnswer(
+        faqId: faqId,
+        content: '当店ではお得なコースをご用意しています',
+        authorId: 'salesy-shop',
+        isShopResponse: true,
+        shopId: 'salesy-shop',
+      );
+
+      expect(result.isFailure, isTrue);
+    });
+
+    test('ベスト回答を質問者が設定できる', () async {
+      final faqId = (await faqService.createFaq(
+        question: 'ベスト回答テスト',
+        category: FaqCategory.maintenance,
+        authorId: 'persona-d-user',
+        allowShopResponse: false,
+      )).valueOrNull!;
+
+      final answerId = (await faqService.addAnswer(
+        faqId: faqId,
+        content: '最も的確な回答です',
+        authorId: 'expert-user',
+        isShopResponse: false,
+      )).valueOrNull!;
+
+      final best = await faqService.markBestAnswer(
+        faqId: faqId,
+        answerId: answerId,
+        requesterId: 'persona-d-user',
+      );
+      expect(best.isSuccess, isTrue);
+
+      final answers = (await faqService.getAnswers(faqId)).valueOrNull!;
+      expect(answers.first.isBestAnswer, isTrue);
+    });
+  });
 }
+
+// ---------------------------------------------------------------------------
+// Local helper for persona D maintenance records
+// ---------------------------------------------------------------------------
+MaintenanceRecord _maintenanceRecord({
+  required MaintenanceType type,
+  required DateTime date,
+  int? mileage,
+  int cost = 5000,
+}) =>
+    MaintenanceRecord(
+      id: '${type.name}_${date.millisecondsSinceEpoch}',
+      vehicleId: 'prius-v1',
+      userId: 'persona-d-user',
+      type: type,
+      title: type.displayName,
+      cost: cost,
+      date: date,
+      mileageAtService: mileage,
+      imageUrls: const [],
+      createdAt: date,
+    );
