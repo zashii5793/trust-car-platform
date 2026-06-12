@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
@@ -9,6 +12,7 @@ import '../../models/vehicle.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/fleet_service.dart';
+import '../../services/fleet_csv_export_service.dart';
 
 /// Fleet management dashboard for business account managers.
 ///
@@ -31,6 +35,16 @@ class FleetDashboardScreen extends StatelessWidget {
           actions: [
             Consumer<FleetProvider>(
               builder: (context, p, _) => IconButton(
+                key: const Key('fleet_csv_export_button'),
+                icon: const Icon(Icons.file_download_outlined),
+                tooltip: 'CSVエクスポート',
+                onPressed: p.allVehicles.isEmpty
+                    ? null
+                    : () => _exportCsv(context, p.allVehicles),
+              ),
+            ),
+            Consumer<FleetProvider>(
+              builder: (context, p, _) => IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: p.refresh,
               ),
@@ -49,6 +63,39 @@ class FleetDashboardScreen extends StatelessWidget {
           },
         ),
       ),
+    );
+  }
+
+  Future<void> _exportCsv(BuildContext context, List<Vehicle> vehicles) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final result = sl.get<FleetCsvExportService>().buildCsv(vehicles);
+
+    await result.when(
+      success: (csv) async {
+        try {
+          final tempDir = await getTemporaryDirectory();
+          final now = DateTime.now();
+          final stamp = '${now.year}'
+              '${now.month.toString().padLeft(2, '0')}'
+              '${now.day.toString().padLeft(2, '0')}';
+          final file = File('${tempDir.path}/fleet_vehicles_$stamp.csv');
+          await file.writeAsString(csv);
+
+          await Share.shareXFiles(
+            [XFile(file.path, mimeType: 'text/csv')],
+            subject: 'フリート車両一覧 ($stamp)',
+          );
+        } catch (e) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('CSVの共有に失敗しました: $e')),
+          );
+        }
+      },
+      failure: (error) async {
+        messenger.showSnackBar(
+          SnackBar(content: Text('CSVの生成に失敗しました: ${error.userMessage}')),
+        );
+      },
     );
   }
 }

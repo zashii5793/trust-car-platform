@@ -9,10 +9,18 @@ class VehicleSpecResult {
   final VehicleGrade grade;
   final int contributorCount;
 
+  /// Photo of an actual vehicle of this grade, contributed by a community
+  /// member (the first contributor who registered with a photo).
+  final String? sampleImageUrl;
+
   const VehicleSpecResult({
     required this.grade,
     required this.contributorCount,
+    this.sampleImageUrl,
   });
+
+  /// True once 3+ owners have confirmed the same spec data.
+  bool get isVerified => contributorCount >= 3;
 }
 
 /// Service for reading and writing community vehicle grade spec data.
@@ -66,6 +74,7 @@ class VehicleSpecService {
       return Result.success(VehicleSpecResult(
         grade: g,
         contributorCount: data['contributorCount'] as int? ?? 1,
+        sampleImageUrl: data['sampleImageUrl'] as String?,
       ));
     } catch (e) {
       return Result.failure(AppError.unknown('fetchSpec failed: $e'));
@@ -82,7 +91,8 @@ class VehicleSpecService {
       String model,
       int year,
       String grade,
-      VehicleGrade specData) async {
+      VehicleGrade specData,
+      {String? imageUrl}) async {
     if (maker.isEmpty) {
       return const Result.failure(
           AppError.validation('maker must not be empty', field: 'maker'));
@@ -107,16 +117,22 @@ class VehicleSpecService {
           'seatingCapacity': specData.seatingCapacity,
           'vehicleWeight': specData.vehicleWeight,
           'standardEquipment': specData.standardEquipment,
+          'sampleImageUrl': imageUrl,
           'contributorCount': 1,
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
         });
       } else {
-        final currentCount =
-            (snap.data()!['contributorCount'] as int?) ?? 0;
-        await ref.update({
+        final data = snap.data()!;
+        final currentCount = (data['contributorCount'] as int?) ?? 0;
+        final update = <String, dynamic>{
           'contributorCount': currentCount + 1,
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
-        });
+        };
+        // Backfill the sample photo if no contributor has provided one yet.
+        if (data['sampleImageUrl'] == null && imageUrl != null) {
+          update['sampleImageUrl'] = imageUrl;
+        }
+        await ref.update(update);
       }
       return const Result.success(null);
     } catch (e) {

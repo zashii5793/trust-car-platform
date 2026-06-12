@@ -35,6 +35,7 @@ import '../../services/maintenance_comment_service.dart';
 import '../../services/mileage_notification_service.dart';
 import '../../services/inspection_reminder_service.dart';
 import '../../services/fleet_service.dart';
+import '../../services/fleet_csv_export_service.dart';
 import '../../services/maintenance_schedule_service.dart';
 import '../../services/vehicle_spec_service.dart';
 
@@ -160,6 +161,10 @@ class Injection {
 
     // Fleet Service (corporate fleet vehicle management)
     locator.registerLazySingleton<FleetService>(() => FleetService());
+
+    // Fleet CSV Export Service (vehicle list export for fleet admins)
+    locator.registerLazySingleton<FleetCsvExportService>(
+        () => const FleetCsvExportService());
 
     // Maintenance Schedule Service (generates standard maintenance schedule)
     locator.registerLazySingleton<MaintenanceScheduleService>(

@@ -40,6 +40,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   VehicleMaker? _selectedMaker;
   VehicleModel? _selectedModel;
   VehicleGrade? _selectedGrade;
+  VehicleSpecResult? _communitySpec;
   final _yearController = TextEditingController();
   final _mileageController = TextEditingController();
 
@@ -277,6 +278,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       success: (spec) {
         if (spec == null) { return; }
         setState(() {
+          _communitySpec = spec;
           if (spec.grade.engineDisplacement != null) {
             _engineDisplacementController.text =
                 spec.grade.engineDisplacement.toString();
@@ -396,6 +398,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               engineDisplacement: vehicle.engineDisplacement,
               fuelType: vehicle.fuelType?.name,
             ),
+            imageUrl: vehicle.imageUrl,
           );
         }
         showSuccessSnackBar(context, '車両を登録しました');
@@ -621,6 +624,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                     onChanged: (grade) {
                       setState(() {
                         _selectedGrade = grade;
+                        _communitySpec = null;
                         // Auto-fill specs from grade master data
                         if (grade != null) {
                           if (grade.engineDisplacement != null) {
@@ -638,8 +642,12 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                 ),
               ],
             ),
-            if (_selectedGrade != null && _selectedGrade!.hasSpecData)
-              _GradeSpecPreview(grade: _selectedGrade!),
+            if (_selectedGrade != null &&
+                (_selectedGrade!.hasSpecData || _communitySpec != null))
+              _GradeSpecPreview(
+                grade: _selectedGrade!,
+                communitySpec: _communitySpec,
+              ),
             AppSpacing.verticalMd,
 
             AppTextField.number(
@@ -1302,11 +1310,13 @@ class _StepCircle extends StatelessWidget {
 
 class _GradeSpecPreview extends StatelessWidget {
   final VehicleGrade grade;
-  const _GradeSpecPreview({required this.grade});
+  final VehicleSpecResult? communitySpec;
+  const _GradeSpecPreview({required this.grade, this.communitySpec});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final community = communitySpec;
     final specs = <String>[];
     if (grade.engineDisplacement != null) {
       specs.add('排気量: ${grade.engineDisplacement}cc');
@@ -1322,7 +1332,9 @@ class _GradeSpecPreview extends StatelessWidget {
       specs.add('重量: ${grade.vehicleWeight}kg');
     }
 
-    if (specs.isEmpty && grade.standardEquipment.isEmpty) {
+    if (specs.isEmpty &&
+        grade.standardEquipment.isEmpty &&
+        community == null) {
       return const SizedBox.shrink();
     }
 
@@ -1341,13 +1353,66 @@ class _GradeSpecPreview extends StatelessWidget {
             children: [
               const Icon(Icons.auto_awesome, size: 14, color: AppColors.info),
               const SizedBox(width: 4),
-              Text(
-                'グレードスペック（自動入力）',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: AppColors.info),
+              Expanded(
+                child: Text(
+                  'グレードスペック（自動入力）',
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: AppColors.info),
+                ),
               ),
+              if (community != null && community.isVerified)
+                Container(
+                  key: const Key('grade_spec_verified_badge'),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.verified,
+                          size: 12, color: AppColors.success),
+                      const SizedBox(width: 2),
+                      Text(
+                        '${community.contributorCount}人が確認',
+                        style: theme.textTheme.labelSmall
+                            ?.copyWith(color: AppColors.success),
+                      ),
+                    ],
+                  ),
+                )
+              else if (community != null)
+                Text(
+                  '${community.contributorCount}人が確認',
+                  key: const Key('grade_spec_contributor_count'),
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: AppColors.textSecondary),
+                ),
             ],
           ),
+          // Community-contributed photo of an actual vehicle of this grade
+          if (community?.sampleImageUrl != null) ...[
+            AppSpacing.verticalXs,
+            ClipRRect(
+              key: const Key('grade_spec_sample_image'),
+              borderRadius: AppSpacing.borderRadiusSm,
+              child: Image.network(
+                community!.sampleImageUrl!,
+                height: 140,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+            AppSpacing.verticalXxs,
+            Text(
+              'オーナー提供の実車写真',
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: AppColors.textSecondary),
+            ),
+          ],
           if (specs.isNotEmpty) ...[
             AppSpacing.verticalXs,
             Wrap(

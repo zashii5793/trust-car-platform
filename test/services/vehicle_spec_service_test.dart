@@ -146,6 +146,136 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // sampleImageUrl (community vehicle photo)
+  // ---------------------------------------------------------------------------
+
+  group('sampleImageUrl', () {
+    test('saveSpec に imageUrl を渡す → sampleImageUrl が保存される', () async {
+      final grade = _makeGrade(engineDisplacement: 1800);
+      await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          imageUrl: 'https://example.com/prius.jpg');
+
+      final doc = await fakeFirestore
+          .collection('vehicle_grade_specs')
+          .doc('トヨタ_プリウス_2022_s')
+          .get();
+      expect(doc.data()!['sampleImageUrl'], 'https://example.com/prius.jpg');
+    });
+
+    test('fetchSpec → sampleImageUrl が VehicleSpecResult に含まれる', () async {
+      await fakeFirestore
+          .collection('vehicle_grade_specs')
+          .doc('トヨタ_プリウス_2022_s')
+          .set({
+        'maker': 'トヨタ',
+        'model': 'プリウス',
+        'year': 2022,
+        'grade': 'S',
+        'engineDisplacement': 1800,
+        'sampleImageUrl': 'https://example.com/prius.jpg',
+        'contributorCount': 1,
+        'updatedAt': 0,
+      });
+
+      final result = await service.fetchSpec('トヨタ', 'プリウス', 2022, 'S');
+      expect(result.valueOrNull!.sampleImageUrl,
+          'https://example.com/prius.jpg');
+    });
+
+    test('既存ドキュメントに sampleImageUrl がない → 後続投稿者の写真で補完される', () async {
+      await fakeFirestore
+          .collection('vehicle_grade_specs')
+          .doc('トヨタ_プリウス_2022_s')
+          .set({
+        'maker': 'トヨタ',
+        'model': 'プリウス',
+        'year': 2022,
+        'grade': 'S',
+        'engineDisplacement': 1800,
+        'contributorCount': 1,
+        'updatedAt': 0,
+      });
+
+      final grade = _makeGrade(engineDisplacement: 9999);
+      await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          imageUrl: 'https://example.com/late.jpg');
+
+      final doc = await fakeFirestore
+          .collection('vehicle_grade_specs')
+          .doc('トヨタ_プリウス_2022_s')
+          .get();
+      expect(doc.data()!['sampleImageUrl'], 'https://example.com/late.jpg');
+      expect(doc.data()!['engineDisplacement'], 1800); // spec unchanged
+      expect(doc.data()!['contributorCount'], 2);
+    });
+
+    test('既存ドキュメントに sampleImageUrl がある → 上書きされない', () async {
+      await fakeFirestore
+          .collection('vehicle_grade_specs')
+          .doc('トヨタ_プリウス_2022_s')
+          .set({
+        'maker': 'トヨタ',
+        'model': 'プリウス',
+        'year': 2022,
+        'grade': 'S',
+        'sampleImageUrl': 'https://example.com/first.jpg',
+        'contributorCount': 1,
+        'updatedAt': 0,
+      });
+
+      final grade = _makeGrade();
+      await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          imageUrl: 'https://example.com/second.jpg');
+
+      final doc = await fakeFirestore
+          .collection('vehicle_grade_specs')
+          .doc('トヨタ_プリウス_2022_s')
+          .get();
+      expect(doc.data()!['sampleImageUrl'], 'https://example.com/first.jpg');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // isVerified (community trust badge)
+  // ---------------------------------------------------------------------------
+
+  group('isVerified', () {
+    test('contributorCount >= 3 → isVerified が true', () async {
+      await fakeFirestore
+          .collection('vehicle_grade_specs')
+          .doc('トヨタ_プリウス_2022_s')
+          .set({
+        'maker': 'トヨタ',
+        'model': 'プリウス',
+        'year': 2022,
+        'grade': 'S',
+        'contributorCount': 3,
+        'updatedAt': 0,
+      });
+
+      final result = await service.fetchSpec('トヨタ', 'プリウス', 2022, 'S');
+      expect(result.valueOrNull!.isVerified, isTrue);
+    });
+
+    test('contributorCount < 3 → isVerified が false', () async {
+      await fakeFirestore
+          .collection('vehicle_grade_specs')
+          .doc('トヨタ_プリウス_2022_s')
+          .set({
+        'maker': 'トヨタ',
+        'model': 'プリウス',
+        'year': 2022,
+        'grade': 'S',
+        'contributorCount': 2,
+        'updatedAt': 0,
+      });
+
+      final result = await service.fetchSpec('トヨタ', 'プリウス', 2022, 'S');
+      expect(result.valueOrNull!.isVerified, isFalse);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // specId generation
   // ---------------------------------------------------------------------------
 

@@ -495,13 +495,17 @@ service cloud.firestore {
     // ==================== コミュニティ車種グレード仕様データ ====================
     // vehicle_grade_specs/{specId}
     // Anyone can read; authenticated users can create.
-    // Updates are restricted to incrementing contributorCount only.
+    // Updates may only increment contributorCount and backfill the sample
+    // photo when none exists yet — the first contributor's spec data stays
+    // the source of truth.
     match /vehicle_grade_specs/{specId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAuthenticated()
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['contributorCount', 'updatedAt']);
+             .hasOnly(['contributorCount', 'updatedAt', 'sampleImageUrl'])
+        && (!('sampleImageUrl' in request.resource.data.diff(resource.data).affectedKeys())
+            || resource.data.sampleImageUrl == null);
     }
 
     // その他のドキュメントはデフォルトで拒否
