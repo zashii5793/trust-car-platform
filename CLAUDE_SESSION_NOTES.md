@@ -225,6 +225,22 @@
 
 **テスト**: 3021件パス（+58件）/ コミット: `ae8553d`
 
+### 第11弾（2026-06-12実装 — Sprint 13 自律開発）
+
+**報告書**: `docs/PERSONA_TEST_REPORT.md`（ペルソナ別統合テスト）、`docs/MARKETING_APPEAL_REPORT.md`（マーケ専門家分析）を生成。
+
+1. **ShopChain（多店舗チェーン対応）**: `lib/models/shop_chain.dart`、`lib/services/shop_chain_service.dart` 新規。コバック・ジェームス等のフランチャイズチェーンを表現。`Shop`モデルに `chainId/chainName` 追加。`createChain`, `getChain`, `getShopsInChain`, `linkShopToChain`, `unlinkShopFromChain`（オーナーのみ許可） — 16テスト
+
+2. **AccessoryShowcase / PopularAccessoriesService**: ユーザーがドラレコ等のアクセサリー使用実績を投稿し、コミュニティで人気アイテムを集計。`submitShowcase`, `getShowcasesByCategory`, `getPopularTrends`, `getTopAccessories`（カテゴリ横断） — 14テスト
+
+3. **CarPurchaseInquiryService**: 中古車購入相談。`createInquiry`, `getMyInquiries`, `closeInquiry`, `generateSearchLinks`（カーセンサー + Goo-net ディープリンク、API契約不要のURL構築） — 15テスト
+
+4. **SafetyTipService**: 公式機関（JAF/警察庁/国交省/消防庁/ITARDA）限定の安全情報。`SafetyTip.disclaimer` 定数（法的免責必須）、sourceUrl HTTPS必須チェック、isActive フィルタ — 13テスト
+
+**合計テスト**: 3126件 → 3184件（+58件）  
+**コミット**: `13c5b6b`, `dd1db1a`, `e246dbd`  
+**プッシュ済み**: `claude/continue-development-WYZZp`
+
 ### 残課題（次セッション候補）
 - 装着例セクションの再読み込み対応（現在initState時のみ取得）
 - `isViewerFollowing` サーバーサイド検証（Cloud Function推奨。現在はクライアントのみ）
@@ -234,6 +250,7 @@
 - フリートメンバー権限モデル（総務担当ロール。現在はオーナーのみ書き込み可）
 - 法人向けウェブ管理画面（工場側の問い合わせ対応をPCブラウザで）— Enterprise プラン向け
 - ShopService の手書きTaylor級数Haversineを dart:math 版に置換（精度改善）
+- `AccessoryShowcase` を `Post` モデルと統合するか分離維持か検討（UI実装時に判断）
 
 ---
 
