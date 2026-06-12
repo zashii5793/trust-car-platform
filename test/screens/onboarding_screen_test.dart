@@ -160,5 +160,49 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getBool('onboarding_completed'), isTrue);
     });
+
+    // AuthWrapper（main.dart）は OnboardingScreen を home として直接埋め込む。
+    // pushReplacement で home ルートを破棄すると認証監視が失われるため、
+    // onCompleted コールバック方式で AuthWrapper 側が画面を切り替える。
+    testWidgets('onCompleted が渡されたらスキップ時にコールバックが呼ばれ画面遷移しない',
+        (tester) async {
+      var completed = false;
+      await tester.pumpWidget(MaterialApp(
+        home: OnboardingScreen(onCompleted: () => completed = true),
+      ));
+      await tester.pump();
+
+      await tester.tap(find.text('スキップ'));
+      await tester.pumpAndSettle();
+
+      expect(completed, isTrue);
+      // No navigation happened — OnboardingScreen is still in the tree.
+      expect(find.byType(OnboardingScreen), findsOneWidget);
+      expect(find.byType(LoginScreen), findsNothing);
+
+      // Flag is still persisted.
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('onboarding_completed'), isTrue);
+    });
+
+    testWidgets('onCompleted が渡されたら「はじめる」でもコールバックが呼ばれる',
+        (tester) async {
+      var completed = false;
+      await tester.pumpWidget(MaterialApp(
+        home: OnboardingScreen(onCompleted: () => completed = true),
+      ));
+      await tester.pump();
+
+      for (int i = 0; i < 3; i++) {
+        await tester.drag(find.byType(PageView), const Offset(-400, 0));
+        await tester.pumpAndSettle();
+      }
+
+      await tester.tap(find.text('はじめる'));
+      await tester.pumpAndSettle();
+
+      expect(completed, isTrue);
+      expect(find.byType(OnboardingScreen), findsOneWidget);
+    });
   });
 }

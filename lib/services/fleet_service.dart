@@ -191,4 +191,64 @@ class FleetService {
       return Result.failure(mapFirebaseError(e));
     }
   }
+
+  /// Aggregates maintenance history (last date / total cost) per vehicle.
+  ///
+  /// Used by the fleet CSV export. Queries in chunks of 10 to respect
+  /// Firestore's whereIn limit.
+  Future<Result<Map<String, MaintenanceSummary>, AppError>>
+      getMaintenanceSummaries(List<String> vehicleIds) async {
+    if (vehicleIds.isEmpty) {
+      return const Result.success({});
+    }
+    try {
+      final recordsRef =
+          _firestore.collection(FirestoreCollections.maintenanceRecords);
+      final summaries = <String, MaintenanceSummary>{};
+
+      for (var i = 0; i < vehicleIds.length; i += 10) {
+        final chunk = vehicleIds.sublist(
+            i, i + 10 > vehicleIds.length ? vehicleIds.length : i + 10);
+        final snap =
+            await recordsRef.where('vehicleId', whereIn: chunk).get();
+
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          final vehicleId = data['vehicleId'] as String? ?? '';
+          if (vehicleId.isEmpty) continue;
+          final cost = (data['cost'] as num?)?.toInt() ?? 0;
+          final ts = data['date'];
+          final date = ts is Timestamp ? ts.toDate() : null;
+
+          final prev = summaries[vehicleId];
+          summaries[vehicleId] = MaintenanceSummary(
+            lastMaintenanceDate: prev?.lastMaintenanceDate == null
+                ? date
+                : (date != null &&
+                        date.isAfter(prev!.lastMaintenanceDate!)
+                    ? date
+                    : prev!.lastMaintenanceDate),
+            totalCost: (prev?.totalCost ?? 0) + cost,
+            recordCount: (prev?.recordCount ?? 0) + 1,
+          );
+        }
+      }
+      return Result.success(summaries);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+}
+
+/// Aggregated maintenance history for one vehicle (fleet CSV export).
+class MaintenanceSummary {
+  final DateTime? lastMaintenanceDate;
+  final int totalCost;
+  final int recordCount;
+
+  const MaintenanceSummary({
+    required this.lastMaintenanceDate,
+    required this.totalCost,
+    required this.recordCount,
+  });
 }

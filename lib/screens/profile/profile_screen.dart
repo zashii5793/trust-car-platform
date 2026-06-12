@@ -383,9 +383,11 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
       final uid = widget.authProvider.firebaseUser?.uid;
       if (uid != null) {
         final firebaseService = sl.get<FirebaseService>();
+        // Path includes the owner uid so Storage rules can enforce
+        // write access per user.
         final uploadResult = await firebaseService.uploadImageBytes(
           _pickedImageBytes!,
-          'profile_images/${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          'profile_images/$uid/${DateTime.now().millisecondsSinceEpoch}.jpg',
         );
         if (uploadResult.isSuccess) {
           newPhotoUrl = uploadResult.valueOrNull;

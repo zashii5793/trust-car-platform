@@ -16,10 +16,12 @@ service firebase.storage {
       return request.resource.contentType.matches('image/.*');
     }
 
-    // ユーザーの車両画像
-    match /vehicles/{userId}/{vehicleId}/{fileName} {
-      // 自分のファイルのみ読み書き可能
-      allow read: if isAuthenticated() && request.auth.uid == userId;
+    // ユーザーの車両画像（現行パス: vehicles/{userId}/{fileName}）
+    // 読み取りは認証ユーザー全体: コミュニティ参考写真（明示同意済み）や
+    // フリート表示で他ユーザーにも表示されるため。
+    // 書き込みは本人のみ。
+    match /vehicles/{userId}/{fileName} {
+      allow read: if isAuthenticated();
       allow write: if isAuthenticated()
                    && request.auth.uid == userId
                    && isValidFileSize()
@@ -27,7 +29,49 @@ service firebase.storage {
       allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // ユーザーのプロフィール画像
+    // 旧パス（vehicles/{userId}/{vehicleId}/{fileName}）の既存ファイル
+    match /vehicles/{userId}/{vehicleId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize()
+                   && isImageFile();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // SNS投稿画像（post_images/{userId}/{timestamp}/{fileName}）
+    // 公開投稿に添付されるため読み取りは認証ユーザー全体
+    match /post_images/{userId}/{timestamp}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize()
+                   && isImageFile();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // プロフィール画像（profile_images/{userId}/{fileName}）
+    // SNS上で他ユーザーにも表示されるため読み取りは認証ユーザー全体
+    match /profile_images/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize()
+                   && isImageFile();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 書類（documents/{userId}/{fileName}）
+    // 車検証等の個人情報を含むため本人のみ読み書き可能
+    match /documents/{userId}/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ユーザーのプロフィール画像（旧パス）
     match /users/{userId}/profile/{fileName} {
       allow read: if isAuthenticated() && request.auth.uid == userId;
       allow write: if isAuthenticated()

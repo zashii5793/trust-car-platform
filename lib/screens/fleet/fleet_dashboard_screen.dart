@@ -68,17 +68,27 @@ class FleetDashboardScreen extends StatelessWidget {
 
   Future<void> _exportCsv(BuildContext context, List<Vehicle> vehicles) async {
     final messenger = ScaffoldMessenger.of(context);
-    final result = sl.get<FleetCsvExportService>().buildCsv(vehicles);
+
+    // Best-effort maintenance aggregation; CSV still works without it.
+    final summariesResult = await sl
+        .get<FleetService>()
+        .getMaintenanceSummaries(vehicles.map((v) => v.id).toList());
+    final summaries = summariesResult.valueOrNull ?? {};
+
+    final result = sl
+        .get<FleetCsvExportService>()
+        .buildCsv(vehicles, maintenanceSummaries: summaries);
 
     await result.when(
       success: (csv) async {
+        File? file;
         try {
           final tempDir = await getTemporaryDirectory();
           final now = DateTime.now();
           final stamp = '${now.year}'
               '${now.month.toString().padLeft(2, '0')}'
               '${now.day.toString().padLeft(2, '0')}';
-          final file = File('${tempDir.path}/fleet_vehicles_$stamp.csv');
+          file = File('${tempDir.path}/fleet_vehicles_$stamp.csv');
           await file.writeAsString(csv);
 
           await Share.shareXFiles(
@@ -89,6 +99,14 @@ class FleetDashboardScreen extends StatelessWidget {
           messenger.showSnackBar(
             SnackBar(content: Text('CSVの共有に失敗しました: $e')),
           );
+        } finally {
+          // CSV contains license plates and staff names — do not leave a
+          // plaintext copy in the temp directory after sharing.
+          try {
+            if (file != null && await file.exists()) {
+              await file.delete();
+            }
+          } catch (_) {}
         }
       },
       failure: (error) async {

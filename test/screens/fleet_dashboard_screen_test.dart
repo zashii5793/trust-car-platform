@@ -67,6 +67,11 @@ class _StubFleetService implements FleetService {
           String assigneeName,
           String requestingUserId) async =>
       const Result.success(null);
+
+  @override
+  Future<Result<Map<String, MaintenanceSummary>, AppError>>
+      getMaintenanceSummaries(List<String> vehicleIds) async =>
+          const Result.success({});
 }
 
 // ---------------------------------------------------------------------------

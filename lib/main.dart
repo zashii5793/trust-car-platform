@@ -240,9 +240,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
           return const HomeScreen();
         }
 
-        // First-time visitors see onboarding
+        // First-time visitors see onboarding. The callback swaps the screen
+        // in place — navigating away would destroy this auth-listening route.
         if (!_onboardingDone!) {
-          return const OnboardingScreen();
+          return OnboardingScreen(
+            onCompleted: () => setState(() => _onboardingDone = true),
+          );
         }
 
         return const LoginScreen();

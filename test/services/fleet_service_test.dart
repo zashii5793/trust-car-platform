@@ -355,4 +355,58 @@ void main() {
       expect(vehicles.length, 100);
     });
   });
+
+  group('getMaintenanceSummaries', () {
+    Future<void> seedRecord(String vehicleId, DateTime date, int cost) async {
+      await fakeFirestore.collection('maintenance_records').add({
+        'vehicleId': vehicleId,
+        'date': Timestamp.fromDate(date),
+        'cost': cost,
+        'type': 'oilChange',
+        'description': '',
+      });
+    }
+
+    test('車両ごとに直近整備日と累計費用が集計される', () async {
+      await seedRecord('v1', DateTime(2026, 3, 1), 5000);
+      await seedRecord('v1', DateTime(2026, 5, 20), 12000);
+      await seedRecord('v2', DateTime(2026, 1, 10), 30000);
+
+      final result = await service.getMaintenanceSummaries(['v1', 'v2']);
+
+      expect(result.isSuccess, isTrue);
+      final summaries = result.valueOrNull!;
+      expect(summaries['v1']!.lastMaintenanceDate, DateTime(2026, 5, 20));
+      expect(summaries['v1']!.totalCost, 17000);
+      expect(summaries['v1']!.recordCount, 2);
+      expect(summaries['v2']!.totalCost, 30000);
+    });
+
+    test('整備記録なしの車両 → サマリーに含まれない', () async {
+      await seedRecord('v1', DateTime(2026, 1, 1), 1000);
+
+      final result = await service.getMaintenanceSummaries(['v1', 'v2']);
+      final summaries = result.valueOrNull!;
+      expect(summaries.containsKey('v1'), isTrue);
+      expect(summaries.containsKey('v2'), isFalse);
+    });
+
+    test('空リスト → 空マップ', () async {
+      final result = await service.getMaintenanceSummaries([]);
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull!, isEmpty);
+    });
+
+    test('11台以上（whereIn 10件制限を超える）でも集計できる', () async {
+      final ids = <String>[];
+      for (var i = 0; i < 12; i++) {
+        final id = 'v$i';
+        ids.add(id);
+        await seedRecord(id, DateTime(2026, 2, 1), 1000);
+      }
+
+      final result = await service.getMaintenanceSummaries(ids);
+      expect(result.valueOrNull!.length, 12);
+    });
+  });
 }

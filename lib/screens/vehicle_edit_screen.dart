@@ -164,15 +164,18 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     VehicleMaker? maker;
     makersResult.when(
       success: (makers) {
-        maker = makers.firstWhere(
-          (m) =>
-              m.name == v.maker ||
-              m.nameEn.toLowerCase() == v.maker.toLowerCase(),
-          orElse: () => makers.firstWhere(
-            (m) => m.id == v.maker.toLowerCase(),
-            orElse: () => throw StateError('not found'),
-          ),
-        );
+        // Unmatched maker must not throw — a renamed/removed master entry
+        // would otherwise leave the screen stuck on the loading indicator.
+        try {
+          maker = makers.firstWhere(
+            (m) =>
+                m.name == v.maker ||
+                m.nameEn.toLowerCase() == v.maker.toLowerCase(),
+            orElse: () => makers.firstWhere(
+              (m) => m.id == v.maker.toLowerCase(),
+            ),
+          );
+        } catch (_) {}
       },
       failure: (_) {},
     );
@@ -232,6 +235,32 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     });
   }
 
+  /// Asks for explicit consent before sharing the vehicle photo with the
+  /// community. Defaults to NOT sharing (privacy-safe).
+  Future<bool> _askPhotoShareConsent() async {
+    final consent = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('実車写真の共有（任意）'),
+        content: const Text(
+            '車両の保存は完了しています。\n\n'
+            'あなたの車の写真を、同じ車種を登録する他のユーザーへの参考写真として共有しますか？\n\n'
+            'ナンバープレートや個人情報が写っている場合は「共有しない」を選んでください。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('共有しない'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('共有する'),
+          ),
+        ],
+      ),
+    );
+    return consent ?? false;
+  }
+
   Future<void> _fetchCommunitySpec(VehicleGrade grade) async {
     final maker = _selectedMaker?.name;
     final model = _selectedModel?.name;
@@ -244,24 +273,36 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     result.when(
       success: (spec) {
         if (spec == null) { return; }
+        // Fill only still-empty fields — the fetch is async and must never
+        // overwrite values the user typed (or master data) in the meantime.
+        var filled = false;
         setState(() {
           _communitySpec = spec;
-          if (spec.grade.engineDisplacement != null) {
+          if (_engineDisplacementController.text.isEmpty &&
+              spec.grade.engineDisplacement != null) {
             _engineDisplacementController.text =
                 spec.grade.engineDisplacement.toString();
             _showAdvancedFields = true;
+            filled = true;
           }
-          final ft = FuelType.fromString(spec.grade.fuelType);
-          if (ft != null) {
-            _selectedFuelType = ft;
-            _showAdvancedFields = true;
+          if (_selectedFuelType == null) {
+            final ft = FuelType.fromString(spec.grade.fuelType);
+            if (ft != null) {
+              _selectedFuelType = ft;
+              _showAdvancedFields = true;
+              filled = true;
+            }
           }
         });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              'コミュニティのデータを自動入力しました（${spec.contributorCount}人が確認）'),
-          duration: const Duration(seconds: 3),
-        ));
+        if (filled) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(
+              content: Text(
+                  'コミュニティのデータを自動入力しました（${spec.contributorCount}人が確認）'),
+              duration: const Duration(seconds: 3),
+            ));
+        }
       },
       failure: (_) {},
     );
@@ -425,7 +466,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           _licensePlateController.text,
           excludeVehicleId: widget.vehicle.id,
         );
-        if (exists && mounted) {
+        if (!mounted) return;
+        if (exists) {
           setState(() {
             _isLoading = false;
           });
@@ -438,10 +480,20 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
 
       // 新しい画像があればアップロード
       if (_newImageBytes != null) {
+        final uploadUid = _firebaseService.currentUserId;
+        if (uploadUid == null) {
+          if (mounted) {
+            showErrorSnackBar(context, 'ログインセッションが切れました。再ログインしてください');
+            setState(() => _isLoading = false);
+          }
+          return;
+        }
         final uuid = const Uuid().v4();
+        // Path includes the owner uid so Storage rules can enforce
+        // write access per user.
         final uploadResult = await _firebaseService.uploadImageBytes(
           _newImageBytes!,
-          'vehicles/$uuid.jpg',
+          'vehicles/$uploadUid/$uuid.jpg',
         );
         imageUrl = uploadResult.getOrThrow();
       }
@@ -509,28 +561,57 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           .updateVehicle(widget.vehicle.id, updatedVehicle);
 
       if (success && mounted) {
-        // Contribute spec data to the community collection (fire-and-forget)
-        if (updatedVehicle.engineDisplacement != null ||
-            updatedVehicle.fuelType != null) {
-          _specService.saveSpec(
-            updatedVehicle.maker,
-            updatedVehicle.model,
-            updatedVehicle.year,
-            updatedVehicle.grade,
-            VehicleGrade(
-              id: '',
-              modelId: '',
-              name: updatedVehicle.grade,
-              engineDisplacement: updatedVehicle.engineDisplacement,
-              fuelType: updatedVehicle.fuelType?.name,
-              seatingCapacity: updatedVehicle.seatingCapacity,
-              vehicleWeight: updatedVehicle.vehicleWeight,
-            ),
-            imageUrl: updatedVehicle.imageUrl,
-          );
+        // Contribute spec data to the community collection (fire-and-forget).
+        // Skipped entirely when this user already contributed — repeat saves
+        // must not re-show the consent dialog nor inflate the badge count.
+        // The photo is only shared with explicit user consent — vehicle
+        // photos may contain license plates or other personal information.
+        final uid = _firebaseService.currentUserId;
+        if (uid != null &&
+            (updatedVehicle.engineDisplacement != null ||
+                updatedVehicle.fuelType != null)) {
+          final spec = (await _specService.fetchSpec(
+                  updatedVehicle.maker,
+                  updatedVehicle.model,
+                  updatedVehicle.year,
+                  updatedVehicle.grade))
+              .valueOrNull;
+          if (spec == null || !spec.isContributor(uid)) {
+            String? imageToShare;
+            if (updatedVehicle.imageUrl != null &&
+                (spec == null || spec.sampleImageUrl == null) &&
+                mounted) {
+              imageToShare = await _askPhotoShareConsent()
+                  ? updatedVehicle.imageUrl
+                  : null;
+            }
+            _specService.saveSpec(
+              updatedVehicle.maker,
+              updatedVehicle.model,
+              updatedVehicle.year,
+              updatedVehicle.grade,
+              VehicleGrade(
+                id: '',
+                modelId: '',
+                name: updatedVehicle.grade,
+                engineDisplacement: updatedVehicle.engineDisplacement,
+                fuelType: updatedVehicle.fuelType?.name,
+                seatingCapacity: updatedVehicle.seatingCapacity,
+                vehicleWeight: updatedVehicle.vehicleWeight,
+              ),
+              contributorId: uid,
+              imageUrl: imageToShare,
+            );
+          }
         }
+        if (!mounted) return;
         showSuccessSnackBar(context, '車両情報を更新しました');
         Navigator.pop(context, updatedVehicle);
+      } else if (mounted) {
+        final provider =
+            Provider.of<VehicleProvider>(context, listen: false);
+        showErrorSnackBar(
+            context, provider.errorMessage ?? '更新に失敗しました。通信環境をご確認ください');
       }
     } catch (e) {
       if (mounted) {
@@ -583,6 +664,11 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         showSuccessSnackBar(context, '車両を削除しました');
         // 2つ前の画面（ホーム）に戻る
         Navigator.popUntil(context, (route) => route.isFirst);
+      } else if (mounted) {
+        final provider =
+            Provider.of<VehicleProvider>(context, listen: false);
+        showErrorSnackBar(
+            context, provider.errorMessage ?? '削除に失敗しました。通信環境をご確認ください');
       }
     } catch (e) {
       if (mounted) {

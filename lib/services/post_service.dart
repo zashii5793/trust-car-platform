@@ -222,23 +222,27 @@ class PostService {
     DocumentSnapshot? startAfter,
   }) async {
     try {
-      Query<Map<String, dynamic>> query = _postsRef
-          .where('userId', isEqualTo: userId)
-          .orderBy('createdAt', descending: true)
-          .limit(limit);
+      Query<Map<String, dynamic>> query =
+          _postsRef.where('userId', isEqualTo: userId);
+
+      // Other users may only see public posts. This must be a server-side
+      // filter: Firestore rules reject queries that could match non-public
+      // documents, and client-side filtering would leak data via direct
+      // SDK queries anyway.
+      if (userId != viewerId) {
+        query = query.where('visibility',
+            isEqualTo: PostVisibility.public.storageName);
+      }
+
+      query = query.orderBy('createdAt', descending: true).limit(limit);
 
       if (startAfter != null) {
         query = query.startAfterDocument(startAfter);
       }
 
       final snapshot = await query.get();
-      var posts = snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
-
-      // Filter by visibility if not own posts
-      if (userId != viewerId) {
-        posts =
-            posts.where((p) => p.visibility == PostVisibility.public).toList();
-      }
+      final posts =
+          snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
 
       return Result.success(posts);
     } catch (e) {

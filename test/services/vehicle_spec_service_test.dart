@@ -96,7 +96,8 @@ void main() {
       final grade = _makeGrade(engineDisplacement: 1800, fuelType: 'hybrid');
 
       final result =
-          await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade);
+          await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          contributorId: 'user-1');
       expect(result.isSuccess, isTrue);
 
       final doc = await fakeFirestore
@@ -128,7 +129,8 @@ void main() {
 
       // Save with different engineDisplacement — should NOT overwrite
       final grade = _makeGrade(engineDisplacement: 9999, fuelType: 'gasoline');
-      await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade);
+      await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          contributorId: 'user-1');
 
       final doc = await fakeFirestore
           .collection('vehicle_grade_specs')
@@ -140,7 +142,118 @@ void main() {
 
     test('maker が空文字 → AppError を返す', () async {
       final grade = _makeGrade();
-      final result = await service.saveSpec('', 'プリウス', 2022, 'S', grade);
+      final result = await service.saveSpec('', 'プリウス', 2022, 'S', grade,
+          contributorId: 'user-1');
+      expect(result.isFailure, isTrue);
+    });
+
+    test('contributorIds に投稿者IDが記録される', () async {
+      final grade = _makeGrade(engineDisplacement: 1800);
+      await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          contributorId: 'user-1');
+
+      final doc = await fakeFirestore
+          .collection('vehicle_grade_specs')
+          .doc('トヨタ_プリウス_2022_s')
+          .get();
+      expect(doc.data()!['contributorIds'], ['user-1']);
+    });
+
+    test('同一ユーザーが繰り返し保存しても contributorCount は増えない（水増し防止）',
+        () async {
+      final grade = _makeGrade(engineDisplacement: 1800);
+      for (var i = 0; i < 5; i++) {
+        await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+            contributorId: 'user-1');
+      }
+
+      final doc = await fakeFirestore
+          .collection('vehicle_grade_specs')
+          .doc('トヨタ_プリウス_2022_s')
+          .get();
+      expect(doc.data()!['contributorCount'], 1);
+      expect(doc.data()!['contributorIds'], ['user-1']);
+    });
+
+    test('別ユーザーの保存で contributorCount が増える', () async {
+      final grade = _makeGrade(engineDisplacement: 1800);
+      await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          contributorId: 'user-1');
+      await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          contributorId: 'user-2');
+      await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          contributorId: 'user-3');
+
+      final doc = await fakeFirestore
+          .collection('vehicle_grade_specs')
+          .doc('トヨタ_プリウス_2022_s')
+          .get();
+      expect(doc.data()!['contributorCount'], 3);
+      expect(doc.data()!['contributorIds'], ['user-1', 'user-2', 'user-3']);
+    });
+
+    test('contributorId が空文字 → AppError を返す', () async {
+      final grade = _makeGrade();
+      final result = await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          contributorId: '');
+      expect(result.isFailure, isTrue);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // fetchSpecsForModel (OCR flow — grade unknown)
+  // ---------------------------------------------------------------------------
+
+  group('fetchSpecsForModel', () {
+    Future<void> seedSpec(String grade,
+        {int contributorCount = 1, int year = 2022}) async {
+      await fakeFirestore
+          .collection('vehicle_grade_specs')
+          .doc('トヨタ_プリウス_${year}_${grade.toLowerCase()}')
+          .set({
+        'maker': 'トヨタ',
+        'model': 'プリウス',
+        'year': year,
+        'grade': grade,
+        'engineDisplacement': 1800,
+        'contributorCount': contributorCount,
+        'updatedAt': 0,
+      });
+    }
+
+    test('maker/model/year に一致する全グレードの仕様を返す', () async {
+      await seedSpec('S');
+      await seedSpec('G');
+      await seedSpec('Z', year: 2020); // different year — excluded
+
+      final result =
+          await service.fetchSpecsForModel('トヨタ', 'プリウス', 2022);
+
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull!.length, 2);
+    });
+
+    test('contributorCount 降順でソートされる（信頼度の高い順）', () async {
+      await seedSpec('S', contributorCount: 1);
+      await seedSpec('G', contributorCount: 5);
+
+      final result =
+          await service.fetchSpecsForModel('トヨタ', 'プリウス', 2022);
+
+      final specs = result.valueOrNull!;
+      expect(specs.first.contributorCount, 5);
+      expect(specs.last.contributorCount, 1);
+    });
+
+    test('一致なし → 空リスト', () async {
+      final result =
+          await service.fetchSpecsForModel('ホンダ', 'フィット', 2022);
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull!, isEmpty);
+    });
+
+    test('maker が空文字 → AppError を返す', () async {
+      final result = await service.fetchSpecsForModel('', 'プリウス', 2022);
       expect(result.isFailure, isTrue);
     });
   });
@@ -153,6 +266,7 @@ void main() {
     test('saveSpec に imageUrl を渡す → sampleImageUrl が保存される', () async {
       final grade = _makeGrade(engineDisplacement: 1800);
       await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          contributorId: 'user-1',
           imageUrl: 'https://example.com/prius.jpg');
 
       final doc = await fakeFirestore
@@ -198,6 +312,7 @@ void main() {
 
       final grade = _makeGrade(engineDisplacement: 9999);
       await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          contributorId: 'user-1',
           imageUrl: 'https://example.com/late.jpg');
 
       final doc = await fakeFirestore
@@ -225,6 +340,7 @@ void main() {
 
       final grade = _makeGrade();
       await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          contributorId: 'user-1',
           imageUrl: 'https://example.com/second.jpg');
 
       final doc = await fakeFirestore
@@ -276,13 +392,69 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Security: 個人情報の混入防止
+  // ---------------------------------------------------------------------------
+
+  group('Security: 共有コレクションに個人情報が含まれない', () {
+    test('保存されるフィールドは車種仕様のみ（許可リスト検証）', () async {
+      final grade = _makeGrade(
+        engineDisplacement: 1800,
+        fuelType: 'hybrid',
+        seatingCapacity: 5,
+        vehicleWeight: 1380,
+        standardEquipment: ['バックカメラ'],
+      );
+      await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+          contributorId: 'user-1',
+          imageUrl: 'https://example.com/car.jpg');
+
+      final doc = await fakeFirestore
+          .collection('vehicle_grade_specs')
+          .doc('トヨタ_プリウス_2022_s')
+          .get();
+
+      // Allowlist: only non-personal vehicle catalog fields may exist.
+      const allowedKeys = {
+        'maker',
+        'model',
+        'year',
+        'grade',
+        'engineDisplacement',
+        'fuelType',
+        'seatingCapacity',
+        'vehicleWeight',
+        'standardEquipment',
+        'sampleImageUrl',
+        'contributorIds',
+        'contributorCount',
+        'updatedAt',
+      };
+      expect(doc.data()!.keys.toSet().difference(allowedKeys), isEmpty,
+          reason: '個人情報（ナンバー・車台番号・氏名等）が混入してはならない');
+
+      // Explicitly assert personal fields are absent.
+      for (final forbidden in [
+        'licensePlate',
+        'vinNumber',
+        'ownerName',
+        'ownerAddress',
+        'userId',
+      ]) {
+        expect(doc.data()!.containsKey(forbidden), isFalse,
+            reason: '$forbidden は共有コレクションに保存してはならない');
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // specId generation
   // ---------------------------------------------------------------------------
 
   group('specId生成', () {
     test('大文字・スペースが正規化される', () async {
       final grade = _makeGrade(engineDisplacement: 2000);
-      await service.saveSpec('Toyota', 'Prius', 2022, 'S', grade);
+      await service.saveSpec('Toyota', 'Prius', 2022, 'S', grade,
+          contributorId: 'user-1');
 
       final doc = await fakeFirestore
           .collection('vehicle_grade_specs')
@@ -293,7 +465,8 @@ void main() {
 
     test('スペース入りメーカー名がアンダースコアに変換される', () async {
       final grade = _makeGrade(engineDisplacement: 2500);
-      await service.saveSpec('Land Rover', 'Range Rover', 2022, 'HSE', grade);
+      await service.saveSpec('Land Rover', 'Range Rover', 2022, 'HSE', grade,
+          contributorId: 'user-1');
 
       final doc = await fakeFirestore
           .collection('vehicle_grade_specs')

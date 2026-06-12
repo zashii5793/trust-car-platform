@@ -9,6 +9,10 @@ class VehicleSpecResult {
   final VehicleGrade grade;
   final int contributorCount;
 
+  /// User IDs that contributed to this spec (used for dedup — one user
+  /// can only count once toward the verification badge).
+  final List<String> contributorIds;
+
   /// Photo of an actual vehicle of this grade, contributed by a community
   /// member (the first contributor who registered with a photo).
   final String? sampleImageUrl;
@@ -16,11 +20,15 @@ class VehicleSpecResult {
   const VehicleSpecResult({
     required this.grade,
     required this.contributorCount,
+    this.contributorIds = const [],
     this.sampleImageUrl,
   });
 
-  /// True once 3+ owners have confirmed the same spec data.
+  /// True once 3+ distinct owners have confirmed the same spec data.
   bool get isVerified => contributorCount >= 3;
+
+  /// True when [userId] has already contributed to this spec.
+  bool isContributor(String userId) => contributorIds.contains(userId);
 }
 
 /// Service for reading and writing community vehicle grade spec data.
@@ -74,6 +82,8 @@ class VehicleSpecService {
       return Result.success(VehicleSpecResult(
         grade: g,
         contributorCount: data['contributorCount'] as int? ?? 1,
+        contributorIds:
+            List<String>.from(data['contributorIds'] as List? ?? []),
         sampleImageUrl: data['sampleImageUrl'] as String?,
       ));
     } catch (e) {
@@ -81,18 +91,13 @@ class VehicleSpecService {
     }
   }
 
-  /// Saves spec data contributed by a user.
+  /// Fetches all known grade specs for a maker/model/year combination.
   ///
-  /// - New document: created with contributorCount = 1 and all spec fields.
-  /// - Existing document: only contributorCount is incremented.
-  ///   The first contributor's data is preserved as the source of truth.
-  Future<Result<void, AppError>> saveSpec(
-      String maker,
-      String model,
-      int year,
-      String grade,
-      VehicleGrade specData,
-      {String? imageUrl}) async {
+  /// Used by the vehicle certificate OCR flow where the grade is unknown.
+  /// Results are sorted by contributorCount descending (most trusted first).
+  /// Only non-personal catalog fields are queried — no user data is sent.
+  Future<Result<List<VehicleSpecResult>, AppError>> fetchSpecsForModel(
+      String maker, String model, int year) async {
     if (maker.isEmpty) {
       return const Result.failure(
           AppError.validation('maker must not be empty', field: 'maker'));
@@ -100,6 +105,67 @@ class VehicleSpecService {
     if (model.isEmpty) {
       return const Result.failure(
           AppError.validation('model must not be empty', field: 'model'));
+    }
+    try {
+      final snap = await _specsRef
+          .where('maker', isEqualTo: maker)
+          .where('model', isEqualTo: model)
+          .where('year', isEqualTo: year)
+          .get();
+
+      final specs = snap.docs.map((doc) {
+        final data = doc.data();
+        return VehicleSpecResult(
+          grade: VehicleGrade(
+            id: doc.id,
+            modelId: '',
+            name: data['grade'] as String? ?? '',
+            engineDisplacement: data['engineDisplacement'] as int?,
+            fuelType: data['fuelType'] as String?,
+            seatingCapacity: data['seatingCapacity'] as int?,
+            vehicleWeight: data['vehicleWeight'] as int?,
+            standardEquipment:
+                List<String>.from(data['standardEquipment'] as List? ?? []),
+          ),
+          contributorCount: data['contributorCount'] as int? ?? 1,
+          sampleImageUrl: data['sampleImageUrl'] as String?,
+        );
+      }).toList()
+        ..sort((a, b) => b.contributorCount.compareTo(a.contributorCount));
+
+      return Result.success(specs);
+    } catch (e) {
+      return Result.failure(AppError.unknown('fetchSpecsForModel failed: $e'));
+    }
+  }
+
+  /// Saves spec data contributed by a user.
+  ///
+  /// - New document: created with contributorCount = 1 and all spec fields.
+  /// - Existing document: contributorCount is incremented once per user.
+  ///   Repeat saves by the same contributor are no-ops, so the verification
+  ///   badge ("N人が確認") cannot be inflated by editing one's own vehicle.
+  ///   The first contributor's data is preserved as the source of truth.
+  Future<Result<void, AppError>> saveSpec(
+      String maker,
+      String model,
+      int year,
+      String grade,
+      VehicleGrade specData,
+      {required String contributorId,
+      String? imageUrl}) async {
+    if (maker.isEmpty) {
+      return const Result.failure(
+          AppError.validation('maker must not be empty', field: 'maker'));
+    }
+    if (model.isEmpty) {
+      return const Result.failure(
+          AppError.validation('model must not be empty', field: 'model'));
+    }
+    if (contributorId.isEmpty) {
+      return const Result.failure(AppError.validation(
+          'contributorId must not be empty',
+          field: 'contributorId'));
     }
     try {
       final id = specId(maker, model, year, grade);
@@ -118,13 +184,21 @@ class VehicleSpecService {
           'vehicleWeight': specData.vehicleWeight,
           'standardEquipment': specData.standardEquipment,
           'sampleImageUrl': imageUrl,
+          'contributorIds': [contributorId],
           'contributorCount': 1,
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
         });
       } else {
         final data = snap.data()!;
+        final contributorIds =
+            List<String>.from(data['contributorIds'] as List? ?? []);
+        if (contributorIds.contains(contributorId)) {
+          // Already counted — repeat saves must not inflate the badge.
+          return const Result.success(null);
+        }
         final currentCount = (data['contributorCount'] as int?) ?? 0;
         final update = <String, dynamic>{
+          'contributorIds': [...contributorIds, contributorId],
           'contributorCount': currentCount + 1,
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
         };

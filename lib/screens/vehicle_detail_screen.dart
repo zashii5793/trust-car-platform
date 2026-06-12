@@ -485,6 +485,11 @@ class _MaintenanceScheduleSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Section is optional — degrade gracefully when the service is
+    // unavailable (e.g. in widget tests that don't register it).
+    if (!sl.isRegistered<MaintenanceScheduleService>()) {
+      return const SizedBox.shrink();
+    }
     final theme = Theme.of(context);
     final scheduleService = sl.get<MaintenanceScheduleService>();
     final schedule = scheduleService.generateSchedule(vehicle);
