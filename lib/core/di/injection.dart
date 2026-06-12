@@ -44,6 +44,8 @@ import '../../services/faq_service.dart';
 import '../../services/vehicle_history_sharing_service.dart';
 import '../../services/license_plate_masking_service.dart';
 import '../../services/shop_chain_service.dart';
+import '../../services/popular_accessories_service.dart';
+import '../../services/car_purchase_inquiry_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -201,6 +203,14 @@ class Injection {
 
     // Shop Chain Service (multi-branch chains like コバック, ジェームス)
     locator.registerLazySingleton<ShopChainService>(() => ShopChainService());
+
+    // Popular Accessories Service (community-driven accessory trends)
+    locator.registerLazySingleton<PopularAccessoriesService>(
+        () => PopularAccessoriesService());
+
+    // Car Purchase Inquiry Service (used-car search deep links + inquiries)
+    locator.registerLazySingleton<CarPurchaseInquiryService>(
+        () => CarPurchaseInquiryService());
 
     _initialized = true;
   }
