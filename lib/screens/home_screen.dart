@@ -35,6 +35,7 @@ import 'ai_chat/ai_chat_screen.dart';
 import 'fleet/fleet_dashboard_screen.dart';
 import 'vehicle/retired_vehicles_screen.dart';
 import 'accessories/accessory_showcase_screen.dart';
+import 'safety/safety_tip_screen.dart';
 import '../widgets/vehicle/mileage_reminder_banner.dart';
 import '../widgets/vehicle/mileage_update_dialog.dart';
 
@@ -507,6 +508,17 @@ class _ProfileTab extends StatelessWidget {
                       builder: (_) => const AccessoryShowcaseScreen()),
                 ),
               ),
+              _MenuItemData(
+                icon: Icons.compare_arrows_outlined,
+                label: '整備工場を比較する',
+                color: AppColors.info,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ShopListScreen(compareMode: true),
+                  ),
+                ),
+              ),
               if (isBusiness)
                 _MenuItemData(
                   icon: Icons.business_center_outlined,
@@ -562,6 +574,17 @@ class _ProfileTab extends StatelessWidget {
             context,
             title: 'サポート・法的情報',
             items: [
+              _MenuItemData(
+                icon: Icons.health_and_safety_outlined,
+                label: '安全運転情報',
+                color: AppColors.success,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SafetyTipScreen(),
+                  ),
+                ),
+              ),
               _MenuItemData(
                 icon: Icons.privacy_tip_outlined,
                 label: 'プライバシーポリシー',

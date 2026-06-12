@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 import '../../models/shop.dart';
 import '../../providers/shop_provider.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/constants/colors.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'shop_detail_screen.dart';
+import '../shop/shop_comparison_screen.dart';
 
 /// BtoBマーケットプレイス 工場一覧画面
 ///
@@ -14,6 +16,7 @@ import 'shop_detail_screen.dart';
 /// - FABなし・業者起点のアクションなし
 /// - isFeatured は「広告」ラベルで明示（ソート優先度を隠さない）
 /// - [maintenanceContext] が渡された場合はAI提案起点のコンテキストバナーを表示
+/// - [compareMode] が true の場合は複数工場を選んで比較できる（最大3件）
 class ShopListScreen extends StatefulWidget {
   /// Optional search keyword pre-populated from an AI suggestion.
   final String? maintenanceContext;
@@ -22,10 +25,18 @@ class ShopListScreen extends StatefulWidget {
   /// instead of navigating to its detail page (used by fleet bulk inquiry).
   final bool selectMode;
 
+  /// When true, enables multi-select for shop comparison (max 3 shops).
+  final bool compareMode;
+
+  /// Primary service need shown in the comparison screen.
+  final ServiceCategory? primaryNeed;
+
   const ShopListScreen({
     super.key,
     this.maintenanceContext,
     this.selectMode = false,
+    this.compareMode = false,
+    this.primaryNeed,
   });
 
   @override
@@ -35,6 +46,7 @@ class ShopListScreen extends StatefulWidget {
 class _ShopListScreenState extends State<ShopListScreen> {
   final _searchController = TextEditingController();
   bool _isLocating = false;
+  final Set<String> _selectedIds = {};
 
   /// 現在地を取得して近い順にソートする。
   /// 権限拒否・位置情報サービス無効時は SnackBar で案内する。
@@ -107,7 +119,11 @@ class _ShopListScreenState extends State<ShopListScreen> {
       builder: (context, provider, _) {
         return Scaffold(
           appBar: AppBar(
-            title: Text(widget.selectMode ? '問い合わせ先の工場を選択' : 'マーケットプレイス'),
+            title: Text(widget.compareMode
+                ? '比較する工場を選択 (最大3件)'
+                : widget.selectMode
+                    ? '問い合わせ先の工場を選択'
+                    : 'マーケットプレイス'),
             actions: [
               IconButton(
                 key: const Key('sort_by_distance_button'),
@@ -147,6 +163,24 @@ class _ShopListScreenState extends State<ShopListScreen> {
               if (!provider.isLoading && provider.shops.isNotEmpty)
                 _ResultCount(count: provider.shops.length),
               Expanded(child: _buildBody(provider)),
+              if (widget.compareMode)
+                _ComparePanelBar(
+                  selectedCount: _selectedIds.length,
+                  onCompare: () {
+                    final selected = provider.shops
+                        .where((s) => _selectedIds.contains(s.id))
+                        .toList();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => ShopComparisonScreen(
+                          shops: selected,
+                          primaryNeed: widget.primaryNeed,
+                        ),
+                      ),
+                    );
+                  },
+                ),
             ],
           ),
         );
@@ -179,24 +213,50 @@ class _ShopListScreenState extends State<ShopListScreen> {
       itemCount: provider.shops.length,
       itemBuilder: (context, index) {
         final shop = provider.shops[index];
+        final isSelected = _selectedIds.contains(shop.id);
         return Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.md),
-          child: _ShopCard(
-            shop: shop,
-            distanceKm: provider.distanceForShop(shop.id),
-            onTap: () {
-              if (widget.selectMode) {
-                Navigator.pop(context, shop);
-              } else {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ShopDetailScreen(shopId: shop.id),
-                  ),
-                );
-              }
-            },
-          ),
+          child: widget.compareMode
+              ? _SelectableShopCard(
+                  key: Key('selectable_shop_${shop.id}'),
+                  shop: shop,
+                  distanceKm: provider.distanceForShop(shop.id),
+                  isSelected: isSelected,
+                  onChanged: (selected) {
+                    setState(() {
+                      if (selected == true) {
+                        if (_selectedIds.length >= 3) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('比較できる工場は最大3件です'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                          return;
+                        }
+                        _selectedIds.add(shop.id);
+                      } else {
+                        _selectedIds.remove(shop.id);
+                      }
+                    });
+                  },
+                )
+              : _ShopCard(
+                  shop: shop,
+                  distanceKm: provider.distanceForShop(shop.id),
+                  onTap: () {
+                    if (widget.selectMode) {
+                      Navigator.pop(context, shop);
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ShopDetailScreen(shopId: shop.id),
+                        ),
+                      );
+                    }
+                  },
+                ),
         );
       },
     );
@@ -741,6 +801,98 @@ class _ShopCard extends StatelessWidget {
               const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// compareMode 用: チェックボックス付き工場カード
+// ---------------------------------------------------------------------------
+
+class _SelectableShopCard extends StatelessWidget {
+  final Shop shop;
+  final double? distanceKm;
+  final bool isSelected;
+  final ValueChanged<bool?> onChanged;
+
+  const _SelectableShopCard({
+    super.key,
+    required this.shop,
+    this.distanceKm,
+    required this.isSelected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        _ShopCard(
+          shop: shop,
+          distanceKm: distanceKm,
+          onTap: () => onChanged(!isSelected),
+        ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Checkbox(
+            key: Key('compare_check_${shop.id}'),
+            value: isSelected,
+            onChanged: onChanged,
+            activeColor: AppColors.primary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// compareMode 用: 選択数と「比較する」ボタンのパネルバー
+// ---------------------------------------------------------------------------
+
+class _ComparePanelBar extends StatelessWidget {
+  final int selectedCount;
+  final VoidCallback onCompare;
+
+  const _ComparePanelBar({
+    required this.selectedCount,
+    required this.onCompare,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: const Border(
+          top: BorderSide(color: AppColors.divider),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Text(
+              selectedCount == 0
+                  ? '工場を2〜3件選んでください'
+                  : '$selectedCount件選択中',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const Spacer(),
+            FilledButton.icon(
+              key: const Key('compare_button'),
+              onPressed: selectedCount >= 2 ? onCompare : null,
+              icon: const Icon(Icons.compare_arrows, size: 16),
+              label: const Text('比較する'),
+            ),
+          ],
         ),
       ),
     );
