@@ -4,6 +4,12 @@
 //   Persona A: 個人オーナー — 4台所有（うち1台は貨物車、1台はリース）
 //   Persona B: 中小企業 — 20台フリート。総務担当が車検・点検を一括管理
 //   Persona C: 近所に3つの整備工場 — 特徴の違いを比較して問い合わせ
+//   Persona D: プリウスオーナー — 4年間の整備履歴トレンド分析 + Q&A
+//   Persona E: 新社会人 — 初めての軽自動車（N-BOX）。安全情報・整備学習
+//   Persona F: 売却・廃車ユーザー — データ保持の選択（売却後も履歴を手元に）
+//   Persona G: EVオーナー（日産リーフ） — オイル交換なし・EV固有の整備傾向
+//   Persona H: 旧車オーナー（1994年製Honda Beat） — 30年超・ユーザー車検・部品探し
+//   Persona I: 中古車購入検討者 — 予算・条件を指定してカーセンサー/Goo-netへ誘導
 //
 // Firebase は FakeCloudFirestore で代替（emulator 不要）。
 
@@ -20,7 +26,14 @@ import 'package:trust_car_platform/services/faq_service.dart';
 import 'package:trust_car_platform/services/fleet_csv_export_service.dart';
 import 'package:trust_car_platform/services/fleet_inquiry_composer.dart';
 import 'package:trust_car_platform/services/fleet_service.dart';
+import 'package:trust_car_platform/models/accessory_showcase.dart';
+import 'package:trust_car_platform/models/car_purchase_inquiry.dart';
+import 'package:trust_car_platform/models/safety_tip.dart';
+import 'package:trust_car_platform/services/car_purchase_inquiry_service.dart';
 import 'package:trust_car_platform/services/maintenance_trend_service.dart';
+import 'package:trust_car_platform/services/popular_accessories_service.dart';
+import 'package:trust_car_platform/services/safety_tip_service.dart';
+import 'package:trust_car_platform/services/vehicle_retirement_service.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -712,21 +725,724 @@ void main() {
       expect(answers.first.isBestAnswer, isTrue);
     });
   });
+
+  // ===========================================================================
+  // Persona E: 新社会人（初めての軽自動車・N-BOX）
+  //   「22歳、社会人1年目。初めて車を持った。N-BOXを購入。
+  //    オイル交換や車検のタイミングが分からない。安全運転情報も学びたい。
+  //    アクセサリーはドラレコを付けたいが何がいいか分からない。」
+  // ===========================================================================
+  group('Persona E: 新社会人・初めての軽自動車（N-BOX）', () {
+    late MaintenanceTrendService trendService;
+    late SafetyTipService safetyTipService;
+    late PopularAccessoriesService accessoriesService;
+    late FakeFirebaseFirestore fakeFirestore;
+
+    late Vehicle nbox;
+
+    setUp(() async {
+      trendService = const MaintenanceTrendService();
+      fakeFirestore = FakeFirebaseFirestore();
+      safetyTipService = SafetyTipService(firestore: fakeFirestore);
+      accessoriesService = PopularAccessoriesService(firestore: fakeFirestore);
+
+      nbox = Vehicle(
+        id: 'nbox-1',
+        userId: 'persona-e-user',
+        maker: 'Honda',
+        model: 'N-BOX',
+        year: 2023,
+        grade: 'G',
+        mileage: 5000,
+        fuelType: FuelType.gasoline,
+        inspectionExpiryDate: DateTime.now().add(const Duration(days: 800)),
+        useCategory: VehicleUseCategory.privatePassenger,
+        createdAt: DateTime(2023, 4, 1),
+        updatedAt: DateTime(2023, 4, 1),
+      );
+
+      // Seed safety tips
+      await safetyTipService.addTip(
+        title: 'シートベルトは全席必ず着用',
+        body: '全席シートベルト着用は法令で義務付けられています。後席も必ず装着してください。',
+        category: SafetyTipCategory.drivingBasics,
+        source: SafetyTipSource.npa,
+        sourceUrl: 'https://www.npa.go.jp/bureau/traffic/anzen/',
+      );
+      await safetyTipService.addTip(
+        title: '夜間・雨天時の速度調整',
+        body: '雨天時は制動距離が通常の2〜3倍になります。速度を落とし車間距離を十分に取ってください。',
+        category: SafetyTipCategory.seasonalDriving,
+        source: SafetyTipSource.jaf,
+        sourceUrl: 'https://jaf.or.jp/common/safety-drive/rain',
+      );
+
+      // Seed popular accessories
+      for (var i = 1; i <= 5; i++) {
+        await accessoriesService.submitShowcase(
+          userId: 'user-$i',
+          category: AccessoryCategory.electronics,
+          itemName: 'コムテック ZDR035',
+          brand: 'COMTEC',
+          rating: 5,
+          priceApprox: 25000,
+          review: 'ドラレコ。夜間の画質がいい。',
+        );
+      }
+      await accessoriesService.submitShowcase(
+        userId: 'user-6',
+        category: AccessoryCategory.electronics,
+        itemName: 'ユピテル SN-TW9600d',
+        brand: 'Yupiteru',
+        rating: 4,
+        priceApprox: 35000,
+      );
+    });
+
+    test('N-BOXの車検サイクルは自家用乗用車として2年と判定される', () {
+      expect(nbox.effectiveUseCategory.inspectionCycleYears, 2);
+    });
+
+    test('初めての整備記録1件だけでも confidence=low でトレンド分析が動く', () {
+      final records = [
+        _maintenanceRecord(
+          type: MaintenanceType.oilChange,
+          date: DateTime(2023, 10, 1),
+          mileage: 3000,
+          cost: 3500,
+          vehicleId: 'nbox-1',
+          userId: 'persona-e-user',
+        ),
+      ];
+      final trends = trendService.analyzeHistory(records, currentMileage: 5000);
+      expect(trends, hasLength(1));
+      expect(trends.first.confidence, TrendConfidence.low);
+    });
+
+    test('安全情報: JAFと警察庁の情報を取得できる', () async {
+      final result = await safetyTipService.getTips();
+      expect(result.isSuccess, isTrue);
+      final tips = result.valueOrNull!;
+      expect(tips.length, greaterThanOrEqualTo(2));
+    });
+
+    test('安全情報: 免責条項が空でない（法的要件）', () {
+      expect(SafetyTip.disclaimer, isNotEmpty);
+    });
+
+    test('安全情報: 季節別フィルタができる（雨天・冬道など）', () async {
+      final result = await safetyTipService.getTips(
+          category: SafetyTipCategory.seasonalDriving);
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull!, hasLength(1));
+    });
+
+    test('ドラレコ選び: コミュニティ人気1位が取得できる', () async {
+      final result = await accessoriesService.getPopularTrends(
+          category: AccessoryCategory.electronics);
+      expect(result.isSuccess, isTrue);
+      final trends = result.valueOrNull!;
+      expect(trends.first.itemName, 'コムテック ZDR035');
+      expect(trends.first.showcaseCount, 5);
+    });
+
+    test('ドラレコ: 複数候補を平均評価で比較できる', () async {
+      final result = await accessoriesService.getPopularTrends(
+          category: AccessoryCategory.electronics);
+      final top = result.valueOrNull!.first;
+      expect(top.averageRating, closeTo(5.0, 0.01));
+    });
+
+    group('Edge Cases', () {
+      test('整備記録ゼロでもクラッシュしない', () {
+        final trends = trendService.analyzeHistory([]);
+        expect(trends, isEmpty);
+      });
+
+      test('安全情報が1件もなくても空リストを返す（初期状態）', () async {
+        final emptyFirestore = FakeFirebaseFirestore();
+        final emptyService = SafetyTipService(firestore: emptyFirestore);
+        final result = await emptyService.getTips();
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull!, isEmpty);
+      });
+    });
+  });
+
+  // ===========================================================================
+  // Persona F: 売却・廃車ユーザー
+  //   「プリウスを10年乗って売却することにした。
+  //    整備記録は次の車選びの参考に手元に残したい。
+  //    一方でナンバーや個人情報は削除したい。
+  //    誤って廃車にした場合は取り消せるか？」
+  // ===========================================================================
+  group('Persona F: 売却・廃車ユーザー（データ保持の選択）', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late VehicleRetirementService retirementService;
+
+    final now = DateTime(2026, 1, 1);
+
+    Vehicle _priusOwned({
+      String id = 'prius-f1',
+      VehicleStatus status = VehicleStatus.active,
+    }) =>
+        Vehicle(
+          id: id,
+          userId: 'persona-f-user',
+          maker: 'Toyota',
+          model: 'Prius',
+          year: 2015,
+          grade: 'S',
+          mileage: 120000,
+          status: status,
+          isDataRetained: true,
+          createdAt: now,
+          updatedAt: now,
+        );
+
+    setUp(() {
+      fakeFirestore = FakeFirebaseFirestore();
+      retirementService = VehicleRetirementService(firestore: fakeFirestore);
+    });
+
+    test('売却: ステータスがsoldに変更され、メモが保存される', () async {
+      await fakeFirestore
+          .collection('vehicles')
+          .doc('prius-f1')
+          .set(_priusOwned().toMap());
+
+      final result = await retirementService.retireVehicle(
+        vehicleId: 'prius-f1',
+        ownerId: 'persona-f-user',
+        reason: VehicleStatus.sold,
+        retainData: true,
+        note: 'ガリバー買取 35万円',
+      );
+
+      expect(result.isSuccess, isTrue);
+      final doc = await fakeFirestore.collection('vehicles').doc('prius-f1').get();
+      expect(doc.data()!['status'], 'sold');
+      expect(doc.data()!['retirementNote'], 'ガリバー買取 35万円');
+      expect(doc.data()!['isDataRetained'], isTrue);
+    });
+
+    test('売却後も整備記録は保持（isDataRetained=true）される', () async {
+      await fakeFirestore
+          .collection('vehicles')
+          .doc('prius-f1')
+          .set(_priusOwned().toMap());
+
+      await retirementService.retireVehicle(
+        vehicleId: 'prius-f1',
+        ownerId: 'persona-f-user',
+        reason: VehicleStatus.sold,
+        retainData: true,
+      );
+
+      final doc = await fakeFirestore.collection('vehicles').doc('prius-f1').get();
+      expect(doc.data()!['isDataRetained'], isTrue);
+    });
+
+    test('廃車: データ不要の場合はisDataRetained=falseが設定される', () async {
+      await fakeFirestore
+          .collection('vehicles')
+          .doc('prius-f1')
+          .set(_priusOwned().toMap());
+
+      await retirementService.retireVehicle(
+        vehicleId: 'prius-f1',
+        ownerId: 'persona-f-user',
+        reason: VehicleStatus.scrapped,
+        retainData: false,
+      );
+
+      final doc = await fakeFirestore.collection('vehicles').doc('prius-f1').get();
+      expect(doc.data()!['isDataRetained'], isFalse);
+    });
+
+    test('誤操作取り消し: 売却済み車両をactiveに戻せる', () async {
+      await fakeFirestore
+          .collection('vehicles')
+          .doc('prius-f1')
+          .set(_priusOwned(status: VehicleStatus.sold).toMap());
+
+      final result = await retirementService.restoreVehicle(
+        vehicleId: 'prius-f1',
+        ownerId: 'persona-f-user',
+      );
+
+      expect(result.isSuccess, isTrue);
+      final doc = await fakeFirestore.collection('vehicles').doc('prius-f1').get();
+      expect(doc.data()!['status'], 'active');
+    });
+
+    test('退役車両一覧: 売却済み・廃車済みがまとめて取得できる', () async {
+      await fakeFirestore
+          .collection('vehicles')
+          .doc('active-1')
+          .set(_priusOwned(id: 'active-1').toMap());
+      await fakeFirestore
+          .collection('vehicles')
+          .doc('sold-1')
+          .set(_priusOwned(id: 'sold-1', status: VehicleStatus.sold).toMap());
+      await fakeFirestore
+          .collection('vehicles')
+          .doc('scrapped-1')
+          .set(_priusOwned(id: 'scrapped-1', status: VehicleStatus.scrapped).toMap());
+
+      final retired = await retirementService.getRetiredVehicles('persona-f-user');
+      final active = await retirementService.getActiveVehicles('persona-f-user');
+
+      expect(retired.valueOrNull!, hasLength(2));
+      expect(active.valueOrNull!, hasLength(1));
+    });
+
+    test('権限違反: 他人の車両は売却できない', () async {
+      await fakeFirestore
+          .collection('vehicles')
+          .doc('prius-f1')
+          .set(_priusOwned().toMap());
+
+      final result = await retirementService.retireVehicle(
+        vehicleId: 'prius-f1',
+        ownerId: 'bad-actor',
+        reason: VehicleStatus.sold,
+        retainData: false,
+      );
+
+      expect(result.isFailure, isTrue);
+    });
+
+    group('Edge Cases', () {
+      test('同じ車両を二重に廃車しようとするとエラー', () async {
+        await fakeFirestore
+            .collection('vehicles')
+            .doc('prius-f1')
+            .set(_priusOwned(status: VehicleStatus.sold).toMap());
+
+        final result = await retirementService.retireVehicle(
+          vehicleId: 'prius-f1',
+          ownerId: 'persona-f-user',
+          reason: VehicleStatus.scrapped,
+          retainData: false,
+        );
+
+        expect(result.isFailure, isTrue);
+      });
+    });
+  });
+
+  // ===========================================================================
+  // Persona G: EVオーナー（日産リーフ）
+  //   「EVに乗り換えた。オイル交換が不要な代わりに
+  //    タイヤ・ブレーキフルード・ワイパーが主な整備。
+  //    同じEVオーナーのメンテナンス傾向を知りたい。」
+  // ===========================================================================
+  group('Persona G: EVオーナー（日産リーフ）', () {
+    late MaintenanceTrendService trendService;
+    late CommunityTrendService communityService;
+    late FakeFirebaseFirestore fakeFirestore;
+
+    late List<MaintenanceRecord> leafHistory;
+
+    setUp(() async {
+      trendService = const MaintenanceTrendService();
+      fakeFirestore = FakeFirebaseFirestore();
+      communityService = CommunityTrendService(firestore: fakeFirestore);
+
+      final base = DateTime(2022, 4, 1);
+      leafHistory = [
+        // EV: no oil changes, but tire rotation every 10,000km
+        _maintenanceRecord(
+          type: MaintenanceType.tireChange,
+          date: base.add(const Duration(days: 365)),
+          mileage: 12000,
+          cost: 28000,
+          vehicleId: 'leaf-1',
+          userId: 'persona-g-user',
+        ),
+        _maintenanceRecord(
+          type: MaintenanceType.tireChange,
+          date: base.add(const Duration(days: 730)),
+          mileage: 24000,
+          cost: 30000,
+          vehicleId: 'leaf-1',
+          userId: 'persona-g-user',
+        ),
+        // Brake fluid every 2 years
+        _maintenanceRecord(
+          type: MaintenanceType.brakeFluidChange,
+          date: base.add(const Duration(days: 720)),
+          mileage: 23000,
+          cost: 5500,
+          vehicleId: 'leaf-1',
+          userId: 'persona-g-user',
+        ),
+        // Wiper blades annually
+        _maintenanceRecord(
+          type: MaintenanceType.wiperChange,
+          date: base.add(const Duration(days: 365)),
+          mileage: 12000,
+          cost: 2000,
+          vehicleId: 'leaf-1',
+          userId: 'persona-g-user',
+        ),
+        _maintenanceRecord(
+          type: MaintenanceType.wiperChange,
+          date: base.add(const Duration(days: 730)),
+          mileage: 24000,
+          cost: 2000,
+          vehicleId: 'leaf-1',
+          userId: 'persona-g-user',
+        ),
+      ];
+
+      // Seed Nissan Leaf community data
+      await fakeFirestore
+          .collection('community_maintenance_trends')
+          .doc('Nissan_Leaf')
+          .set({
+        'maker': 'Nissan',
+        'model': 'Leaf',
+        'sampleVehicleCount': 89,
+        'lastUpdated': Timestamp.now(),
+        'insights': [
+          {
+            'type': 'tireChange',
+            'medianIntervalKm': 12000.0,
+            'medianIntervalDays': 365.0,
+            'medianCost': 29000.0,
+            'sampleCount': 80,
+            'popularityPercent': 89.9,
+          },
+          {
+            'type': 'brakeFluidChange',
+            'medianIntervalKm': 20000.0,
+            'medianIntervalDays': 700.0,
+            'medianCost': 5000.0,
+            'sampleCount': 65,
+            'popularityPercent': 73.0,
+          },
+        ],
+      });
+    });
+
+    test('EV: 整備履歴にオイル交換が0件でも分析がクラッシュしない', () {
+      final oilRecords = leafHistory
+          .where((r) => r.type == MaintenanceType.oilChange)
+          .toList();
+      final trends = trendService.analyzeHistory(oilRecords);
+      expect(trends, isEmpty);
+    });
+
+    test('EV: タイヤ交換の平均間隔が計算される', () {
+      final tireRecords = leafHistory
+          .where((r) => r.type == MaintenanceType.tireChange)
+          .toList();
+      final trends = trendService.analyzeHistory(tireRecords, currentMileage: 25000);
+      expect(trends.first.averageIntervalKm, closeTo(12000, 100));
+    });
+
+    test('EV: ワイパー交換は年次サイクルで認識される', () {
+      final wiperRecords = leafHistory
+          .where((r) => r.type == MaintenanceType.wiperChange)
+          .toList();
+      final trends = trendService.analyzeHistory(wiperRecords);
+      expect(trends.first.averageIntervalDays, closeTo(365, 5));
+    });
+
+    test('コミュニティ: 同じリーフオーナーのトレンドを取得できる', () async {
+      final result = await communityService.getTrendsForVehicle(
+        maker: 'Nissan',
+        model: 'Leaf',
+      );
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull!.sampleVehicleCount, 89);
+    });
+
+    test('コミュニティ: EVのタイヤ交換傾向が含まれる', () async {
+      final result = await communityService.getTrendsForVehicle(
+        maker: 'Nissan',
+        model: 'Leaf',
+      );
+      final hasTypeTire = result.valueOrNull!.insights
+          .any((i) => i.typeKey == 'tireChange');
+      expect(hasTypeTire, isTrue);
+    });
+
+    group('Edge Cases', () {
+      test('EVは全整備タイプで分析しても0件のoilChangeはスキップされる', () {
+        final trends = trendService.analyzeHistory(leafHistory);
+        final oilTrend = trends.where(
+            (t) => t.type == MaintenanceType.oilChange).toList();
+        expect(oilTrend, isEmpty);
+      });
+    });
+  });
+
+  // ===========================================================================
+  // Persona H: 旧車オーナー（1994年製 Honda Beat）
+  //   「30年以上乗り続けているビートを持っている。
+  //    ユーザー車検で通す。入手困難な部品を探している。
+  //    整備記録をデジタルで残したい。」
+  // ===========================================================================
+  group('Persona H: 旧車オーナー（1994年製Honda Beat）', () {
+    late MaintenanceTrendService trendService;
+    late CarPurchaseInquiryService purchaseService;
+    late FakeFirebaseFirestore fakeFirestore;
+
+    late Vehicle beat;
+
+    setUp(() {
+      trendService = const MaintenanceTrendService();
+      fakeFirestore = FakeFirebaseFirestore();
+      purchaseService = CarPurchaseInquiryService(firestore: fakeFirestore);
+
+      beat = Vehicle(
+        id: 'beat-1',
+        userId: 'persona-h-user',
+        maker: 'Honda',
+        model: 'Beat',
+        year: 1994,
+        grade: 'PP1',
+        mileage: 85000,
+        fuelType: FuelType.gasoline,
+        useCategory: VehicleUseCategory.privatePassenger,
+        createdAt: DateTime(2024, 1, 1),
+        updatedAt: DateTime(2024, 1, 1),
+      );
+    });
+
+    test('旧車: 製造年が30年以上前でもVehicleモデルが正しく生成される', () {
+      expect(beat.year, 1994);
+      final age = DateTime.now().year - beat.year;
+      expect(age, greaterThanOrEqualTo(30));
+    });
+
+    test('旧車: 走行距離8.5万kmでも整備記録分析が動く', () {
+      final records = [
+        _maintenanceRecord(
+          type: MaintenanceType.oilChange,
+          date: DateTime(2023, 1, 1),
+          mileage: 80000,
+          cost: 3000,
+          vehicleId: 'beat-1',
+          userId: 'persona-h-user',
+        ),
+        _maintenanceRecord(
+          type: MaintenanceType.oilChange,
+          date: DateTime(2023, 7, 1),
+          mileage: 83000,
+          cost: 3000,
+          vehicleId: 'beat-1',
+          userId: 'persona-h-user',
+        ),
+      ];
+      final trends = trendService.analyzeHistory(records, currentMileage: 85000);
+      expect(trends.first.averageIntervalKm, closeTo(3000, 50));
+    });
+
+    test('部品探し: CarSensor/Goo-netのリンクを生成できる', () {
+      final links = purchaseService.generateSearchLinks(
+        const CarPurchaseCondition(
+          maker: 'Honda',
+          model: 'Beat',
+          minYear: 1990,
+          maxYear: 1996,
+          maxPrice: 1500000,
+        ),
+      );
+      expect(links, hasLength(greaterThanOrEqualTo(2)));
+      expect(links.map((l) => l.siteName), containsAll(['カーセンサー', 'Goo-net']));
+    });
+
+    test('部品探し: 生成URLに製造年範囲が含まれる', () {
+      final links = purchaseService.generateSearchLinks(
+        const CarPurchaseCondition(
+          maker: 'Honda',
+          model: 'Beat',
+          minYear: 1991,
+          maxYear: 1996,
+        ),
+      );
+      for (final link in links) {
+        expect(link.url, contains('1991'));
+        expect(link.url, contains('1996'));
+      }
+    });
+
+    test('購入問い合わせ: 旧車専門店への問い合わせを送れる', () async {
+      final result = await purchaseService.createInquiry(
+        userId: 'persona-h-user',
+        condition: const CarPurchaseCondition(
+          maker: 'Honda',
+          model: 'Beat',
+          minYear: 1991,
+          maxYear: 1996,
+        ),
+        message: 'ビートのPP1型を探しています。エンジン音が静かなものが希望です。',
+        shopId: 'classic-car-shop',
+      );
+      expect(result.isSuccess, isTrue);
+    });
+
+    group('Edge Cases', () {
+      test('旧車: 車検日未登録でも車両オブジェクト生成にクラッシュしない', () {
+        expect(beat.daysUntilInspection, isNull);
+        expect(beat.suggestedNextInspectionDate, isNull);
+      });
+    });
+  });
+
+  // ===========================================================================
+  // Persona I: 中古車購入検討者（SUV探し）
+  //   「子供が生まれて広い車が欲しい。SUVを探している。
+  //    予算は400万円以内。2020年式以降。走行5万km以内。
+  //    カーセンサーとGoo-netで同時に探したい。
+  //    人気のカーアクセサリーも事前に調べておきたい。」
+  // ===========================================================================
+  group('Persona I: 中古車購入検討者（SUV探し）', () {
+    late CarPurchaseInquiryService purchaseService;
+    late PopularAccessoriesService accessoriesService;
+    late FakeFirebaseFirestore fakeFirestore;
+
+    setUp(() async {
+      fakeFirestore = FakeFirebaseFirestore();
+      purchaseService = CarPurchaseInquiryService(firestore: fakeFirestore);
+      accessoriesService = PopularAccessoriesService(firestore: fakeFirestore);
+
+      // Seed family car accessories
+      for (var i = 1; i <= 4; i++) {
+        await accessoriesService.submitShowcase(
+          userId: 'user-$i',
+          category: AccessoryCategory.safety,
+          itemName: 'コンビCTB-500 チャイルドシート',
+          brand: 'Combi',
+          rating: 5,
+          priceApprox: 35000,
+          review: '子供を安心して乗せられる。',
+        );
+      }
+      await accessoriesService.submitShowcase(
+        userId: 'user-5',
+        category: AccessoryCategory.interior,
+        itemName: 'トランクマット SUV用',
+        brand: null,
+        rating: 4,
+        priceApprox: 3000,
+      );
+    });
+
+    test('検索条件: カーセンサー・Goo-netのURLに予算・年式・走行距離が含まれる', () {
+      const condition = CarPurchaseCondition(
+        minYear: 2020,
+        maxPrice: 4000000,
+        maxMileage: 50000,
+      );
+
+      final links = purchaseService.generateSearchLinks(condition);
+      for (final link in links) {
+        expect(link.url, contains('4000000'));
+        expect(link.url, contains('50000'));
+      }
+    });
+
+    test('複数メーカーを検討: メーカー未指定でも全車検索URLが生成される', () {
+      final links = purchaseService.generateSearchLinks(
+        const CarPurchaseCondition(maxPrice: 4000000),
+      );
+      expect(links.isNotEmpty, isTrue);
+      for (final link in links) {
+        expect(Uri.tryParse(link.url), isNotNull);
+      }
+    });
+
+    test('問い合わせ: 複数の条件を添えてディーラーに問い合わせできる', () async {
+      final result = await purchaseService.createInquiry(
+        userId: 'persona-i-user',
+        condition: const CarPurchaseCondition(
+          minYear: 2020,
+          maxPrice: 4000000,
+          maxMileage: 50000,
+          freeText: 'SUV希望。3列シートがあれば尚可。',
+        ),
+        message: '2020年以降のSUVを探しています。家族4人で使います。',
+        shopId: 'suv-dealer-1',
+      );
+      expect(result.isSuccess, isTrue);
+    });
+
+    test('安全装備の人気アクセサリー: チャイルドシートが1位', () async {
+      final result = await accessoriesService.getPopularTrends(
+          category: AccessoryCategory.safety);
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull!.first.itemName, contains('チャイルドシート'));
+    });
+
+    test('問い合わせ一覧: 送った問い合わせを後から確認できる', () async {
+      await purchaseService.createInquiry(
+        userId: 'persona-i-user',
+        condition: const CarPurchaseCondition(maker: 'Toyota'),
+        message: 'ランドクルーザー問い合わせ',
+      );
+      await purchaseService.createInquiry(
+        userId: 'persona-i-user',
+        condition: const CarPurchaseCondition(maker: 'Subaru'),
+        message: 'フォレスター問い合わせ',
+      );
+
+      final result = await purchaseService.getMyInquiries('persona-i-user');
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull!, hasLength(2));
+    });
+
+    test('問い合わせ: 車を決めたら問い合わせを閉じられる', () async {
+      final id = (await purchaseService.createInquiry(
+        userId: 'persona-i-user',
+        condition: const CarPurchaseCondition(),
+        message: '検討中',
+      )).valueOrNull!;
+
+      final closeResult = await purchaseService.closeInquiry(
+        inquiryId: id,
+        requesterId: 'persona-i-user',
+      );
+      expect(closeResult.isSuccess, isTrue);
+    });
+
+    group('Edge Cases', () {
+      test('minPriceとmaxPriceが逆転するとバリデーションエラー', () async {
+        final result = await purchaseService.createInquiry(
+          userId: 'persona-i-user',
+          condition: const CarPurchaseCondition(
+            minPrice: 5000000,
+            maxPrice: 2000000,
+          ),
+          message: '問い合わせ',
+        );
+        expect(result.isFailure, isTrue);
+      });
+
+      test('カテゴリ横断で全アクセサリーのトップを取得できる', () async {
+        final result = await accessoriesService.getTopAccessories(limit: 3);
+        expect(result.isSuccess, isTrue);
+      });
+    });
+  });
 }
 
-// ---------------------------------------------------------------------------
-// Local helper for persona D maintenance records
-// ---------------------------------------------------------------------------
 MaintenanceRecord _maintenanceRecord({
   required MaintenanceType type,
   required DateTime date,
   int? mileage,
   int cost = 5000,
+  String vehicleId = 'prius-v1',
+  String userId = 'persona-d-user',
 }) =>
     MaintenanceRecord(
       id: '${type.name}_${date.millisecondsSinceEpoch}',
-      vehicleId: 'prius-v1',
-      userId: 'persona-d-user',
+      vehicleId: vehicleId,
+      userId: userId,
       type: type,
       title: type.displayName,
       cost: cost,

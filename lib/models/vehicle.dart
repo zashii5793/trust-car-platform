@@ -1,5 +1,31 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// 車両の現在のステータス
+///
+/// 売却・廃車後もデータを保持したい場合は isDataRetained=true で
+/// アーカイブ状態に移行する。
+enum VehicleStatus {
+  active('使用中'),
+  sold('売却済み'),
+  scrapped('廃車済み'),
+  leaseReturned('リース返却済み'),
+  transferred('譲渡済み');
+
+  final String displayName;
+  const VehicleStatus(this.displayName);
+
+  static VehicleStatus fromString(String? value) {
+    if (value == null) return VehicleStatus.active;
+    try {
+      return VehicleStatus.values.firstWhere((e) => e.name == value);
+    } catch (_) {
+      return VehicleStatus.active;
+    }
+  }
+
+  bool get isRetired => this != VehicleStatus.active;
+}
+
 /// 燃料タイプ
 enum FuelType {
   gasoline('ガソリン'),
@@ -305,6 +331,12 @@ class Vehicle {
   // 用途区分（車検サイクル計算用。null = 自家用乗用車として扱う）
   final VehicleUseCategory? useCategory;
 
+  // 廃車・売却・リース返却など（active以外はアーカイブ扱い）
+  final VehicleStatus status;
+  final DateTime? retiredAt; // 売却/廃車した日付
+  final String? retirementNote; // 売却先・廃車理由など（任意）
+  final bool isDataRetained; // true: 整備記録を保持, false: 削除済み
+
   Vehicle({
     required this.id,
     required this.userId,
@@ -339,6 +371,10 @@ class Vehicle {
     this.voluntaryInsurance,
     this.leaseInfo,
     this.useCategory,
+    this.status = VehicleStatus.active,
+    this.retiredAt,
+    this.retirementNote,
+    this.isDataRetained = true,
   });
 
   /// 車検までの残日数（null: 車検日未設定）
@@ -437,6 +473,10 @@ class Vehicle {
       assigneeId: data['assigneeId'],
       assigneeName: data['assigneeName'],
       useCategory: VehicleUseCategory.fromString(data['useCategory']),
+      status: VehicleStatus.fromString(data['status']),
+      retiredAt: _parseTimestampNullable(data['retiredAt']),
+      retirementNote: data['retirementNote'],
+      isDataRetained: data['isDataRetained'] ?? true,
     );
   }
 
@@ -506,6 +546,10 @@ class Vehicle {
       'assigneeId': assigneeId,
       'assigneeName': assigneeName,
       'useCategory': useCategory?.name,
+      'status': status.name,
+      'retiredAt': retiredAt != null ? Timestamp.fromDate(retiredAt!) : null,
+      'retirementNote': retirementNote,
+      'isDataRetained': isDataRetained,
     };
   }
 
@@ -544,6 +588,10 @@ class Vehicle {
     String? assigneeId,
     String? assigneeName,
     VehicleUseCategory? useCategory,
+    VehicleStatus? status,
+    DateTime? retiredAt,
+    String? retirementNote,
+    bool? isDataRetained,
   }) {
     return Vehicle(
       id: id ?? this.id,
@@ -580,6 +628,10 @@ class Vehicle {
       voluntaryInsurance: voluntaryInsurance ?? this.voluntaryInsurance,
       leaseInfo: leaseInfo ?? this.leaseInfo,
       useCategory: useCategory ?? this.useCategory,
+      status: status ?? this.status,
+      retiredAt: retiredAt ?? this.retiredAt,
+      retirementNote: retirementNote ?? this.retirementNote,
+      isDataRetained: isDataRetained ?? this.isDataRetained,
     );
   }
 

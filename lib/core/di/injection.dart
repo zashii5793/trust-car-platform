@@ -47,6 +47,9 @@ import '../../services/shop_chain_service.dart';
 import '../../services/popular_accessories_service.dart';
 import '../../services/car_purchase_inquiry_service.dart';
 import '../../services/safety_tip_service.dart';
+import '../../services/vehicle_retirement_service.dart';
+import '../../services/fleet_member_service.dart';
+import '../../services/shop_comparison_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -215,6 +218,18 @@ class Injection {
 
     // Safety Tip Service (official-source-only safety information)
     locator.registerLazySingleton<SafetyTipService>(() => SafetyTipService());
+
+    // Vehicle Retirement Service (売却・廃車・リース返却・譲渡)
+    locator.registerLazySingleton<VehicleRetirementService>(
+        () => VehicleRetirementService());
+
+    // Fleet Member Service (role-based access control for fleet members)
+    locator.registerLazySingleton<FleetMemberService>(
+        () => FleetMemberService());
+
+    // Shop Comparison Service (pure comparison/recommendation — no Firestore)
+    locator.registerLazySingleton<ShopComparisonService>(
+        () => const ShopComparisonService());
 
     _initialized = true;
   }
