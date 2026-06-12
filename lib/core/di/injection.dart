@@ -41,6 +41,8 @@ import '../../services/vehicle_spec_service.dart';
 import '../../services/maintenance_trend_service.dart';
 import '../../services/community_trend_service.dart';
 import '../../services/faq_service.dart';
+import '../../services/vehicle_history_sharing_service.dart';
+import '../../services/license_plate_masking_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -187,6 +189,14 @@ class Injection {
 
     // FAQ Service (structured Q&A with shop permission control)
     locator.registerLazySingleton<FaqService>(() => FaqService());
+
+    // Vehicle History Sharing Service (permission-based shop access to vehicle records)
+    locator.registerLazySingleton<VehicleHistorySharingService>(
+        () => VehicleHistorySharingService());
+
+    // License Plate Masking Service (privacy: black-mask plate numbers on photos)
+    locator.registerLazySingleton<LicensePlateMaskingService>(
+        () => const LicensePlateMaskingService());
 
     _initialized = true;
   }

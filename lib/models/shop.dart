@@ -78,6 +78,27 @@ enum ShopType {
   }
 }
 
+/// Reservation/contact methods offered by the shop
+enum ReservationMethod {
+  phone('電話予約'),
+  line('LINE予約'),
+  web('Web予約'),
+  walkIn('当日飛び込み可'),
+  email('メール予約');
+
+  final String displayName;
+  const ReservationMethod(this.displayName);
+
+  static ReservationMethod? fromString(String? value) {
+    if (value == null) return null;
+    try {
+      return ReservationMethod.values.firstWhere((e) => e.name == value);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
 /// Service categories offered by shops
 enum ServiceCategory {
   inspection('車検', 'Vehicle Inspection'),
@@ -156,6 +177,10 @@ class Shop {
   final String? phone;
   final String? email;
   final String? website;
+  final String? lineUrl; // LINE official account URL
+  final String? bookingUrl; // Online booking URL (e.g., Google Reserve, HotPepper)
+  final List<ReservationMethod> reservationMethods;
+  final List<String> appealPoints; // e.g. ["24時間対応", "女性スタッフ在籍"]
 
   // Location
   final String? address;
@@ -203,6 +228,10 @@ class Shop {
     this.phone,
     this.email,
     this.website,
+    this.lineUrl,
+    this.bookingUrl,
+    this.reservationMethods = const [],
+    this.appealPoints = const [],
     this.address,
     this.prefecture,
     this.city,
@@ -279,6 +308,14 @@ class Shop {
       phone: data['phone'],
       email: data['email'],
       website: data['website'],
+      lineUrl: data['lineUrl'],
+      bookingUrl: data['bookingUrl'],
+      reservationMethods: (data['reservationMethods'] as List<dynamic>?)
+              ?.map((e) => ReservationMethod.fromString(e as String?))
+              .whereType<ReservationMethod>()
+              .toList() ??
+          [],
+      appealPoints: List<String>.from(data['appealPoints'] ?? []),
       address: data['address'],
       prefecture: data['prefecture'],
       city: data['city'],
@@ -324,6 +361,10 @@ class Shop {
       'phone': phone,
       'email': email,
       'website': website,
+      'lineUrl': lineUrl,
+      'bookingUrl': bookingUrl,
+      'reservationMethods': reservationMethods.map((e) => e.name).toList(),
+      'appealPoints': appealPoints,
       'address': address,
       'prefecture': prefecture,
       'city': city,
@@ -363,6 +404,10 @@ class Shop {
     String? phone,
     String? email,
     String? website,
+    String? lineUrl,
+    String? bookingUrl,
+    List<ReservationMethod>? reservationMethods,
+    List<String>? appealPoints,
     String? address,
     String? prefecture,
     String? city,
@@ -396,6 +441,10 @@ class Shop {
       phone: phone ?? this.phone,
       email: email ?? this.email,
       website: website ?? this.website,
+      lineUrl: lineUrl ?? this.lineUrl,
+      bookingUrl: bookingUrl ?? this.bookingUrl,
+      reservationMethods: reservationMethods ?? this.reservationMethods,
+      appealPoints: appealPoints ?? this.appealPoints,
       address: address ?? this.address,
       prefecture: prefecture ?? this.prefecture,
       city: city ?? this.city,
