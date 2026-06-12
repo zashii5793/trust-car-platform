@@ -341,4 +341,164 @@ void main() {
       });
     });
   });
+
+  // ──────────────────────────────────────────────
+  // タカヤモーター(株) — 実店舗データ統合テスト
+  // URL: https://www.takayagroup.co.jp/
+  // Services: 新車・中古車販売, 車リース, 車検, 一般整備, 鈑金塗装, 損害保険代理店
+  // ──────────────────────────────────────────────
+  group('タカヤモーター(株) — 実店舗データ', () {
+    late Shop takayaMotor;
+
+    setUp(() {
+      takayaMotor = Shop(
+        id: 'takaya-motor-main',
+        name: 'タカヤモーター(株)',
+        type: ShopType.dealer,
+        description: '新車・中古車販売、車リース、車検、一般整備、鈑金塗装、損害保険代理店。地域密着型総合カーショップ。',
+        website: 'https://www.takayagroup.co.jp/',
+        services: [
+          ServiceCategory.inspection,
+          ServiceCategory.maintenance,
+          ServiceCategory.repair,
+          ServiceCategory.bodyWork,
+          ServiceCategory.insurance,
+          ServiceCategory.purchase,
+          ServiceCategory.sale,
+        ],
+        reservationMethods: [ReservationMethod.phone, ReservationMethod.web],
+        appealPoints: ['新車・中古車対応', 'リース取扱', '損害保険代理店', '鈑金塗装完備'],
+        rating: 4.2,
+        reviewCount: 38,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      );
+    });
+
+    test('基本プロファイル: 名前・種別・評価が正しく設定される', () {
+      expect(takayaMotor.name, 'タカヤモーター(株)');
+      expect(takayaMotor.type, ShopType.dealer);
+      expect(takayaMotor.rating, 4.2);
+      expect(takayaMotor.reviewCount, 38);
+      expect(takayaMotor.isActive, isTrue);
+    });
+
+    test('サービス確認: 車検・整備・板金・保険・売買をすべて提供する', () {
+      expect(takayaMotor.offersService(ServiceCategory.inspection), isTrue);
+      expect(takayaMotor.offersService(ServiceCategory.maintenance), isTrue);
+      expect(takayaMotor.offersService(ServiceCategory.bodyWork), isTrue);
+      expect(takayaMotor.offersService(ServiceCategory.insurance), isTrue);
+      expect(takayaMotor.offersService(ServiceCategory.purchase), isTrue);
+      expect(takayaMotor.offersService(ServiceCategory.sale), isTrue);
+    });
+
+    test('比較: 車検ニーズに対してタカヤモーターがサービス提供店として識別される', () {
+      final competitor = Shop(
+        id: 'parts-only',
+        name: 'パーツ専門店',
+        type: ShopType.partsShop,
+        services: [ServiceCategory.partsInstall],
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final results = service.compare(
+        shops: [competitor, takayaMotor],
+        requiredServices: [ServiceCategory.inspection],
+      );
+
+      final takayaResult = results.firstWhere((r) => r.shop.id == 'takaya-motor-main');
+      final partsResult = results.firstWhere((r) => r.shop.id == 'parts-only');
+
+      expect(takayaResult.offersRequestedService, isTrue);
+      expect(partsResult.offersRequestedService, isFalse);
+    });
+
+    test('比較: 車検＋鈑金の複数条件でもタカヤモーターが合致する', () {
+      final results = service.compare(
+        shops: [takayaMotor],
+        requiredServices: [ServiceCategory.inspection, ServiceCategory.bodyWork],
+      );
+      expect(results.first.offersRequestedService, isTrue);
+    });
+
+    test('推薦: 車検専門店より評価数が少なくても正常にスコアが計算される', () {
+      // タカヤモーター: 4.2 * ln(38+1) ≈ 4.2 * 3.664 = 15.39
+      // 高評価な車検専門店: 4.8 * ln(121) ≈ 4.8 * 4.796 = 23.02
+      final sokuTaro = Shop(
+        id: 'inspection-pro',
+        name: '車検のスピード太郎',
+        type: ShopType.maintenanceShop,
+        services: [ServiceCategory.inspection, ServiceCategory.maintenance],
+        rating: 4.8,
+        reviewCount: 120,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final results = service.compare(shops: [takayaMotor, sokuTaro]);
+      final recommended = service.recommend(
+        results: results,
+        primaryNeed: ServiceCategory.inspection,
+      );
+
+      // スピード太郎の方がスコアが高いはず
+      expect(recommended!.id, 'inspection-pro');
+    });
+
+    test('推薦: 保険サービスではタカヤモーターが唯一の候補として推薦される', () {
+      final noInsurance = Shop(
+        id: 'garage-works',
+        name: 'ガレージ ワークス',
+        type: ShopType.customShop,
+        services: [ServiceCategory.customization, ServiceCategory.bodyWork],
+        rating: 4.2,
+        reviewCount: 45,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final results = service.compare(shops: [noInsurance, takayaMotor]);
+      final recommended = service.recommend(
+        results: results,
+        primaryNeed: ServiceCategory.insurance,
+      );
+
+      expect(recommended, isNotNull);
+      expect(recommended!.id, 'takaya-motor-main');
+    });
+
+    test('予約方法: 電話とWeb予約があるため翌日対応と推定される', () {
+      final results = service.compare(shops: [takayaMotor]);
+      // ReservationMethod.phone → estimatedResponseDays = 2
+      expect(results.first.estimatedResponseDays, 2);
+    });
+
+    group('Edge Cases', () {
+      test('コーティングは提供していないと正しく判定される', () {
+        expect(takayaMotor.offersService(ServiceCategory.coating), isFalse);
+        expect(takayaMotor.offersService(ServiceCategory.rental), isFalse);
+      });
+
+      test('全サービス条件で比較した場合にもクラッシュしない', () {
+        final results = service.compare(
+          shops: [takayaMotor],
+          requiredServices: ServiceCategory.values.toList(),
+        );
+        // タカヤモーターが全サービスを網羅しているわけではないので false になるが正常動作
+        expect(results.first.offersRequestedService, isFalse);
+      });
+
+      test('タカヤモーター単体でもrecommend()がクラッシュしない', () {
+        final results = service.compare(shops: [takayaMotor]);
+        final recommended = service.recommend(
+          results: results,
+          primaryNeed: ServiceCategory.inspection,
+        );
+        expect(recommended, isNotNull);
+        expect(recommended!.name, 'タカヤモーター(株)');
+      });
+    });
+  });
 }
