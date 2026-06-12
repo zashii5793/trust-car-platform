@@ -492,6 +492,18 @@ service cloud.firestore {
       }
     }
 
+    // ==================== コミュニティ車種グレード仕様データ ====================
+    // vehicle_grade_specs/{specId}
+    // Anyone can read; authenticated users can create.
+    // Updates are restricted to incrementing contributorCount only.
+    match /vehicle_grade_specs/{specId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['contributorCount', 'updatedAt']);
+    }
+
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;

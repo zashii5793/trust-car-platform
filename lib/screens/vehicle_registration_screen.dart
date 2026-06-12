@@ -9,6 +9,7 @@ import '../providers/vehicle_provider.dart';
 import '../services/firebase_service.dart';
 import '../services/vehicle_certificate_ocr_service.dart';
 import '../services/vehicle_master_service.dart';
+import '../services/vehicle_spec_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
@@ -65,6 +66,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       sl.get<VehicleCertificateOcrService>();
   FirebaseService get _firebaseService => sl.get<FirebaseService>();
   VehicleMasterService get _masterService => sl.get<VehicleMasterService>();
+  VehicleSpecService get _specService => sl.get<VehicleSpecService>();
 
   @override
   void initState() {
@@ -262,6 +264,36 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     if (picked != null) onSelected(picked);
   }
 
+  Future<void> _fetchCommunitySpec(VehicleGrade grade) async {
+    final maker = _selectedMaker?.name;
+    final model = _selectedModel?.name;
+    final year = int.tryParse(_yearController.text);
+    if (maker == null || model == null || year == null) { return; }
+
+    final result = await _specService.fetchSpec(maker, model, year, grade.name);
+    if (!mounted) { return; }
+
+    result.when(
+      success: (spec) {
+        if (spec == null) { return; }
+        setState(() {
+          if (spec.grade.engineDisplacement != null) {
+            _engineDisplacementController.text =
+                spec.grade.engineDisplacement.toString();
+          }
+          final ft = FuelType.fromString(spec.grade.fuelType);
+          if (ft != null) { _selectedFuelType = ft; }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'コミュニティのデータを自動入力しました（${spec.contributorCount}人が確認）'),
+          duration: const Duration(seconds: 3),
+        ));
+      },
+      failure: (_) {},
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // 登録処理（ロジック変更なし、フォームバリデーションを手動チェックに変更）
   // ---------------------------------------------------------------------------
@@ -350,6 +382,22 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
 
       if (!mounted) return;
       if (success) {
+        // Contribute spec data to the community collection (fire-and-forget)
+        if (vehicle.engineDisplacement != null || vehicle.fuelType != null) {
+          _specService.saveSpec(
+            vehicle.maker,
+            vehicle.model,
+            vehicle.year,
+            vehicle.grade,
+            VehicleGrade(
+              id: '',
+              modelId: '',
+              name: vehicle.grade,
+              engineDisplacement: vehicle.engineDisplacement,
+              fuelType: vehicle.fuelType?.name,
+            ),
+          );
+        }
         showSuccessSnackBar(context, '車両を登録しました');
         Navigator.pop(context);
       } else {
@@ -570,18 +618,21 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                   child: GradeSelectorField(
                     modelId: _selectedModel?.id,
                     selectedGrade: _selectedGrade,
-                    onChanged: (grade) => setState(() {
-                      _selectedGrade = grade;
-                      // Auto-fill specs from grade master data
-                      if (grade != null) {
-                        if (grade.engineDisplacement != null) {
-                          _engineDisplacementController.text =
-                              grade.engineDisplacement.toString();
+                    onChanged: (grade) {
+                      setState(() {
+                        _selectedGrade = grade;
+                        // Auto-fill specs from grade master data
+                        if (grade != null) {
+                          if (grade.engineDisplacement != null) {
+                            _engineDisplacementController.text =
+                                grade.engineDisplacement.toString();
+                          }
+                          final ft = FuelType.fromString(grade.fuelType);
+                          if (ft != null) { _selectedFuelType = ft; }
+                          _fetchCommunitySpec(grade);
                         }
-                        final ft = FuelType.fromString(grade.fuelType);
-                        if (ft != null) _selectedFuelType = ft;
-                      }
-                    }),
+                      });
+                    },
                     validator: (value) => value == null ? 'グレードを選択' : null,
                   ),
                 ),

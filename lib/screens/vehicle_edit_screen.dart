@@ -15,6 +15,7 @@ import '../widgets/common/loading_indicator.dart';
 import '../widgets/vehicle/vehicle_selector_fields.dart';
 import '../services/vehicle_master_service.dart';
 import '../services/fleet_service.dart';
+import '../services/vehicle_spec_service.dart';
 import 'package:uuid/uuid.dart';
 
 /// 車両編集画面
@@ -39,6 +40,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   late TextEditingController _mileageController;
 
   VehicleMasterService get _masterService => sl.get<VehicleMasterService>();
+  VehicleSpecService get _specService => sl.get<VehicleSpecService>();
 
   // Phase 1.5: 識別情報
   late TextEditingController _licensePlateController;
@@ -227,6 +229,40 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
       _selectedGrade = grade;
       _masterDataLoading = false;
     });
+  }
+
+  Future<void> _fetchCommunitySpec(VehicleGrade grade) async {
+    final maker = _selectedMaker?.name;
+    final model = _selectedModel?.name;
+    final year = int.tryParse(_yearController.text);
+    if (maker == null || model == null || year == null) { return; }
+
+    final result = await _specService.fetchSpec(maker, model, year, grade.name);
+    if (!mounted) { return; }
+
+    result.when(
+      success: (spec) {
+        if (spec == null) { return; }
+        setState(() {
+          if (spec.grade.engineDisplacement != null) {
+            _engineDisplacementController.text =
+                spec.grade.engineDisplacement.toString();
+            _showAdvancedFields = true;
+          }
+          final ft = FuelType.fromString(spec.grade.fuelType);
+          if (ft != null) {
+            _selectedFuelType = ft;
+            _showAdvancedFields = true;
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'コミュニティのデータを自動入力しました（${spec.contributorCount}人が確認）'),
+          duration: const Duration(seconds: 3),
+        ));
+      },
+      failure: (_) {},
+    );
   }
 
   void _onFieldChanged() {
@@ -471,6 +507,25 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           .updateVehicle(widget.vehicle.id, updatedVehicle);
 
       if (success && mounted) {
+        // Contribute spec data to the community collection (fire-and-forget)
+        if (updatedVehicle.engineDisplacement != null ||
+            updatedVehicle.fuelType != null) {
+          _specService.saveSpec(
+            updatedVehicle.maker,
+            updatedVehicle.model,
+            updatedVehicle.year,
+            updatedVehicle.grade,
+            VehicleGrade(
+              id: '',
+              modelId: '',
+              name: updatedVehicle.grade,
+              engineDisplacement: updatedVehicle.engineDisplacement,
+              fuelType: updatedVehicle.fuelType?.name,
+              seatingCapacity: updatedVehicle.seatingCapacity,
+              vehicleWeight: updatedVehicle.vehicleWeight,
+            ),
+          );
+        }
         showSuccessSnackBar(context, '車両情報を更新しました');
         Navigator.pop(context, updatedVehicle);
       }
@@ -742,6 +797,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                                   _selectedFuelType = ft;
                                   _showAdvancedFields = true;
                                 }
+                                _fetchCommunitySpec(grade);
                               }
                             });
                             _onFieldChanged();
