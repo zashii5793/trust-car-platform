@@ -33,6 +33,8 @@ import 'drive/drive_log_screen.dart';
 import 'add_maintenance_screen.dart';
 import 'ai_chat/ai_chat_screen.dart';
 import 'fleet/fleet_dashboard_screen.dart';
+import 'vehicle/retired_vehicles_screen.dart';
+import 'accessories/accessory_showcase_screen.dart';
 import '../widgets/vehicle/mileage_reminder_banner.dart';
 import '../widgets/vehicle/mileage_update_dialog.dart';
 
@@ -362,6 +364,7 @@ class _VehicleTab extends StatelessWidget {
                 _InspectionSetupCard(vehicles: vehicles),
               _AiSuggestionSection(onSeeAll: onNavigateToMarketplace),
               ...vehicles.map((v) => _VehicleCard(vehicle: v)),
+              _RetiredVehiclesLink(),
             ];
 
             return ListView.builder(
@@ -492,6 +495,16 @@ class _ProfileTab extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const DriveLogScreen()),
+                ),
+              ),
+              _MenuItemData(
+                icon: Icons.storefront_outlined,
+                label: 'みんなのアクセサリー',
+                color: AppColors.secondary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const AccessoryShowcaseScreen()),
                 ),
               ),
               if (isBusiness)
@@ -2164,6 +2177,36 @@ class _InfoChip extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.w500,
           color: color,
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 過去の車両リンク（退役済み車両への導線）
+// ---------------------------------------------------------------------------
+class _RetiredVehiclesLink extends StatelessWidget {
+  const _RetiredVehiclesLink();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+      child: Center(
+        child: TextButton.icon(
+          key: const Key('retired_vehicles_link'),
+          icon: const Icon(Icons.history_outlined, size: 16),
+          label: const Text('売却・廃車した過去の車両を見る'),
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.textSecondary,
+          ),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => const RetiredVehiclesScreen(),
+            ),
+          ),
         ),
       ),
     );
