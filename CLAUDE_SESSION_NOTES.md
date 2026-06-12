@@ -227,6 +227,8 @@
 
 ### 第11弾（2026-06-12実装 — Sprint 13 自律開発）
 
+**注: 第11弾の続き（セッション引き継ぎ後）** 
+
 **報告書**: `docs/PERSONA_TEST_REPORT.md`（ペルソナ別統合テスト）、`docs/MARKETING_APPEAL_REPORT.md`（マーケ専門家分析）を生成。
 
 1. **ShopChain（多店舗チェーン対応）**: `lib/models/shop_chain.dart`、`lib/services/shop_chain_service.dart` 新規。コバック・ジェームス等のフランチャイズチェーンを表現。`Shop`モデルに `chainId/chainName` 追加。`createChain`, `getChain`, `getShopsInChain`, `linkShopToChain`, `unlinkShopFromChain`（オーナーのみ許可） — 16テスト
@@ -239,6 +241,47 @@
 
 **合計テスト**: 3126件 → 3184件（+58件）  
 **コミット**: `13c5b6b`, `dd1db1a`, `e246dbd`  
+**プッシュ済み**: `claude/continue-development-WYZZp`
+
+### 第12弾（Sprint 13 最終 — 車両ライフサイクル + ペルソナ完全網羅）
+
+**背景**: 「社運がかかってる機能だからペルソナを世界レベルで拡充せよ」「廃車・売却・データ保持も対応せよ」の指示を受け実装。
+
+1. **Vehicle ライフサイクル管理**:
+   - `VehicleStatus` enum: active / sold（売却）/ scrapped（廃車）/ leaseReturned（リース返却）/ transferred（譲渡）
+   - `Vehicle` モデルに `status`, `retiredAt`, `retirementNote`, `isDataRetained` フィールド追加
+   - **`VehicleRetirementService`** 新規:
+     - `retireVehicle`: オーナー確認・二重退役防止・reason=active禁止
+     - `restoreVehicle`: 誤操作取り消し（soldを再度activeに戻せる）
+     - `getRetiredVehicles`: 売却済み・廃車済み一覧（whereNotIn使用）
+     - `getActiveVehicles`: アクティブ車両のみ（ガレージ表示用）
+     - `isDataRetained: bool` — ユーザーが「整備記録を残す」か選択できる
+   - 17テスト全パス
+
+2. **FleetMemberService**（フリートRBAC）:
+   - `FleetRole`: owner / manager / staff / viewer の4段階
+   - `addMember`: オーナーのみ招待可
+   - `updateRole`: オーナーのみ変更可
+   - `removeMember`: オーナーまたは本人が脱退可
+   - `canWrite`: manager以上が書き込み可
+   - 33テスト全パス
+
+3. **ShopComparisonService**（工場比較・純粋関数）:
+   - スコア = `rating × ln(reviewCount + 1) - 0.05 × distanceKm`
+   - 対数スコアリングにより少数レビューの高評価工場に偏らない設計
+   - `compare`, `recommend` — Firestore不要の純粋関数
+   - 14テスト全パス
+
+4. **ペルソナシナリオテスト拡張（A〜D → A〜I）**:
+   - Persona E: 新社会人・N-BOX（SafetyTip + PopularAccessories。初回整備low confidence）
+   - Persona F: 売却・廃車ユーザー（VehicleRetirement + データ保持選択）
+   - Persona G: EVオーナー・日産リーフ（オイル交換なし。タイヤ/ブレーキ/ワイパーのみ）
+   - Persona H: 旧車オーナー1994年製Beat（CarPurchaseInquiry部品探し・製造年30年超）
+   - Persona I: SUV購入検討者（CarSensor/Goo-netリンク生成・チャイルドシート人気）
+   - **71件 → 全パス**（既存A〜D含む）
+
+**全テスト**: 3,284件 全パス（+100件）  
+**コミット**: `ed80681`  
 **プッシュ済み**: `claude/continue-development-WYZZp`
 
 ### 残課題（次セッション候補）
