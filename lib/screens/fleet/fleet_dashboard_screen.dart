@@ -8,11 +8,15 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/utils/inspection_urgency.dart';
+import '../../models/shop.dart';
 import '../../models/vehicle.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/fleet_service.dart';
 import '../../services/fleet_csv_export_service.dart';
+import '../../services/fleet_inquiry_composer.dart';
+import '../marketplace/inquiry_screen.dart';
+import '../marketplace/shop_list_screen.dart';
 
 /// Fleet management dashboard for business account managers.
 ///
@@ -33,6 +37,16 @@ class FleetDashboardScreen extends StatelessWidget {
         appBar: AppBar(
           title: const Text('フリート管理'),
           actions: [
+            Consumer<FleetProvider>(
+              builder: (context, p, _) => IconButton(
+                key: const Key('fleet_bulk_inquiry_button'),
+                icon: const Icon(Icons.send_outlined),
+                tooltip: '車検一括問い合わせ',
+                onPressed: p.allVehicles.isEmpty
+                    ? null
+                    : () => _startBulkInquiry(context, p.allVehicles),
+              ),
+            ),
             Consumer<FleetProvider>(
               builder: (context, p, _) => IconButton(
                 key: const Key('fleet_csv_export_button'),
@@ -61,6 +75,77 @@ class FleetDashboardScreen extends StatelessWidget {
             }
             return _FleetBody(provider: provider);
           },
+        ),
+      ),
+    );
+  }
+
+  /// Bulk inspection inquiry: pick vehicles due soon, choose a shop, then
+  /// open InquiryScreen prefilled with the generated message.
+  Future<void> _startBulkInquiry(
+      BuildContext context, List<Vehicle> vehicles) async {
+    final targets = FleetInquiryComposer.vehiclesNeedingInspection(vehicles);
+
+    if (targets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('車検が60日以内の車両はありません（車検満了日の登録もご確認ください）')),
+      );
+      return;
+    }
+
+    // Confirm target vehicles before choosing a shop.
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('車検一括問い合わせ（${targets.length}台）'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: targets
+                .map((v) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Text(
+                        '・${v.displayName}'
+                        '${v.licensePlate != null ? '（${v.licensePlate}）' : ''}',
+                        style: Theme.of(ctx).textTheme.bodyMedium,
+                      ),
+                    ))
+                .toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('工場を選ぶ'),
+          ),
+        ],
+      ),
+    );
+    if (proceed != true) return;
+
+    if (!context.mounted) return;
+    final shop = await Navigator.push<Shop>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ShopListScreen(selectMode: true),
+      ),
+    );
+    if (shop == null || !context.mounted) return;
+
+    final draft = FleetInquiryComposer.compose(targets);
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => InquiryScreen(
+          shop: shop,
+          prefillSubject: draft.subject,
+          prefillMessage: draft.message,
         ),
       ),
     );

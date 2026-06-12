@@ -23,6 +23,43 @@ enum FuelType {
   }
 }
 
+/// 用途区分（ナンバー区分による車検サイクルの違い）
+///
+/// 車検の有効期間は道路運送車両法で用途ごとに定められている:
+/// - 自家用乗用車・軽乗用車（3・5・7ナンバー）: 初回3年、以降2年
+/// - 貨物車（1・4ナンバー、8t未満）: 初回2年、以降1年（毎年車検）
+/// - 軽貨物（4ナンバー軽）: 初回2年、以降2年
+/// - 事業用・大型貨物（緑ナンバー、8t以上）: 初回1年、以降1年
+enum VehicleUseCategory {
+  privatePassenger('自家用乗用車（3・5・7ナンバー）', 3, 2),
+  cargo('貨物車（1・4ナンバー）', 2, 1),
+  keiCargo('軽貨物（4ナンバー軽）', 2, 2),
+  commercial('事業用・大型貨物（緑ナンバー等）', 1, 1);
+
+  final String displayName;
+
+  /// 新車登録から初回車検までの年数
+  final int firstInspectionYears;
+
+  /// 2回目以降の車検サイクル（年）
+  final int inspectionCycleYears;
+
+  const VehicleUseCategory(
+    this.displayName,
+    this.firstInspectionYears,
+    this.inspectionCycleYears,
+  );
+
+  static VehicleUseCategory? fromString(String? value) {
+    if (value == null) return null;
+    try {
+      return VehicleUseCategory.values.firstWhere((e) => e.name == value);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
 /// 駆動方式
 enum DriveType {
   ff('FF（前輪駆動）'),
@@ -265,6 +302,9 @@ class Vehicle {
   final String? assigneeId;
   final String? assigneeName;
 
+  // 用途区分（車検サイクル計算用。null = 自家用乗用車として扱う）
+  final VehicleUseCategory? useCategory;
+
   Vehicle({
     required this.id,
     required this.userId,
@@ -298,12 +338,30 @@ class Vehicle {
     this.seatingCapacity,
     this.voluntaryInsurance,
     this.leaseInfo,
+    this.useCategory,
   });
 
   /// 車検までの残日数（null: 車検日未設定）
   int? get daysUntilInspection {
     if (inspectionExpiryDate == null) return null;
     return inspectionExpiryDate!.difference(DateTime.now()).inDays;
+  }
+
+  /// 用途区分（未設定時は自家用乗用車として扱う）
+  VehicleUseCategory get effectiveUseCategory =>
+      useCategory ?? VehicleUseCategory.privatePassenger;
+
+  /// 次回車検の推奨日（現在の満了日 + 用途区分別サイクル）
+  ///
+  /// 貨物車（4ナンバー）は毎年、自家用乗用車は2年ごと。
+  DateTime? get suggestedNextInspectionDate {
+    final current = inspectionExpiryDate;
+    if (current == null) return null;
+    return DateTime(
+      current.year + effectiveUseCategory.inspectionCycleYears,
+      current.month,
+      current.day,
+    );
   }
 
   /// 車検期限が近いか（30日以内）
@@ -378,6 +436,7 @@ class Vehicle {
       companyId: data['companyId'],
       assigneeId: data['assigneeId'],
       assigneeName: data['assigneeName'],
+      useCategory: VehicleUseCategory.fromString(data['useCategory']),
     );
   }
 
@@ -446,6 +505,7 @@ class Vehicle {
       'companyId': companyId,
       'assigneeId': assigneeId,
       'assigneeName': assigneeName,
+      'useCategory': useCategory?.name,
     };
   }
 
@@ -483,6 +543,7 @@ class Vehicle {
     String? companyId,
     String? assigneeId,
     String? assigneeName,
+    VehicleUseCategory? useCategory,
   }) {
     return Vehicle(
       id: id ?? this.id,
@@ -518,6 +579,7 @@ class Vehicle {
       seatingCapacity: seatingCapacity ?? this.seatingCapacity,
       voluntaryInsurance: voluntaryInsurance ?? this.voluntaryInsurance,
       leaseInfo: leaseInfo ?? this.leaseInfo,
+      useCategory: useCategory ?? this.useCategory,
     );
   }
 

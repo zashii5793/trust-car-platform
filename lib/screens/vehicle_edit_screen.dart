@@ -72,6 +72,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   FuelType? _selectedFuelType;
   DateTime? _purchaseDate;
 
+  // 用途区分（車検サイクル: 貨物車は毎年）
+  VehicleUseCategory? _selectedUseCategory;
+
   Uint8List? _newImageBytes;
   bool _isLoading = false;
   bool _hasChanges = false;
@@ -97,6 +100,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     // Phase 1.5: 車検・保険
     _inspectionExpiryDate = v.inspectionExpiryDate;
     _insuranceExpiryDate = v.insuranceExpiryDate;
+    _selectedUseCategory = v.useCategory;
 
     // 任意保険
     _voluntaryInsuranceCompanyController = TextEditingController(
@@ -322,6 +326,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         _engineDisplacementController.text !=
             (v.engineDisplacement?.toString() ?? '') ||
         _selectedFuelType != v.fuelType ||
+        _selectedUseCategory != v.useCategory ||
         _inspectionExpiryDate != v.inspectionExpiryDate ||
         _insuranceExpiryDate != v.insuranceExpiryDate ||
         _voluntaryInsuranceCompanyController.text !=
@@ -553,6 +558,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         companyId: widget.vehicle.companyId,
         assigneeId: widget.vehicle.assigneeId,
         assigneeName: widget.vehicle.assigneeName,
+        // 用途区分（車検サイクル）
+        useCategory: _selectedUseCategory,
       );
 
       // 車両を更新
@@ -944,6 +951,10 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                   // === 車検・保険セクション ===
                   _buildSectionHeader(theme, '車検・保険', Icons.verified,
                       isImportant: true),
+                  AppSpacing.verticalSm,
+
+                  // 用途区分（車検サイクルが変わる）
+                  _buildUseCategorySelector(theme),
                   AppSpacing.verticalSm,
 
                   // 車検満了日
@@ -1351,6 +1362,57 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// 用途区分セレクター（貨物車は毎年車検のため区分が重要）
+  Widget _buildUseCategorySelector(ThemeData theme) {
+    final selected = _selectedUseCategory;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<VehicleUseCategory>(
+          key: const Key('use_category_dropdown'),
+          initialValue: selected,
+          decoration: const InputDecoration(
+            labelText: '用途区分',
+            hintText: 'ナンバープレートの分類番号で選択',
+            prefixIcon: Icon(Icons.category),
+            border: OutlineInputBorder(),
+          ),
+          items: VehicleUseCategory.values
+              .map((c) => DropdownMenuItem(
+                    value: c,
+                    child: Text(c.displayName,
+                        style: theme.textTheme.bodyMedium),
+                  ))
+              .toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedUseCategory = value;
+              _onFieldChanged();
+            });
+          },
+        ),
+        if (selected != null) ...[
+          AppSpacing.verticalXs,
+          Text(
+            selected.inspectionCycleYears == 1
+                ? '※ この区分は毎年車検が必要です'
+                : '※ 車検サイクル: ${selected.inspectionCycleYears}年ごと'
+                    '（初回${selected.firstInspectionYears}年）',
+            key: const Key('use_category_cycle_note'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: selected.inspectionCycleYears == 1
+                  ? AppColors.warning
+                  : AppColors.textTertiary,
+              fontWeight: selected.inspectionCycleYears == 1
+                  ? FontWeight.w600
+                  : FontWeight.normal,
+            ),
+          ),
+        ],
+      ],
     );
   }
 

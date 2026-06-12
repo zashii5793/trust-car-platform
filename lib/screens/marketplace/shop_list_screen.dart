@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../../models/shop.dart';
 import '../../providers/shop_provider.dart';
@@ -17,7 +18,15 @@ class ShopListScreen extends StatefulWidget {
   /// Optional search keyword pre-populated from an AI suggestion.
   final String? maintenanceContext;
 
-  const ShopListScreen({super.key, this.maintenanceContext});
+  /// When true, tapping a shop pops this screen returning the [Shop]
+  /// instead of navigating to its detail page (used by fleet bulk inquiry).
+  final bool selectMode;
+
+  const ShopListScreen({
+    super.key,
+    this.maintenanceContext,
+    this.selectMode = false,
+  });
 
   @override
   State<ShopListScreen> createState() => _ShopListScreenState();
@@ -25,6 +34,49 @@ class ShopListScreen extends StatefulWidget {
 
 class _ShopListScreenState extends State<ShopListScreen> {
   final _searchController = TextEditingController();
+  bool _isLocating = false;
+
+  /// 現在地を取得して近い順にソートする。
+  /// 権限拒否・位置情報サービス無効時は SnackBar で案内する。
+  Future<void> _sortByDistance() async {
+    final provider = context.read<ShopProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    setState(() => _isLocating = true);
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('位置情報サービスが無効です。端末の設定をご確認ください')),
+        );
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('位置情報の権限がありません。設定アプリから許可してください')),
+        );
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.low),
+      );
+      provider.sortByDistanceFrom(position.latitude, position.longitude);
+    } catch (e) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('現在地の取得に失敗しました')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLocating = false);
+    }
+  }
 
   @override
   void initState() {
@@ -55,8 +107,21 @@ class _ShopListScreenState extends State<ShopListScreen> {
       builder: (context, provider, _) {
         return Scaffold(
           appBar: AppBar(
-            title: const Text('マーケットプレイス'),
+            title: Text(widget.selectMode ? '問い合わせ先の工場を選択' : 'マーケットプレイス'),
             actions: [
+              IconButton(
+                key: const Key('sort_by_distance_button'),
+                icon: _isLocating
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.near_me_outlined),
+                tooltip: '近い順に並べ替え',
+                onPressed:
+                    _isLocating || provider.shops.isEmpty ? null : _sortByDistance,
+              ),
               if (!provider.isLoading)
                 IconButton(
                   icon: const Icon(Icons.refresh),
@@ -118,12 +183,19 @@ class _ShopListScreenState extends State<ShopListScreen> {
           padding: const EdgeInsets.only(bottom: AppSpacing.md),
           child: _ShopCard(
             shop: shop,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ShopDetailScreen(shopId: shop.id),
-              ),
-            ),
+            distanceKm: provider.distanceForShop(shop.id),
+            onTap: () {
+              if (widget.selectMode) {
+                Navigator.pop(context, shop);
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ShopDetailScreen(shopId: shop.id),
+                  ),
+                );
+              }
+            },
           ),
         );
       },
@@ -499,7 +571,10 @@ class _ShopCard extends StatelessWidget {
   final Shop shop;
   final VoidCallback onTap;
 
-  const _ShopCard({required this.shop, required this.onTap});
+  /// Distance from the user's current location (km). Null = not sorted yet.
+  final double? distanceKm;
+
+  const _ShopCard({required this.shop, required this.onTap, this.distanceKm});
 
   @override
   Widget build(BuildContext context) {
@@ -580,11 +655,13 @@ class _ShopCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 2),
-                    // 業種 + 都道府県
+                    // 業種 + 都道府県 + 距離
                     Text(
                       [
                         shop.type.displayName,
                         if (shop.prefecture != null) shop.prefecture!,
+                        if (distanceKm != null)
+                          '現在地から${distanceKm!.toStringAsFixed(1)}km',
                       ].join(' · '),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.primary,
