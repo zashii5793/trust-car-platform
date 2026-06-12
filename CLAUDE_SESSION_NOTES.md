@@ -7,7 +7,17 @@
 ## 現在の状態
 
 **ブランチ**: `claude/continue-development-WYZZp`（PR #20 マージ済み・main取り込み済み）
-**テスト**: 2719件+ 全パス（`--exclude-tags emulator`）
+**テスト**: 2942件 全パス・失敗0件（`--exclude-tags emulator`）
+**テストユーザー受け入れ準備**: エキスパート3観点監査（QA/セキュリティ/UX）完了・P0/High全て修正済み
+
+## 人間タスク（テストユーザー配布前に必須）
+
+1. `firebase deploy --only firestore:rules,firestore:indexes` —
+   vehicle_grade_specs / posts可視性 / social_notifications / vehicle_listings
+   のルール強化 + posts複合インデックス3本（同車種フィルタは未デプロイだと500エラー）
+2. `firebase deploy --only storage` — storage.rules がコードと一致するよう全面整備済み。
+   **本番のConsole編集ルールとの差分を必ず確認してからデプロイ**
+   （旧ルールはリポジトリと乖離している疑い。監査レポート参照）
 
 ---
 
@@ -144,10 +154,28 @@
 **テスト追加**: vehicle_spec 15件 / fleet_csv 10件 / ai_chat_provider 16件
 **人間タスク**: `firebase deploy --only firestore:rules`（vehicle_grade_specs ルール反映）
 
+### 第8弾（2026-06-12実装・テストユーザー受け入れ準備）
+
+**機能**: OCR→コミュニティ仕様サジェスト（fetchSpecsForModel）/
+パーツ提案「同車種オーナーの装着例」/ フリートCSV整備サマリー
+
+**エキスパート3観点並列監査（QA/セキュリティ/UX）を実施し全P0/High修正**:
+- [P0] オンボーディング→ログイン後に遷移しない致命バグ
+  （pushReplacementがAuthWrapper破棄 → onCompletedコールバック方式）
+- contributorCount水増し防止: contributorIds で1ユーザー1カウント
+  （firestore.rulesでも増分+1・本人追加のみを強制）
+- OCR生テキストのdebugPrint削除（車検証の個人情報がlogcatに残る問題）
+- posts可視性のルール強制（非公開投稿がSDK直クエリで全読み可能だった）
+- storage.rules全面整備（コードの実パスと不一致でリポジトリ管理が形骸化していた）
+- CSV数式インジェクション対策 + 一時ファイル削除
+- 実車写真共有の明示同意制（ナンバー写り込み対策・デフォルト非共有）
+- **既存31件のテスト失敗も解消**（ServiceLocator未登録時のgraceful degradation）
+
 ### 残課題（次セッション候補）
-- 車検証OCR読取値（型式等）から specId を引いて登録時に自動サジェスト
-- パーツ提案画面に「同車種オーナーの装着例」セクション（SNS実例連携）
-- フリートCSVに整備履歴サマリー（直近整備日・累計費用）を追加
+- 写真共有同意を登録Step1のチェックボックス化（現在は保存後ダイアログ）
+- 車検満了日未設定時の通知価値訴求（ダッシュボード促しカード）
+- フォロワー限定投稿の閲覧ルール（現在は本人のみ。follows参照のルール追加）
+- 装着例セクションの再読み込み対応（現在initState時のみ取得）
 
 ---
 
