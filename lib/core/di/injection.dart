@@ -46,6 +46,7 @@ import '../../services/license_plate_masking_service.dart';
 import '../../services/shop_chain_service.dart';
 import '../../services/popular_accessories_service.dart';
 import '../../services/car_purchase_inquiry_service.dart';
+import '../../services/safety_tip_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -211,6 +212,9 @@ class Injection {
     // Car Purchase Inquiry Service (used-car search deep links + inquiries)
     locator.registerLazySingleton<CarPurchaseInquiryService>(
         () => CarPurchaseInquiryService());
+
+    // Safety Tip Service (official-source-only safety information)
+    locator.registerLazySingleton<SafetyTipService>(() => SafetyTipService());
 
     _initialized = true;
   }
