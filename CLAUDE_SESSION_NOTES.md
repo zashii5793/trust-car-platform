@@ -98,12 +98,32 @@
 3. **整備記録→SNS共有**: PostCreateScreen に initialContent/initialVehicleId/initialCategory
    追加。AddMaintenanceScreen 新規保存後に共有ダイアログ → PostCreateScreen プリフィル遷移。
 
+### 第6弾（2026-06-12実装）
+
+1. **フリートメンバー招待フロー**: `FleetService.joinFleetByCode` 追加。
+   VehicleEditScreen にフリートコード入力フィールド + 「参加」ボタン、
+   参加中は「脱退」ボタン表示。バリデーション（空文字・権限チェック）。
+2. **担当者アサイン**: `FleetService.assignVehicle` 追加。
+   Vehicle モデルに `assigneeId`/`assigneeName` フィールド追加。
+   FleetDashboardScreen の車両カードをタップすると AssignmentSheet が開き担当者名を設定。
+3. **車両詳細リース・任意保険表示**: VehicleDetailScreen に
+   `_VoluntaryInsuranceSection`（保険会社名・満期日カラーコード）、
+   `_LeaseInfoSection`（リース会社・月額・契約期間・メンテパック）追加。
+4. **車種グレード仕様自動入力**: VehicleGrade に乗車定員・車両重量・
+   標準装備・オプション装備フィールド追加（`hasSpecData` getter）。
+   GradeSelectorField 選択時に燃料タイプ・排気量を自動入力 + 仕様プレビューカード表示。
+5. **整備スケジュール自動生成**: `MaintenanceScheduleService` 新規。
+   燃料タイプ別（EV/HV/PHEV/ディーゼル/ガソリン）に整備項目と推奨インターバルを生成。
+   VehicleDetailScreen に `_MaintenanceScheduleSection`（次回推奨km表示）追加。
+   `injection.dart` に ServiceLocator 登録済み。
+
+**テスト**: MaintenanceScheduleService 19件・FleetService +10件追加（合計 2432件+）
+**全テスト**: `+2432 -31`（31件は前セッションから続く既存の失敗）
+
 ### 残課題（次セッション候補）
 - ai_chat_provider のテスト追加
-- 車両詳細画面にリース情報・任意保険の表示セクション（現状は編集画面のみ）
-- フリートメンバー招待フロー（フリートコードを入力して自分の車両をフリートに紐付ける）
-- 担当者アサイン機能（フリート通知に対して担当者を割り当て・コメント返信）
 - フリート向け車両一覧の CSV エクスポート
+- 車種グレードマスタデータの実データ整備（現状はダミーデータ）
 
 ---
 
