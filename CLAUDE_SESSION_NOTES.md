@@ -7,8 +7,8 @@
 ## 現在の状態
 
 **ブランチ**: `claude/continue-development-WYZZp`（PR #20 マージ済み・main取り込み済み）
-**テスト**: 2942件 全パス・失敗0件（`--exclude-tags emulator`）
-**テストユーザー受け入れ準備**: エキスパート3観点監査（QA/セキュリティ/UX）完了・P0/High全て修正済み
+**テスト**: 2963件 全パス・失敗0件（`--exclude-tags emulator`）
+**テストユーザー受け入れ準備**: 第9弾完了。写真同意・車検プロンプト・フォロワー限定投稿UI全て実装済み
 
 ## 人間タスク（テストユーザー配布前に必須）
 
@@ -171,11 +171,40 @@
 - 実車写真共有の明示同意制（ナンバー写り込み対策・デフォルト非共有）
 - **既存31件のテスト失敗も解消**（ServiceLocator未登録時のgraceful degradation）
 
+### 第9弾（2026-06-12実装・第8弾残課題解消 + 公開範囲UI）
+
+**エキスパート3観点（QA/セキュリティ/UX）分析レポート実施後、P0課題を全解消。**
+
+1. **写真共有同意チェックボックス（Item 1）**
+   - 車両登録Step1: 写真選択後に `CheckboxListTile` を表示
+   - キー: `photo_consent_checkbox`
+   - 「ナンバーや個人情報が写り込んでいない場合のみ選択」警告文
+   - 写真再選択のたびに同意をリセット（安全設計）
+   - `_askPhotoShareConsent` ダイアログ廃止
+
+2. **車検日未設定プロンプトカード（Item 2）**
+   - `_InspectionSetupCard` をダッシュボードに追加
+   - `inspectionExpiryDate == null` の車両がある場合のみ表示
+   - キー: `inspection_setup_card`
+   - 「登録する」→ VehicleEditScreen 遷移
+   - 汎用テキスト（車種名なし）でウィジェットツリー汚染を回避
+
+3. **フォロワー限定投稿（Item 3）**
+   - `PostService.getUserPosts`: `isViewerFollowing` フラグで `whereIn` クエリ切替
+   - Firestore rules: `exists(/follows/{viewerUid}_{authorUid})` でサーバー強制
+   - **[UX P0解消]** `PostCreateScreen` に `SegmentedButton<PostVisibility>` 追加
+     （全体公開 / フォロワーのみ / 自分のみ）
+   - `sns_feed_screen` の投稿カードに `_VisibilityBadge` 追加（public 以外に表示）
+
+**テスト**: 2963件パス（+5件: 公開範囲セレクターUIテスト）
+**静的解析**: No issues found
+**コミット**: `0a0701f`
+
 ### 残課題（次セッション候補）
-- 写真共有同意を登録Step1のチェックボックス化（現在は保存後ダイアログ）
-- 車検満了日未設定時の通知価値訴求（ダッシュボード促しカード）
-- フォロワー限定投稿の閲覧ルール（現在は本人のみ。follows参照のルール追加）
 - 装着例セクションの再読み込み対応（現在initState時のみ取得）
+- `isViewerFollowing` サーバーサイド検証（Cloud Function推奨。現在はクライアントのみ）
+- スペック貢献ロジックのテスト: `spec.sampleImageUrl` が既に存在する場合
+- `getUserPosts` ページネーション + フォロワーフィルタの統合テスト
 
 ---
 
