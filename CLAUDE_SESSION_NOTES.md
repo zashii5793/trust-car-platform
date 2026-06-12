@@ -1,6 +1,6 @@
 # Claude Session Notes
 
-最終更新: 2026-06-11
+最終更新: 2026-06-12
 
 ---
 
@@ -87,12 +87,23 @@
      ホームダッシュボードに5台以上で「現在無料開放中（正式リリース後¥4,980〜）」
      バナー表示 = メリット実感→有料化の導線
 
+### 第5弾（2026-06-12実装・全2851件パス）
+1. **法人フリート管理**: Vehicle に companyId 追加。FleetService（getCompanyVehicles/
+   getFleetStats/linkVehicleToCompany）。FleetProvider（緊急度ソート・urgencyFilter）。
+   FleetDashboardScreen（台数サマリー・緊急度別カラーコード・フィルタチップ・フリートコード表示）。
+   HomeScreen プロフィールタブに法人ユーザー向け「フリート管理」メニュー追加。
+2. **SNS 同車種フィルタ**: PostService.getFeed に modelName パラメータ追加。
+   PostProvider.filterByVehicleModel/selectedModelName。
+   SnsFeedScreen に「同じ○○ オーナー」フィルタチップ（VehicleProvider から車種自動取得）。
+3. **整備記録→SNS共有**: PostCreateScreen に initialContent/initialVehicleId/initialCategory
+   追加。AddMaintenanceScreen 新規保存後に共有ダイアログ → PostCreateScreen プリフィル遷移。
+
 ### 残課題（次セッション候補）
 - ai_chat_provider のテスト追加
-- SNS投稿への車両情報自動紐付け + 同車種フィルタ（戦略メモ参照・大規模）
-- 整備記録→SNS共有導線（実例DB化の起点・中規模）
 - 車両詳細画面にリース情報・任意保険の表示セクション（現状は編集画面のみ）
-- フリート向け一覧UI（台数が多い時のソート/フィルタ・車検期限順）
+- フリートメンバー招待フロー（フリートコードを入力して自分の車両をフリートに紐付ける）
+- 担当者アサイン機能（フリート通知に対して担当者を割り当て・コメント返信）
+- フリート向け車両一覧の CSV エクスポート
 
 ---
 
