@@ -259,9 +259,13 @@ class Vehicle {
   // リース契約情報（法人・個人リース車両）
   final LeaseInfo? leaseInfo;
 
+  // フリート管理: 法人アカウントの companyId（= 管理者の userId）
+  final String? companyId;
+
   Vehicle({
     required this.id,
     required this.userId,
+    this.companyId,
     required this.maker,
     required this.model,
     required this.year,
@@ -366,6 +370,7 @@ class Vehicle {
       leaseInfo: data['leaseInfo'] != null
           ? LeaseInfo.fromMap(data['leaseInfo'])
           : null,
+      companyId: data['companyId'],
     );
   }
 
@@ -431,6 +436,7 @@ class Vehicle {
       'seatingCapacity': seatingCapacity,
       'voluntaryInsurance': voluntaryInsurance?.toMap(),
       'leaseInfo': leaseInfo?.toMap(),
+      'companyId': companyId,
     };
   }
 
@@ -465,10 +471,12 @@ class Vehicle {
     int? seatingCapacity,
     VoluntaryInsurance? voluntaryInsurance,
     LeaseInfo? leaseInfo,
+    String? companyId,
   }) {
     return Vehicle(
       id: id ?? this.id,
       userId: userId ?? this.userId,
+      companyId: companyId ?? this.companyId,
       maker: maker ?? this.maker,
       model: model ?? this.model,
       year: year ?? this.year,

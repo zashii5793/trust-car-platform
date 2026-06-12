@@ -1,0 +1,118 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/constants/firestore_collections.dart';
+import '../core/error/app_error.dart';
+import '../core/result/result.dart';
+import '../models/vehicle.dart';
+
+/// Fleet statistics summary for a company.
+class FleetStats {
+  final int total;
+  final int critical; // inspection ≤7 days or overdue
+  final int warning; // inspection 8-30 days
+  final int normal; // all others
+
+  const FleetStats({
+    required this.total,
+    required this.critical,
+    required this.warning,
+    required this.normal,
+  });
+
+  /// Ratio of critical vehicles to total (0.0–1.0).
+  double get urgencyRatio => total == 0 ? 0.0 : critical / total;
+}
+
+/// Service for fleet (corporate) vehicle management.
+///
+/// companyId = the business account owner's userId.
+/// Fleet vehicles are Firestore documents with `companyId` == the owner's uid.
+class FleetService {
+  final FirebaseFirestore _firestore;
+
+  FleetService({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _vehiclesRef =>
+      _firestore.collection(FirestoreCollections.vehicles);
+
+  /// Stream of all vehicles belonging to the fleet.
+  Stream<List<Vehicle>> getCompanyVehicles(String companyId) {
+    if (companyId.isEmpty) return Stream.value([]);
+
+    return _vehiclesRef
+        .where('companyId', isEqualTo: companyId)
+        .snapshots()
+        .map((snap) => snap.docs.map(Vehicle.fromFirestore).toList());
+  }
+
+  /// Calculates fleet-wide urgency stats.
+  Future<Result<FleetStats, AppError>> getFleetStats(
+      String companyId) async {
+    try {
+      final snap = companyId.isEmpty
+          ? await _vehiclesRef.where('companyId', isEqualTo: '').get()
+          : await _vehiclesRef
+              .where('companyId', isEqualTo: companyId)
+              .get();
+
+      final vehicles = snap.docs.map(Vehicle.fromFirestore).toList();
+      int critical = 0, warning = 0, normal = 0;
+
+      for (final v in vehicles) {
+        final days = v.daysUntilInspection;
+        if (days == null) {
+          normal++;
+        } else if (days < 0 || days <= 7) {
+          critical++;
+        } else if (days <= 30) {
+          warning++;
+        } else {
+          normal++;
+        }
+      }
+
+      return Result.success(FleetStats(
+        total: vehicles.length,
+        critical: critical,
+        warning: warning,
+        normal: normal,
+      ));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// Links a vehicle to a fleet by setting its companyId.
+  ///
+  /// Only the vehicle's owner (userId == requestingUserId) can link it.
+  Future<Result<void, AppError>> linkVehicleToCompany(
+    String vehicleId,
+    String companyId,
+    String requestingUserId,
+  ) async {
+    try {
+      final doc = await _vehiclesRef.doc(vehicleId).get();
+      if (!doc.exists) {
+        return const Result.failure(AppError.notFound(
+          '車両が見つかりません',
+          resourceType: 'Vehicle',
+        ));
+      }
+
+      final data = doc.data()!;
+      if (data['userId'] != requestingUserId) {
+        return const Result.failure(AppError.permission(
+          'この車両をフリートに追加する権限がありません',
+        ));
+      }
+
+      await _vehiclesRef.doc(vehicleId).update({
+        'companyId': companyId,
+        'updatedAt': Timestamp.now(),
+      });
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+}

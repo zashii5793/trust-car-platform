@@ -34,6 +34,7 @@ import '../../services/ai_chat_service.dart';
 import '../../services/maintenance_comment_service.dart';
 import '../../services/mileage_notification_service.dart';
 import '../../services/inspection_reminder_service.dart';
+import '../../services/fleet_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -154,6 +155,9 @@ class Injection {
     locator.registerLazySingleton<InspectionReminderService>(
       () => InspectionReminderService(),
     );
+
+    // Fleet Service (corporate fleet vehicle management)
+    locator.registerLazySingleton<FleetService>(() => FleetService());
 
     _initialized = true;
   }

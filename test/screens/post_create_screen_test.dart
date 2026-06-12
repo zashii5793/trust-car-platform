@@ -32,6 +32,7 @@ class MockPostService implements PostService {
     dynamic startAfter,
     PostCategory? category,
     String? makerId,
+    String? modelName,
   }) async =>
       const Result.success([]);
 

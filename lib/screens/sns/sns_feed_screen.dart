@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../providers/post_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/vehicle_provider.dart';
 import '../../models/post.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
@@ -54,6 +55,7 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
       body: Column(
         children: [
           _CategoryFilterBar(),
+          _VehicleModelFilterBar(),
           Expanded(
             child: Consumer<PostProvider>(
               builder: (context, provider, child) {
@@ -69,6 +71,18 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
                 }
 
                 if (provider.feedPosts.isEmpty) {
+                  // Vehicle model filter active but no results
+                  if (provider.selectedModelName != null) {
+                    return AppEmptyState(
+                      icon: Icons.directions_car_outlined,
+                      title: 'この車種の投稿がまだありません',
+                      description:
+                          '「${provider.selectedModelName}」の投稿がまだありません。\n最初の投稿をしてみましょう！',
+                      buttonLabel: 'すべて表示',
+                      onButtonPressed: () =>
+                          provider.filterByVehicleModel(null),
+                    );
+                  }
                   // Category filter active but no results
                   if (provider.selectedCategory != null) {
                     return AppEmptyState(
@@ -172,6 +186,97 @@ IconData _categoryIcon(PostCategory cat) {
       return Icons.sell_outlined;
     default:
       return Icons.article_outlined;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 同車種フィルタバー（自分の所有車両モデルで絞り込む）
+// ---------------------------------------------------------------------------
+
+class _VehicleModelFilterBar extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Consumer2<VehicleProvider, PostProvider>(
+      builder: (context, vehicleProvider, postProvider, _) {
+        final vehicles = vehicleProvider.vehicles;
+        if (vehicles.isEmpty) return const SizedBox.shrink();
+
+        // Collect unique model names across user's vehicles
+        final modelNames = vehicles
+            .map((v) => '${v.maker} ${v.model}')
+            .toSet()
+            .toList();
+
+        return SizedBox(
+          height: 40,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            children: [
+              if (postProvider.selectedModelName != null)
+                _ModelChip(
+                  key: const Key('sns_vehicle_filter_clear'),
+                  label: 'すべて',
+                  icon: Icons.close,
+                  selected: false,
+                  onTap: () => postProvider.filterByVehicleModel(null),
+                ),
+              ...modelNames.map(
+                (name) => _ModelChip(
+                  key: Key('sns_vehicle_filter_$name'),
+                  label: '同じ $name オーナー',
+                  icon: Icons.directions_car,
+                  selected: postProvider.selectedModelName == name,
+                  onTap: () => postProvider.filterByVehicleModel(
+                    postProvider.selectedModelName == name ? null : name,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ModelChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final IconData icon;
+
+  const _ModelChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        avatar: Icon(icon,
+            size: 13,
+            color: selected
+                ? Colors.white
+                : AppColors.accentDrive),
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => onTap(),
+        labelStyle: TextStyle(
+          fontSize: 11,
+          color: selected ? Colors.white : theme.colorScheme.onSurface,
+        ),
+        selectedColor: AppColors.accentDrive,
+        backgroundColor: AppColors.accentDrive.withValues(alpha: 0.08),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+      ),
+    );
   }
 }
 

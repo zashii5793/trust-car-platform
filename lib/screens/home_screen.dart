@@ -31,6 +31,7 @@ import 'sns/sns_feed_screen.dart';
 import 'drive/drive_log_screen.dart';
 import 'add_maintenance_screen.dart';
 import 'ai_chat/ai_chat_screen.dart';
+import 'fleet/fleet_dashboard_screen.dart';
 import '../widgets/vehicle/mileage_reminder_banner.dart';
 import '../widgets/vehicle/mileage_update_dialog.dart';
 
@@ -379,7 +380,10 @@ class _ProfileTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.read<AuthProvider>().firebaseUser;
+    final authProvider = context.watch<AuthProvider>();
+    final user = authProvider.firebaseUser;
+    final appUser = authProvider.appUser;
+    final isBusiness = appUser?.isBusiness ?? false;
     final isPremium = context.watch<UserSubscriptionProvider>().isPremium;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -485,6 +489,20 @@ class _ProfileTab extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const DriveLogScreen()),
                 ),
               ),
+              if (isBusiness)
+                _MenuItemData(
+                  icon: Icons.business_center_outlined,
+                  label: 'フリート管理',
+                  color: AppColors.secondary,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FleetDashboardScreen(
+                        companyId: user?.uid ?? '',
+                      ),
+                    ),
+                  ),
+                ),
               _MenuItemData(
                 icon: Icons.settings_outlined,
                 label: '設定',

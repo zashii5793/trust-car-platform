@@ -178,6 +178,7 @@ class PostService {
     DocumentSnapshot? startAfter,
     PostCategory? category,
     String? makerId,
+    String? modelName,
   }) async {
     try {
       Query<Map<String, dynamic>> query = _postsRef
@@ -191,6 +192,10 @@ class PostService {
 
       if (makerId != null) {
         query = query.where('vehicleTag.makerId', isEqualTo: makerId);
+      }
+
+      if (modelName != null) {
+        query = query.where('vehicleTag.modelName', isEqualTo: modelName);
       }
 
       if (startAfter != null) {
