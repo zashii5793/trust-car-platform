@@ -17,6 +17,7 @@ import '../../services/fleet_csv_export_service.dart';
 import '../../services/fleet_inquiry_composer.dart';
 import '../marketplace/inquiry_screen.dart';
 import '../marketplace/shop_list_screen.dart';
+import 'fleet_member_screen.dart';
 
 /// Fleet management dashboard for business account managers.
 ///
@@ -37,6 +38,26 @@ class FleetDashboardScreen extends StatelessWidget {
         appBar: AppBar(
           title: const Text('フリート管理'),
           actions: [
+            Consumer<FleetProvider>(
+              builder: (context, p, _) {
+                final uid =
+                    context.read<AuthProvider>().appUser?.id ?? '';
+                return IconButton(
+                  key: const Key('fleet_members_button'),
+                  icon: const Icon(Icons.group_outlined),
+                  tooltip: 'メンバー管理',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => FleetMemberScreen(
+                        companyId: companyId,
+                        currentUserId: uid,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
             Consumer<FleetProvider>(
               builder: (context, p, _) => IconButton(
                 key: const Key('fleet_bulk_inquiry_button'),

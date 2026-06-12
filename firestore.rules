@@ -542,6 +542,93 @@ service cloud.firestore {
             || resource.data.get('sampleImageUrl', null) == null);
     }
 
+    // ==================== フリートメンバー管理 ====================
+    // fleet_members/{companyId}_{userId}
+    // Document ID format: {companyId}_{userId}
+    // Company owner (companyId == request.auth.uid) has full access.
+    // Members may read their own record and all records in their company.
+    match /fleet_members/{memberId} {
+      // Owner reads all members of their company; members read their own record.
+      allow read: if isAuthenticated() &&
+        (resource.data.companyId == request.auth.uid ||
+         resource.data.userId == request.auth.uid);
+
+      // Only the company owner can add members.
+      allow create: if isAuthenticated() &&
+        request.resource.data.companyId == request.auth.uid;
+
+      // Only the company owner can update roles.
+      allow update: if isAuthenticated() &&
+        resource.data.companyId == request.auth.uid;
+
+      // Owner can remove anyone; members can remove themselves.
+      allow delete: if isAuthenticated() &&
+        (resource.data.companyId == request.auth.uid ||
+         resource.data.userId == request.auth.uid);
+    }
+
+    // ==================== アクセサリーショーケース ====================
+    // accessory_showcases/{showcaseId}
+    // Community-contributed showcase posts (dashcam, tire, etc.)
+    // Anyone authenticated may read; only the creator may write/delete.
+    match /accessory_showcases/{showcaseId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow update, delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+    }
+
+    // ==================== 中古車購入問い合わせ ====================
+    // car_purchase_inquiries/{inquiryId}
+    // Created by buyers; readable by the buyer and the target shop.
+    match /car_purchase_inquiries/{inquiryId} {
+      // Buyer and target shop can read.
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid ||
+         resource.data.shopId == request.auth.uid);
+
+      // Any authenticated user can create with their own userId.
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+
+      // Only the buyer can update (e.g., close the inquiry).
+      allow update: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+
+      // Buyer can delete their own inquiry.
+      allow delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+    }
+
+    // ==================== 安全情報 ====================
+    // safety_tips/{tipId}
+    // Official safety information from JAF/NPA/MLIT/FDMA/ITARDA.
+    // Read-only for all authenticated users.
+    // Write is handled exclusively by Cloud Functions / admin SDK.
+    match /safety_tips/{tipId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // admin SDK only
+    }
+
+    // ==================== 店舗チェーン ====================
+    // shop_chains/{chainId}
+    // Franchise chain master data (e.g., コバック, ジェームス).
+    // Read: any authenticated user.
+    // Create: any shop owner (ownerId == request.auth.uid).
+    // Update/Delete: only the chain creator (ownerId field).
+    match /shop_chains/{chainId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.get('ownerId', '') == request.auth.uid;
+
+      allow update, delete: if isAuthenticated() &&
+        resource.data.get('ownerId', '') == request.auth.uid;
+    }
+
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;
