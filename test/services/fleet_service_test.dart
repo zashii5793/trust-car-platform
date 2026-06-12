@@ -215,6 +215,116 @@ void main() {
     });
   });
 
+  // ── joinFleetByCode ──────────────────────────────────────────────────────
+
+  group('FleetService.joinFleetByCode', () {
+    test('正常系: 車両にフリートコードを設定できる', () async {
+      await _seedVehicle(fakeFirestore, _makeVehicle(id: 'v1', userId: 'u1'));
+
+      final result = await service.joinFleetByCode('fleet-owner-uid', 'v1', 'u1');
+      expect(result, isA<Success>());
+      final doc = await fakeFirestore.collection('vehicles').doc('v1').get();
+      expect(doc.data()?['companyId'], 'fleet-owner-uid');
+    });
+
+    test('空のフリートコード → validation エラー', () async {
+      await _seedVehicle(fakeFirestore, _makeVehicle(id: 'v1'));
+      final result = await service.joinFleetByCode('', 'v1', 'u1');
+      result.when(
+        success: (_) => fail('Expected failure'),
+        failure: (e) => expect(e, isA<AppError>()),
+      );
+    });
+
+    test('空白のみのフリートコード → validation エラー', () async {
+      await _seedVehicle(fakeFirestore, _makeVehicle(id: 'v1'));
+      final result = await service.joinFleetByCode('   ', 'v1', 'u1');
+      result.when(
+        success: (_) => fail('Expected failure'),
+        failure: (e) => expect(e, isA<AppError>()),
+      );
+    });
+
+    test('他ユーザーの車両には参加できない', () async {
+      await _seedVehicle(
+          fakeFirestore, _makeVehicle(id: 'v1', userId: 'other-user'));
+      final result =
+          await service.joinFleetByCode('fleet-owner-uid', 'v1', 'u1');
+      result.when(
+        success: (_) => fail('Expected failure'),
+        failure: (e) => expect(e, isA<PermissionError>()),
+      );
+    });
+  });
+
+  // ── leaveFleet ───────────────────────────────────────────────────────────
+
+  group('FleetService.leaveFleet', () {
+    test('車両の companyId をクリアできる', () async {
+      await _seedVehicle(
+          fakeFirestore, _makeVehicle(id: 'v1', companyId: 'company-A'));
+      final result = await service.leaveFleet('v1', 'u1');
+      expect(result, isA<Success>());
+      final doc = await fakeFirestore.collection('vehicles').doc('v1').get();
+      expect(doc.data()?['companyId'], isNull);
+    });
+
+    test('他ユーザーの車両からは離脱できない', () async {
+      await _seedVehicle(fakeFirestore,
+          _makeVehicle(id: 'v1', userId: 'other-user', companyId: 'company-A'));
+      final result = await service.leaveFleet('v1', 'u1');
+      result.when(
+        success: (_) => fail('Expected failure'),
+        failure: (e) => expect(e, isA<PermissionError>()),
+      );
+    });
+  });
+
+  // ── assignVehicle ─────────────────────────────────────────────────────────
+
+  group('FleetService.assignVehicle', () {
+    test('担当者を設定できる', () async {
+      await _seedVehicle(fakeFirestore,
+          _makeVehicle(id: 'v1', userId: 'staff', companyId: 'manager-uid'));
+      final result = await service.assignVehicle(
+          'v1', 'staff-123', '田中太郎', 'manager-uid');
+      expect(result, isA<Success>());
+      final doc = await fakeFirestore.collection('vehicles').doc('v1').get();
+      expect(doc.data()?['assigneeId'], 'staff-123');
+      expect(doc.data()?['assigneeName'], '田中太郎');
+    });
+
+    test('空の assigneeId はnullとして保存される', () async {
+      await _seedVehicle(fakeFirestore,
+          _makeVehicle(id: 'v1', userId: 'staff', companyId: 'manager-uid'));
+      final result =
+          await service.assignVehicle('v1', '', '', 'manager-uid');
+      expect(result, isA<Success>());
+      final doc = await fakeFirestore.collection('vehicles').doc('v1').get();
+      expect(doc.data()?['assigneeId'], isNull);
+    });
+
+    test('フリートオーナー以外は担当者を設定できない', () async {
+      await _seedVehicle(fakeFirestore,
+          _makeVehicle(id: 'v1', userId: 'staff', companyId: 'manager-uid'));
+      final result =
+          await service.assignVehicle('v1', 'staff-123', '田中太郎', 'other-uid');
+      result.when(
+        success: (_) => fail('Expected failure'),
+        failure: (e) => expect(e, isA<PermissionError>()),
+      );
+    });
+
+    test('存在しない vehicleId → notFound エラー', () async {
+      final result = await service.assignVehicle(
+          'nonexistent', 'staff-123', '田中太郎', 'manager-uid');
+      result.when(
+        success: (_) => fail('Expected failure'),
+        failure: (e) => expect(e, isA<AppError>()),
+      );
+    });
+  });
+
   // ── Edge Cases ───────────────────────────────────────────────────────────
 
   group('Edge Cases', () {

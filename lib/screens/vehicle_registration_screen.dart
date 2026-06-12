@@ -570,13 +570,25 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                   child: GradeSelectorField(
                     modelId: _selectedModel?.id,
                     selectedGrade: _selectedGrade,
-                    onChanged: (grade) =>
-                        setState(() => _selectedGrade = grade),
+                    onChanged: (grade) => setState(() {
+                      _selectedGrade = grade;
+                      // Auto-fill specs from grade master data
+                      if (grade != null) {
+                        if (grade.engineDisplacement != null) {
+                          _engineDisplacementController.text =
+                              grade.engineDisplacement.toString();
+                        }
+                        final ft = FuelType.fromString(grade.fuelType);
+                        if (ft != null) _selectedFuelType = ft;
+                      }
+                    }),
                     validator: (value) => value == null ? 'グレードを選択' : null,
                   ),
                 ),
               ],
             ),
+            if (_selectedGrade != null && _selectedGrade!.hasSpecData)
+              _GradeSpecPreview(grade: _selectedGrade!),
             AppSpacing.verticalMd,
 
             AppTextField.number(
@@ -1230,6 +1242,100 @@ class _StepCircle extends StatelessWidget {
                   color: isCurrent ? Colors.white : AppColors.textTertiary,
                 ),
               ),
+      ),
+    );
+  }
+}
+
+// ── グレードスペックプレビュー（登録時） ──────────────────────────────────────
+
+class _GradeSpecPreview extends StatelessWidget {
+  final VehicleGrade grade;
+  const _GradeSpecPreview({required this.grade});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final specs = <String>[];
+    if (grade.engineDisplacement != null) {
+      specs.add('排気量: ${grade.engineDisplacement}cc');
+    }
+    if (grade.fuelType != null) {
+      final ft = FuelType.fromString(grade.fuelType);
+      if (ft != null) specs.add('燃料: ${ft.displayName}');
+    }
+    if (grade.seatingCapacity != null) {
+      specs.add('定員: ${grade.seatingCapacity}名');
+    }
+    if (grade.vehicleWeight != null) {
+      specs.add('重量: ${grade.vehicleWeight}kg');
+    }
+
+    if (specs.isEmpty && grade.standardEquipment.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: AppSpacing.xs),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.06),
+        borderRadius: AppSpacing.borderRadiusSm,
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, size: 14, color: AppColors.info),
+              const SizedBox(width: 4),
+              Text(
+                'グレードスペック（自動入力）',
+                style: theme.textTheme.labelSmall
+                    ?.copyWith(color: AppColors.info),
+              ),
+            ],
+          ),
+          if (specs.isNotEmpty) ...[
+            AppSpacing.verticalXs,
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xxs,
+              children: specs
+                  .map((s) => Chip(
+                        label: Text(s, style: const TextStyle(fontSize: 11)),
+                        padding: EdgeInsets.zero,
+                        materialTapTargetSize:
+                            MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ))
+                  .toList(),
+            ),
+          ],
+          if (grade.standardEquipment.isNotEmpty) ...[
+            AppSpacing.verticalXs,
+            Text(
+              '標準装備',
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            AppSpacing.verticalXxs,
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xxs,
+              children: grade.standardEquipment
+                  .map((e) => Chip(
+                        label: Text(e, style: const TextStyle(fontSize: 11)),
+                        padding: EdgeInsets.zero,
+                        materialTapTargetSize:
+                            MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ))
+                  .toList(),
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -261,11 +261,16 @@ class Vehicle {
 
   // フリート管理: 法人アカウントの companyId（= 管理者の userId）
   final String? companyId;
+  // フリート担当者アサイン
+  final String? assigneeId;
+  final String? assigneeName;
 
   Vehicle({
     required this.id,
     required this.userId,
     this.companyId,
+    this.assigneeId,
+    this.assigneeName,
     required this.maker,
     required this.model,
     required this.year,
@@ -371,6 +376,8 @@ class Vehicle {
           ? LeaseInfo.fromMap(data['leaseInfo'])
           : null,
       companyId: data['companyId'],
+      assigneeId: data['assigneeId'],
+      assigneeName: data['assigneeName'],
     );
   }
 
@@ -437,6 +444,8 @@ class Vehicle {
       'voluntaryInsurance': voluntaryInsurance?.toMap(),
       'leaseInfo': leaseInfo?.toMap(),
       'companyId': companyId,
+      'assigneeId': assigneeId,
+      'assigneeName': assigneeName,
     };
   }
 
@@ -472,11 +481,15 @@ class Vehicle {
     VoluntaryInsurance? voluntaryInsurance,
     LeaseInfo? leaseInfo,
     String? companyId,
+    String? assigneeId,
+    String? assigneeName,
   }) {
     return Vehicle(
       id: id ?? this.id,
       userId: userId ?? this.userId,
       companyId: companyId ?? this.companyId,
+      assigneeId: assigneeId ?? this.assigneeId,
+      assigneeName: assigneeName ?? this.assigneeName,
       maker: maker ?? this.maker,
       model: model ?? this.model,
       year: year ?? this.year,

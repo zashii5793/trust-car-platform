@@ -14,6 +14,7 @@ import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/vehicle/vehicle_selector_fields.dart';
 import '../services/vehicle_master_service.dart';
+import '../services/fleet_service.dart';
 import 'package:uuid/uuid.dart';
 
 /// 車両編集画面
@@ -57,6 +58,10 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   late TextEditingController _leaseMonthlyFeeController;
   late TextEditingController _maintenancePackController;
   DateTime? _leaseContractEndDate;
+
+  // フリート参加
+  late TextEditingController _fleetCodeController;
+  bool _isJoiningFleet = false;
 
   // Phase 1.5: 詳細情報
   late TextEditingController _colorController;
@@ -106,6 +111,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
       text: v.leaseInfo?.maintenancePackDetails ?? '',
     );
     _leaseContractEndDate = v.leaseInfo?.contractEndDate;
+
+    _fleetCodeController = TextEditingController();
 
     // Phase 1.5: 詳細情報
     _colorController = TextEditingController(text: v.color ?? '');
@@ -289,6 +296,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     _lessorNameController.dispose();
     _leaseMonthlyFeeController.dispose();
     _maintenancePackController.dispose();
+    _fleetCodeController.dispose();
     super.dispose();
   }
 
@@ -445,6 +453,16 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
             : int.tryParse(_engineDisplacementController.text),
         fuelType: _selectedFuelType,
         purchaseDate: _purchaseDate,
+        // Phase 5: preserve existing values (not editable in this screen)
+        firstRegistrationDate: widget.vehicle.firstRegistrationDate,
+        driveType: widget.vehicle.driveType,
+        transmissionType: widget.vehicle.transmissionType,
+        vehicleWeight: widget.vehicle.vehicleWeight,
+        seatingCapacity: widget.vehicle.seatingCapacity,
+        // Fleet: preserve existing fleet membership
+        companyId: widget.vehicle.companyId,
+        assigneeId: widget.vehicle.assigneeId,
+        assigneeName: widget.vehicle.assigneeName,
       );
 
       // 車両を更新
@@ -712,6 +730,19 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                           onChanged: (grade) {
                             setState(() {
                               _selectedGrade = grade;
+                              // Auto-fill specs from grade master data
+                              if (grade != null) {
+                                if (grade.engineDisplacement != null) {
+                                  _engineDisplacementController.text =
+                                      grade.engineDisplacement.toString();
+                                  _showAdvancedFields = true;
+                                }
+                                final ft = FuelType.fromString(grade.fuelType);
+                                if (ft != null) {
+                                  _selectedFuelType = ft;
+                                  _showAdvancedFields = true;
+                                }
+                              }
                             });
                             _onFieldChanged();
                           },
@@ -727,6 +758,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                       ),
                     ],
                   ),
+                  // Grade spec preview card
+                  if (_selectedGrade != null && _selectedGrade!.hasSpecData)
+                    _GradeSpecCard(grade: _selectedGrade!),
                   AppSpacing.verticalMd,
 
                   // 走行距離
@@ -872,6 +906,16 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                     prefixIcon: const Icon(Icons.build_outlined),
                     maxLines: 3,
                   ),
+                  AppSpacing.verticalLg,
+
+                  // === フリート参加セクション ===
+                  _buildSectionHeader(
+                      theme, 'フリート管理', Icons.business_center_outlined),
+                  AppSpacing.verticalSm,
+                  if (widget.vehicle.companyId != null)
+                    _buildFleetStatusTile(theme)
+                  else
+                    _buildFleetJoinSection(theme),
                   AppSpacing.verticalLg,
 
                   // === 詳細情報（折りたたみ） ===
@@ -1290,6 +1334,281 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           style: theme.textTheme.bodySmall,
         ),
       ],
+    );
+  }
+
+  Widget _buildFleetStatusTile(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.06),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle, color: AppColors.primary, size: 20),
+          AppSpacing.horizontalSm,
+          Expanded(
+            child: Text(
+              'フリートに参加中',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: AppColors.primary),
+            ),
+          ),
+          TextButton(
+            onPressed: _isJoiningFleet ? null : _leaveFleet,
+            style:
+                TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('離脱'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFleetJoinSection(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'フリートコードを入力すると、管理者の車両一覧に追加されます。',
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: AppColors.textSecondary),
+        ),
+        AppSpacing.verticalSm,
+        Row(
+          children: [
+            Expanded(
+              child: AppTextField(
+                controller: _fleetCodeController,
+                labelText: 'フリートコード',
+                hintText: '管理者から共有されたコードを入力',
+                prefixIcon: const Icon(Icons.qr_code),
+              ),
+            ),
+            AppSpacing.horizontalSm,
+            ElevatedButton(
+              onPressed: _isJoiningFleet ? null : _joinFleet,
+              child: _isJoiningFleet
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child:
+                          CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('参加'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _joinFleet() async {
+    final code = _fleetCodeController.text.trim();
+    if (code.isEmpty) {
+      showErrorSnackBar(context, 'フリートコードを入力してください');
+      return;
+    }
+    setState(() => _isJoiningFleet = true);
+    try {
+      final userId = sl.get<FirebaseService>().currentUserId;
+      if (userId == null) {
+        if (mounted) showErrorSnackBar(context, 'ログインが必要です');
+        return;
+      }
+      final result = await sl.get<FleetService>().joinFleetByCode(
+            code,
+            widget.vehicle.id,
+            userId,
+          );
+      if (!mounted) return;
+      result.when(
+        success: (_) {
+          showSuccessSnackBar(context, 'フリートに参加しました');
+          // Reflect in UI by navigating back with an updated vehicle
+          final updated = widget.vehicle.copyWith(companyId: code);
+          Navigator.pop(context, updated);
+        },
+        failure: (e) => showErrorSnackBar(context, e.message),
+      );
+    } finally {
+      if (mounted) setState(() => _isJoiningFleet = false);
+    }
+  }
+
+  Future<void> _leaveFleet() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('フリートから離脱'),
+        content: const Text('この車両をフリートから外しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('離脱する'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _isJoiningFleet = true);
+    try {
+      final userId = sl.get<FirebaseService>().currentUserId;
+      if (userId == null) {
+        if (mounted) showErrorSnackBar(context, 'ログインが必要です');
+        return;
+      }
+      final result =
+          await sl.get<FleetService>().leaveFleet(widget.vehicle.id, userId);
+      if (!mounted) return;
+      result.when(
+        success: (_) {
+          showSuccessSnackBar(context, 'フリートから離脱しました');
+          // Clear companyId by rebuilding Vehicle without it
+          Navigator.pop(
+            context,
+            Vehicle(
+              id: widget.vehicle.id,
+              userId: widget.vehicle.userId,
+              maker: widget.vehicle.maker,
+              model: widget.vehicle.model,
+              year: widget.vehicle.year,
+              grade: widget.vehicle.grade,
+              mileage: widget.vehicle.mileage,
+              imageUrl: widget.vehicle.imageUrl,
+              createdAt: widget.vehicle.createdAt,
+              updatedAt: DateTime.now(),
+              licensePlate: widget.vehicle.licensePlate,
+              vinNumber: widget.vehicle.vinNumber,
+              modelCode: widget.vehicle.modelCode,
+              inspectionExpiryDate: widget.vehicle.inspectionExpiryDate,
+              insuranceExpiryDate: widget.vehicle.insuranceExpiryDate,
+              voluntaryInsurance: widget.vehicle.voluntaryInsurance,
+              leaseInfo: widget.vehicle.leaseInfo,
+              color: widget.vehicle.color,
+              engineDisplacement: widget.vehicle.engineDisplacement,
+              fuelType: widget.vehicle.fuelType,
+              purchaseDate: widget.vehicle.purchaseDate,
+              firstRegistrationDate: widget.vehicle.firstRegistrationDate,
+              driveType: widget.vehicle.driveType,
+              transmissionType: widget.vehicle.transmissionType,
+              vehicleWeight: widget.vehicle.vehicleWeight,
+              seatingCapacity: widget.vehicle.seatingCapacity,
+              // companyId intentionally omitted to clear it
+            ),
+          );
+        },
+        failure: (e) => showErrorSnackBar(context, e.message),
+      );
+    } finally {
+      if (mounted) setState(() => _isJoiningFleet = false);
+    }
+  }
+}
+
+// ── グレードスペックプレビューカード ─────────────────────────────────────────
+
+class _GradeSpecCard extends StatelessWidget {
+  final VehicleGrade grade;
+  const _GradeSpecCard({required this.grade});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final specs = <String>[];
+    if (grade.engineDisplacement != null) {
+      specs.add('排気量: ${grade.engineDisplacement}cc');
+    }
+    if (grade.fuelType != null) {
+      final ft = FuelType.fromString(grade.fuelType);
+      if (ft != null) specs.add('燃料: ${ft.displayName}');
+    }
+    if (grade.driveType != null) {
+      final dt = DriveType.fromString(grade.driveType);
+      if (dt != null) specs.add('駆動: ${dt.displayName}');
+    }
+    if (grade.transmissionType != null) {
+      final tt = TransmissionType.fromString(grade.transmissionType);
+      if (tt != null) specs.add('変速: ${tt.displayName}');
+    }
+    if (grade.seatingCapacity != null) {
+      specs.add('定員: ${grade.seatingCapacity}名');
+    }
+    if (grade.vehicleWeight != null) {
+      specs.add('重量: ${grade.vehicleWeight}kg');
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: AppSpacing.xs),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.06),
+        borderRadius: AppSpacing.borderRadiusSm,
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome,
+                  size: 14, color: AppColors.info),
+              const SizedBox(width: 4),
+              Text(
+                'グレードスペック（マスタより自動入力）',
+                style: theme.textTheme.labelSmall
+                    ?.copyWith(color: AppColors.info),
+              ),
+            ],
+          ),
+          if (specs.isNotEmpty) ...[
+            AppSpacing.verticalXs,
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xxs,
+              children: specs
+                  .map((s) => Chip(
+                        label: Text(s,
+                            style: const TextStyle(fontSize: 11)),
+                        padding: EdgeInsets.zero,
+                        materialTapTargetSize:
+                            MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ))
+                  .toList(),
+            ),
+          ],
+          if (grade.standardEquipment.isNotEmpty) ...[
+            AppSpacing.verticalXs,
+            Text(
+              '標準装備',
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            AppSpacing.verticalXxs,
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xxs,
+              children: grade.standardEquipment
+                  .map((e) => Chip(
+                        label: Text(e,
+                            style: const TextStyle(fontSize: 11)),
+                        padding: EdgeInsets.zero,
+                        materialTapTargetSize:
+                            MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

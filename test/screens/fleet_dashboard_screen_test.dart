@@ -49,6 +49,24 @@ class _StubFleetService implements FleetService {
   Future<Result<void, AppError>> linkVehicleToCompany(
           String vehicleId, String companyId, String userId) async =>
       const Result.success(null);
+
+  @override
+  Future<Result<void, AppError>> joinFleetByCode(
+          String fleetCode, String vehicleId, String userId) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<void, AppError>> leaveFleet(
+          String vehicleId, String userId) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<void, AppError>> assignVehicle(
+          String vehicleId,
+          String assigneeId,
+          String assigneeName,
+          String requestingUserId) async =>
+      const Result.success(null);
 }
 
 // ---------------------------------------------------------------------------

@@ -35,6 +35,7 @@ import '../../services/maintenance_comment_service.dart';
 import '../../services/mileage_notification_service.dart';
 import '../../services/inspection_reminder_service.dart';
 import '../../services/fleet_service.dart';
+import '../../services/maintenance_schedule_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -158,6 +159,10 @@ class Injection {
 
     // Fleet Service (corporate fleet vehicle management)
     locator.registerLazySingleton<FleetService>(() => FleetService());
+
+    // Maintenance Schedule Service (generates standard maintenance schedule)
+    locator.registerLazySingleton<MaintenanceScheduleService>(
+        () => const MaintenanceScheduleService());
 
     _initialized = true;
   }

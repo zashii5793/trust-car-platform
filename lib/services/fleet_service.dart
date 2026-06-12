@@ -115,4 +115,80 @@ class FleetService {
       return Result.failure(mapFirebaseError(e));
     }
   }
+
+  /// Joins a fleet using the fleet invitation code (= company owner's userId).
+  ///
+  /// The requesting user must own the vehicle.  The fleet code is not
+  /// independently validated against a user document — it is simply stored as
+  /// companyId so the owner can see the vehicle in their dashboard.
+  Future<Result<void, AppError>> joinFleetByCode(
+    String fleetCode,
+    String vehicleId,
+    String requestingUserId,
+  ) async {
+    if (fleetCode.trim().isEmpty) {
+      return const Result.failure(
+        AppError.validation('フリートコードを入力してください'),
+      );
+    }
+    return linkVehicleToCompany(vehicleId, fleetCode.trim(), requestingUserId);
+  }
+
+  /// Leaves a fleet by clearing the companyId of the vehicle.
+  ///
+  /// Only the vehicle's owner can leave.
+  Future<Result<void, AppError>> leaveFleet(
+    String vehicleId,
+    String requestingUserId,
+  ) async {
+    try {
+      final doc = await _vehiclesRef.doc(vehicleId).get();
+      if (!doc.exists) {
+        return const Result.failure(
+            AppError.notFound('車両が見つかりません', resourceType: 'Vehicle'));
+      }
+      if (doc.data()?['userId'] != requestingUserId) {
+        return const Result.failure(
+            AppError.permission('この車両のフリートを変更する権限がありません'));
+      }
+      await _vehiclesRef.doc(vehicleId).update({
+        'companyId': null,
+        'updatedAt': Timestamp.now(),
+      });
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// Assigns a staff member to a fleet vehicle.
+  ///
+  /// The [requestingUserId] must be the fleet owner (companyId == requestingUserId).
+  Future<Result<void, AppError>> assignVehicle(
+    String vehicleId,
+    String assigneeId,
+    String assigneeName,
+    String requestingUserId,
+  ) async {
+    try {
+      final doc = await _vehiclesRef.doc(vehicleId).get();
+      if (!doc.exists) {
+        return const Result.failure(
+            AppError.notFound('車両が見つかりません', resourceType: 'Vehicle'));
+      }
+      final data = doc.data()!;
+      if (data['companyId'] != requestingUserId) {
+        return const Result.failure(
+            AppError.permission('この車両に担当者を割り当てる権限がありません'));
+      }
+      await _vehiclesRef.doc(vehicleId).update({
+        'assigneeId': assigneeId.isEmpty ? null : assigneeId,
+        'assigneeName': assigneeName.isEmpty ? null : assigneeName,
+        'updatedAt': Timestamp.now(),
+      });
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
 }

@@ -7,6 +7,7 @@ import '../../core/di/service_locator.dart';
 import '../../core/utils/inspection_urgency.dart';
 import '../../models/vehicle.dart';
 import '../../providers/fleet_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/fleet_service.dart';
 
 /// Fleet management dashboard for business account managers.
@@ -293,20 +294,183 @@ class _VehicleCard extends StatelessWidget {
       key: Key('fleet_vehicle_card_$urgencyKey'),
       margin: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-      child: ListTile(
-        leading: _UrgencyIcon(urgency: urgency),
-        title: Text(
-          vehicle.displayName,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: _VehicleSubtitle(vehicle: vehicle),
-        trailing: Text(
-          '${vehicle.year}年式',
-          style: const TextStyle(
-              color: AppColors.textTertiary, fontSize: 12),
+      child: InkWell(
+        borderRadius: AppSpacing.borderRadiusMd,
+        onTap: () => _showAssignmentSheet(context),
+        child: ListTile(
+          leading: _UrgencyIcon(urgency: urgency),
+          title: Text(
+            vehicle.displayName,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _VehicleSubtitle(vehicle: vehicle),
+              if (vehicle.assigneeName != null)
+                Text(
+                  '担当: ${vehicle.assigneeName}',
+                  key: Key('fleet_vehicle_assignee_${vehicle.id}'),
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.primary),
+                ),
+            ],
+          ),
+          trailing: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${vehicle.year}年式',
+                style: const TextStyle(
+                    color: AppColors.textTertiary, fontSize: 12),
+              ),
+              const Icon(Icons.chevron_right,
+                  size: 16, color: AppColors.textTertiary),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  void _showAssignmentSheet(BuildContext context) {
+    final companyId =
+        context.read<FleetProvider>().companyId;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _AssignmentSheet(
+        vehicle: vehicle,
+        companyId: companyId,
+      ),
+    );
+  }
+}
+
+// ── Assignment bottom sheet ───────────────────────────────────────────────────
+
+class _AssignmentSheet extends StatefulWidget {
+  final Vehicle vehicle;
+  final String companyId;
+
+  const _AssignmentSheet(
+      {required this.vehicle, required this.companyId});
+
+  @override
+  State<_AssignmentSheet> createState() => _AssignmentSheetState();
+}
+
+class _AssignmentSheetState extends State<_AssignmentSheet> {
+  late TextEditingController _nameController;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController =
+        TextEditingController(text: widget.vehicle.assigneeName ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.lg + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.vehicle.displayName,
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          AppSpacing.verticalSm,
+          Text(
+            '担当者名を入力してください（空欄で担当者をクリア）',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: AppColors.textSecondary),
+          ),
+          AppSpacing.verticalMd,
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: '担当者名',
+              hintText: '例: 田中太郎',
+              prefixIcon: Icon(Icons.person_outline),
+              border: OutlineInputBorder(),
+            ),
+            autofocus: true,
+          ),
+          AppSpacing.verticalMd,
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isSaving ? null : _save,
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('保存'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    setState(() => _isSaving = true);
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final userId = authProvider.firebaseUser?.uid;
+      if (userId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('ログインが必要です')));
+        }
+        return;
+      }
+      final name = _nameController.text.trim();
+      final result = await sl.get<FleetService>().assignVehicle(
+            widget.vehicle.id,
+            name.isEmpty ? '' : userId,
+            name,
+            widget.companyId,
+          );
+      if (!mounted) return;
+      result.when(
+        success: (_) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(name.isEmpty ? '担当者をクリアしました' : '担当者を設定しました'),
+            ),
+          );
+        },
+        failure: (e) => ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 }
 

@@ -9,6 +9,7 @@ import '../providers/maintenance_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/user_subscription_provider.dart';
 import '../services/drive_log_service.dart';
+import '../services/maintenance_schedule_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
@@ -233,6 +234,19 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                     ),
                   ),
 
+                  // 任意保険情報セクション
+                  if (_vehicle.voluntaryInsurance != null)
+                    _VoluntaryInsuranceSection(
+                        insurance: _vehicle.voluntaryInsurance!),
+
+                  // リース情報セクション
+                  if (_vehicle.leaseInfo != null &&
+                      _vehicle.leaseInfo!.hasAnyValue)
+                    _LeaseInfoSection(leaseInfo: _vehicle.leaseInfo!),
+
+                  // 点検スケジュールセクション
+                  _MaintenanceScheduleSection(vehicle: _vehicle),
+
                   const Divider(height: 1),
 
                   // 統計情報
@@ -327,6 +341,233 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     );
   }
 }
+
+// ── 任意保険情報セクション ────────────────────────────────────────────────────
+
+class _VoluntaryInsuranceSection extends StatelessWidget {
+  final VoluntaryInsurance insurance;
+  const _VoluntaryInsuranceSection({required this.insurance});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final days = insurance.expiryDate?.difference(DateTime.now()).inDays;
+    final isExpired = days != null && days < 0;
+    final isWarning = days != null && days <= 30 && days >= 0;
+    final expiryColor = isExpired
+        ? AppColors.error
+        : isWarning
+            ? AppColors.warning
+            : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        Padding(
+          padding: AppSpacing.paddingScreen,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.security,
+                      size: 16, color: AppColors.textSecondary),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    '任意保険',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              AppSpacing.verticalXs,
+              if (insurance.companyName != null)
+                _InfoRow(
+                  icon: Icons.business,
+                  label: '保険会社',
+                  value: insurance.companyName!,
+                ),
+              if (insurance.expiryDate != null)
+                _InfoRow(
+                  icon: Icons.event,
+                  label: '満期日',
+                  value: DateFormat('yyyy年MM月dd日').format(insurance.expiryDate!),
+                  valueColor: expiryColor,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── リース情報セクション ───────────────────────────────────────────────────────
+
+class _LeaseInfoSection extends StatelessWidget {
+  final LeaseInfo leaseInfo;
+  const _LeaseInfoSection({required this.leaseInfo});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final days = leaseInfo.contractEndDate?.difference(DateTime.now()).inDays;
+    final isExpired = days != null && days < 0;
+    final isWarning = days != null && days <= 60 && days >= 0;
+    final endDateColor = isExpired
+        ? AppColors.error
+        : isWarning
+            ? AppColors.warning
+            : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        Padding(
+          padding: AppSpacing.paddingScreen,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.assignment,
+                      size: 16, color: AppColors.textSecondary),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    'リース情報',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              AppSpacing.verticalXs,
+              if (leaseInfo.lessorName != null)
+                _InfoRow(
+                  icon: Icons.business,
+                  label: 'リース会社',
+                  value: leaseInfo.lessorName!,
+                ),
+              if (leaseInfo.monthlyFee != null)
+                _InfoRow(
+                  icon: Icons.payments_outlined,
+                  label: '月額',
+                  value: '¥${NumberFormat('#,###').format(leaseInfo.monthlyFee!)}',
+                ),
+              if (leaseInfo.contractEndDate != null)
+                _InfoRow(
+                  icon: Icons.event_busy,
+                  label: '契約満了日',
+                  value: DateFormat('yyyy年MM月dd日')
+                      .format(leaseInfo.contractEndDate!),
+                  valueColor: endDateColor,
+                ),
+              if (leaseInfo.maintenancePackDetails != null)
+                _InfoRow(
+                  icon: Icons.build_outlined,
+                  label: 'メンテパック',
+                  value: leaseInfo.maintenancePackDetails!,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── 点検スケジュールセクション ────────────────────────────────────────────────
+
+class _MaintenanceScheduleSection extends StatelessWidget {
+  final Vehicle vehicle;
+  const _MaintenanceScheduleSection({required this.vehicle});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheduleService = sl.get<MaintenanceScheduleService>();
+    final schedule = scheduleService.generateSchedule(vehicle);
+    // Show the first 5 items only
+    final items = schedule.take(5).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        Padding(
+          padding: AppSpacing.paddingScreen,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.event_repeat,
+                      size: 16, color: AppColors.textSecondary),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    '推奨メンテナンス周期',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              AppSpacing.verticalXs,
+              ...items.map((item) {
+                final nextKm = scheduleService.nextDueMileage(vehicle, item);
+                String intervalText = '';
+                if (item.intervalKm != null && item.intervalMonths != null) {
+                  intervalText =
+                      '${NumberFormat('#,###').format(item.intervalKm!)}km / ${item.intervalMonths}ヶ月毎';
+                } else if (item.intervalKm != null) {
+                  intervalText =
+                      '${NumberFormat('#,###').format(item.intervalKm!)}km毎';
+                } else if (item.intervalMonths != null) {
+                  intervalText = '${item.intervalMonths}ヶ月毎';
+                }
+                final nextKmText = nextKm != null
+                    ? '  次回: ${NumberFormat('#,###').format(nextKm)}km'
+                    : '';
+                return Padding(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(item.type.icon,
+                          size: 14, color: item.type.color),
+                      const SizedBox(width: AppSpacing.xs),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.type.displayName,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              '$intervalText$nextKmText',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: AppColors.textTertiary,
+                                  fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _VehicleImage extends StatelessWidget {
   final String? imageUrl;
