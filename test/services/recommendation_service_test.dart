@@ -29,6 +29,7 @@ Vehicle _makeVehicle({
   int mileage = 30000,
   DateTime? inspectionExpiryDate,
   DateTime? insuranceExpiryDate,
+  VoluntaryInsurance? voluntaryInsurance,
 
   /// Registration / creation date — controls history-based rule timeline.
   Duration createdBefore = const Duration(days: 365),
@@ -45,6 +46,7 @@ Vehicle _makeVehicle({
     updatedAt: DateTime.now(),
     inspectionExpiryDate: inspectionExpiryDate,
     insuranceExpiryDate: insuranceExpiryDate,
+    voluntaryInsurance: voluntaryInsurance,
   );
 }
 
@@ -1090,6 +1092,195 @@ void main() {
       // 前回日付が "年" 形式で含まれる（例: "2025年"）
       expect(oilNotif.reason, contains('年'));
       expect(oilNotif.reason, contains('前回'));
+    });
+  });
+
+  // ==========================================================================
+  // 任意保険通知（voluntaryInsurance.expiryDate）
+  // ==========================================================================
+  group('任意保険通知（voluntaryInsurance）', () {
+    AppNotification? findVoluntary(List<AppNotification> result) {
+      for (final n in result) {
+        if (n.title == '任意保険のお知らせ') return n;
+      }
+      return null;
+    }
+
+    test('満期まで10日 → high priority で通知される', () {
+      final v = _makeVehicle(
+        voluntaryInsurance: VoluntaryInsurance(
+          companyName: 'テスト損保',
+          expiryDate: DateTime.now().add(const Duration(days: 10)),
+        ),
+      );
+      final result = service.generateRecommendations(
+        vehicle: v,
+        records: [],
+        userId: _userId,
+      );
+
+      final notif = findVoluntary(result);
+      expect(notif, isNotNull);
+      expect(notif!.priority, NotificationPriority.high);
+      expect(notif.message, contains('テスト損保'));
+    });
+
+    test('満期まで20日 → medium priority', () {
+      final v = _makeVehicle(
+        voluntaryInsurance: VoluntaryInsurance(
+          expiryDate: DateTime.now().add(const Duration(days: 20)),
+        ),
+      );
+      final result = service.generateRecommendations(
+        vehicle: v,
+        records: [],
+        userId: _userId,
+      );
+
+      expect(findVoluntary(result)!.priority, NotificationPriority.medium);
+    });
+
+    test('満期切れ → 「満期を過ぎています」メッセージ', () {
+      final v = _makeVehicle(
+        voluntaryInsurance: VoluntaryInsurance(
+          expiryDate: DateTime.now().subtract(const Duration(days: 1)),
+        ),
+      );
+      final result = service.generateRecommendations(
+        vehicle: v,
+        records: [],
+        userId: _userId,
+      );
+
+      expect(findVoluntary(result)!.message, contains('満期を過ぎています'));
+    });
+
+    group('Edge Cases', () {
+      test('満期まで61日以上 → 通知なし', () {
+        final v = _makeVehicle(
+          voluntaryInsurance: VoluntaryInsurance(
+            expiryDate: DateTime.now().add(const Duration(days: 90)),
+          ),
+        );
+        final result = service.generateRecommendations(
+          vehicle: v,
+          records: [],
+          userId: _userId,
+        );
+
+        expect(findVoluntary(result), isNull);
+      });
+
+      test('任意保険未設定 → 通知なし', () {
+        final v = _makeVehicle();
+        final result = service.generateRecommendations(
+          vehicle: v,
+          records: [],
+          userId: _userId,
+        );
+
+        expect(findVoluntary(result), isNull);
+      });
+
+      test('会社名なしでもクラッシュしない', () {
+        final v = _makeVehicle(
+          voluntaryInsurance: VoluntaryInsurance(
+            expiryDate: DateTime.now().add(const Duration(days: 5)),
+          ),
+        );
+        final result = service.generateRecommendations(
+          vehicle: v,
+          records: [],
+          userId: _userId,
+        );
+
+        expect(findVoluntary(result), isNotNull);
+      });
+    });
+  });
+
+  // ==========================================================================
+  // リース契約満了通知（leaseInfo.contractEndDate）
+  // ==========================================================================
+  group('リース契約満了通知（leaseInfo）', () {
+    AppNotification? findLease(List<AppNotification> result) {
+      for (final n in result) {
+        if (n.title == 'リース契約のお知らせ') return n;
+      }
+      return null;
+    }
+
+    Vehicle leasedVehicle(int daysFromNow, {String? lessorName}) =>
+        _makeVehicle().copyWith(
+          leaseInfo: LeaseInfo(
+            lessorName: lessorName,
+            contractEndDate: DateTime.now().add(Duration(days: daysFromNow)),
+          ),
+        );
+
+    test('満了まで20日 → high priority・リース会社名を含む', () {
+      final result = service.generateRecommendations(
+        vehicle: leasedVehicle(20, lessorName: '○○オートリース'),
+        records: [],
+        userId: _userId,
+      );
+
+      final notif = findLease(result);
+      expect(notif, isNotNull);
+      expect(notif!.priority, NotificationPriority.high);
+      expect(notif.message, contains('○○オートリース'));
+    });
+
+    test('満了まで50日 → medium priority', () {
+      final result = service.generateRecommendations(
+        vehicle: leasedVehicle(50),
+        records: [],
+        userId: _userId,
+      );
+
+      expect(findLease(result)!.priority, NotificationPriority.medium);
+    });
+
+    test('満了まで80日 → low priority（返却検討は早めに）', () {
+      final result = service.generateRecommendations(
+        vehicle: leasedVehicle(80),
+        records: [],
+        userId: _userId,
+      );
+
+      expect(findLease(result)!.priority, NotificationPriority.low);
+    });
+
+    group('Edge Cases', () {
+      test('満了まで91日以上 → 通知なし', () {
+        final result = service.generateRecommendations(
+          vehicle: leasedVehicle(120),
+          records: [],
+          userId: _userId,
+        );
+
+        expect(findLease(result), isNull);
+      });
+
+      test('リース情報なし → 通知なし', () {
+        final result = service.generateRecommendations(
+          vehicle: _makeVehicle(),
+          records: [],
+          userId: _userId,
+        );
+
+        expect(findLease(result), isNull);
+      });
+
+      test('満了済み → 「満了しています」メッセージ', () {
+        final result = service.generateRecommendations(
+          vehicle: leasedVehicle(-1),
+          records: [],
+          userId: _userId,
+        );
+
+        expect(findLease(result)!.message, contains('満了しています'));
+      });
     });
   });
 }

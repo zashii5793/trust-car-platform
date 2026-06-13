@@ -178,6 +178,30 @@ class RecommendationService {
       }
     }
 
+    // 任意保険チェック
+    if (vehicle.voluntaryInsurance?.expiryDate != null) {
+      final voluntaryNotification = _checkVoluntaryInsuranceExpiryDate(
+        vehicle: vehicle,
+        userId: userId,
+        now: now,
+      );
+      if (voluntaryNotification != null) {
+        recommendations.add(voluntaryNotification);
+      }
+    }
+
+    // リース契約満了チェック
+    if (vehicle.leaseInfo?.contractEndDate != null) {
+      final leaseNotification = _checkLeaseContractEndDate(
+        vehicle: vehicle,
+        userId: userId,
+        now: now,
+      );
+      if (leaseNotification != null) {
+        recommendations.add(leaseNotification);
+      }
+    }
+
     // 各ルールをチェック
     for (final rule in _rules) {
       final recommendation = _checkRule(
@@ -292,6 +316,107 @@ class RecommendationService {
       actionDate: vehicle.insuranceExpiryDate,
       metadata: {
         'insuranceExpiryDate': vehicle.insuranceExpiryDate!.toIso8601String(),
+        'daysUntilExpiry': daysUntil,
+      },
+    );
+  }
+
+  /// 任意保険満期日からの通知生成
+  AppNotification? _checkVoluntaryInsuranceExpiryDate({
+    required Vehicle vehicle,
+    required String userId,
+    required DateTime now,
+  }) {
+    final expiryDate = vehicle.voluntaryInsurance!.expiryDate!;
+    final daysUntil = vehicle.daysUntilVoluntaryInsuranceExpiry!;
+
+    if (daysUntil > 60) return null; // 60日以上先は通知不要
+
+    NotificationPriority priority;
+    if (daysUntil <= 14) {
+      priority = NotificationPriority.high;
+    } else if (daysUntil <= 30) {
+      priority = NotificationPriority.medium;
+    } else {
+      priority = NotificationPriority.low;
+    }
+
+    final companyName = vehicle.voluntaryInsurance!.companyName;
+    final companyLabel = companyName != null ? '（$companyName）' : '';
+
+    String message;
+    if (daysUntil <= 0) {
+      message = '${vehicle.displayName}の任意保険$companyLabelが満期を過ぎています。'
+          '更新手続きをご確認ください。';
+    } else {
+      message = '${vehicle.displayName}の任意保険$companyLabelの満期まで'
+          'あと$daysUntil日です。更新や見直しのタイミングです。';
+    }
+
+    return AppNotification(
+      id: '${vehicle.id}_voluntary_insurance_${now.millisecondsSinceEpoch}',
+      userId: userId,
+      vehicleId: vehicle.id,
+      type: NotificationType.maintenanceRecommendation,
+      title: '任意保険のお知らせ',
+      message: message,
+      priority: priority,
+      createdAt: now,
+      actionDate: expiryDate,
+      metadata: {
+        'voluntaryInsuranceExpiryDate': expiryDate.toIso8601String(),
+        'daysUntilExpiry': daysUntil,
+      },
+    );
+  }
+
+  /// リース契約満了日からの通知生成
+  ///
+  /// 返却・再リース・買い取りの判断には時間がかかるため、
+  /// 他の期限より早い90日前から通知する。
+  AppNotification? _checkLeaseContractEndDate({
+    required Vehicle vehicle,
+    required String userId,
+    required DateTime now,
+  }) {
+    final endDate = vehicle.leaseInfo!.contractEndDate!;
+    final daysUntil = vehicle.daysUntilLeaseExpiry!;
+
+    if (daysUntil > 90) return null; // 90日以上先は通知不要
+
+    NotificationPriority priority;
+    if (daysUntil <= 30) {
+      priority = NotificationPriority.high;
+    } else if (daysUntil <= 60) {
+      priority = NotificationPriority.medium;
+    } else {
+      priority = NotificationPriority.low;
+    }
+
+    final lessorName = vehicle.leaseInfo!.lessorName;
+    final lessorLabel = lessorName != null ? '（$lessorName）' : '';
+
+    String message;
+    if (daysUntil <= 0) {
+      message = '${vehicle.displayName}のリース契約$lessorLabelが満了しています。'
+          '返却・再リースの手続きをご確認ください。';
+    } else {
+      message = '${vehicle.displayName}のリース契約$lessorLabelの満了まで'
+          'あと$daysUntil日です。返却・再リース・買い取りの検討時期です。';
+    }
+
+    return AppNotification(
+      id: '${vehicle.id}_lease_end_${now.millisecondsSinceEpoch}',
+      userId: userId,
+      vehicleId: vehicle.id,
+      type: NotificationType.maintenanceRecommendation,
+      title: 'リース契約のお知らせ',
+      message: message,
+      priority: priority,
+      createdAt: now,
+      actionDate: endDate,
+      metadata: {
+        'leaseContractEndDate': endDate.toIso8601String(),
         'daysUntilExpiry': daysUntil,
       },
     );

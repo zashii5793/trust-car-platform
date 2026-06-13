@@ -198,6 +198,11 @@ class VehicleGrade {
   final int? availableUntilYear;
   final int displayOrder;
   final bool isActive;
+  // Spec fields (Carsensor-style catalog data)
+  final int? seatingCapacity; // 乗車定員
+  final int? vehicleWeight; // 車両重量 (kg)
+  final List<String> standardEquipment; // 標準装備リスト
+  final List<String> optionalEquipment; // メーカーオプションリスト
 
   const VehicleGrade({
     required this.id,
@@ -211,7 +216,21 @@ class VehicleGrade {
     this.availableUntilYear,
     this.displayOrder = 0,
     this.isActive = true,
+    this.seatingCapacity,
+    this.vehicleWeight,
+    this.standardEquipment = const [],
+    this.optionalEquipment = const [],
   });
+
+  /// Returns true if this grade has any spec data to display.
+  bool get hasSpecData =>
+      engineDisplacement != null ||
+      fuelType != null ||
+      driveType != null ||
+      transmissionType != null ||
+      seatingCapacity != null ||
+      vehicleWeight != null ||
+      standardEquipment.isNotEmpty;
 
   /// Check if the grade was available in the given year
   bool isAvailableInYear(int year) {
@@ -238,6 +257,10 @@ class VehicleGrade {
       availableUntilYear: data['availableUntilYear'],
       displayOrder: data['displayOrder'] ?? 0,
       isActive: data['isActive'] ?? true,
+      seatingCapacity: data['seatingCapacity'],
+      vehicleWeight: data['vehicleWeight'],
+      standardEquipment: List<String>.from(data['standardEquipment'] ?? []),
+      optionalEquipment: List<String>.from(data['optionalEquipment'] ?? []),
     );
   }
 
@@ -254,6 +277,10 @@ class VehicleGrade {
       availableUntilYear: data['availableUntilYear'],
       displayOrder: data['displayOrder'] ?? 0,
       isActive: data['isActive'] ?? true,
+      seatingCapacity: data['seatingCapacity'],
+      vehicleWeight: data['vehicleWeight'],
+      standardEquipment: List<String>.from(data['standardEquipment'] ?? []),
+      optionalEquipment: List<String>.from(data['optionalEquipment'] ?? []),
     );
   }
 
@@ -269,6 +296,10 @@ class VehicleGrade {
       'availableUntilYear': availableUntilYear,
       'displayOrder': displayOrder,
       'isActive': isActive,
+      'seatingCapacity': seatingCapacity,
+      'vehicleWeight': vehicleWeight,
+      'standardEquipment': standardEquipment,
+      'optionalEquipment': optionalEquipment,
     };
   }
 

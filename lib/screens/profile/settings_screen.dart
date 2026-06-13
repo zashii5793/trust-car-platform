@@ -89,6 +89,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// 法人アカウント登録・編集ダイアログ
+  Future<void> _showBusinessAccountDialog() async {
+    final authProvider = context.read<AuthProvider>();
+    final controller = TextEditingController(
+      text: authProvider.appUser?.companyName ?? '',
+    );
+
+    final companyName = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('法人アカウント登録'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '社用車・リース車両の複数台管理に対応します。\n'
+              '5台以上の管理は法人向けプラン対象ですが、現在は無料開放中です'
+              '（正式リリース後 月額¥4,980〜を予定）。',
+              style: TextStyle(fontSize: 13),
+            ),
+            AppSpacing.verticalMd,
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: '会社名',
+                hintText: '例: 株式会社○○商事',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('登録'),
+          ),
+        ],
+      ),
+    );
+
+    if (companyName == null || companyName.isEmpty || !mounted) {
+      controller.dispose();
+      return;
+    }
+
+    final success = await authProvider.updateBusinessProfile(
+      accountType: AccountType.business,
+      companyName: companyName,
+    );
+    controller.dispose();
+
+    if (mounted) {
+      if (success) {
+        showSuccessSnackBar(context, '法人アカウントとして登録しました');
+      } else {
+        showErrorSnackBar(context, '登録に失敗しました。再度お試しください。');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -311,6 +377,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ),
+
+            AppSpacing.verticalXxl,
+
+            // 法人アカウントセクション
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.xxs,
+                bottom: AppSpacing.xs,
+              ),
+              child: Text(
+                '法人利用',
+                style: theme.textTheme.labelMedium,
+              ),
+            ),
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: Builder(builder: (context) {
+                final appUser = context.watch<AuthProvider>().appUser;
+                final isBusiness = appUser?.isBusiness ?? false;
+                return ListTile(
+                  leading: const Icon(Icons.business),
+                  title: Text(isBusiness ? '法人アカウント設定' : '法人アカウント登録'),
+                  subtitle: Text(
+                    isBusiness
+                        ? (appUser?.companyName ?? '会社名未設定')
+                        : '社用車・リース車両をまとめて管理（現在無料開放中）',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _showBusinessAccountDialog,
+                );
+              }),
+            ),
 
             AppSpacing.verticalXxl,
 

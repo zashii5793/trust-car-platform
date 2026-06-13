@@ -1,16 +1,14 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // ===== Helper functions =====
-
-    // 認証済みかどうか
+    // ユーザーが認証済みかどうか
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // パスのuserIdが本人かどうか
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    // ファイルサイズ制限（5MB）
+    function isValidFileSize() {
+      return request.resource.size < 5 * 1024 * 1024;
     }
 
     // 画像ファイルかどうか
@@ -18,71 +16,81 @@ service firebase.storage {
       return request.resource.contentType.matches('image/.*');
     }
 
-    // 画像サイズ制限（5MB）
-    function isValidImageSize() {
-      return request.resource.size < 5 * 1024 * 1024;
-    }
-
-    // 書類サイズ制限（10MB・PDF等を許容）
-    function isValidDocumentSize() {
-      return request.resource.size < 10 * 1024 * 1024;
-    }
-
-    // ===== 実装パスに対応したルール =====
-
-    // 書類（請求書・車検証など機密情報）: documents/{userId}/{fileName}
-    // 本人のみ読み書き可。PDF等の非画像も許容。
-    match /documents/{userId}/{fileName} {
-      allow read, delete: if isOwner(userId);
-      allow write: if isOwner(userId) && isValidDocumentSize();
-    }
-
-    // SNS投稿画像: post_images/{userId}/{timestamp}/{fileName}
-    // 投稿は公開コンテンツのため認証済みユーザーは閲覧可。書き込みは本人のみ。
-    match /post_images/{userId}/{ts}/{fileName} {
-      allow read: if isAuthenticated();
-      allow write: if isOwner(userId) && isImageFile() && isValidImageSize();
-      allow delete: if isOwner(userId);
-    }
-
-    // 部品出品画像: user_part_listings/{userId}/{timestamp}/{fileName}
-    // マーケットプレイスのため買い手（認証済み）も閲覧可。書き込みは本人のみ。
-    match /user_part_listings/{userId}/{ts}/{fileName} {
-      allow read: if isAuthenticated();
-      allow write: if isOwner(userId) && isImageFile() && isValidImageSize();
-      allow delete: if isOwner(userId);
-    }
-
-    // プロフィール画像: profile_images/{fileName}（fileName = "{uid}_{timestamp}.jpg"）
-    // 他ユーザーに表示されるため認証済みは閲覧可。
-    // 書き込みはファイル名のプレフィックスが本人uidの場合のみ許可。
-    match /profile_images/{fileName} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated()
-                   && fileName.matches(request.auth.uid + '_.*')
-                   && isImageFile() && isValidImageSize();
-      allow delete: if isAuthenticated()
-                    && fileName.matches(request.auth.uid + '_.*');
-    }
-
-    // 車両画像: vehicles/{userId}/{fileName}（fileName = "{uuid}.jpg"）
-    // パスにuserIdを含めることで所有者単位のスコープが可能。
-    // 書き込み・削除は本人のみ。閲覧は認証済みユーザー（他ユーザーへの表示を許容）。
+    // ユーザーの車両画像（現行パス: vehicles/{userId}/{fileName}）
+    // 読み取りは認証ユーザー全体: コミュニティ参考写真（明示同意済み）や
+    // フリート表示で他ユーザーにも表示されるため。
+    // 書き込みは本人のみ。
     match /vehicles/{userId}/{fileName} {
       allow read: if isAuthenticated();
-      allow write: if isOwner(userId) && isImageFile() && isValidImageSize();
-      allow delete: if isOwner(userId);
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize()
+                   && isImageFile();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // 後方互換: 旧形式 vehicles/{fileName}（fileName = "{uuid}.jpg"）
-    // 移行前に保存済みの画像URL（userId未スコープ）を閲覧できるようにする。
-    // 新規書き込みは上の userId スコープ付きパスに限定するため read のみ許可。
-    match /vehicles/{fileName} {
+    // 旧パス（vehicles/{userId}/{vehicleId}/{fileName}）の既存ファイル
+    match /vehicles/{userId}/{vehicleId}/{fileName} {
       allow read: if isAuthenticated();
-      allow write, delete: if false;
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize()
+                   && isImageFile();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // ===== デフォルト拒否 =====
+    // SNS投稿画像（post_images/{userId}/{timestamp}/{fileName}）
+    // 公開投稿に添付されるため読み取りは認証ユーザー全体
+    match /post_images/{userId}/{timestamp}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize()
+                   && isImageFile();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // プロフィール画像（profile_images/{userId}/{fileName}）
+    // SNS上で他ユーザーにも表示されるため読み取りは認証ユーザー全体
+    match /profile_images/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize()
+                   && isImageFile();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 書類（documents/{userId}/{fileName}）
+    // 車検証等の個人情報を含むため本人のみ読み書き可能
+    match /documents/{userId}/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ユーザーのプロフィール画像（旧パス）
+    match /users/{userId}/profile/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize()
+                   && isImageFile();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // メンテナンス記録の添付ファイル
+    match /maintenance/{userId}/{recordId}/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // その他のファイルはデフォルトで拒否
     match /{allPaths=**} {
       allow read, write: if false;
     }

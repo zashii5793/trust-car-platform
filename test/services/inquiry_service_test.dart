@@ -466,4 +466,84 @@ void main() {
       expect(result.isFailure, isTrue);
     });
   });
+
+  group('countUserInquiriesThisMonth', () {
+    late FakeFirebaseFirestore fakeFs;
+
+    Future<void> seedInquiry({
+      required String userId,
+      required DateTime createdAt,
+    }) async {
+      await fakeFs.collection('inquiries').add({
+        'shopId': 'shop1',
+        'userId': userId,
+        'type': 'general',
+        'status': 'pending',
+        'subject': 'test',
+        'initialMessage': 'msg',
+        'createdAt': Timestamp.fromDate(createdAt),
+        'updatedAt': Timestamp.fromDate(createdAt),
+      });
+    }
+
+    setUp(() {
+      fakeFs = FakeFirebaseFirestore();
+    });
+
+    InquiryService makeService() => InquiryService(
+          firestore: fakeFs,
+          subscriptionService: ShopSubscriptionService(firestore: fakeFs),
+        );
+
+    test('今月の問い合わせのみカウントされる', () async {
+      final now = DateTime.now();
+      final thisMonth = DateTime(now.year, now.month, 1, 12);
+      final lastMonth =
+          DateTime(now.year, now.month, 1).subtract(const Duration(days: 10));
+
+      await seedInquiry(userId: 'user1', createdAt: thisMonth);
+      await seedInquiry(userId: 'user1', createdAt: thisMonth);
+      await seedInquiry(userId: 'user1', createdAt: lastMonth);
+
+      final result = await makeService().countUserInquiriesThisMonth('user1');
+
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull, 2);
+    });
+
+    test('他ユーザーの問い合わせはカウントされない', () async {
+      final now = DateTime.now();
+      final thisMonth = DateTime(now.year, now.month, 1, 12);
+
+      await seedInquiry(userId: 'user1', createdAt: thisMonth);
+      await seedInquiry(userId: 'other-user', createdAt: thisMonth);
+
+      final result = await makeService().countUserInquiriesThisMonth('user1');
+
+      expect(result.valueOrNull, 1);
+    });
+
+    group('Edge Cases', () {
+      test('問い合わせ0件 → 0を返す', () async {
+        final result = await makeService().countUserInquiriesThisMonth('user1');
+
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull, 0);
+      });
+
+      test('存在しないユーザーID → 0を返す', () async {
+        final result =
+            await makeService().countUserInquiriesThisMonth('no-such-user');
+
+        expect(result.valueOrNull, 0);
+      });
+
+      test('空文字のユーザーID → 0を返す（クラッシュしない）', () async {
+        final result = await makeService().countUserInquiriesThisMonth('');
+
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull, 0);
+      });
+    });
+  });
 }

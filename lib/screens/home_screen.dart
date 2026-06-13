@@ -9,11 +9,14 @@ import '../providers/connectivity_provider.dart';
 import '../providers/user_subscription_provider.dart';
 import '../models/vehicle.dart';
 import '../models/app_notification.dart';
+import '../models/fleet_plan.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
+import '../core/utils/inspection_urgency.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/common/offline_banner.dart';
 import 'vehicle_registration_screen.dart';
+import 'vehicle_edit_screen.dart';
 import 'vehicle_detail_screen.dart';
 import 'profile/profile_screen.dart';
 import 'profile/settings_screen.dart';
@@ -29,6 +32,10 @@ import 'sns/sns_feed_screen.dart';
 import 'drive/drive_log_screen.dart';
 import 'add_maintenance_screen.dart';
 import 'ai_chat/ai_chat_screen.dart';
+import 'fleet/fleet_dashboard_screen.dart';
+import 'vehicle/retired_vehicles_screen.dart';
+import 'accessories/accessory_showcase_screen.dart';
+import 'safety/safety_tip_screen.dart';
 import '../widgets/vehicle/mileage_reminder_banner.dart';
 import '../widgets/vehicle/mileage_update_dialog.dart';
 
@@ -346,22 +353,27 @@ class _VehicleTab extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ListView.builder(
-            padding: AppSpacing.paddingScreen,
-            itemCount: vehicleProvider.vehicles.length + 2,
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return _DashboardSummaryCard(
-                  vehicles: vehicleProvider.vehicles,
-                );
-              }
-              if (index == 1) {
-                return _AiSuggestionSection(onSeeAll: onNavigateToMarketplace);
-              }
-              final vehicle = vehicleProvider.vehicles[index - 2];
-              return _VehicleCard(vehicle: vehicle);
-            },
-          ),
+          child: Builder(builder: (context) {
+            final vehicles = vehicleProvider.vehicles;
+            final hasVehicleWithoutInspection =
+                vehicles.any((v) => v.inspectionExpiryDate == null);
+
+            // Build item list: fixed cards + optional prompt + vehicle rows
+            final items = <Widget>[
+              _DashboardSummaryCard(vehicles: vehicles),
+              if (hasVehicleWithoutInspection)
+                _InspectionSetupCard(vehicles: vehicles),
+              _AiSuggestionSection(onSeeAll: onNavigateToMarketplace),
+              ...vehicles.map((v) => _VehicleCard(vehicle: v)),
+              _RetiredVehiclesLink(),
+            ];
+
+            return ListView.builder(
+              padding: AppSpacing.paddingScreen,
+              itemCount: items.length,
+              itemBuilder: (_, i) => items[i],
+            );
+          }),
         ),
       ],
     );
@@ -377,7 +389,10 @@ class _ProfileTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.read<AuthProvider>().firebaseUser;
+    final authProvider = context.watch<AuthProvider>();
+    final user = authProvider.firebaseUser;
+    final appUser = authProvider.appUser;
+    final isBusiness = appUser?.isBusiness ?? false;
     final isPremium = context.watch<UserSubscriptionProvider>().isPremium;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -484,6 +499,41 @@ class _ProfileTab extends StatelessWidget {
                 ),
               ),
               _MenuItemData(
+                icon: Icons.storefront_outlined,
+                label: 'みんなのアクセサリー',
+                color: AppColors.secondary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const AccessoryShowcaseScreen()),
+                ),
+              ),
+              _MenuItemData(
+                icon: Icons.compare_arrows_outlined,
+                label: '整備工場を比較する',
+                color: AppColors.info,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ShopListScreen(compareMode: true),
+                  ),
+                ),
+              ),
+              if (isBusiness)
+                _MenuItemData(
+                  icon: Icons.business_center_outlined,
+                  label: 'フリート管理',
+                  color: AppColors.secondary,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FleetDashboardScreen(
+                        companyId: user?.uid ?? '',
+                      ),
+                    ),
+                  ),
+                ),
+              _MenuItemData(
                 icon: Icons.settings_outlined,
                 label: '設定',
                 color: AppColors.textSecondary,
@@ -524,6 +574,17 @@ class _ProfileTab extends StatelessWidget {
             context,
             title: 'サポート・法的情報',
             items: [
+              _MenuItemData(
+                icon: Icons.health_and_safety_outlined,
+                label: '安全運転情報',
+                color: AppColors.success,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SafetyTipScreen(),
+                  ),
+                ),
+              ),
               _MenuItemData(
                 icon: Icons.privacy_tip_outlined,
                 label: 'プライバシーポリシー',
@@ -1061,6 +1122,87 @@ class _VehicleCard extends StatelessWidget {
 // 車両未登録時オンボーディングガイド
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// 車検日未設定プロンプトカード
+// Shown when one or more vehicles have no inspectionExpiryDate.
+// ---------------------------------------------------------------------------
+
+class _InspectionSetupCard extends StatelessWidget {
+  final List<Vehicle> vehicles;
+
+  const _InspectionSetupCard({required this.vehicles});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Find the first vehicle without an inspection date as the action target
+    final target = vehicles.firstWhere((v) => v.inspectionExpiryDate == null);
+
+    return Container(
+      key: const Key('inspection_setup_card'),
+      margin: AppSpacing.marginListItem,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.darkCard
+            : AppColors.warning.withValues(alpha: 0.08),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(
+          color: AppColors.warning.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.event_busy_outlined,
+            color: AppColors.warning,
+            size: AppSpacing.iconMd,
+          ),
+          AppSpacing.horizontalMd,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '車検満了日を登録しよう',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                AppSpacing.verticalXxs,
+                Text(
+                  '車検期限を登録すると、満了前に通知でお知らせします。',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.horizontalSm,
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => VehicleEditScreen(vehicle: target),
+                ),
+              );
+            },
+            child: const Text('登録する'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 class _VehicleEmptyOnboarding extends StatelessWidget {
   final VoidCallback onRegister;
 
@@ -1356,39 +1498,126 @@ class _DashboardSummaryCard extends StatelessWidget {
           ),
 
           // ---- 次回車検 ----
-          if (nextInspectionVehicle != null) ...[
-            AppSpacing.verticalSm,
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm,
-                vertical: AppSpacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: AppSpacing.borderRadiusSm,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.verified_outlined,
-                      size: 14, color: Colors.white70),
-                  AppSpacing.horizontalXs,
-                  Text(
-                    '次の車検: '
-                    '${nextInspectionVehicle.maker} '
-                    '${nextInspectionVehicle.model} '
-                    '— あと$minDays日',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          if (nextInspectionVehicle != null)
+            _buildInspectionChip(nextInspectionVehicle, minDays!),
+
+          // ---- フリートプラン案内（5台以上で表示・現在は無料開放中） ----
+          if (FleetPlan.requiresPaidPlan(vehicles.length))
+            _buildFleetPlanBanner(vehicles.length),
         ],
       ),
+    );
+  }
+
+  /// SMB fleet upsell: shown from the 5th vehicle. During the promotional
+  /// free period it only sets pricing expectations (no payment action).
+  Widget _buildFleetPlanBanner(int vehicleCount) {
+    final price = FleetPlan.monthlyPriceFor(vehicleCount);
+    final priceLabel =
+        price != null ? '月額¥${NumberFormat('#,###').format(price)}' : '個別見積もり';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppSpacing.verticalSm,
+        Container(
+          key: const Key('fleet_plan_banner'),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.12),
+            borderRadius: AppSpacing.borderRadiusSm,
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.business, size: 14, color: Colors.white70),
+              AppSpacing.horizontalXs,
+              Expanded(
+                child: Text(
+                  FleetPlan.isPromotionalFreePeriod
+                      ? '$vehicleCount台を管理中 — 法人向け'
+                          '${FleetPlan.planLabelFor(vehicleCount)}プラン対象'
+                          '（現在無料開放中・正式リリース後 $priceLabel 予定）'
+                      : '$vehicleCount台を管理中 — '
+                          '${FleetPlan.planLabelFor(vehicleCount)}プラン'
+                          '（$priceLabel）',
+                  style: const TextStyle(fontSize: 11, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Inspection-deadline chip with urgency-based emphasis so the core
+  /// promise (車検を見落とさない) is visible at a glance.
+  Widget _buildInspectionChip(Vehicle vehicle, int days) {
+    final urgency = inspectionUrgencyForDays(days);
+
+    final Color background;
+    final Color iconColor;
+    final IconData icon;
+    final FontWeight fontWeight;
+    final String keySuffix;
+    switch (urgency) {
+      case InspectionUrgency.critical:
+        background = AppColors.error.withValues(alpha: 0.45);
+        iconColor = Colors.white;
+        icon = Icons.error_outline;
+        fontWeight = FontWeight.bold;
+        keySuffix = 'critical';
+      case InspectionUrgency.warning:
+        background = AppColors.warning.withValues(alpha: 0.35);
+        iconColor = Colors.white;
+        icon = Icons.warning_amber_outlined;
+        fontWeight = FontWeight.bold;
+        keySuffix = 'warning';
+      case InspectionUrgency.normal:
+      case InspectionUrgency.none:
+        background = Colors.white.withValues(alpha: 0.12);
+        iconColor = Colors.white70;
+        icon = Icons.verified_outlined;
+        fontWeight = FontWeight.normal;
+        keySuffix = 'normal';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppSpacing.verticalSm,
+        Container(
+          key: Key('dashboard_inspection_chip_$keySuffix'),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: AppSpacing.borderRadiusSm,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: iconColor),
+              AppSpacing.horizontalXs,
+              Text(
+                '次の車検: '
+                '${vehicle.maker} '
+                '${vehicle.model} '
+                '— あと$days日',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white,
+                  fontWeight: fontWeight,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1971,6 +2200,36 @@ class _InfoChip extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.w500,
           color: color,
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 過去の車両リンク（退役済み車両への導線）
+// ---------------------------------------------------------------------------
+class _RetiredVehiclesLink extends StatelessWidget {
+  const _RetiredVehiclesLink();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+      child: Center(
+        child: TextButton.icon(
+          key: const Key('retired_vehicles_link'),
+          icon: const Icon(Icons.history_outlined, size: 16),
+          label: const Text('売却・廃車した過去の車両を見る'),
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.textSecondary,
+          ),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => const RetiredVehiclesScreen(),
+            ),
+          ),
         ),
       ),
     );

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/shop.dart';
 import '../../models/inquiry.dart';
+import '../../models/user_plan.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
+import '../../providers/user_subscription_provider.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
 
@@ -67,6 +69,25 @@ class _InquiryScreenState extends State<InquiryScreen> {
     super.dispose();
   }
 
+  void _showInquiryLimitDialog(int maxMonthly) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('今月の問い合わせ上限に達しました'),
+        content: Text(
+          'フリープランでは月$maxMonthly件まで問い合わせできます。\n'
+          'プレミアムプランにアップグレードすると無制限になります。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -77,6 +98,19 @@ class _InquiryScreenState extends State<InquiryScreen> {
     if (userId == null) {
       showErrorSnackBar(context, 'ログインが必要です');
       return;
+    }
+
+    // Free-plan monthly limit pre-check (fail-open: a count failure must
+    // never block submission — the server-side rule is the backstop).
+    final maxMonthly =
+        context.read<UserSubscriptionProvider>().maxMonthlyInquiries;
+    if (maxMonthly != UserPlanLimits.unlimited) {
+      final count = await shopProvider.countUserInquiriesThisMonth(userId);
+      if (!mounted) return;
+      if (count != null && count >= maxMonthly) {
+        _showInquiryLimitDialog(maxMonthly);
+        return;
+      }
     }
 
     final inquiry = await shopProvider.submitInquiry(

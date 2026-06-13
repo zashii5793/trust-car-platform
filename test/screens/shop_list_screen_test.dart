@@ -161,6 +161,11 @@ class MockInquiryService implements InquiryService {
       const Result.success(0);
 
   @override
+  Future<Result<int, AppError>> countUserInquiriesThisMonth(
+          String userId) async =>
+      const Result.success(0);
+
+  @override
   Stream<List<Inquiry>> streamUserInquiries(String userId) =>
       const Stream.empty();
 
@@ -339,6 +344,19 @@ void main() {
       await tester.pumpWidget(_buildApp(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
+      expect(find.text('広告'), findsOneWidget);
+    });
+
+    testWidgets('認証済みかつ注目ショップは認証バッジと「広告」ラベルの両方を表示する', (tester) async {
+      mockShop.shopsResult = Result.success([
+        _makeShop(name: '認証スポンサー店', isFeatured: true, isVerified: true),
+      ]);
+
+      await tester.pumpWidget(_buildApp(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // 透明性原則: 有料掲載は認証済みでも必ず「広告」と明示する
+      expect(find.byIcon(Icons.verified), findsOneWidget);
       expect(find.text('広告'), findsOneWidget);
     });
 

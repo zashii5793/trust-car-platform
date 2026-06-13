@@ -206,6 +206,34 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// 法人アカウント情報を更新
+  Future<bool> updateBusinessProfile({
+    required AccountType accountType,
+    required String companyName,
+  }) async {
+    final result = await _authService.updateBusinessProfile(
+      accountType: accountType,
+      companyName: companyName,
+    );
+
+    return result.when(
+      success: (_) async {
+        final profileResult = await _authService.getUserProfile();
+        profileResult.when(
+          success: (profile) => _appUser = profile,
+          failure: (_) {},
+        );
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        notifyListeners();
+        return false;
+      },
+    );
+  }
+
   /// ユーザープロファイルを更新
   Future<bool> updateProfile({
     String? displayName,

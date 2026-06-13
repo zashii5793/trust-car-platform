@@ -2,7 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/maintenance_record.dart';
+import '../models/post.dart';
 import '../providers/maintenance_provider.dart';
+import '../providers/vehicle_provider.dart';
 import '../services/firebase_service.dart';
 import '../services/invoice_ocr_service.dart';
 import '../core/di/service_locator.dart';
@@ -13,6 +15,7 @@ import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
 import 'document_scanner_screen.dart';
 import 'invoice_result_screen.dart';
+import 'sns/post_create_screen.dart';
 
 class AddMaintenanceScreen extends StatefulWidget {
   final String vehicleId;
@@ -247,7 +250,12 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           context,
           _isEditMode ? 'メンテナンス履歴を更新しました' : 'メンテナンス履歴を追加しました',
         );
-        Navigator.pop(context);
+        // Offer SNS share only for new records
+        if (!_isEditMode) {
+          await _promptSnsShare(record);
+        } else {
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -259,6 +267,57 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// Shows a dialog asking if the user wants to share the maintenance record on SNS.
+  Future<void> _promptSnsShare(MaintenanceRecord record) async {
+    if (!mounted) return;
+
+    final share = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('SNSに共有'),
+        content: const Text(
+            '整備記録を SNS に投稿しますか？\n同じ車種のオーナーに参考になる情報を共有しましょう。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('スキップ'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('共有する'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+    Navigator.pop(context); // Pop AddMaintenanceScreen
+
+    if (share == true && mounted) {
+      final vehicle = context
+          .read<VehicleProvider>()
+          .vehicles
+          .where((v) => v.id == widget.vehicleId)
+          .firstOrNull;
+
+      final content = '${record.title} を実施しました。'
+          '${record.shopName != null ? "\n場所: ${record.shopName}" : ""}'
+          '${record.cost > 0 ? "\n費用: ¥${record.cost.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}円" : ""}'
+          '\n#整備記録 #${vehicle != null ? vehicle.model : "車"}';
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PostCreateScreen(
+            initialContent: content,
+            initialVehicleId: widget.vehicleId,
+            initialCategory: PostCategory.maintenance,
+          ),
+        ),
+      );
     }
   }
 

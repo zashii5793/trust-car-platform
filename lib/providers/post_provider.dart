@@ -20,6 +20,7 @@ class PostProvider with ChangeNotifier {
   // ── フィード状態 ──────────────────────────────────────────────────────────
   List<Post> _feedPosts = [];
   PostCategory? _selectedCategory;
+  String? _selectedModelName; // same-model filter
   bool _isLoading = false;
   bool _isLoadingMore = false;
   bool _hasMore = true;
@@ -44,6 +45,7 @@ class PostProvider with ChangeNotifier {
   // ── Getters ───────────────────────────────────────────────────────────────
   List<Post> get feedPosts => _feedPosts;
   PostCategory? get selectedCategory => _selectedCategory;
+  String? get selectedModelName => _selectedModelName;
   bool get isLoading => _isLoading;
   bool get isLoadingMore => _isLoadingMore;
   bool get hasMore => _hasMore;
@@ -64,10 +66,14 @@ class PostProvider with ChangeNotifier {
 
   // ── フィード読み込み ───────────────────────────────────────────────────────
 
-  Future<void> loadFeed({PostCategory? category}) async {
+  Future<void> loadFeed({
+    PostCategory? category,
+    String? modelName,
+  }) async {
     _isLoading = true;
     _error = null;
     _selectedCategory = category;
+    _selectedModelName = modelName;
     _feedPosts = [];
     _hasMore = true;
     notifyListeners();
@@ -75,6 +81,7 @@ class PostProvider with ChangeNotifier {
     final result = await _postService.getFeed(
       limit: Pagination.defaultPageSize,
       category: category,
+      modelName: modelName,
     );
 
     result.when(
@@ -101,6 +108,7 @@ class PostProvider with ChangeNotifier {
     final result = await _postService.getFeed(
       limit: Pagination.defaultPageSize,
       category: _selectedCategory,
+      modelName: _selectedModelName,
     );
 
     result.when(
@@ -117,13 +125,22 @@ class PostProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> refreshFeed() => loadFeed(category: _selectedCategory);
+  Future<void> refreshFeed() =>
+      loadFeed(category: _selectedCategory, modelName: _selectedModelName);
 
   // ── カテゴリフィルタ ───────────────────────────────────────────────────────
 
   Future<void> selectCategory(PostCategory? category) async {
     if (_selectedCategory == category) return;
-    await loadFeed(category: category);
+    await loadFeed(category: category, modelName: _selectedModelName);
+  }
+
+  // ── 同車種フィルタ ────────────────────────────────────────────────────────
+
+  /// Filter feed by vehicle model name (maker + model).
+  Future<void> filterByVehicleModel(String? modelName) async {
+    if (_selectedModelName == modelName) return;
+    await loadFeed(category: _selectedCategory, modelName: modelName);
   }
 
   // ── 投稿作成 ───────────────────────────────────────────────────────────────
@@ -384,6 +401,7 @@ class PostProvider with ChangeNotifier {
   void clear() {
     _feedPosts = [];
     _selectedCategory = null;
+    _selectedModelName = null;
     _isLoading = false;
     _isLoadingMore = false;
     _hasMore = true;

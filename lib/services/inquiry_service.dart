@@ -328,6 +328,28 @@ class InquiryService {
     }
   }
 
+  /// Count inquiries the user has sent this calendar month.
+  ///
+  /// Used to enforce the B2C free-plan monthly inquiry limit on the client
+  /// before submission (server-side rule remains the backstop).
+  Future<Result<int, AppError>> countUserInquiriesThisMonth(
+      String userId) async {
+    try {
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+
+      final snapshot = await _inquiriesCollection
+          .where('userId', isEqualTo: userId)
+          .where('createdAt',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart))
+          .get();
+
+      return Result.success(snapshot.docs.length);
+    } catch (e) {
+      return Result.failure(AppError.server('問い合わせ数の取得に失敗しました: $e'));
+    }
+  }
+
   /// Get unread inquiry count for user
   Future<Result<int, AppError>> getUnreadCountForUser(String userId) async {
     try {

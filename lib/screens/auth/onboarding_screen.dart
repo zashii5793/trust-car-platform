@@ -7,10 +7,20 @@ import 'login_screen.dart';
 
 const String _kOnboardingCompletedKey = 'onboarding_completed';
 
-/// Saves the onboarding completion flag and navigates to LoginScreen.
-Future<void> completeOnboarding(BuildContext context) async {
+/// Saves the onboarding completion flag.
+///
+/// When [onCompleted] is provided (the AuthWrapper flow), it is invoked so
+/// the parent can swap the screen in place. Navigating with pushReplacement
+/// here would destroy the AuthWrapper home route and break the auth-state
+/// listener — login would then never transition to HomeScreen.
+Future<void> completeOnboarding(BuildContext context,
+    {VoidCallback? onCompleted}) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool(_kOnboardingCompletedKey, true);
+  if (onCompleted != null) {
+    onCompleted();
+    return;
+  }
   if (!context.mounted) return;
   Navigator.of(context).pushReplacement(
     MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
@@ -61,7 +71,11 @@ const _pages = [
 /// First-launch onboarding screen showing core app features.
 /// Shown once; SharedPreferences flag prevents re-display on subsequent launches.
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  /// Called after the completion flag is saved. When provided, the screen
+  /// does not navigate by itself — the parent (AuthWrapper) swaps it out.
+  final VoidCallback? onCompleted;
+
+  const OnboardingScreen({super.key, this.onCompleted});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -81,8 +95,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     setState(() => _currentPage = page);
   }
 
-  Future<void> _skip() => completeOnboarding(context);
-  Future<void> _start() => completeOnboarding(context);
+  Future<void> _skip() =>
+      completeOnboarding(context, onCompleted: widget.onCompleted);
+  Future<void> _start() =>
+      completeOnboarding(context, onCompleted: widget.onCompleted);
 
   @override
   Widget build(BuildContext context) {
