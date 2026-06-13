@@ -219,6 +219,33 @@ node scripts/seed_community_trends.js
 
 ---
 
+### 12. 整備工場（Shop）の初期シードデータ登録【重要・コア機能③の前提】
+
+**なぜ必要**: 工場連携（一覧→詳細→問い合わせ→スレッド・近い順ソート・店舗比較）はコードが完備しているが、**工場データがほぼゼロだと機能全体が空回り**する。テストユーザーが「工場に問い合わせる」という主要ユースケースを体験できない。
+
+**シードスクリプト実装済み**: `scripts/seed_shops.js`
+- 実在提携候補1件（タカヤモーター）+ テスト用架空サンプル6件（`demo_*`）
+- サンプル6件は全国主要都市にGeoPoint・評価・レビュー数・サービスを設定済みで、**近い順ソート・店舗比較が即動作**する
+
+**手順**:
+```bash
+npm install firebase-admin
+node scripts/seed_shops.js --dry-run    # 登録内容の確認
+node scripts/seed_shops.js --emulator   # Emulatorで動作確認
+
+export GOOGLE_APPLICATION_CREDENTIALS=path/to/serviceAccount.json
+node scripts/seed_shops.js              # 本番登録
+```
+
+**本番投入前の必須確認**:
+- [ ] `demo_*` の架空店舗は**本番リリース前に削除または実店舗データへ差し替え**（実在の事業者ではないため）
+- [ ] タカヤモーターの `phone` / `address` / `location` などTODO項目を正式情報で埋める
+- [ ] `firestore.rules` の `shops` コレクション読み取り権限を確認（認証済みユーザーが一覧を読めること）
+
+**所要時間**: 15分（スクリプト実行）+ 実店舗データ整備は別途
+
+---
+
 ## P2 — ローンチ後でも可（バックログ）
 
 ### 12. App Store Connect でのアプリ審査申請

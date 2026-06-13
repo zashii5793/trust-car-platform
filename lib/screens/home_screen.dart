@@ -262,9 +262,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildBody() {
     switch (_currentIndex) {
       case 0:
-        return _VehicleTab(onNavigateToMarketplace: () {
+        return _VehicleTab(onNavigateToNotifications: () {
           setState(() {
-            _currentIndex = 1;
+            _currentIndex = 3;
           });
         });
       case 1:
@@ -276,9 +276,9 @@ class _HomeScreenState extends State<HomeScreen> {
       case 4:
         return const _ProfileTab();
       default:
-        return _VehicleTab(onNavigateToMarketplace: () {
+        return _VehicleTab(onNavigateToNotifications: () {
           setState(() {
-            _currentIndex = 1;
+            _currentIndex = 3;
           });
         });
     }
@@ -290,9 +290,10 @@ class _HomeScreenState extends State<HomeScreen> {
 // ---------------------------------------------------------------------------
 
 class _VehicleTab extends StatelessWidget {
-  final VoidCallback onNavigateToMarketplace;
+  /// Navigates to the notifications tab where the full AI suggestion list lives.
+  final VoidCallback onNavigateToNotifications;
 
-  const _VehicleTab({required this.onNavigateToMarketplace});
+  const _VehicleTab({required this.onNavigateToNotifications});
 
   @override
   Widget build(BuildContext context) {
@@ -363,7 +364,7 @@ class _VehicleTab extends StatelessWidget {
               _DashboardSummaryCard(vehicles: vehicles),
               if (hasVehicleWithoutInspection)
                 _InspectionSetupCard(vehicles: vehicles),
-              _AiSuggestionSection(onSeeAll: onNavigateToMarketplace),
+              _AiSuggestionSection(onSeeAll: onNavigateToNotifications),
               ...vehicles.map((v) => _VehicleCard(vehicle: v)),
               _RetiredVehiclesLink(),
             ];

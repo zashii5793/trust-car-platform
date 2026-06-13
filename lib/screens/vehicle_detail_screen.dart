@@ -45,6 +45,10 @@ class VehicleDetailScreen extends StatefulWidget {
 class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   late Vehicle _vehicle;
 
+  /// Guards the quick-action flows (車検完了 / 走行距離更新) against
+  /// double-submission while an async update is in flight.
+  bool _isProcessing = false;
+
   @override
   void initState() {
     super.initState();
@@ -91,6 +95,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   }
 
   Future<void> _showInspectionCompleteDialog() async {
+    if (_isProcessing) return;
     if (_vehicle.inspectionExpiryDate == null) return;
     // Capture context-dependent objects before any async gap.
     final maintenanceProvider = context.read<MaintenanceProvider>();
@@ -105,37 +110,63 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
 
     if (result == null || !mounted) return;
 
-    final firebaseService = sl.get<FirebaseService>();
-    final updated = _vehicle.copyWith(
-      inspectionExpiryDate: result.newExpiryDate,
-      updatedAt: DateTime.now(),
-    );
+    setState(() => _isProcessing = true);
+    try {
+      final firebaseService = sl.get<FirebaseService>();
+      final updated = _vehicle.copyWith(
+        inspectionExpiryDate: result.newExpiryDate,
+        updatedAt: DateTime.now(),
+      );
 
-    await firebaseService.updateVehicle(_vehicle.id, updated);
-    if (!mounted) return;
+      final updateResult =
+          await firebaseService.updateVehicle(_vehicle.id, updated);
+      if (!mounted) return;
 
-    await maintenanceProvider.addMaintenanceRecord(
-      MaintenanceRecord(
-        id: '',
-        vehicleId: _vehicle.id,
-        userId: _vehicle.userId,
-        type: MaintenanceType.legalInspection24,
-        title: '車検',
-        date: DateTime.now(),
-        cost: 0,
-        createdAt: DateTime.now(),
-        mileageAtService: result.mileage,
-      ),
-    );
-    if (!mounted) return;
+      // Abort if the expiry-date update itself failed — do not show success.
+      if (updateResult.isFailure) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('車検完了の記録に失敗しました')),
+        );
+        return;
+      }
 
-    setState(() => _vehicle = updated);
-    messenger.showSnackBar(
-      const SnackBar(content: Text('車検完了を記録しました')),
-    );
+      // Ignore an obviously-wrong mileage (below the vehicle's current value)
+      // to keep the record consistent with the odometer.
+      final mileageAtService =
+          (result.mileage != null && result.mileage! >= _vehicle.mileage)
+              ? result.mileage
+              : null;
+
+      final added = await maintenanceProvider.addMaintenanceRecord(
+        MaintenanceRecord(
+          id: '',
+          vehicleId: _vehicle.id,
+          userId: _vehicle.userId,
+          type: MaintenanceType.legalInspection24,
+          title: '車検',
+          date: DateTime.now(),
+          cost: 0,
+          createdAt: DateTime.now(),
+          mileageAtService: mileageAtService,
+        ),
+      );
+      if (!mounted) return;
+
+      setState(() => _vehicle = updated);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(added
+              ? '車検完了を記録しました'
+              : '満了日は更新しましたが整備記録の追加に失敗しました'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
   Future<void> _showMileageUpdateDialog() async {
+    if (_isProcessing) return;
     final messenger = ScaffoldMessenger.of(context);
 
     final newMileage = await showDialog<int>(
@@ -151,20 +182,62 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
       return;
     }
 
-    final firebaseService = sl.get<FirebaseService>();
-    final updated = _vehicle.copyWith(
-      mileage: newMileage,
-      mileageUpdatedAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
+    // Guard against odometer regression — almost always a typo. Allow the
+    // user to override for legitimate cases (meter replacement / swap).
+    if (newMileage < _vehicle.mileage) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('走行距離の確認'),
+          content: Text(
+            '入力値 ${_formatNumber(newMileage)} km は現在の登録値 '
+            '${_formatNumber(_vehicle.mileage)} km より小さい値です。'
+            'このまま更新しますか？',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('キャンセル'),
+            ),
+            FilledButton(
+              key: const Key('confirm_mileage_regression_btn'),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('更新する'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
 
-    await firebaseService.updateVehicle(_vehicle.id, updated);
-    if (!mounted) return;
+    setState(() => _isProcessing = true);
+    try {
+      final firebaseService = sl.get<FirebaseService>();
+      final updated = _vehicle.copyWith(
+        mileage: newMileage,
+        mileageUpdatedAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
 
-    setState(() => _vehicle = updated);
-    messenger.showSnackBar(
-      const SnackBar(content: Text('走行距離を更新しました')),
-    );
+      final result = await firebaseService.updateVehicle(_vehicle.id, updated);
+      if (!mounted) return;
+
+      result.when(
+        success: (_) {
+          setState(() => _vehicle = updated);
+          messenger.showSnackBar(
+            const SnackBar(content: Text('走行距離を更新しました')),
+          );
+        },
+        failure: (_) {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('走行距離の更新に失敗しました')),
+          );
+        },
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
   @override

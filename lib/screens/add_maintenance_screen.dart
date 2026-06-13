@@ -308,10 +308,15 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       if (previous == null) return;
 
       final intervalDays = record.date.difference(previous.date).inDays;
+
+      // Skip the contribution entirely if mileage is missing on either side.
+      // Sending intervalKm=0 would pollute the community median downward.
+      if (record.mileageAtService == null ||
+          previous.mileageAtService == null) {
+        return;
+      }
       final intervalKm =
-          (record.mileageAtService != null && previous.mileageAtService != null)
-              ? record.mileageAtService! - previous.mileageAtService!
-              : 0;
+          record.mileageAtService! - previous.mileageAtService!;
 
       if (intervalDays <= 0 || intervalKm < 0) return;
 
