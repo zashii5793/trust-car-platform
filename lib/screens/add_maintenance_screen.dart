@@ -315,8 +315,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           previous.mileageAtService == null) {
         return;
       }
-      final intervalKm =
-          record.mileageAtService! - previous.mileageAtService!;
+      final intervalKm = record.mileageAtService! - previous.mileageAtService!;
 
       if (intervalDays <= 0 || intervalKm < 0) return;
 

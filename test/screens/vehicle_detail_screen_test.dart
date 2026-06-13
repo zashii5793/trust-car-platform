@@ -702,8 +702,7 @@ void main() {
     });
 
     group('Edge Cases — オドメーター逆行', () {
-      testWidgets(
-          '現在値(10000)より小さい値(5000)入力 → 確認ダイアログが出て即時更新されない',
+      testWidgets('現在値(10000)より小さい値(5000)入力 → 確認ダイアログが出て即時更新されない',
           (tester) async {
         await _pumpScreen(tester, maintenanceProvider);
         await tester.pump();
@@ -718,8 +717,7 @@ void main() {
 
         // 即時更新されず、確認ダイアログが表示される
         expect(find.text('走行距離を更新しました'), findsNothing);
-        expect(
-            find.byKey(const Key('confirm_mileage_regression_btn')),
+        expect(find.byKey(const Key('confirm_mileage_regression_btn')),
             findsOneWidget);
       });
 
@@ -759,8 +757,7 @@ void main() {
         expect(find.text('走行距離を更新しました'), findsNothing);
       });
 
-      testWidgets('現在値と同じ値(10000)はそのまま更新される（逆行扱いしない）',
-          (tester) async {
+      testWidgets('現在値と同じ値(10000)はそのまま更新される（逆行扱いしない）', (tester) async {
         await _pumpScreen(tester, maintenanceProvider);
         await tester.pump();
 

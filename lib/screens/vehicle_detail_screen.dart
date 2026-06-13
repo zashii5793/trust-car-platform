@@ -155,9 +155,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
       setState(() => _vehicle = updated);
       messenger.showSnackBar(
         SnackBar(
-          content: Text(added
-              ? '車検完了を記録しました'
-              : '満了日は更新しましたが整備記録の追加に失敗しました'),
+          content: Text(added ? '車検完了を記録しました' : '満了日は更新しましたが整備記録の追加に失敗しました'),
         ),
       );
     } finally {
