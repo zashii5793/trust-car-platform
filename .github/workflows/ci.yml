@@ -90,12 +90,13 @@ jobs:
         with:
           node-version: '20'
 
-      # Storage Emulator は Java を必要とする
+      # Storage Emulator は Java を必要とする。
+      # firebase-tools は JDK 21 以上が必須（17 だと起動エラー）。
       - name: Setup Java (for Storage emulator)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
