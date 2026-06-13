@@ -238,14 +238,20 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     final maker = _selectedMaker?.name;
     final model = _selectedModel?.name;
     final year = int.tryParse(_yearController.text);
-    if (maker == null || model == null || year == null) { return; }
+    if (maker == null || model == null || year == null) {
+      return;
+    }
 
     final result = await _specService.fetchSpecsForModel(maker, model, year);
-    if (!mounted) { return; }
+    if (!mounted) {
+      return;
+    }
 
     result.when(
       success: (specs) {
-        if (specs.isEmpty) { return; }
+        if (specs.isEmpty) {
+          return;
+        }
         final best = specs.first; // highest contributorCount
         setState(() {
           _communitySpec = best;
@@ -256,7 +262,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           }
           if (_selectedFuelType == null) {
             final ft = FuelType.fromString(best.grade.fuelType);
-            if (ft != null) { _selectedFuelType = ft; }
+            if (ft != null) {
+              _selectedFuelType = ft;
+            }
           }
         });
         // Replace the OCR success snackbar instead of queueing behind it.
@@ -326,14 +334,20 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     final maker = _selectedMaker?.name;
     final model = _selectedModel?.name;
     final year = int.tryParse(_yearController.text);
-    if (maker == null || model == null || year == null) { return; }
+    if (maker == null || model == null || year == null) {
+      return;
+    }
 
     final result = await _specService.fetchSpec(maker, model, year, grade.name);
-    if (!mounted) { return; }
+    if (!mounted) {
+      return;
+    }
 
     result.when(
       success: (spec) {
-        if (spec == null) { return; }
+        if (spec == null) {
+          return;
+        }
         // Fill only still-empty fields — the fetch is async and must never
         // overwrite values the user typed (or master data) in the meantime.
         var filled = false;
@@ -357,8 +371,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(SnackBar(
-              content: Text(
-                  'コミュニティのデータを自動入力しました（${spec.contributorCount}人が確認）'),
+              content:
+                  Text('コミュニティのデータを自動入力しました（${spec.contributorCount}人が確認）'),
               duration: const Duration(seconds: 3),
             ));
         }
@@ -469,12 +483,11 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           if (spec == null || !spec.isContributor(currentUserId)) {
             // Use the checkbox state set in Step 1 instead of a post-save dialog.
             // Consent is false by default (privacy-safe).
-            final imageToShare =
-                (_sharePhotoConsent &&
-                        vehicle.imageUrl != null &&
-                        (spec == null || spec.sampleImageUrl == null))
-                    ? vehicle.imageUrl
-                    : null;
+            final imageToShare = (_sharePhotoConsent &&
+                    vehicle.imageUrl != null &&
+                    (spec == null || spec.sampleImageUrl == null))
+                ? vehicle.imageUrl
+                : null;
             _specService.saveSpec(
               vehicle.maker,
               vehicle.model,
@@ -745,7 +758,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                                 grade.engineDisplacement.toString();
                           }
                           final ft = FuelType.fromString(grade.fuelType);
-                          if (ft != null) { _selectedFuelType = ft; }
+                          if (ft != null) {
+                            _selectedFuelType = ft;
+                          }
                           _fetchCommunitySpec(grade);
                         }
                       });
@@ -1445,9 +1460,7 @@ class _GradeSpecPreview extends StatelessWidget {
       specs.add('重量: ${grade.vehicleWeight}kg');
     }
 
-    if (specs.isEmpty &&
-        grade.standardEquipment.isEmpty &&
-        community == null) {
+    if (specs.isEmpty && grade.standardEquipment.isEmpty && community == null) {
       return const SizedBox.shrink();
     }
 
@@ -1535,8 +1548,7 @@ class _GradeSpecPreview extends StatelessWidget {
                   .map((s) => Chip(
                         label: Text(s, style: const TextStyle(fontSize: 11)),
                         padding: EdgeInsets.zero,
-                        materialTapTargetSize:
-                            MaterialTapTargetSize.shrinkWrap,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         visualDensity: VisualDensity.compact,
                       ))
                   .toList(),
@@ -1557,8 +1569,7 @@ class _GradeSpecPreview extends StatelessWidget {
                   .map((e) => Chip(
                         label: Text(e, style: const TextStyle(fontSize: 11)),
                         padding: EdgeInsets.zero,
-                        materialTapTargetSize:
-                            MaterialTapTargetSize.shrinkWrap,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         visualDensity: VisualDensity.compact,
                       ))
                   .toList(),

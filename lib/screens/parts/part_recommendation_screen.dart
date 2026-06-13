@@ -864,8 +864,7 @@ class _OwnerExamplesSectionState extends State<_OwnerExamplesSection> {
           height: 120,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding:
-                const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
             itemCount: _posts.length,
             itemBuilder: (context, index) {
               final post = _posts[index];
@@ -886,8 +885,9 @@ class _OwnerExampleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final thumbnail =
-        post.media.isNotEmpty ? post.media.first.thumbnailUrl ?? post.media.first.url : null;
+    final thumbnail = post.media.isNotEmpty
+        ? post.media.first.thumbnailUrl ?? post.media.first.url
+        : null;
 
     return SizedBox(
       width: 220,

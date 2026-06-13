@@ -19,7 +19,8 @@ void main() {
     // 1. Data Integrity: Serialization round-trip
     // -----------------------------------------------------------------------
     group('Data Integrity — Serialization Round-trip', () {
-      test('MaintenanceRecord: toMap/fromFirestore round-trip preserves all fields',
+      test(
+          'MaintenanceRecord: toMap/fromFirestore round-trip preserves all fields',
           () async {
         final fakeFs = FakeFirebaseFirestore();
         final original = MaintenanceRecord(
@@ -39,8 +40,7 @@ void main() {
         );
 
         await fakeFs.collection('maintenance_records').add(original.toMap());
-        final snapshot =
-            await fakeFs.collection('maintenance_records').get();
+        final snapshot = await fakeFs.collection('maintenance_records').get();
         final restored = MaintenanceRecord.fromFirestore(snapshot.docs.first);
 
         expect(restored.type, equals(original.type));
@@ -51,7 +51,8 @@ void main() {
         expect(restored.shopName, equals(original.shopName));
       });
 
-      test('Faq: toMap/fromFirestore round-trip preserves all fields', () async {
+      test('Faq: toMap/fromFirestore round-trip preserves all fields',
+          () async {
         final fakeFs = FakeFirebaseFirestore();
         final faq = Faq(
           id: '',
@@ -89,8 +90,7 @@ void main() {
           createdAt: DateTime(2024, 1, 1),
         );
 
-        final ref =
-            await fakeFs.collection('faq_answers').add(answer.toMap());
+        final ref = await fakeFs.collection('faq_answers').add(answer.toMap());
         final doc = await ref.get();
         final restored = FaqAnswer.fromFirestore(doc);
 
@@ -161,7 +161,8 @@ void main() {
         expect(trends.first.averageIntervalKm, isNotNull);
       });
 
-      test('CommunityTrendService: partial insight data does not crash', () async {
+      test('CommunityTrendService: partial insight data does not crash',
+          () async {
         final fakeFs = FakeFirebaseFirestore();
 
         // Insert doc with intentionally missing fields
@@ -263,7 +264,8 @@ void main() {
         expect(kei.inspectionCycleYears, equals(2));
       });
 
-      test('CommunityTrendService: submitVehicleTrendData rejects zero interval',
+      test(
+          'CommunityTrendService: submitVehicleTrendData rejects zero interval',
           () async {
         final fakeFs = FakeFirebaseFirestore();
         final service = CommunityTrendService(firestore: fakeFs);
@@ -374,7 +376,8 @@ void main() {
         expect(sorted, isEmpty);
       });
 
-      test('MaintenanceTrendService: all items without predicted dates sort last',
+      test(
+          'MaintenanceTrendService: all items without predicted dates sort last',
           () {
         const service = MaintenanceTrendService();
 
@@ -414,7 +417,8 @@ void main() {
         expect(sorted, hasLength(2));
       });
 
-      test('CommunityTrendService: document key uses underscore separator', () async {
+      test('CommunityTrendService: document key uses underscore separator',
+          () async {
         final fakeFs = FakeFirebaseFirestore();
         final service = CommunityTrendService(firestore: fakeFs);
 

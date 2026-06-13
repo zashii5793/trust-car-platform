@@ -40,8 +40,7 @@ class FleetDashboardScreen extends StatelessWidget {
           actions: [
             Consumer<FleetProvider>(
               builder: (context, p, _) {
-                final uid =
-                    context.read<AuthProvider>().appUser?.id ?? '';
+                final uid = context.read<AuthProvider>().appUser?.id ?? '';
                 return IconButton(
                   key: const Key('fleet_members_button'),
                   icon: const Icon(Icons.group_outlined),
@@ -109,8 +108,7 @@ class FleetDashboardScreen extends StatelessWidget {
 
     if (targets.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('車検が60日以内の車両はありません（車検満了日の登録もご確認ください）')),
+        const SnackBar(content: Text('車検が60日以内の車両はありません（車検満了日の登録もご確認ください）')),
       );
       return;
     }
@@ -245,11 +243,9 @@ class _FleetBody extends StatelessWidget {
           child: vehicles.isEmpty
               ? _EmptyState(filter: provider.filter)
               : ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.sm),
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                   itemCount: vehicles.length,
-                  itemBuilder: (_, i) =>
-                      _VehicleCard(vehicle: vehicles[i]),
+                  itemBuilder: (_, i) => _VehicleCard(vehicle: vehicles[i]),
                 ),
         ),
       ],
@@ -306,9 +302,7 @@ class _StatChip extends StatelessWidget {
   final Color color;
 
   const _StatChip(
-      {required this.label,
-      required this.value,
-      required this.color});
+      {required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -317,13 +311,10 @@ class _StatChip extends StatelessWidget {
         Text(
           '$value',
           style: TextStyle(
-              color: color,
-              fontSize: 22,
-              fontWeight: FontWeight.bold),
+              color: color, fontSize: 22, fontWeight: FontWeight.bold),
         ),
         Text(label,
-            style: const TextStyle(
-                color: Colors.white70, fontSize: 11)),
+            style: const TextStyle(color: Colors.white70, fontSize: 11)),
       ],
     );
   }
@@ -343,8 +334,7 @@ class _FleetCodeTile extends StatelessWidget {
       title: const Text('フリートコード（招待用）'),
       subtitle: Text(
         companyId,
-        style: const TextStyle(
-            fontFamily: 'monospace', fontSize: 13),
+        style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
       ),
       trailing: IconButton(
         icon: const Icon(Icons.copy),
@@ -438,8 +428,7 @@ class _Chip extends StatelessWidget {
       checkmarkColor: color,
       labelStyle: TextStyle(
         color: selected ? color : AppColors.textSecondary,
-        fontWeight:
-            selected ? FontWeight.bold : FontWeight.normal,
+        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
       ),
       onSelected: (_) => onTap(),
     );
@@ -482,8 +471,8 @@ class _VehicleCard extends StatelessWidget {
                 Text(
                   '担当: ${vehicle.assigneeName}',
                   key: Key('fleet_vehicle_assignee_${vehicle.id}'),
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.primary),
+                  style:
+                      const TextStyle(fontSize: 11, color: AppColors.primary),
                 ),
             ],
           ),
@@ -506,8 +495,7 @@ class _VehicleCard extends StatelessWidget {
   }
 
   void _showAssignmentSheet(BuildContext context) {
-    final companyId =
-        context.read<FleetProvider>().companyId;
+    final companyId = context.read<FleetProvider>().companyId;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -528,8 +516,7 @@ class _AssignmentSheet extends StatefulWidget {
   final Vehicle vehicle;
   final String companyId;
 
-  const _AssignmentSheet(
-      {required this.vehicle, required this.companyId});
+  const _AssignmentSheet({required this.vehicle, required this.companyId});
 
   @override
   State<_AssignmentSheet> createState() => _AssignmentSheetState();
@@ -613,8 +600,8 @@ class _AssignmentSheetState extends State<_AssignmentSheet> {
       final userId = authProvider.firebaseUser?.uid;
       if (userId == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('ログインが必要です')));
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('ログインが必要です')));
         }
         return;
       }
@@ -704,8 +691,7 @@ class _EmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.directions_car_outlined,
-                size: AppSpacing.iconXl,
-                color: AppColors.textTertiary),
+                size: AppSpacing.iconXl, color: AppColors.textTertiary),
             const SizedBox(height: AppSpacing.md),
             Text(
               message,

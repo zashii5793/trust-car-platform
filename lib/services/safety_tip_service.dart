@@ -68,9 +68,8 @@ class SafetyTipService {
     SafetyTipSource? source,
   }) async {
     try {
-      Query query = _firestore
-          .collection(_collection)
-          .where('isActive', isEqualTo: true);
+      Query query =
+          _firestore.collection(_collection).where('isActive', isEqualTo: true);
 
       if (category != null) {
         query = query.where('category', isEqualTo: category.name);
@@ -80,8 +79,7 @@ class SafetyTipService {
       }
 
       final snap = await query.orderBy('publishedAt', descending: true).get();
-      return Result.success(
-          snap.docs.map(SafetyTip.fromFirestore).toList());
+      return Result.success(snap.docs.map(SafetyTip.fromFirestore).toList());
     } catch (e) {
       return Result.failure(AppError.unknown(e.toString(), originalError: e));
     }

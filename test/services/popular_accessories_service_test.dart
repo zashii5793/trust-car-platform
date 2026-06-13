@@ -126,15 +126,17 @@ void main() {
       test('正常系: カテゴリでフィルタされた投稿を取得できる', () async {
         await _seedShowcase(
             _showcase(id: 'e1', category: AccessoryCategory.electronics));
-        await _seedShowcase(
-            _showcase(id: 'e2', category: AccessoryCategory.electronics,
-                itemName: 'Pioneer carrozzeria'));
-        await _seedShowcase(
-            _showcase(id: 'i1', category: AccessoryCategory.interior,
-                itemName: 'コクピットシートカバー'));
+        await _seedShowcase(_showcase(
+            id: 'e2',
+            category: AccessoryCategory.electronics,
+            itemName: 'Pioneer carrozzeria'));
+        await _seedShowcase(_showcase(
+            id: 'i1',
+            category: AccessoryCategory.interior,
+            itemName: 'コクピットシートカバー'));
 
-        final result = await service.getShowcasesByCategory(
-            AccessoryCategory.electronics);
+        final result =
+            await service.getShowcasesByCategory(AccessoryCategory.electronics);
 
         expect(result.isSuccess, isTrue);
         expect(result.valueOrNull!, hasLength(2));
@@ -181,10 +183,13 @@ void main() {
         expect(result.isSuccess, isTrue);
         final trends = result.valueOrNull!;
         // Vantrue should rank first with count=3
-        final vantrue = trends.firstWhere((t) => t.itemName == 'Vantrue N2 Pro');
+        final vantrue =
+            trends.firstWhere((t) => t.itemName == 'Vantrue N2 Pro');
         expect(vantrue.showcaseCount, 3);
-        expect(trends.indexOf(vantrue),
-            lessThan(trends.indexWhere((t) => t.itemName == 'Pioneer carrozzeria')));
+        expect(
+            trends.indexOf(vantrue),
+            lessThan(
+                trends.indexWhere((t) => t.itemName == 'Pioneer carrozzeria')));
       });
 
       test('正常系: 平均評価が計算される', () async {
@@ -219,8 +224,8 @@ void main() {
       });
 
       test('正常系: 投稿なしは空トレンドリスト', () async {
-        final result = await service.getPopularTrends(
-            category: AccessoryCategory.safety);
+        final result =
+            await service.getPopularTrends(category: AccessoryCategory.safety);
         expect(result.isSuccess, isTrue);
         expect(result.valueOrNull!, isEmpty);
       });
@@ -262,8 +267,7 @@ void main() {
         final trends = result.valueOrNull!;
         expect(trends.isNotEmpty, isTrue);
         // シートカバーB (3) should rank above ドラレコA (2)
-        final seat =
-            trends.firstWhere((t) => t.itemName == 'シートカバーB');
+        final seat = trends.firstWhere((t) => t.itemName == 'シートカバーB');
         final cam = trends.firstWhere((t) => t.itemName == 'ドラレコA');
         expect(trends.indexOf(seat), lessThan(trends.indexOf(cam)));
       });

@@ -132,8 +132,7 @@ void main() {
         final result = await service.getMyInquiries('user-1');
         expect(result.isSuccess, isTrue);
         expect(result.valueOrNull!, hasLength(2));
-        expect(
-            result.valueOrNull!.every((i) => i.userId == 'user-1'), isTrue);
+        expect(result.valueOrNull!.every((i) => i.userId == 'user-1'), isTrue);
       });
 
       test('正常系: 問い合わせゼロでも空リスト', () async {
@@ -184,8 +183,7 @@ void main() {
         final links = service.generateSearchLinks(
           const CarPurchaseCondition(maxPrice: 2000000),
         );
-        final carsensor =
-            links.firstWhere((l) => l.siteName == 'カーセンサー');
+        final carsensor = links.firstWhere((l) => l.siteName == 'カーセンサー');
         expect(carsensor.url, contains('2000000'));
       });
     });
@@ -199,16 +197,15 @@ void main() {
           userId: 'user-1',
           condition: const CarPurchaseCondition(),
           message: 'クローズテスト',
-        )).valueOrNull!;
+        ))
+            .valueOrNull!;
 
         final result =
             await service.closeInquiry(inquiryId: id, requesterId: 'user-1');
         expect(result.isSuccess, isTrue);
 
-        final doc = await firestore
-            .collection('car_purchase_inquiries')
-            .doc(id)
-            .get();
+        final doc =
+            await firestore.collection('car_purchase_inquiries').doc(id).get();
         expect(doc.data()!['status'], 'closed');
       });
 
@@ -217,10 +214,11 @@ void main() {
           userId: 'user-1',
           condition: const CarPurchaseCondition(),
           message: 'クローズテスト',
-        )).valueOrNull!;
+        ))
+            .valueOrNull!;
 
-        final result = await service.closeInquiry(
-            inquiryId: id, requesterId: 'intruder');
+        final result =
+            await service.closeInquiry(inquiryId: id, requesterId: 'intruder');
         expect(result.isFailure, isTrue);
       });
     });

@@ -55,7 +55,8 @@ class _ShopComparisonScreenState extends State<ShopComparisonScreen> {
       ),
       body: Column(
         children: [
-          if (widget.primaryNeed != null) _NeedBanner(need: widget.primaryNeed!),
+          if (widget.primaryNeed != null)
+            _NeedBanner(need: widget.primaryNeed!),
           Expanded(
             child: ListView.separated(
               key: const Key('comparison_list'),
@@ -175,7 +176,8 @@ class _ComparisonCard extends StatelessWidget {
             // 評価・距離・対応日数
             Row(
               children: [
-                _RatingWidget(rating: shop.rating, reviewCount: shop.reviewCount),
+                _RatingWidget(
+                    rating: shop.rating, reviewCount: shop.reviewCount),
                 const SizedBox(width: AppSpacing.md),
                 if (result.distanceKm != null) ...[
                   const Icon(Icons.place_outlined,

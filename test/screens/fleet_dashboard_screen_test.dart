@@ -185,12 +185,11 @@ class _FleetBodyTest extends StatelessWidget {
               itemBuilder: (_, i) {
                 final v = vehicles[i];
                 final days = v.daysUntilInspection;
-                final urgencyKey =
-                    (days != null && (days < 0 || days <= 7))
-                        ? 'critical'
-                        : (days != null && days <= 30)
-                            ? 'warning'
-                            : 'normal';
+                final urgencyKey = (days != null && (days < 0 || days <= 7))
+                    ? 'critical'
+                    : (days != null && days <= 30)
+                        ? 'warning'
+                        : 'normal';
                 return ListTile(
                   key: Key('fleet_vehicle_card_$urgencyKey'),
                   title: Text(v.displayName),
@@ -267,15 +266,15 @@ void main() {
       await tester.pump();
 
       // Critical vehicles should appear before normal ones
-      final criticalFinder = find.byKey(const Key('fleet_vehicle_card_critical'));
+      final criticalFinder =
+          find.byKey(const Key('fleet_vehicle_card_critical'));
       final normalFinder = find.byKey(const Key('fleet_vehicle_card_normal'));
       expect(criticalFinder, findsWidgets);
       expect(normalFinder, findsWidgets);
     });
 
     testWidgets('フリートコードが表示される（招待用）', (tester) async {
-      await tester.pumpWidget(
-          _buildSubject(companyId: 'company-ABC'));
+      await tester.pumpWidget(_buildSubject(companyId: 'company-ABC'));
       await tester.pump();
 
       expect(find.byKey(const Key('fleet_company_code')), findsOneWidget);
@@ -285,11 +284,9 @@ void main() {
       final now = DateTime.now();
       final vehicles = [
         _makeVehicle(
-            id: 'v1',
-            inspectionExpiryDate: now.add(const Duration(days: 3))),
+            id: 'v1', inspectionExpiryDate: now.add(const Duration(days: 3))),
         _makeVehicle(
-            id: 'v2',
-            inspectionExpiryDate: now.add(const Duration(days: 90))),
+            id: 'v2', inspectionExpiryDate: now.add(const Duration(days: 90))),
       ];
       await tester.pumpWidget(_buildSubject(vehicles: vehicles));
       await tester.pump();
@@ -298,8 +295,8 @@ void main() {
       await tester.pump();
 
       // Only critical vehicles shown (key contains 'critical')
-      expect(find.byKey(const Key('fleet_vehicle_card_critical')),
-          findsOneWidget);
+      expect(
+          find.byKey(const Key('fleet_vehicle_card_critical')), findsOneWidget);
     });
   });
 }

@@ -35,13 +35,12 @@ class VehicleRetirementService {
           AppError.validation('vehicleId must not be empty'));
     }
     if (reason == VehicleStatus.active) {
-      return const Result.failure(
-          AppError.validation('reason must be a retirement status, not active'));
+      return const Result.failure(AppError.validation(
+          'reason must be a retirement status, not active'));
     }
 
     try {
-      final doc =
-          await _firestore.collection(_collection).doc(vehicleId).get();
+      final doc = await _firestore.collection(_collection).doc(vehicleId).get();
       if (!doc.exists) {
         return Result.failure(
             AppError.notFound('Vehicle not found: $vehicleId'));
@@ -51,8 +50,7 @@ class VehicleRetirementService {
         return const Result.failure(
             AppError.permission('only the vehicle owner can retire it'));
       }
-      final currentStatus =
-          VehicleStatus.fromString(data['status'] as String?);
+      final currentStatus = VehicleStatus.fromString(data['status'] as String?);
       if (currentStatus != VehicleStatus.active) {
         return const Result.failure(
             AppError.validation('vehicle is already retired'));
@@ -83,8 +81,7 @@ class VehicleRetirementService {
     }
 
     try {
-      final doc =
-          await _firestore.collection(_collection).doc(vehicleId).get();
+      final doc = await _firestore.collection(_collection).doc(vehicleId).get();
       if (!doc.exists) {
         return Result.failure(
             AppError.notFound('Vehicle not found: $vehicleId'));
@@ -94,8 +91,7 @@ class VehicleRetirementService {
         return const Result.failure(
             AppError.permission('only the vehicle owner can restore it'));
       }
-      final currentStatus =
-          VehicleStatus.fromString(data['status'] as String?);
+      final currentStatus = VehicleStatus.fromString(data['status'] as String?);
       if (currentStatus == VehicleStatus.active) {
         return const Result.failure(
             AppError.validation('vehicle is already active'));
@@ -121,8 +117,7 @@ class VehicleRetirementService {
       final snap = await _firestore
           .collection(_collection)
           .where('userId', isEqualTo: userId)
-          .where('status', whereNotIn: [VehicleStatus.active.name])
-          .get();
+          .where('status', whereNotIn: [VehicleStatus.active.name]).get();
       return Result.success(snap.docs.map(Vehicle.fromFirestore).toList());
     } catch (e) {
       return Result.failure(AppError.unknown(e.toString(), originalError: e));

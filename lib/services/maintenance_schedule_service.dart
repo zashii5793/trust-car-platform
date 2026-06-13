@@ -28,8 +28,7 @@ class MaintenanceScheduleService {
 
     final isElectric =
         fuelType == FuelType.electric || fuelType == FuelType.hydrogen;
-    final isHybrid =
-        fuelType == FuelType.hybrid || fuelType == FuelType.phev;
+    final isHybrid = fuelType == FuelType.hybrid || fuelType == FuelType.phev;
     final isDiesel = fuelType == FuelType.diesel;
 
     if (!isElectric) {

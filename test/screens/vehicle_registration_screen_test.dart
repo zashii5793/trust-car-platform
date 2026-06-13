@@ -769,8 +769,7 @@ void main() {
       expect(find.byKey(const Key('photo_consent_checkbox')), findsNothing);
     });
 
-    testWidgets('32. 写真共有同意ダイアログは登録完了後に表示されない（チェックボックス方式）',
-        (tester) async {
+    testWidgets('32. 写真共有同意ダイアログは登録完了後に表示されない（チェックボックス方式）', (tester) async {
       // RED guard: after successful registration, no AlertDialog should appear
       // (the old _askPhotoShareConsent() dialog was replaced by a checkbox).
       // No image bytes are provided, so the upload path is skipped entirely.

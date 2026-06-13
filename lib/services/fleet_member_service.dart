@@ -200,13 +200,11 @@ class FleetMemberService {
     }
 
     try {
-      final snapshot = await _col
-          .where('companyId', isEqualTo: companyId)
-          .get();
+      final snapshot =
+          await _col.where('companyId', isEqualTo: companyId).get();
 
-      final members = snapshot.docs
-          .map((doc) => FleetMember.fromFirestore(doc))
-          .toList();
+      final members =
+          snapshot.docs.map((doc) => FleetMember.fromFirestore(doc)).toList();
       return Result.success(members);
     } catch (e, st) {
       return Result.failure(mapFirebaseError(e, stackTrace: st));
@@ -260,8 +258,7 @@ class FleetMemberService {
 
     try {
       final role = await _fetchRole(companyId, userId);
-      final allowed =
-          role == FleetRole.owner || role == FleetRole.manager;
+      final allowed = role == FleetRole.owner || role == FleetRole.manager;
       return Result.success(allowed);
     } catch (e, st) {
       return Result.failure(mapFirebaseError(e, stackTrace: st));

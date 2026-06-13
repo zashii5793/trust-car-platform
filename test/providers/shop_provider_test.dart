@@ -750,14 +750,17 @@ void main() {
     // -------------------------------------------------------------------------
     group('sortByDistanceFrom', () {
       // 東京駅: 35.681, 139.767 / 横浜駅: 35.466, 139.622 / 大阪駅: 34.702, 135.495
-      Shop shopAt(String id, double lat, double lng) => _makeShop(id: id)
-          .copyWith(location: GeoPoint(lat, lng));
+      Shop shopAt(String id, double lat, double lng) =>
+          _makeShop(id: id).copyWith(location: GeoPoint(lat, lng));
 
       test('現在地から近い順にソートされる', () async {
         mockShopService.shopsResult = Result.success([
-          _makeShop(id: 'osaka').copyWith(location: const GeoPoint(34.702, 135.495)),
-          _makeShop(id: 'tokyo').copyWith(location: const GeoPoint(35.681, 139.767)),
-          _makeShop(id: 'yokohama').copyWith(location: const GeoPoint(35.466, 139.622)),
+          _makeShop(id: 'osaka')
+              .copyWith(location: const GeoPoint(34.702, 135.495)),
+          _makeShop(id: 'tokyo')
+              .copyWith(location: const GeoPoint(35.681, 139.767)),
+          _makeShop(id: 'yokohama')
+              .copyWith(location: const GeoPoint(35.466, 139.622)),
         ]);
         await provider.loadShops();
 

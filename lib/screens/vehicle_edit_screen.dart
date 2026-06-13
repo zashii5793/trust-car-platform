@@ -246,8 +246,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('実車写真の共有（任意）'),
-        content: const Text(
-            '車両の保存は完了しています。\n\n'
+        content: const Text('車両の保存は完了しています。\n\n'
             'あなたの車の写真を、同じ車種を登録する他のユーザーへの参考写真として共有しますか？\n\n'
             'ナンバープレートや個人情報が写っている場合は「共有しない」を選んでください。'),
         actions: [
@@ -269,14 +268,20 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     final maker = _selectedMaker?.name;
     final model = _selectedModel?.name;
     final year = int.tryParse(_yearController.text);
-    if (maker == null || model == null || year == null) { return; }
+    if (maker == null || model == null || year == null) {
+      return;
+    }
 
     final result = await _specService.fetchSpec(maker, model, year, grade.name);
-    if (!mounted) { return; }
+    if (!mounted) {
+      return;
+    }
 
     result.when(
       success: (spec) {
-        if (spec == null) { return; }
+        if (spec == null) {
+          return;
+        }
         // Fill only still-empty fields — the fetch is async and must never
         // overwrite values the user typed (or master data) in the meantime.
         var filled = false;
@@ -302,8 +307,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(SnackBar(
-              content: Text(
-                  'コミュニティのデータを自動入力しました（${spec.contributorCount}人が確認）'),
+              content:
+                  Text('コミュニティのデータを自動入力しました（${spec.contributorCount}人が確認）'),
               duration: const Duration(seconds: 3),
             ));
         }
@@ -615,8 +620,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         showSuccessSnackBar(context, '車両情報を更新しました');
         Navigator.pop(context, updatedVehicle);
       } else if (mounted) {
-        final provider =
-            Provider.of<VehicleProvider>(context, listen: false);
+        final provider = Provider.of<VehicleProvider>(context, listen: false);
         showErrorSnackBar(
             context, provider.errorMessage ?? '更新に失敗しました。通信環境をご確認ください');
       }
@@ -672,8 +676,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         // 2つ前の画面（ホーム）に戻る
         Navigator.popUntil(context, (route) => route.isFirst);
       } else if (mounted) {
-        final provider =
-            Provider.of<VehicleProvider>(context, listen: false);
+        final provider = Provider.of<VehicleProvider>(context, listen: false);
         showErrorSnackBar(
             context, provider.errorMessage ?? '削除に失敗しました。通信環境をご確認ください');
       }
@@ -1383,8 +1386,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           items: VehicleUseCategory.values
               .map((c) => DropdownMenuItem(
                     value: c,
-                    child: Text(c.displayName,
-                        style: theme.textTheme.bodyMedium),
+                    child:
+                        Text(c.displayName, style: theme.textTheme.bodyMedium),
                   ))
               .toList(),
           onChanged: (value) {
@@ -1570,8 +1573,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           ),
           TextButton(
             onPressed: _isJoiningFleet ? null : _leaveFleet,
-            style:
-                TextButton.styleFrom(foregroundColor: AppColors.error),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('離脱'),
           ),
         ],
@@ -1606,8 +1608,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child:
-                          CircularProgressIndicator(strokeWidth: 2))
+                      child: CircularProgressIndicator(strokeWidth: 2))
                   : const Text('参加'),
             ),
           ],
@@ -1771,8 +1772,7 @@ class _GradeSpecCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome,
-                  size: 14, color: AppColors.info),
+              const Icon(Icons.auto_awesome, size: 14, color: AppColors.info),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
@@ -1784,8 +1784,8 @@ class _GradeSpecCard extends StatelessWidget {
               if (community != null && community.isVerified)
                 Container(
                   key: const Key('grade_spec_verified_badge'),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: AppColors.success.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
@@ -1841,11 +1841,9 @@ class _GradeSpecCard extends StatelessWidget {
               runSpacing: AppSpacing.xxs,
               children: specs
                   .map((s) => Chip(
-                        label: Text(s,
-                            style: const TextStyle(fontSize: 11)),
+                        label: Text(s, style: const TextStyle(fontSize: 11)),
                         padding: EdgeInsets.zero,
-                        materialTapTargetSize:
-                            MaterialTapTargetSize.shrinkWrap,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         visualDensity: VisualDensity.compact,
                       ))
                   .toList(),
@@ -1864,11 +1862,9 @@ class _GradeSpecCard extends StatelessWidget {
               runSpacing: AppSpacing.xxs,
               children: grade.standardEquipment
                   .map((e) => Chip(
-                        label: Text(e,
-                            style: const TextStyle(fontSize: 11)),
+                        label: Text(e, style: const TextStyle(fontSize: 11)),
                         padding: EdgeInsets.zero,
-                        materialTapTargetSize:
-                            MaterialTapTargetSize.shrinkWrap,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         visualDensity: VisualDensity.compact,
                       ))
                   .toList(),

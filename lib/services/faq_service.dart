@@ -60,8 +60,7 @@ class FaqService {
 
   Future<Result<Faq, AppError>> getFaq(String faqId) async {
     try {
-      final doc =
-          await _firestore.collection(_faqCollection).doc(faqId).get();
+      final doc = await _firestore.collection(_faqCollection).doc(faqId).get();
       if (!doc.exists) {
         return const Result.failure(AppError.notFound('FAQ not found'));
       }
@@ -145,9 +144,8 @@ class FaqService {
         createdAt: now,
       );
 
-      final ref = await _firestore
-          .collection(_answerCollection)
-          .add(answer.toMap());
+      final ref =
+          await _firestore.collection(_answerCollection).add(answer.toMap());
 
       // Increment answer count
       await _firestore.collection(_faqCollection).doc(faqId).update({
@@ -183,8 +181,7 @@ class FaqService {
   }) async {
     try {
       final voteId = '${answerId}_$userId';
-      final voteRef =
-          _firestore.collection(_helpfulCollection).doc(voteId);
+      final voteRef = _firestore.collection(_helpfulCollection).doc(voteId);
       final existing = await voteRef.get();
 
       if (existing.exists) {

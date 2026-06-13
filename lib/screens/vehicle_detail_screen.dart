@@ -29,7 +29,8 @@ import '../services/community_trend_service.dart';
 class _InspectionCompletionResult {
   final DateTime newExpiryDate;
   final int? mileage;
-  const _InspectionCompletionResult({required this.newExpiryDate, this.mileage});
+  const _InspectionCompletionResult(
+      {required this.newExpiryDate, this.mileage});
 }
 
 class VehicleDetailScreen extends StatefulWidget {
@@ -522,7 +523,8 @@ class _VoluntaryInsuranceSection extends StatelessWidget {
                 _InfoRow(
                   icon: Icons.event,
                   label: '満期日',
-                  value: DateFormat('yyyy年MM月dd日').format(insurance.expiryDate!),
+                  value:
+                      DateFormat('yyyy年MM月dd日').format(insurance.expiryDate!),
                   valueColor: expiryColor,
                 ),
             ],
@@ -583,7 +585,8 @@ class _LeaseInfoSection extends StatelessWidget {
                 _InfoRow(
                   icon: Icons.payments_outlined,
                   label: '月額',
-                  value: '¥${NumberFormat('#,###').format(leaseInfo.monthlyFee!)}',
+                  value:
+                      '¥${NumberFormat('#,###').format(leaseInfo.monthlyFee!)}',
                 ),
               if (leaseInfo.contractEndDate != null)
                 _InfoRow(
@@ -664,13 +667,11 @@ class _MaintenanceScheduleSection extends StatelessWidget {
                     ? '  次回: ${NumberFormat('#,###').format(nextKm)}km'
                     : '';
                 return Padding(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(item.type.icon,
-                          size: 14, color: item.type.color),
+                      Icon(item.type.icon, size: 14, color: item.type.color),
                       const SizedBox(width: AppSpacing.xs),
                       Expanded(
                         child: Column(
@@ -678,14 +679,13 @@ class _MaintenanceScheduleSection extends StatelessWidget {
                           children: [
                             Text(
                               item.type.displayName,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.w600),
+                              style: theme.textTheme.bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                             Text(
                               '$intervalText$nextKmText',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                  color: AppColors.textTertiary,
-                                  fontSize: 11),
+                                  color: AppColors.textTertiary, fontSize: 11),
                             ),
                           ],
                         ),
@@ -2300,8 +2300,7 @@ class _InspectionCompleteDialog extends StatefulWidget {
       _InspectionCompleteDialogState();
 }
 
-class _InspectionCompleteDialogState
-    extends State<_InspectionCompleteDialog> {
+class _InspectionCompleteDialogState extends State<_InspectionCompleteDialog> {
   late DateTime _newExpiry;
   final _mileageController = TextEditingController();
 
@@ -2412,8 +2411,7 @@ class _MileageUpdateDialogState extends State<_MileageUpdateDialog> {
   @override
   void initState() {
     super.initState();
-    _controller =
-        TextEditingController(text: widget.currentMileage.toString());
+    _controller = TextEditingController(text: widget.currentMileage.toString());
   }
 
   @override
@@ -2514,15 +2512,12 @@ class _CommunityTrendSectionState extends State<_CommunityTrendSection> {
             children: [
               // Section header pill
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.tertiary.withValues(alpha: 0.08),
-                  borderRadius:
-                      BorderRadius.circular(AppSpacing.radiusFull),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
                   border: Border.all(
-                    color:
-                        theme.colorScheme.tertiary.withValues(alpha: 0.2),
+                    color: theme.colorScheme.tertiary.withValues(alpha: 0.2),
                   ),
                 ),
                 child: Row(

@@ -113,7 +113,8 @@ void main() {
         expect(result.isSuccess, isTrue);
         expect(result.valueOrNull!.length, equals(2));
         expect(
-          result.valueOrNull!.every((f) => f.category == FaqCategory.maintenance),
+          result.valueOrNull!
+              .every((f) => f.category == FaqCategory.maintenance),
           isTrue,
         );
       });

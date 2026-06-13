@@ -42,8 +42,8 @@ void main() {
       test('ガソリン車でオイル交換が含まれる', () {
         final vehicle = _makeVehicle(fuelType: FuelType.gasoline);
         final schedule = service.generateSchedule(vehicle);
-        expect(schedule.map((s) => s.type),
-            contains(MaintenanceType.oilChange));
+        expect(
+            schedule.map((s) => s.type), contains(MaintenanceType.oilChange));
       });
 
       test('EV車でオイル交換が含まれない', () {
@@ -94,8 +94,8 @@ void main() {
         final hybridSchedule = service.generateSchedule(hybrid);
         final gasolineSchedule = service.generateSchedule(gasoline);
 
-        final hybridOil =
-            hybridSchedule.firstWhere((s) => s.type == MaintenanceType.oilChange);
+        final hybridOil = hybridSchedule
+            .firstWhere((s) => s.type == MaintenanceType.oilChange);
         final gasolineOil = gasolineSchedule
             .firstWhere((s) => s.type == MaintenanceType.oilChange);
 
@@ -113,7 +113,8 @@ void main() {
             .generateSchedule(gasoline)
             .firstWhere((s) => s.type == MaintenanceType.oilChange);
 
-        expect(dieselOil.intervalMonths! <= gasolineOil.intervalMonths!, isTrue);
+        expect(
+            dieselOil.intervalMonths! <= gasolineOil.intervalMonths!, isTrue);
       });
 
       test('各アイテムにintervalKmかintervalMonthsが少なくとも一方ある', () {
@@ -146,7 +147,8 @@ void main() {
 
     group('nextDueMileage', () {
       test('ガソリン車オイル交換の次回走行距離が現在走行距離より大きい', () {
-        final vehicle = _makeVehicle(fuelType: FuelType.gasoline, mileage: 10000);
+        final vehicle =
+            _makeVehicle(fuelType: FuelType.gasoline, mileage: 10000);
         final schedule = service.generateSchedule(vehicle);
         final oilChange =
             schedule.firstWhere((s) => s.type == MaintenanceType.oilChange);

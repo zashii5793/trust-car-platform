@@ -445,7 +445,8 @@ void main() {
         success: (posts) {
           expect(posts.length, 2);
           final visibilities = posts.map((p) => p.visibility).toSet();
-          expect(visibilities, {PostVisibility.public, PostVisibility.followers});
+          expect(
+              visibilities, {PostVisibility.public, PostVisibility.followers});
         },
         failure: (e) => fail('Expected success, got: $e'),
       );

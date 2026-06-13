@@ -91,11 +91,10 @@ class _StubFleetMemberService implements FleetMemberService {
     required String companyId,
     required String userId,
   }) async {
-    final roleResult = await getMemberRole(
-        companyId: companyId, userId: userId);
+    final roleResult =
+        await getMemberRole(companyId: companyId, userId: userId);
     final role = roleResult.valueOrNull;
-    return Result.success(
-        role == FleetRole.owner || role == FleetRole.manager);
+    return Result.success(role == FleetRole.owner || role == FleetRole.manager);
   }
 }
 
@@ -153,8 +152,10 @@ void main() {
 
     testWidgets('メンバー一覧が表示される', (tester) async {
       final service = _StubFleetMemberService(members: [
-        _member(userId: 'owner-1', role: FleetRole.owner, displayName: 'オーナー太郎'),
-        _member(userId: 'staff-1', role: FleetRole.staff, displayName: 'スタッフ花子'),
+        _member(
+            userId: 'owner-1', role: FleetRole.owner, displayName: 'オーナー太郎'),
+        _member(
+            userId: 'staff-1', role: FleetRole.staff, displayName: 'スタッフ花子'),
       ]);
       await tester.pumpWidget(_buildScreen(
         service: service,
@@ -172,8 +173,8 @@ void main() {
       final service = _StubFleetMemberService(members: [
         _member(userId: 'owner-1', role: FleetRole.owner, displayName: '自分'),
       ]);
-      await tester.pumpWidget(
-          _buildScreen(service: service, currentUserId: 'owner-1'));
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));
       await tester.pumpAndSettle();
 
       expect(find.text('（あなた）'), findsOneWidget);
@@ -185,8 +186,8 @@ void main() {
       final service = _StubFleetMemberService(members: [
         _member(userId: 'owner-1', role: FleetRole.owner),
       ]);
-      await tester.pumpWidget(
-          _buildScreen(service: service, currentUserId: 'owner-1'));
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('add_member_fab')), findsOneWidget);
@@ -196,8 +197,8 @@ void main() {
       final service = _StubFleetMemberService(members: [
         _member(userId: 'staff-1', role: FleetRole.staff),
       ]);
-      await tester.pumpWidget(
-          _buildScreen(service: service, currentUserId: 'staff-1'));
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'staff-1'));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('add_member_fab')), findsNothing);
@@ -208,12 +209,11 @@ void main() {
         _member(userId: 'owner-1', role: FleetRole.owner, displayName: 'オーナー'),
         _member(userId: 'staff-1', role: FleetRole.staff, displayName: 'スタッフ'),
       ]);
-      await tester.pumpWidget(
-          _buildScreen(service: service, currentUserId: 'owner-1'));
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));
       await tester.pumpAndSettle();
 
-      expect(
-          find.byKey(const Key('remove_member_staff-1')), findsOneWidget);
+      expect(find.byKey(const Key('remove_member_staff-1')), findsOneWidget);
     });
   });
 
@@ -222,23 +222,24 @@ void main() {
       final service = _StubFleetMemberService(members: [
         _member(userId: 'owner-1', role: FleetRole.owner),
       ]);
-      await tester.pumpWidget(
-          _buildScreen(service: service, currentUserId: 'owner-1'));
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('add_member_fab')));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('add_member_user_id_field')), findsOneWidget);
-      expect(find.byKey(const Key('add_member_confirm_button')), findsOneWidget);
+      expect(
+          find.byKey(const Key('add_member_confirm_button')), findsOneWidget);
     });
 
     testWidgets('ユーザーIDが空のまま追加ボタンを押しても閉じない', (tester) async {
       final service = _StubFleetMemberService(members: [
         _member(userId: 'owner-1', role: FleetRole.owner),
       ]);
-      await tester.pumpWidget(
-          _buildScreen(service: service, currentUserId: 'owner-1'));
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('add_member_fab')));
@@ -258,8 +259,8 @@ void main() {
         _member(userId: 'owner-1', role: FleetRole.owner, displayName: 'オーナー'),
         _member(userId: 'staff-1', role: FleetRole.staff, displayName: 'スタッフ'),
       ]);
-      await tester.pumpWidget(
-          _buildScreen(service: service, currentUserId: 'owner-1'));
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('remove_member_staff-1')));
@@ -272,7 +273,8 @@ void main() {
   group('Edge Cases', () {
     testWidgets('displayNameがない場合はuserIdをフォールバック表示する', (tester) async {
       final service = _StubFleetMemberService(members: [
-        _member(userId: 'uid-no-name', role: FleetRole.viewer, displayName: null),
+        _member(
+            userId: 'uid-no-name', role: FleetRole.viewer, displayName: null),
       ]);
       await tester.pumpWidget(
           _buildScreen(service: service, currentUserId: 'other-user'));

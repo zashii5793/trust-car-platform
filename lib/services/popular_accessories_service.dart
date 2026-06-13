@@ -93,9 +93,8 @@ class PopularAccessoriesService {
           .where('category', isEqualTo: category.name)
           .get();
 
-      final trends = _aggregate(snap.docs
-          .map(AccessoryShowcase.fromFirestore)
-          .toList());
+      final trends =
+          _aggregate(snap.docs.map(AccessoryShowcase.fromFirestore).toList());
 
       final sorted = trends
         ..sort((a, b) => b.showcaseCount.compareTo(a.showcaseCount));
@@ -111,8 +110,8 @@ class PopularAccessoriesService {
       {int limit = 10}) async {
     try {
       final snap = await _firestore.collection(_collection).get();
-      final trends = _aggregate(
-          snap.docs.map(AccessoryShowcase.fromFirestore).toList());
+      final trends =
+          _aggregate(snap.docs.map(AccessoryShowcase.fromFirestore).toList());
 
       final sorted = trends
         ..sort((a, b) => b.showcaseCount.compareTo(a.showcaseCount));

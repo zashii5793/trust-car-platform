@@ -695,8 +695,7 @@ void main() {
 
       await tester.enterText(
           find.byKey(const Key('mileage_input_field')), '15000');
-      await tester
-          .tap(find.byKey(const Key('confirm_mileage_btn')));
+      await tester.tap(find.byKey(const Key('confirm_mileage_btn')));
       await tester.pumpAndSettle();
 
       expect(find.text('走行距離を更新しました'), findsOneWidget);
@@ -729,12 +728,10 @@ void main() {
       await pumpWithInspection(tester);
       await tester.pump();
 
-      expect(
-          find.byKey(const Key('inspection_complete_btn')), findsOneWidget);
+      expect(find.byKey(const Key('inspection_complete_btn')), findsOneWidget);
     });
 
-    testWidgets('inspectionExpiryDate なし → 車検完了ボタンが表示されない',
-        (tester) async {
+    testWidgets('inspectionExpiryDate なし → 車検完了ボタンが表示されない', (tester) async {
       await _pumpScreen(tester, maintenanceProvider);
       await tester.pump();
 

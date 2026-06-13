@@ -178,7 +178,8 @@ class Shop {
   final String? email;
   final String? website;
   final String? lineUrl; // LINE official account URL
-  final String? bookingUrl; // Online booking URL (e.g., Google Reserve, HotPepper)
+  final String?
+      bookingUrl; // Online booking URL (e.g., Google Reserve, HotPepper)
   final List<ReservationMethod> reservationMethods;
   final List<String> appealPoints; // e.g. ["24時間対応", "女性スタッフ在籍"]
 

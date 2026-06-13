@@ -88,8 +88,7 @@ void main() {
     });
 
     test('失敗 → エラーがセットされ、ローディングメッセージは残らない', () async {
-      service.response =
-          const Result.failure(NetworkError('ネットワークエラー'));
+      service.response = const Result.failure(NetworkError('ネットワークエラー'));
 
       await provider.sendMessage('質問');
 
@@ -185,8 +184,7 @@ void main() {
         ),
       ];
       SharedPreferences.setMockInitialValues({
-        'ai_chat_history':
-            jsonEncode(saved.map((m) => m.toJson()).toList()),
+        'ai_chat_history': jsonEncode(saved.map((m) => m.toJson()).toList()),
       });
 
       await provider.loadHistory();

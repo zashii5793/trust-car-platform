@@ -46,14 +46,11 @@ class FleetService {
   }
 
   /// Calculates fleet-wide urgency stats.
-  Future<Result<FleetStats, AppError>> getFleetStats(
-      String companyId) async {
+  Future<Result<FleetStats, AppError>> getFleetStats(String companyId) async {
     try {
       final snap = companyId.isEmpty
           ? await _vehiclesRef.where('companyId', isEqualTo: '').get()
-          : await _vehiclesRef
-              .where('companyId', isEqualTo: companyId)
-              .get();
+          : await _vehiclesRef.where('companyId', isEqualTo: companyId).get();
 
       final vehicles = snap.docs.map(Vehicle.fromFirestore).toList();
       int critical = 0, warning = 0, normal = 0;
@@ -209,8 +206,7 @@ class FleetService {
       for (var i = 0; i < vehicleIds.length; i += 10) {
         final chunk = vehicleIds.sublist(
             i, i + 10 > vehicleIds.length ? vehicleIds.length : i + 10);
-        final snap =
-            await recordsRef.where('vehicleId', whereIn: chunk).get();
+        final snap = await recordsRef.where('vehicleId', whereIn: chunk).get();
 
         for (final doc in snap.docs) {
           final data = doc.data();
@@ -224,8 +220,7 @@ class FleetService {
           summaries[vehicleId] = MaintenanceSummary(
             lastMaintenanceDate: prev?.lastMaintenanceDate == null
                 ? date
-                : (date != null &&
-                        date.isAfter(prev!.lastMaintenanceDate!)
+                : (date != null && date.isAfter(prev!.lastMaintenanceDate!)
                     ? date
                     : prev!.lastMaintenanceDate),
             totalCost: (prev?.totalCost ?? 0) + cost,

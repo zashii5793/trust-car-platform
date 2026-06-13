@@ -183,8 +183,8 @@ class Injection {
         () => const MaintenanceScheduleService());
 
     // Vehicle Spec Service (community-contributed grade spec data)
-    locator.registerLazySingleton<VehicleSpecService>(
-        () => VehicleSpecService());
+    locator
+        .registerLazySingleton<VehicleSpecService>(() => VehicleSpecService());
 
     // Maintenance Trend Service (pure analytics — no Firestore)
     locator.registerLazySingleton<MaintenanceTrendService>(
@@ -224,8 +224,8 @@ class Injection {
         () => VehicleRetirementService());
 
     // Fleet Member Service (role-based access control for fleet members)
-    locator.registerLazySingleton<FleetMemberService>(
-        () => FleetMemberService());
+    locator
+        .registerLazySingleton<FleetMemberService>(() => FleetMemberService());
 
     // Shop Comparison Service (pure comparison/recommendation — no Firestore)
     locator.registerLazySingleton<ShopComparisonService>(

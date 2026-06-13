@@ -60,7 +60,8 @@ class CommunityTrendInsight {
   Map<String, dynamic> toMap() => {
         'type': typeKey,
         if (medianIntervalKm != null) 'medianIntervalKm': medianIntervalKm,
-        if (medianIntervalDays != null) 'medianIntervalDays': medianIntervalDays,
+        if (medianIntervalDays != null)
+          'medianIntervalDays': medianIntervalDays,
         if (medianCost != null) 'medianCost': medianCost,
         'sampleCount': sampleCount,
         if (popularityPercent != null) 'popularityPercent': popularityPercent,
@@ -124,10 +125,8 @@ class CommunityTrendService {
     }
 
     try {
-      final doc = await _firestore
-          .collection(_collection)
-          .doc('${maker}_$model')
-          .get();
+      final doc =
+          await _firestore.collection(_collection).doc('${maker}_$model').get();
 
       if (!doc.exists) {
         return const Result.failure(
@@ -163,9 +162,7 @@ class CommunityTrendService {
     }
 
     try {
-      final docRef = _firestore
-          .collection(_collection)
-          .doc('${maker}_$model');
+      final docRef = _firestore.collection(_collection).doc('${maker}_$model');
 
       await _firestore.runTransaction((tx) async {
         final snapshot = await tx.get(docRef);
@@ -197,8 +194,8 @@ class CommunityTrendService {
               .map((e) => Map<String, dynamic>.from(e as Map)),
         );
 
-        final idx = existingInsights
-            .indexWhere((i) => i['type'] == maintenanceTypeKey);
+        final idx =
+            existingInsights.indexWhere((i) => i['type'] == maintenanceTypeKey);
 
         if (idx >= 0) {
           final old = existingInsights[idx];

@@ -86,9 +86,8 @@ class ShopComparisonService {
     required List<ShopComparisonResult> results,
     required ServiceCategory primaryNeed,
   }) {
-    final candidates = results
-        .where((r) => r.shop.offersService(primaryNeed))
-        .toList();
+    final candidates =
+        results.where((r) => r.shop.offersService(primaryNeed)).toList();
 
     if (candidates.isEmpty) return null;
 

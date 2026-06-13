@@ -59,8 +59,7 @@ class SafetyTip {
   final DateTime publishedAt;
 
   /// Mandatory disclaimer shown with every safety tip.
-  static const disclaimer =
-      '本情報は公式機関の情報に基づいていますが、最新の法令・規制は各機関の公式サイトでご確認ください。'
+  static const disclaimer = '本情報は公式機関の情報に基づいていますが、最新の法令・規制は各機関の公式サイトでご確認ください。'
       '本アプリは安全運転の代替とはなりません。';
 
   const SafetyTip({

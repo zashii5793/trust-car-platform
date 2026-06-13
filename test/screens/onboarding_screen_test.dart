@@ -164,8 +164,7 @@ void main() {
     // AuthWrapper（main.dart）は OnboardingScreen を home として直接埋め込む。
     // pushReplacement で home ルートを破棄すると認証監視が失われるため、
     // onCompleted コールバック方式で AuthWrapper 側が画面を切り替える。
-    testWidgets('onCompleted が渡されたらスキップ時にコールバックが呼ばれ画面遷移しない',
-        (tester) async {
+    testWidgets('onCompleted が渡されたらスキップ時にコールバックが呼ばれ画面遷移しない', (tester) async {
       var completed = false;
       await tester.pumpWidget(MaterialApp(
         home: OnboardingScreen(onCompleted: () => completed = true),
@@ -185,8 +184,7 @@ void main() {
       expect(prefs.getBool('onboarding_completed'), isTrue);
     });
 
-    testWidgets('onCompleted が渡されたら「はじめる」でもコールバックが呼ばれる',
-        (tester) async {
+    testWidgets('onCompleted が渡されたら「はじめる」でもコールバックが呼ばれる', (tester) async {
       var completed = false;
       await tester.pumpWidget(MaterialApp(
         home: OnboardingScreen(onCompleted: () => completed = true),

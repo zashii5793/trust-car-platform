@@ -49,14 +49,16 @@ class VehicleHistorySharingService {
     }
 
     try {
-      await _firestore.collection(_collection).doc(_docId(vehicleId, shopId)).set({
+      await _firestore
+          .collection(_collection)
+          .doc(_docId(vehicleId, shopId))
+          .set({
         'vehicleId': vehicleId,
         'shopId': shopId,
         'ownerId': ownerId,
         'isActive': true,
         'grantedAt': DateTime.now().millisecondsSinceEpoch,
-        if (expiresAt != null)
-          'expiresAt': expiresAt.millisecondsSinceEpoch,
+        if (expiresAt != null) 'expiresAt': expiresAt.millisecondsSinceEpoch,
       });
       return const Result.success(null);
     } catch (e) {
@@ -83,7 +85,8 @@ class VehicleHistorySharingService {
       final data = doc.data() as Map<String, dynamic>;
       if (data['ownerId'] != ownerId) {
         return const Result.failure(
-          AppError.permission('only the vehicle owner can revoke sharing permission'),
+          AppError.permission(
+              'only the vehicle owner can revoke sharing permission'),
         );
       }
 

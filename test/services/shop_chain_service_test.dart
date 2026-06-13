@@ -101,10 +101,7 @@ void main() {
             chainId: 'kobac',
             chainName: 'コバック',
           );
-          await firestore
-              .collection('shops')
-              .doc(shop.id)
-              .set(shop.toMap());
+          await firestore.collection('shops').doc(shop.id).set(shop.toMap());
         }
         final independent = _shop(id: 'solo-1', name: '独立整備工場');
         await firestore
@@ -176,12 +173,9 @@ void main() {
         final chainId = (await service.createChain(name: 'コバック')).valueOrNull!;
 
         // Create shop with owner
-        final shop = _shop(id: 'shop-x', name: 'テスト工場')
-            .copyWith(ownerId: 'owner-1');
-        await firestore
-            .collection('shops')
-            .doc(shop.id)
-            .set(shop.toMap());
+        final shop =
+            _shop(id: 'shop-x', name: 'テスト工場').copyWith(ownerId: 'owner-1');
+        await firestore.collection('shops').doc(shop.id).set(shop.toMap());
 
         final result = await service.linkShopToChain(
           shopId: 'shop-x',
@@ -192,19 +186,15 @@ void main() {
         expect(result.isSuccess, isTrue);
 
         // Verify shop has chainId set
-        final doc =
-            await firestore.collection('shops').doc('shop-x').get();
+        final doc = await firestore.collection('shops').doc('shop-x').get();
         expect(doc.data()!['chainId'], chainId);
       });
 
       test('異常系: 非オーナーはリンクできない', () async {
         final chainId = (await service.createChain(name: 'コバック')).valueOrNull!;
-        final shop = _shop(id: 'shop-y', name: 'テスト工場')
-            .copyWith(ownerId: 'owner-1');
-        await firestore
-            .collection('shops')
-            .doc(shop.id)
-            .set(shop.toMap());
+        final shop =
+            _shop(id: 'shop-y', name: 'テスト工場').copyWith(ownerId: 'owner-1');
+        await firestore.collection('shops').doc(shop.id).set(shop.toMap());
 
         final result = await service.linkShopToChain(
           shopId: 'shop-y',
@@ -258,10 +248,7 @@ void main() {
           chainId: chainId,
           chainName: 'コバック',
         ).copyWith(ownerId: 'owner-1');
-        await firestore
-            .collection('shops')
-            .doc(shop.id)
-            .set(shop.toMap());
+        await firestore.collection('shops').doc(shop.id).set(shop.toMap());
 
         final result = await service.unlinkShopFromChain(
           shopId: 'shop-z',
@@ -269,8 +256,7 @@ void main() {
         );
 
         expect(result.isSuccess, isTrue);
-        final doc =
-            await firestore.collection('shops').doc('shop-z').get();
+        final doc = await firestore.collection('shops').doc('shop-z').get();
         expect(doc.data()!.containsKey('chainId'), isFalse);
       });
 
@@ -280,10 +266,7 @@ void main() {
           name: 'テスト工場',
           chainId: 'some-chain',
         ).copyWith(ownerId: 'owner-1');
-        await firestore
-            .collection('shops')
-            .doc(shop.id)
-            .set(shop.toMap());
+        await firestore.collection('shops').doc(shop.id).set(shop.toMap());
 
         final result = await service.unlinkShopFromChain(
           shopId: 'shop-locked',

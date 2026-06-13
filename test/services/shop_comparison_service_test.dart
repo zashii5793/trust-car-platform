@@ -74,7 +74,8 @@ void main() {
       expect(shopB.offersRequestedService, false);
     });
 
-    test('offersRequestedService is true when no required services specified', () {
+    test('offersRequestedService is true when no required services specified',
+        () {
       final shops = [
         buildShop(id: 'shop1', name: 'Shop A'),
       ];
@@ -113,7 +114,9 @@ void main() {
   // compare — distance sorting
   // ──────────────────────────────────────────────
   group('compare — distance sorting', () {
-    test('results sorted by distance when user location provided — closer first', () {
+    test(
+        'results sorted by distance when user location provided — closer first',
+        () {
       // Shop near Tokyo station: 35.6812, 139.7671
       // Shop near Osaka station: 34.7024, 135.4959
       // User near Tokyo
@@ -136,9 +139,16 @@ void main() {
 
     test('3 shops comparison returns 3 results', () {
       final shops = [
-        buildShop(id: 'shop1', name: 'Shop A', services: [ServiceCategory.inspection]),
-        buildShop(id: 'shop2', name: 'Shop B', services: [ServiceCategory.maintenance]),
-        buildShop(id: 'shop3', name: 'Shop C', services: [ServiceCategory.repair]),
+        buildShop(
+            id: 'shop1',
+            name: 'Shop A',
+            services: [ServiceCategory.inspection]),
+        buildShop(
+            id: 'shop2',
+            name: 'Shop B',
+            services: [ServiceCategory.maintenance]),
+        buildShop(
+            id: 'shop3', name: 'Shop C', services: [ServiceCategory.repair]),
       ];
 
       final results = service.compare(
@@ -158,7 +168,9 @@ void main() {
   // compare — multiple required services
   // ──────────────────────────────────────────────
   group('compare — service filter', () {
-    test('offersRequestedService true only if ALL required services are offered', () {
+    test(
+        'offersRequestedService true only if ALL required services are offered',
+        () {
       final shopAll = buildShop(
         id: 'shopAll',
         name: 'Full Service Shop',
@@ -248,7 +260,8 @@ void main() {
       expect(recommended, isNull);
     });
 
-    test('recommend picks higher-rated shop when both offer primary service', () {
+    test('recommend picks higher-rated shop when both offer primary service',
+        () {
       final shopHigh = buildShop(
         id: 'shopHigh',
         name: 'High Rated',
@@ -408,7 +421,8 @@ void main() {
         requiredServices: [ServiceCategory.inspection],
       );
 
-      final takayaResult = results.firstWhere((r) => r.shop.id == 'takaya-motor-main');
+      final takayaResult =
+          results.firstWhere((r) => r.shop.id == 'takaya-motor-main');
       final partsResult = results.firstWhere((r) => r.shop.id == 'parts-only');
 
       expect(takayaResult.offersRequestedService, isTrue);
@@ -418,7 +432,10 @@ void main() {
     test('比較: 車検＋鈑金の複数条件でもタカヤモーターが合致する', () {
       final results = service.compare(
         shops: [takayaMotor],
-        requiredServices: [ServiceCategory.inspection, ServiceCategory.bodyWork],
+        requiredServices: [
+          ServiceCategory.inspection,
+          ServiceCategory.bodyWork
+        ],
       );
       expect(results.first.offersRequestedService, isTrue);
     });

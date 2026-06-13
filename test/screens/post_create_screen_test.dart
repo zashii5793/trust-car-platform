@@ -394,8 +394,7 @@ void main() {
         expect(mockService.lastVisibility, PostVisibility.followers);
       });
 
-      testWidgets('自分のみを選択して投稿すると visibility が private_ になる',
-          (tester) async {
+      testWidgets('自分のみを選択して投稿すると visibility が private_ になる', (tester) async {
         await pumpApp(tester, mockService);
 
         await tester.tap(find.text('自分のみ'));
@@ -409,8 +408,7 @@ void main() {
         expect(mockService.lastVisibility, PostVisibility.private_);
       });
 
-      testWidgets('公開範囲を変えた後に全体公開に戻すと visibility が public になる',
-          (tester) async {
+      testWidgets('公開範囲を変えた後に全体公開に戻すと visibility が public になる', (tester) async {
         await pumpApp(tester, mockService);
 
         await tester.tap(find.text('フォロワーのみ'));

@@ -34,8 +34,7 @@ class ShopChainService {
   }
 
   /// Returns all shops belonging to [chainId].
-  Future<Result<List<Shop>, AppError>> getShopsInChain(
-      String chainId) async {
+  Future<Result<List<Shop>, AppError>> getShopsInChain(String chainId) async {
     if (chainId.trim().isEmpty) {
       return const Result.failure(
           AppError.validation('chainId must not be empty'));
@@ -98,8 +97,7 @@ class ShopChainService {
           AppError.validation('chainId must not be empty'));
     }
     try {
-      final shopDoc =
-          await _firestore.collection(_shops).doc(shopId).get();
+      final shopDoc = await _firestore.collection(_shops).doc(shopId).get();
       if (!shopDoc.exists) {
         return Result.failure(AppError.notFound('Shop not found: $shopId'));
       }
@@ -110,11 +108,9 @@ class ShopChainService {
             AppError.permission('only the shop owner can link to a chain'));
       }
 
-      final chainDoc =
-          await _firestore.collection(_chains).doc(chainId).get();
-      final chainName = chainDoc.exists
-          ? (chainDoc.data()?['name'] as String?) ?? ''
-          : '';
+      final chainDoc = await _firestore.collection(_chains).doc(chainId).get();
+      final chainName =
+          chainDoc.exists ? (chainDoc.data()?['name'] as String?) ?? '' : '';
 
       await _firestore.collection(_shops).doc(shopId).update({
         'chainId': chainId,
@@ -146,8 +142,7 @@ class ShopChainService {
           AppError.validation('shopId must not be empty'));
     }
     try {
-      final shopDoc =
-          await _firestore.collection(_shops).doc(shopId).get();
+      final shopDoc = await _firestore.collection(_shops).doc(shopId).get();
       if (!shopDoc.exists) {
         return Result.failure(AppError.notFound('Shop not found: $shopId'));
       }

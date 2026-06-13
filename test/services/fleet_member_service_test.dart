@@ -81,7 +81,8 @@ void main() {
       expect(result.valueOrNull!.role, FleetRole.staff);
     });
 
-    test('non-owner (manager) cannot add member — returns permission error', () async {
+    test('non-owner (manager) cannot add member — returns permission error',
+        () async {
       await seedOwner(companyId: 'company1', userId: 'owner1');
       await seedMember(
         companyId: 'company1',
@@ -207,7 +208,8 @@ void main() {
       expect(result.errorOrNull, isA<PermissionError>());
     });
 
-    test('updating role of non-existent member returns notFound error', () async {
+    test('updating role of non-existent member returns notFound error',
+        () async {
       await seedOwner(companyId: 'company1', userId: 'owner1');
 
       final result = await service.updateRole(

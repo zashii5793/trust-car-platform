@@ -216,8 +216,7 @@ void main() {
           companyId: companyId,
           licensePlate: '足立 100 あ ${i.toString().padLeft(2, '0')}-00',
           inspectionExpiryDate: expiry,
-          useCategory:
-              i < 10 ? VehicleUseCategory.cargo : null, // 半分は貨物車
+          useCategory: i < 10 ? VehicleUseCategory.cargo : null, // 半分は貨物車
           assigneeName: i.isEven ? '総務 花子' : null,
         ));
       }
@@ -257,10 +256,9 @@ void main() {
       // ソート確認: 満了日昇順
       for (var i = 0; i < targets.length - 1; i++) {
         expect(
-          targets[i]
+          targets[i].inspectionExpiryDate!.isBefore(targets[i + 1]
               .inspectionExpiryDate!
-              .isBefore(targets[i + 1].inspectionExpiryDate!.add(
-                  const Duration(seconds: 1))),
+              .add(const Duration(seconds: 1))),
           isTrue,
         );
       }
@@ -450,8 +448,8 @@ void main() {
       }
 
       final sorted = List<Shop>.of(nearbyShops)
-        ..sort((a, b) =>
-            haversine(a.location!).compareTo(haversine(b.location!)));
+        ..sort(
+            (a, b) => haversine(a.location!).compareTo(haversine(b.location!)));
       expect(sorted.map((s) => s.id),
           ['inspection-pro', 'custom-garage', 'dealer-service']);
     });
@@ -510,15 +508,43 @@ void main() {
       final base = DateTime(2020, 6, 1);
       priusHistory = [
         // Oil changes every ~5000km / 6 months
-        _maintenanceRecord(type: MaintenanceType.oilChange, date: base, mileage: 10000, cost: 4200),
-        _maintenanceRecord(type: MaintenanceType.oilChange, date: base.add(const Duration(days: 180)), mileage: 15000, cost: 4400),
-        _maintenanceRecord(type: MaintenanceType.oilChange, date: base.add(const Duration(days: 360)), mileage: 20000, cost: 4100),
-        _maintenanceRecord(type: MaintenanceType.oilChange, date: base.add(const Duration(days: 540)), mileage: 25000, cost: 4300),
+        _maintenanceRecord(
+            type: MaintenanceType.oilChange,
+            date: base,
+            mileage: 10000,
+            cost: 4200),
+        _maintenanceRecord(
+            type: MaintenanceType.oilChange,
+            date: base.add(const Duration(days: 180)),
+            mileage: 15000,
+            cost: 4400),
+        _maintenanceRecord(
+            type: MaintenanceType.oilChange,
+            date: base.add(const Duration(days: 360)),
+            mileage: 20000,
+            cost: 4100),
+        _maintenanceRecord(
+            type: MaintenanceType.oilChange,
+            date: base.add(const Duration(days: 540)),
+            mileage: 25000,
+            cost: 4300),
         // Tire change every ~2 years
-        _maintenanceRecord(type: MaintenanceType.tireChange, date: base.add(const Duration(days: 365)), mileage: 18000, cost: 32000),
-        _maintenanceRecord(type: MaintenanceType.tireChange, date: base.add(const Duration(days: 730)), mileage: 28000, cost: 34000),
+        _maintenanceRecord(
+            type: MaintenanceType.tireChange,
+            date: base.add(const Duration(days: 365)),
+            mileage: 18000,
+            cost: 32000),
+        _maintenanceRecord(
+            type: MaintenanceType.tireChange,
+            date: base.add(const Duration(days: 730)),
+            mileage: 28000,
+            cost: 34000),
         // Battery change once
-        _maintenanceRecord(type: MaintenanceType.batteryChange, date: base.add(const Duration(days: 1200)), mileage: 40000, cost: 15000),
+        _maintenanceRecord(
+            type: MaintenanceType.batteryChange,
+            date: base.add(const Duration(days: 1200)),
+            mileage: 40000,
+            cost: 15000),
       ];
 
       // Seed community trend data for Prius
@@ -576,7 +602,9 @@ void main() {
 
     test('タイヤ交換は2年毎のパターンが信頼度mediumで認識される', () {
       final trends = trendService.analyzeHistory(
-        priusHistory.where((r) => r.type == MaintenanceType.tireChange).toList(),
+        priusHistory
+            .where((r) => r.type == MaintenanceType.tireChange)
+            .toList(),
       );
       final tireTrend = trends.first;
 
@@ -586,15 +614,19 @@ void main() {
 
     test('バッテリー交換は1件のみで confidence=low', () {
       final trends = trendService.analyzeHistory(
-        priusHistory.where((r) => r.type == MaintenanceType.batteryChange).toList(),
+        priusHistory
+            .where((r) => r.type == MaintenanceType.batteryChange)
+            .toList(),
       );
       expect(trends.first.confidence, equals(TrendConfidence.low));
       expect(trends.first.averageIntervalKm, isNull);
     });
 
     test('sortByUrgency: オイル交換が最も緊急として上位に来る', () {
-      final now = DateTime(2021, 7, 1); // last oil at day 540 → ~22 days overdue
-      final trends = trendService.analyzeHistory(priusHistory, currentMileage: 28000, currentDate: now);
+      final now =
+          DateTime(2021, 7, 1); // last oil at day 540 → ~22 days overdue
+      final trends = trendService.analyzeHistory(priusHistory,
+          currentMileage: 28000, currentDate: now);
       final sorted = trendService.sortByUrgency(trends, currentDate: now);
 
       expect(sorted.first.type, equals(MaintenanceType.oilChange));
@@ -642,7 +674,8 @@ void main() {
         category: FaqCategory.inspection,
         authorId: 'persona-d-user',
         allowShopResponse: true,
-      )).valueOrNull!;
+      ))
+          .valueOrNull!;
 
       final answer = await faqService.addAnswer(
         faqId: faqId,
@@ -663,7 +696,8 @@ void main() {
         category: FaqCategory.inspection,
         authorId: 'persona-d-user',
         allowShopResponse: true,
-      )).valueOrNull!;
+      ))
+          .valueOrNull!;
 
       final shopAnswer = await faqService.addAnswer(
         faqId: faqId,
@@ -686,7 +720,8 @@ void main() {
         category: FaqCategory.general,
         authorId: 'persona-d-user',
         allowShopResponse: false,
-      )).valueOrNull!;
+      ))
+          .valueOrNull!;
 
       final result = await faqService.addAnswer(
         faqId: faqId,
@@ -705,14 +740,16 @@ void main() {
         category: FaqCategory.maintenance,
         authorId: 'persona-d-user',
         allowShopResponse: false,
-      )).valueOrNull!;
+      ))
+          .valueOrNull!;
 
       final answerId = (await faqService.addAnswer(
         faqId: faqId,
         content: '最も的確な回答です',
         authorId: 'expert-user',
         isShopResponse: false,
-      )).valueOrNull!;
+      ))
+          .valueOrNull!;
 
       final best = await faqService.markBestAnswer(
         faqId: faqId,
@@ -920,7 +957,8 @@ void main() {
       );
 
       expect(result.isSuccess, isTrue);
-      final doc = await fakeFirestore.collection('vehicles').doc('prius-f1').get();
+      final doc =
+          await fakeFirestore.collection('vehicles').doc('prius-f1').get();
       expect(doc.data()!['status'], 'sold');
       expect(doc.data()!['retirementNote'], 'ガリバー買取 35万円');
       expect(doc.data()!['isDataRetained'], isTrue);
@@ -939,7 +977,8 @@ void main() {
         retainData: true,
       );
 
-      final doc = await fakeFirestore.collection('vehicles').doc('prius-f1').get();
+      final doc =
+          await fakeFirestore.collection('vehicles').doc('prius-f1').get();
       expect(doc.data()!['isDataRetained'], isTrue);
     });
 
@@ -956,7 +995,8 @@ void main() {
         retainData: false,
       );
 
-      final doc = await fakeFirestore.collection('vehicles').doc('prius-f1').get();
+      final doc =
+          await fakeFirestore.collection('vehicles').doc('prius-f1').get();
       expect(doc.data()!['isDataRetained'], isFalse);
     });
 
@@ -972,7 +1012,8 @@ void main() {
       );
 
       expect(result.isSuccess, isTrue);
-      final doc = await fakeFirestore.collection('vehicles').doc('prius-f1').get();
+      final doc =
+          await fakeFirestore.collection('vehicles').doc('prius-f1').get();
       expect(doc.data()!['status'], 'active');
     });
 
@@ -985,13 +1026,14 @@ void main() {
           .collection('vehicles')
           .doc('sold-1')
           .set(_priusOwned(id: 'sold-1', status: VehicleStatus.sold).toMap());
-      await fakeFirestore
-          .collection('vehicles')
-          .doc('scrapped-1')
-          .set(_priusOwned(id: 'scrapped-1', status: VehicleStatus.scrapped).toMap());
+      await fakeFirestore.collection('vehicles').doc('scrapped-1').set(
+          _priusOwned(id: 'scrapped-1', status: VehicleStatus.scrapped)
+              .toMap());
 
-      final retired = await retirementService.getRetiredVehicles('persona-f-user');
-      final active = await retirementService.getActiveVehicles('persona-f-user');
+      final retired =
+          await retirementService.getRetiredVehicles('persona-f-user');
+      final active =
+          await retirementService.getActiveVehicles('persona-f-user');
 
       expect(retired.valueOrNull!, hasLength(2));
       expect(active.valueOrNull!, hasLength(1));
@@ -1139,7 +1181,8 @@ void main() {
       final tireRecords = leafHistory
           .where((r) => r.type == MaintenanceType.tireChange)
           .toList();
-      final trends = trendService.analyzeHistory(tireRecords, currentMileage: 25000);
+      final trends =
+          trendService.analyzeHistory(tireRecords, currentMileage: 25000);
       expect(trends.first.averageIntervalKm, closeTo(12000, 100));
     });
 
@@ -1165,16 +1208,16 @@ void main() {
         maker: 'Nissan',
         model: 'Leaf',
       );
-      final hasTypeTire = result.valueOrNull!.insights
-          .any((i) => i.typeKey == 'tireChange');
+      final hasTypeTire =
+          result.valueOrNull!.insights.any((i) => i.typeKey == 'tireChange');
       expect(hasTypeTire, isTrue);
     });
 
     group('Edge Cases', () {
       test('EVは全整備タイプで分析しても0件のoilChangeはスキップされる', () {
         final trends = trendService.analyzeHistory(leafHistory);
-        final oilTrend = trends.where(
-            (t) => t.type == MaintenanceType.oilChange).toList();
+        final oilTrend =
+            trends.where((t) => t.type == MaintenanceType.oilChange).toList();
         expect(oilTrend, isEmpty);
       });
     });
@@ -1238,7 +1281,8 @@ void main() {
           userId: 'persona-h-user',
         ),
       ];
-      final trends = trendService.analyzeHistory(records, currentMileage: 85000);
+      final trends =
+          trendService.analyzeHistory(records, currentMileage: 85000);
       expect(trends.first.averageIntervalKm, closeTo(3000, 50));
     });
 
@@ -1401,7 +1445,8 @@ void main() {
         userId: 'persona-i-user',
         condition: const CarPurchaseCondition(),
         message: '検討中',
-      )).valueOrNull!;
+      ))
+          .valueOrNull!;
 
       final closeResult = await purchaseService.closeInquiry(
         inquiryId: id,

@@ -50,8 +50,7 @@ void main() {
         final tip = _tip();
         await _seedTip(tip);
 
-        final doc =
-            await firestore.collection('safety_tips').doc(tip.id).get();
+        final doc = await firestore.collection('safety_tips').doc(tip.id).get();
         final restored = SafetyTip.fromFirestore(doc);
 
         expect(restored.title, tip.title);
@@ -141,8 +140,7 @@ void main() {
         final result = await service.getTips();
         expect(result.isSuccess, isTrue);
         expect(result.valueOrNull!, hasLength(2));
-        expect(
-            result.valueOrNull!.every((t) => t.isActive), isTrue);
+        expect(result.valueOrNull!.every((t) => t.isActive), isTrue);
       });
 
       test('正常系: カテゴリでフィルタできる', () async {

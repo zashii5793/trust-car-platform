@@ -202,10 +202,8 @@ class _VehicleModelFilterBar extends StatelessWidget {
         if (vehicles.isEmpty) return const SizedBox.shrink();
 
         // Collect unique model names across user's vehicles
-        final modelNames = vehicles
-            .map((v) => '${v.maker} ${v.model}')
-            .toSet()
-            .toList();
+        final modelNames =
+            vehicles.map((v) => '${v.maker} ${v.model}').toSet().toList();
 
         return SizedBox(
           height: 40,
@@ -261,10 +259,7 @@ class _ModelChip extends StatelessWidget {
       padding: const EdgeInsets.only(right: 8),
       child: ChoiceChip(
         avatar: Icon(icon,
-            size: 13,
-            color: selected
-                ? Colors.white
-                : AppColors.accentDrive),
+            size: 13, color: selected ? Colors.white : AppColors.accentDrive),
         label: Text(label),
         selected: selected,
         onSelected: (_) => onTap(),

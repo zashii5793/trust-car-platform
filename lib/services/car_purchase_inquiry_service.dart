@@ -81,8 +81,7 @@ class CarPurchaseInquiryService {
     required String requesterId,
   }) async {
     try {
-      final doc =
-          await _firestore.collection(_collection).doc(inquiryId).get();
+      final doc = await _firestore.collection(_collection).doc(inquiryId).get();
       if (!doc.exists) {
         return Result.failure(
             AppError.notFound('Inquiry not found: $inquiryId'));
@@ -126,8 +125,7 @@ class CarPurchaseInquiryService {
     if (c.maxPrice != null) params['KAKAKU_MAX'] = c.maxPrice.toString();
     if (c.maxMileage != null) params['MILEAGE_MAX'] = c.maxMileage.toString();
 
-    final query =
-        params.entries.map((e) => '${e.key}=${e.value}').join('&');
+    final query = params.entries.map((e) => '${e.key}=${e.value}').join('&');
     return 'https://www.carsensor.net/usedcar/search/?$query';
   }
 
@@ -140,8 +138,7 @@ class CarPurchaseInquiryService {
     if (c.maxPrice != null) params['price_max'] = c.maxPrice.toString();
     if (c.maxMileage != null) params['mileage_max'] = c.maxMileage.toString();
 
-    final query =
-        params.entries.map((e) => '${e.key}=${e.value}').join('&');
+    final query = params.entries.map((e) => '${e.key}=${e.value}').join('&');
     return 'https://www.goo-net.com/usedcar/search/?$query';
   }
 

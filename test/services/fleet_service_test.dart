@@ -100,7 +100,8 @@ void main() {
     });
 
     test('companyId が null の車両は返さない', () async {
-      await _seedVehicle(fakeFirestore, _makeVehicle(id: 'v1', companyId: null));
+      await _seedVehicle(
+          fakeFirestore, _makeVehicle(id: 'v1', companyId: null));
 
       final stream = service.getCompanyVehicles('company-A');
       final vehicles = await stream.first;
@@ -170,14 +171,13 @@ void main() {
           await service.linkVehicleToCompany('v1', 'company-A', 'u1');
 
       expect(result, isA<Success>());
-      final doc =
-          await fakeFirestore.collection('vehicles').doc('v1').get();
+      final doc = await fakeFirestore.collection('vehicles').doc('v1').get();
       expect(doc.data()?['companyId'], 'company-A');
     });
 
     test('存在しない vehicleId → notFound エラー', () async {
-      final result = await service.linkVehicleToCompany(
-          'nonexistent', 'company-A', 'u1');
+      final result =
+          await service.linkVehicleToCompany('nonexistent', 'company-A', 'u1');
 
       result.when(
         success: (_) => fail('Expected failure'),
@@ -203,14 +203,12 @@ void main() {
 
   group('FleetStats', () {
     test('urgencyRatio が正しく計算される', () {
-      final stats =
-          FleetStats(total: 10, critical: 2, warning: 3, normal: 5);
+      final stats = FleetStats(total: 10, critical: 2, warning: 3, normal: 5);
       expect(stats.urgencyRatio, closeTo(0.2, 0.001));
     });
 
     test('total が 0 のとき urgencyRatio は 0', () {
-      final stats =
-          FleetStats(total: 0, critical: 0, warning: 0, normal: 0);
+      final stats = FleetStats(total: 0, critical: 0, warning: 0, normal: 0);
       expect(stats.urgencyRatio, 0.0);
     });
   });
@@ -221,7 +219,8 @@ void main() {
     test('正常系: 車両にフリートコードを設定できる', () async {
       await _seedVehicle(fakeFirestore, _makeVehicle(id: 'v1', userId: 'u1'));
 
-      final result = await service.joinFleetByCode('fleet-owner-uid', 'v1', 'u1');
+      final result =
+          await service.joinFleetByCode('fleet-owner-uid', 'v1', 'u1');
       expect(result, isA<Success>());
       final doc = await fakeFirestore.collection('vehicles').doc('v1').get();
       expect(doc.data()?['companyId'], 'fleet-owner-uid');
@@ -286,8 +285,8 @@ void main() {
     test('担当者を設定できる', () async {
       await _seedVehicle(fakeFirestore,
           _makeVehicle(id: 'v1', userId: 'staff', companyId: 'manager-uid'));
-      final result = await service.assignVehicle(
-          'v1', 'staff-123', '田中太郎', 'manager-uid');
+      final result =
+          await service.assignVehicle('v1', 'staff-123', '田中太郎', 'manager-uid');
       expect(result, isA<Success>());
       final doc = await fakeFirestore.collection('vehicles').doc('v1').get();
       expect(doc.data()?['assigneeId'], 'staff-123');
@@ -297,8 +296,7 @@ void main() {
     test('空の assigneeId はnullとして保存される', () async {
       await _seedVehicle(fakeFirestore,
           _makeVehicle(id: 'v1', userId: 'staff', companyId: 'manager-uid'));
-      final result =
-          await service.assignVehicle('v1', '', '', 'manager-uid');
+      final result = await service.assignVehicle('v1', '', '', 'manager-uid');
       expect(result, isA<Success>());
       final doc = await fakeFirestore.collection('vehicles').doc('v1').get();
       expect(doc.data()?['assigneeId'], isNull);
@@ -347,8 +345,7 @@ void main() {
     test('100台の車両でも正しく集計できる', () async {
       for (var i = 0; i < 100; i++) {
         await _seedVehicle(
-            fakeFirestore,
-            _makeVehicle(id: 'v$i', companyId: 'company-A'));
+            fakeFirestore, _makeVehicle(id: 'v$i', companyId: 'company-A'));
       }
       final stream = service.getCompanyVehicles('company-A');
       final vehicles = await stream.first;

@@ -95,8 +95,7 @@ void main() {
     test('新規作成 → contributorCount: 1 で保存される', () async {
       final grade = _makeGrade(engineDisplacement: 1800, fuelType: 'hybrid');
 
-      final result =
-          await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+      final result = await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
           contributorId: 'user-1');
       expect(result.isSuccess, isTrue);
 
@@ -159,8 +158,7 @@ void main() {
       expect(doc.data()!['contributorIds'], ['user-1']);
     });
 
-    test('同一ユーザーが繰り返し保存しても contributorCount は増えない（水増し防止）',
-        () async {
+    test('同一ユーザーが繰り返し保存しても contributorCount は増えない（水増し防止）', () async {
       final grade = _makeGrade(engineDisplacement: 1800);
       for (var i = 0; i < 5; i++) {
         await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
@@ -226,8 +224,7 @@ void main() {
       await seedSpec('G');
       await seedSpec('Z', year: 2020); // different year — excluded
 
-      final result =
-          await service.fetchSpecsForModel('トヨタ', 'プリウス', 2022);
+      final result = await service.fetchSpecsForModel('トヨタ', 'プリウス', 2022);
 
       expect(result.isSuccess, isTrue);
       expect(result.valueOrNull!.length, 2);
@@ -237,8 +234,7 @@ void main() {
       await seedSpec('S', contributorCount: 1);
       await seedSpec('G', contributorCount: 5);
 
-      final result =
-          await service.fetchSpecsForModel('トヨタ', 'プリウス', 2022);
+      final result = await service.fetchSpecsForModel('トヨタ', 'プリウス', 2022);
 
       final specs = result.valueOrNull!;
       expect(specs.first.contributorCount, 5);
@@ -246,8 +242,7 @@ void main() {
     });
 
     test('一致なし → 空リスト', () async {
-      final result =
-          await service.fetchSpecsForModel('ホンダ', 'フィット', 2022);
+      final result = await service.fetchSpecsForModel('ホンダ', 'フィット', 2022);
       expect(result.isSuccess, isTrue);
       expect(result.valueOrNull!, isEmpty);
     });
@@ -266,8 +261,7 @@ void main() {
     test('saveSpec に imageUrl を渡す → sampleImageUrl が保存される', () async {
       final grade = _makeGrade(engineDisplacement: 1800);
       await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
-          contributorId: 'user-1',
-          imageUrl: 'https://example.com/prius.jpg');
+          contributorId: 'user-1', imageUrl: 'https://example.com/prius.jpg');
 
       final doc = await fakeFirestore
           .collection('vehicle_grade_specs')
@@ -292,8 +286,8 @@ void main() {
       });
 
       final result = await service.fetchSpec('トヨタ', 'プリウス', 2022, 'S');
-      expect(result.valueOrNull!.sampleImageUrl,
-          'https://example.com/prius.jpg');
+      expect(
+          result.valueOrNull!.sampleImageUrl, 'https://example.com/prius.jpg');
     });
 
     test('既存ドキュメントに sampleImageUrl がない → 後続投稿者の写真で補完される', () async {
@@ -312,8 +306,7 @@ void main() {
 
       final grade = _makeGrade(engineDisplacement: 9999);
       await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
-          contributorId: 'user-1',
-          imageUrl: 'https://example.com/late.jpg');
+          contributorId: 'user-1', imageUrl: 'https://example.com/late.jpg');
 
       final doc = await fakeFirestore
           .collection('vehicle_grade_specs')
@@ -340,8 +333,7 @@ void main() {
 
       final grade = _makeGrade();
       await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
-          contributorId: 'user-1',
-          imageUrl: 'https://example.com/second.jpg');
+          contributorId: 'user-1', imageUrl: 'https://example.com/second.jpg');
 
       final doc = await fakeFirestore
           .collection('vehicle_grade_specs')
@@ -405,8 +397,7 @@ void main() {
         standardEquipment: ['バックカメラ'],
       );
       await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
-          contributorId: 'user-1',
-          imageUrl: 'https://example.com/car.jpg');
+          contributorId: 'user-1', imageUrl: 'https://example.com/car.jpg');
 
       final doc = await fakeFirestore
           .collection('vehicle_grade_specs')

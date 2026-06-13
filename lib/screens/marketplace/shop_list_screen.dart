@@ -135,8 +135,9 @@ class _ShopListScreenState extends State<ShopListScreen> {
                       )
                     : const Icon(Icons.near_me_outlined),
                 tooltip: '近い順に並べ替え',
-                onPressed:
-                    _isLocating || provider.shops.isEmpty ? null : _sortByDistance,
+                onPressed: _isLocating || provider.shops.isEmpty
+                    ? null
+                    : _sortByDistance,
               ),
               if (!provider.isLoading)
                 IconButton(
@@ -880,9 +881,7 @@ class _ComparePanelBar extends StatelessWidget {
         child: Row(
           children: [
             Text(
-              selectedCount == 0
-                  ? '工場を2〜3件選んでください'
-                  : '$selectedCount件選択中',
+              selectedCount == 0 ? '工場を2〜3件選んでください' : '$selectedCount件選択中',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const Spacer(),

@@ -40,8 +40,8 @@ class _RetiredVehiclesScreenState extends State<RetiredVehiclesScreen> {
     result.when(
       success: (vehicles) => setState(() {
         _vehicles = vehicles
-          ..sort((a, b) =>
-              (b.retiredAt ?? DateTime(0)).compareTo(a.retiredAt ?? DateTime(0)));
+          ..sort((a, b) => (b.retiredAt ?? DateTime(0))
+              .compareTo(a.retiredAt ?? DateTime(0)));
         _isLoading = false;
       }),
       failure: (e) => setState(() {
@@ -276,14 +276,26 @@ class _RetiredVehicleCard extends StatelessWidget {
   (String, Color, IconData) _statusInfo(VehicleStatus status) =>
       switch (status) {
         VehicleStatus.sold => ('売却済み', AppColors.warning, Icons.sell_outlined),
-        VehicleStatus.scrapped =>
-          ('廃車済み', AppColors.error, Icons.delete_outline),
-        VehicleStatus.leaseReturned =>
-          ('リース返却', AppColors.secondary, Icons.assignment_return_outlined),
-        VehicleStatus.transferred =>
-          ('譲渡済み', AppColors.primary, Icons.swap_horiz_outlined),
-        VehicleStatus.active =>
-          ('使用中', AppColors.success, Icons.check_circle_outline),
+        VehicleStatus.scrapped => (
+            '廃車済み',
+            AppColors.error,
+            Icons.delete_outline
+          ),
+        VehicleStatus.leaseReturned => (
+            'リース返却',
+            AppColors.secondary,
+            Icons.assignment_return_outlined
+          ),
+        VehicleStatus.transferred => (
+            '譲渡済み',
+            AppColors.primary,
+            Icons.swap_horiz_outlined
+          ),
+        VehicleStatus.active => (
+            '使用中',
+            AppColors.success,
+            Icons.check_circle_outline
+          ),
       };
 
   String _formatDate(DateTime date) {

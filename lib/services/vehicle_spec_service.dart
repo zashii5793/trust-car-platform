@@ -45,9 +45,7 @@ class VehicleSpecService {
       _firestore.collection(FirestoreCollections.vehicleGradeSpecs);
 
   static String specId(String maker, String model, int year, String grade) =>
-      '${maker}_${model}_${year}_$grade'
-          .replaceAll(' ', '_')
-          .toLowerCase();
+      '${maker}_${model}_${year}_$grade'.replaceAll(' ', '_').toLowerCase();
 
   /// Fetches spec data from the community collection.
   /// Returns [null] if no data exists yet for this combination.
@@ -62,8 +60,7 @@ class VehicleSpecService {
           AppError.validation('model must not be empty', field: 'model'));
     }
     try {
-      final doc =
-          await _specsRef.doc(specId(maker, model, year, grade)).get();
+      final doc = await _specsRef.doc(specId(maker, model, year, grade)).get();
       if (!doc.exists) {
         return const Result.success(null);
       }
@@ -147,13 +144,8 @@ class VehicleSpecService {
   ///   badge ("N人が確認") cannot be inflated by editing one's own vehicle.
   ///   The first contributor's data is preserved as the source of truth.
   Future<Result<void, AppError>> saveSpec(
-      String maker,
-      String model,
-      int year,
-      String grade,
-      VehicleGrade specData,
-      {required String contributorId,
-      String? imageUrl}) async {
+      String maker, String model, int year, String grade, VehicleGrade specData,
+      {required String contributorId, String? imageUrl}) async {
     if (maker.isEmpty) {
       return const Result.failure(
           AppError.validation('maker must not be empty', field: 'maker'));

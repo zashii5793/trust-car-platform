@@ -67,8 +67,7 @@ class AccessoryShowcase {
       imageUrls: List<String>.from(data['imageUrls'] ?? []),
       review: data['review'],
       helpfulCount: data['helpfulCount'] ?? 0,
-      createdAt:
-          (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 

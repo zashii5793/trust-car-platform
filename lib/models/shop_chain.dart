@@ -38,10 +38,8 @@ class ShopChain {
       description: data['description'],
       shopCount: data['shopCount'] ?? 0,
       isActive: data['isActive'] ?? true,
-      createdAt:
-          (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt:
-          (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 

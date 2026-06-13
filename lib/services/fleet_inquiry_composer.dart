@@ -27,8 +27,8 @@ class FleetInquiryComposer {
       final days = v.daysUntilInspection;
       return days != null && days <= inspectionWindowDays;
     }).toList();
-    targets.sort((a, b) =>
-        a.inspectionExpiryDate!.compareTo(b.inspectionExpiryDate!));
+    targets.sort(
+        (a, b) => a.inspectionExpiryDate!.compareTo(b.inspectionExpiryDate!));
     return targets;
   }
 

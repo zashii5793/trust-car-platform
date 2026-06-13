@@ -210,7 +210,8 @@ class _FleetMemberScreenState extends State<FleetMemberScreen> {
     if (_members.isEmpty) {
       return const Center(
         key: Key('fleet_members_empty'),
-        child: Text('メンバーがいません', style: TextStyle(color: AppColors.textSecondary)),
+        child:
+            Text('メンバーがいません', style: TextStyle(color: AppColors.textSecondary)),
       );
     }
 
@@ -389,7 +390,8 @@ class _RoleDropdown extends StatelessWidget {
           .where((r) => r != FleetRole.owner)
           .map((r) => DropdownMenuItem(
                 value: r,
-                child: Text(_roleLabel(r), style: const TextStyle(fontSize: 13)),
+                child:
+                    Text(_roleLabel(r), style: const TextStyle(fontSize: 13)),
               ))
           .toList(),
       onChanged: (r) {

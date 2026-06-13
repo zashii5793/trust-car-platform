@@ -25,8 +25,7 @@ class _AccessoryShowcaseScreenState extends State<AccessoryShowcaseScreen>
   late final TabController _tabController;
 
   final _categories = [null, ...AccessoryCategory.values];
-  final _trendsByCategory =
-      <AccessoryCategory?, List<AccessoryTrend>>{};
+  final _trendsByCategory = <AccessoryCategory?, List<AccessoryTrend>>{};
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -77,8 +76,7 @@ class _AccessoryShowcaseScreenState extends State<AccessoryShowcaseScreen>
       null: topResult.valueOrNull ?? [],
     };
     for (var i = 0; i < AccessoryCategory.values.length; i++) {
-      newMap[AccessoryCategory.values[i]] =
-          catResults[i].valueOrNull ?? [];
+      newMap[AccessoryCategory.values[i]] = catResults[i].valueOrNull ?? [];
     }
     setState(() {
       _trendsByCategory.addAll(newMap);
@@ -127,12 +125,10 @@ class _AccessoryShowcaseScreenState extends State<AccessoryShowcaseScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(_errorMessage!,
-                          style:
-                              const TextStyle(color: AppColors.error)),
+                          style: const TextStyle(color: AppColors.error)),
                       const SizedBox(height: AppSpacing.md),
                       ElevatedButton(
-                          onPressed: _load,
-                          child: const Text('再読み込み')),
+                          onPressed: _load, child: const Text('再読み込み')),
                     ],
                   ),
                 )
@@ -216,8 +212,8 @@ class _TrendCard extends StatelessWidget {
                   if (trend.brand != null)
                     Text(
                       trend.brand!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary),
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: AppColors.textSecondary),
                     ),
                   const SizedBox(height: 4),
                   Wrap(
@@ -229,8 +225,7 @@ class _TrendCard extends StatelessWidget {
                       ),
                       _MetaChip(
                         icon: Icons.star_outline,
-                        label:
-                            '${trend.averageRating.toStringAsFixed(1)}★',
+                        label: '${trend.averageRating.toStringAsFixed(1)}★',
                       ),
                       if (trend.averagePriceApprox != null)
                         _MetaChip(
@@ -273,8 +268,7 @@ class _MetaChip extends StatelessWidget {
         const SizedBox(width: 2),
         Text(
           label,
-          style: const TextStyle(
-              fontSize: 11, color: AppColors.textTertiary),
+          style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
         ),
       ],
     );
@@ -288,16 +282,15 @@ class _CategoryBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.xs, vertical: 2),
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: 2),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         category.displayName,
-        style: const TextStyle(
-            fontSize: 10, color: AppColors.primary),
+        style: const TextStyle(fontSize: 10, color: AppColors.primary),
       ),
     );
   }
@@ -325,8 +318,7 @@ class _EmptyTrends extends StatelessWidget {
             Text(
               '最初に「投稿する」ボタンからアクセサリーを投稿しましょう',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 12, color: AppColors.textTertiary),
+              style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
             ),
           ],
         ),
@@ -379,8 +371,7 @@ class _SubmitShowcaseSheetState extends State<_SubmitShowcaseSheet> {
     final vehicleId = vehicles.isNotEmpty ? vehicles.first.id : null;
 
     final priceText = _priceController.text.trim();
-    final price =
-        priceText.isEmpty ? null : int.tryParse(priceText);
+    final price = priceText.isEmpty ? null : int.tryParse(priceText);
 
     final result = await widget.service.submitShowcase(
       userId: uid,

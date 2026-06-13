@@ -278,8 +278,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('SNSに共有'),
-        content: const Text(
-            '整備記録を SNS に投稿しますか？\n同じ車種のオーナーに参考になる情報を共有しましょう。'),
+        content: const Text('整備記録を SNS に投稿しますか？\n同じ車種のオーナーに参考になる情報を共有しましょう。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),

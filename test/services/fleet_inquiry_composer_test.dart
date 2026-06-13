@@ -78,8 +78,8 @@ void main() {
 
       test('車検日未設定（null）の車両は除外される', () {
         final vehicles = [_make(inspectionExpiryDate: null)];
-        expect(FleetInquiryComposer.vehiclesNeedingInspection(vehicles),
-            isEmpty);
+        expect(
+            FleetInquiryComposer.vehiclesNeedingInspection(vehicles), isEmpty);
       });
     });
   });
@@ -116,9 +116,7 @@ void main() {
 
     test('ナンバー未登録の車両は「ナンバー未登録」と表示される', () {
       final draft = FleetInquiryComposer.compose([
-        _make(
-            licensePlate: null,
-            inspectionExpiryDate: DateTime(2026, 8, 1)),
+        _make(licensePlate: null, inspectionExpiryDate: DateTime(2026, 8, 1)),
       ]);
       expect(draft.message, contains('ナンバー未登録'));
     });

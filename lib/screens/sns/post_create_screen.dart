@@ -71,9 +71,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final vehicles = context.read<VehicleProvider>().vehicles;
-        final match = vehicles
-            .where((v) => v.id == widget.initialVehicleId)
-            .firstOrNull;
+        final match =
+            vehicles.where((v) => v.id == widget.initialVehicleId).firstOrNull;
         if (match != null) {
           setState(() => _selectedVehicle = match);
         }

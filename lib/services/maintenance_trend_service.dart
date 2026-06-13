@@ -77,8 +77,8 @@ class MaintenanceTrendService {
         }
       }
 
-      final avgCost = typeRecords.map((r) => r.cost).reduce((a, b) => a + b) /
-          sampleCount;
+      final avgCost =
+          typeRecords.map((r) => r.cost).reduce((a, b) => a + b) / sampleCount;
 
       DateTime? predictedNextDate;
       int? predictedNextMileage;

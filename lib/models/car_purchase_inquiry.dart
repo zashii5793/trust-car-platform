@@ -89,8 +89,7 @@ class CarPurchaseInquiry {
       ),
       message: data['message'] ?? '',
       status: InquiryStatus.fromString(data['status']),
-      createdAt:
-          (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
