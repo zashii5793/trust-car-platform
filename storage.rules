@@ -65,14 +65,21 @@ service firebase.storage {
                     && fileName.matches(request.auth.uid + '_.*');
     }
 
-    // 車両画像: vehicles/{fileName}（fileName = "{uuid}.jpg"）
-    // 注意: パスにuserIdが含まれないため所有者単位のスコープ不可。
-    //       現状は「認証済みユーザーのみ・画像・5MB以下」に限定。
-    //       将来的にコード側で vehicles/{userId}/... 構造へ移行すべき。
+    // 車両画像: vehicles/{userId}/{fileName}（fileName = "{uuid}.jpg"）
+    // パスにuserIdを含めることで所有者単位のスコープが可能。
+    // 書き込み・削除は本人のみ。閲覧は認証済みユーザー（他ユーザーへの表示を許容）。
+    match /vehicles/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) && isImageFile() && isValidImageSize();
+      allow delete: if isOwner(userId);
+    }
+
+    // 後方互換: 旧形式 vehicles/{fileName}（fileName = "{uuid}.jpg"）
+    // 移行前に保存済みの画像URL（userId未スコープ）を閲覧できるようにする。
+    // 新規書き込みは上の userId スコープ付きパスに限定するため read のみ許可。
     match /vehicles/{fileName} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isImageFile() && isValidImageSize();
-      allow delete: if isAuthenticated();
+      allow write, delete: if false;
     }
 
     // ===== デフォルト拒否 =====

@@ -330,9 +330,10 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
       // 新しい画像があればアップロード
       if (_newImageBytes != null) {
         final uuid = const Uuid().v4();
+        // 所有者単位でスコープしたパスにアップロード（storage.rulesでisOwner判定）
         final uploadResult = await _firebaseService.uploadImageBytes(
           _newImageBytes!,
-          'vehicles/$uuid.jpg',
+          'vehicles/${widget.vehicle.userId}/$uuid.jpg',
         );
         imageUrl = uploadResult.getOrThrow();
       }

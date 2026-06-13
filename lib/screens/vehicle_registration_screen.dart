@@ -291,12 +291,22 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         }
       }
 
+      final currentUserId = _firebaseService.currentUserId;
+      if (currentUserId == null) {
+        if (mounted) {
+          showErrorSnackBar(context, 'ログインセッションが切れました。再ログインしてください');
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
       String? imageUrl;
       if (_imageBytes != null) {
         final uuid = const Uuid().v4();
+        // 所有者単位でスコープしたパスにアップロード（storage.rulesでisOwner判定）
         final uploadResult = await _firebaseService.uploadImageBytes(
           _imageBytes!,
-          'vehicles/$uuid.jpg',
+          'vehicles/$currentUserId/$uuid.jpg',
         );
         if (uploadResult.isFailure) {
           if (mounted) {
@@ -306,12 +316,6 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           return;
         }
         imageUrl = uploadResult.valueOrNull;
-      }
-
-      final currentUserId = _firebaseService.currentUserId;
-      if (currentUserId == null) {
-        if (mounted) showErrorSnackBar(context, 'ログインセッションが切れました。再ログインしてください');
-        return;
       }
 
       final vehicle = Vehicle(
