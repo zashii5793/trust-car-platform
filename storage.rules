@@ -1,14 +1,16 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // ユーザーが認証済みかどうか
+    // ===== Helper functions =====
+
+    // 認証済みかどうか
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // ファイルサイズ制限（5MB）
-    function isValidFileSize() {
-      return request.resource.size < 5 * 1024 * 1024;
+    // パスのuserIdが本人かどうか
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
     }
 
     // 画像ファイルかどうか
@@ -16,37 +18,64 @@ service firebase.storage {
       return request.resource.contentType.matches('image/.*');
     }
 
-    // ユーザーの車両画像
-    match /vehicles/{userId}/{vehicleId}/{fileName} {
-      // 自分のファイルのみ読み書き可能
-      allow read: if isAuthenticated() && request.auth.uid == userId;
-      allow write: if isAuthenticated()
-                   && request.auth.uid == userId
-                   && isValidFileSize()
-                   && isImageFile();
-      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    // 画像サイズ制限（5MB）
+    function isValidImageSize() {
+      return request.resource.size < 5 * 1024 * 1024;
     }
 
-    // ユーザーのプロフィール画像
-    match /users/{userId}/profile/{fileName} {
-      allow read: if isAuthenticated() && request.auth.uid == userId;
-      allow write: if isAuthenticated()
-                   && request.auth.uid == userId
-                   && isValidFileSize()
-                   && isImageFile();
-      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    // 書類サイズ制限（10MB・PDF等を許容）
+    function isValidDocumentSize() {
+      return request.resource.size < 10 * 1024 * 1024;
     }
 
-    // メンテナンス記録の添付ファイル
-    match /maintenance/{userId}/{recordId}/{fileName} {
-      allow read: if isAuthenticated() && request.auth.uid == userId;
-      allow write: if isAuthenticated()
-                   && request.auth.uid == userId
-                   && isValidFileSize();
-      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    // ===== 実装パスに対応したルール =====
+
+    // 書類（請求書・車検証など機密情報）: documents/{userId}/{fileName}
+    // 本人のみ読み書き可。PDF等の非画像も許容。
+    match /documents/{userId}/{fileName} {
+      allow read, delete: if isOwner(userId);
+      allow write: if isOwner(userId) && isValidDocumentSize();
     }
 
-    // その他のファイルはデフォルトで拒否
+    // SNS投稿画像: post_images/{userId}/{timestamp}/{fileName}
+    // 投稿は公開コンテンツのため認証済みユーザーは閲覧可。書き込みは本人のみ。
+    match /post_images/{userId}/{ts}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) && isImageFile() && isValidImageSize();
+      allow delete: if isOwner(userId);
+    }
+
+    // 部品出品画像: user_part_listings/{userId}/{timestamp}/{fileName}
+    // マーケットプレイスのため買い手（認証済み）も閲覧可。書き込みは本人のみ。
+    match /user_part_listings/{userId}/{ts}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) && isImageFile() && isValidImageSize();
+      allow delete: if isOwner(userId);
+    }
+
+    // プロフィール画像: profile_images/{fileName}（fileName = "{uid}_{timestamp}.jpg"）
+    // 他ユーザーに表示されるため認証済みは閲覧可。
+    // 書き込みはファイル名のプレフィックスが本人uidの場合のみ許可。
+    match /profile_images/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+                   && fileName.matches(request.auth.uid + '_.*')
+                   && isImageFile() && isValidImageSize();
+      allow delete: if isAuthenticated()
+                    && fileName.matches(request.auth.uid + '_.*');
+    }
+
+    // 車両画像: vehicles/{fileName}（fileName = "{uuid}.jpg"）
+    // 注意: パスにuserIdが含まれないため所有者単位のスコープ不可。
+    //       現状は「認証済みユーザーのみ・画像・5MB以下」に限定。
+    //       将来的にコード側で vehicles/{userId}/... 構造へ移行すべき。
+    match /vehicles/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isImageFile() && isValidImageSize();
+      allow delete: if isAuthenticated();
+    }
+
+    // ===== デフォルト拒否 =====
     match /{allPaths=**} {
       allow read, write: if false;
     }
