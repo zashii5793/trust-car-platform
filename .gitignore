@@ -84,3 +84,6 @@ docs/PM_EVALUATION_REPORT_2026-04-29.md
 docs/DEPLOY_READINESS_REPORT.md
 docs/REAL_DATA_VALIDATION_CHECKLIST.md
 docs/REPORT_AI_DEV_STATUS.md
+
+# Golden test failure artifacts (auto-generated diff output)
+test/golden/failures/
