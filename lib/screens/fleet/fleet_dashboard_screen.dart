@@ -8,6 +8,7 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/utils/inspection_urgency.dart';
+import '../../core/utils/expiry_summary.dart';
 import '../../models/shop.dart';
 import '../../models/vehicle.dart';
 import '../../providers/fleet_provider.dart';
@@ -236,6 +237,7 @@ class _FleetBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (stats != null) _StatsHeader(stats: stats),
+        _InsuranceOverviewTile(vehicles: provider.allVehicles),
         _FleetCodeTile(companyId: provider.companyId),
         _FilterChipBar(provider: provider),
         const Divider(height: 1),
@@ -316,6 +318,82 @@ class _StatChip extends StatelessWidget {
         Text(label,
             style: const TextStyle(color: Colors.white70, fontSize: 11)),
       ],
+    );
+  }
+}
+
+// ── Insurance overview tile ───────────────────────────────────────────────────
+
+/// Compact fleet-wide voluntary-insurance status (任意保険の満期/未登録).
+class _InsuranceOverviewTile extends StatelessWidget {
+  final List<Vehicle> vehicles;
+  const _InsuranceOverviewTile({required this.vehicles});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final s = summarizeFleetInsurance(vehicles);
+    if (s.total == 0) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+      child: Row(
+        children: [
+          const Icon(Icons.security, size: 16, color: AppColors.textSecondary),
+          AppSpacing.horizontalXs,
+          Text(
+            '任意保険',
+            style: theme.textTheme.labelMedium
+                ?.copyWith(color: AppColors.textSecondary),
+          ),
+          const Spacer(),
+          if (s.expired > 0) ...[
+            _InsBadge(label: '期限切れ', count: s.expired, color: AppColors.error),
+            AppSpacing.horizontalSm,
+          ],
+          if (s.expiringSoon > 0) ...[
+            _InsBadge(
+                label: '間近', count: s.expiringSoon, color: AppColors.warning),
+            AppSpacing.horizontalSm,
+          ],
+          if (s.missing > 0)
+            _InsBadge(
+                label: '未登録', count: s.missing, color: AppColors.textTertiary),
+          if (s.needsAttention == 0 && s.missing == 0)
+            Text(
+              'すべて登録済み',
+              style:
+                  theme.textTheme.bodySmall?.copyWith(color: AppColors.success),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InsBadge extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+  const _InsBadge(
+      {required this.label, required this.count, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+      ),
+      child: Text(
+        '$label $count',
+        style:
+            TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }

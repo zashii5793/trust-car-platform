@@ -971,6 +971,40 @@ class _VehicleCard extends StatelessWidget {
                                     ],
                                   ],
                                 ),
+                                // 任意保険 満期警告（満期間近・期限切れ時のみ）
+                                if (vehicle.voluntaryInsurance != null &&
+                                    (vehicle.voluntaryInsurance!
+                                            .isExpiringSoon ||
+                                        vehicle.voluntaryInsurance!
+                                            .isExpired)) ...[
+                                  AppSpacing.verticalXxs,
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.security,
+                                        size: 13,
+                                        color: vehicle
+                                                .voluntaryInsurance!.isExpired
+                                            ? AppColors.error
+                                            : AppColors.warning,
+                                      ),
+                                      AppSpacing.horizontalXs,
+                                      Text(
+                                        vehicle.voluntaryInsurance!.isExpired
+                                            ? '任意保険 期限切れ'
+                                            : '任意保険 満期間近',
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          color: vehicle
+                                                  .voluntaryInsurance!.isExpired
+                                              ? AppColors.error
+                                              : AppColors.warning,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ],
                             ),
                           ),

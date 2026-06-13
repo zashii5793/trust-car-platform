@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../core/constants/spacing.dart';
 import '../core/di/service_locator.dart';
+import '../core/utils/insurance_templates.dart';
 import '../models/vehicle.dart';
 import '../services/firebase_service.dart';
 
@@ -125,6 +126,24 @@ class _InsuranceEditScreenState extends State<InsuranceEditScreen> {
   int? _int(TextEditingController c) => int.tryParse(c.text.trim());
   double? _double(TextEditingController c) => double.tryParse(c.text.trim());
 
+  /// Pre-fills the coverage-related fields from a preset. Identity fields
+  /// (company, policy number, dates) are intentionally left untouched.
+  void _applyTemplate(InsuranceTemplate t) {
+    setState(() {
+      _bodilyCtrl.text = t.bodilyInjuryLimit;
+      _propertyCtrl.text = t.propertyDamageLimit;
+      _personalCtrl.text = t.personalInjuryAmount;
+      _hasVehicleInsurance = t.hasVehicleInsurance;
+      _vehicleInsuranceType = _orNull(t.vehicleInsuranceType, _vehTypeOptions);
+      _clauses
+        ..clear()
+        ..addAll(t.specialClauses);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('「${t.name}」を反映しました。内容は自由に調整できます')),
+    );
+  }
+
   Future<void> _pickDate({
     required DateTime? current,
     required ValueChanged<DateTime> onPicked,
@@ -214,6 +233,28 @@ class _InsuranceEditScreenState extends State<InsuranceEditScreen> {
       body: ListView(
         padding: AppSpacing.paddingScreen,
         children: [
+          _sectionHeader('テンプレートから入力'),
+          Text(
+            'よくある補償の組み合わせをワンタップで反映できます',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          AppSpacing.verticalXs,
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: insuranceTemplates.map((t) {
+              return ActionChip(
+                key: Key('insurance_template_${t.name}'),
+                avatar: const Icon(Icons.auto_fix_high, size: 16),
+                label: Text(t.name),
+                tooltip: t.description,
+                onPressed: () => _applyTemplate(t),
+              );
+            }).toList(),
+          ),
+          AppSpacing.verticalMd,
           _sectionHeader('契約'),
           SegmentedButton<InsuranceContractType>(
             segments: const [
