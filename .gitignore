@@ -4,6 +4,9 @@
 *.pyc
 *.swp
 .DS_Store
+
+# Node.js (rules tests / scripts / functions deps)
+node_modules/
 .atom/
 .build/
 .buildlog/
