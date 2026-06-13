@@ -412,6 +412,29 @@
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "visitedAt", "order": "DESCENDING" }
       ]
+    },
+
+    // =========================================================
+    // safety_tips
+    // =========================================================
+    // 全件 (isActive + publishedAt)
+    {
+      "collectionGroup": "safety_tips",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" }
+      ]
+    },
+    // カテゴリフィルタ付き (isActive + category + publishedAt)
+    {
+      "collectionGroup": "safety_tips",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" }
+      ]
     }
 
   ],

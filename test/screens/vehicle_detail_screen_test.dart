@@ -655,6 +655,82 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  group('車検完了クイックアクション', () {
+    Vehicle _vehicleWithInspection() => Vehicle(
+          id: 'v1',
+          userId: 'test-user-id',
+          maker: 'トヨタ',
+          model: 'ヴォクシー',
+          year: 2023,
+          grade: 'Z',
+          mileage: 10000,
+          inspectionExpiryDate: DateTime(2026, 12, 31),
+          createdAt: DateTime(2023),
+          updatedAt: DateTime(2023),
+        );
+
+    Future<void> pumpWithInspection(WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+          _buildScreen(_vehicleWithInspection(), maintenanceProvider));
+    }
+
+    testWidgets('inspectionExpiryDate あり → 車検完了ボタンが表示される', (tester) async {
+      await pumpWithInspection(tester);
+      await tester.pump();
+
+      expect(
+          find.byKey(const Key('inspection_complete_btn')), findsOneWidget);
+    });
+
+    testWidgets('inspectionExpiryDate なし → 車検完了ボタンが表示されない',
+        (tester) async {
+      await _pumpScreen(tester, maintenanceProvider);
+      await tester.pump();
+
+      expect(find.byKey(const Key('inspection_complete_btn')), findsNothing);
+    });
+
+    testWidgets('車検完了ボタンタップでダイアログが開く', (tester) async {
+      await pumpWithInspection(tester);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('inspection_complete_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('車検完了を記録'), findsOneWidget);
+    });
+
+    testWidgets('ダイアログ「キャンセル」でダイアログが閉じる', (tester) async {
+      await pumpWithInspection(tester);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('inspection_complete_btn')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('キャンセル'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('車検完了を記録'), findsNothing);
+    });
+
+    testWidgets('「記録する」タップで SnackBar が表示される', (tester) async {
+      await pumpWithInspection(tester);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('inspection_complete_btn')));
+      await tester.pumpAndSettle();
+
+      await tester
+          .tap(find.byKey(const Key('confirm_inspection_complete_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('車検完了を記録しました'), findsOneWidget);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   group('空状態 — 記録追加CTA', () {
     testWidgets('記録なしのとき「整備記録を追加」ボタンが表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
