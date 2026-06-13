@@ -128,14 +128,70 @@ enum TransmissionType {
   }
 }
 
-/// 任意保険情報
+/// 任意保険の契約形態。
+/// - [nonFleet]: ノンフリート契約（所有・使用台数9台以下、車両ごとに等級管理）
+/// - [fleet]: フリート契約（10台以上、契約全体の割増引率を適用＝法人で多い）
+enum InsuranceContractType {
+  nonFleet('ノンフリート'),
+  fleet('フリート');
+
+  final String displayName;
+  const InsuranceContractType(this.displayName);
+
+  static InsuranceContractType? fromString(String? value) {
+    if (value == null) return null;
+    for (final t in InsuranceContractType.values) {
+      if (t.name == value) return t;
+    }
+    return null;
+  }
+}
+
+/// 任意保険情報。
+///
+/// 個人・法人の双方に対応する。法人はフリート契約（[contractType] = fleet、
+/// 等級ではなく [fleetDiscountRate] 割増引率を使用、[namedInsured] が法人名、
+/// [usagePurpose] が業務使用）になることが多い。全フィールド任意で後方互換。
 class VoluntaryInsurance {
+  // --- 基本 ---
   final String? companyName; // 保険会社名
   final String? policyNumber; // 証券番号
   final DateTime? expiryDate; // 満了日
-  final String? coverageType; // 補償内容
+  final String? coverageType; // 補償内容（自由記述・後方互換）
   final String? agentName; // 代理店名
   final String? agentPhone; // 代理店電話番号
+
+  // --- 契約 ---
+  final DateTime? contractStartDate; // 契約開始日
+  final int? annualPremium; // 年間保険料（円）
+  final String? paymentMethod; // 支払方法（月払・年払）
+  final InsuranceContractType? contractType; // ノンフリート / フリート
+  final String? usagePurpose; // 使用目的（業務用・通勤通学・日常レジャー）
+  final String? namedInsured; // 記名被保険者（個人名 or 法人名）
+
+  // --- 等級 / 料率 ---
+  final int? nonFleetGrade; // ノンフリート等級（6〜20）
+  final int? accidentCoefficientPeriod; // 事故有係数適用期間（年）
+  final double? fleetDiscountRate; // フリート割増引率（%）法人フリート契約用
+
+  // --- 補償額 ---
+  final String? bodilyInjuryLimit; // 対人賠償（無制限/金額）
+  final String? propertyDamageLimit; // 対物賠償（無制限/金額）
+  final String? personalInjuryAmount; // 人身傷害（例:3000万/5000万/無制限）
+  final String? passengerInjuryAmount; // 搭乗者傷害
+
+  // --- 車両保険 ---
+  final bool? hasVehicleInsurance; // 車両保険の有無
+  final String? vehicleInsuranceType; // 型（一般・車対車+A）
+  final int? vehicleInsuranceAmount; // 車両保険金額（円）
+  final String? vehicleInsuranceDeductible; // 免責金額（例:5-10万円）
+
+  // --- 運転者条件 ---
+  final String? driverScope; // 運転者範囲（本人/夫婦/家族/限定なし）
+  final String? driverAgeCondition; // 年齢条件（全年齢/21/26/35歳以上）
+
+  // --- 特約 ---
+  final List<String> specialClauses; // 弁護士費用特約・ロードサービス等
 
   const VoluntaryInsurance({
     this.companyName,
@@ -144,6 +200,26 @@ class VoluntaryInsurance {
     this.coverageType,
     this.agentName,
     this.agentPhone,
+    this.contractStartDate,
+    this.annualPremium,
+    this.paymentMethod,
+    this.contractType,
+    this.usagePurpose,
+    this.namedInsured,
+    this.nonFleetGrade,
+    this.accidentCoefficientPeriod,
+    this.fleetDiscountRate,
+    this.bodilyInjuryLimit,
+    this.propertyDamageLimit,
+    this.personalInjuryAmount,
+    this.passengerInjuryAmount,
+    this.hasVehicleInsurance,
+    this.vehicleInsuranceType,
+    this.vehicleInsuranceAmount,
+    this.vehicleInsuranceDeductible,
+    this.driverScope,
+    this.driverAgeCondition,
+    this.specialClauses = const [],
   });
 
   factory VoluntaryInsurance.fromMap(Map<String, dynamic>? map) {
@@ -157,6 +233,31 @@ class VoluntaryInsurance {
       coverageType: map['coverageType'],
       agentName: map['agentName'],
       agentPhone: map['agentPhone'],
+      contractStartDate: map['contractStartDate'] != null
+          ? (map['contractStartDate'] as Timestamp).toDate()
+          : null,
+      annualPremium: map['annualPremium'],
+      paymentMethod: map['paymentMethod'],
+      contractType: InsuranceContractType.fromString(map['contractType']),
+      usagePurpose: map['usagePurpose'],
+      namedInsured: map['namedInsured'],
+      nonFleetGrade: map['nonFleetGrade'],
+      accidentCoefficientPeriod: map['accidentCoefficientPeriod'],
+      fleetDiscountRate: (map['fleetDiscountRate'] as num?)?.toDouble(),
+      bodilyInjuryLimit: map['bodilyInjuryLimit'],
+      propertyDamageLimit: map['propertyDamageLimit'],
+      personalInjuryAmount: map['personalInjuryAmount'],
+      passengerInjuryAmount: map['passengerInjuryAmount'],
+      hasVehicleInsurance: map['hasVehicleInsurance'],
+      vehicleInsuranceType: map['vehicleInsuranceType'],
+      vehicleInsuranceAmount: map['vehicleInsuranceAmount'],
+      vehicleInsuranceDeductible: map['vehicleInsuranceDeductible'],
+      driverScope: map['driverScope'],
+      driverAgeCondition: map['driverAgeCondition'],
+      specialClauses: (map['specialClauses'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
     );
   }
 
@@ -168,6 +269,28 @@ class VoluntaryInsurance {
       'coverageType': coverageType,
       'agentName': agentName,
       'agentPhone': agentPhone,
+      'contractStartDate': contractStartDate != null
+          ? Timestamp.fromDate(contractStartDate!)
+          : null,
+      'annualPremium': annualPremium,
+      'paymentMethod': paymentMethod,
+      'contractType': contractType?.name,
+      'usagePurpose': usagePurpose,
+      'namedInsured': namedInsured,
+      'nonFleetGrade': nonFleetGrade,
+      'accidentCoefficientPeriod': accidentCoefficientPeriod,
+      'fleetDiscountRate': fleetDiscountRate,
+      'bodilyInjuryLimit': bodilyInjuryLimit,
+      'propertyDamageLimit': propertyDamageLimit,
+      'personalInjuryAmount': personalInjuryAmount,
+      'passengerInjuryAmount': passengerInjuryAmount,
+      'hasVehicleInsurance': hasVehicleInsurance,
+      'vehicleInsuranceType': vehicleInsuranceType,
+      'vehicleInsuranceAmount': vehicleInsuranceAmount,
+      'vehicleInsuranceDeductible': vehicleInsuranceDeductible,
+      'driverScope': driverScope,
+      'driverAgeCondition': driverAgeCondition,
+      'specialClauses': specialClauses,
     };
   }
 
@@ -184,6 +307,17 @@ class VoluntaryInsurance {
     return expiryDate!.difference(DateTime.now()).inDays < 0;
   }
 
+  /// 法人で多いフリート契約か
+  bool get isFleetContract => contractType == InsuranceContractType.fleet;
+
+  /// 何らかの補償内容が入力されているか（サマリー表示の出し分け用）
+  bool get hasCoverageDetails =>
+      bodilyInjuryLimit != null ||
+      propertyDamageLimit != null ||
+      personalInjuryAmount != null ||
+      passengerInjuryAmount != null ||
+      hasVehicleInsurance != null;
+
   VoluntaryInsurance copyWith({
     String? companyName,
     String? policyNumber,
@@ -191,6 +325,26 @@ class VoluntaryInsurance {
     String? coverageType,
     String? agentName,
     String? agentPhone,
+    DateTime? contractStartDate,
+    int? annualPremium,
+    String? paymentMethod,
+    InsuranceContractType? contractType,
+    String? usagePurpose,
+    String? namedInsured,
+    int? nonFleetGrade,
+    int? accidentCoefficientPeriod,
+    double? fleetDiscountRate,
+    String? bodilyInjuryLimit,
+    String? propertyDamageLimit,
+    String? personalInjuryAmount,
+    String? passengerInjuryAmount,
+    bool? hasVehicleInsurance,
+    String? vehicleInsuranceType,
+    int? vehicleInsuranceAmount,
+    String? vehicleInsuranceDeductible,
+    String? driverScope,
+    String? driverAgeCondition,
+    List<String>? specialClauses,
   }) {
     return VoluntaryInsurance(
       companyName: companyName ?? this.companyName,
@@ -199,6 +353,30 @@ class VoluntaryInsurance {
       coverageType: coverageType ?? this.coverageType,
       agentName: agentName ?? this.agentName,
       agentPhone: agentPhone ?? this.agentPhone,
+      contractStartDate: contractStartDate ?? this.contractStartDate,
+      annualPremium: annualPremium ?? this.annualPremium,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      contractType: contractType ?? this.contractType,
+      usagePurpose: usagePurpose ?? this.usagePurpose,
+      namedInsured: namedInsured ?? this.namedInsured,
+      nonFleetGrade: nonFleetGrade ?? this.nonFleetGrade,
+      accidentCoefficientPeriod:
+          accidentCoefficientPeriod ?? this.accidentCoefficientPeriod,
+      fleetDiscountRate: fleetDiscountRate ?? this.fleetDiscountRate,
+      bodilyInjuryLimit: bodilyInjuryLimit ?? this.bodilyInjuryLimit,
+      propertyDamageLimit: propertyDamageLimit ?? this.propertyDamageLimit,
+      personalInjuryAmount: personalInjuryAmount ?? this.personalInjuryAmount,
+      passengerInjuryAmount:
+          passengerInjuryAmount ?? this.passengerInjuryAmount,
+      hasVehicleInsurance: hasVehicleInsurance ?? this.hasVehicleInsurance,
+      vehicleInsuranceType: vehicleInsuranceType ?? this.vehicleInsuranceType,
+      vehicleInsuranceAmount:
+          vehicleInsuranceAmount ?? this.vehicleInsuranceAmount,
+      vehicleInsuranceDeductible:
+          vehicleInsuranceDeductible ?? this.vehicleInsuranceDeductible,
+      driverScope: driverScope ?? this.driverScope,
+      driverAgeCondition: driverAgeCondition ?? this.driverAgeCondition,
+      specialClauses: specialClauses ?? this.specialClauses,
     );
   }
 }

@@ -20,6 +20,7 @@ import '../widgets/maintenance/maintenance_ai_comment.dart';
 import 'export/export_dialog.dart';
 import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
+import 'insurance_edit_screen.dart';
 import 'maintenance_stats_screen.dart';
 import 'maintenance_search_screen.dart';
 import '../services/firebase_service.dart';
@@ -433,10 +434,11 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                     ),
                   ),
 
-                  // 任意保険情報セクション
-                  if (_vehicle.voluntaryInsurance != null)
-                    _VoluntaryInsuranceSection(
-                        insurance: _vehicle.voluntaryInsurance!),
+                  // 任意保険情報セクション（未登録でも編集導線を表示）
+                  _VoluntaryInsuranceSection(
+                    vehicle: _vehicle,
+                    onUpdated: (updated) => setState(() => _vehicle = updated),
+                  ),
 
                   // リース情報セクション
                   if (_vehicle.leaseInfo != null &&
@@ -547,13 +549,30 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
 // ── 任意保険情報セクション ────────────────────────────────────────────────────
 
 class _VoluntaryInsuranceSection extends StatelessWidget {
-  final VoluntaryInsurance insurance;
-  const _VoluntaryInsuranceSection({required this.insurance});
+  final Vehicle vehicle;
+  final ValueChanged<Vehicle> onUpdated;
+  const _VoluntaryInsuranceSection({
+    required this.vehicle,
+    required this.onUpdated,
+  });
+
+  Future<void> _openEditor(BuildContext context) async {
+    final updated = await Navigator.push<Vehicle>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => InsuranceEditScreen(vehicle: vehicle),
+      ),
+    );
+    if (updated != null) onUpdated(updated);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final days = insurance.expiryDate?.difference(DateTime.now()).inDays;
+    final insurance = vehicle.voluntaryInsurance;
+    final money = NumberFormat('#,###');
+
+    final days = insurance?.expiryDate?.difference(DateTime.now()).inDays;
     final isExpired = days != null && days < 0;
     final isWarning = days != null && days <= 30 && days >= 0;
     final expiryColor = isExpired
@@ -561,6 +580,13 @@ class _VoluntaryInsuranceSection extends StatelessWidget {
         : isWarning
             ? AppColors.warning
             : null;
+
+    final hasAnyData = insurance != null &&
+        (insurance.companyName != null ||
+            insurance.expiryDate != null ||
+            insurance.hasCoverageDetails ||
+            insurance.namedInsured != null ||
+            insurance.annualPremium != null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -581,23 +607,124 @@ class _VoluntaryInsuranceSection extends StatelessWidget {
                     style: theme.textTheme.titleSmall
                         ?.copyWith(color: AppColors.textSecondary),
                   ),
+                  const Spacer(),
+                  TextButton.icon(
+                    key: const Key('edit_insurance_btn'),
+                    onPressed: () => _openEditor(context),
+                    icon: Icon(
+                      hasAnyData ? Icons.edit_outlined : Icons.add,
+                      size: 15,
+                    ),
+                    label: Text(hasAnyData ? '編集' : '登録'),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  ),
                 ],
               ),
-              AppSpacing.verticalXs,
-              if (insurance.companyName != null)
-                _InfoRow(
-                  icon: Icons.business,
-                  label: '保険会社',
-                  value: insurance.companyName!,
-                ),
-              if (insurance.expiryDate != null)
-                _InfoRow(
-                  icon: Icons.event,
-                  label: '満期日',
-                  value:
-                      DateFormat('yyyy年MM月dd日').format(insurance.expiryDate!),
-                  valueColor: expiryColor,
-                ),
+              if (!hasAnyData)
+                Padding(
+                  padding: const EdgeInsets.only(left: 24, top: 2),
+                  child: Text(
+                    'どんな保険に入っているか記録しておきましょう',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                )
+              else ...[
+                AppSpacing.verticalXs,
+                if (insurance.contractType != null)
+                  _InfoRow(
+                    icon: Icons.workspace_premium_outlined,
+                    label: '契約形態',
+                    value: insurance.isFleetContract
+                        ? 'フリート契約'
+                            '${insurance.fleetDiscountRate != null ? '（割増引率 ${insurance.fleetDiscountRate!.toStringAsFixed(0)}%）' : ''}'
+                        : 'ノンフリート'
+                            '${insurance.nonFleetGrade != null ? '（${insurance.nonFleetGrade}等級）' : ''}',
+                  ),
+                if (insurance.companyName != null)
+                  _InfoRow(
+                    icon: Icons.business,
+                    label: '保険会社',
+                    value: insurance.companyName!,
+                  ),
+                if (insurance.namedInsured != null)
+                  _InfoRow(
+                    icon: Icons.badge_outlined,
+                    label: '記名被保険者',
+                    value: insurance.namedInsured!,
+                  ),
+                if (insurance.expiryDate != null)
+                  _InfoRow(
+                    icon: Icons.event,
+                    label: '満期日',
+                    value:
+                        DateFormat('yyyy年MM月dd日').format(insurance.expiryDate!),
+                    valueColor: expiryColor,
+                  ),
+                if (insurance.usagePurpose != null)
+                  _InfoRow(
+                    icon: Icons.commute_outlined,
+                    label: '使用目的',
+                    value: insurance.usagePurpose!,
+                  ),
+                if (insurance.bodilyInjuryLimit != null)
+                  _InfoRow(
+                    icon: Icons.personal_injury_outlined,
+                    label: '対人賠償',
+                    value: insurance.bodilyInjuryLimit!,
+                  ),
+                if (insurance.propertyDamageLimit != null)
+                  _InfoRow(
+                    icon: Icons.car_crash_outlined,
+                    label: '対物賠償',
+                    value: insurance.propertyDamageLimit!,
+                  ),
+                if (insurance.personalInjuryAmount != null)
+                  _InfoRow(
+                    icon: Icons.healing_outlined,
+                    label: '人身傷害',
+                    value: insurance.personalInjuryAmount!,
+                  ),
+                if (insurance.hasVehicleInsurance == true)
+                  _InfoRow(
+                    icon: Icons.directions_car_outlined,
+                    label: '車両保険',
+                    value: [
+                      insurance.vehicleInsuranceType,
+                      if (insurance.vehicleInsuranceAmount != null)
+                        '¥${money.format(insurance.vehicleInsuranceAmount)}',
+                      if (insurance.vehicleInsuranceDeductible != null)
+                        '免責${insurance.vehicleInsuranceDeductible}',
+                    ].whereType<String>().join(' / '),
+                  ),
+                if (insurance.driverScope != null ||
+                    insurance.driverAgeCondition != null)
+                  _InfoRow(
+                    icon: Icons.person_outline,
+                    label: '運転者条件',
+                    value: [
+                      insurance.driverScope,
+                      insurance.driverAgeCondition,
+                    ].whereType<String>().join(' / '),
+                  ),
+                if (insurance.annualPremium != null)
+                  _InfoRow(
+                    icon: Icons.payments_outlined,
+                    label: '年間保険料',
+                    value: '¥${money.format(insurance.annualPremium)}'
+                        '${insurance.paymentMethod != null ? '（${insurance.paymentMethod}）' : ''}',
+                  ),
+                if (insurance.specialClauses.isNotEmpty)
+                  _InfoRow(
+                    icon: Icons.verified_outlined,
+                    label: '特約',
+                    value: insurance.specialClauses.join('・'),
+                  ),
+              ],
             ],
           ),
         ),

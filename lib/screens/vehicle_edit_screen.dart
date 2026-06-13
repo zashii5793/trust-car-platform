@@ -533,16 +533,16 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         // Phase 1.5: 車検・保険
         inspectionExpiryDate: _inspectionExpiryDate,
         insuranceExpiryDate: _insuranceExpiryDate,
-        // 任意保険（証券番号等の未編集フィールドは既存値を引き継ぐ）
-        voluntaryInsurance: VoluntaryInsurance(
+        // 任意保険: ここでは会社名・満期日のみ編集。詳細（補償額・等級・
+        // 法人フリート契約等）は専用の保険編集画面で扱うため copyWith で
+        // 既存の全フィールドを保持する（データ消失防止）。
+        voluntaryInsurance:
+            (widget.vehicle.voluntaryInsurance ?? const VoluntaryInsurance())
+                .copyWith(
           companyName: _voluntaryInsuranceCompanyController.text.isEmpty
               ? null
               : _voluntaryInsuranceCompanyController.text,
           expiryDate: _voluntaryInsuranceExpiryDate,
-          policyNumber: widget.vehicle.voluntaryInsurance?.policyNumber,
-          coverageType: widget.vehicle.voluntaryInsurance?.coverageType,
-          agentName: widget.vehicle.voluntaryInsurance?.agentName,
-          agentPhone: widget.vehicle.voluntaryInsurance?.agentPhone,
         ),
         // リース情報（契約開始日は未編集なら既存値を引き継ぐ）
         leaseInfo: _buildLeaseInfo(),
