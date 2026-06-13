@@ -1538,7 +1538,7 @@ class _DashboardSummaryCard extends StatelessWidget {
 
           // ---- フリートプラン案内（5台以上で表示・現在は無料開放中） ----
           if (FleetPlan.requiresPaidPlan(vehicles.length))
-            _buildFleetPlanBanner(vehicles.length),
+            _buildFleetPlanBanner(context, vehicles.length),
         ],
       ),
     );
@@ -1546,41 +1546,85 @@ class _DashboardSummaryCard extends StatelessWidget {
 
   /// SMB fleet upsell: shown from the 5th vehicle. During the promotional
   /// free period it only sets pricing expectations (no payment action).
-  Widget _buildFleetPlanBanner(int vehicleCount) {
+  ///
+  /// Tappable: business accounts jump straight to the fleet dashboard (improves
+  /// discoverability — previously only reachable deep in the profile tab);
+  /// personal accounts get a hint to register a business account.
+  Widget _buildFleetPlanBanner(BuildContext context, int vehicleCount) {
     final price = FleetPlan.monthlyPriceFor(vehicleCount);
     final priceLabel =
         price != null ? '月額¥${NumberFormat('#,###').format(price)}' : '個別見積もり';
+    final auth = context.read<AuthProvider>();
+    final isBusiness = auth.appUser?.isBusiness ?? false;
+    final uid = auth.firebaseUser?.uid ?? '';
+
+    void onTap() {
+      if (isBusiness) {
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => FleetDashboardScreen(companyId: uid),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('プロフィール →「法人アカウント登録」でフリート管理を利用できます'),
+          ),
+        );
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppSpacing.verticalSm,
-        Container(
-          key: const Key('fleet_plan_banner'),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.xs,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.12),
+        Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            key: const Key('fleet_plan_banner_action'),
+            onTap: onTap,
             borderRadius: AppSpacing.borderRadiusSm,
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.business, size: 14, color: Colors.white70),
-              AppSpacing.horizontalXs,
-              Expanded(
-                child: Text(
-                  FleetPlan.isPromotionalFreePeriod
-                      ? '$vehicleCount台を管理中 — 法人向け'
-                          '${FleetPlan.planLabelFor(vehicleCount)}プラン対象'
-                          '（現在無料開放中・正式リリース後 $priceLabel 予定）'
-                      : '$vehicleCount台を管理中 — '
-                          '${FleetPlan.planLabelFor(vehicleCount)}プラン'
-                          '（$priceLabel）',
-                  style: const TextStyle(fontSize: 11, color: Colors.white),
-                ),
+            child: Container(
+              key: const Key('fleet_plan_banner'),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
               ),
-            ],
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: AppSpacing.borderRadiusSm,
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.business, size: 14, color: Colors.white70),
+                  AppSpacing.horizontalXs,
+                  Expanded(
+                    child: Text(
+                      FleetPlan.isPromotionalFreePeriod
+                          ? '$vehicleCount台を管理中 — 法人向け'
+                              '${FleetPlan.planLabelFor(vehicleCount)}プラン対象'
+                              '（現在無料開放中・正式リリース後 $priceLabel 予定）'
+                          : '$vehicleCount台を管理中 — '
+                              '${FleetPlan.planLabelFor(vehicleCount)}プラン'
+                              '（$priceLabel）',
+                      style: const TextStyle(fontSize: 11, color: Colors.white),
+                    ),
+                  ),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    isBusiness ? 'フリート管理' : '法人登録で利用',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right,
+                      size: 16, color: Colors.white),
+                ],
+              ),
+            ),
           ),
         ),
       ],
