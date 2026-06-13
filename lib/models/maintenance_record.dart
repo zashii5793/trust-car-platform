@@ -330,6 +330,9 @@ class MaintenanceRecord {
   final String? tirePosition; // "全輪" | "前輪" | "後輪" | "左前" | "右前" | "左後" | "右後"
   final int? tireTreadDepth; // 溝の深さ (mm, optional)
 
+  // 工場連携: 問い合わせスレッド経由で取り込んだ場合の元問い合わせID（トレーサビリティ）
+  final String? inquiryId;
+
   MaintenanceRecord({
     required this.id,
     required this.vehicleId,
@@ -365,6 +368,8 @@ class MaintenanceRecord {
     this.tireSize,
     this.tirePosition,
     this.tireTreadDepth,
+    // 工場連携
+    this.inquiryId,
   });
 
   // Firestoreからデータを取得
@@ -411,6 +416,8 @@ class MaintenanceRecord {
       tireSize: data['tireSize'],
       tirePosition: data['tirePosition'],
       tireTreadDepth: data['tireTreadDepth'] as int?,
+      // 工場連携
+      inquiryId: data['inquiryId'] as String?,
     );
   }
 
@@ -502,6 +509,8 @@ class MaintenanceRecord {
       if (tireSize != null) 'tireSize': tireSize,
       if (tirePosition != null) 'tirePosition': tirePosition,
       if (tireTreadDepth != null) 'tireTreadDepth': tireTreadDepth,
+      // 工場連携 (only written when non-null)
+      if (inquiryId != null) 'inquiryId': inquiryId,
     };
   }
 
@@ -578,6 +587,8 @@ class MaintenanceRecord {
     String? tireSize,
     String? tirePosition,
     int? tireTreadDepth,
+    // 工場連携
+    String? inquiryId,
   }) {
     return MaintenanceRecord(
       id: id ?? this.id,
@@ -615,6 +626,8 @@ class MaintenanceRecord {
       tireSize: tireSize ?? this.tireSize,
       tirePosition: tirePosition ?? this.tirePosition,
       tireTreadDepth: tireTreadDepth ?? this.tireTreadDepth,
+      // 工場連携
+      inquiryId: inquiryId ?? this.inquiryId,
     );
   }
 

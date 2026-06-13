@@ -585,12 +585,14 @@ class ShopProvider with ChangeNotifier {
     required String inquiryId,
     required String senderId,
     required String content,
+    Map<String, dynamic>? maintenancePayload,
   }) {
     return _inquiryService.sendMessage(
       inquiryId: inquiryId,
       senderId: senderId,
       isFromShop: true,
       content: content,
+      maintenancePayload: maintenancePayload,
     );
   }
 

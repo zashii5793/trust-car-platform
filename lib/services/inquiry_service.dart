@@ -181,6 +181,7 @@ class InquiryService {
     required bool isFromShop,
     required String content,
     List<String> attachmentUrls = const [],
+    Map<String, dynamic>? maintenancePayload,
   }) async {
     final currentUid = _auth.currentUser?.uid;
     if (currentUid == null) {
@@ -202,6 +203,8 @@ class InquiryService {
         'attachmentUrls': attachmentUrls,
         'sentAt': Timestamp.fromDate(now),
         'isRead': false,
+        if (maintenancePayload != null)
+          'maintenancePayload': maintenancePayload,
       };
 
       // Add message to subcollection

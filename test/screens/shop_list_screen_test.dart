@@ -138,6 +138,7 @@ class MockInquiryService implements InquiryService {
     required bool isFromShop,
     required String content,
     List<String> attachmentUrls = const [],
+    Map<String, dynamic>? maintenancePayload,
   }) async =>
       Result.failure(AppError.unknown('not implemented'));
 
