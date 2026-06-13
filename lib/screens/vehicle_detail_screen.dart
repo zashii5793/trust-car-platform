@@ -23,6 +23,7 @@ import 'vehicle_edit_screen.dart';
 import 'maintenance_stats_screen.dart';
 import 'maintenance_search_screen.dart';
 import '../services/firebase_service.dart';
+import '../services/community_trend_service.dart';
 
 // Data returned by _InspectionCompleteDialog when the user confirms.
 class _InspectionCompletionResult {
@@ -130,6 +131,38 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     setState(() => _vehicle = updated);
     messenger.showSnackBar(
       const SnackBar(content: Text('車検完了を記録しました')),
+    );
+  }
+
+  Future<void> _showMileageUpdateDialog() async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    final newMileage = await showDialog<int>(
+      context: context,
+      builder: (_) => _MileageUpdateDialog(currentMileage: _vehicle.mileage),
+    );
+
+    if (newMileage == null || !mounted) return;
+    if (newMileage <= 0) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('正しい走行距離を入力してください')),
+      );
+      return;
+    }
+
+    final firebaseService = sl.get<FirebaseService>();
+    final updated = _vehicle.copyWith(
+      mileage: newMileage,
+      mileageUpdatedAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    await firebaseService.updateVehicle(_vehicle.id, updated);
+    if (!mounted) return;
+
+    setState(() => _vehicle = updated);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('走行距離を更新しました')),
     );
   }
 
@@ -257,6 +290,25 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                           label: '走行距離',
                           value: '${_formatNumber(_vehicle.mileage)} km',
                         ),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 88, top: 2),
+                          child: OutlinedButton.icon(
+                            key: const Key('update_mileage_btn'),
+                            onPressed: _showMileageUpdateDialog,
+                            icon: const Icon(Icons.edit_outlined, size: 15),
+                            label: const Text('更新する'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.info,
+                              side: const BorderSide(color: AppColors.info),
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              textStyle: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ),
                         if (_vehicle.inspectionExpiryDate != null) ...[
                           _InfoRow(
                             icon: Icons.verified_outlined,
@@ -362,6 +414,9 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       );
                     },
                   ),
+
+                  // コミュニティトレンドセクション
+                  _CommunityTrendSection(vehicle: _vehicle),
 
                   const Divider(height: 1),
                 ],
@@ -2335,5 +2390,270 @@ class _InspectionCompleteDialogState
         ),
       ],
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mileage update dialog — owns its TextEditingController lifecycle
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MileageUpdateDialog extends StatefulWidget {
+  final int currentMileage;
+
+  const _MileageUpdateDialog({required this.currentMileage});
+
+  @override
+  State<_MileageUpdateDialog> createState() => _MileageUpdateDialogState();
+}
+
+class _MileageUpdateDialogState extends State<_MileageUpdateDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller =
+        TextEditingController(text: widget.currentMileage.toString());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('走行距離を更新'),
+      content: TextField(
+        key: const Key('mileage_input_field'),
+        controller: _controller,
+        keyboardType: TextInputType.number,
+        autofocus: true,
+        decoration: const InputDecoration(
+          labelText: '新しい走行距離',
+          suffixText: 'km',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          key: const Key('confirm_mileage_btn'),
+          onPressed: () {
+            final value = int.tryParse(_controller.text.trim());
+            Navigator.pop(context, value);
+          },
+          child: const Text('更新'),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Community trend section — shows anonymized peer maintenance stats
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CommunityTrendSection extends StatefulWidget {
+  final Vehicle vehicle;
+
+  const _CommunityTrendSection({required this.vehicle});
+
+  @override
+  State<_CommunityTrendSection> createState() => _CommunityTrendSectionState();
+}
+
+class _CommunityTrendSectionState extends State<_CommunityTrendSection> {
+  CommunityTrendData? _data;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!sl.isRegistered<CommunityTrendService>()) {
+      _loaded = true; // No service available — skip async fetch
+      return;
+    }
+    _fetchTrends();
+  }
+
+  Future<void> _fetchTrends() async {
+    final service = sl.get<CommunityTrendService>();
+    final result = await service.getTrendsForVehicle(
+      maker: widget.vehicle.maker,
+      model: widget.vehicle.model,
+    );
+    if (!mounted) return;
+    setState(() {
+      _data = result.valueOrNull;
+      _loaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded || _data == null || _data!.insights.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    final data = _data!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        Padding(
+          padding: AppSpacing.paddingScreen,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Section header pill
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.tertiary.withValues(alpha: 0.08),
+                  borderRadius:
+                      BorderRadius.circular(AppSpacing.radiusFull),
+                  border: Border.all(
+                    color:
+                        theme.colorScheme.tertiary.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.people_outline,
+                      size: 13,
+                      color: theme.colorScheme.tertiary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'コミュニティの傾向',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.tertiary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${data.maker} ${data.model} オーナー ${data.sampleVehicleCount}台のデータ',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              AppSpacing.verticalSm,
+              ...data.insights.take(4).map(
+                    (insight) => _CommunityInsightRow(insight: insight),
+                  ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CommunityInsightRow extends StatelessWidget {
+  final CommunityTrendInsight insight;
+
+  const _CommunityInsightRow({required this.insight});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = _maintenanceTypeLabel(insight.typeKey);
+    final pct = insight.popularityPercent;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Center(
+              child: Text(
+                pct != null ? '${pct.toStringAsFixed(0)}%' : '-',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  insight.description,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (insight.medianCost != null)
+            Text(
+              '¥${_formatCost(insight.medianCost!)}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _maintenanceTypeLabel(String typeKey) {
+    const labels = <String, String>{
+      'oilChange': 'オイル交換',
+      'oilFilterChange': 'オイルフィルター交換',
+      'tireRotation': 'タイヤローテーション',
+      'tireReplacement': 'タイヤ交換',
+      'brakeInspection': 'ブレーキ点検',
+      'brakeFluidChange': 'ブレーキフルード交換',
+      'coolantChange': 'クーラント交換',
+      'batteryChange': 'バッテリー交換',
+      'airFilterChange': 'エアフィルター交換',
+      'cabinFilterChange': 'エアコンフィルター交換',
+      'transmissionFluidChange': 'AT/MTフルード交換',
+      'legalInspection12': '12ヶ月法定点検',
+      'legalInspection24': '車検',
+      'carInspection': '車両点検',
+      'other': 'その他',
+    };
+    return labels[typeKey] ?? typeKey;
+  }
+
+  static String _formatCost(double cost) {
+    if (cost >= 10000) {
+      return '${(cost / 10000).toStringAsFixed(1)}万';
+    }
+    return cost.toStringAsFixed(0);
   }
 }
