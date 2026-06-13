@@ -22,6 +22,14 @@ import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
 import 'maintenance_stats_screen.dart';
 import 'maintenance_search_screen.dart';
+import '../services/firebase_service.dart';
+
+// Data returned by _InspectionCompleteDialog when the user confirms.
+class _InspectionCompletionResult {
+  final DateTime newExpiryDate;
+  final int? mileage;
+  const _InspectionCompletionResult({required this.newExpiryDate, this.mileage});
+}
 
 class VehicleDetailScreen extends StatefulWidget {
   final Vehicle vehicle;
@@ -78,6 +86,51 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
         _vehicle = result;
       });
     }
+  }
+
+  Future<void> _showInspectionCompleteDialog() async {
+    if (_vehicle.inspectionExpiryDate == null) return;
+    // Capture context-dependent objects before any async gap.
+    final maintenanceProvider = context.read<MaintenanceProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    final result = await showDialog<_InspectionCompletionResult>(
+      context: context,
+      builder: (_) => _InspectionCompleteDialog(
+        currentExpiry: _vehicle.inspectionExpiryDate!,
+      ),
+    );
+
+    if (result == null || !mounted) return;
+
+    final firebaseService = sl.get<FirebaseService>();
+    final updated = _vehicle.copyWith(
+      inspectionExpiryDate: result.newExpiryDate,
+      updatedAt: DateTime.now(),
+    );
+
+    await firebaseService.updateVehicle(_vehicle.id, updated);
+    if (!mounted) return;
+
+    await maintenanceProvider.addMaintenanceRecord(
+      MaintenanceRecord(
+        id: '',
+        vehicleId: _vehicle.id,
+        userId: _vehicle.userId,
+        type: MaintenanceType.legalInspection24,
+        title: '車検',
+        date: DateTime.now(),
+        cost: 0,
+        createdAt: DateTime.now(),
+        mileageAtService: result.mileage,
+      ),
+    );
+    if (!mounted) return;
+
+    setState(() => _vehicle = updated);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('車検完了を記録しました')),
+    );
   }
 
   @override
@@ -204,7 +257,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                           label: '走行距離',
                           value: '${_formatNumber(_vehicle.mileage)} km',
                         ),
-                        if (_vehicle.inspectionExpiryDate != null)
+                        if (_vehicle.inspectionExpiryDate != null) ...[
                           _InfoRow(
                             icon: Icons.verified_outlined,
                             label: '車検満了日',
@@ -216,6 +269,28 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                                     ? AppColors.warning
                                     : null,
                           ),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 88, top: 2),
+                            child: OutlinedButton.icon(
+                              key: const Key('inspection_complete_btn'),
+                              onPressed: _showInspectionCompleteDialog,
+                              icon: const Icon(Icons.task_alt, size: 15),
+                              label: const Text('車検完了'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.success,
+                                side: const BorderSide(
+                                  color: AppColors.success,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                textStyle: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ),
+                        ],
                         if (_vehicle.insuranceExpiryDate != null)
                           _InfoRow(
                             icon: Icons.shield_outlined,
@@ -2156,5 +2231,109 @@ class _SuggestionRow extends StatelessWidget {
       case NotificationType.maintenanceRecommendation:
         return Icons.car_repair;
     }
+  }
+}
+
+// ── 車検完了ダイアログ ─────────────────────────────────────────────────────────
+
+class _InspectionCompleteDialog extends StatefulWidget {
+  final DateTime currentExpiry;
+  const _InspectionCompleteDialog({required this.currentExpiry});
+
+  @override
+  State<_InspectionCompleteDialog> createState() =>
+      _InspectionCompleteDialogState();
+}
+
+class _InspectionCompleteDialogState
+    extends State<_InspectionCompleteDialog> {
+  late DateTime _newExpiry;
+  final _mileageController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Default: 2 years from current expiry (or from today if already expired)
+    final base = widget.currentExpiry.isAfter(DateTime.now())
+        ? widget.currentExpiry
+        : DateTime.now();
+    _newExpiry = DateTime(base.year + 2, base.month, base.day);
+  }
+
+  @override
+  void dispose() {
+    _mileageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('車検完了を記録'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('新しい車検満了日', style: theme.textTheme.bodySmall),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text(
+                DateFormat('yyyy年MM月dd日').format(_newExpiry),
+                style: theme.textTheme.bodyLarge
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const Spacer(),
+              TextButton(
+                key: const Key('pick_expiry_date_btn'),
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _newExpiry,
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime(DateTime.now().year + 10),
+                  );
+                  if (picked != null) {
+                    setState(() => _newExpiry = picked);
+                  }
+                },
+                child: const Text('変更'),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            key: const Key('inspection_mileage_field'),
+            controller: _mileageController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '現在の走行距離（任意）',
+              suffixText: 'km',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          key: const Key('confirm_inspection_complete_btn'),
+          onPressed: () {
+            final mileage = int.tryParse(_mileageController.text.trim());
+            Navigator.pop(
+              context,
+              _InspectionCompletionResult(
+                newExpiryDate: _newExpiry,
+                mileage: mileage,
+              ),
+            );
+          },
+          child: const Text('記録する'),
+        ),
+      ],
+    );
   }
 }

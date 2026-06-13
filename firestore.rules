@@ -613,6 +613,16 @@ service cloud.firestore {
       allow write: if false; // admin SDK only
     }
 
+    // ==================== コミュニティ整備トレンド ====================
+    // community_maintenance_trends/{docId}
+    // Aggregated maintenance statistics keyed by "{maker}_{model}".
+    // Only pre-aggregated, anonymised values — no individual user data.
+    // Read: any authenticated user.  Write: admin SDK only.
+    match /community_maintenance_trends/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // admin SDK only — seeded via seed_community_trends.js
+    }
+
     // ==================== 店舗チェーン ====================
     // shop_chains/{chainId}
     // Franchise chain master data (e.g., コバック, ジェームス).
