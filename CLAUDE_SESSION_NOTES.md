@@ -1,23 +1,27 @@
 # Claude Session Notes
 
-最終更新: 2026-06-12
+最終更新: 2026-06-13
 
 ---
 
 ## 現在の状態
 
-**ブランチ**: `claude/continue-development-WYZZp`（PR #20 マージ済み・main取り込み済み）
-**テスト**: 3021件 全パス・失敗0件（`--exclude-tags emulator`）
-**テストユーザー受け入れ準備**: 第10弾完了。貨物車・フリート一括問い合わせ・距離表示・ペルソナ総合テスト追加
+**ブランチ**: `claude/continue-development-WYZZp`
+**テスト**: 3284件以上（第13弾で+走行距離4件+コミュニティトレンド2件追加）全パス・失敗0件
+**`flutter analyze lib/`**: No issues found
 
 ## 人間タスク（テストユーザー配布前に必須）
 
 1. `firebase deploy --only firestore:rules,firestore:indexes` —
    vehicle_grade_specs / posts可視性 / social_notifications / vehicle_listings
    のルール強化 + posts複合インデックス3本（同車種フィルタは未デプロイだと500エラー）
+   **今セッション追加**: `community_maintenance_trends` ルール + `safety_tips` 複合インデックス2本
 2. `firebase deploy --only storage` — storage.rules がコードと一致するよう全面整備済み。
    **本番のConsole編集ルールとの差分を必ず確認してからデプロイ**
    （旧ルールはリポジトリと乖離している疑い。監査レポート参照）
+3. シードデータ登録（スクリプト実装済み・手順は `docs/HUMAN_TASKS.md` 参照）:
+   - `node scripts/seed_safety_tips.js`（6件）
+   - `node scripts/seed_community_trends.js`（5車種）
 
 ---
 
@@ -283,6 +287,47 @@
 **全テスト**: 3,284件 全パス（+100件）  
 **コミット**: `ed80681`  
 **プッシュ済み**: `claude/continue-development-WYZZp`
+
+### 第13弾（2026-06-13実装 — 車両詳細画面強化・コミュニティ連携）
+
+**概要**: 車両詳細画面への2つのクイックアクション追加 + コミュニティトレンドの完全実装。
+
+1. **車検完了クイックアクション** (`vehicle_detail_screen.dart`):
+   - 車検満了日行に「車検完了」ボタン（Key: `inspection_complete_btn`）
+   - タップ → `_InspectionCompleteDialog`（日付選択 + 走行距離入力）
+   - 完了: `FirebaseService.updateVehicle` + `MaintenanceProvider.addMaintenanceRecord(legalInspection24)`
+   - テスト5件追加
+
+2. **走行距離クイック更新** (`vehicle_detail_screen.dart`):
+   - 走行距離行に「更新する」ボタン（Key: `update_mileage_btn`）
+   - タップ → `_MileageUpdateDialog`（StatefulWidget でコントローラーライフサイクル管理）
+   - アニメーション中の `TextEditingController.dispose` 競合を StatefulWidget 化で解消
+   - テスト4件追加
+
+3. **コミュニティトレンドセクション** (`_CommunityTrendSection`):
+   - 車両詳細画面の統計・AI提案セクション後に配置
+   - `CommunityTrendService.getTrendsForVehicle` で同車種ピアデータ取得
+   - `initState`で`isRegistered`チェック → 未登録時は`_loaded = true`直接セット（async setState競合回避）
+   - `_CommunityInsightRow`: 実施率%・整備タイプ・中央値コストを表示
+   - データなし/サービス未登録時は`SizedBox.shrink()`でグレースフルデグレード
+
+4. **コミュニティトレンド自動投稿** (`add_maintenance_screen.dart`):
+   - 新規整備記録保存成功後に `unawaited(_submitTrendData(record))` でfire-and-forget
+   - 前回同種記録との差分（intervalKm/days）を自動計算して匿名投稿
+   - 全エラー抑制（VehicleProvider未登録・サービス未登録・Firestore失敗すべて無視）
+   - テスト2件追加
+
+5. **シードスクリプト** (`scripts/`):
+   - `seed_safety_tips.js`: 安全情報6件（`--dry-run`/`--emulator`対応）
+   - `seed_community_trends.js`: 5車種データ（プリウス/N-BOX/リーフ/フィット/ヴォクシー）
+
+6. **Firestoreルール・インデックス整備**:
+   - `firestore.rules`: `community_maintenance_trends` ルール追加
+   - `firestore.indexes.json`: `safety_tips` 複合インデックス2本追加
+
+**テスト追加**: +11件（走行距離4 + 車検5 + コミュニティ2）  
+**`flutter analyze lib/`**: No issues found  
+**コミット**: `ce14df6`, `8840216`
 
 ### 残課題（次セッション候補）
 - 装着例セクションの再読み込み対応（現在initState時のみ取得）

@@ -1,6 +1,6 @@
 # 人間が実施すべきタスク一覧
 
-**最終更新**: 2026-06-12  
+**最終更新**: 2026-06-13  
 **前提**: AIが実装・テスト・コードプッシュまで完了済み。以下は **AIでは代替できない** 操作のみ。
 
 ---
@@ -9,7 +9,10 @@
 
 ### 1. Firestoreセキュリティルールのデプロイ
 
-**なぜ必要**: 前セッションで5コレクション分のルール追加済み（`fleet_members`, `accessory_showcases`, `car_purchase_inquiries`, `safety_tips`, `shop_chains`）。本番反映しないと全ユーザーの書き込みがルールで弾かれる。
+**なぜ必要**: 以下のルールが追加済みで未デプロイ：
+- 前セッション: `fleet_members`, `accessory_showcases`, `car_purchase_inquiries`, `safety_tips`, `shop_chains`
+- 今セッション: `community_maintenance_trends`（読み取り=認証済み、書き込み=AdminSDKのみ）
+本番反映しないと全ユーザーの書き込みがルールで弾かれる。また、`safety_tips`コレクションの複合インデックス（`isActive + publishedAt`, `isActive + category + publishedAt`）も追加済み。
 
 **手順**:
 ```bash
@@ -167,33 +170,52 @@ storeFile=../../release.keystore
 
 **なぜ必要**: SafetyTipServiceはCloud Functionsまたは管理者のみが書き込み可能。現時点では画面に何も表示されない。
 
-**登録すべき情報（例）**:
-
-| タイトル | カテゴリ | ソース | URL |
-|---------|---------|--------|-----|
-| シートベルトは全席着用 | drivingBasics | npa | https://www.npa.go.jp/bureau/traffic/ |
-| 雨天時は制動距離が2〜3倍 | seasonalDriving | jaf | https://jaf.or.jp/common/safety-drive/rain |
-| 冬道走行の注意点 | seasonalDriving | mlit | https://www.mlit.go.jp/ |
-| 乗車前の日常点検 | vehicleCheck | mlit | https://www.mlit.go.jp/ |
-| 子供の車内放置は危険 | childSafety | fdma | https://www.fdma.go.jp/ |
-| 高齢ドライバーの認知機能チェック | elderlyDriving | npa | https://www.npa.go.jp/ |
+**シードスクリプト実装済み**: `scripts/seed_safety_tips.js`（6件のサンプルデータ）
 
 **手順**:
-- Firebase Console → Firestore → `safety_tips` コレクションに追加
-- または、専用の管理者スクリプトをAIに作成させて実行（AIに依頼可）
+```bash
+# 1. 依存パッケージのインストール
+cd /path/to/trust-car-platform
+npm install firebase-admin
 
-**所要時間**: 30分
+# 2. Emulator で動作確認（オプション）
+firebase emulators:start --only firestore
+node scripts/seed_safety_tips.js --dry-run   # データ確認のみ
+node scripts/seed_safety_tips.js --emulator  # Emulatorに書き込み
+
+# 3. 本番に登録
+export GOOGLE_APPLICATION_CREDENTIALS=path/to/serviceAccount.json
+node scripts/seed_safety_tips.js
+```
+
+**所要時間**: 10分（スクリプト実行のみ）  
+**前提条件**: Firebase サービスアカウントJSON（Firebase Console → プロジェクト設定 → サービスアカウント）
 
 ---
 
 ### 11. コミュニティトレンドの初期シードデータ登録
 
-**なぜ必要**: 主要車種（プリウス・フィット・ヴォクシー・N-BOX・リーフ）のトレンドデータが空だとPersona D/E/Gの機能が機能しない。
+**なぜ必要**: 主要車種（プリウス・N-BOX・リーフ・フィット・ヴォクシー）のトレンドデータが空だと車両詳細画面の「コミュニティの傾向」セクションに何も表示されない。
 
-**コレクション**: `community_maintenance_trends`  
-**手順**: AIに依頼して Firestore シードスクリプトを作成し、Firebase Admin SDK で実行
+**シードスクリプト実装済み**: `scripts/seed_community_trends.js`（5車種 × 5〜6メンテタイプ）
 
-**所要時間**: 1時間（AIとの共同作業）
+**手順**:
+```bash
+# 1. 依存パッケージのインストール（seed_safety_tips.js と共有）
+npm install firebase-admin
+
+# 2. Emulator で動作確認（オプション）
+node scripts/seed_community_trends.js --dry-run   # データ確認のみ
+node scripts/seed_community_trends.js --emulator  # Emulatorに書き込み
+
+# 3. 本番に登録
+export GOOGLE_APPLICATION_CREDENTIALS=path/to/serviceAccount.json
+node scripts/seed_community_trends.js
+```
+
+**所要時間**: 10分（スクリプト実行のみ）  
+**前提条件**: Firebase サービスアカウントJSON（同上）  
+**注意**: ユーザーが整備記録を登録するたびに自動的にデータが蓄積されるため、シードデータはあくまで初期の「呼び水」として機能する。
 
 ---
 
@@ -238,16 +260,9 @@ storeFile=../../release.keystore
 
 ---
 
-### 15. 「車検完了」クイックアクション の実装依頼
+### ~~15. 「車検完了」クイックアクション の実装依頼~~
 
-**背景**: 現在、車検完了後は `vehicle_detail_screen.dart` → 編集 → `inspectionExpiryDate` を手動更新する必要がある。ワンタップで「車検完了 → 新しい満了日を入力 → 整備記録を自動追加」するフローが未実装。
-
-**AIへの依頼方法**:
-```
-「車両詳細画面に『車検完了』ボタンを追加して。
-タップすると ①新しい車検満了日を入力するダイアログ ②車検の整備記録を自動追加
-の2ステップで完結するフローを実装して。TDD厳守。」
-```
+**[実装済み 2026-06-13]**: 車両詳細画面に「車検完了」ボタン（`inspection_complete_btn`）を追加。タップ → 新しい満了日を選択 → `legalInspection24` 整備記録を自動追加。テスト5件済み。
 
 ---
 
@@ -276,8 +291,8 @@ storeFile=../../release.keystore
 - [ ] P1-7: RevenueCat API キー設定
 - [ ] P1-8: 実機テスト（iOS・Android）
 - [ ] P1-9: Firestore バックアップ設定
-- [ ] P1-10: SafetyTip 初期シードデータ登録
-- [ ] P1-11: コミュニティトレンド初期シードデータ登録
+- [ ] P1-10: SafetyTip 初期シードデータ登録（`node scripts/seed_safety_tips.js`）
+- [ ] P1-11: コミュニティトレンド初期シードデータ登録（`node scripts/seed_community_trends.js`）
 
 ---
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +8,7 @@ import '../providers/maintenance_provider.dart';
 import '../providers/vehicle_provider.dart';
 import '../services/firebase_service.dart';
 import '../services/invoice_ocr_service.dart';
+import '../services/community_trend_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
@@ -246,6 +248,11 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       }
 
       if (success && mounted) {
+        // Fire-and-forget: contribute anonymized interval data to community trends
+        if (!_isEditMode) {
+          unawaited(_submitTrendData(record));
+        }
+
         showSuccessSnackBar(
           context,
           _isEditMode ? 'メンテナンス履歴を更新しました' : 'メンテナンス履歴を追加しました',
@@ -267,6 +274,60 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// Fire-and-forget: contribute anonymized maintenance interval data to
+  /// community trends. All errors are suppressed — this must never block the
+  /// user's primary save flow.
+  Future<void> _submitTrendData(MaintenanceRecord record) async {
+    try {
+      if (!sl.isRegistered<CommunityTrendService>()) return;
+
+      // Resolve vehicle maker/model; VehicleProvider may not be present in all
+      // widget trees (e.g. tests), so guard with a try-catch.
+      final vehicle = context
+          .read<VehicleProvider>()
+          .vehicles
+          .where((v) => v.id == widget.vehicleId)
+          .firstOrNull;
+      if (vehicle == null) return;
+
+      // Find the most recent previous record of the same maintenance type to
+      // compute the service interval.
+      final provider = context.read<MaintenanceProvider>();
+      final previous = provider.records
+          .where((r) =>
+              r.type == record.type && r.date.isBefore(record.date))
+          .fold<MaintenanceRecord?>(null, (best, r) {
+        if (best == null) return r;
+        return r.date.isAfter(best.date) ? r : best;
+      });
+
+      // At least one prior record of the same type is required to compute an
+      // interval (first-ever records have no baseline).
+      if (previous == null) return;
+
+      final intervalDays =
+          record.date.difference(previous.date).inDays;
+      final intervalKm =
+          (record.mileageAtService != null && previous.mileageAtService != null)
+              ? record.mileageAtService! - previous.mileageAtService!
+              : 0;
+
+      if (intervalDays <= 0 || intervalKm < 0) return;
+
+      final service = sl.get<CommunityTrendService>();
+      await service.submitVehicleTrendData(
+        maker: vehicle.maker,
+        model: vehicle.model,
+        maintenanceTypeKey: record.type.name,
+        intervalKm: intervalKm,
+        intervalDays: intervalDays,
+        cost: record.cost,
+      );
+    } catch (_) {
+      // Intentionally suppressed — community contribution is optional.
     }
   }
 
