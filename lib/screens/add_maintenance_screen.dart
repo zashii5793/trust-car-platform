@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/maintenance_record.dart';
 import '../models/post.dart';
 import '../providers/maintenance_provider.dart';
@@ -52,7 +53,6 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   MaintenanceType _selectedType = MaintenanceType.repair;
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
-  bool _showAllTypes = false;
   bool _isOcrProcessing = false;
   List<String> _ocrAppliedFields = [];
 
@@ -62,19 +62,14 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   InvoiceOcrService get _invoiceOcrService => sl.get<InvoiceOcrService>();
   FirebaseService get _firebaseService => sl.get<FirebaseService>();
 
-  // よく使うメンテナンスタイプ（初期表示）
-  static const _commonTypes = [
-    MaintenanceType.oilChange,
-    MaintenanceType.legalInspection12,
-    MaintenanceType.carInspection,
-    MaintenanceType.tireChange,
-    MaintenanceType.repair,
-    MaintenanceType.partsReplacement,
-  ];
+  static const _recentTypesKey = 'maintenance_recent_types';
+  static const _maxRecentTypes = 5;
+  List<MaintenanceType> _recentTypes = [];
 
   @override
   void initState() {
     super.initState();
+    _loadRecentTypes();
     final record = widget.existingRecord;
     if (record != null) {
       _selectedType = record.type;
@@ -98,6 +93,26 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       if (record.tireSize != null) _tireSizeController.text = record.tireSize!;
       _tirePosition = record.tirePosition;
     }
+  }
+
+  Future<void> _loadRecentTypes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getStringList(_recentTypesKey) ?? [];
+    if (!mounted) return;
+    setState(() {
+      _recentTypes = stored
+          .where((s) => MaintenanceType.values.any((e) => e.name == s))
+          .map(MaintenanceType.fromString)
+          .toList();
+    });
+  }
+
+  Future<void> _saveRecentTypes() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _recentTypesKey,
+      _recentTypes.map((t) => t.name).toList(),
+    );
   }
 
   @override
@@ -391,16 +406,19 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   void _onTypeSelected(MaintenanceType type) {
     setState(() {
       _selectedType = type;
-      // タイプに応じてタイトルを自動設定（空の場合のみ）
       if (_titleController.text.isEmpty) {
         _titleController.text = type.displayName;
       }
-      // Reset tire-specific fields when switching away from tire types
       if (!_isTireType) {
         _tireSizeController.clear();
         _tirePosition = null;
       }
+      _recentTypes = [
+        type,
+        ..._recentTypes.where((t) => t != type),
+      ].take(_maxRecentTypes).toList();
     });
+    _saveRecentTypes();
   }
 
   bool get _isDirty =>
@@ -433,7 +451,6 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final typesToShow = _showAllTypes ? MaintenanceType.values : _commonTypes;
 
     return PopScope(
       canPop: !_isDirty,
@@ -467,59 +484,51 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   AppSpacing.verticalLg,
 
                   // タイプ選択
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'メンテナンスタイプ',
-                        style: theme.textTheme.labelLarge,
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _showAllTypes = !_showAllTypes;
-                          });
-                        },
-                        child: Text(_showAllTypes ? '簡易表示' : 'すべて表示'),
-                      ),
-                    ],
+                  Text(
+                    'メンテナンスタイプ',
+                    style: theme.textTheme.labelLarge,
                   ),
                   AppSpacing.verticalXs,
 
-                  if (_showAllTypes)
-                    // カテゴリ別表示
-                    ...MaintenanceType.groupedTypes.entries.map((entry) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8.0),
-                            child: Text(
-                              entry.key,
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                          Wrap(
-                            spacing: AppSpacing.xs,
-                            runSpacing: AppSpacing.xs,
-                            children: entry.value.map((type) {
-                              return _buildTypeChip(type);
-                            }).toList(),
-                          ),
-                        ],
-                      );
-                    })
-                  else
-                    // よく使うタイプのみ表示
+                  // 最近使ったタイプ
+                  if (_recentTypes.isNotEmpty) ...[
+                    Text(
+                      '最近使ったタイプ',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: AppSpacing.xs,
                       runSpacing: AppSpacing.xs,
-                      children: typesToShow.map((type) {
-                        return _buildTypeChip(type);
-                      }).toList(),
+                      children: _recentTypes.map(_buildTypeChip).toList(),
                     ),
+                    const Divider(height: AppSpacing.lg),
+                  ],
+
+                  // カテゴリ別全タイプ
+                  ...MaintenanceType.groupedTypes.entries.map((entry) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: Text(
+                            entry.key,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                        Wrap(
+                          spacing: AppSpacing.xs,
+                          runSpacing: AppSpacing.xs,
+                          children: entry.value.map(_buildTypeChip).toList(),
+                        ),
+                      ],
+                    );
+                  }),
 
                   AppSpacing.verticalSm,
 

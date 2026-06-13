@@ -3,6 +3,7 @@ import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/shop.dart';
+import '../models/shop_case_study.dart';
 
 /// Service for shop (business partner) operations
 class ShopService {
@@ -353,6 +354,53 @@ class ShopService {
       return Result.success(shops);
     } catch (e) {
       return Result.failure(AppError.server('店舗の取得に失敗しました: $e'));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Case studies (施工事例)
+  // ---------------------------------------------------------------------------
+
+  CollectionReference<Map<String, dynamic>> _caseStudiesCollection(
+          String shopId) =>
+      _shopsCollection.doc(shopId).collection('caseStudies');
+
+  /// Fetches all case studies for a shop, newest first.
+  Future<Result<List<ShopCaseStudy>, AppError>> getCaseStudies(
+      String shopId) async {
+    try {
+      final snapshot = await _caseStudiesCollection(shopId)
+          .orderBy('createdAt', descending: true)
+          .limit(20)
+          .get();
+      final studies =
+          snapshot.docs.map((doc) => ShopCaseStudy.fromFirestore(doc)).toList();
+      return Result.success(studies);
+    } catch (e) {
+      return Result.failure(AppError.server('施工事例の取得に失敗しました: $e'));
+    }
+  }
+
+  /// Adds a case study. The returned study has the Firestore-generated id.
+  Future<Result<ShopCaseStudy, AppError>> addCaseStudy(
+      ShopCaseStudy study) async {
+    try {
+      final ref = await _caseStudiesCollection(study.shopId).add(study.toMap());
+      final doc = await ref.get();
+      return Result.success(ShopCaseStudy.fromFirestore(doc));
+    } catch (e) {
+      return Result.failure(AppError.server('施工事例の追加に失敗しました: $e'));
+    }
+  }
+
+  /// Deletes a case study by id.
+  Future<Result<void, AppError>> deleteCaseStudy(
+      String shopId, String studyId) async {
+    try {
+      await _caseStudiesCollection(shopId).doc(studyId).delete();
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.server('施工事例の削除に失敗しました: $e'));
     }
   }
 

@@ -112,12 +112,15 @@ class _HomeScreenState extends State<HomeScreen> {
       Consumer<ConnectivityProvider>(
         builder: (context, connectivity, child) {
           if (connectivity.isOffline) {
-            return const Padding(
-              padding: EdgeInsets.only(right: 8),
-              child: Icon(
-                Icons.cloud_off,
-                color: AppColors.warning,
-                size: 20,
+            return Semantics(
+              label: 'オフラインモード',
+              child: const Padding(
+                padding: EdgeInsets.only(right: 8),
+                child: Icon(
+                  Icons.cloud_off,
+                  color: AppColors.warning,
+                  size: 20,
+                ),
               ),
             );
           }
@@ -229,13 +232,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: 'みんなの投稿',
               ),
               NavigationDestination(
-                icon: Badge(
-                  isLabelVisible: unread > 0,
-                  label: Text(
-                    unread > 99 ? '99+' : '$unread',
-                    style: const TextStyle(fontSize: 10),
+                icon: Semantics(
+                  label: unread > 0
+                      ? '通知 未読${unread > 99 ? '99件以上' : '$unread件'}'
+                      : '通知',
+                  child: Badge(
+                    isLabelVisible: unread > 0,
+                    label: Text(
+                      unread > 99 ? '99+' : '$unread',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    child: const ExcludeSemantics(
+                      child: Icon(Icons.notifications_outlined),
+                    ),
                   ),
-                  child: const Icon(Icons.notifications_outlined),
                 ),
                 selectedIcon: Badge(
                   isLabelVisible: unread > 0,
