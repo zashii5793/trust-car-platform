@@ -655,6 +655,55 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  group('走行距離クイック更新', () {
+    testWidgets('走行距離更新ボタンが常に表示される', (tester) async {
+      await _pumpScreen(tester, maintenanceProvider);
+      await tester.pump();
+
+      expect(find.byKey(const Key('update_mileage_btn')), findsOneWidget);
+    });
+
+    testWidgets('走行距離更新ボタンタップでダイアログが開く', (tester) async {
+      await _pumpScreen(tester, maintenanceProvider);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('update_mileage_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('走行距離を更新'), findsOneWidget);
+    });
+
+    testWidgets('ダイアログ「キャンセル」でダイアログが閉じる', (tester) async {
+      await _pumpScreen(tester, maintenanceProvider);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('update_mileage_btn')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('キャンセル'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('走行距離を更新'), findsNothing);
+    });
+
+    testWidgets('新しい走行距離を入力して更新すると SnackBar が表示される', (tester) async {
+      await _pumpScreen(tester, maintenanceProvider);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('update_mileage_btn')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.byKey(const Key('mileage_input_field')), '15000');
+      await tester
+          .tap(find.byKey(const Key('confirm_mileage_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('走行距離を更新しました'), findsOneWidget);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   group('車検完了クイックアクション', () {
     Vehicle _vehicleWithInspection() => Vehicle(
           id: 'v1',
