@@ -1,16 +1,20 @@
 /**
  * Firebase Storage セキュリティルール 自動テスト
  *
- * 対象: storage.rules の車両画像パス（vehicles/{userId}/{fileName}）の所有者スコープ検証。
- *       旧形式（vehicles/{fileName}）の後方互換（read のみ許可）も検証する。
+ * 対象: storage.rules の車両画像パスの所有者スコープ検証。
+ *   - 現行: vehicles/{userId}/{fileName}（所有者スコープ）
+ *   - 旧パス: vehicles/{userId}/{vehicleId}/{fileName}（3セグメント・所有者スコープ）
+ *
+ * 重要: storage.rules には旧々形式 vehicles/{fileName}（userId 未スコープ・単一
+ *       セグメント）のルールが存在しない。よってその形式の既存画像はデフォルト
+ *       拒否で読めなくなる。scripts/migrate_vehicle_images.js で
+ *       vehicles/{userId}/{fileName} へ移行することが前提（Admin SDK はルールを
+ *       迂回するため移行自体は可能）。本テストはその「拒否」も明示的に検証する。
  *
  * 実行:
  *   cd test/rules
  *   npm install
  *   npm test          # Storage Emulator を起動してテスト実行（firebase emulators:exec）
- *
- * 前提:
- *   firebase.json の emulators.storage（port 9199）が設定済みであること。
  */
 
 const fs = require('fs');
@@ -78,7 +82,7 @@ async function seed(objectPath) {
   });
 }
 
-describe('vehicles/{userId}/{fileName} — 所有者スコープ', () => {
+describe('vehicles/{userId}/{fileName} — 現行パスの所有者スコープ', () => {
   const ownerPath = `vehicles/${OWNER_UID}/abc.jpg`;
 
   describe('write（アップロード）', () => {
@@ -108,7 +112,7 @@ describe('vehicles/{userId}/{fileName} — 所有者スコープ', () => {
       );
     });
 
-    test('5MB以上の画像は書き込めない（isValidImageSize）', async () => {
+    test('5MB以上の画像は書き込めない（isValidFileSize）', async () => {
       const big = new Uint8Array(5 * 1024 * 1024 + 1);
       await assertFails(
         uploadBytes(ref(storageFor(OWNER_UID), ownerPath), big, PNG_META),
@@ -149,29 +153,41 @@ describe('vehicles/{userId}/{fileName} — 所有者スコープ', () => {
   });
 });
 
-describe('vehicles/{fileName} — 旧形式の後方互換（read のみ）', () => {
+describe('vehicles/{userId}/{vehicleId}/{fileName} — 旧3セグメントパスの所有者スコープ', () => {
+  const ownerNestedPath = `vehicles/${OWNER_UID}/vehicle_1/abc.jpg`;
+
+  test('所有者は書き込める', async () => {
+    await assertSucceeds(
+      uploadBytes(ref(storageFor(OWNER_UID), ownerNestedPath), PNG_BYTES, PNG_META),
+    );
+  });
+
+  test('他ユーザーは書き込めない', async () => {
+    await assertFails(
+      uploadBytes(ref(storageFor(OTHER_UID), ownerNestedPath), PNG_BYTES, PNG_META),
+    );
+  });
+
+  test('認証済みユーザーは閲覧できる', async () => {
+    await seed(ownerNestedPath);
+    await assertSucceeds(getDownloadURL(ref(storageFor(OTHER_UID), ownerNestedPath)));
+  });
+});
+
+describe('vehicles/{fileName} — 旧々形式（userId未スコープ）は拒否される', () => {
+  // storage.rules に単一セグメントの vehicles/{fileName} ルールは無いため
+  // デフォルト拒否となる。既存画像は migrate_vehicle_images.js での移行が前提。
   const legacyPath = 'vehicles/legacy-uuid.jpg';
 
-  beforeEach(async () => {
-    await seed(legacyPath);
-  });
-
-  test('認証済みユーザーは旧形式の画像を閲覧できる', async () => {
-    await assertSucceeds(getDownloadURL(ref(storageFor(OWNER_UID), legacyPath)));
-  });
-
-  test('未認証ユーザーは閲覧できない', async () => {
-    await assertFails(getDownloadURL(ref(unauthStorage(), legacyPath)));
-  });
-
-  test('旧形式パスへの新規書き込みは拒否される（write: false）', async () => {
+  test('書き込みは拒否される（デフォルト拒否）', async () => {
     await assertFails(
       uploadBytes(ref(storageFor(OWNER_UID), legacyPath), PNG_BYTES, PNG_META),
     );
   });
 
-  test('旧形式パスの削除は拒否される（delete: false）', async () => {
-    await assertFails(deleteObject(ref(storageFor(OWNER_UID), legacyPath)));
+  test('閲覧も拒否される（移行が必要なことを示す）', async () => {
+    await seed(legacyPath);
+    await assertFails(getDownloadURL(ref(storageFor(OWNER_UID), legacyPath)));
   });
 });
 

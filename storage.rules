@@ -41,7 +41,7 @@ service firebase.storage {
 
     // SNS投稿画像（post_images/{userId}/{timestamp}/{fileName}）
     // 公開投稿に添付されるため読み取りは認証ユーザー全体
-    match /post_images/{userId}/{timestamp}/{fileName} {
+    match /post_images/{userId}/{ts}/{fileName} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated()
                    && request.auth.uid == userId
