@@ -376,7 +376,7 @@ void main() {
   // ---------------------------------------------------------------------------
 
   /// Minimal Firestore document for a post
-  Map<String, dynamic> _postDoc({
+  Map<String, dynamic> postDoc({
     required String userId,
     required String visibility,
     String content = 'test',
@@ -409,13 +409,13 @@ void main() {
       // Seed 3 posts from 'author-uid' with different visibilities
       await fakeFirestore
           .collection('posts')
-          .add(_postDoc(userId: 'author-uid', visibility: 'public'));
+          .add(postDoc(userId: 'author-uid', visibility: 'public'));
       await fakeFirestore
           .collection('posts')
-          .add(_postDoc(userId: 'author-uid', visibility: 'followers'));
+          .add(postDoc(userId: 'author-uid', visibility: 'followers'));
       await fakeFirestore
           .collection('posts')
-          .add(_postDoc(userId: 'author-uid', visibility: 'private'));
+          .add(postDoc(userId: 'author-uid', visibility: 'private'));
     });
 
     test('非フォロワーは公開投稿のみ取得できる', () async {
@@ -475,7 +475,7 @@ void main() {
     test('フォロワー限定のみのユーザー — 非フォロワーには空リスト', () async {
       await fakeFirestore
           .collection('posts')
-          .add(_postDoc(userId: 'private-author', visibility: 'followers'));
+          .add(postDoc(userId: 'private-author', visibility: 'followers'));
 
       final result = await service.getUserPosts(
         userId: 'private-author',
@@ -537,7 +537,7 @@ void main() {
         // Add posts from another user
         await fakeFirestore
             .collection('posts')
-            .add(_postDoc(userId: 'other-user', visibility: 'public'));
+            .add(postDoc(userId: 'other-user', visibility: 'public'));
 
         final result = await service.getUserPosts(
           userId: 'author-uid',

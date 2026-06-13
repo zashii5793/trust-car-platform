@@ -9,7 +9,7 @@ void main() {
     late SafetyTipService service;
     final now = DateTime(2026, 1, 1);
 
-    SafetyTip _tip({
+    SafetyTip buildTip({
       String id = 'tip-1',
       String title = 'シートベルトを正しく着用する',
       SafetyTipCategory category = SafetyTipCategory.drivingBasics,
@@ -28,7 +28,7 @@ void main() {
           publishedAt: now,
         );
 
-    Future<void> _seedTip(SafetyTip tip) async {
+    Future<void> seedTip(SafetyTip tip) async {
       await firestore.collection('safety_tips').doc(tip.id).set(tip.toMap());
     }
 
@@ -47,8 +47,8 @@ void main() {
       });
 
       test('fromFirestore → toMap のラウンドトリップが成功する', () async {
-        final tip = _tip();
-        await _seedTip(tip);
+        final tip = buildTip();
+        await seedTip(tip);
 
         final doc = await firestore.collection('safety_tips').doc(tip.id).get();
         final restored = SafetyTip.fromFirestore(doc);
@@ -133,9 +133,9 @@ void main() {
     // -------------------------------------------------------------------------
     group('getTips', () {
       test('正常系: アクティブなヒントのみ取得される', () async {
-        await _seedTip(_tip(id: 'active-1'));
-        await _seedTip(_tip(id: 'active-2', title: '別のヒント'));
-        await _seedTip(_tip(id: 'inactive-1', isActive: false));
+        await seedTip(buildTip(id: 'active-1'));
+        await seedTip(buildTip(id: 'active-2', title: '別のヒント'));
+        await seedTip(buildTip(id: 'inactive-1', isActive: false));
 
         final result = await service.getTips();
         expect(result.isSuccess, isTrue);
@@ -144,11 +144,11 @@ void main() {
       });
 
       test('正常系: カテゴリでフィルタできる', () async {
-        await _seedTip(_tip(
+        await seedTip(buildTip(
             id: 'seasonal-1',
             category: SafetyTipCategory.seasonalDriving,
             title: '雪道の運転'));
-        await _seedTip(_tip(
+        await seedTip(buildTip(
             id: 'basic-1',
             category: SafetyTipCategory.drivingBasics,
             title: '基本'));
@@ -167,10 +167,10 @@ void main() {
       });
 
       test('正常系: ソース別フィルタできる', () async {
-        await _seedTip(
-            _tip(id: 'jaf-1', source: SafetyTipSource.jaf, title: 'JAFヒント'));
-        await _seedTip(
-            _tip(id: 'npa-1', source: SafetyTipSource.npa, title: '警察ヒント'));
+        await seedTip(buildTip(
+            id: 'jaf-1', source: SafetyTipSource.jaf, title: 'JAFヒント'));
+        await seedTip(
+            buildTip(id: 'npa-1', source: SafetyTipSource.npa, title: '警察ヒント'));
 
         final result = await service.getTips(source: SafetyTipSource.npa);
         expect(result.isSuccess, isTrue);
@@ -184,7 +184,7 @@ void main() {
     // -------------------------------------------------------------------------
     group('getById', () {
       test('正常系: IDでヒントを取得できる', () async {
-        await _seedTip(_tip());
+        await seedTip(buildTip());
         final result = await service.getById('tip-1');
         expect(result.isSuccess, isTrue);
         expect(result.valueOrNull!.id, 'tip-1');

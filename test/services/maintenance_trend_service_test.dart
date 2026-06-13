@@ -6,7 +6,7 @@ void main() {
   group('MaintenanceTrendService', () {
     const service = MaintenanceTrendService();
 
-    MaintenanceRecord _record({
+    MaintenanceRecord record({
       required String id,
       required MaintenanceType type,
       required DateTime date,
@@ -29,19 +29,19 @@ void main() {
     group('analyzeHistory', () {
       test('正常系: オイル交換の平均間隔（km）を計算する', () {
         final records = [
-          _record(
+          record(
             id: '1',
             type: MaintenanceType.oilChange,
             date: DateTime(2023, 1, 1),
             mileage: 10000,
           ),
-          _record(
+          record(
             id: '2',
             type: MaintenanceType.oilChange,
             date: DateTime(2023, 7, 1),
             mileage: 15000,
           ),
-          _record(
+          record(
             id: '3',
             type: MaintenanceType.oilChange,
             date: DateTime(2024, 1, 1),
@@ -60,17 +60,17 @@ void main() {
 
       test('正常系: オイル交換の平均間隔（日数）を計算する', () {
         final records = [
-          _record(
+          record(
             id: '1',
             type: MaintenanceType.oilChange,
             date: DateTime(2023, 1, 1),
           ),
-          _record(
+          record(
             id: '2',
             type: MaintenanceType.oilChange,
             date: DateTime(2023, 7, 1),
           ),
-          _record(
+          record(
             id: '3',
             type: MaintenanceType.oilChange,
             date: DateTime(2024, 1, 1),
@@ -89,13 +89,13 @@ void main() {
       test('正常系: 次回交換予測日を計算する', () {
         final now = DateTime.now();
         final records = [
-          _record(
+          record(
             id: '1',
             type: MaintenanceType.oilChange,
             date: now.subtract(const Duration(days: 360)),
             mileage: 10000,
           ),
-          _record(
+          record(
             id: '2',
             type: MaintenanceType.oilChange,
             date: now.subtract(const Duration(days: 180)),
@@ -117,13 +117,13 @@ void main() {
 
       test('正常系: 次回交換予測走行距離を計算する', () {
         final records = [
-          _record(
+          record(
             id: '1',
             type: MaintenanceType.oilChange,
             date: DateTime(2023, 1, 1),
             mileage: 10000,
           ),
-          _record(
+          record(
             id: '2',
             type: MaintenanceType.oilChange,
             date: DateTime(2023, 7, 1),
@@ -142,19 +142,19 @@ void main() {
 
       test('正常系: 平均費用を計算する', () {
         final records = [
-          _record(
+          record(
             id: '1',
             type: MaintenanceType.oilChange,
             date: DateTime(2023, 1, 1),
             cost: 3000,
           ),
-          _record(
+          record(
             id: '2',
             type: MaintenanceType.oilChange,
             date: DateTime(2023, 7, 1),
             cost: 5000,
           ),
-          _record(
+          record(
             id: '3',
             type: MaintenanceType.oilChange,
             date: DateTime(2024, 1, 1),
@@ -173,7 +173,7 @@ void main() {
       test('正常系: 信頼度 high = 3件以上', () {
         final records = List.generate(
           3,
-          (i) => _record(
+          (i) => record(
             id: 'r$i',
             type: MaintenanceType.oilChange,
             date: DateTime(2023 + i, 1, 1),
@@ -190,12 +190,12 @@ void main() {
 
       test('正常系: 信頼度 medium = 2件', () {
         final records = [
-          _record(
+          record(
             id: '1',
             type: MaintenanceType.tireChange,
             date: DateTime(2023, 1, 1),
           ),
-          _record(
+          record(
             id: '2',
             type: MaintenanceType.tireChange,
             date: DateTime(2024, 1, 1),
@@ -212,7 +212,7 @@ void main() {
 
       test('正常系: 信頼度 low = 1件', () {
         final records = [
-          _record(
+          record(
             id: '1',
             type: MaintenanceType.batteryChange,
             date: DateTime(2023, 1, 1),
@@ -231,17 +231,17 @@ void main() {
 
       test('正常系: 複数タイプを個別に分析する', () {
         final records = [
-          _record(
+          record(
             id: '1',
             type: MaintenanceType.oilChange,
             date: DateTime(2023, 1, 1),
           ),
-          _record(
+          record(
             id: '2',
             type: MaintenanceType.tireChange,
             date: DateTime(2023, 3, 1),
           ),
-          _record(
+          record(
             id: '3',
             type: MaintenanceType.oilChange,
             date: DateTime(2023, 7, 1),
@@ -263,13 +263,13 @@ void main() {
 
       test('正常系: 直近のサービス日・走行距離を記録する', () {
         final records = [
-          _record(
+          record(
             id: '1',
             type: MaintenanceType.oilChange,
             date: DateTime(2023, 1, 1),
             mileage: 10000,
           ),
-          _record(
+          record(
             id: '2',
             type: MaintenanceType.oilChange,
             date: DateTime(2024, 6, 1),
@@ -295,12 +295,12 @@ void main() {
         test('走行距離データなしでも日数ベース予測は返る', () {
           final now = DateTime.now();
           final records = [
-            _record(
+            record(
               id: '1',
               type: MaintenanceType.oilChange,
               date: now.subtract(const Duration(days: 180)),
             ),
-            _record(
+            record(
               id: '2',
               type: MaintenanceType.oilChange,
               date: now.subtract(const Duration(days: 360)),
@@ -319,8 +319,8 @@ void main() {
         test('同日の重複レコードは正しく処理する', () {
           final date = DateTime(2023, 6, 1);
           final records = [
-            _record(id: '1', type: MaintenanceType.oilChange, date: date),
-            _record(id: '2', type: MaintenanceType.oilChange, date: date),
+            record(id: '1', type: MaintenanceType.oilChange, date: date),
+            record(id: '2', type: MaintenanceType.oilChange, date: date),
           ];
 
           final trends = service.analyzeHistory(records);
@@ -330,7 +330,7 @@ void main() {
         test('将来日付のレコードは無視しない（テストデータ用）', () {
           final future = DateTime.now().add(const Duration(days: 30));
           final records = [
-            _record(
+            record(
               id: '1',
               type: MaintenanceType.oilChange,
               date: future,
@@ -348,22 +348,22 @@ void main() {
       test('予測次回日が近い順にソートされる', () {
         final now = DateTime.now();
         final records = [
-          _record(
+          record(
             id: '1',
             type: MaintenanceType.batteryChange,
             date: now.subtract(const Duration(days: 700)),
           ),
-          _record(
+          record(
             id: '2',
             type: MaintenanceType.batteryChange,
             date: now.subtract(const Duration(days: 720)),
           ),
-          _record(
+          record(
             id: '3',
             type: MaintenanceType.oilChange,
             date: now.subtract(const Duration(days: 10)),
           ),
-          _record(
+          record(
             id: '4',
             type: MaintenanceType.oilChange,
             date: now.subtract(const Duration(days: 20)),

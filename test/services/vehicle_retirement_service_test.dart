@@ -9,7 +9,7 @@ void main() {
     late VehicleRetirementService service;
     final now = DateTime(2026, 1, 1);
 
-    Vehicle _activeVehicle({
+    Vehicle activeVehicle({
       String id = 'v1',
       String userId = 'owner-1',
       String maker = 'Toyota',
@@ -29,7 +29,7 @@ void main() {
           updatedAt: now,
         );
 
-    Future<void> _seed(Vehicle v) async {
+    Future<void> seed(Vehicle v) async {
       await firestore.collection('vehicles').doc(v.id).set(v.toMap());
     }
 
@@ -43,7 +43,7 @@ void main() {
     // -------------------------------------------------------------------------
     group('retireVehicle (売却)', () {
       test('正常系: 売却ステータスに変更される', () async {
-        await _seed(_activeVehicle());
+        await seed(activeVehicle());
 
         final result = await service.retireVehicle(
           vehicleId: 'v1',
@@ -62,7 +62,7 @@ void main() {
       });
 
       test('正常系: 廃車ステータスに変更される', () async {
-        await _seed(_activeVehicle());
+        await seed(activeVehicle());
 
         final result = await service.retireVehicle(
           vehicleId: 'v1',
@@ -78,7 +78,7 @@ void main() {
       });
 
       test('正常系: リース返却ステータスに変更される', () async {
-        await _seed(_activeVehicle());
+        await seed(activeVehicle());
 
         final result = await service.retireVehicle(
           vehicleId: 'v1',
@@ -93,7 +93,7 @@ void main() {
       });
 
       test('正常系: 譲渡ステータスに変更される', () async {
-        await _seed(_activeVehicle());
+        await seed(activeVehicle());
 
         final result = await service.retireVehicle(
           vehicleId: 'v1',
@@ -110,7 +110,7 @@ void main() {
 
       group('異常系', () {
         test('他人の車両は退役できない', () async {
-          await _seed(_activeVehicle(userId: 'owner-1'));
+          await seed(activeVehicle(userId: 'owner-1'));
 
           final result = await service.retireVehicle(
             vehicleId: 'v1',
@@ -123,10 +123,10 @@ void main() {
         });
 
         test('既に退役済みの車両は再度退役できない', () async {
-          final retired = _activeVehicle().copyWith(
+          final retired = activeVehicle().copyWith(
             status: VehicleStatus.sold,
           );
-          await _seed(retired);
+          await seed(retired);
 
           final result = await service.retireVehicle(
             vehicleId: 'v1',
@@ -139,7 +139,7 @@ void main() {
         });
 
         test('active以外のreasonはバリデーションエラー', () async {
-          await _seed(_activeVehicle());
+          await seed(activeVehicle());
 
           final result = await service.retireVehicle(
             vehicleId: 'v1',
@@ -180,8 +180,8 @@ void main() {
     // -------------------------------------------------------------------------
     group('restoreVehicle', () {
       test('正常系: 退役車両を使用中に戻せる', () async {
-        final retired = _activeVehicle().copyWith(status: VehicleStatus.sold);
-        await _seed(retired);
+        final retired = activeVehicle().copyWith(status: VehicleStatus.sold);
+        await seed(retired);
 
         final result = await service.restoreVehicle(
           vehicleId: 'v1',
@@ -195,7 +195,7 @@ void main() {
       });
 
       test('異常系: 使用中の車両を復元しようとするとエラー', () async {
-        await _seed(_activeVehicle());
+        await seed(activeVehicle());
 
         final result = await service.restoreVehicle(
           vehicleId: 'v1',
@@ -206,9 +206,9 @@ void main() {
       });
 
       test('異常系: 他人の退役車両は復元できない', () async {
-        final retired = _activeVehicle(userId: 'owner-1')
+        final retired = activeVehicle(userId: 'owner-1')
             .copyWith(status: VehicleStatus.sold);
-        await _seed(retired);
+        await seed(retired);
 
         final result = await service.restoreVehicle(
           vehicleId: 'v1',
@@ -224,11 +224,11 @@ void main() {
     // -------------------------------------------------------------------------
     group('getRetiredVehicles', () {
       test('正常系: 退役済み車両のみ取得できる', () async {
-        await _seed(_activeVehicle(id: 'active-1'));
-        await _seed(_activeVehicle(id: 'active-2'));
-        await _seed(
-            _activeVehicle(id: 'sold-1').copyWith(status: VehicleStatus.sold));
-        await _seed(_activeVehicle(id: 'scrapped-1')
+        await seed(activeVehicle(id: 'active-1'));
+        await seed(activeVehicle(id: 'active-2'));
+        await seed(
+            activeVehicle(id: 'sold-1').copyWith(status: VehicleStatus.sold));
+        await seed(activeVehicle(id: 'scrapped-1')
             .copyWith(status: VehicleStatus.scrapped));
 
         final result = await service.getRetiredVehicles('owner-1');
@@ -242,7 +242,7 @@ void main() {
       });
 
       test('正常系: 退役車両ゼロでも空リスト', () async {
-        await _seed(_activeVehicle());
+        await seed(activeVehicle());
         final result = await service.getRetiredVehicles('owner-1');
         expect(result.isSuccess, isTrue);
         expect(result.valueOrNull!, isEmpty);
@@ -254,10 +254,10 @@ void main() {
     // -------------------------------------------------------------------------
     group('getActiveVehicles', () {
       test('正常系: アクティブ車両のみ取得できる', () async {
-        await _seed(_activeVehicle(id: 'active-1'));
-        await _seed(_activeVehicle(id: 'active-2'));
-        await _seed(
-            _activeVehicle(id: 'sold-1').copyWith(status: VehicleStatus.sold));
+        await seed(activeVehicle(id: 'active-1'));
+        await seed(activeVehicle(id: 'active-2'));
+        await seed(
+            activeVehicle(id: 'sold-1').copyWith(status: VehicleStatus.sold));
 
         final result = await service.getActiveVehicles('owner-1');
 
@@ -275,7 +275,7 @@ void main() {
     // -------------------------------------------------------------------------
     group('データ保持設定', () {
       test('retainData=true: 整備記録関連フラグが保持に設定される', () async {
-        await _seed(_activeVehicle());
+        await seed(activeVehicle());
 
         await service.retireVehicle(
           vehicleId: 'v1',
@@ -289,7 +289,7 @@ void main() {
       });
 
       test('retainData=false: データ削除フラグが設定される', () async {
-        await _seed(_activeVehicle());
+        await seed(activeVehicle());
 
         await service.retireVehicle(
           vehicleId: 'v1',

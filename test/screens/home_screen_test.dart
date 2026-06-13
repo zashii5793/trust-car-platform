@@ -852,7 +852,7 @@ void main() {
   // Item 2: 車検日未設定プロンプトカード
   // =========================================================================
   group('HomeScreen — 車検日未設定プロンプトカード', () {
-    Vehicle _makeVehicleWithInspection(String id, DateTime inspectionDate) =>
+    Vehicle makeVehicleWithInspection(String id, DateTime inspectionDate) =>
         Vehicle(
           id: id,
           userId: 'u1',
@@ -883,7 +883,7 @@ void main() {
     testWidgets('車検日が設定済みの場合プロンプトカードは非表示', (tester) async {
       final vp = _FakeVehicleProvider();
       vp.setVehicles([
-        _makeVehicleWithInspection(
+        makeVehicleWithInspection(
           'v1',
           DateTime.now().add(const Duration(days: 180)),
         ),
@@ -901,7 +901,7 @@ void main() {
     testWidgets('一部の車両に車検日がない場合もカードが表示される', (tester) async {
       final vp = _FakeVehicleProvider();
       vp.setVehicles([
-        _makeVehicleWithInspection(
+        makeVehicleWithInspection(
           'v1',
           DateTime.now().add(const Duration(days: 90)),
         ),
@@ -920,11 +920,11 @@ void main() {
     testWidgets('全車両に車検日が設定済みの場合カードは非表示', (tester) async {
       final vp = _FakeVehicleProvider();
       vp.setVehicles([
-        _makeVehicleWithInspection(
+        makeVehicleWithInspection(
           'v1',
           DateTime.now().add(const Duration(days: 180)),
         ),
-        _makeVehicleWithInspection(
+        makeVehicleWithInspection(
           'v2',
           DateTime.now().add(const Duration(days: 365)),
         ),

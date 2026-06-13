@@ -9,7 +9,7 @@ void main() {
 
     // Create a minimal valid PNG (1×1 white pixel) for testing
     // PNG header + IHDR + IDAT + IEND
-    Uint8List _makePng(int width, int height) {
+    Uint8List makePng(int width, int height) {
       // Use the `image` package to create a test image programmatically
       // For unit tests, we create a simple 10x10 white PNG
       return _createTestPng(width, height);
@@ -17,7 +17,7 @@ void main() {
 
     group('maskRegion', () {
       test('正常系: 有効な画像とリージョンでマスク処理が成功する', () async {
-        final imageBytes = _makePng(100, 100);
+        final imageBytes = makePng(100, 100);
         final result = await service.maskRegion(
           imageBytes: imageBytes,
           left: 10,
@@ -32,7 +32,7 @@ void main() {
       });
 
       test('正常系: マスク後の画像は元の画像と異なる（変更されている）', () async {
-        final imageBytes = _makePng(100, 100);
+        final imageBytes = makePng(100, 100);
         final result = await service.maskRegion(
           imageBytes: imageBytes,
           left: 10,
@@ -49,7 +49,7 @@ void main() {
       });
 
       test('正常系: Uint8List が返される', () async {
-        final imageBytes = _makePng(200, 150);
+        final imageBytes = makePng(200, 150);
         final result = await service.maskRegion(
           imageBytes: imageBytes,
           left: 50,
@@ -75,7 +75,7 @@ void main() {
         });
 
         test('負の left はバリデーションエラー', () async {
-          final imageBytes = _makePng(100, 100);
+          final imageBytes = makePng(100, 100);
           final result = await service.maskRegion(
             imageBytes: imageBytes,
             left: -1,
@@ -87,7 +87,7 @@ void main() {
         });
 
         test('負の top はバリデーションエラー', () async {
-          final imageBytes = _makePng(100, 100);
+          final imageBytes = makePng(100, 100);
           final result = await service.maskRegion(
             imageBytes: imageBytes,
             left: 10,
@@ -99,7 +99,7 @@ void main() {
         });
 
         test('width=0 はバリデーションエラー', () async {
-          final imageBytes = _makePng(100, 100);
+          final imageBytes = makePng(100, 100);
           final result = await service.maskRegion(
             imageBytes: imageBytes,
             left: 10,
@@ -111,7 +111,7 @@ void main() {
         });
 
         test('height=0 はバリデーションエラー', () async {
-          final imageBytes = _makePng(100, 100);
+          final imageBytes = makePng(100, 100);
           final result = await service.maskRegion(
             imageBytes: imageBytes,
             left: 10,
@@ -123,7 +123,7 @@ void main() {
         });
 
         test('画像範囲外のリージョンはクリッピングして成功する', () async {
-          final imageBytes = _makePng(100, 100);
+          final imageBytes = makePng(100, 100);
           // Region partially outside image
           final result = await service.maskRegion(
             imageBytes: imageBytes,
@@ -137,7 +137,7 @@ void main() {
         });
 
         test('画像全体をマスクしても成功する', () async {
-          final imageBytes = _makePng(100, 100);
+          final imageBytes = makePng(100, 100);
           final result = await service.maskRegion(
             imageBytes: imageBytes,
             left: 0,
@@ -152,7 +152,7 @@ void main() {
 
     group('maskMultipleRegions', () {
       test('正常系: 複数リージョンを一括でマスクできる', () async {
-        final imageBytes = _makePng(200, 200);
+        final imageBytes = makePng(200, 200);
         final result = await service.maskMultipleRegions(
           imageBytes: imageBytes,
           regions: const [
@@ -165,7 +165,7 @@ void main() {
       });
 
       test('正常系: リージョンが空の場合は元の画像を返す', () async {
-        final imageBytes = _makePng(100, 100);
+        final imageBytes = makePng(100, 100);
         final result = await service.maskMultipleRegions(
           imageBytes: imageBytes,
           regions: [],

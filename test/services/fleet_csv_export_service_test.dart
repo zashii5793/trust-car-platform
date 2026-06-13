@@ -3,7 +3,6 @@
 // Tests CSV generation for fleet vehicle lists.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/services/fleet_csv_export_service.dart';
 import 'package:trust_car_platform/services/fleet_service.dart';

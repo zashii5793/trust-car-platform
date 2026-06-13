@@ -9,7 +9,7 @@ void main() {
     late PopularAccessoriesService service;
     final now = DateTime(2026, 1, 1);
 
-    AccessoryShowcase _showcase({
+    AccessoryShowcase showcase({
       String id = 'sc-1',
       String userId = 'user-1',
       AccessoryCategory category = AccessoryCategory.electronics,
@@ -29,7 +29,7 @@ void main() {
           createdAt: now,
         );
 
-    Future<void> _seedShowcase(AccessoryShowcase sc) async {
+    Future<void> seedShowcase(AccessoryShowcase sc) async {
       await firestore
           .collection('accessory_showcases')
           .doc(sc.id)
@@ -124,13 +124,13 @@ void main() {
     // -------------------------------------------------------------------------
     group('getShowcasesByCategory', () {
       test('正常系: カテゴリでフィルタされた投稿を取得できる', () async {
-        await _seedShowcase(
-            _showcase(id: 'e1', category: AccessoryCategory.electronics));
-        await _seedShowcase(_showcase(
+        await seedShowcase(
+            showcase(id: 'e1', category: AccessoryCategory.electronics));
+        await seedShowcase(showcase(
             id: 'e2',
             category: AccessoryCategory.electronics,
             itemName: 'Pioneer carrozzeria'));
-        await _seedShowcase(_showcase(
+        await seedShowcase(showcase(
             id: 'i1',
             category: AccessoryCategory.interior,
             itemName: 'コクピットシートカバー'));
@@ -162,7 +162,7 @@ void main() {
       test('正常系: 同アイテムを複数ユーザーが投稿するとショーケース数が集計される', () async {
         // 3 users post about the same dash cam
         for (var i = 1; i <= 3; i++) {
-          await _seedShowcase(_showcase(
+          await seedShowcase(showcase(
             id: 'v-$i',
             userId: 'user-$i',
             itemName: 'Vantrue N2 Pro',
@@ -170,7 +170,7 @@ void main() {
           ));
         }
         // 1 user posts about a different item
-        await _seedShowcase(_showcase(
+        await seedShowcase(showcase(
           id: 'p-1',
           userId: 'user-4',
           itemName: 'Pioneer carrozzeria',
@@ -193,10 +193,10 @@ void main() {
       });
 
       test('正常系: 平均評価が計算される', () async {
-        await _seedShowcase(
-            _showcase(id: 'r1', userId: 'u1', itemName: 'Item X', rating: 4));
-        await _seedShowcase(
-            _showcase(id: 'r2', userId: 'u2', itemName: 'Item X', rating: 2));
+        await seedShowcase(
+            showcase(id: 'r1', userId: 'u1', itemName: 'Item X', rating: 4));
+        await seedShowcase(
+            showcase(id: 'r2', userId: 'u2', itemName: 'Item X', rating: 2));
 
         final result = await service.getPopularTrends(
             category: AccessoryCategory.electronics);
@@ -208,7 +208,7 @@ void main() {
 
       test('正常系: limitで返すアイテム数を制限できる', () async {
         for (var i = 1; i <= 10; i++) {
-          await _seedShowcase(_showcase(
+          await seedShowcase(showcase(
             id: 'item-$i',
             userId: 'user-$i',
             itemName: 'Item $i',
@@ -237,24 +237,22 @@ void main() {
     group('getTopAccessories', () {
       test('正常系: 全カテゴリを横断して人気アイテムを取得できる', () async {
         // electronics: 2 showcases
-        await _seedShowcase(
-            _showcase(id: 'e1', userId: 'u1', itemName: 'ドラレコA'));
-        await _seedShowcase(
-            _showcase(id: 'e2', userId: 'u2', itemName: 'ドラレコA'));
+        await seedShowcase(showcase(id: 'e1', userId: 'u1', itemName: 'ドラレコA'));
+        await seedShowcase(showcase(id: 'e2', userId: 'u2', itemName: 'ドラレコA'));
         // interior: 3 showcases
-        await _seedShowcase(_showcase(
+        await seedShowcase(showcase(
           id: 'i1',
           userId: 'u3',
           itemName: 'シートカバーB',
           category: AccessoryCategory.interior,
         ));
-        await _seedShowcase(_showcase(
+        await seedShowcase(showcase(
           id: 'i2',
           userId: 'u4',
           itemName: 'シートカバーB',
           category: AccessoryCategory.interior,
         ));
-        await _seedShowcase(_showcase(
+        await seedShowcase(showcase(
           id: 'i3',
           userId: 'u5',
           itemName: 'シートカバーB',

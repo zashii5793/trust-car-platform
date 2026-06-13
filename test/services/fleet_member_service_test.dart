@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:trust_car_platform/models/fleet_member.dart';
 import 'package:trust_car_platform/services/fleet_member_service.dart';
-import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 
 void main() {

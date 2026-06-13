@@ -18,15 +18,13 @@ import 'package:trust_car_platform/services/ai_chat_service.dart';
 // ---------------------------------------------------------------------------
 
 class _StubAiChatService extends AiChatService {
-  Result<String, AppError> response;
+  Result<String, AppError> response = const Result.success('AIの回答です');
   String? lastUserMessage;
   String? lastVehicleContext;
   List<ChatMessage>? lastHistory;
   int askCallCount = 0;
 
-  _StubAiChatService({
-    this.response = const Result.success('AIの回答です'),
-  });
+  _StubAiChatService();
 
   @override
   Future<Result<String, AppError>> ask({

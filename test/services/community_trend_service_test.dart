@@ -13,7 +13,7 @@ void main() {
       service = CommunityTrendService(firestore: fakeFirestore);
     });
 
-    Future<void> _seedTrendData({
+    Future<void> seedTrendData({
       String maker = 'Toyota',
       String model = 'Prius',
       int sampleCount = 45,
@@ -53,7 +53,7 @@ void main() {
 
     group('getTrendsForVehicle', () {
       test('正常系: 同車種のコミュニティトレンドを取得する', () async {
-        await _seedTrendData();
+        await seedTrendData();
 
         final result = await service.getTrendsForVehicle(
           maker: 'Toyota',
@@ -69,7 +69,7 @@ void main() {
       });
 
       test('正常系: オイル交換トレンドの詳細を確認する', () async {
-        await _seedTrendData();
+        await seedTrendData();
 
         final result = await service.getTrendsForVehicle(
           maker: 'Toyota',
@@ -87,7 +87,7 @@ void main() {
       });
 
       test('正常系: descriptionが日本語で生成される', () async {
-        await _seedTrendData();
+        await seedTrendData();
 
         final result = await service.getTrendsForVehicle(
           maker: 'Toyota',
@@ -114,8 +114,8 @@ void main() {
       });
 
       test('正常系: 複数メーカーのデータが独立している', () async {
-        await _seedTrendData(maker: 'Toyota', model: 'Prius');
-        await _seedTrendData(
+        await seedTrendData(maker: 'Toyota', model: 'Prius');
+        await seedTrendData(
           maker: 'Honda',
           model: 'Fit',
           sampleCount: 30,
@@ -144,7 +144,7 @@ void main() {
         });
 
         test('insightsが空配列でも成功する', () async {
-          await _seedTrendData(insights: []);
+          await seedTrendData(insights: []);
 
           final result = await service.getTrendsForVehicle(
             maker: 'Toyota',
@@ -193,7 +193,7 @@ void main() {
       });
 
       test('正常系: 既存データに新しいサンプルが加算される', () async {
-        await _seedTrendData(maker: 'Nissan', model: 'Note', sampleCount: 10);
+        await seedTrendData(maker: 'Nissan', model: 'Note', sampleCount: 10);
 
         await service.submitVehicleTrendData(
           maker: 'Nissan',

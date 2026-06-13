@@ -398,8 +398,7 @@ void main() {
 
   // =========================================================================
   group('コミュニティトレンド投稿 — fire-and-forget', () {
-    testWidgets(
-        'CommunityTrendService 未登録でも画面が正常に表示される', (tester) async {
+    testWidgets('CommunityTrendService 未登録でも画面が正常に表示される', (tester) async {
       // CommunityTrendService is intentionally NOT registered in setUpAll.
       // The screen must render without any crash. The _submitTrendData call
       // silently swallows all errors so it never disrupts the user flow.
@@ -410,8 +409,7 @@ void main() {
       expect(find.text('メンテナンス履歴を追加'), findsOneWidget);
     });
 
-    testWidgets(
-        '編集モードでは保存しても _submitTrendData は呼ばれない（クラッシュしない）',
+    testWidgets('編集モードでは保存しても _submitTrendData は呼ばれない（クラッシュしない）',
         (tester) async {
       // In edit mode, community trend submission is skipped entirely.
       await tester.pumpWidget(_buildEdit());

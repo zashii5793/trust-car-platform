@@ -297,8 +297,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       // compute the service interval.
       final provider = context.read<MaintenanceProvider>();
       final previous = provider.records
-          .where((r) =>
-              r.type == record.type && r.date.isBefore(record.date))
+          .where((r) => r.type == record.type && r.date.isBefore(record.date))
           .fold<MaintenanceRecord?>(null, (best, r) {
         if (best == null) return r;
         return r.date.isAfter(best.date) ? r : best;
@@ -308,8 +307,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       // interval (first-ever records have no baseline).
       if (previous == null) return;
 
-      final intervalDays =
-          record.date.difference(previous.date).inDays;
+      final intervalDays = record.date.difference(previous.date).inDays;
       final intervalKm =
           (record.mileageAtService != null && previous.mileageAtService != null)
               ? record.mileageAtService! - previous.mileageAtService!

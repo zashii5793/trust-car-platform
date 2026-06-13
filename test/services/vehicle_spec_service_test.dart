@@ -4,7 +4,6 @@
 
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/models/vehicle_master.dart';
 import 'package:trust_car_platform/services/vehicle_spec_service.dart';
 

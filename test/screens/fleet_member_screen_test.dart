@@ -16,15 +16,9 @@ import 'package:trust_car_platform/services/auth_service.dart';
 
 class _StubFleetMemberService implements FleetMemberService {
   List<FleetMember> members;
-  Result<FleetMember, AppError>? addResult;
-  Result<FleetMember, AppError>? updateResult;
-  Result<void, AppError>? removeResult;
 
   _StubFleetMemberService({
     this.members = const [],
-    this.addResult,
-    this.updateResult,
-    this.removeResult,
   });
 
   @override
@@ -40,14 +34,13 @@ class _StubFleetMemberService implements FleetMemberService {
     required FleetRole role,
     required String requesterId,
   }) async {
-    return addResult ??
-        Result.success(FleetMember(
-          id: '${companyId}_$userId',
-          companyId: companyId,
-          userId: userId,
-          role: role,
-          joinedAt: DateTime.now(),
-        ));
+    return Result.success(FleetMember(
+      id: '${companyId}_$userId',
+      companyId: companyId,
+      userId: userId,
+      role: role,
+      joinedAt: DateTime.now(),
+    ));
   }
 
   @override
@@ -57,14 +50,13 @@ class _StubFleetMemberService implements FleetMemberService {
     required FleetRole newRole,
     required String requesterId,
   }) async {
-    return updateResult ??
-        Result.success(FleetMember(
-          id: '${companyId}_$userId',
-          companyId: companyId,
-          userId: userId,
-          role: newRole,
-          joinedAt: DateTime.now(),
-        ));
+    return Result.success(FleetMember(
+      id: '${companyId}_$userId',
+      companyId: companyId,
+      userId: userId,
+      role: newRole,
+      joinedAt: DateTime.now(),
+    ));
   }
 
   @override
@@ -73,7 +65,7 @@ class _StubFleetMemberService implements FleetMemberService {
     required String userId,
     required String requesterId,
   }) async {
-    return removeResult ?? const Result.success(null);
+    return const Result.success(null);
   }
 
   @override
@@ -284,8 +276,6 @@ void main() {
     });
 
     testWidgets('サービスエラー時は再読み込みボタンが表示される', (tester) async {
-      final errorService = _StubFleetMemberService(members: []);
-
       sl
         ..reset()
         ..registerLazySingleton<FleetMemberService>(

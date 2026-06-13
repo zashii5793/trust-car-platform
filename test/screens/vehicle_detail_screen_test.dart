@@ -704,7 +704,7 @@ void main() {
 
   // -------------------------------------------------------------------------
   group('車検完了クイックアクション', () {
-    Vehicle _vehicleWithInspection() => Vehicle(
+    Vehicle vehicleWithInspection() => Vehicle(
           id: 'v1',
           userId: 'test-user-id',
           maker: 'トヨタ',
@@ -721,7 +721,7 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(800, 1600));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
-          _buildScreen(_vehicleWithInspection(), maintenanceProvider));
+          _buildScreen(vehicleWithInspection(), maintenanceProvider));
     }
 
     testWidgets('inspectionExpiryDate あり → 車検完了ボタンが表示される', (tester) async {

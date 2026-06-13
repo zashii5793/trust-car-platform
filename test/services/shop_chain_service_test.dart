@@ -10,7 +10,7 @@ void main() {
     late ShopChainService service;
     final now = DateTime(2026, 1, 1);
 
-    ShopChain _chain({
+    ShopChain buildChain({
       String id = 'chain-kobac',
       String name = 'コバック',
       String? nationalPhone = '0120-000-111',
@@ -27,7 +27,7 @@ void main() {
           updatedAt: now,
         );
 
-    Shop _shop({
+    Shop buildShop({
       required String id,
       required String name,
       String? chainId,
@@ -54,7 +54,7 @@ void main() {
     // -------------------------------------------------------------------------
     group('getChain', () {
       test('正常系: チェーン情報を取得できる', () async {
-        final chain = _chain();
+        final chain = buildChain();
         await firestore
             .collection('shop_chains')
             .doc(chain.id)
@@ -87,7 +87,7 @@ void main() {
     // -------------------------------------------------------------------------
     group('getShopsInChain', () {
       test('正常系: チェーンに属する複数店舗を取得できる', () async {
-        final chain = _chain(id: 'kobac', name: 'コバック', shopCount: 3);
+        final chain = buildChain(id: 'kobac', name: 'コバック', shopCount: 3);
         await firestore
             .collection('shop_chains')
             .doc(chain.id)
@@ -95,7 +95,7 @@ void main() {
 
         // Seed 3 shops with chainId + 1 independent shop
         for (var i = 1; i <= 3; i++) {
-          final shop = _shop(
+          final shop = buildShop(
             id: 'kobac-$i',
             name: 'コバック 店舗$i',
             chainId: 'kobac',
@@ -103,7 +103,7 @@ void main() {
           );
           await firestore.collection('shops').doc(shop.id).set(shop.toMap());
         }
-        final independent = _shop(id: 'solo-1', name: '独立整備工場');
+        final independent = buildShop(id: 'solo-1', name: '独立整備工場');
         await firestore
             .collection('shops')
             .doc(independent.id)
@@ -174,7 +174,7 @@ void main() {
 
         // Create shop with owner
         final shop =
-            _shop(id: 'shop-x', name: 'テスト工場').copyWith(ownerId: 'owner-1');
+            buildShop(id: 'shop-x', name: 'テスト工場').copyWith(ownerId: 'owner-1');
         await firestore.collection('shops').doc(shop.id).set(shop.toMap());
 
         final result = await service.linkShopToChain(
@@ -193,7 +193,7 @@ void main() {
       test('異常系: 非オーナーはリンクできない', () async {
         final chainId = (await service.createChain(name: 'コバック')).valueOrNull!;
         final shop =
-            _shop(id: 'shop-y', name: 'テスト工場').copyWith(ownerId: 'owner-1');
+            buildShop(id: 'shop-y', name: 'テスト工場').copyWith(ownerId: 'owner-1');
         await firestore.collection('shops').doc(shop.id).set(shop.toMap());
 
         final result = await service.linkShopToChain(
@@ -242,7 +242,7 @@ void main() {
     group('unlinkShopFromChain', () {
       test('正常系: チェーンから店舗を切り離せる', () async {
         final chainId = (await service.createChain(name: 'コバック')).valueOrNull!;
-        final shop = _shop(
+        final shop = buildShop(
           id: 'shop-z',
           name: 'テスト工場',
           chainId: chainId,
@@ -261,7 +261,7 @@ void main() {
       });
 
       test('異常系: 非オーナーは切り離しできない', () async {
-        final shop = _shop(
+        final shop = buildShop(
           id: 'shop-locked',
           name: 'テスト工場',
           chainId: 'some-chain',

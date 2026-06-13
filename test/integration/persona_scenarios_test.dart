@@ -16,7 +16,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/models/faq.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/shop.dart';
@@ -919,7 +918,7 @@ void main() {
 
     final now = DateTime(2026, 1, 1);
 
-    Vehicle _priusOwned({
+    Vehicle priusOwned({
       String id = 'prius-f1',
       VehicleStatus status = VehicleStatus.active,
     }) =>
@@ -946,7 +945,7 @@ void main() {
       await fakeFirestore
           .collection('vehicles')
           .doc('prius-f1')
-          .set(_priusOwned().toMap());
+          .set(priusOwned().toMap());
 
       final result = await retirementService.retireVehicle(
         vehicleId: 'prius-f1',
@@ -968,7 +967,7 @@ void main() {
       await fakeFirestore
           .collection('vehicles')
           .doc('prius-f1')
-          .set(_priusOwned().toMap());
+          .set(priusOwned().toMap());
 
       await retirementService.retireVehicle(
         vehicleId: 'prius-f1',
@@ -986,7 +985,7 @@ void main() {
       await fakeFirestore
           .collection('vehicles')
           .doc('prius-f1')
-          .set(_priusOwned().toMap());
+          .set(priusOwned().toMap());
 
       await retirementService.retireVehicle(
         vehicleId: 'prius-f1',
@@ -1004,7 +1003,7 @@ void main() {
       await fakeFirestore
           .collection('vehicles')
           .doc('prius-f1')
-          .set(_priusOwned(status: VehicleStatus.sold).toMap());
+          .set(priusOwned(status: VehicleStatus.sold).toMap());
 
       final result = await retirementService.restoreVehicle(
         vehicleId: 'prius-f1',
@@ -1021,14 +1020,13 @@ void main() {
       await fakeFirestore
           .collection('vehicles')
           .doc('active-1')
-          .set(_priusOwned(id: 'active-1').toMap());
+          .set(priusOwned(id: 'active-1').toMap());
       await fakeFirestore
           .collection('vehicles')
           .doc('sold-1')
-          .set(_priusOwned(id: 'sold-1', status: VehicleStatus.sold).toMap());
+          .set(priusOwned(id: 'sold-1', status: VehicleStatus.sold).toMap());
       await fakeFirestore.collection('vehicles').doc('scrapped-1').set(
-          _priusOwned(id: 'scrapped-1', status: VehicleStatus.scrapped)
-              .toMap());
+          priusOwned(id: 'scrapped-1', status: VehicleStatus.scrapped).toMap());
 
       final retired =
           await retirementService.getRetiredVehicles('persona-f-user');
@@ -1043,7 +1041,7 @@ void main() {
       await fakeFirestore
           .collection('vehicles')
           .doc('prius-f1')
-          .set(_priusOwned().toMap());
+          .set(priusOwned().toMap());
 
       final result = await retirementService.retireVehicle(
         vehicleId: 'prius-f1',
@@ -1060,7 +1058,7 @@ void main() {
         await fakeFirestore
             .collection('vehicles')
             .doc('prius-f1')
-            .set(_priusOwned(status: VehicleStatus.sold).toMap());
+            .set(priusOwned(status: VehicleStatus.sold).toMap());
 
         final result = await retirementService.retireVehicle(
           vehicleId: 'prius-f1',
