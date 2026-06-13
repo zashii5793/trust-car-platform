@@ -52,6 +52,7 @@ class _CaseStudyManagementScreenState extends State<CaseStudyManagementScreen> {
   }
 
   Future<void> _showAddDialog() async {
+    final messenger = ScaffoldMessenger.of(context);
     final study = await showDialog<ShopCaseStudy>(
       context: context,
       builder: (_) => _AddCaseStudyDialog(shopId: widget.shopId),
@@ -62,12 +63,13 @@ class _CaseStudyManagementScreenState extends State<CaseStudyManagementScreen> {
     if (!mounted) return;
     result.when(
       success: (saved) => setState(() => _studies.insert(0, saved)),
-      failure: (err) => ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(err.userMessage))),
+      failure: (err) =>
+          messenger.showSnackBar(SnackBar(content: Text(err.userMessage))),
     );
   }
 
   Future<void> _delete(ShopCaseStudy study) async {
+    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -88,7 +90,6 @@ class _CaseStudyManagementScreenState extends State<CaseStudyManagementScreen> {
     );
     if (confirmed != true) return;
 
-    final messenger = ScaffoldMessenger.of(context);
     final result = await _service.deleteCaseStudy(widget.shopId, study.id);
     if (!mounted) return;
     result.when(
@@ -306,7 +307,7 @@ class _AddCaseStudyDialogState extends State<_AddCaseStudyDialog> {
               ),
               AppSpacing.verticalSm,
               DropdownButtonFormField<ServiceCategory>(
-                value: _category,
+                initialValue: _category,
                 decoration: const InputDecoration(
                   labelText: 'カテゴリ（任意）',
                   border: OutlineInputBorder(),
