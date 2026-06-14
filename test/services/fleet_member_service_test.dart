@@ -529,6 +529,202 @@ void main() {
   });
 
   // ──────────────────────────────────────────────
+  // admin role (総務担当)
+  // ──────────────────────────────────────────────
+  group('admin role', () {
+    group('addMember', () {
+      test('admin can add a staff member', () async {
+        await seedOwner(companyId: 'company1', userId: 'owner1');
+        await seedMember(
+          companyId: 'company1',
+          userId: 'admin1',
+          role: FleetRole.admin,
+        );
+
+        final result = await service.addMember(
+          companyId: 'company1',
+          userId: 'newStaff',
+          role: FleetRole.staff,
+          requesterId: 'admin1',
+        );
+
+        expect(result.isSuccess, true);
+        expect(result.valueOrNull!.role, FleetRole.staff);
+      });
+
+      test('admin can add a viewer member', () async {
+        await seedOwner(companyId: 'company1', userId: 'owner1');
+        await seedMember(
+          companyId: 'company1',
+          userId: 'admin1',
+          role: FleetRole.admin,
+        );
+
+        final result = await service.addMember(
+          companyId: 'company1',
+          userId: 'newViewer',
+          role: FleetRole.viewer,
+          requesterId: 'admin1',
+        );
+
+        expect(result.isSuccess, true);
+        expect(result.valueOrNull!.role, FleetRole.viewer);
+      });
+
+      test('admin cannot add a member with owner role', () async {
+        await seedOwner(companyId: 'company1', userId: 'owner1');
+        await seedMember(
+          companyId: 'company1',
+          userId: 'admin1',
+          role: FleetRole.admin,
+        );
+
+        final result = await service.addMember(
+          companyId: 'company1',
+          userId: 'newOwner',
+          role: FleetRole.owner,
+          requesterId: 'admin1',
+        );
+
+        expect(result.isFailure, true);
+        expect(result.errorOrNull, isA<PermissionError>());
+      });
+    });
+
+    group('updateRole', () {
+      test('admin can update staff to manager', () async {
+        await seedOwner(companyId: 'company1', userId: 'owner1');
+        await seedMember(
+          companyId: 'company1',
+          userId: 'admin1',
+          role: FleetRole.admin,
+        );
+        await seedMember(
+          companyId: 'company1',
+          userId: 'staff1',
+          role: FleetRole.staff,
+        );
+
+        final result = await service.updateRole(
+          companyId: 'company1',
+          userId: 'staff1',
+          newRole: FleetRole.manager,
+          requesterId: 'admin1',
+        );
+
+        expect(result.isSuccess, true);
+        expect(result.valueOrNull!.role, FleetRole.manager);
+      });
+
+      test('admin cannot update role to owner', () async {
+        await seedOwner(companyId: 'company1', userId: 'owner1');
+        await seedMember(
+          companyId: 'company1',
+          userId: 'admin1',
+          role: FleetRole.admin,
+        );
+        await seedMember(
+          companyId: 'company1',
+          userId: 'staff1',
+          role: FleetRole.staff,
+        );
+
+        final result = await service.updateRole(
+          companyId: 'company1',
+          userId: 'staff1',
+          newRole: FleetRole.owner,
+          requesterId: 'admin1',
+        );
+
+        expect(result.isFailure, true);
+        expect(result.errorOrNull, isA<PermissionError>());
+      });
+    });
+
+    group('removeMember', () {
+      test('admin can remove a staff member', () async {
+        await seedOwner(companyId: 'company1', userId: 'owner1');
+        await seedMember(
+          companyId: 'company1',
+          userId: 'admin1',
+          role: FleetRole.admin,
+        );
+        await seedMember(
+          companyId: 'company1',
+          userId: 'staff1',
+          role: FleetRole.staff,
+        );
+
+        final result = await service.removeMember(
+          companyId: 'company1',
+          userId: 'staff1',
+          requesterId: 'admin1',
+        );
+
+        expect(result.isSuccess, true);
+      });
+
+      test('admin cannot remove an owner', () async {
+        await seedOwner(companyId: 'company1', userId: 'owner1');
+        await seedMember(
+          companyId: 'company1',
+          userId: 'admin1',
+          role: FleetRole.admin,
+        );
+
+        final result = await service.removeMember(
+          companyId: 'company1',
+          userId: 'owner1',
+          requesterId: 'admin1',
+        );
+
+        expect(result.isFailure, true);
+        expect(result.errorOrNull, isA<PermissionError>());
+      });
+    });
+
+    group('canWrite', () {
+      test('admin cannot write (vehicle operations)', () async {
+        await seedMember(
+          companyId: 'company1',
+          userId: 'admin1',
+          role: FleetRole.admin,
+        );
+
+        final result = await service.canWrite(
+          companyId: 'company1',
+          userId: 'admin1',
+        );
+
+        expect(result.isSuccess, true);
+        expect(result.valueOrNull, false);
+      });
+    });
+
+    group('FleetRole serialization', () {
+      test('FleetRole.fromString returns admin for "admin"', () {
+        expect(FleetRole.fromString('admin'), FleetRole.admin);
+      });
+
+      test('getMemberRole returns admin for admin member', () async {
+        await seedMember(
+          companyId: 'company1',
+          userId: 'admin1',
+          role: FleetRole.admin,
+        );
+
+        final result = await service.getMemberRole(
+          companyId: 'company1',
+          userId: 'admin1',
+        );
+
+        expect(result.isSuccess, true);
+        expect(result.valueOrNull, FleetRole.admin);
+      });
+    });
+  });
+
+  // ──────────────────────────────────────────────
   // FleetMember model
   // ──────────────────────────────────────────────
   group('FleetMember model', () {

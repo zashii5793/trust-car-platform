@@ -39,7 +39,8 @@ class FleetMemberService {
   // addMember
   // ──────────────────────────────────────────────
 
-  /// Add a new member to the fleet. Only owners may perform this action.
+  /// Add a new member to the fleet. Owners and admins may perform this action.
+  /// Admins cannot assign the owner role.
   Future<Result<FleetMember, AppError>> addMember({
     required String companyId,
     required String userId,
@@ -58,11 +59,17 @@ class FleetMemberService {
     }
 
     try {
-      // Verify requester is an owner
       final requesterRole = await _fetchRole(companyId, requesterId);
-      if (requesterRole != FleetRole.owner) {
+      final canManageMembers = requesterRole == FleetRole.owner ||
+          requesterRole == FleetRole.admin;
+      if (!canManageMembers) {
         return const Result.failure(
-          AppError.permission('Only owners can add members'),
+          AppError.permission('Only owners or admins can add members'),
+        );
+      }
+      if (requesterRole == FleetRole.admin && role == FleetRole.owner) {
+        return const Result.failure(
+          AppError.permission('Admins cannot assign the owner role'),
         );
       }
 
@@ -95,7 +102,8 @@ class FleetMemberService {
   // updateRole
   // ──────────────────────────────────────────────
 
-  /// Update the role of an existing member. Only owners may perform this action.
+  /// Update the role of an existing member. Owners and admins may perform this action.
+  /// Admins cannot assign the owner role.
   Future<Result<FleetMember, AppError>> updateRole({
     required String companyId,
     required String userId,
@@ -109,11 +117,17 @@ class FleetMemberService {
     }
 
     try {
-      // Verify requester is an owner
       final requesterRole = await _fetchRole(companyId, requesterId);
-      if (requesterRole != FleetRole.owner) {
+      final canManageMembers = requesterRole == FleetRole.owner ||
+          requesterRole == FleetRole.admin;
+      if (!canManageMembers) {
         return const Result.failure(
-          AppError.permission('Only owners can update member roles'),
+          AppError.permission('Only owners or admins can update member roles'),
+        );
+      }
+      if (requesterRole == FleetRole.admin && newRole == FleetRole.owner) {
+        return const Result.failure(
+          AppError.permission('Admins cannot assign the owner role'),
         );
       }
 
@@ -165,15 +179,24 @@ class FleetMemberService {
         );
       }
 
-      // Allow if requester is owner or self
+      // Allow if requester is owner, admin, or self
+      // Admins cannot remove the owner
       final isSelf = requesterId == userId;
       if (!isSelf) {
         final requesterRole = await _fetchRole(companyId, requesterId);
-        if (requesterRole != FleetRole.owner) {
+        final canManageMembers = requesterRole == FleetRole.owner ||
+            requesterRole == FleetRole.admin;
+        if (!canManageMembers) {
           return const Result.failure(
             AppError.permission(
-              'Only owners or the member themselves can remove a member',
+              'Only owners, admins, or the member themselves can remove a member',
             ),
+          );
+        }
+        if (requesterRole == FleetRole.admin &&
+            target.role == FleetRole.owner) {
+          return const Result.failure(
+            AppError.permission('Admins cannot remove the owner'),
           );
         }
       }

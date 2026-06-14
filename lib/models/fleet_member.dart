@@ -3,11 +3,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Roles available to fleet members
 ///
 /// owner   — full permissions (add/remove members, link vehicles, assign, CSV export)
+/// admin   — member management (add/remove/update roles) but cannot assign owner role; no vehicle write
 /// manager — link vehicles, assign staff, CSV export (cannot add/remove members)
 /// staff   — view own assigned vehicles, update inspection date only
 /// viewer  — read-only access
 enum FleetRole {
   owner,
+  admin,
   manager,
   staff,
   viewer;
