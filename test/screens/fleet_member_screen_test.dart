@@ -209,6 +209,45 @@ void main() {
     });
   });
 
+  group('FleetMemberScreen — admin権限', () {
+    testWidgets('adminには「メンバーを追加」FABが表示される', (tester) async {
+      final service = _StubFleetMemberService(members: [
+        _member(userId: 'admin-1', role: FleetRole.admin),
+        _member(userId: 'staff-1', role: FleetRole.staff),
+      ]);
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'admin-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('add_member_fab')), findsOneWidget);
+    });
+
+    testWidgets('adminはstaffの削除ボタンが表示される', (tester) async {
+      final service = _StubFleetMemberService(members: [
+        _member(userId: 'owner-1', role: FleetRole.owner),
+        _member(userId: 'admin-1', role: FleetRole.admin),
+        _member(userId: 'staff-1', role: FleetRole.staff),
+      ]);
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'admin-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('remove_member_staff-1')), findsOneWidget);
+    });
+
+    testWidgets('adminはownerの削除ボタンが表示されない', (tester) async {
+      final service = _StubFleetMemberService(members: [
+        _member(userId: 'owner-1', role: FleetRole.owner),
+        _member(userId: 'admin-1', role: FleetRole.admin),
+      ]);
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'admin-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('remove_member_owner-1')), findsNothing);
+    });
+  });
+
   group('FleetMemberScreen — メンバー追加', () {
     testWidgets('メンバー追加ダイアログが開く', (tester) async {
       final service = _StubFleetMemberService(members: [

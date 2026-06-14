@@ -28,6 +28,7 @@ class _FleetMemberScreenState extends State<FleetMemberScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   bool _isOwner = false;
+  bool _isAdmin = false;
 
   @override
   void initState() {
@@ -54,6 +55,7 @@ class _FleetMemberScreenState extends State<FleetMemberScreen> {
         setState(() {
           _members = members;
           _isOwner = role == FleetRole.owner;
+          _isAdmin = role == FleetRole.admin;
           _isLoading = false;
         });
       },
@@ -178,7 +180,7 @@ class _FleetMemberScreenState extends State<FleetMemberScreen> {
           ),
         ],
       ),
-      floatingActionButton: _isOwner
+      floatingActionButton: (_isOwner || _isAdmin)
           ? FloatingActionButton.extended(
               key: const Key('add_member_fab'),
               onPressed: _addMember,
@@ -224,16 +226,18 @@ class _FleetMemberScreenState extends State<FleetMemberScreen> {
         itemBuilder: (context, index) {
           final member = _members[index];
           final isSelf = member.userId == widget.currentUserId;
+          // Admin cannot manage the owner
+          final targetIsOwner = member.role == FleetRole.owner;
+          final canManageTarget =
+              (_isOwner || _isAdmin) && !isSelf && !(_isAdmin && targetIsOwner);
           return _MemberCard(
             member: member,
             isSelf: isSelf,
             isOwner: _isOwner,
-            onRoleChanged: _isOwner && !isSelf
+            onRoleChanged: canManageTarget
                 ? (role) => _updateRole(member, role)
                 : null,
-            onRemove: (_isOwner || isSelf) && !isSelf
-                ? () => _removeMember(member)
-                : null,
+            onRemove: canManageTarget ? () => _removeMember(member) : null,
           );
         },
       ),
