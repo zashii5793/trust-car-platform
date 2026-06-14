@@ -30,10 +30,22 @@ class _CaseStudyManagementScreenState extends State<CaseStudyManagementScreen> {
   bool _isLoading = true;
   String? _error;
   ServiceCategory? _selectedCategory;
+  _SortOrder _sortOrder = _SortOrder.newest;
 
-  List<ShopCaseStudy> get _filteredStudies => _selectedCategory == null
-      ? _studies
-      : _studies.where((s) => s.category == _selectedCategory).toList();
+  List<ShopCaseStudy> get _filteredStudies {
+    final base = _selectedCategory == null
+        ? List<ShopCaseStudy>.from(_studies)
+        : _studies.where((s) => s.category == _selectedCategory).toList();
+    switch (_sortOrder) {
+      case _SortOrder.newest:
+        break; // already sorted by Firestore (createdAt desc)
+      case _SortOrder.oldest:
+        base.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      case _SortOrder.title:
+        base.sort((a, b) => a.title.compareTo(b.title));
+    }
+    return base;
+  }
 
   Set<ServiceCategory> get _usedCategories =>
       _studies.map((s) => s.category).whereType<ServiceCategory>().toSet();
@@ -141,6 +153,27 @@ class _CaseStudyManagementScreenState extends State<CaseStudyManagementScreen> {
       appBar: AppBar(
         title: const Text('施工事例管理'),
         actions: [
+          PopupMenuButton<_SortOrder>(
+            key: const Key('sort_btn'),
+            icon: const Icon(Icons.sort),
+            tooltip: '並び替え',
+            initialValue: _sortOrder,
+            onSelected: (order) => setState(() => _sortOrder = order),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _SortOrder.newest,
+                child: Text('新着順'),
+              ),
+              PopupMenuItem(
+                value: _SortOrder.oldest,
+                child: Text('古い順'),
+              ),
+              PopupMenuItem(
+                value: _SortOrder.title,
+                child: Text('タイトル順'),
+              ),
+            ],
+          ),
           IconButton(
             key: const Key('add_case_study_btn'),
             icon: const Icon(Icons.add),
@@ -877,6 +910,12 @@ class _ImagePickerTile extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Sort order
+// ---------------------------------------------------------------------------
+
+enum _SortOrder { newest, oldest, title }
 
 // ---------------------------------------------------------------------------
 // Category filter bar

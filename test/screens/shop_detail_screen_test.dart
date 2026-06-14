@@ -10,6 +10,7 @@ import 'package:trust_car_platform/services/inquiry_service.dart';
 import 'package:trust_car_platform/models/shop.dart';
 import 'package:trust_car_platform/models/inquiry.dart';
 import 'package:trust_car_platform/models/shop_case_study.dart';
+import 'package:trust_car_platform/models/shop_monthly_report.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 
@@ -103,6 +104,11 @@ class MockShopService implements ShopService {
 
   @override
   Future<Result<void, AppError>> updateCaseStudy(ShopCaseStudy study) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<ShopMonthlyReport?, AppError>> getMonthlyReport(
+          String shopId) async =>
       const Result.success(null);
 
   @override

@@ -11,6 +11,7 @@ import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'case_study_management_screen.dart';
 import 'shop_inquiry_list_screen.dart';
+import 'shop_monthly_report_screen.dart';
 import 'shop_plan_screen.dart';
 import 'shop_registration_screen.dart';
 import '../newsletter/newsletter_list_screen.dart';
@@ -299,6 +300,23 @@ class _RegisteredBody extends StatelessWidget {
           AppSpacing.verticalMd,
           // Case study summary tile (tappable → CaseStudyManagementScreen)
           _CaseStudySummaryTile(shopId: shop.id),
+          AppSpacing.verticalMd,
+          // Monthly report button
+          AppSpacing.verticalMd,
+          OutlinedButton.icon(
+            key: const Key('monthly_report_btn'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ShopMonthlyReportScreen(shopId: shop.id),
+              ),
+            ),
+            icon: const Icon(Icons.bar_chart_outlined),
+            label: const Text('月次レポート'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(AppSpacing.tapTargetMin),
+            ),
+          ),
           AppSpacing.verticalMd,
           // Newsletter management button
           OutlinedButton.icon(

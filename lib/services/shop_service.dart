@@ -8,6 +8,7 @@ import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/shop.dart';
 import '../models/shop_case_study.dart';
+import '../models/shop_monthly_report.dart';
 
 /// Service for shop (business partner) operations
 class ShopService {
@@ -440,6 +441,21 @@ class ShopService {
       return const Result.success(null);
     } catch (e) {
       return Result.failure(AppError.server('施工事例の削除に失敗しました: $e'));
+    }
+  }
+
+  /// Fetches the latest monthly performance report for a shop.
+  ///
+  /// Returns null when Cloud Functions have not generated a report yet.
+  Future<Result<ShopMonthlyReport?, AppError>> getMonthlyReport(
+      String shopId) async {
+    try {
+      final doc =
+          await _firestore.collection('shop_monthly_reports').doc(shopId).get();
+      if (!doc.exists) return const Result.success(null);
+      return Result.success(ShopMonthlyReport.fromFirestore(doc));
+    } catch (e) {
+      return Result.failure(AppError.server('レポートの取得に失敗しました: $e'));
     }
   }
 
