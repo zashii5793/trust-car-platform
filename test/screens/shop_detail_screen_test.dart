@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:trust_car_platform/core/di/injection.dart';
+import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/screens/marketplace/shop_detail_screen.dart';
 import 'package:trust_car_platform/providers/shop_provider.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
@@ -20,6 +22,8 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 
 class MockShopService implements ShopService {
   Result<Shop, AppError>? shopResult;
+  Result<List<ShopCaseStudy>, AppError> caseStudiesResult =
+      const Result.success([]);
 
   @override
   Future<Result<Shop, AppError>> getShop(String shopId) async =>
@@ -90,7 +94,7 @@ class MockShopService implements ShopService {
   @override
   Future<Result<List<ShopCaseStudy>, AppError>> getCaseStudies(
           String shopId) async =>
-      const Result.success([]);
+      caseStudiesResult;
 
   @override
   Future<Result<ShopCaseStudy, AppError>> addCaseStudy(
@@ -203,6 +207,7 @@ Shop _fullShop({
   bool isFeatured = false,
   String? description = '丁寧な整備が自慢のお店です。',
   String? phone = '03-1234-5678',
+  String? website,
   String? address = '東京都渋谷区1-1-1',
   List<String> imageUrls = const [],
   List<ServiceCategory> services = const [
@@ -220,6 +225,7 @@ Shop _fullShop({
     isFeatured: isFeatured,
     description: description,
     phone: phone,
+    website: website,
     address: address,
     imageUrls: imageUrls,
     services: services,
@@ -256,6 +262,10 @@ ShopProvider _makeProvider(MockShopService shopService) {
 // ---------------------------------------------------------------------------
 
 void main() {
+  tearDown(() {
+    Injection.reset();
+  });
+
   group('ShopDetailScreen', () {
     late MockShopService mockShop;
     late ShopProvider provider;
@@ -419,6 +429,197 @@ void main() {
         await tester.pumpAndSettle(const Duration(seconds: 10));
 
         expect(tester.takeException(), isNull);
+      });
+    });
+
+    // =========================================================================
+    group('評価・レビュー', () {
+      testWidgets('評価値とレビュー件数が表示される', (tester) async {
+        mockShop.shopResult = Result.success(_fullShop(rating: 4.5));
+
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('4.5'), findsWidgets);
+        expect(find.textContaining('42件のレビュー'), findsOneWidget);
+      });
+
+      testWidgets('星アイコンが5つ表示される', (tester) async {
+        mockShop.shopResult = Result.success(_fullShop(rating: 3.0));
+
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        // 5 stars total (filled or empty)
+        expect(find.byIcon(Icons.star_rounded), findsNWidgets(5));
+      });
+
+      testWidgets('評価なしのときは星アイコンが表示されない', (tester) async {
+        mockShop.shopResult = Result.success(_fullShop(rating: null));
+
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.byIcon(Icons.star_rounded), findsNothing);
+      });
+    });
+
+    // =========================================================================
+    group('営業時間', () {
+      testWidgets('営業時間セクションのヘッダが表示される', (tester) async {
+        mockShop.shopResult = Result.success(_fullShop());
+
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('営業時間'), findsOneWidget);
+      });
+
+      testWidgets('ExpansionTileを展開すると曜日テキストが表示される', (tester) async {
+        mockShop.shopResult = Result.success(_fullShop());
+
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        // Scroll to ensure the '営業時間' title is not obscured by bottom nav bar
+        await tester.ensureVisible(find.text('営業時間'));
+        await tester.pump();
+        await tester.tap(find.text('営業時間'));
+        await tester.pumpAndSettle();
+
+        // Weekday names should be in the widget tree after expansion
+        expect(find.text('月'), findsWidgets);
+        expect(find.text('日'), findsWidgets);
+      });
+
+      testWidgets('businessHoursが空のときは営業時間セクションが非表示', (tester) async {
+        final shop = _fullShop();
+        // Create a shop with empty businessHours via copyWith
+        final shopNoHours = Shop(
+          id: shop.id,
+          name: shop.name,
+          type: shop.type,
+          isActive: shop.isActive,
+          isVerified: shop.isVerified,
+          isFeatured: shop.isFeatured,
+          description: shop.description,
+          phone: shop.phone,
+          address: shop.address,
+          imageUrls: shop.imageUrls,
+          services: shop.services,
+          supportedMakerIds: shop.supportedMakerIds,
+          businessHours: const {},
+          rating: shop.rating,
+          reviewCount: shop.reviewCount,
+          createdAt: shop.createdAt,
+          updatedAt: shop.updatedAt,
+        );
+        mockShop.shopResult = Result.success(shopNoHours);
+
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('営業時間'), findsNothing);
+      });
+    });
+
+    // =========================================================================
+    group('連絡先・住所', () {
+      testWidgets('ウェブサイトURLが表示される', (tester) async {
+        mockShop.shopResult = Result.success(
+          _fullShop(website: 'https://example-garage.com'),
+        );
+
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('https://example-garage.com'), findsOneWidget);
+        expect(find.byIcon(Icons.language_outlined), findsOneWidget);
+      });
+
+      testWidgets('住所セクション「所在地」が表示される', (tester) async {
+        mockShop.shopResult = Result.success(
+          _fullShop(address: '東京都渋谷区テスト1-2-3'),
+        );
+
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('所在地'), findsOneWidget);
+        expect(find.byIcon(Icons.location_on_outlined), findsOneWidget);
+      });
+
+      testWidgets('address・prefecture・city がすべてnullのとき住所セクションが非表示',
+          (tester) async {
+        final shop = _fullShop(address: null);
+        final shopNoAddr = Shop(
+          id: shop.id,
+          name: shop.name,
+          type: shop.type,
+          isActive: shop.isActive,
+          isVerified: shop.isVerified,
+          isFeatured: shop.isFeatured,
+          description: shop.description,
+          phone: shop.phone,
+          imageUrls: shop.imageUrls,
+          services: shop.services,
+          supportedMakerIds: shop.supportedMakerIds,
+          businessHours: shop.businessHours,
+          rating: shop.rating,
+          reviewCount: shop.reviewCount,
+          createdAt: shop.createdAt,
+          updatedAt: shop.updatedAt,
+        );
+        mockShop.shopResult = Result.success(shopNoAddr);
+
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('所在地'), findsNothing);
+      });
+    });
+
+    // =========================================================================
+    group('施工事例', () {
+      testWidgets('施工事例が0件のときはセクションが非表示（sl経由）', (tester) async {
+        sl.override<ShopService>(mockShop);
+        mockShop.shopResult = Result.success(_fullShop());
+        mockShop.caseStudiesResult = const Result.success([]);
+
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('施工事例'), findsNothing);
+      });
+
+      testWidgets('施工事例が1件あるときはセクションが表示される（sl経由）', (tester) async {
+        sl.override<ShopService>(mockShop);
+        final study = ShopCaseStudy(
+          id: 'cs1',
+          shopId: 'shop1',
+          title: 'エンジンオイル交換事例',
+          createdAt: DateTime(2024),
+        );
+        mockShop.shopResult = Result.success(_fullShop());
+        mockShop.caseStudiesResult = Result.success([study]);
+
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('施工事例'), findsOneWidget);
+        expect(find.text('エンジンオイル交換事例'), findsOneWidget);
+      });
+    });
+
+    // =========================================================================
+    group('BottomNavigationBar', () {
+      testWidgets('「この工場に問い合わせる」ボタンがBottomBarに表示される', (tester) async {
+        mockShop.shopResult = Result.success(_fullShop());
+
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('この工場に問い合わせる'), findsOneWidget);
       });
     });
   });

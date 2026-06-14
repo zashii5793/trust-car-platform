@@ -264,6 +264,21 @@ void main() {
 
       expect(find.text('問い合わせはありません'), findsOneWidget);
     });
+
+    testWidgets('8. filtered empty state shows 該当する問い合わせがありません',
+        (tester) async {
+      await tester.pumpWidget(
+        _buildScreen(shopProvider: _FakeShopProvider(inquiries: [])),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('未対応'));
+      await tester.pump();
+
+      expect(find.text('該当する問い合わせがありません'), findsOneWidget);
+      // Base empty-state message should NOT appear when filter is active
+      expect(find.text('問い合わせはありません'), findsNothing);
+    });
   });
 
   group('ShopInquiryListScreen — Inquiries displayed', () {
@@ -380,6 +395,170 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('クローズ済み問い合わせ'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('ShopInquiryListScreen — Filter chip state', () {
+    testWidgets('「未対応」チップタップ後にチップが選択状態になる', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pump();
+
+      await tester.tap(find.text('未対応'));
+      await tester.pump();
+
+      final chip = tester.widget<FilterChip>(
+        find.widgetWithText(FilterChip, '未対応'),
+      );
+      expect(chip.selected, isTrue);
+    });
+
+    testWidgets('「すべて」チップはデフォルトで選択されている', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pump();
+
+      final chip = tester.widget<FilterChip>(
+        find.widgetWithText(FilterChip, 'すべて'),
+      );
+      expect(chip.selected, isTrue);
+    });
+
+    testWidgets('「対応中」チップタップで選択状態が切り替わる', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pump();
+
+      await tester.tap(find.text('対応中'));
+      await tester.pump();
+
+      final chip = tester.widget<FilterChip>(
+        find.widgetWithText(FilterChip, '対応中'),
+      );
+      expect(chip.selected, isTrue);
+
+      // 「すべて」チップは非選択になる
+      final allChip = tester.widget<FilterChip>(
+        find.widgetWithText(FilterChip, 'すべて'),
+      );
+      expect(allChip.selected, isFalse);
+    });
+  });
+
+  // =========================================================================
+  group('ShopInquiryListScreen — StatusIcon', () {
+    testWidgets('pending ステータスのアイコンが表示される', (tester) async {
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [_makeInquiry(status: InquiryStatus.pending)],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byIcon(Icons.mark_email_unread_outlined), findsOneWidget);
+    });
+
+    testWidgets('inProgress ステータスのアイコンが表示される', (tester) async {
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [_makeInquiry(status: InquiryStatus.inProgress)],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byIcon(Icons.pending_outlined), findsOneWidget);
+    });
+
+    testWidgets('closed ステータスのアイコンが表示される', (tester) async {
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [_makeInquiry(status: InquiryStatus.closed)],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('ShopInquiryListScreen — TypeChip', () {
+    testWidgets('InquiryType.general →「その他」チップが表示される', (tester) async {
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [_makeInquiry()], // default type = general
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text(InquiryType.general.displayName), findsOneWidget);
+    });
+
+    testWidgets('InquiryType.estimate → 見積もり依頼チップが表示される', (tester) async {
+      final now = DateTime(2025, 6, 1, 10, 0);
+      final inquiry = Inquiry(
+        id: 'inq-est',
+        userId: 'u1',
+        shopId: 'shop-1',
+        type: InquiryType.estimate,
+        subject: '見積もり依頼テスト',
+        initialMessage: '価格を教えてください',
+        status: InquiryStatus.pending,
+        unreadCountShop: 0,
+        createdAt: now,
+        updatedAt: now,
+      );
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(inquiries: [inquiry]),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text(InquiryType.estimate.displayName), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('ShopInquiryListScreen — Edge Cases (追加)', () {
+    testWidgets('同じフィルタを再タップしても状態が変わらない', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pump();
+
+      // First tap selects '未対応'
+      await tester.tap(find.text('未対応'));
+      await tester.pump();
+
+      // Second tap on same chip — should NOT deselect (applyFilter exits early)
+      await tester.tap(find.text('未対応'));
+      await tester.pump();
+
+      final chip = tester.widget<FilterChip>(
+        find.widgetWithText(FilterChip, '未対応'),
+      );
+      expect(chip.selected, isTrue);
+    });
+
+    testWidgets('未読バッジのある問い合わせが太字で表示される', (tester) async {
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [_makeInquiry(subject: '太字テスト', unreadCountShop: 2)],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      final textWidget = tester.widget<Text>(
+        find.text('太字テスト'),
+      );
+      expect(textWidget.style?.fontWeight, FontWeight.bold);
     });
   });
 }

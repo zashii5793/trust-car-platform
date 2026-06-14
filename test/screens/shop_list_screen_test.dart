@@ -248,6 +248,24 @@ Widget _buildApp(ShopProvider provider) {
   );
 }
 
+Widget _buildAppWith(
+  ShopProvider provider, {
+  bool compareMode = false,
+  bool selectMode = false,
+  String? maintenanceContext,
+}) {
+  return ChangeNotifierProvider<ShopProvider>.value(
+    value: provider,
+    child: MaterialApp(
+      home: ShopListScreen(
+        compareMode: compareMode,
+        selectMode: selectMode,
+        maintenanceContext: maintenanceContext,
+      ),
+    ),
+  );
+}
+
 ShopProvider _makeProvider(MockShopService shopService) {
   return ShopProvider(
     shopService: shopService,
@@ -428,6 +446,174 @@ void main() {
 
         expect(find.byType(ListView), findsOneWidget);
         expect(tester.takeException(), isNull);
+      });
+    });
+
+    // =========================================================================
+    group('AIコンテキストバナー', () {
+      testWidgets('maintenanceContextが渡されるとAIバナーとアイコンが表示される',
+          (tester) async {
+        await tester.pumpWidget(_buildAppWith(
+          provider,
+          maintenanceContext: 'オイル交換',
+        ));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.textContaining('オイル交換'), findsWidgets);
+        expect(find.byIcon(Icons.smart_toy_outlined), findsOneWidget);
+      });
+
+      testWidgets('maintenanceContextなしではAIバナーが表示されない', (tester) async {
+        await tester.pumpWidget(_buildAppWith(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.byIcon(Icons.smart_toy_outlined), findsNothing);
+      });
+    });
+
+    // =========================================================================
+    group('selectMode', () {
+      testWidgets('selectMode: true でAppBarタイトルが変わる', (tester) async {
+        await tester.pumpWidget(_buildAppWith(provider, selectMode: true));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('問い合わせ先の工場を選択'), findsOneWidget);
+      });
+    });
+
+    // =========================================================================
+    group('compareMode', () {
+      testWidgets('compareMode: true でAppBarタイトルが変わる', (tester) async {
+        await tester.pumpWidget(_buildAppWith(provider, compareMode: true));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('比較する工場を選択 (最大3件)'), findsOneWidget);
+      });
+
+      testWidgets('compareMode: true でComparePanelBarが表示される', (tester) async {
+        await tester.pumpWidget(_buildAppWith(provider, compareMode: true));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('工場を2〜3件選んでください'), findsOneWidget);
+      });
+
+      testWidgets('compareMode: true で「比較する」ボタンは0件選択時は無効', (tester) async {
+        await tester.pumpWidget(_buildAppWith(provider, compareMode: true));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        final btn = tester.widget<ButtonStyleButton>(
+          find.byKey(const Key('compare_button')),
+        );
+        expect(btn.onPressed, isNull);
+      });
+
+      testWidgets('compareMode: true でショップ2件選択で「比較する」ボタンが有効になる',
+          (tester) async {
+        mockShop.shopsResult = Result.success([
+          _makeShop(id: 's1', name: 'ショップA'),
+          _makeShop(id: 's2', name: 'ショップB'),
+        ]);
+        await tester.pumpWidget(_buildAppWith(provider, compareMode: true));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        await tester.tap(find.byKey(const Key('compare_check_s1')));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('compare_check_s2')));
+        await tester.pump();
+
+        final btn = tester.widget<ButtonStyleButton>(
+          find.byKey(const Key('compare_button')),
+        );
+        expect(btn.onPressed, isNotNull);
+      });
+
+      testWidgets('compareMode: true で1件選択中はパネルバーの件数テキストが更新される',
+          (tester) async {
+        mockShop.shopsResult = Result.success([
+          _makeShop(id: 's1', name: 'ショップA'),
+        ]);
+        await tester.pumpWidget(_buildAppWith(provider, compareMode: true));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        await tester.tap(find.byKey(const Key('compare_check_s1')));
+        await tester.pump();
+
+        expect(find.text('1件選択中'), findsOneWidget);
+      });
+
+      testWidgets('compareMode: true で3件超えの選択試行でSnackBarが表示される',
+          (tester) async {
+        mockShop.shopsResult = Result.success([
+          _makeShop(id: 's1', name: 'ショップA'),
+          _makeShop(id: 's2', name: 'ショップB'),
+          _makeShop(id: 's3', name: 'ショップC'),
+          _makeShop(id: 's4', name: 'ショップD'),
+        ]);
+        await tester.pumpWidget(_buildAppWith(provider, compareMode: true));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        for (final id in ['s1', 's2', 's3']) {
+          await tester.ensureVisible(find.byKey(Key('compare_check_$id')));
+          await tester.tap(find.byKey(Key('compare_check_$id')));
+          await tester.pump();
+        }
+        // Try to add 4th beyond limit
+        await tester.ensureVisible(find.byKey(const Key('compare_check_s4')));
+        await tester.tap(find.byKey(const Key('compare_check_s4')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('比較できる工場は最大3件です'), findsOneWidget);
+      });
+    });
+
+    // =========================================================================
+    group('フィルタ行', () {
+      testWidgets('業種チップタップでボトムシートが表示される', (tester) async {
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        await tester.tap(find.text('業種'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('業種を選択'), findsOneWidget);
+      });
+
+      testWidgets('フィルタ選択後にリセットボタンが表示される', (tester) async {
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        provider.selectType(ShopType.maintenanceShop);
+        await tester.pump();
+
+        expect(find.text('リセット'), findsOneWidget);
+      });
+
+      testWidgets('リセットボタンタップでフィルタがクリアされリセットボタンが消える', (tester) async {
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        provider.selectType(ShopType.maintenanceShop);
+        await tester.pump();
+
+        await tester.tap(find.text('リセット'));
+        await tester.pump();
+
+        expect(find.text('リセット'), findsNothing);
+      });
+
+      testWidgets('ボトムシートでオプション選択するとチップのラベルが変わる', (tester) async {
+        await tester.pumpWidget(_buildApp(provider));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        await tester.tap(find.text('業種'));
+        await tester.pumpAndSettle();
+
+        await tester
+            .tap(find.text(ShopType.maintenanceShop.displayName).last);
+        await tester.pumpAndSettle();
+
+        // chip now shows the selected type name
+        expect(find.text(ShopType.maintenanceShop.displayName), findsWidgets);
       });
     });
   });
