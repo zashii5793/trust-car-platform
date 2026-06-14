@@ -147,7 +147,11 @@ class _StubFirebaseService implements FirebaseService {
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
-Widget _buildApp(MockPostService mockPostService) {
+Widget _buildApp(
+  MockPostService mockPostService, {
+  String? initialContent,
+  PostCategory? initialCategory,
+}) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider(
@@ -160,15 +164,27 @@ Widget _buildApp(MockPostService mockPostService) {
         create: (_) => VehicleProvider(firebaseService: _StubFirebaseService()),
       ),
     ],
-    child: const MaterialApp(home: PostCreateScreen()),
+    child: MaterialApp(
+      home: PostCreateScreen(
+        initialContent: initialContent,
+        initialCategory: initialCategory,
+      ),
+    ),
   );
 }
 
 /// ListView uses 600px default height; expand to 2000px to render all items.
-Future<void> pumpApp(WidgetTester tester, MockPostService service) async {
+Future<void> pumpApp(
+  WidgetTester tester,
+  MockPostService service, {
+  String? initialContent,
+  PostCategory? initialCategory,
+}) async {
   await tester.binding.setSurfaceSize(const Size(800, 2000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpWidget(_buildApp(service));
+  await tester.pumpWidget(
+    _buildApp(service, initialContent: initialContent, initialCategory: initialCategory),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -359,6 +375,120 @@ void main() {
         await pumpApp(tester, mockService);
 
         expect(find.textContaining('投稿しましょう'), findsOneWidget);
+      });
+
+      testWidgets('500文字のとき文字数カウンタが「500 / 500」になる', (tester) async {
+        await pumpApp(tester, mockService);
+
+        await tester.enterText(find.byType(TextField).first, 'あ' * 500);
+        await tester.pump();
+
+        expect(find.text('500 / 500'), findsOneWidget);
+      });
+    });
+
+    // ── セクションラベル ────────────────────────────────────────────────────
+
+    group('セクションラベル', () {
+      testWidgets('「カテゴリ」ラベルが表示される', (tester) async {
+        await pumpApp(tester, mockService);
+        expect(find.text('カテゴリ'), findsOneWidget);
+      });
+
+      testWidgets('「本文」ラベルが表示される', (tester) async {
+        await pumpApp(tester, mockService);
+        expect(find.text('本文'), findsOneWidget);
+      });
+
+      testWidgets('「画像（任意・最大3枚）」ラベルが表示される', (tester) async {
+        await pumpApp(tester, mockService);
+        expect(find.text('画像（任意・最大3枚）'), findsOneWidget);
+      });
+
+      testWidgets('「車両タグ（任意）」ラベルが表示される', (tester) async {
+        await pumpApp(tester, mockService);
+        expect(find.text('車両タグ（任意）'), findsOneWidget);
+      });
+
+      testWidgets('車両未登録のとき「登録済みの車両がありません」が表示される', (tester) async {
+        await pumpApp(tester, mockService);
+        expect(find.text('登録済みの車両がありません'), findsOneWidget);
+      });
+
+      testWidgets('画像追加ボタンが表示される', (tester) async {
+        await pumpApp(tester, mockService);
+        expect(find.byIcon(Icons.add_photo_alternate_outlined), findsOneWidget);
+      });
+    });
+
+    // ── initialContent / initialCategory ───────────────────────────────────
+
+    group('初期値パラメータ', () {
+      testWidgets('initialContentが指定されるとテキストフィールドに事前入力される', (tester) async {
+        await pumpApp(tester, mockService, initialContent: '事前入力テキスト');
+        await tester.pump();
+
+        final tf = tester.widget<TextField>(find.byType(TextField).first);
+        expect(tf.controller?.text, '事前入力テキスト');
+      });
+
+      testWidgets('initialCategoryが指定されると送信時にそのカテゴリが使われる', (tester) async {
+        await pumpApp(tester, mockService, initialCategory: PostCategory.drive);
+        await tester.pump();
+
+        await tester.enterText(find.byType(TextField).first, 'ドライブ記録');
+        await tester.pump();
+        await tester.tap(find.text('投稿する'));
+        await tester.pump();
+
+        expect(mockService.lastCategory, PostCategory.drive);
+      });
+    });
+
+    // ── 投稿成功 ────────────────────────────────────────────────────────────
+
+    group('投稿成功', () {
+      testWidgets('投稿成功後に画面が閉じる', (tester) async {
+        // Wrap in a Navigator with a home so pop has somewhere to go
+        await tester.binding.setSurfaceSize(const Size(800, 2000));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(MultiProvider(
+          providers: [
+            ChangeNotifierProvider(
+              create: (_) => PostProvider(postService: mockService),
+            ),
+            ChangeNotifierProvider<AuthProvider>(
+              create: (_) => _LoggedInAuthProvider(),
+            ),
+            ChangeNotifierProvider<VehicleProvider>(
+              create: (_) =>
+                  VehicleProvider(firebaseService: _StubFirebaseService()),
+            ),
+          ],
+          child: MaterialApp(
+            home: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () => Navigator.push(
+                  ctx,
+                  MaterialPageRoute(builder: (_) => const PostCreateScreen()),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ));
+
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(PostCreateScreen), findsOneWidget);
+
+        await tester.enterText(find.byType(TextField).first, '成功投稿');
+        await tester.pump();
+        await tester.tap(find.text('投稿する'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(PostCreateScreen), findsNothing);
       });
     });
 
