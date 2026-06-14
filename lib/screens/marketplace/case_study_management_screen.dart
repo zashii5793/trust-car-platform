@@ -249,8 +249,7 @@ class _AddCaseStudyDialog extends StatefulWidget {
   final String shopId;
   final ShopService service;
 
-  const _AddCaseStudyDialog(
-      {required this.shopId, required this.service});
+  const _AddCaseStudyDialog({required this.shopId, required this.service});
 
   @override
   State<_AddCaseStudyDialog> createState() => _AddCaseStudyDialogState();
@@ -299,8 +298,8 @@ class _AddCaseStudyDialogState extends State<_AddCaseStudyDialog> {
     String? afterUrl;
 
     if (_beforeImage != null) {
-      final result = await widget.service.uploadCaseStudyImage(
-          widget.shopId, _beforeImage!, 'before');
+      final result = await widget.service
+          .uploadCaseStudyImage(widget.shopId, _beforeImage!, 'before');
       if (!mounted) return;
       if (result.isFailure) {
         setState(() => _isUploading = false);
@@ -313,8 +312,8 @@ class _AddCaseStudyDialogState extends State<_AddCaseStudyDialog> {
     }
 
     if (_afterImage != null) {
-      final result = await widget.service.uploadCaseStudyImage(
-          widget.shopId, _afterImage!, 'after');
+      final result = await widget.service
+          .uploadCaseStudyImage(widget.shopId, _afterImage!, 'after');
       if (!mounted) return;
       if (result.isFailure) {
         setState(() => _isUploading = false);
@@ -389,8 +388,7 @@ class _AddCaseStudyDialogState extends State<_AddCaseStudyDialog> {
                 maxLines: 3,
               ),
               AppSpacing.verticalMd,
-              Text('ビフォー写真（任意）',
-                  style: theme.textTheme.labelMedium),
+              Text('ビフォー写真（任意）', style: theme.textTheme.labelMedium),
               AppSpacing.verticalXs,
               _ImagePickerTile(
                 key: const Key('before_image_picker'),
@@ -399,8 +397,7 @@ class _AddCaseStudyDialogState extends State<_AddCaseStudyDialog> {
                 onClear: () => setState(() => _beforeImage = null),
               ),
               AppSpacing.verticalSm,
-              Text('アフター写真（任意）',
-                  style: theme.textTheme.labelMedium),
+              Text('アフター写真（任意）', style: theme.textTheme.labelMedium),
               AppSpacing.verticalXs,
               _ImagePickerTile(
                 key: const Key('after_image_picker'),
@@ -414,8 +411,7 @@ class _AddCaseStudyDialogState extends State<_AddCaseStudyDialog> {
       ),
       actions: [
         TextButton(
-          onPressed:
-              _isUploading ? null : () => Navigator.pop(context),
+          onPressed: _isUploading ? null : () => Navigator.pop(context),
           child: const Text('キャンセル'),
         ),
         FilledButton(
