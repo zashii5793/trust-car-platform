@@ -248,6 +248,51 @@ void main() {
     });
   });
 
+  group('FleetMemberScreen — メンバー追加ダイアログのロール選択肢', () {
+    testWidgets('オーナーのダイアログには admin ロールが含まれる', (tester) async {
+      // Member list has only the owner — no admin badge on the page.
+      // So any '総務担当' text found must come from the dropdown popup.
+      final service = _StubFleetMemberService(members: [
+        _member(userId: 'owner-1', role: FleetRole.owner),
+      ]);
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('add_member_fab')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('add_member_role_dropdown')));
+      await tester.pumpAndSettle();
+
+      // '総務担当' should appear in the dropdown popup (owner list includes admin).
+      expect(find.text('総務担当'), findsWidgets);
+    });
+
+    testWidgets('admin のダイアログには admin ロールが含まれない', (tester) async {
+      // Member list has only the admin — badge shows '総務担当' once in the page.
+      // After opening the dropdown, the count should remain 1 (badge only, not in popup).
+      final service = _StubFleetMemberService(members: [
+        _member(userId: 'admin-1', role: FleetRole.admin),
+      ]);
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'admin-1'));
+      await tester.pumpAndSettle();
+
+      // Confirm badge shows '総務担当' exactly once (from member card)
+      expect(find.text('総務担当'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('add_member_fab')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('add_member_role_dropdown')));
+      await tester.pumpAndSettle();
+
+      // Still only 1 instance — admin dropdown does NOT add another '総務担当'.
+      expect(find.text('総務担当'), findsOneWidget);
+    });
+  });
+
   group('FleetMemberScreen — メンバー追加', () {
     testWidgets('メンバー追加ダイアログが開く', (tester) async {
       final service = _StubFleetMemberService(members: [

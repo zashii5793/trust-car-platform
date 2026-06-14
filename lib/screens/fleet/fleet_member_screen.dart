@@ -70,7 +70,7 @@ class _FleetMemberScreenState extends State<FleetMemberScreen> {
   Future<void> _addMember() async {
     final result = await showDialog<_MemberInput?>(
       context: context,
-      builder: (_) => const _AddMemberDialog(),
+      builder: (_) => _AddMemberDialog(isRequesterOwner: _isOwner),
     );
     if (result == null) return;
 
@@ -424,7 +424,8 @@ class _MemberInput {
 }
 
 class _AddMemberDialog extends StatefulWidget {
-  const _AddMemberDialog();
+  final bool isRequesterOwner;
+  const _AddMemberDialog({required this.isRequesterOwner});
 
   @override
   State<_AddMemberDialog> createState() => _AddMemberDialogState();
@@ -466,7 +467,12 @@ class _AddMemberDialogState extends State<_AddMemberDialog> {
               isDense: true,
               underline: const SizedBox.shrink(),
               isExpanded: true,
-              items: [FleetRole.manager, FleetRole.staff, FleetRole.viewer]
+              items: [
+                if (widget.isRequesterOwner) FleetRole.admin,
+                FleetRole.manager,
+                FleetRole.staff,
+                FleetRole.viewer,
+              ]
                   .map((r) => DropdownMenuItem(
                         value: r,
                         child: Text(_roleLabel(r)),
