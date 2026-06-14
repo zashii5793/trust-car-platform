@@ -2,14 +2,21 @@
 //
 // Tests the fleet management dashboard for business accounts.
 
+import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:trust_car_platform/core/di/injection.dart';
+import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
+import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/providers/fleet_provider.dart';
+import 'package:trust_car_platform/screens/fleet/fleet_dashboard_screen.dart';
+import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/services/fleet_service.dart';
+import 'package:trust_car_platform/models/user.dart';
 
 // ---------------------------------------------------------------------------
 // Stub FleetService
@@ -72,6 +79,91 @@ class _StubFleetService implements FleetService {
   Future<Result<Map<String, MaintenanceSummary>, AppError>>
       getMaintenanceSummaries(List<String> vehicleIds) async =>
           const Result.success({});
+}
+
+// ---------------------------------------------------------------------------
+// Auth stubs for real FleetDashboardScreen tests
+// ---------------------------------------------------------------------------
+
+class _FakeUser implements User {
+  @override
+  String get uid => 'uid-test';
+  @override
+  String? get email => 'test@example.com';
+  @override
+  String? get displayName => null;
+  @override
+  String? get photoURL => null;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _StubAuthService implements AuthService {
+  @override
+  User? get currentUser => null;
+
+  @override
+  Stream<User?> get authStateChanges => Stream.value(null);
+
+  @override
+  Future<Result<AppUser?, AppError>> getUserProfile() async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<UserCredential, AppError>> signInWithEmail({
+    required String email,
+    required String password,
+  }) async =>
+      Result.failure(AppError.server('stub'));
+
+  @override
+  Future<Result<UserCredential, AppError>> signUpWithEmail({
+    required String email,
+    required String password,
+    String? displayName,
+  }) async =>
+      Result.failure(AppError.server('stub'));
+
+  @override
+  Future<Result<UserCredential?, AppError>> signInWithGoogle() async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<void, AppError>> signOut() async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<void, AppError>> updateUserProfile({
+    String? displayName,
+    String? photoUrl,
+  }) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<void, AppError>> updateNotificationSettings(
+    NotificationSettings settings,
+  ) async =>
+      const Result.success(null);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+Widget _buildRealScreen({
+  List<Vehicle> vehicles = const [],
+  String companyId = 'company-A',
+}) {
+  sl.override<FleetService>(_StubFleetService(vehicles: vehicles));
+  return ChangeNotifierProvider<AuthProvider>(
+    create: (_) => AuthProvider(authService: _StubAuthService()),
+    child: MaterialApp(
+      home: FleetDashboardScreen(companyId: companyId),
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +299,10 @@ class _FleetBodyTest extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 void main() {
+  tearDown(() {
+    Injection.reset();
+  });
+
   group('FleetDashboardScreen', () {
     testWidgets('フリート台数の概要が表示される', (tester) async {
       final vehicles = [
@@ -366,6 +462,143 @@ void main() {
       await tester.pump();
 
       expect(find.textContaining('5'), findsWidgets);
+    });
+  });
+
+  // =========================================================================
+  group('FleetDashboardScreen — AppBar ボタン (実画面)', () {
+    testWidgets('12. メンバー管理ボタンが表示される', (tester) async {
+      await tester.pumpWidget(_buildRealScreen());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('fleet_members_button')), findsOneWidget);
+    });
+
+    testWidgets('13. 一括問い合わせボタンが車両なしで無効', (tester) async {
+      await tester.pumpWidget(_buildRealScreen());
+      await tester.pumpAndSettle();
+
+      final btn = tester.widget<IconButton>(
+        find.byKey(const Key('fleet_bulk_inquiry_button')),
+      );
+      expect(btn.onPressed, isNull);
+    });
+
+    testWidgets('14. CSVエクスポートボタンが車両なしで無効', (tester) async {
+      await tester.pumpWidget(_buildRealScreen());
+      await tester.pumpAndSettle();
+
+      final btn = tester.widget<IconButton>(
+        find.byKey(const Key('fleet_csv_export_button')),
+      );
+      expect(btn.onPressed, isNull);
+    });
+
+    testWidgets('15. 一括問い合わせボタンが車両ありで有効', (tester) async {
+      final vehicles = [_makeVehicle(id: 'v1')];
+      await tester.pumpWidget(_buildRealScreen(vehicles: vehicles));
+      await tester.pumpAndSettle();
+
+      final btn = tester.widget<IconButton>(
+        find.byKey(const Key('fleet_bulk_inquiry_button')),
+      );
+      expect(btn.onPressed, isNotNull);
+    });
+
+    testWidgets('16. CSVエクスポートボタンが車両ありで有効', (tester) async {
+      final vehicles = [_makeVehicle(id: 'v1')];
+      await tester.pumpWidget(_buildRealScreen(vehicles: vehicles));
+      await tester.pumpAndSettle();
+
+      final btn = tester.widget<IconButton>(
+        find.byKey(const Key('fleet_csv_export_button')),
+      );
+      expect(btn.onPressed, isNotNull);
+    });
+  });
+
+  // =========================================================================
+  group('FleetDashboardScreen — 正常フィルター (実画面)', () {
+    testWidgets('17. fleet_filter_normalチップが表示される', (tester) async {
+      await tester.pumpWidget(_buildRealScreen());
+      await tester.pumpAndSettle();
+
+      // _Chip and its inner FilterChip both carry the key → findsWidgets
+      expect(find.byKey(const Key('fleet_filter_normal')), findsWidgets);
+    });
+
+    testWidgets('18. 正常フィルター選択で正常車両のみ表示される', (tester) async {
+      final now = DateTime.now();
+      final vehicles = [
+        _makeVehicle(
+            id: 'crit',
+            inspectionExpiryDate: now.add(const Duration(days: 3))),
+        _makeVehicle(
+            id: 'norm',
+            inspectionExpiryDate: now.add(const Duration(days: 90))),
+      ];
+      await tester.pumpWidget(_buildRealScreen(vehicles: vehicles));
+      await tester.pumpAndSettle();
+
+      // Tap by text to avoid key ambiguity (_Chip and inner FilterChip share the key)
+      await tester.tap(find.widgetWithText(FilterChip, '正常').first);
+      await tester.pump();
+
+      expect(
+          find.byKey(const Key('fleet_vehicle_card_normal')), findsOneWidget);
+      expect(find.byKey(const Key('fleet_vehicle_card_critical')), findsNothing);
+    });
+  });
+
+  // =========================================================================
+  group('FleetDashboardScreen — 統計ヘッダー (実画面)', () {
+    testWidgets('19. 統計ヘッダーに合計・緊急・注意・正常ラベルが表示される', (tester) async {
+      final now = DateTime.now();
+      final vehicles = [
+        _makeVehicle(
+            id: 'crit',
+            inspectionExpiryDate: now.add(const Duration(days: 3))),
+        _makeVehicle(
+            id: 'norm',
+            inspectionExpiryDate: now.add(const Duration(days: 90))),
+      ];
+      await tester.pumpWidget(_buildRealScreen(vehicles: vehicles));
+      await tester.pumpAndSettle();
+
+      // Stats header labels + filter chip labels may both appear → findsWidgets
+      expect(find.text('合計'), findsOneWidget);
+      expect(find.text('緊急'), findsWidgets);
+      expect(find.text('注意'), findsWidgets);
+      expect(find.text('正常'), findsWidgets);
+    });
+
+    testWidgets('20. 合計台数が統計ヘッダーに正確に表示される', (tester) async {
+      final vehicles = List.generate(4, (i) => _makeVehicle(id: 'v$i'));
+      await tester.pumpWidget(_buildRealScreen(vehicles: vehicles));
+      await tester.pumpAndSettle();
+
+      // Stats show total=4 (the '4台' text or standalone '4' count)
+      expect(find.text('4'), findsWidgets);
+    });
+  });
+
+  // =========================================================================
+  group('FleetDashboardScreen — フリートコードタイル (実画面)', () {
+    testWidgets('21. フリートコードコピーボタンでスナックバーが表示される', (tester) async {
+      await tester.pumpWidget(_buildRealScreen(companyId: 'TEST-CODE-001'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.copy));
+      await tester.pump();
+
+      expect(find.text('フリートコードをコピーしました'), findsOneWidget);
+    });
+
+    testWidgets('22. companyIdがフリートコードタイルに表示される', (tester) async {
+      await tester.pumpWidget(_buildRealScreen(companyId: 'FLEET-XYZ-789'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('FLEET-XYZ-789'), findsOneWidget);
     });
   });
 }
