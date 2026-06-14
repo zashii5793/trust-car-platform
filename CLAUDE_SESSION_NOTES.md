@@ -43,8 +43,51 @@
 ## 現在の状態
 
 **ブランチ**: `claude/continue-development-WYZZp`
-**テスト**: 3284件以上（第13弾で+走行距離4件+コミュニティトレンド2件追加）全パス・失敗0件
+**テスト**: 3485件（2026-06-14セッション終了時点）全パス・失敗0件
 **`flutter analyze lib/`**: No issues found
+
+---
+
+## セッション 2026-06-14: テスト品質強化・OCR修正・コード最適化
+
+### 成果サマリー
+
+#### ウィジェットテスト追加（計44件）
+- `notification_list_screen_test.dart`: 双方向スワイプ（Dismissible）テスト追加（+5件）
+- `newsletter_list_screen_test.dart`: test 6 バグ修正（`送信済み` → `配信済み`）+ 12件全パス
+- `privacy_policy_screen_test.dart`: 新規6件
+- `terms_of_service_screen_test.dart`: 新規6件
+- `insurance_edit_screen_test.dart`: 新規9件
+- `ai_chat_screen_test.dart`: 新規8件
+- `newsletter_compose_screen_test.dart`: 新規10件
+- `document_scanner_screen_test.dart`: 新規3件（カメラHW制約によりAppBarのみ）
+- `accessory_showcase_screen_test.dart`: 新規7件
+
+#### バグ修正（全テスト0失敗化）
+1. **OCR精度改善**: `VehicleCertificateOcrService`
+   - modelCode正規表現 `{2,6}` → `{2,8}`（ZE1-1234567の8文字目が切り捨てられていた）
+   - `grossWeight` キーワードに `'総重量'` を追加（ノイズ入り車検証でキーワード欠け）
+   - `InvoiceOcrService`: `'充填'`, `'バルブ'`, `'調整'` 等を整備キーワードに追加（窒素充填が未集計）
+
+2. **ShopOwnerScreenテストDI修正**: `shop_owner_screen_performance_card_test.dart`
+   - `sl.override<ShopService>()` 欠落で13テスト失敗 → 追加・`Injection.reset()` tearDown追加
+   - `getCaseStudies` を `_StubShopService` に実装
+   - `findsOneWidget` → `findsWidgets`（累計問い合わせとケーススタディ件数が同一テキスト）
+
+#### コードリファクタリング
+- **ShopService Haversine最適化**: 手書きTaylor級数・Newton法sqrt（約60行）を削除。
+  `dart:math` sin/cos/sqrt/atan2 に置換（精度・保守性向上）
+
+#### テスト追加
+- **PostService ページネーション**: `getUserPosts` の limit/startAfter APIテスト6件追加
+  （`fake_cloud_firestore` v4.1.1 の compound-query startAfterDocument 制限に対応）
+
+### 重要な発見（再発防止）
+- `fake_cloud_firestore` でのページネーション: `where`+`orderBy`+`startAfterDocument` 組み合わせは
+  動作しない場合がある。カーソルはクエリと同一 `where` 条件のスナップショットを使う、または
+  エミュレーター統合テストでカバーする。
+- `ShopOwnerScreen` は `initState` で `sl.get<ShopService>()` を直接呼ぶ（`_CaseStudySummaryTile`）。
+  Providerのみ注入してもDI失敗する → `sl.override<ShopService>()` も必要。
 
 ## 人間タスク（テストユーザー配布前に必須）
 
