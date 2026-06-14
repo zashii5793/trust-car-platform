@@ -25,6 +25,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
 
+import 'package:trust_car_platform/core/di/injection.dart';
+import 'package:trust_car_platform/core/di/service_locator.dart';
+import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/screens/marketplace/shop_owner_screen.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/providers/shop_provider.dart';
@@ -32,9 +36,9 @@ import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
 import 'package:trust_car_platform/models/shop.dart';
+import 'package:trust_car_platform/models/shop_case_study.dart';
+import 'package:trust_car_platform/models/shop_monthly_report.dart';
 import 'package:trust_car_platform/models/user.dart';
-import 'package:trust_car_platform/core/result/result.dart';
-import 'package:trust_car_platform/core/error/app_error.dart';
 
 // ---------------------------------------------------------------------------
 // Stub Services
@@ -52,6 +56,16 @@ class _StubShopService implements ShopService {
   @override
   Stream<Map<String, int>> watchInquiryCount(String shopId) =>
       const Stream.empty();
+
+  @override
+  Future<Result<List<ShopCaseStudy>, AppError>> getCaseStudies(
+          String shopId) async =>
+      const Result.success([]);
+
+  @override
+  Future<Result<ShopMonthlyReport?, AppError>> getMonthlyReport(
+          String shopId) async =>
+      const Result.success(null);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -238,6 +252,15 @@ Widget _buildScreen(_FakeShopProvider shopProvider) {
 // ---------------------------------------------------------------------------
 
 void main() {
+  setUp(() {
+    // _CaseStudySummaryTile calls sl.get<ShopService>() directly
+    sl.override<ShopService>(_StubShopService());
+  });
+
+  tearDown(() {
+    Injection.reset();
+  });
+
   group('ShopOwnerScreen — Loading state', () {
     testWidgets('shows loading indicator while loading', (tester) async {
       final provider = _FakeShopProvider(isLoading: true);
