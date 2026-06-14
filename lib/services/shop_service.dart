@@ -12,11 +12,16 @@ import '../models/shop_case_study.dart';
 /// Service for shop (business partner) operations
 class ShopService {
   final FirebaseFirestore _firestore;
-  final FirebaseStorage _storage;
+  final FirebaseStorage? _storageOverride;
+
+  // Lazy getter: FirebaseStorage.instance is only accessed when actually
+  // uploading an image, so tests that never call uploadCaseStudyImage
+  // don't require Firebase Storage to be initialized.
+  FirebaseStorage get _storage => _storageOverride ?? FirebaseStorage.instance;
 
   ShopService({FirebaseFirestore? firestore, FirebaseStorage? storage})
       : _firestore = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+        _storageOverride = storage;
 
   CollectionReference<Map<String, dynamic>> get _shopsCollection =>
       _firestore.collection('shops');
@@ -373,11 +378,8 @@ class ShopService {
       String shopId, XFile image, String type) async {
     try {
       final ext = image.path.split('.').last.toLowerCase();
-      final name =
-          '${type}_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      final ref = _storage
-          .ref()
-          .child('shops/$shopId/caseStudies/$name');
+      final name = '${type}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final ref = _storage.ref().child('shops/$shopId/caseStudies/$name');
       final uploadTask = await ref.putFile(File(image.path));
       final url = await uploadTask.ref.getDownloadURL();
       return Result.success(url);
