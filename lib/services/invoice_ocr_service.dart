@@ -432,6 +432,7 @@ class InvoiceOcrService {
       '交換', '工賃', '部品', 'パーツ', '洗車', 'コーティング',
       // Government taxes and insurance that appear as line items in shaken invoices
       '重量税', '自賠責', '印紙', '代行', '保険',
+      'バルブ', '充填', '調整', 'アライメント', 'ローテーション',
     ];
 
     bool isMaintenanceItem = false;

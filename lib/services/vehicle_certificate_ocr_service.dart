@@ -240,7 +240,7 @@ class VehicleCertificateOcrService {
       }
 
       // 車両総重量
-      if (grossWeight == null && _containsKeyword(line, ['車両総重量'])) {
+      if (grossWeight == null && _containsKeyword(line, ['車両総重量', '総重量'])) {
         grossWeight = _extractWeight(line, nextLine);
       }
     }
@@ -320,7 +320,7 @@ class VehicleCertificateOcrService {
   /// 型式を抽出
   /// 例: "DBA-ZN6", "5BA-GRB"
   String? _extractModelCode(String currentLine, String nextLine) {
-    final pattern = RegExp(r'[0-9A-Z]{2,4}[-−][A-Z0-9]{2,6}');
+    final pattern = RegExp(r'[0-9A-Z]{2,4}[-−][A-Z0-9]{2,8}');
 
     var match = pattern.firstMatch(currentLine);
     if (match != null) return match.group(0);

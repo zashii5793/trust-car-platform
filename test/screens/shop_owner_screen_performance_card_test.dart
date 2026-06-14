@@ -21,7 +21,10 @@ import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
 import 'package:trust_car_platform/models/shop.dart';
+import 'package:trust_car_platform/models/shop_case_study.dart';
 import 'package:trust_car_platform/models/user.dart';
+import 'package:trust_car_platform/core/di/injection.dart';
+import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 
@@ -41,6 +44,11 @@ class _StubShopService implements ShopService {
   @override
   Stream<Map<String, int>> watchInquiryCount(String shopId) =>
       const Stream.empty();
+
+  @override
+  Future<Result<List<ShopCaseStudy>, AppError>> getCaseStudies(
+          String shopId) async =>
+      const Result.success([]);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -172,6 +180,7 @@ Shop _makeShop({
 // ---------------------------------------------------------------------------
 
 Widget _buildScreen(_FakeShopProvider shopProvider) {
+  sl.override<ShopService>(_StubShopService());
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<AuthProvider>(
@@ -188,6 +197,10 @@ Widget _buildScreen(_FakeShopProvider shopProvider) {
 // ---------------------------------------------------------------------------
 
 void main() {
+  tearDown(() {
+    Injection.reset();
+  });
+
   group('ShopOwnerScreen _PerformanceSummaryCard', () {
     // -----------------------------------------------------------------------
     // 1. 掲載日数 (days since createdAt)
@@ -243,7 +256,9 @@ void main() {
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('0 件'), findsOneWidget);
+      // "0 件" may appear in both the inquiry stat and the case-study tile;
+      // just confirm it is present somewhere.
+      expect(find.text('0 件'), findsWidgets);
     });
 
     // -----------------------------------------------------------------------
