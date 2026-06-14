@@ -349,6 +349,7 @@ class _RoleBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = switch (role) {
       FleetRole.owner => ('オーナー', AppColors.primary),
+      FleetRole.admin => ('総務担当', AppColors.info),
       FleetRole.manager => ('管理者', AppColors.secondary),
       FleetRole.staff => ('スタッフ', AppColors.warning),
       FleetRole.viewer => ('閲覧', AppColors.textSecondary),
@@ -402,6 +403,7 @@ class _RoleDropdown extends StatelessWidget {
 
   String _roleLabel(FleetRole r) => switch (r) {
         FleetRole.owner => 'オーナー',
+        FleetRole.admin => '総務担当',
         FleetRole.manager => '管理者',
         FleetRole.staff => 'スタッフ',
         FleetRole.viewer => '閲覧',
@@ -492,6 +494,7 @@ class _AddMemberDialogState extends State<_AddMemberDialog> {
 
   String _roleLabel(FleetRole r) => switch (r) {
         FleetRole.owner => 'オーナー',
+        FleetRole.admin => '総務担当',
         FleetRole.manager => '管理者',
         FleetRole.staff => 'スタッフ',
         FleetRole.viewer => '閲覧',
