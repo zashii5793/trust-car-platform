@@ -111,6 +111,38 @@ jobs:
         working-directory: test/rules
         run: npm test
 
+  firestore-rules-test:
+    name: Firestore Rules Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Firestore Emulator は Java を必要とする（JDK 21 以上推奨）
+      - name: Setup Java (for Firestore emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Install rules test dependencies
+        working-directory: test/rules
+        run: npm install
+
+      # npm run test:firestore = firebase emulators:exec --only firestore "jest --runInBand firestore.rules.test.js"
+      - name: Run Firestore rules tests
+        working-directory: test/rules
+        run: npm run test:firestore
+
   build-android:
     name: Build Android
     runs-on: ubuntu-latest

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/shop.dart';
@@ -28,6 +29,14 @@ class _CaseStudyManagementScreenState extends State<CaseStudyManagementScreen> {
   List<ShopCaseStudy> _studies = [];
   bool _isLoading = true;
   String? _error;
+  ServiceCategory? _selectedCategory;
+
+  List<ShopCaseStudy> get _filteredStudies => _selectedCategory == null
+      ? _studies
+      : _studies.where((s) => s.category == _selectedCategory).toList();
+
+  Set<ServiceCategory> get _usedCategories =>
+      _studies.map((s) => s.category).whereType<ServiceCategory>().toSet();
 
   @override
   void initState() {
@@ -58,8 +67,7 @@ class _CaseStudyManagementScreenState extends State<CaseStudyManagementScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final updated = await showDialog<ShopCaseStudy>(
       context: context,
-      builder: (_) => _EditCaseStudyDialog(
-          study: study, service: _service),
+      builder: (_) => _EditCaseStudyDialog(study: study, service: _service),
     );
     if (updated == null) return;
 
@@ -150,15 +158,49 @@ class _CaseStudyManagementScreenState extends State<CaseStudyManagementScreen> {
                 )
               : _studies.isEmpty
                   ? _EmptyState(onAdd: _showAddDialog)
-                  : ListView.separated(
-                      padding: AppSpacing.paddingScreen,
-                      itemCount: _studies.length,
-                      separatorBuilder: (_, __) => AppSpacing.verticalSm,
-                      itemBuilder: (_, i) => _CaseStudyTile(
-                        study: _studies[i],
-                        onEdit: () => _showEditDialog(_studies[i]),
-                        onDelete: () => _delete(_studies[i]),
-                      ),
+                  : Column(
+                      children: [
+                        if (_usedCategories.isNotEmpty)
+                          _CategoryFilterBar(
+                            categories: _usedCategories,
+                            selected: _selectedCategory,
+                            onChanged: (cat) =>
+                                setState(() => _selectedCategory = cat),
+                          ),
+                        Expanded(
+                          child: _filteredStudies.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.filter_list_off,
+                                          size: 48,
+                                          color: AppColors.textTertiary),
+                                      AppSpacing.verticalMd,
+                                      const Text('該当する施工事例がありません'),
+                                      TextButton(
+                                        onPressed: () => setState(
+                                            () => _selectedCategory = null),
+                                        child: const Text('フィルターを解除'),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : ListView.separated(
+                                  padding: AppSpacing.paddingScreen,
+                                  itemCount: _filteredStudies.length,
+                                  separatorBuilder: (_, __) =>
+                                      AppSpacing.verticalSm,
+                                  itemBuilder: (_, i) => _CaseStudyTile(
+                                    study: _filteredStudies[i],
+                                    onEdit: () =>
+                                        _showEditDialog(_filteredStudies[i]),
+                                    onDelete: () =>
+                                        _delete(_filteredStudies[i]),
+                                  ),
+                                ),
+                        ),
+                      ],
                     ),
     );
   }
@@ -474,8 +516,7 @@ class _EditCaseStudyDialog extends StatefulWidget {
   final ShopCaseStudy study;
   final ShopService service;
 
-  const _EditCaseStudyDialog(
-      {required this.study, required this.service});
+  const _EditCaseStudyDialog({required this.study, required this.service});
 
   @override
   State<_EditCaseStudyDialog> createState() => _EditCaseStudyDialogState();
@@ -501,8 +542,7 @@ class _EditCaseStudyDialogState extends State<_EditCaseStudyDialog> {
   void initState() {
     super.initState();
     _titleCtrl = TextEditingController(text: widget.study.title);
-    _descCtrl =
-        TextEditingController(text: widget.study.description ?? '');
+    _descCtrl = TextEditingController(text: widget.study.description ?? '');
     _category = widget.study.category;
     _beforeUrl = widget.study.beforeImageUrl;
     _afterUrl = widget.study.afterImageUrl;
@@ -541,8 +581,8 @@ class _EditCaseStudyDialogState extends State<_EditCaseStudyDialog> {
     String? afterUrl = _afterUrl;
 
     if (_beforeImage != null) {
-      final result = await widget.service.uploadCaseStudyImage(
-          widget.study.shopId, _beforeImage!, 'before');
+      final result = await widget.service
+          .uploadCaseStudyImage(widget.study.shopId, _beforeImage!, 'before');
       if (!mounted) return;
       if (result.isFailure) {
         setState(() => _isUploading = false);
@@ -555,8 +595,8 @@ class _EditCaseStudyDialogState extends State<_EditCaseStudyDialog> {
     }
 
     if (_afterImage != null) {
-      final result = await widget.service.uploadCaseStudyImage(
-          widget.study.shopId, _afterImage!, 'after');
+      final result = await widget.service
+          .uploadCaseStudyImage(widget.study.shopId, _afterImage!, 'after');
       if (!mounted) return;
       if (result.isFailure) {
         setState(() => _isUploading = false);
@@ -602,9 +642,7 @@ class _EditCaseStudyDialogState extends State<_EditCaseStudyDialog> {
                 labelText: 'タイトル',
                 hintText: '例: エンジンオイル交換',
                 validator: (v) =>
-                    (v == null || v.trim().isEmpty)
-                        ? 'タイトルを入力してください'
-                        : null,
+                    (v == null || v.trim().isEmpty) ? 'タイトルを入力してください' : null,
               ),
               AppSpacing.verticalSm,
               DropdownButtonFormField<ServiceCategory>(
@@ -736,8 +774,7 @@ class _ExistingImageTile extends StatelessWidget {
         onTap: cb,
         child: Container(
           decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(12)),
+              color: Colors.black54, borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.all(4),
           child: Icon(icon, size: 16, color: Colors.white),
         ),
@@ -836,6 +873,52 @@ class _ImagePickerTile extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(double.infinity, 56),
         side: BorderSide(color: theme.colorScheme.outline),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Category filter bar
+// ---------------------------------------------------------------------------
+
+class _CategoryFilterBar extends StatelessWidget {
+  final Set<ServiceCategory> categories;
+  final ServiceCategory? selected;
+  final ValueChanged<ServiceCategory?> onChanged;
+
+  const _CategoryFilterBar({
+    required this.categories,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      child: Row(
+        children: [
+          FilterChip(
+            label: const Text('すべて'),
+            selected: selected == null,
+            onSelected: (_) => onChanged(null),
+          ),
+          ...categories.map(
+            (c) => Padding(
+              padding: const EdgeInsets.only(left: AppSpacing.xs),
+              child: FilterChip(
+                label: Text(c.displayName),
+                selected: selected == c,
+                onSelected: (_) => onChanged(c),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/shop_provider.dart';
-import '../../models/shop.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/di/service_locator.dart';
+import '../../models/shop.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/shop_provider.dart';
+import '../../services/shop_service.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'case_study_management_screen.dart';
@@ -295,21 +297,8 @@ class _RegisteredBody extends StatelessWidget {
           // Inquiry count badge (tappable → ShopInquiryListScreen)
           _InquiryCountBadge(provider: provider, shopId: shop.id),
           AppSpacing.verticalMd,
-          // Case study management button
-          OutlinedButton.icon(
-            key: const Key('case_study_management_btn'),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => CaseStudyManagementScreen(shopId: shop.id),
-              ),
-            ),
-            icon: const Icon(Icons.photo_library_outlined),
-            label: const Text('施工事例を管理'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(AppSpacing.tapTargetMin),
-            ),
-          ),
+          // Case study summary tile (tappable → CaseStudyManagementScreen)
+          _CaseStudySummaryTile(shopId: shop.id),
           AppSpacing.verticalMd,
           // Newsletter management button
           OutlinedButton.icon(
@@ -762,6 +751,87 @@ class _UpgradeBanner extends StatelessWidget {
             child: const Text('変更'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Case study summary tile
+// ---------------------------------------------------------------------------
+
+class _CaseStudySummaryTile extends StatefulWidget {
+  final String shopId;
+
+  const _CaseStudySummaryTile({required this.shopId});
+
+  @override
+  State<_CaseStudySummaryTile> createState() => _CaseStudySummaryTileState();
+}
+
+class _CaseStudySummaryTileState extends State<_CaseStudySummaryTile> {
+  int? _count;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final result = await sl.get<ShopService>().getCaseStudies(widget.shopId);
+    if (!mounted) return;
+    result.when(
+      success: (list) => setState(() => _count = list.length),
+      failure: (_) => setState(() => _count = 0),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final count = _count;
+
+    return InkWell(
+      key: const Key('case_study_management_btn'),
+      borderRadius: AppSpacing.borderRadiusMd,
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CaseStudyManagementScreen(shopId: widget.shopId),
+        ),
+      ),
+      child: AppCard(
+        child: Row(
+          children: [
+            const Icon(
+              Icons.photo_library_outlined,
+              color: AppColors.textTertiary,
+              size: AppSpacing.iconMd,
+            ),
+            AppSpacing.horizontalMd,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '施工事例',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    count == null ? '読み込み中...' : '$count 件',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+          ],
+        ),
       ),
     );
   }

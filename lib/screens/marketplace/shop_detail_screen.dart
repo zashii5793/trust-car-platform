@@ -619,6 +619,7 @@ class _CaseStudiesSection extends StatefulWidget {
 
 class _CaseStudiesSectionState extends State<_CaseStudiesSection> {
   late Future<List<ShopCaseStudy>> _future;
+  ServiceCategory? _selectedCategory;
 
   @override
   void initState() {
@@ -643,20 +644,57 @@ class _CaseStudiesSectionState extends State<_CaseStudiesSection> {
         final studies = snap.data ?? [];
         if (studies.isEmpty) return const SizedBox.shrink();
 
+        final usedCategories =
+            studies.map((s) => s.category).whereType<ServiceCategory>().toSet();
+        final filtered = _selectedCategory == null
+            ? studies
+            : studies.where((s) => s.category == _selectedCategory).toList();
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('施工事例', style: theme.textTheme.titleSmall),
+            if (usedCategories.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.xs),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    FilterChip(
+                      label: const Text('すべて'),
+                      selected: _selectedCategory == null,
+                      onSelected: (_) =>
+                          setState(() => _selectedCategory = null),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    ...usedCategories.map(
+                      (c) => Padding(
+                        padding: const EdgeInsets.only(left: AppSpacing.xs),
+                        child: FilterChip(
+                          label: Text(c.displayName),
+                          selected: _selectedCategory == c,
+                          onSelected: (_) =>
+                              setState(() => _selectedCategory = c),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.sm),
             SizedBox(
               height: 200,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: studies.length,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(width: AppSpacing.sm),
-                itemBuilder: (_, i) => _CaseStudyCard(study: studies[i]),
-              ),
+              child: filtered.isEmpty
+                  ? const Center(child: Text('該当する施工事例がありません'))
+                  : ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(width: AppSpacing.sm),
+                      itemBuilder: (_, i) => _CaseStudyCard(study: filtered[i]),
+                    ),
             ),
           ],
         );
@@ -673,8 +711,7 @@ class _CaseStudyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasBoth =
-        study.beforeImageUrl != null && study.afterImageUrl != null;
+    final hasBoth = study.beforeImageUrl != null && study.afterImageUrl != null;
 
     return SizedBox(
       width: hasBoth ? 300 : 220,
@@ -696,8 +733,8 @@ class _CaseStudyCard extends StatelessWidget {
                               Image.network(
                                 study.beforeImageUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => _placeholder(
-                                    theme, Icons.photo_outlined),
+                                errorBuilder: (_, __, ___) =>
+                                    _placeholder(theme, Icons.photo_outlined),
                               ),
                               Positioned(
                                 bottom: 4,
@@ -715,8 +752,8 @@ class _CaseStudyCard extends StatelessWidget {
                               Image.network(
                                 study.afterImageUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => _placeholder(
-                                    theme, Icons.photo_outlined),
+                                errorBuilder: (_, __, ___) =>
+                                    _placeholder(theme, Icons.photo_outlined),
                               ),
                               Positioned(
                                 bottom: 4,

@@ -4,7 +4,9 @@
   "private": true,
   "description": "Firebase Storage セキュリティルールの自動テスト（@firebase/rules-unit-testing + Storage Emulator）",
   "scripts": {
-    "test": "firebase emulators:exec --only storage --project trust-car-platform \"jest --runInBand\"",
+    "test": "firebase emulators:exec --only storage --project trust-car-platform \"jest --runInBand storage.rules.test.js\"",
+    "test:storage": "firebase emulators:exec --only storage --project trust-car-platform \"jest --runInBand storage.rules.test.js\"",
+    "test:firestore": "firebase emulators:exec --only firestore --project trust-car-platform \"jest --runInBand firestore.rules.test.js\"",
     "test:watch": "firebase emulators:exec --only storage --project trust-car-platform \"jest --runInBand --watch\""
   },
   "devDependencies": {
