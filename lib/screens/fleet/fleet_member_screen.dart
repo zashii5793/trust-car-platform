@@ -7,7 +7,8 @@ import '../../services/fleet_member_service.dart';
 
 /// Screen for managing fleet members (roles, invitations, removals).
 ///
-/// Only [FleetRole.owner] users see edit controls.
+/// [FleetRole.owner] and [FleetRole.admin] users see edit controls.
+/// Admins cannot manage the owner (add/remove/update-role).
 class FleetMemberScreen extends StatefulWidget {
   final String companyId;
   final String currentUserId;

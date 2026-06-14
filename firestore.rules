@@ -554,28 +554,44 @@ service cloud.firestore {
     }
 
     // ==================== フリートメンバー管理 ====================
+    // Returns true if the authenticated user holds the 'admin' role in [companyId].
+    function isFleetAdminOf(companyId) {
+      let id = companyId + '_' + request.auth.uid;
+      return exists(/databases/$(database)/documents/fleet_members/$(id)) &&
+        get(/databases/$(database)/documents/fleet_members/$(id)).data.role == 'admin';
+    }
+
     // fleet_members/{companyId}_{userId}
     // Document ID format: {companyId}_{userId}
-    // Company owner (companyId == request.auth.uid) has full access.
+    // Company owner (companyId == request.auth.uid) or admin has member management access.
     // Members may read their own record and all records in their company.
     match /fleet_members/{memberId} {
-      // Owner reads all members of their company; members read their own record.
-      allow read: if isAuthenticated() &&
-        (resource.data.companyId == request.auth.uid ||
-         resource.data.userId == request.auth.uid);
+      // Owner or admin reads all company members; members read their own record.
+      allow read: if isAuthenticated() && (
+        resource.data.companyId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        isFleetAdminOf(resource.data.companyId)
+      );
 
-      // Only the company owner can add members.
-      allow create: if isAuthenticated() &&
-        request.resource.data.companyId == request.auth.uid;
+      // Owner or admin can add members (role restrictions enforced at service layer).
+      allow create: if isAuthenticated() && (
+        request.resource.data.companyId == request.auth.uid ||
+        isFleetAdminOf(request.resource.data.companyId)
+      );
 
-      // Only the company owner can update roles.
-      allow update: if isAuthenticated() &&
-        resource.data.companyId == request.auth.uid;
+      // Owner or admin can update roles (owner-role guard enforced at service layer).
+      allow update: if isAuthenticated() && (
+        resource.data.companyId == request.auth.uid ||
+        isFleetAdminOf(resource.data.companyId)
+      );
 
-      // Owner can remove anyone; members can remove themselves.
-      allow delete: if isAuthenticated() &&
-        (resource.data.companyId == request.auth.uid ||
-         resource.data.userId == request.auth.uid);
+      // Owner or admin can remove members; members can remove themselves.
+      // Admin cannot remove owner — enforced at service layer.
+      allow delete: if isAuthenticated() && (
+        resource.data.companyId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        isFleetAdminOf(resource.data.companyId)
+      );
     }
 
     // ==================== アクセサリーショーケース ====================
