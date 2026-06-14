@@ -561,4 +561,104 @@ void main() {
       expect(find.byIcon(Icons.store), findsOneWidget);
     });
   });
+
+  group('ShopOwnerScreen — Unregistered plan features', () {
+    testWidgets('Standard plan features are listed', (tester) async {
+      await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('画像10枚まで掲載'), findsOneWidget);
+      expect(find.text('フィーチャー表示'), findsOneWidget);
+      expect(find.text('優先検索表示'), findsOneWidget);
+    });
+
+    testWidgets('Premium plan features are listed', (tester) async {
+      await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('画像30枚まで掲載'), findsOneWidget);
+      expect(find.text('トップページ固定表示'), findsOneWidget);
+      expect(find.text('月次分析レポート'), findsOneWidget);
+    });
+
+    testWidgets('「無料で掲載を始める」ボタンをタップしてもクラッシュしない', (tester) async {
+      await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('無料で掲載を始める'));
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('ShopOwnerScreen — Registered additional buttons', () {
+    testWidgets('月次レポートボタンが表示される', (tester) async {
+      final provider = _FakeShopProvider(shop: _makeShop());
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(
+        find.byKey(const Key('monthly_report_btn')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('ニュースレター管理ボタンが表示される', (tester) async {
+      final provider = _FakeShopProvider(shop: _makeShop());
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('ニュースレター管理'), findsOneWidget);
+    });
+
+    testWidgets('施工事例タイルが表示される', (tester) async {
+      final provider = _FakeShopProvider(shop: _makeShop());
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('case_study_management_btn')), findsOneWidget);
+      expect(find.text('施工事例'), findsOneWidget);
+    });
+
+    testWidgets('掲載実績カードが表示される', (tester) async {
+      final provider = _FakeShopProvider(shop: _makeShop());
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('掲載実績'), findsOneWidget);
+    });
+
+    testWidgets('アップグレードバナーの説明テキストが表示される（Freeプラン）', (tester) async {
+      final provider =
+          _FakeShopProvider(shop: _makeShop(planType: ShopPlanType.free));
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(
+        find.textContaining('Standardプランで画像掲載'),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('ShopOwnerScreen — Delete failure', () {
+    testWidgets('削除失敗時にエラーSnackBarが表示される', (tester) async {
+      final provider = _FakeShopProvider(
+        shop: _makeShop(),
+        deleteShouldSucceed: false,
+      );
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.ensureVisible(find.text('掲載を削除'));
+      await tester.tap(find.text('掲載を削除'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('削除する'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('削除に失敗しました'), findsOneWidget);
+    });
+  });
 }
