@@ -8,6 +8,7 @@
 //   4. AppError 型の利用パターン（Post サービス内で発生しうるエラー）
 //   5. エッジケース
 //   6. PostService.getUserPosts — フォロワー限定投稿可視性（Item 3）
+//   7. PostService.getUserPosts — ページネーション（limit & startAfter）
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
@@ -547,6 +548,161 @@ void main() {
         result.when(
           success: (posts) {
             expect(posts.every((p) => p.userId == 'author-uid'), isTrue);
+          },
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Item 7: PostService.getUserPosts — ページネーション
+  // ---------------------------------------------------------------------------
+
+  group('PostService.getUserPosts — ページネーション', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    Map<String, dynamic> postDocAt(DateTime createdAt) => {
+          'userId': 'author-uid',
+          'visibility': 'public',
+          'content': 'post at $createdAt',
+          'category': 'general',
+          'hashtags': <String>[],
+          'mentionedUserIds': <String>[],
+          'likeCount': 0,
+          'commentCount': 0,
+          'shareCount': 0,
+          'viewCount': 0,
+          'isEdited': false,
+          'media': <dynamic>[],
+          'createdAt': Timestamp.fromDate(createdAt),
+          'updatedAt': Timestamp.fromDate(createdAt),
+        };
+
+    setUp(() async {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+
+      // Seed 5 posts with staggered timestamps (newest first when sorted desc)
+      for (int i = 1; i <= 5; i++) {
+        await fakeFirestore
+            .collection('posts')
+            .add(postDocAt(DateTime(2024, 1, i)));
+      }
+    });
+
+    test('limit=2 → 2件だけ返る', () async {
+      final result = await service.getUserPosts(
+        userId: 'author-uid',
+        viewerId: 'author-uid',
+        limit: 2,
+      );
+
+      result.when(
+        success: (posts) => expect(posts.length, 2),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('limit=0 → 空リスト', () async {
+      final result = await service.getUserPosts(
+        userId: 'author-uid',
+        viewerId: 'author-uid',
+        limit: 0,
+      );
+
+      result.when(
+        success: (posts) => expect(posts, isEmpty),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('limit がドキュメント数を超える → 全件返る', () async {
+      final result = await service.getUserPosts(
+        userId: 'author-uid',
+        viewerId: 'author-uid',
+        limit: 100,
+      );
+
+      result.when(
+        success: (posts) => expect(posts.length, 5),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('startAfter 指定でエラーにならない（APIコントラクト確認）', () async {
+      // fake_cloud_firestore has a known limitation with startAfterDocument
+      // when combined with compound where+orderBy queries, so we only verify
+      // that passing startAfter does not throw an error (the Firestore SDK
+      // behavior is covered by integration tests against the emulator).
+      final docSnap = await fakeFirestore
+          .collection('posts')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get()
+          .then((s) => s.docs.first);
+
+      final result = await service.getUserPosts(
+        userId: 'author-uid',
+        viewerId: 'author-uid',
+        limit: 2,
+        startAfter: docSnap,
+      );
+
+      // Must return success (not failure) regardless of cursor behavior
+      result.when(
+        success: (_) => expect(true, isTrue),
+        failure: (e) => fail('startAfter must not produce a service error: $e'),
+      );
+    });
+
+    group('Edge Cases', () {
+      test('ページネーション + フォロワーフィルタ — followers 投稿は startAfter でも適用される',
+          () async {
+        // Add a followers-only post (newest)
+        await fakeFirestore.collection('posts').add({
+          'userId': 'author-uid',
+          'visibility': 'followers',
+          'content': 'followers only',
+          'category': 'general',
+          'hashtags': <String>[],
+          'mentionedUserIds': <String>[],
+          'likeCount': 0,
+          'commentCount': 0,
+          'shareCount': 0,
+          'viewCount': 0,
+          'isEdited': false,
+          'media': <dynamic>[],
+          'createdAt': Timestamp.fromDate(DateTime(2024, 1, 10)),
+          'updatedAt': Timestamp.fromDate(DateTime(2024, 1, 10)),
+        });
+
+        // Use a public post (Jan 5) as cursor for page 2.
+        // Cursor must be a document that would appear in the filtered result
+        // set (fake_cloud_firestore requires cursor doc to match where clause).
+        final publicSnap = await fakeFirestore
+            .collection('posts')
+            .where('userId', isEqualTo: 'author-uid')
+            .where('visibility', isEqualTo: 'public')
+            .orderBy('createdAt', descending: true)
+            .limit(1)
+            .get()
+            .then((s) => s.docs.first);
+
+        final page2 = await service.getUserPosts(
+          userId: 'author-uid',
+          viewerId: 'stranger-uid',
+          isViewerFollowing: false,
+          limit: 10,
+          startAfter: publicSnap,
+        );
+
+        page2.when(
+          success: (posts) {
+            // Every post returned must be public (followers-only excluded)
+            expect(posts.every((p) => p.visibility == PostVisibility.public),
+                isTrue);
           },
           failure: (e) => fail('Expected success, got: $e'),
         );
