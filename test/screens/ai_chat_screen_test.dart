@@ -22,7 +22,6 @@ import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/models/chat_message.dart';
-import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/screens/ai_chat/ai_chat_screen.dart';
 import 'package:trust_car_platform/services/ai_chat_service.dart';
@@ -159,6 +158,25 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('タイヤは2.5kPaがおすすめです'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('AiChatScreen — Error handling', () {
+    testWidgets('9. AI呼び出しが失敗するとエラーメッセージが表示される', (tester) async {
+      final mock = _MockAiChatService(
+        error: AppError.unknown('AI service unavailable'),
+      );
+      await tester.pumpWidget(_buildScreen(mock));
+      await tester.pump();
+
+      await tester.enterText(
+          find.widgetWithText(TextField, '車のことを何でも聞いてください'), '失敗するメッセージ');
+      await tester.tap(find.byIcon(Icons.send_rounded));
+      await tester.pumpAndSettle();
+
+      // Error message should be shown in the chat
+      expect(find.textContaining('エラー'), findsOneWidget);
     });
   });
 
