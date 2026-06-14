@@ -9,7 +9,7 @@ import 'package:trust_car_platform/providers/drive_recording_provider.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
-import 'package:trust_car_platform/models/drive_log.dart';
+import 'package:trust_car_platform/models/drive_log.dart' show DriveLog, DriveLogStatus, DriveStatistics, WeatherCondition, RoadType;
 import 'package:trust_car_platform/models/user.dart';
 import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
 import 'package:trust_car_platform/core/result/result.dart';
@@ -127,6 +127,14 @@ DriveLog _makeDriveLog({
   String userId = 'user1',
   double distance = 42.5,
   int durationSecs = 3600,
+  String? title,
+  WeatherCondition? weather,
+  String? startAddress,
+  String? endAddress,
+  List<RoadType> roadTypes = const [],
+  List<String> tags = const [],
+  bool isPublic = false,
+  int likeCount = 0,
 }) {
   final now = DateTime.now();
   return DriveLog(
@@ -140,6 +148,14 @@ DriveLog _makeDriveLog({
       averageSpeed: 42.5,
       maxSpeed: 80.0,
     ),
+    title: title,
+    weather: weather,
+    startAddress: startAddress,
+    endAddress: endAddress,
+    roadTypes: roadTypes,
+    tags: tags,
+    isPublic: isPublic,
+    likeCount: likeCount,
     createdAt: now,
     updatedAt: now,
   );
@@ -347,6 +363,175 @@ void main() {
             find.byType(ListView).evaluate().isNotEmpty,
         isTrue,
       );
+    });
+  });
+
+  // =========================================================================
+  group('DriveLogScreen — FloatingActionButton', () {
+    testWidgets('「記録開始」ボタンが表示される', (tester) async {
+      service.logsResult = const Result.success([]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.text('記録開始'), findsOneWidget);
+    });
+
+    testWidgets('FloatingActionButtonが表示される', (tester) async {
+      service.logsResult = const Result.success([]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('DriveLogScreen — ログカード詳細', () {
+    testWidgets('デフォルトタイトル「ドライブ記録」が表示される', (tester) async {
+      service.logsResult = Result.success([_makeDriveLog(id: 'log1')]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.text('ドライブ記録'), findsOneWidget);
+    });
+
+    testWidgets('カスタムタイトルが表示される', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'log1', title: '東京ドライブ'),
+      ]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.text('東京ドライブ'), findsOneWidget);
+    });
+
+    testWidgets('ログカードに「距離」ラベルが表示される', (tester) async {
+      service.logsResult = Result.success([_makeDriveLog(id: 'log1')]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.text('距離'), findsWidgets);
+    });
+
+    testWidgets('天気バッジが表示される', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'log1', weather: WeatherCondition.sunny),
+      ]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      // WeatherCondition.sunny.displayName is '晴れ'
+      expect(find.text('晴れ'), findsOneWidget);
+    });
+
+    testWidgets('出発地・目的地が表示される', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(
+          id: 'log1',
+          startAddress: '東京駅',
+          endAddress: '大阪駅',
+        ),
+      ]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.text('東京駅'), findsOneWidget);
+      expect(find.text('大阪駅'), findsOneWidget);
+    });
+
+    testWidgets('タグが表示される', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'log1', tags: ['山道', '夜間']),
+      ]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.text('#山道'), findsOneWidget);
+      expect(find.text('#夜間'), findsOneWidget);
+    });
+
+    testWidgets('道路種別チップが表示される', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'log1', roadTypes: [RoadType.highway]),
+      ]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      // RoadType.highway.displayName
+      expect(find.textContaining('高速'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('DriveLogScreen — 削除機能（自ユーザー）', () {
+    testWidgets('自分のログには削除ボタンが表示される', (tester) async {
+      // _LoggedInAuthProvider.firebaseUser.uid = 'test-uid'
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'log1', userId: 'test-uid'),
+      ]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.byTooltip('削除'), findsOneWidget);
+    });
+
+    testWidgets('他人のログには削除ボタンが表示されない', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'log1', userId: 'other-user'),
+      ]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.byTooltip('削除'), findsNothing);
+    });
+
+    testWidgets('削除確認して「削除」をタップすると deleteDriveLog が呼ばれる', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'own-log', userId: 'test-uid'),
+      ]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('削除'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('削除'));
+      await tester.pumpAndSettle();
+
+      expect(service.lastDeleteId, equals('own-log'));
+    });
+  });
+
+  // =========================================================================
+  group('DriveLogScreen — いいね・公開状態', () {
+    testWidgets('いいね数 0 が表示される', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'log1', likeCount: 0),
+      ]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.text('0'), findsWidgets);
+    });
+
+    testWidgets('非公開ログには鍵アイコンが表示される', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'log1', isPublic: false),
+      ]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+    });
+
+    testWidgets('公開ログにはパブリックアイコンが表示される', (tester) async {
+      service.logsResult = Result.success([
+        _makeDriveLog(id: 'log1', isPublic: true),
+      ]);
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      expect(find.byIcon(Icons.public), findsOneWidget);
     });
   });
 }
