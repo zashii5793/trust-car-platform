@@ -155,6 +155,17 @@ service cloud.firestore {
       match /private/{docId} {
         allow read, write: if isShopOwner(shopId);
       }
+
+      // 施工事例サブコレクション（ショッププロフィールの公開情報）
+      match /caseStudies/{caseStudyId} {
+        // 認証済みユーザーなら誰でも閲覧可能（店舗の公開情報の一部）
+        allow read: if isAuthenticated();
+        // 作成はオーナーのみ、かつ shopId フィールドが一致すること
+        allow create: if isShopOwner(shopId) &&
+          request.resource.data.shopId == shopId;
+        // 更新・削除はオーナーのみ
+        allow update, delete: if isShopOwner(shopId);
+      }
     }
 
     // ユーザー出品パーツリスティング (C2C Marketplace)

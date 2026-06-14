@@ -100,6 +100,11 @@ class MockShopService implements ShopService {
   Future<Result<void, AppError>> deleteCaseStudy(
           String shopId, String studyId) async =>
       const Result.success(null);
+
+  @override
+  Future<Result<String, AppError>> uploadCaseStudyImage(
+          String shopId, dynamic image, String type) async =>
+      Result.failure(AppError.unknown('not impl'));
 }
 
 class MockInquiryService implements InquiryService {

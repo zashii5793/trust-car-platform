@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
@@ -8,9 +12,11 @@ import '../models/shop_case_study.dart';
 /// Service for shop (business partner) operations
 class ShopService {
   final FirebaseFirestore _firestore;
+  final FirebaseStorage _storage;
 
-  ShopService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  ShopService({FirebaseFirestore? firestore, FirebaseStorage? storage})
+      : _firestore = firestore ?? FirebaseFirestore.instance,
+        _storage = storage ?? FirebaseStorage.instance;
 
   CollectionReference<Map<String, dynamic>> get _shopsCollection =>
       _firestore.collection('shops');
@@ -360,6 +366,25 @@ class ShopService {
   // ---------------------------------------------------------------------------
   // Case studies (施工事例)
   // ---------------------------------------------------------------------------
+
+  /// Uploads a case study image and returns the download URL.
+  /// [type] should be 'before' or 'after'.
+  Future<Result<String, AppError>> uploadCaseStudyImage(
+      String shopId, XFile image, String type) async {
+    try {
+      final ext = image.path.split('.').last.toLowerCase();
+      final name =
+          '${type}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final ref = _storage
+          .ref()
+          .child('shops/$shopId/caseStudies/$name');
+      final uploadTask = await ref.putFile(File(image.path));
+      final url = await uploadTask.ref.getDownloadURL();
+      return Result.success(url);
+    } catch (e) {
+      return Result.failure(AppError.server('画像のアップロードに失敗しました: $e'));
+    }
+  }
 
   CollectionReference<Map<String, dynamic>> _caseStudiesCollection(
           String shopId) =>

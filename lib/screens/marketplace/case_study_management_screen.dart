@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/shop.dart';
@@ -55,7 +58,8 @@ class _CaseStudyManagementScreenState extends State<CaseStudyManagementScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final study = await showDialog<ShopCaseStudy>(
       context: context,
-      builder: (_) => _AddCaseStudyDialog(shopId: widget.shopId),
+      builder: (_) =>
+          _AddCaseStudyDialog(shopId: widget.shopId, service: _service),
     );
     if (study == null) return;
 
@@ -243,8 +247,10 @@ class _CaseStudyTile extends StatelessWidget {
 
 class _AddCaseStudyDialog extends StatefulWidget {
   final String shopId;
+  final ShopService service;
 
-  const _AddCaseStudyDialog({required this.shopId});
+  const _AddCaseStudyDialog(
+      {required this.shopId, required this.service});
 
   @override
   State<_AddCaseStudyDialog> createState() => _AddCaseStudyDialogState();
@@ -254,21 +260,73 @@ class _AddCaseStudyDialogState extends State<_AddCaseStudyDialog> {
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  final _beforeCtrl = TextEditingController();
-  final _afterCtrl = TextEditingController();
   ServiceCategory? _category;
+  XFile? _beforeImage;
+  XFile? _afterImage;
+  bool _isUploading = false;
 
   @override
   void dispose() {
     _titleCtrl.dispose();
     _descCtrl.dispose();
-    _beforeCtrl.dispose();
-    _afterCtrl.dispose();
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _pickImage(bool isBefore) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1920,
+      maxHeight: 1920,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+    setState(() {
+      if (isBefore) {
+        _beforeImage = picked;
+      } else {
+        _afterImage = picked;
+      }
+    });
+  }
+
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isUploading = true);
+
+    String? beforeUrl;
+    String? afterUrl;
+
+    if (_beforeImage != null) {
+      final result = await widget.service.uploadCaseStudyImage(
+          widget.shopId, _beforeImage!, 'before');
+      if (!mounted) return;
+      if (result.isFailure) {
+        setState(() => _isUploading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.errorOrNull!.userMessage)),
+        );
+        return;
+      }
+      beforeUrl = result.valueOrNull;
+    }
+
+    if (_afterImage != null) {
+      final result = await widget.service.uploadCaseStudyImage(
+          widget.shopId, _afterImage!, 'after');
+      if (!mounted) return;
+      if (result.isFailure) {
+        setState(() => _isUploading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.errorOrNull!.userMessage)),
+        );
+        return;
+      }
+      afterUrl = result.valueOrNull;
+    }
+
+    if (!mounted) return;
     Navigator.pop(
       context,
       ShopCaseStudy(
@@ -277,10 +335,8 @@ class _AddCaseStudyDialogState extends State<_AddCaseStudyDialog> {
         title: _titleCtrl.text.trim(),
         description:
             _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
-        beforeImageUrl:
-            _beforeCtrl.text.trim().isEmpty ? null : _beforeCtrl.text.trim(),
-        afterImageUrl:
-            _afterCtrl.text.trim().isEmpty ? null : _afterCtrl.text.trim(),
+        beforeImageUrl: beforeUrl,
+        afterImageUrl: afterUrl,
         category: _category,
         createdAt: DateTime.now(),
       ),
@@ -289,6 +345,7 @@ class _AddCaseStudyDialogState extends State<_AddCaseStudyDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return AlertDialog(
       title: const Text('施工事例を追加'),
       content: SingleChildScrollView(
@@ -331,19 +388,25 @@ class _AddCaseStudyDialogState extends State<_AddCaseStudyDialog> {
                 hintText: '施工内容や工夫した点など',
                 maxLines: 3,
               ),
-              AppSpacing.verticalSm,
-              AppTextField(
-                controller: _beforeCtrl,
-                labelText: 'ビフォー画像URL（任意）',
-                hintText: 'https://...',
-                keyboardType: TextInputType.url,
+              AppSpacing.verticalMd,
+              Text('ビフォー写真（任意）',
+                  style: theme.textTheme.labelMedium),
+              AppSpacing.verticalXs,
+              _ImagePickerTile(
+                key: const Key('before_image_picker'),
+                image: _beforeImage,
+                onTap: () => _pickImage(true),
+                onClear: () => setState(() => _beforeImage = null),
               ),
               AppSpacing.verticalSm,
-              AppTextField(
-                controller: _afterCtrl,
-                labelText: 'アフター画像URL（任意）',
-                hintText: 'https://...',
-                keyboardType: TextInputType.url,
+              Text('アフター写真（任意）',
+                  style: theme.textTheme.labelMedium),
+              AppSpacing.verticalXs,
+              _ImagePickerTile(
+                key: const Key('after_image_picker'),
+                image: _afterImage,
+                onTap: () => _pickImage(false),
+                onClear: () => setState(() => _afterImage = null),
               ),
             ],
           ),
@@ -351,15 +414,81 @@ class _AddCaseStudyDialogState extends State<_AddCaseStudyDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed:
+              _isUploading ? null : () => Navigator.pop(context),
           child: const Text('キャンセル'),
         ),
         FilledButton(
           key: const Key('save_case_study_btn'),
-          onPressed: _submit,
-          child: const Text('追加'),
+          onPressed: _isUploading ? null : _submit,
+          child: _isUploading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('追加'),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _ImagePickerTile extends StatelessWidget {
+  final XFile? image;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
+
+  const _ImagePickerTile({
+    super.key,
+    required this.image,
+    required this.onTap,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (image != null) {
+      return Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.xs),
+            child: Image.file(
+              File(image!.path),
+              height: 120,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: GestureDetector(
+              onTap: onClear,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.all(4),
+                child: const Icon(Icons.close, size: 16, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: const Icon(Icons.add_photo_alternate_outlined),
+      label: const Text('写真を選択'),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(double.infinity, 56),
+        side: BorderSide(color: theme.colorScheme.outline),
+      ),
     );
   }
 }
