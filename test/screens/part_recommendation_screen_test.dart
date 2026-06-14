@@ -28,22 +28,50 @@
 //    18. Part with price shows formatted price
 //    19. Multiple recommendations all displayed
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-import 'package:trust_car_platform/screens/parts/part_recommendation_screen.dart';
-import 'package:trust_car_platform/providers/part_recommendation_provider.dart';
-import 'package:trust_car_platform/services/part_recommendation_service.dart';
-import 'package:trust_car_platform/models/part_listing.dart';
-import 'package:trust_car_platform/models/vehicle.dart';
+import 'package:trust_car_platform/core/di/injection.dart';
+import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:trust_car_platform/core/result/result.dart';
+import 'package:trust_car_platform/models/part_listing.dart';
+import 'package:trust_car_platform/models/post.dart';
+import 'package:trust_car_platform/models/vehicle.dart';
+import 'package:trust_car_platform/providers/part_recommendation_provider.dart';
+import 'package:trust_car_platform/screens/parts/part_recommendation_screen.dart';
+import 'package:trust_car_platform/services/part_recommendation_service.dart';
+import 'package:trust_car_platform/services/post_service.dart';
 
 // ---------------------------------------------------------------------------
-// Stub service
+// Stub services
 // ---------------------------------------------------------------------------
 
 class _StubRecommendationService implements PartRecommendationService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _StubPostService implements PostService {
+  final List<Post> posts;
+  int callCount = 0;
+
+  _StubPostService({this.posts = const []});
+
+  @override
+  Future<Result<List<Post>, AppError>> getFeed({
+    int limit = 20,
+    DocumentSnapshot? startAfter,
+    PostCategory? category,
+    String? makerId,
+    String? modelName,
+  }) async {
+    callCount++;
+    return Result.success(posts);
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
@@ -423,6 +451,56 @@ void main() {
       expect(find.text('パーツA'), findsOneWidget);
       expect(find.text('パーツB'), findsOneWidget);
       expect(find.text('パーツC'), findsOneWidget);
+    });
+  });
+
+  group('PartRecommendationScreen — _OwnerExamplesSection', () {
+    late _StubPostService postService;
+
+    setUp(() {
+      postService = _StubPostService(posts: [
+        Post(
+          id: 'post-1',
+          userId: 'user-1',
+          userDisplayName: 'テストユーザー',
+          category: PostCategory.customization,
+          content: 'プリウスにドラレコ付けました',
+          createdAt: DateTime(2025, 6, 1),
+          updatedAt: DateTime(2025, 6, 1),
+        ),
+      ]);
+      sl.override<PostService>(postService);
+    });
+
+    tearDown(() => Injection.reset());
+
+    testWidgets('20. PostService登録済みで投稿ありの場合に装着例セクションが表示される',
+        (tester) async {
+      await tester.pumpWidget(_buildScreen(_FakeProvider()));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('owner_examples_section')), findsOneWidget);
+    });
+
+    testWidgets('21. 装着例セクションヘッダーに再読み込みボタンが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_FakeProvider()));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('owner_examples_refresh_btn')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('22. 再読み込みボタンをタップするとPostServiceを再度呼び出す', (tester) async {
+      await tester.pumpWidget(_buildScreen(_FakeProvider()));
+      await tester.pumpAndSettle();
+
+      final callsBefore = postService.callCount;
+      await tester.tap(find.byKey(const Key('owner_examples_refresh_btn')));
+      await tester.pumpAndSettle();
+
+      expect(postService.callCount, greaterThan(callsBefore));
     });
   });
 }

@@ -852,10 +852,20 @@ class _OwnerExamplesSectionState extends State<_OwnerExamplesSection> {
               const Icon(Icons.people_outline,
                   size: 16, color: AppColors.primary),
               AppSpacing.horizontalXs,
-              Text(
-                '同じ${widget.vehicle.model}オーナーの装着例',
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.bold),
+              Expanded(
+                child: Text(
+                  '同じ${widget.vehicle.model}オーナーの装着例',
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              IconButton(
+                key: const Key('owner_examples_refresh_btn'),
+                icon: const Icon(Icons.refresh_outlined, size: 16),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                onPressed: _load,
+                tooltip: '再読み込み',
               ),
             ],
           ),
