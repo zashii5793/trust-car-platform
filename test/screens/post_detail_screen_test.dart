@@ -108,6 +108,7 @@ class _FakePostService implements PostService {
   bool deletePostShouldSucceed = true;
   int addCommentCallCount = 0;
   int likeToggleCallCount = 0;
+  int deleteCommentCallCount = 0;
 
   @override
   Future<Result<List<Comment>, AppError>> getComments({
@@ -187,6 +188,25 @@ class _FakePostService implements PostService {
       false;
 
   @override
+  Future<Result<void, AppError>> deleteComment({
+    required String commentId,
+    required String userId,
+    required String postId,
+  }) async {
+    deleteCommentCallCount++;
+    return const Result.success(null);
+  }
+
+  @override
+  Future<Result<List<Comment>, AppError>> getReplies({
+    required String postId,
+    required String commentId,
+    int limit = 20,
+    dynamic startAfter,
+  }) async =>
+      const Result.success([]);
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
@@ -239,6 +259,7 @@ Comment _makeComment({
   String userId = 'commenter-uid',
   String? userDisplayName = 'コメント投稿者',
   String content = 'テストコメント',
+  int replyCount = 0,
 }) {
   final now = DateTime(2025, 6, 1, 13, 0);
   return Comment(
@@ -247,6 +268,7 @@ Comment _makeComment({
     userId: userId,
     userDisplayName: userDisplayName,
     content: content,
+    replyCount: replyCount,
     createdAt: now,
     updatedAt: now,
   );
@@ -488,6 +510,160 @@ void main() {
       expect(find.text('コメントA'), findsOneWidget);
       expect(find.text('コメントB'), findsOneWidget);
       expect(find.text('コメントC'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('PostDetailScreen — 投稿削除ダイアログ', () {
+    testWidgets('21. 削除アイコンタップで確認ダイアログが表示される', (tester) async {
+      final post = _makePost(userId: 'author-uid');
+      await tester.pumpWidget(
+        _buildScreen(post, loggedInUid: 'author-uid'),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+
+      expect(find.text('投稿を削除'), findsOneWidget);
+      expect(find.text('この投稿を削除しますか？'), findsOneWidget);
+    });
+
+    testWidgets('22. キャンセルでダイアログが閉じる', (tester) async {
+      final post = _makePost(userId: 'author-uid');
+      await tester.pumpWidget(
+        _buildScreen(post, loggedInUid: 'author-uid'),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('キャンセル'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+    });
+  });
+
+  // =========================================================================
+  group('PostDetailScreen — 返信機能', () {
+    testWidgets('23. 返信ボタンタップで返信ターゲットインジケーターが表示される', (tester) async {
+      final svc = _FakePostService()
+        ..commentsToReturn = [
+          _makeComment(
+            id: 'c1',
+            userDisplayName: '山田返信者',
+            content: '返信テスト用コメント',
+          ),
+        ];
+      await tester.pumpWidget(
+        _buildScreen(_makePost(), loggedInUid: 'user-uid', postService: svc),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // Tap '返信' text button on the comment
+      await tester.tap(find.text('返信').first);
+      await tester.pump();
+
+      expect(find.textContaining('さんへ返信'), findsOneWidget);
+    });
+
+    testWidgets('24. 返信インジケーターの×ボタンでインジケーターが消える', (tester) async {
+      final svc = _FakePostService()
+        ..commentsToReturn = [
+          _makeComment(
+            id: 'c1',
+            userDisplayName: '山田返信者',
+            content: '返信テスト用コメント',
+          ),
+        ];
+      await tester.pumpWidget(
+        _buildScreen(_makePost(), loggedInUid: 'user-uid', postService: svc),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('返信').first);
+      await tester.pump();
+      expect(find.textContaining('さんへ返信'), findsOneWidget);
+
+      // Close reply indicator
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pump();
+
+      expect(find.textContaining('さんへ返信'), findsNothing);
+    });
+  });
+
+  // =========================================================================
+  group('PostDetailScreen — コメント削除', () {
+    testWidgets('25. 自分のコメントには削除テキストが表示される', (tester) async {
+      const myUid = 'my-uid';
+      final svc = _FakePostService()
+        ..commentsToReturn = [
+          _makeComment(id: 'c1', userId: myUid, content: '自分のコメント'),
+        ];
+      await tester.pumpWidget(
+        _buildScreen(_makePost(), loggedInUid: myUid, postService: svc),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('削除'), findsOneWidget);
+    });
+
+    testWidgets('26. 他人のコメントには削除テキストが表示されない', (tester) async {
+      final svc = _FakePostService()
+        ..commentsToReturn = [
+          _makeComment(id: 'c1', userId: 'other-uid', content: '他人のコメント'),
+        ];
+      await tester.pumpWidget(
+        _buildScreen(_makePost(), loggedInUid: 'my-uid', postService: svc),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('削除'), findsNothing);
+    });
+  });
+
+  // =========================================================================
+  group('PostDetailScreen — 返信数バッジ', () {
+    testWidgets('27. replyCount > 0 のコメントに「返信N件」が表示される', (tester) async {
+      final svc = _FakePostService()
+        ..commentsToReturn = [
+          _makeComment(id: 'c1', content: '返信ありコメント', replyCount: 3),
+        ];
+      await tester.pumpWidget(_buildScreen(_makePost(), postService: svc));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.textContaining('返信3件'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('PostDetailScreen — カテゴリバッジ追加', () {
+    testWidgets('28. driveカテゴリバッジ「ドライブ」が表示される', (tester) async {
+      final post = _makePost(category: PostCategory.drive);
+      await tester.pumpWidget(_buildScreen(post));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('ドライブ'), findsOneWidget);
+    });
+
+    testWidgets('29. questionカテゴリバッジ「質問」が表示される', (tester) async {
+      final post = _makePost(category: PostCategory.question);
+      await tester.pumpWidget(_buildScreen(post));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('質問'), findsOneWidget);
+    });
+
+    testWidgets('30. コメント入力フィールドにヒントテキストが表示される', (tester) async {
+      await tester.pumpWidget(
+        _buildScreen(_makePost(), loggedInUid: 'user-uid'),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('コメントを入力...'), findsOneWidget);
     });
   });
 }
