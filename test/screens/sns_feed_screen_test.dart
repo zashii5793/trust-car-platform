@@ -16,6 +16,7 @@ import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
 import 'package:trust_car_platform/models/user.dart';
+import 'package:trust_car_platform/screens/sns/post_detail_screen.dart';
 import 'package:trust_car_platform/widgets/common/loading_indicator.dart';
 
 // ---------------------------------------------------------------------------
@@ -172,6 +173,27 @@ class _StubFirebaseService implements FirebaseService {
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
+class _FakeAuthUser implements User {
+  @override
+  String get uid => 'user1';
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _FakeAuthProvider extends AuthProvider {
+  final User? _user;
+  _FakeAuthProvider({User? user})
+      : _user = user,
+        super(authService: MockAuthService());
+
+  @override
+  User? get firebaseUser => _user;
+  @override
+  bool get isLoading => false;
+  @override
+  bool get isAuthenticated => _user != null;
+}
+
 Widget _buildApp(MockPostService mockPostService) {
   return MultiProvider(
     providers: [
@@ -180,6 +202,23 @@ Widget _buildApp(MockPostService mockPostService) {
       ),
       ChangeNotifierProvider(
         create: (_) => AuthProvider(authService: MockAuthService()),
+      ),
+      ChangeNotifierProvider<VehicleProvider>(
+        create: (_) => VehicleProvider(firebaseService: _StubFirebaseService()),
+      ),
+    ],
+    child: const MaterialApp(home: SnsFeedScreen()),
+  );
+}
+
+Widget _buildAppLoggedIn(MockPostService mockPostService) {
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider(
+        create: (_) => PostProvider(postService: mockPostService),
+      ),
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(user: _FakeAuthUser()),
       ),
       ChangeNotifierProvider<VehicleProvider>(
         create: (_) => VehicleProvider(firebaseService: _StubFirebaseService()),
@@ -434,6 +473,163 @@ void main() {
 
         expect(find.text('ドライブ記事'), findsOneWidget);
         expect(find.text('質問です'), findsOneWidget);
+      });
+    });
+
+    // ── 公開範囲バッジ ────────────────────────────────────────────────────────
+
+    group('公開範囲バッジ', () {
+      testWidgets('フォロワー限定投稿に「フォロワー」バッジが表示される', (tester) async {
+        mockService.feedResult = Result.success([
+          Post(
+            id: 'p1',
+            userId: 'user1',
+            userDisplayName: 'テストユーザー',
+            category: PostCategory.general,
+            content: 'フォロワー限定',
+            likeCount: 0,
+            commentCount: 0,
+            hashtags: const [],
+            visibility: PostVisibility.followers,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        ]);
+
+        await tester.pumpWidget(_buildApp(mockService));
+        await tester.pump();
+
+        expect(find.text('フォロワー'), findsOneWidget);
+      });
+
+      testWidgets('非公開投稿に「非公開」バッジが表示される', (tester) async {
+        mockService.feedResult = Result.success([
+          Post(
+            id: 'p1',
+            userId: 'user1',
+            userDisplayName: 'テストユーザー',
+            category: PostCategory.general,
+            content: '非公開投稿',
+            likeCount: 0,
+            commentCount: 0,
+            hashtags: const [],
+            visibility: PostVisibility.private_,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        ]);
+
+        await tester.pumpWidget(_buildApp(mockService));
+        await tester.pump();
+
+        expect(find.text('非公開'), findsOneWidget);
+      });
+
+      testWidgets('公開投稿には公開範囲バッジが表示されない', (tester) async {
+        mockService.feedResult = Result.success([
+          _makePost(content: '公開投稿'),
+        ]);
+
+        await tester.pumpWidget(_buildApp(mockService));
+        await tester.pump();
+
+        expect(find.text('フォロワー'), findsNothing);
+        expect(find.text('非公開'), findsNothing);
+      });
+    });
+
+    // ── ハッシュタグ ──────────────────────────────────────────────────────────
+
+    group('ハッシュタグ', () {
+      testWidgets('ハッシュタグをタップするとSnackBarが表示される', (tester) async {
+        mockService.feedResult = Result.success([
+          _makePost(hashtags: ['カスタム']),
+        ]);
+
+        await tester.pumpWidget(_buildApp(mockService));
+        await tester.pump();
+
+        await tester.tap(find.text('#カスタム'));
+        await tester.pump();
+
+        expect(find.textContaining('近日公開予定'), findsOneWidget);
+      });
+    });
+
+    // ── 投稿削除（自分の投稿） ────────────────────────────────────────────────
+
+    group('投稿削除', () {
+      testWidgets('自分の投稿には削除ボタンが表示される', (tester) async {
+        mockService.feedResult = Result.success([
+          _makePost(id: 'p1', userId: 'user1'),
+        ]);
+
+        await tester.pumpWidget(_buildAppLoggedIn(mockService));
+        await tester.pump();
+
+        expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+      });
+
+      testWidgets('他人の投稿には削除ボタンが表示されない', (tester) async {
+        mockService.feedResult = Result.success([
+          _makePost(id: 'p1', userId: 'other-user'),
+        ]);
+
+        await tester.pumpWidget(_buildAppLoggedIn(mockService));
+        await tester.pump();
+
+        expect(find.byIcon(Icons.delete_outline), findsNothing);
+      });
+
+      testWidgets('削除ボタンをタップすると確認ダイアログが表示される', (tester) async {
+        mockService.feedResult = Result.success([
+          _makePost(id: 'p1', userId: 'user1'),
+        ]);
+
+        await tester.pumpWidget(_buildAppLoggedIn(mockService));
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.delete_outline));
+        await tester.pump();
+
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(find.text('投稿を削除'), findsOneWidget);
+      });
+
+      testWidgets('削除ダイアログでキャンセルを選ぶと投稿が残る', (tester) async {
+        mockService.feedResult = Result.success([
+          _makePost(id: 'p1', userId: 'user1', content: '残るはずの投稿'),
+        ]);
+
+        await tester.pumpWidget(_buildAppLoggedIn(mockService));
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.delete_outline));
+        await tester.pump();
+
+        await tester.tap(find.widgetWithText(TextButton, 'キャンセル'));
+        await tester.pump();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.text('残るはずの投稿'), findsOneWidget);
+      });
+    });
+
+    // ── 投稿詳細遷移 ──────────────────────────────────────────────────────────
+
+    group('投稿詳細遷移', () {
+      testWidgets('投稿カードをタップすると詳細画面に遷移する', (tester) async {
+        mockService.feedResult = Result.success([
+          _makePost(content: '詳細確認投稿'),
+        ]);
+
+        await tester.pumpWidget(_buildApp(mockService));
+        await tester.pump();
+
+        await tester.tap(find.text('詳細確認投稿'));
+        await tester.pumpAndSettle(const Duration(seconds: 5));
+
+        expect(find.byType(PostDetailScreen), findsOneWidget);
       });
     });
   });
