@@ -342,4 +342,173 @@ void main() {
       expect(find.text('0'), findsWidgets);
     });
   });
+
+  // =========================================================================
+  group('ProfileScreen — プロフィールヘッダー', () {
+    testWidgets('AppUserのdisplayNameが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        appUser: AppUser(
+          id: 'uid1',
+          email: 'test@example.com',
+          displayName: '田中太郎',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('田中太郎'), findsOneWidget);
+    });
+
+    testWidgets('メールアドレスが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        appUser: AppUser(
+          id: 'uid1',
+          email: 'test@example.com',
+          displayName: '田中',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // ProfileScreen shows user?.email (Firebase User email) = 'test@example.com'
+      expect(find.text('test@example.com'), findsOneWidget);
+    });
+
+    testWidgets('フリープランバッジが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pump();
+
+      expect(find.text('フリープラン'), findsOneWidget);
+    });
+
+    testWidgets('AppBarに設定アイコンが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pump();
+
+      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('ProfileScreen — メニューセクション', () {
+    testWidgets('マーケットプレイスセクションに「マイ出品」が表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.ensureVisible(find.text('マイ出品'));
+      expect(find.text('マイ出品'), findsOneWidget);
+    });
+
+    testWidgets('サポートセクションに「ヘルプ」と「このアプリについて」が表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.ensureVisible(find.text('ヘルプ'));
+      expect(find.text('ヘルプ'), findsOneWidget);
+      expect(find.text('このアプリについて'), findsOneWidget);
+    });
+
+    testWidgets('「このアプリについて」タップでAboutDialogが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.ensureVisible(find.text('このアプリについて'));
+      await tester.tap(find.text('このアプリについて'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AboutDialog), findsOneWidget);
+    });
+
+    testWidgets('非プレミアム: データエクスポートタップでアップグレードダイアログが表示される',
+        (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.ensureVisible(find.textContaining('データをエクスポート'));
+      await tester.tap(find.textContaining('データをエクスポート'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('プレミアムプランが必要です'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('ProfileScreen — ログアウト', () {
+    testWidgets('ログアウトボタンタップで確認ダイアログが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.ensureVisible(find.text('ログアウト').first);
+      await tester.tap(find.text('ログアウト').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('ログアウトしてもよろしいですか？'), findsOneWidget);
+    });
+
+    testWidgets('ログアウト確認ダイアログで「キャンセル」タップするとダイアログが閉じる',
+        (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.ensureVisible(find.text('ログアウト').first);
+      await tester.tap(find.text('ログアウト').first);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('キャンセル'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ログアウトしてもよろしいですか？'), findsNothing);
+      expect(find.text('プロフィール'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('ProfileScreen — 編集フォーム バリデーション', () {
+    testWidgets('表示名が空のまま保存すると「表示名を入力してください」が表示される',
+        (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        appUser: AppUser(
+          id: 'uid1',
+          email: 'test@example.com',
+          displayName: 'テストユーザー',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+      ));
+      await tester.pump();
+
+      await tester.tap(find.text('プロフィールを編集'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.enterText(find.byType(TextFormField), '');
+      await tester.tap(find.text('保存'));
+      await tester.pump();
+
+      expect(find.text('表示名を入力してください'), findsOneWidget);
+    });
+
+    testWidgets('空白のみの表示名でも「表示名を入力してください」が表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        appUser: AppUser(
+          id: 'uid1',
+          email: 'test@example.com',
+          displayName: 'テストユーザー',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+      ));
+      await tester.pump();
+
+      await tester.tap(find.text('プロフィールを編集'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.enterText(find.byType(TextFormField), '   ');
+      await tester.tap(find.text('保存'));
+      await tester.pump();
+
+      expect(find.text('表示名を入力してください'), findsOneWidget);
+    });
+  });
 }
