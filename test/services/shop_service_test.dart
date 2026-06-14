@@ -5,9 +5,11 @@
 //   2. BusinessHours.displayText
 //   3. Enum behavior (ShopType, ServiceCategory)
 //   4. AppError patterns for service error scenarios
+//   5. ShopCaseStudy model serialization / deserialization
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/models/shop.dart';
+import 'package:trust_car_platform/models/shop_case_study.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 
@@ -388,6 +390,109 @@ void main() {
       for (final cat in ServiceCategory.values) {
         expect(() => shop.offersService(cat), returnsNormally);
       }
+    });
+  });
+
+  // ── ShopCaseStudy モデル ──────────────────────────────────────────────────
+
+  group('ShopCaseStudy', () {
+    final createdAt = DateTime(2025, 6, 14, 10, 0, 0);
+
+    ShopCaseStudy makeStudy({
+      String id = 'cs1',
+      String shopId = 'shop1',
+      String title = 'エンジンオイル交換',
+      String? description,
+      String? beforeImageUrl,
+      String? afterImageUrl,
+      ServiceCategory? category,
+      DateTime? at,
+    }) =>
+        ShopCaseStudy(
+          id: id,
+          shopId: shopId,
+          title: title,
+          description: description,
+          beforeImageUrl: beforeImageUrl,
+          afterImageUrl: afterImageUrl,
+          category: category,
+          createdAt: at ?? createdAt,
+        );
+
+    group('toMap()', () {
+      test('全フィールドが正しくシリアライズされる', () {
+        final study = makeStudy(
+          description: '5W-30 化学合成油',
+          beforeImageUrl: 'https://example.com/before.jpg',
+          afterImageUrl: 'https://example.com/after.jpg',
+          category: ServiceCategory.maintenance,
+        );
+        final map = study.toMap();
+        expect(map['shopId'], 'shop1');
+        expect(map['title'], 'エンジンオイル交換');
+        expect(map['description'], '5W-30 化学合成油');
+        expect(map['beforeImageUrl'], 'https://example.com/before.jpg');
+        expect(map['afterImageUrl'], 'https://example.com/after.jpg');
+        expect(map['category'], 'maintenance');
+        expect(map['createdAt'], isNotNull);
+      });
+
+      test('オプショナルフィールドが null のとき null のまま保持される', () {
+        final study = makeStudy();
+        final map = study.toMap();
+        expect(map['description'], isNull);
+        expect(map['beforeImageUrl'], isNull);
+        expect(map['afterImageUrl'], isNull);
+        expect(map['category'], isNull);
+      });
+
+      test('全 ServiceCategory を往復変換できる', () {
+        for (final cat in ServiceCategory.values) {
+          final study = makeStudy(category: cat);
+          final map = study.toMap();
+          expect(map['category'], cat.name);
+          final roundTripped = ServiceCategory.values
+              .cast<ServiceCategory?>()
+              .firstWhere((e) => e?.name == map['category'] as String?,
+                  orElse: () => null);
+          expect(roundTripped, cat);
+        }
+      });
+    });
+
+    group('Edge Cases', () {
+      test('タイトルが空文字列でもクラッシュしない', () {
+        final study = makeStudy(title: '');
+        final map = study.toMap();
+        expect(map['title'], '');
+      });
+
+      test('beforeImageUrl のみ設定、afterImageUrl が null でもクラッシュしない', () {
+        final study = makeStudy(beforeImageUrl: 'https://example.com/b.jpg');
+        final map = study.toMap();
+        expect(map['beforeImageUrl'], 'https://example.com/b.jpg');
+        expect(map['afterImageUrl'], isNull);
+      });
+
+      test('afterImageUrl のみ設定、beforeImageUrl が null でもクラッシュしない', () {
+        final study = makeStudy(afterImageUrl: 'https://example.com/a.jpg');
+        final map = study.toMap();
+        expect(map['beforeImageUrl'], isNull);
+        expect(map['afterImageUrl'], 'https://example.com/a.jpg');
+      });
+
+      test('toMap() は id フィールドを含まない（Firestore のドキュメントIDとして管理）', () {
+        final study = makeStudy(id: 'some-id');
+        final map = study.toMap();
+        expect(map.containsKey('id'), isFalse);
+      });
+
+      test('複数の ShopCaseStudy を同じ shopId で作成できる', () {
+        final s1 = makeStudy(id: 'cs1', title: 'タイヤ交換');
+        final s2 = makeStudy(id: 'cs2', title: 'ブレーキパッド交換');
+        expect(s1.shopId, s2.shopId);
+        expect(s1.title, isNot(equals(s2.title)));
+      });
     });
   });
 }

@@ -22,6 +22,17 @@ class MaintenanceRule {
 /// レコメンドサービス
 /// ルールベースでメンテナンス推奨を生成
 class RecommendationService {
+  /// Stable date token (yyyyMMdd) used to build deterministic notification ids.
+  ///
+  /// Using the deadline/basis date — not the generation timestamp — keeps a
+  /// given suggestion's id stable across regenerations (so read/dismissed state
+  /// persists), while a new cycle (renewed deadline) yields a fresh id.
+  static String _notifDateToken(DateTime? d) {
+    if (d == null) return 'na';
+    return '${d.year}${d.month.toString().padLeft(2, '0')}'
+        '${d.day.toString().padLeft(2, '0')}';
+  }
+
   /// メンテナンスルール定義（Phase 1.5 更新）
   static const List<MaintenanceRule> _rules = [
     // エンジンオイル交換
@@ -260,7 +271,7 @@ class RecommendationService {
     }
 
     return AppNotification(
-      id: '${vehicle.id}_inspection_expiry_${now.millisecondsSinceEpoch}',
+      id: '${vehicle.id}_inspection_expiry_${_notifDateToken(vehicle.inspectionExpiryDate)}',
       userId: userId,
       vehicleId: vehicle.id,
       type: NotificationType.inspectionReminder,
@@ -305,7 +316,7 @@ class RecommendationService {
     }
 
     return AppNotification(
-      id: '${vehicle.id}_insurance_expiry_${now.millisecondsSinceEpoch}',
+      id: '${vehicle.id}_insurance_expiry_${_notifDateToken(vehicle.insuranceExpiryDate)}',
       userId: userId,
       vehicleId: vehicle.id,
       type: NotificationType.maintenanceRecommendation,
@@ -354,7 +365,7 @@ class RecommendationService {
     }
 
     return AppNotification(
-      id: '${vehicle.id}_voluntary_insurance_${now.millisecondsSinceEpoch}',
+      id: '${vehicle.id}_voluntary_insurance_${_notifDateToken(expiryDate)}',
       userId: userId,
       vehicleId: vehicle.id,
       type: NotificationType.maintenanceRecommendation,
@@ -406,7 +417,7 @@ class RecommendationService {
     }
 
     return AppNotification(
-      id: '${vehicle.id}_lease_end_${now.millisecondsSinceEpoch}',
+      id: '${vehicle.id}_lease_end_${_notifDateToken(endDate)}',
       userId: userId,
       vehicleId: vehicle.id,
       type: NotificationType.maintenanceRecommendation,
@@ -488,7 +499,7 @@ class RecommendationService {
 
     // 通知を生成
     return AppNotification(
-      id: '${vehicle.id}_${rule.name}_${now.millisecondsSinceEpoch}',
+      id: '${vehicle.id}_${rule.name}_${_notifDateToken(lastMaintenanceDate ?? vehicle.createdAt)}',
       userId: userId,
       vehicleId: vehicle.id,
       type: NotificationType.maintenanceRecommendation,
@@ -541,7 +552,7 @@ class RecommendationService {
       } else {
         // 車検期限不明 - 警告を出す
         return AppNotification(
-          id: '${vehicle.id}_inspection_unknown_${now.millisecondsSinceEpoch}',
+          id: '${vehicle.id}_inspection_unknown',
           userId: userId,
           vehicleId: vehicle.id,
           type: NotificationType.inspectionReminder,

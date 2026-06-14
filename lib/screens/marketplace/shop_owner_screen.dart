@@ -7,6 +7,7 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
+import 'case_study_management_screen.dart';
 import 'shop_inquiry_list_screen.dart';
 import 'shop_plan_screen.dart';
 import 'shop_registration_screen.dart';
@@ -293,6 +294,22 @@ class _RegisteredBody extends StatelessWidget {
           AppSpacing.verticalMd,
           // Inquiry count badge (tappable → ShopInquiryListScreen)
           _InquiryCountBadge(provider: provider, shopId: shop.id),
+          AppSpacing.verticalMd,
+          // Case study management button
+          OutlinedButton.icon(
+            key: const Key('case_study_management_btn'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CaseStudyManagementScreen(shopId: shop.id),
+              ),
+            ),
+            icon: const Icon(Icons.photo_library_outlined),
+            label: const Text('施工事例を管理'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(AppSpacing.tapTargetMin),
+            ),
+          ),
           AppSpacing.verticalMd,
           // Newsletter management button
           OutlinedButton.icon(

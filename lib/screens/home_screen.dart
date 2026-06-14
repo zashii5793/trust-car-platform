@@ -112,12 +112,15 @@ class _HomeScreenState extends State<HomeScreen> {
       Consumer<ConnectivityProvider>(
         builder: (context, connectivity, child) {
           if (connectivity.isOffline) {
-            return const Padding(
-              padding: EdgeInsets.only(right: 8),
-              child: Icon(
-                Icons.cloud_off,
-                color: AppColors.warning,
-                size: 20,
+            return Semantics(
+              label: 'オフラインモード',
+              child: const Padding(
+                padding: EdgeInsets.only(right: 8),
+                child: Icon(
+                  Icons.cloud_off,
+                  color: AppColors.warning,
+                  size: 20,
+                ),
               ),
             );
           }
@@ -229,13 +232,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: 'みんなの投稿',
               ),
               NavigationDestination(
-                icon: Badge(
-                  isLabelVisible: unread > 0,
-                  label: Text(
-                    unread > 99 ? '99+' : '$unread',
-                    style: const TextStyle(fontSize: 10),
+                icon: Semantics(
+                  label: unread > 0
+                      ? '通知 未読${unread > 99 ? '99件以上' : '$unread件'}'
+                      : '通知',
+                  child: Badge(
+                    isLabelVisible: unread > 0,
+                    label: Text(
+                      unread > 99 ? '99+' : '$unread',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    child: const ExcludeSemantics(
+                      child: Icon(Icons.notifications_outlined),
+                    ),
                   ),
-                  child: const Icon(Icons.notifications_outlined),
                 ),
                 selectedIcon: Badge(
                   isLabelVisible: unread > 0,
@@ -262,9 +272,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildBody() {
     switch (_currentIndex) {
       case 0:
-        return _VehicleTab(onNavigateToMarketplace: () {
+        return _VehicleTab(onNavigateToNotifications: () {
           setState(() {
-            _currentIndex = 1;
+            _currentIndex = 3;
           });
         });
       case 1:
@@ -276,9 +286,9 @@ class _HomeScreenState extends State<HomeScreen> {
       case 4:
         return const _ProfileTab();
       default:
-        return _VehicleTab(onNavigateToMarketplace: () {
+        return _VehicleTab(onNavigateToNotifications: () {
           setState(() {
-            _currentIndex = 1;
+            _currentIndex = 3;
           });
         });
     }
@@ -290,9 +300,10 @@ class _HomeScreenState extends State<HomeScreen> {
 // ---------------------------------------------------------------------------
 
 class _VehicleTab extends StatelessWidget {
-  final VoidCallback onNavigateToMarketplace;
+  /// Navigates to the notifications tab where the full AI suggestion list lives.
+  final VoidCallback onNavigateToNotifications;
 
-  const _VehicleTab({required this.onNavigateToMarketplace});
+  const _VehicleTab({required this.onNavigateToNotifications});
 
   @override
   Widget build(BuildContext context) {
@@ -363,7 +374,7 @@ class _VehicleTab extends StatelessWidget {
               _DashboardSummaryCard(vehicles: vehicles),
               if (hasVehicleWithoutInspection)
                 _InspectionSetupCard(vehicles: vehicles),
-              _AiSuggestionSection(onSeeAll: onNavigateToMarketplace),
+              _AiSuggestionSection(onSeeAll: onNavigateToNotifications),
               ...vehicles.map((v) => _VehicleCard(vehicle: v)),
               _RetiredVehiclesLink(),
             ];
@@ -970,6 +981,40 @@ class _VehicleCard extends StatelessWidget {
                                     ],
                                   ],
                                 ),
+                                // 任意保険 満期警告（満期間近・期限切れ時のみ）
+                                if (vehicle.voluntaryInsurance != null &&
+                                    (vehicle.voluntaryInsurance!
+                                            .isExpiringSoon ||
+                                        vehicle.voluntaryInsurance!
+                                            .isExpired)) ...[
+                                  AppSpacing.verticalXxs,
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.security,
+                                        size: 13,
+                                        color: vehicle
+                                                .voluntaryInsurance!.isExpired
+                                            ? AppColors.error
+                                            : AppColors.warning,
+                                      ),
+                                      AppSpacing.horizontalXs,
+                                      Text(
+                                        vehicle.voluntaryInsurance!.isExpired
+                                            ? '任意保険 期限切れ'
+                                            : '任意保険 満期間近',
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          color: vehicle
+                                                  .voluntaryInsurance!.isExpired
+                                              ? AppColors.error
+                                              : AppColors.warning,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -1503,7 +1548,7 @@ class _DashboardSummaryCard extends StatelessWidget {
 
           // ---- フリートプラン案内（5台以上で表示・現在は無料開放中） ----
           if (FleetPlan.requiresPaidPlan(vehicles.length))
-            _buildFleetPlanBanner(vehicles.length),
+            _buildFleetPlanBanner(context, vehicles.length),
         ],
       ),
     );
@@ -1511,41 +1556,85 @@ class _DashboardSummaryCard extends StatelessWidget {
 
   /// SMB fleet upsell: shown from the 5th vehicle. During the promotional
   /// free period it only sets pricing expectations (no payment action).
-  Widget _buildFleetPlanBanner(int vehicleCount) {
+  ///
+  /// Tappable: business accounts jump straight to the fleet dashboard (improves
+  /// discoverability — previously only reachable deep in the profile tab);
+  /// personal accounts get a hint to register a business account.
+  Widget _buildFleetPlanBanner(BuildContext context, int vehicleCount) {
     final price = FleetPlan.monthlyPriceFor(vehicleCount);
     final priceLabel =
         price != null ? '月額¥${NumberFormat('#,###').format(price)}' : '個別見積もり';
+    final auth = context.read<AuthProvider>();
+    final isBusiness = auth.appUser?.isBusiness ?? false;
+    final uid = auth.firebaseUser?.uid ?? '';
+
+    void onTap() {
+      if (isBusiness) {
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => FleetDashboardScreen(companyId: uid),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('プロフィール →「法人アカウント登録」でフリート管理を利用できます'),
+          ),
+        );
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppSpacing.verticalSm,
-        Container(
-          key: const Key('fleet_plan_banner'),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.xs,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.12),
+        Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            key: const Key('fleet_plan_banner_action'),
+            onTap: onTap,
             borderRadius: AppSpacing.borderRadiusSm,
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.business, size: 14, color: Colors.white70),
-              AppSpacing.horizontalXs,
-              Expanded(
-                child: Text(
-                  FleetPlan.isPromotionalFreePeriod
-                      ? '$vehicleCount台を管理中 — 法人向け'
-                          '${FleetPlan.planLabelFor(vehicleCount)}プラン対象'
-                          '（現在無料開放中・正式リリース後 $priceLabel 予定）'
-                      : '$vehicleCount台を管理中 — '
-                          '${FleetPlan.planLabelFor(vehicleCount)}プラン'
-                          '（$priceLabel）',
-                  style: const TextStyle(fontSize: 11, color: Colors.white),
-                ),
+            child: Container(
+              key: const Key('fleet_plan_banner'),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
               ),
-            ],
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: AppSpacing.borderRadiusSm,
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.business, size: 14, color: Colors.white70),
+                  AppSpacing.horizontalXs,
+                  Expanded(
+                    child: Text(
+                      FleetPlan.isPromotionalFreePeriod
+                          ? '$vehicleCount台を管理中 — 法人向け'
+                              '${FleetPlan.planLabelFor(vehicleCount)}プラン対象'
+                              '（現在無料開放中・正式リリース後 $priceLabel 予定）'
+                          : '$vehicleCount台を管理中 — '
+                              '${FleetPlan.planLabelFor(vehicleCount)}プラン'
+                              '（$priceLabel）',
+                      style: const TextStyle(fontSize: 11, color: Colors.white),
+                    ),
+                  ),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    isBusiness ? 'フリート管理' : '法人登録で利用',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right,
+                      size: 16, color: Colors.white),
+                ],
+              ),
+            ),
           ),
         ),
       ],

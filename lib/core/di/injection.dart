@@ -8,6 +8,7 @@ import '../performance/performance_service_impl.dart';
 import '../../services/firebase_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/recommendation_service.dart';
+import '../../services/notification_state_store.dart';
 import '../../services/vehicle_certificate_ocr_service.dart';
 import '../../services/invoice_ocr_service.dart';
 import '../../services/pdf_export_service.dart';
@@ -92,6 +93,8 @@ class Injection {
     locator.registerLazySingleton<AuthService>(() => AuthService());
     locator.registerLazySingleton<RecommendationService>(
         () => RecommendationService());
+    locator.registerLazySingleton<NotificationStateStore>(
+        () => SharedPrefsNotificationStateStore());
 
     // OCR & Export Services
     locator.registerLazySingleton<VehicleCertificateOcrService>(

@@ -700,6 +700,77 @@ void main() {
 
       expect(find.text('走行距離を更新しました'), findsOneWidget);
     });
+
+    group('Edge Cases — オドメーター逆行', () {
+      testWidgets('現在値(10000)より小さい値(5000)入力 → 確認ダイアログが出て即時更新されない',
+          (tester) async {
+        await _pumpScreen(tester, maintenanceProvider);
+        await tester.pump();
+
+        await tester.tap(find.byKey(const Key('update_mileage_btn')));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+            find.byKey(const Key('mileage_input_field')), '5000');
+        await tester.tap(find.byKey(const Key('confirm_mileage_btn')));
+        await tester.pumpAndSettle();
+
+        // 即時更新されず、確認ダイアログが表示される
+        expect(find.text('走行距離を更新しました'), findsNothing);
+        expect(find.byKey(const Key('confirm_mileage_regression_btn')),
+            findsOneWidget);
+      });
+
+      testWidgets('逆行確認ダイアログで「更新する」を押すと更新される', (tester) async {
+        await _pumpScreen(tester, maintenanceProvider);
+        await tester.pump();
+
+        await tester.tap(find.byKey(const Key('update_mileage_btn')));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+            find.byKey(const Key('mileage_input_field')), '5000');
+        await tester.tap(find.byKey(const Key('confirm_mileage_btn')));
+        await tester.pumpAndSettle();
+
+        await tester
+            .tap(find.byKey(const Key('confirm_mileage_regression_btn')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('走行距離を更新しました'), findsOneWidget);
+      });
+
+      testWidgets('逆行確認ダイアログで「キャンセル」を押すと更新されない', (tester) async {
+        await _pumpScreen(tester, maintenanceProvider);
+        await tester.pump();
+
+        await tester.tap(find.byKey(const Key('update_mileage_btn')));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+            find.byKey(const Key('mileage_input_field')), '5000');
+        await tester.tap(find.byKey(const Key('confirm_mileage_btn')));
+        await tester.pumpAndSettle();
+
+        // 確認ダイアログのキャンセル（最後の「キャンセル」ボタン）
+        await tester.tap(find.text('キャンセル').last);
+        await tester.pumpAndSettle();
+
+        expect(find.text('走行距離を更新しました'), findsNothing);
+      });
+
+      testWidgets('現在値と同じ値(10000)はそのまま更新される（逆行扱いしない）', (tester) async {
+        await _pumpScreen(tester, maintenanceProvider);
+        await tester.pump();
+
+        await tester.tap(find.byKey(const Key('update_mileage_btn')));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+            find.byKey(const Key('mileage_input_field')), '10000');
+        await tester.tap(find.byKey(const Key('confirm_mileage_btn')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('走行距離を更新しました'), findsOneWidget);
+      });
+    });
   });
 
   // -------------------------------------------------------------------------

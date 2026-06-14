@@ -9,6 +9,7 @@ import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
 import 'package:trust_car_platform/models/shop.dart';
 import 'package:trust_car_platform/models/inquiry.dart';
+import 'package:trust_car_platform/models/shop_case_study.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 
@@ -95,6 +96,26 @@ class MockShopService implements ShopService {
   @override
   Future<Result<void, AppError>> deleteMyShop(String uid) async =>
       const Result.success(null);
+
+  @override
+  Future<Result<List<ShopCaseStudy>, AppError>> getCaseStudies(
+          String shopId) async =>
+      const Result.success([]);
+
+  @override
+  Future<Result<ShopCaseStudy, AppError>> addCaseStudy(
+          ShopCaseStudy study) async =>
+      Result.failure(AppError.unknown('not impl'));
+
+  @override
+  Future<Result<void, AppError>> deleteCaseStudy(
+          String shopId, String studyId) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<String, AppError>> uploadCaseStudyImage(
+          String shopId, dynamic image, String type) async =>
+      Result.failure(AppError.unknown('not impl'));
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +159,7 @@ class MockInquiryService implements InquiryService {
     required bool isFromShop,
     required String content,
     List<String> attachmentUrls = const [],
+    Map<String, dynamic>? maintenancePayload,
   }) async =>
       Result.failure(AppError.unknown('not implemented'));
 

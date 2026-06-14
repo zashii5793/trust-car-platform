@@ -20,6 +20,7 @@ import '../widgets/maintenance/maintenance_ai_comment.dart';
 import 'export/export_dialog.dart';
 import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
+import 'insurance_edit_screen.dart';
 import 'maintenance_stats_screen.dart';
 import 'maintenance_search_screen.dart';
 import '../services/firebase_service.dart';
@@ -44,6 +45,10 @@ class VehicleDetailScreen extends StatefulWidget {
 
 class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   late Vehicle _vehicle;
+
+  /// Guards the quick-action flows (車検完了 / 走行距離更新) against
+  /// double-submission while an async update is in flight.
+  bool _isProcessing = false;
 
   @override
   void initState() {
@@ -91,6 +96,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   }
 
   Future<void> _showInspectionCompleteDialog() async {
+    if (_isProcessing) return;
     if (_vehicle.inspectionExpiryDate == null) return;
     // Capture context-dependent objects before any async gap.
     final maintenanceProvider = context.read<MaintenanceProvider>();
@@ -105,37 +111,61 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
 
     if (result == null || !mounted) return;
 
-    final firebaseService = sl.get<FirebaseService>();
-    final updated = _vehicle.copyWith(
-      inspectionExpiryDate: result.newExpiryDate,
-      updatedAt: DateTime.now(),
-    );
+    setState(() => _isProcessing = true);
+    try {
+      final firebaseService = sl.get<FirebaseService>();
+      final updated = _vehicle.copyWith(
+        inspectionExpiryDate: result.newExpiryDate,
+        updatedAt: DateTime.now(),
+      );
 
-    await firebaseService.updateVehicle(_vehicle.id, updated);
-    if (!mounted) return;
+      final updateResult =
+          await firebaseService.updateVehicle(_vehicle.id, updated);
+      if (!mounted) return;
 
-    await maintenanceProvider.addMaintenanceRecord(
-      MaintenanceRecord(
-        id: '',
-        vehicleId: _vehicle.id,
-        userId: _vehicle.userId,
-        type: MaintenanceType.legalInspection24,
-        title: '車検',
-        date: DateTime.now(),
-        cost: 0,
-        createdAt: DateTime.now(),
-        mileageAtService: result.mileage,
-      ),
-    );
-    if (!mounted) return;
+      // Abort if the expiry-date update itself failed — do not show success.
+      if (updateResult.isFailure) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('車検完了の記録に失敗しました')),
+        );
+        return;
+      }
 
-    setState(() => _vehicle = updated);
-    messenger.showSnackBar(
-      const SnackBar(content: Text('車検完了を記録しました')),
-    );
+      // Ignore an obviously-wrong mileage (below the vehicle's current value)
+      // to keep the record consistent with the odometer.
+      final mileageAtService =
+          (result.mileage != null && result.mileage! >= _vehicle.mileage)
+              ? result.mileage
+              : null;
+
+      final added = await maintenanceProvider.addMaintenanceRecord(
+        MaintenanceRecord(
+          id: '',
+          vehicleId: _vehicle.id,
+          userId: _vehicle.userId,
+          type: MaintenanceType.legalInspection24,
+          title: '車検',
+          date: DateTime.now(),
+          cost: 0,
+          createdAt: DateTime.now(),
+          mileageAtService: mileageAtService,
+        ),
+      );
+      if (!mounted) return;
+
+      setState(() => _vehicle = updated);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(added ? '車検完了を記録しました' : '満了日は更新しましたが整備記録の追加に失敗しました'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
   Future<void> _showMileageUpdateDialog() async {
+    if (_isProcessing) return;
     final messenger = ScaffoldMessenger.of(context);
 
     final newMileage = await showDialog<int>(
@@ -151,20 +181,62 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
       return;
     }
 
-    final firebaseService = sl.get<FirebaseService>();
-    final updated = _vehicle.copyWith(
-      mileage: newMileage,
-      mileageUpdatedAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
+    // Guard against odometer regression — almost always a typo. Allow the
+    // user to override for legitimate cases (meter replacement / swap).
+    if (newMileage < _vehicle.mileage) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('走行距離の確認'),
+          content: Text(
+            '入力値 ${_formatNumber(newMileage)} km は現在の登録値 '
+            '${_formatNumber(_vehicle.mileage)} km より小さい値です。'
+            'このまま更新しますか？',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('キャンセル'),
+            ),
+            FilledButton(
+              key: const Key('confirm_mileage_regression_btn'),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('更新する'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
 
-    await firebaseService.updateVehicle(_vehicle.id, updated);
-    if (!mounted) return;
+    setState(() => _isProcessing = true);
+    try {
+      final firebaseService = sl.get<FirebaseService>();
+      final updated = _vehicle.copyWith(
+        mileage: newMileage,
+        mileageUpdatedAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
 
-    setState(() => _vehicle = updated);
-    messenger.showSnackBar(
-      const SnackBar(content: Text('走行距離を更新しました')),
-    );
+      final result = await firebaseService.updateVehicle(_vehicle.id, updated);
+      if (!mounted) return;
+
+      result.when(
+        success: (_) {
+          setState(() => _vehicle = updated);
+          messenger.showSnackBar(
+            const SnackBar(content: Text('走行距離を更新しました')),
+          );
+        },
+        failure: (_) {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('走行距離の更新に失敗しました')),
+          );
+        },
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
   @override
@@ -362,10 +434,11 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                     ),
                   ),
 
-                  // 任意保険情報セクション
-                  if (_vehicle.voluntaryInsurance != null)
-                    _VoluntaryInsuranceSection(
-                        insurance: _vehicle.voluntaryInsurance!),
+                  // 任意保険情報セクション（未登録でも編集導線を表示）
+                  _VoluntaryInsuranceSection(
+                    vehicle: _vehicle,
+                    onUpdated: (updated) => setState(() => _vehicle = updated),
+                  ),
 
                   // リース情報セクション
                   if (_vehicle.leaseInfo != null &&
@@ -476,13 +549,30 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
 // ── 任意保険情報セクション ────────────────────────────────────────────────────
 
 class _VoluntaryInsuranceSection extends StatelessWidget {
-  final VoluntaryInsurance insurance;
-  const _VoluntaryInsuranceSection({required this.insurance});
+  final Vehicle vehicle;
+  final ValueChanged<Vehicle> onUpdated;
+  const _VoluntaryInsuranceSection({
+    required this.vehicle,
+    required this.onUpdated,
+  });
+
+  Future<void> _openEditor(BuildContext context) async {
+    final updated = await Navigator.push<Vehicle>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => InsuranceEditScreen(vehicle: vehicle),
+      ),
+    );
+    if (updated != null) onUpdated(updated);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final days = insurance.expiryDate?.difference(DateTime.now()).inDays;
+    final insurance = vehicle.voluntaryInsurance;
+    final money = NumberFormat('#,###');
+
+    final days = insurance?.expiryDate?.difference(DateTime.now()).inDays;
     final isExpired = days != null && days < 0;
     final isWarning = days != null && days <= 30 && days >= 0;
     final expiryColor = isExpired
@@ -490,6 +580,13 @@ class _VoluntaryInsuranceSection extends StatelessWidget {
         : isWarning
             ? AppColors.warning
             : null;
+
+    final hasAnyData = insurance != null &&
+        (insurance.companyName != null ||
+            insurance.expiryDate != null ||
+            insurance.hasCoverageDetails ||
+            insurance.namedInsured != null ||
+            insurance.annualPremium != null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -510,23 +607,124 @@ class _VoluntaryInsuranceSection extends StatelessWidget {
                     style: theme.textTheme.titleSmall
                         ?.copyWith(color: AppColors.textSecondary),
                   ),
+                  const Spacer(),
+                  TextButton.icon(
+                    key: const Key('edit_insurance_btn'),
+                    onPressed: () => _openEditor(context),
+                    icon: Icon(
+                      hasAnyData ? Icons.edit_outlined : Icons.add,
+                      size: 15,
+                    ),
+                    label: Text(hasAnyData ? '編集' : '登録'),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  ),
                 ],
               ),
-              AppSpacing.verticalXs,
-              if (insurance.companyName != null)
-                _InfoRow(
-                  icon: Icons.business,
-                  label: '保険会社',
-                  value: insurance.companyName!,
-                ),
-              if (insurance.expiryDate != null)
-                _InfoRow(
-                  icon: Icons.event,
-                  label: '満期日',
-                  value:
-                      DateFormat('yyyy年MM月dd日').format(insurance.expiryDate!),
-                  valueColor: expiryColor,
-                ),
+              if (!hasAnyData)
+                Padding(
+                  padding: const EdgeInsets.only(left: 24, top: 2),
+                  child: Text(
+                    'どんな保険に入っているか記録しておきましょう',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                )
+              else ...[
+                AppSpacing.verticalXs,
+                if (insurance.contractType != null)
+                  _InfoRow(
+                    icon: Icons.workspace_premium_outlined,
+                    label: '契約形態',
+                    value: insurance.isFleetContract
+                        ? 'フリート契約'
+                            '${insurance.fleetDiscountRate != null ? '（割増引率 ${insurance.fleetDiscountRate!.toStringAsFixed(0)}%）' : ''}'
+                        : 'ノンフリート'
+                            '${insurance.nonFleetGrade != null ? '（${insurance.nonFleetGrade}等級）' : ''}',
+                  ),
+                if (insurance.companyName != null)
+                  _InfoRow(
+                    icon: Icons.business,
+                    label: '保険会社',
+                    value: insurance.companyName!,
+                  ),
+                if (insurance.namedInsured != null)
+                  _InfoRow(
+                    icon: Icons.badge_outlined,
+                    label: '記名被保険者',
+                    value: insurance.namedInsured!,
+                  ),
+                if (insurance.expiryDate != null)
+                  _InfoRow(
+                    icon: Icons.event,
+                    label: '満期日',
+                    value:
+                        DateFormat('yyyy年MM月dd日').format(insurance.expiryDate!),
+                    valueColor: expiryColor,
+                  ),
+                if (insurance.usagePurpose != null)
+                  _InfoRow(
+                    icon: Icons.commute_outlined,
+                    label: '使用目的',
+                    value: insurance.usagePurpose!,
+                  ),
+                if (insurance.bodilyInjuryLimit != null)
+                  _InfoRow(
+                    icon: Icons.personal_injury_outlined,
+                    label: '対人賠償',
+                    value: insurance.bodilyInjuryLimit!,
+                  ),
+                if (insurance.propertyDamageLimit != null)
+                  _InfoRow(
+                    icon: Icons.car_crash_outlined,
+                    label: '対物賠償',
+                    value: insurance.propertyDamageLimit!,
+                  ),
+                if (insurance.personalInjuryAmount != null)
+                  _InfoRow(
+                    icon: Icons.healing_outlined,
+                    label: '人身傷害',
+                    value: insurance.personalInjuryAmount!,
+                  ),
+                if (insurance.hasVehicleInsurance == true)
+                  _InfoRow(
+                    icon: Icons.directions_car_outlined,
+                    label: '車両保険',
+                    value: [
+                      insurance.vehicleInsuranceType,
+                      if (insurance.vehicleInsuranceAmount != null)
+                        '¥${money.format(insurance.vehicleInsuranceAmount)}',
+                      if (insurance.vehicleInsuranceDeductible != null)
+                        '免責${insurance.vehicleInsuranceDeductible}',
+                    ].whereType<String>().join(' / '),
+                  ),
+                if (insurance.driverScope != null ||
+                    insurance.driverAgeCondition != null)
+                  _InfoRow(
+                    icon: Icons.person_outline,
+                    label: '運転者条件',
+                    value: [
+                      insurance.driverScope,
+                      insurance.driverAgeCondition,
+                    ].whereType<String>().join(' / '),
+                  ),
+                if (insurance.annualPremium != null)
+                  _InfoRow(
+                    icon: Icons.payments_outlined,
+                    label: '年間保険料',
+                    value: '¥${money.format(insurance.annualPremium)}'
+                        '${insurance.paymentMethod != null ? '（${insurance.paymentMethod}）' : ''}',
+                  ),
+                if (insurance.specialClauses.isNotEmpty)
+                  _InfoRow(
+                    icon: Icons.verified_outlined,
+                    label: '特約',
+                    value: insurance.specialClauses.join('・'),
+                  ),
+              ],
             ],
           ),
         ),
