@@ -39,7 +39,7 @@ class _RetiredVehiclesScreenState extends State<RetiredVehiclesScreen> {
     if (!mounted) return;
     result.when(
       success: (vehicles) => setState(() {
-        _vehicles = vehicles
+        _vehicles = List<Vehicle>.from(vehicles)
           ..sort((a, b) => (b.retiredAt ?? DateTime(0))
               .compareTo(a.retiredAt ?? DateTime(0)));
         _isLoading = false;
