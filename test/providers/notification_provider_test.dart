@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/providers/notification_provider.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/services/recommendation_service.dart';
+import 'package:trust_car_platform/services/notification_state_store.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/app_notification.dart';
@@ -113,6 +114,20 @@ class MockRecommendationService implements RecommendationService {
   }) {
     return mockRecommendations ?? [];
   }
+}
+
+class _FakeNotificationStateStore implements NotificationStateStore {
+  Set<String> read = {};
+  Set<String> dismissed = {};
+
+  @override
+  Future<Set<String>> loadReadIds() async => read;
+  @override
+  Future<Set<String>> loadDismissedIds() async => dismissed;
+  @override
+  Future<void> saveReadIds(Set<String> ids) async => read = {...ids};
+  @override
+  Future<void> saveDismissedIds(Set<String> ids) async => dismissed = {...ids};
 }
 
 Vehicle _createTestVehicle({String? id}) => Vehicle(
@@ -266,6 +281,84 @@ void main() {
             equals(NotificationPriority.medium));
         expect(provider.notifications[2].priority,
             equals(NotificationPriority.low));
+      });
+    });
+
+    group('永続化（read/dismissed の復元）', () {
+      Future<void> regenerate(NotificationProvider p) =>
+          p.generateRecommendations(
+            vehicles: [_createTestVehicle()],
+            maintenanceRecords: {'test-vehicle-id': []},
+          );
+
+      test('dismissed に含まれる id は再生成時に除外される', () async {
+        final store = _FakeNotificationStateStore()..dismissed = {'2'};
+        final p = NotificationProvider(
+          firebaseService: mockFirebaseService,
+          recommendationService: mockRecommendationService,
+          stateStore: store,
+        );
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: '1'),
+          _createTestNotification(id: '2'),
+        ];
+        await regenerate(p);
+        expect(p.notifications.map((n) => n.id), ['1']);
+      });
+
+      test('read に含まれる id は既読として復元される', () async {
+        final store = _FakeNotificationStateStore()..read = {'1'};
+        final p = NotificationProvider(
+          firebaseService: mockFirebaseService,
+          recommendationService: mockRecommendationService,
+          stateStore: store,
+        );
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: '1', isRead: false),
+          _createTestNotification(id: '2', isRead: false),
+        ];
+        await regenerate(p);
+        expect(p.notifications.firstWhere((n) => n.id == '1').isRead, isTrue);
+        expect(p.unreadCount, 1);
+      });
+
+      test('markAsRead が store に永続化される', () async {
+        final store = _FakeNotificationStateStore();
+        final p = NotificationProvider(
+          firebaseService: mockFirebaseService,
+          recommendationService: mockRecommendationService,
+          stateStore: store,
+        );
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: '1'),
+        ];
+        await regenerate(p);
+        await p.markAsRead('1');
+        expect(store.read, contains('1'));
+      });
+
+      test('removeNotification が dismissed に永続化される', () async {
+        final store = _FakeNotificationStateStore();
+        final p = NotificationProvider(
+          firebaseService: mockFirebaseService,
+          recommendationService: mockRecommendationService,
+          stateStore: store,
+        );
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: '1'),
+        ];
+        await regenerate(p);
+        p.removeNotification('1');
+        expect(store.dismissed, contains('1'));
+        expect(p.notifications, isEmpty);
+      });
+
+      test('store 未設定でも従来通り動作する（永続化なし）', () async {
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: '1'),
+        ];
+        await regenerate(provider); // provider has no store
+        expect(provider.notifications.length, 1);
       });
     });
 

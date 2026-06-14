@@ -39,6 +39,7 @@ class MockPostService implements PostService {
     dynamic startAfter,
     PostCategory? category,
     String? makerId,
+    String? modelName,
   }) async {
     getFeedCallCount++;
     lastCategory = category;

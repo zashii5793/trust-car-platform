@@ -1,5 +1,31 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// 車両の現在のステータス
+///
+/// 売却・廃車後もデータを保持したい場合は isDataRetained=true で
+/// アーカイブ状態に移行する。
+enum VehicleStatus {
+  active('使用中'),
+  sold('売却済み'),
+  scrapped('廃車済み'),
+  leaseReturned('リース返却済み'),
+  transferred('譲渡済み');
+
+  final String displayName;
+  const VehicleStatus(this.displayName);
+
+  static VehicleStatus fromString(String? value) {
+    if (value == null) return VehicleStatus.active;
+    try {
+      return VehicleStatus.values.firstWhere((e) => e.name == value);
+    } catch (_) {
+      return VehicleStatus.active;
+    }
+  }
+
+  bool get isRetired => this != VehicleStatus.active;
+}
+
 /// 燃料タイプ
 enum FuelType {
   gasoline('ガソリン'),
@@ -17,6 +43,43 @@ enum FuelType {
     if (value == null) return null;
     try {
       return FuelType.values.firstWhere((e) => e.name == value);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+/// 用途区分（ナンバー区分による車検サイクルの違い）
+///
+/// 車検の有効期間は道路運送車両法で用途ごとに定められている:
+/// - 自家用乗用車・軽乗用車（3・5・7ナンバー）: 初回3年、以降2年
+/// - 貨物車（1・4ナンバー、8t未満）: 初回2年、以降1年（毎年車検）
+/// - 軽貨物（4ナンバー軽）: 初回2年、以降2年
+/// - 事業用・大型貨物（緑ナンバー、8t以上）: 初回1年、以降1年
+enum VehicleUseCategory {
+  privatePassenger('自家用乗用車（3・5・7ナンバー）', 3, 2),
+  cargo('貨物車（1・4ナンバー）', 2, 1),
+  keiCargo('軽貨物（4ナンバー軽）', 2, 2),
+  commercial('事業用・大型貨物（緑ナンバー等）', 1, 1);
+
+  final String displayName;
+
+  /// 新車登録から初回車検までの年数
+  final int firstInspectionYears;
+
+  /// 2回目以降の車検サイクル（年）
+  final int inspectionCycleYears;
+
+  const VehicleUseCategory(
+    this.displayName,
+    this.firstInspectionYears,
+    this.inspectionCycleYears,
+  );
+
+  static VehicleUseCategory? fromString(String? value) {
+    if (value == null) return null;
+    try {
+      return VehicleUseCategory.values.firstWhere((e) => e.name == value);
     } catch (_) {
       return null;
     }
@@ -65,14 +128,70 @@ enum TransmissionType {
   }
 }
 
-/// 任意保険情報
+/// 任意保険の契約形態。
+/// - [nonFleet]: ノンフリート契約（所有・使用台数9台以下、車両ごとに等級管理）
+/// - [fleet]: フリート契約（10台以上、契約全体の割増引率を適用＝法人で多い）
+enum InsuranceContractType {
+  nonFleet('ノンフリート'),
+  fleet('フリート');
+
+  final String displayName;
+  const InsuranceContractType(this.displayName);
+
+  static InsuranceContractType? fromString(String? value) {
+    if (value == null) return null;
+    for (final t in InsuranceContractType.values) {
+      if (t.name == value) return t;
+    }
+    return null;
+  }
+}
+
+/// 任意保険情報。
+///
+/// 個人・法人の双方に対応する。法人はフリート契約（[contractType] = fleet、
+/// 等級ではなく [fleetDiscountRate] 割増引率を使用、[namedInsured] が法人名、
+/// [usagePurpose] が業務使用）になることが多い。全フィールド任意で後方互換。
 class VoluntaryInsurance {
+  // --- 基本 ---
   final String? companyName; // 保険会社名
   final String? policyNumber; // 証券番号
   final DateTime? expiryDate; // 満了日
-  final String? coverageType; // 補償内容
+  final String? coverageType; // 補償内容（自由記述・後方互換）
   final String? agentName; // 代理店名
   final String? agentPhone; // 代理店電話番号
+
+  // --- 契約 ---
+  final DateTime? contractStartDate; // 契約開始日
+  final int? annualPremium; // 年間保険料（円）
+  final String? paymentMethod; // 支払方法（月払・年払）
+  final InsuranceContractType? contractType; // ノンフリート / フリート
+  final String? usagePurpose; // 使用目的（業務用・通勤通学・日常レジャー）
+  final String? namedInsured; // 記名被保険者（個人名 or 法人名）
+
+  // --- 等級 / 料率 ---
+  final int? nonFleetGrade; // ノンフリート等級（6〜20）
+  final int? accidentCoefficientPeriod; // 事故有係数適用期間（年）
+  final double? fleetDiscountRate; // フリート割増引率（%）法人フリート契約用
+
+  // --- 補償額 ---
+  final String? bodilyInjuryLimit; // 対人賠償（無制限/金額）
+  final String? propertyDamageLimit; // 対物賠償（無制限/金額）
+  final String? personalInjuryAmount; // 人身傷害（例:3000万/5000万/無制限）
+  final String? passengerInjuryAmount; // 搭乗者傷害
+
+  // --- 車両保険 ---
+  final bool? hasVehicleInsurance; // 車両保険の有無
+  final String? vehicleInsuranceType; // 型（一般・車対車+A）
+  final int? vehicleInsuranceAmount; // 車両保険金額（円）
+  final String? vehicleInsuranceDeductible; // 免責金額（例:5-10万円）
+
+  // --- 運転者条件 ---
+  final String? driverScope; // 運転者範囲（本人/夫婦/家族/限定なし）
+  final String? driverAgeCondition; // 年齢条件（全年齢/21/26/35歳以上）
+
+  // --- 特約 ---
+  final List<String> specialClauses; // 弁護士費用特約・ロードサービス等
 
   const VoluntaryInsurance({
     this.companyName,
@@ -81,6 +200,26 @@ class VoluntaryInsurance {
     this.coverageType,
     this.agentName,
     this.agentPhone,
+    this.contractStartDate,
+    this.annualPremium,
+    this.paymentMethod,
+    this.contractType,
+    this.usagePurpose,
+    this.namedInsured,
+    this.nonFleetGrade,
+    this.accidentCoefficientPeriod,
+    this.fleetDiscountRate,
+    this.bodilyInjuryLimit,
+    this.propertyDamageLimit,
+    this.personalInjuryAmount,
+    this.passengerInjuryAmount,
+    this.hasVehicleInsurance,
+    this.vehicleInsuranceType,
+    this.vehicleInsuranceAmount,
+    this.vehicleInsuranceDeductible,
+    this.driverScope,
+    this.driverAgeCondition,
+    this.specialClauses = const [],
   });
 
   factory VoluntaryInsurance.fromMap(Map<String, dynamic>? map) {
@@ -94,6 +233,31 @@ class VoluntaryInsurance {
       coverageType: map['coverageType'],
       agentName: map['agentName'],
       agentPhone: map['agentPhone'],
+      contractStartDate: map['contractStartDate'] != null
+          ? (map['contractStartDate'] as Timestamp).toDate()
+          : null,
+      annualPremium: map['annualPremium'],
+      paymentMethod: map['paymentMethod'],
+      contractType: InsuranceContractType.fromString(map['contractType']),
+      usagePurpose: map['usagePurpose'],
+      namedInsured: map['namedInsured'],
+      nonFleetGrade: map['nonFleetGrade'],
+      accidentCoefficientPeriod: map['accidentCoefficientPeriod'],
+      fleetDiscountRate: (map['fleetDiscountRate'] as num?)?.toDouble(),
+      bodilyInjuryLimit: map['bodilyInjuryLimit'],
+      propertyDamageLimit: map['propertyDamageLimit'],
+      personalInjuryAmount: map['personalInjuryAmount'],
+      passengerInjuryAmount: map['passengerInjuryAmount'],
+      hasVehicleInsurance: map['hasVehicleInsurance'],
+      vehicleInsuranceType: map['vehicleInsuranceType'],
+      vehicleInsuranceAmount: map['vehicleInsuranceAmount'],
+      vehicleInsuranceDeductible: map['vehicleInsuranceDeductible'],
+      driverScope: map['driverScope'],
+      driverAgeCondition: map['driverAgeCondition'],
+      specialClauses: (map['specialClauses'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
     );
   }
 
@@ -105,6 +269,28 @@ class VoluntaryInsurance {
       'coverageType': coverageType,
       'agentName': agentName,
       'agentPhone': agentPhone,
+      'contractStartDate': contractStartDate != null
+          ? Timestamp.fromDate(contractStartDate!)
+          : null,
+      'annualPremium': annualPremium,
+      'paymentMethod': paymentMethod,
+      'contractType': contractType?.name,
+      'usagePurpose': usagePurpose,
+      'namedInsured': namedInsured,
+      'nonFleetGrade': nonFleetGrade,
+      'accidentCoefficientPeriod': accidentCoefficientPeriod,
+      'fleetDiscountRate': fleetDiscountRate,
+      'bodilyInjuryLimit': bodilyInjuryLimit,
+      'propertyDamageLimit': propertyDamageLimit,
+      'personalInjuryAmount': personalInjuryAmount,
+      'passengerInjuryAmount': passengerInjuryAmount,
+      'hasVehicleInsurance': hasVehicleInsurance,
+      'vehicleInsuranceType': vehicleInsuranceType,
+      'vehicleInsuranceAmount': vehicleInsuranceAmount,
+      'vehicleInsuranceDeductible': vehicleInsuranceDeductible,
+      'driverScope': driverScope,
+      'driverAgeCondition': driverAgeCondition,
+      'specialClauses': specialClauses,
     };
   }
 
@@ -121,6 +307,17 @@ class VoluntaryInsurance {
     return expiryDate!.difference(DateTime.now()).inDays < 0;
   }
 
+  /// 法人で多いフリート契約か
+  bool get isFleetContract => contractType == InsuranceContractType.fleet;
+
+  /// 何らかの補償内容が入力されているか（サマリー表示の出し分け用）
+  bool get hasCoverageDetails =>
+      bodilyInjuryLimit != null ||
+      propertyDamageLimit != null ||
+      personalInjuryAmount != null ||
+      passengerInjuryAmount != null ||
+      hasVehicleInsurance != null;
+
   VoluntaryInsurance copyWith({
     String? companyName,
     String? policyNumber,
@@ -128,6 +325,26 @@ class VoluntaryInsurance {
     String? coverageType,
     String? agentName,
     String? agentPhone,
+    DateTime? contractStartDate,
+    int? annualPremium,
+    String? paymentMethod,
+    InsuranceContractType? contractType,
+    String? usagePurpose,
+    String? namedInsured,
+    int? nonFleetGrade,
+    int? accidentCoefficientPeriod,
+    double? fleetDiscountRate,
+    String? bodilyInjuryLimit,
+    String? propertyDamageLimit,
+    String? personalInjuryAmount,
+    String? passengerInjuryAmount,
+    bool? hasVehicleInsurance,
+    String? vehicleInsuranceType,
+    int? vehicleInsuranceAmount,
+    String? vehicleInsuranceDeductible,
+    String? driverScope,
+    String? driverAgeCondition,
+    List<String>? specialClauses,
   }) {
     return VoluntaryInsurance(
       companyName: companyName ?? this.companyName,
@@ -136,6 +353,107 @@ class VoluntaryInsurance {
       coverageType: coverageType ?? this.coverageType,
       agentName: agentName ?? this.agentName,
       agentPhone: agentPhone ?? this.agentPhone,
+      contractStartDate: contractStartDate ?? this.contractStartDate,
+      annualPremium: annualPremium ?? this.annualPremium,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      contractType: contractType ?? this.contractType,
+      usagePurpose: usagePurpose ?? this.usagePurpose,
+      namedInsured: namedInsured ?? this.namedInsured,
+      nonFleetGrade: nonFleetGrade ?? this.nonFleetGrade,
+      accidentCoefficientPeriod:
+          accidentCoefficientPeriod ?? this.accidentCoefficientPeriod,
+      fleetDiscountRate: fleetDiscountRate ?? this.fleetDiscountRate,
+      bodilyInjuryLimit: bodilyInjuryLimit ?? this.bodilyInjuryLimit,
+      propertyDamageLimit: propertyDamageLimit ?? this.propertyDamageLimit,
+      personalInjuryAmount: personalInjuryAmount ?? this.personalInjuryAmount,
+      passengerInjuryAmount:
+          passengerInjuryAmount ?? this.passengerInjuryAmount,
+      hasVehicleInsurance: hasVehicleInsurance ?? this.hasVehicleInsurance,
+      vehicleInsuranceType: vehicleInsuranceType ?? this.vehicleInsuranceType,
+      vehicleInsuranceAmount:
+          vehicleInsuranceAmount ?? this.vehicleInsuranceAmount,
+      vehicleInsuranceDeductible:
+          vehicleInsuranceDeductible ?? this.vehicleInsuranceDeductible,
+      driverScope: driverScope ?? this.driverScope,
+      driverAgeCondition: driverAgeCondition ?? this.driverAgeCondition,
+      specialClauses: specialClauses ?? this.specialClauses,
+    );
+  }
+}
+
+/// リース契約情報（法人・個人リース車両向け）
+class LeaseInfo {
+  final String? lessorName; // リース会社名
+  final int? monthlyFee; // 月額リース料（円）
+  final DateTime? contractStartDate; // 契約開始日
+  final DateTime? contractEndDate; // 契約満了日
+  final String? maintenancePackDetails; // メンテナンスパック内容
+
+  const LeaseInfo({
+    this.lessorName,
+    this.monthlyFee,
+    this.contractStartDate,
+    this.contractEndDate,
+    this.maintenancePackDetails,
+  });
+
+  factory LeaseInfo.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const LeaseInfo();
+    return LeaseInfo(
+      lessorName: map['lessorName'],
+      monthlyFee: map['monthlyFee'],
+      contractStartDate: map['contractStartDate'] != null
+          ? (map['contractStartDate'] as Timestamp).toDate()
+          : null,
+      contractEndDate: map['contractEndDate'] != null
+          ? (map['contractEndDate'] as Timestamp).toDate()
+          : null,
+      maintenancePackDetails: map['maintenancePackDetails'],
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'lessorName': lessorName,
+      'monthlyFee': monthlyFee,
+      'contractStartDate': contractStartDate != null
+          ? Timestamp.fromDate(contractStartDate!)
+          : null,
+      'contractEndDate':
+          contractEndDate != null ? Timestamp.fromDate(contractEndDate!) : null,
+      'maintenancePackDetails': maintenancePackDetails,
+    };
+  }
+
+  /// 何か1つでも入力されているか（空のリース情報は保存しない判定に使う）
+  bool get hasAnyValue =>
+      lessorName != null ||
+      monthlyFee != null ||
+      contractStartDate != null ||
+      contractEndDate != null ||
+      maintenancePackDetails != null;
+
+  /// 契約満了が近いか（60日以内）
+  bool get isExpiringSoon {
+    if (contractEndDate == null) return false;
+    final days = contractEndDate!.difference(DateTime.now()).inDays;
+    return days <= 60 && days >= 0;
+  }
+
+  LeaseInfo copyWith({
+    String? lessorName,
+    int? monthlyFee,
+    DateTime? contractStartDate,
+    DateTime? contractEndDate,
+    String? maintenancePackDetails,
+  }) {
+    return LeaseInfo(
+      lessorName: lessorName ?? this.lessorName,
+      monthlyFee: monthlyFee ?? this.monthlyFee,
+      contractStartDate: contractStartDate ?? this.contractStartDate,
+      contractEndDate: contractEndDate ?? this.contractEndDate,
+      maintenancePackDetails:
+          maintenancePackDetails ?? this.maintenancePackDetails,
     );
   }
 }
@@ -179,9 +497,30 @@ class Vehicle {
   // Phase 5 追加フィールド: 任意保険情報
   final VoluntaryInsurance? voluntaryInsurance;
 
+  // リース契約情報（法人・個人リース車両）
+  final LeaseInfo? leaseInfo;
+
+  // フリート管理: 法人アカウントの companyId（= 管理者の userId）
+  final String? companyId;
+  // フリート担当者アサイン
+  final String? assigneeId;
+  final String? assigneeName;
+
+  // 用途区分（車検サイクル計算用。null = 自家用乗用車として扱う）
+  final VehicleUseCategory? useCategory;
+
+  // 廃車・売却・リース返却など（active以外はアーカイブ扱い）
+  final VehicleStatus status;
+  final DateTime? retiredAt; // 売却/廃車した日付
+  final String? retirementNote; // 売却先・廃車理由など（任意）
+  final bool isDataRetained; // true: 整備記録を保持, false: 削除済み
+
   Vehicle({
     required this.id,
     required this.userId,
+    this.companyId,
+    this.assigneeId,
+    this.assigneeName,
     required this.maker,
     required this.model,
     required this.year,
@@ -208,12 +547,35 @@ class Vehicle {
     this.vehicleWeight,
     this.seatingCapacity,
     this.voluntaryInsurance,
+    this.leaseInfo,
+    this.useCategory,
+    this.status = VehicleStatus.active,
+    this.retiredAt,
+    this.retirementNote,
+    this.isDataRetained = true,
   });
 
   /// 車検までの残日数（null: 車検日未設定）
   int? get daysUntilInspection {
     if (inspectionExpiryDate == null) return null;
     return inspectionExpiryDate!.difference(DateTime.now()).inDays;
+  }
+
+  /// 用途区分（未設定時は自家用乗用車として扱う）
+  VehicleUseCategory get effectiveUseCategory =>
+      useCategory ?? VehicleUseCategory.privatePassenger;
+
+  /// 次回車検の推奨日（現在の満了日 + 用途区分別サイクル）
+  ///
+  /// 貨物車（4ナンバー）は毎年、自家用乗用車は2年ごと。
+  DateTime? get suggestedNextInspectionDate {
+    final current = inspectionExpiryDate;
+    if (current == null) return null;
+    return DateTime(
+      current.year + effectiveUseCategory.inspectionCycleYears,
+      current.month,
+      current.day,
+    );
   }
 
   /// 車検期限が近いか（30日以内）
@@ -282,6 +644,17 @@ class Vehicle {
       seatingCapacity: data['seatingCapacity'],
       voluntaryInsurance:
           VoluntaryInsurance.fromMap(data['voluntaryInsurance']),
+      leaseInfo: data['leaseInfo'] != null
+          ? LeaseInfo.fromMap(data['leaseInfo'])
+          : null,
+      companyId: data['companyId'],
+      assigneeId: data['assigneeId'],
+      assigneeName: data['assigneeName'],
+      useCategory: VehicleUseCategory.fromString(data['useCategory']),
+      status: VehicleStatus.fromString(data['status']),
+      retiredAt: _parseTimestampNullable(data['retiredAt']),
+      retirementNote: data['retirementNote'],
+      isDataRetained: data['isDataRetained'] ?? true,
     );
   }
 
@@ -346,6 +719,15 @@ class Vehicle {
       'vehicleWeight': vehicleWeight,
       'seatingCapacity': seatingCapacity,
       'voluntaryInsurance': voluntaryInsurance?.toMap(),
+      'leaseInfo': leaseInfo?.toMap(),
+      'companyId': companyId,
+      'assigneeId': assigneeId,
+      'assigneeName': assigneeName,
+      'useCategory': useCategory?.name,
+      'status': status.name,
+      'retiredAt': retiredAt != null ? Timestamp.fromDate(retiredAt!) : null,
+      'retirementNote': retirementNote,
+      'isDataRetained': isDataRetained,
     };
   }
 
@@ -379,10 +761,22 @@ class Vehicle {
     int? vehicleWeight,
     int? seatingCapacity,
     VoluntaryInsurance? voluntaryInsurance,
+    LeaseInfo? leaseInfo,
+    String? companyId,
+    String? assigneeId,
+    String? assigneeName,
+    VehicleUseCategory? useCategory,
+    VehicleStatus? status,
+    DateTime? retiredAt,
+    String? retirementNote,
+    bool? isDataRetained,
   }) {
     return Vehicle(
       id: id ?? this.id,
       userId: userId ?? this.userId,
+      companyId: companyId ?? this.companyId,
+      assigneeId: assigneeId ?? this.assigneeId,
+      assigneeName: assigneeName ?? this.assigneeName,
       maker: maker ?? this.maker,
       model: model ?? this.model,
       year: year ?? this.year,
@@ -410,7 +804,19 @@ class Vehicle {
       vehicleWeight: vehicleWeight ?? this.vehicleWeight,
       seatingCapacity: seatingCapacity ?? this.seatingCapacity,
       voluntaryInsurance: voluntaryInsurance ?? this.voluntaryInsurance,
+      leaseInfo: leaseInfo ?? this.leaseInfo,
+      useCategory: useCategory ?? this.useCategory,
+      status: status ?? this.status,
+      retiredAt: retiredAt ?? this.retiredAt,
+      retirementNote: retirementNote ?? this.retirementNote,
+      isDataRetained: isDataRetained ?? this.isDataRetained,
     );
+  }
+
+  /// リース契約満了までの残日数（null: リース情報なし/満了日未設定）
+  int? get daysUntilLeaseExpiry {
+    if (leaseInfo?.contractEndDate == null) return null;
+    return leaseInfo!.contractEndDate!.difference(DateTime.now()).inDays;
   }
 
   /// 任意保険期限までの残日数

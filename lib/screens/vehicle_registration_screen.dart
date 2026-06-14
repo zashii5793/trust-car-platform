@@ -9,6 +9,7 @@ import '../providers/vehicle_provider.dart';
 import '../services/firebase_service.dart';
 import '../services/vehicle_certificate_ocr_service.dart';
 import '../services/vehicle_master_service.dart';
+import '../services/vehicle_spec_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
@@ -39,6 +40,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   VehicleMaker? _selectedMaker;
   VehicleModel? _selectedModel;
   VehicleGrade? _selectedGrade;
+  VehicleSpecResult? _communitySpec;
   final _yearController = TextEditingController();
   final _mileageController = TextEditingController();
 
@@ -58,6 +60,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   DateTime? _purchaseDate;
 
   Uint8List? _imageBytes;
+  bool _sharePhotoConsent = false;
   bool _isLoading = false;
   bool _isOcrProcessing = false;
 
@@ -65,6 +68,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       sl.get<VehicleCertificateOcrService>();
   FirebaseService get _firebaseService => sl.get<FirebaseService>();
   VehicleMasterService get _masterService => sl.get<VehicleMasterService>();
+  VehicleSpecService get _specService => sl.get<VehicleSpecService>();
 
   @override
   void initState() {
@@ -73,6 +77,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     // stays in sync when the user types (otherwise the discard-confirmation
     // dialog never appears for text-only input).
     _yearController.addListener(_onDirtyStateChanged);
+    _mileageController.addListener(_onDirtyStateChanged);
     _licensePlateController.addListener(_onDirtyStateChanged);
   }
 
@@ -174,7 +179,10 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           }
         },
         failure: (error) {
-          if (mounted) showErrorSnackBar(context, error.userMessage);
+          if (mounted) {
+            showErrorSnackBar(context,
+                '車検証を読み取れませんでした。下のフォームから手動でも入力できます（${error.userMessage}）');
+          }
         },
       );
     } finally {
@@ -185,18 +193,20 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   Future<void> _applyOcrData(VehicleRegistrationData data) async {
     if (data.maker.isNotEmpty) {
       final makersResult = await _masterService.getMakers();
+      VehicleMaker? matchedMaker;
       makersResult.when(
         success: (makers) {
-          final matchedMaker = _findMatchingMaker(makers, data.maker);
-          if (matchedMaker != null) {
-            _selectedMaker = matchedMaker;
-            _loadAndMatchModel(data.model);
-          }
+          matchedMaker = _findMatchingMaker(makers, data.maker);
         },
         failure: (_) {},
       );
+      if (matchedMaker != null) {
+        _selectedMaker = matchedMaker;
+        await _loadAndMatchModel(data.model);
+      }
     }
 
+    if (!mounted) return;
     setState(() {
       if (data.year != null) _yearController.text = data.year.toString();
       if (data.licensePlate != null) {
@@ -215,6 +225,59 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     });
 
     if (mounted) showSuccessSnackBar(context, '車検証の情報を読み取りました');
+
+    // Suggest community specs for the matched model. Only catalog keys
+    // (maker/model/year) are queried — OCR personal data never leaves
+    // the device except as fields of the user's own vehicle document.
+    await _suggestSpecsFromCommunity();
+  }
+
+  /// After OCR matches maker/model/year, look up community spec data and
+  /// prefill any still-empty fields (manual input always wins).
+  Future<void> _suggestSpecsFromCommunity() async {
+    final maker = _selectedMaker?.name;
+    final model = _selectedModel?.name;
+    final year = int.tryParse(_yearController.text);
+    if (maker == null || model == null || year == null) {
+      return;
+    }
+
+    final result = await _specService.fetchSpecsForModel(maker, model, year);
+    if (!mounted) {
+      return;
+    }
+
+    result.when(
+      success: (specs) {
+        if (specs.isEmpty) {
+          return;
+        }
+        final best = specs.first; // highest contributorCount
+        setState(() {
+          _communitySpec = best;
+          if (_engineDisplacementController.text.isEmpty &&
+              best.grade.engineDisplacement != null) {
+            _engineDisplacementController.text =
+                best.grade.engineDisplacement.toString();
+          }
+          if (_selectedFuelType == null) {
+            final ft = FuelType.fromString(best.grade.fuelType);
+            if (ft != null) {
+              _selectedFuelType = ft;
+            }
+          }
+        });
+        // Replace the OCR success snackbar instead of queueing behind it.
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content: Text(
+                '車検証を読み取りました。同車種オーナーのデータも自動入力（${best.contributorCount}人が確認）'),
+            duration: const Duration(seconds: 3),
+          ));
+      },
+      failure: (_) {},
+    );
   }
 
   VehicleMaker? _findMatchingMaker(List<VehicleMaker> makers, String ocrText) {
@@ -241,7 +304,12 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
       final bytes = await pickedFile.readAsBytes();
-      setState(() => _imageBytes = bytes);
+      // Reset consent when a new photo is picked so the user explicitly
+      // re-evaluates whether the new image is safe to share.
+      setState(() {
+        _imageBytes = bytes;
+        _sharePhotoConsent = false;
+      });
     }
   }
 
@@ -260,6 +328,57 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       helpText: title,
     );
     if (picked != null) onSelected(picked);
+  }
+
+  Future<void> _fetchCommunitySpec(VehicleGrade grade) async {
+    final maker = _selectedMaker?.name;
+    final model = _selectedModel?.name;
+    final year = int.tryParse(_yearController.text);
+    if (maker == null || model == null || year == null) {
+      return;
+    }
+
+    final result = await _specService.fetchSpec(maker, model, year, grade.name);
+    if (!mounted) {
+      return;
+    }
+
+    result.when(
+      success: (spec) {
+        if (spec == null) {
+          return;
+        }
+        // Fill only still-empty fields — the fetch is async and must never
+        // overwrite values the user typed (or master data) in the meantime.
+        var filled = false;
+        setState(() {
+          _communitySpec = spec;
+          if (_engineDisplacementController.text.isEmpty &&
+              spec.grade.engineDisplacement != null) {
+            _engineDisplacementController.text =
+                spec.grade.engineDisplacement.toString();
+            filled = true;
+          }
+          if (_selectedFuelType == null) {
+            final ft = FuelType.fromString(spec.grade.fuelType);
+            if (ft != null) {
+              _selectedFuelType = ft;
+              filled = true;
+            }
+          }
+        });
+        if (filled) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(
+              content:
+                  Text('コミュニティのデータを自動入力しました（${spec.contributorCount}人が確認）'),
+              duration: const Duration(seconds: 3),
+            ));
+        }
+      },
+      failure: (_) {},
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -284,19 +403,28 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         final exists =
             await Provider.of<VehicleProvider>(context, listen: false)
                 .isLicensePlateExists(_licensePlateController.text);
-        if (exists && mounted) {
+        if (!mounted) return;
+        if (exists) {
           setState(() => _isLoading = false);
           showErrorSnackBar(context, 'このナンバープレートは既に登録されています');
           return;
         }
       }
 
+      final currentUserId = _firebaseService.currentUserId;
+      if (currentUserId == null) {
+        if (mounted) showErrorSnackBar(context, 'ログインセッションが切れました。再ログインしてください');
+        return;
+      }
+
       String? imageUrl;
       if (_imageBytes != null) {
         final uuid = const Uuid().v4();
+        // Path includes the owner uid so Storage rules can enforce
+        // write access per user.
         final uploadResult = await _firebaseService.uploadImageBytes(
           _imageBytes!,
-          'vehicles/$uuid.jpg',
+          'vehicles/$currentUserId/$uuid.jpg',
         );
         if (uploadResult.isFailure) {
           if (mounted) {
@@ -306,12 +434,6 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           return;
         }
         imageUrl = uploadResult.valueOrNull;
-      }
-
-      final currentUserId = _firebaseService.currentUserId;
-      if (currentUserId == null) {
-        if (mounted) showErrorSnackBar(context, 'ログインセッションが切れました。再ログインしてください');
-        return;
       }
 
       final vehicle = Vehicle(
@@ -350,6 +472,40 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
 
       if (!mounted) return;
       if (success) {
+        // Contribute spec data to the community collection (fire-and-forget).
+        // Skipped when this user already contributed to the same spec.
+        // The photo is only shared with explicit user consent — vehicle
+        // photos may contain license plates or other personal information.
+        if (vehicle.engineDisplacement != null || vehicle.fuelType != null) {
+          final spec = (await _specService.fetchSpec(
+                  vehicle.maker, vehicle.model, vehicle.year, vehicle.grade))
+              .valueOrNull;
+          if (spec == null || !spec.isContributor(currentUserId)) {
+            // Use the checkbox state set in Step 1 instead of a post-save dialog.
+            // Consent is false by default (privacy-safe).
+            final imageToShare = (_sharePhotoConsent &&
+                    vehicle.imageUrl != null &&
+                    (spec == null || spec.sampleImageUrl == null))
+                ? vehicle.imageUrl
+                : null;
+            _specService.saveSpec(
+              vehicle.maker,
+              vehicle.model,
+              vehicle.year,
+              vehicle.grade,
+              VehicleGrade(
+                id: '',
+                modelId: '',
+                name: vehicle.grade,
+                engineDisplacement: vehicle.engineDisplacement,
+                fuelType: vehicle.fuelType?.name,
+              ),
+              contributorId: currentUserId,
+              imageUrl: imageToShare,
+            );
+          }
+        }
+        if (!mounted) return;
         showSuccessSnackBar(context, '車両を登録しました');
         Navigator.pop(context);
       } else {
@@ -374,7 +530,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   bool get _isDirty =>
       _currentStep > 0 ||
       _selectedMaker != null ||
+      _selectedModel != null ||
       _yearController.text.isNotEmpty ||
+      _mileageController.text.isNotEmpty ||
       _licensePlateController.text.isNotEmpty ||
       _imageBytes != null;
 
@@ -508,6 +666,25 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                       ),
               ),
             ),
+            // Show photo-consent checkbox only when a photo has been selected.
+            // Asking before save (checkbox) is better UX than a post-save dialog:
+            // the user sees the choice while still in context of "I'm uploading."
+            if (_imageBytes != null) ...[
+              AppSpacing.verticalXs,
+              CheckboxListTile(
+                key: const Key('photo_consent_checkbox'),
+                value: _sharePhotoConsent,
+                onChanged: (v) =>
+                    setState(() => _sharePhotoConsent = v ?? false),
+                title: const Text('写真をコミュニティと共有する（任意）'),
+                subtitle: const Text(
+                  'ナンバーや個人情報が写り込んでいない場合のみ選択してください',
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
+            ],
             AppSpacing.verticalLg,
 
             _buildSectionHeader(theme, '車両情報', Icons.directions_car),
@@ -570,13 +747,35 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                   child: GradeSelectorField(
                     modelId: _selectedModel?.id,
                     selectedGrade: _selectedGrade,
-                    onChanged: (grade) =>
-                        setState(() => _selectedGrade = grade),
+                    onChanged: (grade) {
+                      setState(() {
+                        _selectedGrade = grade;
+                        _communitySpec = null;
+                        // Auto-fill specs from grade master data
+                        if (grade != null) {
+                          if (grade.engineDisplacement != null) {
+                            _engineDisplacementController.text =
+                                grade.engineDisplacement.toString();
+                          }
+                          final ft = FuelType.fromString(grade.fuelType);
+                          if (ft != null) {
+                            _selectedFuelType = ft;
+                          }
+                          _fetchCommunitySpec(grade);
+                        }
+                      });
+                    },
                     validator: (value) => value == null ? 'グレードを選択' : null,
                   ),
                 ),
               ],
             ),
+            if ((_selectedGrade != null && _selectedGrade!.hasSpecData) ||
+                _communitySpec != null)
+              _GradeSpecPreview(
+                grade: _selectedGrade ?? _communitySpec!.grade,
+                communitySpec: _communitySpec,
+              ),
             AppSpacing.verticalMd,
 
             AppTextField.number(
@@ -1230,6 +1429,153 @@ class _StepCircle extends StatelessWidget {
                   color: isCurrent ? Colors.white : AppColors.textTertiary,
                 ),
               ),
+      ),
+    );
+  }
+}
+
+// ── グレードスペックプレビュー（登録時） ──────────────────────────────────────
+
+class _GradeSpecPreview extends StatelessWidget {
+  final VehicleGrade grade;
+  final VehicleSpecResult? communitySpec;
+  const _GradeSpecPreview({required this.grade, this.communitySpec});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final community = communitySpec;
+    final specs = <String>[];
+    if (grade.engineDisplacement != null) {
+      specs.add('排気量: ${grade.engineDisplacement}cc');
+    }
+    if (grade.fuelType != null) {
+      final ft = FuelType.fromString(grade.fuelType);
+      if (ft != null) specs.add('燃料: ${ft.displayName}');
+    }
+    if (grade.seatingCapacity != null) {
+      specs.add('定員: ${grade.seatingCapacity}名');
+    }
+    if (grade.vehicleWeight != null) {
+      specs.add('重量: ${grade.vehicleWeight}kg');
+    }
+
+    if (specs.isEmpty && grade.standardEquipment.isEmpty && community == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: AppSpacing.xs),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.06),
+        borderRadius: AppSpacing.borderRadiusSm,
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, size: 14, color: AppColors.info),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'グレードスペック（自動入力）',
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: AppColors.info),
+                ),
+              ),
+              if (community != null && community.isVerified)
+                Container(
+                  key: const Key('grade_spec_verified_badge'),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.verified,
+                          size: 12, color: AppColors.success),
+                      const SizedBox(width: 2),
+                      Text(
+                        '${community.contributorCount}人が確認',
+                        style: theme.textTheme.labelSmall
+                            ?.copyWith(color: AppColors.success),
+                      ),
+                    ],
+                  ),
+                )
+              else if (community != null)
+                Text(
+                  '${community.contributorCount}人が確認',
+                  key: const Key('grade_spec_contributor_count'),
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: AppColors.textSecondary),
+                ),
+            ],
+          ),
+          // Community-contributed photo of an actual vehicle of this grade
+          if (community?.sampleImageUrl != null) ...[
+            AppSpacing.verticalXs,
+            ClipRRect(
+              key: const Key('grade_spec_sample_image'),
+              borderRadius: AppSpacing.borderRadiusSm,
+              child: Image.network(
+                community!.sampleImageUrl!,
+                height: 140,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+            AppSpacing.verticalXxs,
+            Text(
+              'オーナー提供の実車写真',
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: AppColors.textSecondary),
+            ),
+          ],
+          if (specs.isNotEmpty) ...[
+            AppSpacing.verticalXs,
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xxs,
+              children: specs
+                  .map((s) => Chip(
+                        label: Text(s, style: const TextStyle(fontSize: 11)),
+                        padding: EdgeInsets.zero,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ))
+                  .toList(),
+            ),
+          ],
+          if (grade.standardEquipment.isNotEmpty) ...[
+            AppSpacing.verticalXs,
+            Text(
+              '標準装備',
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            AppSpacing.verticalXxs,
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xxs,
+              children: grade.standardEquipment
+                  .map((e) => Chip(
+                        label: Text(e, style: const TextStyle(fontSize: 11)),
+                        padding: EdgeInsets.zero,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ))
+                  .toList(),
+            ),
+          ],
+        ],
       ),
     );
   }

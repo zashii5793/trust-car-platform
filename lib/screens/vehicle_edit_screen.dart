@@ -14,6 +14,8 @@ import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/vehicle/vehicle_selector_fields.dart';
 import '../services/vehicle_master_service.dart';
+import '../services/fleet_service.dart';
+import '../services/vehicle_spec_service.dart';
 import 'package:uuid/uuid.dart';
 
 /// 車両編集画面
@@ -33,11 +35,13 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   VehicleMaker? _selectedMaker;
   VehicleModel? _selectedModel;
   VehicleGrade? _selectedGrade;
+  VehicleSpecResult? _communitySpec;
   bool _masterDataLoading = true; // マスタ逆引き完了まで true
   late TextEditingController _yearController;
   late TextEditingController _mileageController;
 
   VehicleMasterService get _masterService => sl.get<VehicleMasterService>();
+  VehicleSpecService get _specService => sl.get<VehicleSpecService>();
 
   // Phase 1.5: 識別情報
   late TextEditingController _licensePlateController;
@@ -48,11 +52,28 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   DateTime? _inspectionExpiryDate;
   DateTime? _insuranceExpiryDate;
 
+  // 任意保険
+  late TextEditingController _voluntaryInsuranceCompanyController;
+  DateTime? _voluntaryInsuranceExpiryDate;
+
+  // リース情報
+  late TextEditingController _lessorNameController;
+  late TextEditingController _leaseMonthlyFeeController;
+  late TextEditingController _maintenancePackController;
+  DateTime? _leaseContractEndDate;
+
+  // フリート参加
+  late TextEditingController _fleetCodeController;
+  bool _isJoiningFleet = false;
+
   // Phase 1.5: 詳細情報
   late TextEditingController _colorController;
   late TextEditingController _engineDisplacementController;
   FuelType? _selectedFuelType;
   DateTime? _purchaseDate;
+
+  // 用途区分（車検サイクル: 貨物車は毎年）
+  VehicleUseCategory? _selectedUseCategory;
 
   Uint8List? _newImageBytes;
   bool _isLoading = false;
@@ -79,6 +100,26 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     // Phase 1.5: 車検・保険
     _inspectionExpiryDate = v.inspectionExpiryDate;
     _insuranceExpiryDate = v.insuranceExpiryDate;
+    _selectedUseCategory = v.useCategory;
+
+    // 任意保険
+    _voluntaryInsuranceCompanyController = TextEditingController(
+      text: v.voluntaryInsurance?.companyName ?? '',
+    );
+    _voluntaryInsuranceExpiryDate = v.voluntaryInsurance?.expiryDate;
+
+    // リース情報
+    _lessorNameController =
+        TextEditingController(text: v.leaseInfo?.lessorName ?? '');
+    _leaseMonthlyFeeController = TextEditingController(
+      text: v.leaseInfo?.monthlyFee?.toString() ?? '',
+    );
+    _maintenancePackController = TextEditingController(
+      text: v.leaseInfo?.maintenancePackDetails ?? '',
+    );
+    _leaseContractEndDate = v.leaseInfo?.contractEndDate;
+
+    _fleetCodeController = TextEditingController();
 
     // Phase 1.5: 詳細情報
     _colorController = TextEditingController(text: v.color ?? '');
@@ -107,6 +148,10 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     _modelCodeController.addListener(_onFieldChanged);
     _colorController.addListener(_onFieldChanged);
     _engineDisplacementController.addListener(_onFieldChanged);
+    _voluntaryInsuranceCompanyController.addListener(_onFieldChanged);
+    _lessorNameController.addListener(_onFieldChanged);
+    _leaseMonthlyFeeController.addListener(_onFieldChanged);
+    _maintenancePackController.addListener(_onFieldChanged);
 
     // 既存車両データからマスタオブジェクトを逆引きしてセット
     _initMasterSelections();
@@ -123,15 +168,18 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     VehicleMaker? maker;
     makersResult.when(
       success: (makers) {
-        maker = makers.firstWhere(
-          (m) =>
-              m.name == v.maker ||
-              m.nameEn.toLowerCase() == v.maker.toLowerCase(),
-          orElse: () => makers.firstWhere(
-            (m) => m.id == v.maker.toLowerCase(),
-            orElse: () => throw StateError('not found'),
-          ),
-        );
+        // Unmatched maker must not throw — a renamed/removed master entry
+        // would otherwise leave the screen stuck on the loading indicator.
+        try {
+          maker = makers.firstWhere(
+            (m) =>
+                m.name == v.maker ||
+                m.nameEn.toLowerCase() == v.maker.toLowerCase(),
+            orElse: () => makers.firstWhere(
+              (m) => m.id == v.maker.toLowerCase(),
+            ),
+          );
+        } catch (_) {}
       },
       failure: (_) {},
     );
@@ -191,6 +239,84 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     });
   }
 
+  /// Asks for explicit consent before sharing the vehicle photo with the
+  /// community. Defaults to NOT sharing (privacy-safe).
+  Future<bool> _askPhotoShareConsent() async {
+    final consent = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('実車写真の共有（任意）'),
+        content: const Text('車両の保存は完了しています。\n\n'
+            'あなたの車の写真を、同じ車種を登録する他のユーザーへの参考写真として共有しますか？\n\n'
+            'ナンバープレートや個人情報が写っている場合は「共有しない」を選んでください。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('共有しない'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('共有する'),
+          ),
+        ],
+      ),
+    );
+    return consent ?? false;
+  }
+
+  Future<void> _fetchCommunitySpec(VehicleGrade grade) async {
+    final maker = _selectedMaker?.name;
+    final model = _selectedModel?.name;
+    final year = int.tryParse(_yearController.text);
+    if (maker == null || model == null || year == null) {
+      return;
+    }
+
+    final result = await _specService.fetchSpec(maker, model, year, grade.name);
+    if (!mounted) {
+      return;
+    }
+
+    result.when(
+      success: (spec) {
+        if (spec == null) {
+          return;
+        }
+        // Fill only still-empty fields — the fetch is async and must never
+        // overwrite values the user typed (or master data) in the meantime.
+        var filled = false;
+        setState(() {
+          _communitySpec = spec;
+          if (_engineDisplacementController.text.isEmpty &&
+              spec.grade.engineDisplacement != null) {
+            _engineDisplacementController.text =
+                spec.grade.engineDisplacement.toString();
+            _showAdvancedFields = true;
+            filled = true;
+          }
+          if (_selectedFuelType == null) {
+            final ft = FuelType.fromString(spec.grade.fuelType);
+            if (ft != null) {
+              _selectedFuelType = ft;
+              _showAdvancedFields = true;
+              filled = true;
+            }
+          }
+        });
+        if (filled) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(
+              content:
+                  Text('コミュニティのデータを自動入力しました（${spec.contributorCount}人が確認）'),
+              duration: const Duration(seconds: 3),
+            ));
+        }
+      },
+      failure: (_) {},
+    );
+  }
+
   void _onFieldChanged() {
     final v = widget.vehicle;
     final changed = (_selectedMaker?.name ?? v.maker) != v.maker ||
@@ -205,8 +331,18 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         _engineDisplacementController.text !=
             (v.engineDisplacement?.toString() ?? '') ||
         _selectedFuelType != v.fuelType ||
+        _selectedUseCategory != v.useCategory ||
         _inspectionExpiryDate != v.inspectionExpiryDate ||
         _insuranceExpiryDate != v.insuranceExpiryDate ||
+        _voluntaryInsuranceCompanyController.text !=
+            (v.voluntaryInsurance?.companyName ?? '') ||
+        _voluntaryInsuranceExpiryDate != v.voluntaryInsurance?.expiryDate ||
+        _lessorNameController.text != (v.leaseInfo?.lessorName ?? '') ||
+        _leaseMonthlyFeeController.text !=
+            (v.leaseInfo?.monthlyFee?.toString() ?? '') ||
+        _maintenancePackController.text !=
+            (v.leaseInfo?.maintenancePackDetails ?? '') ||
+        _leaseContractEndDate != v.leaseInfo?.contractEndDate ||
         _purchaseDate != v.purchaseDate ||
         _newImageBytes != null;
 
@@ -215,6 +351,25 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         _hasChanges = changed;
       });
     }
+  }
+
+  /// Builds the LeaseInfo to save; returns null when every field is empty
+  /// so non-leased vehicles don't store an empty object.
+  LeaseInfo? _buildLeaseInfo() {
+    final lease = LeaseInfo(
+      lessorName: _lessorNameController.text.isEmpty
+          ? null
+          : _lessorNameController.text,
+      monthlyFee: _leaseMonthlyFeeController.text.isEmpty
+          ? null
+          : int.tryParse(_leaseMonthlyFeeController.text),
+      contractStartDate: widget.vehicle.leaseInfo?.contractStartDate,
+      contractEndDate: _leaseContractEndDate,
+      maintenancePackDetails: _maintenancePackController.text.isEmpty
+          ? null
+          : _maintenancePackController.text,
+    );
+    return lease.hasAnyValue ? lease : null;
   }
 
   @override
@@ -226,6 +381,11 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     _modelCodeController.dispose();
     _colorController.dispose();
     _engineDisplacementController.dispose();
+    _voluntaryInsuranceCompanyController.dispose();
+    _lessorNameController.dispose();
+    _leaseMonthlyFeeController.dispose();
+    _maintenancePackController.dispose();
+    _fleetCodeController.dispose();
     super.dispose();
   }
 
@@ -316,7 +476,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           _licensePlateController.text,
           excludeVehicleId: widget.vehicle.id,
         );
-        if (exists && mounted) {
+        if (!mounted) return;
+        if (exists) {
           setState(() {
             _isLoading = false;
           });
@@ -329,10 +490,20 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
 
       // 新しい画像があればアップロード
       if (_newImageBytes != null) {
+        final uploadUid = _firebaseService.currentUserId;
+        if (uploadUid == null) {
+          if (mounted) {
+            showErrorSnackBar(context, 'ログインセッションが切れました。再ログインしてください');
+            setState(() => _isLoading = false);
+          }
+          return;
+        }
         final uuid = const Uuid().v4();
+        // Path includes the owner uid so Storage rules can enforce
+        // write access per user.
         final uploadResult = await _firebaseService.uploadImageBytes(
           _newImageBytes!,
-          'vehicles/$uuid.jpg',
+          'vehicles/$uploadUid/$uuid.jpg',
         );
         imageUrl = uploadResult.getOrThrow();
       }
@@ -362,6 +533,19 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         // Phase 1.5: 車検・保険
         inspectionExpiryDate: _inspectionExpiryDate,
         insuranceExpiryDate: _insuranceExpiryDate,
+        // 任意保険: ここでは会社名・満期日のみ編集。詳細（補償額・等級・
+        // 法人フリート契約等）は専用の保険編集画面で扱うため copyWith で
+        // 既存の全フィールドを保持する（データ消失防止）。
+        voluntaryInsurance:
+            (widget.vehicle.voluntaryInsurance ?? const VoluntaryInsurance())
+                .copyWith(
+          companyName: _voluntaryInsuranceCompanyController.text.isEmpty
+              ? null
+              : _voluntaryInsuranceCompanyController.text,
+          expiryDate: _voluntaryInsuranceExpiryDate,
+        ),
+        // リース情報（契約開始日は未編集なら既存値を引き継ぐ）
+        leaseInfo: _buildLeaseInfo(),
         // Phase 1.5: 詳細情報
         color: _colorController.text.isEmpty ? null : _colorController.text,
         engineDisplacement: _engineDisplacementController.text.isEmpty
@@ -369,6 +553,18 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
             : int.tryParse(_engineDisplacementController.text),
         fuelType: _selectedFuelType,
         purchaseDate: _purchaseDate,
+        // Phase 5: preserve existing values (not editable in this screen)
+        firstRegistrationDate: widget.vehicle.firstRegistrationDate,
+        driveType: widget.vehicle.driveType,
+        transmissionType: widget.vehicle.transmissionType,
+        vehicleWeight: widget.vehicle.vehicleWeight,
+        seatingCapacity: widget.vehicle.seatingCapacity,
+        // Fleet: preserve existing fleet membership
+        companyId: widget.vehicle.companyId,
+        assigneeId: widget.vehicle.assigneeId,
+        assigneeName: widget.vehicle.assigneeName,
+        // 用途区分（車検サイクル）
+        useCategory: _selectedUseCategory,
       );
 
       // 車両を更新
@@ -377,8 +573,56 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           .updateVehicle(widget.vehicle.id, updatedVehicle);
 
       if (success && mounted) {
+        // Contribute spec data to the community collection (fire-and-forget).
+        // Skipped entirely when this user already contributed — repeat saves
+        // must not re-show the consent dialog nor inflate the badge count.
+        // The photo is only shared with explicit user consent — vehicle
+        // photos may contain license plates or other personal information.
+        final uid = _firebaseService.currentUserId;
+        if (uid != null &&
+            (updatedVehicle.engineDisplacement != null ||
+                updatedVehicle.fuelType != null)) {
+          final spec = (await _specService.fetchSpec(
+                  updatedVehicle.maker,
+                  updatedVehicle.model,
+                  updatedVehicle.year,
+                  updatedVehicle.grade))
+              .valueOrNull;
+          if (spec == null || !spec.isContributor(uid)) {
+            String? imageToShare;
+            if (updatedVehicle.imageUrl != null &&
+                (spec == null || spec.sampleImageUrl == null) &&
+                mounted) {
+              imageToShare = await _askPhotoShareConsent()
+                  ? updatedVehicle.imageUrl
+                  : null;
+            }
+            _specService.saveSpec(
+              updatedVehicle.maker,
+              updatedVehicle.model,
+              updatedVehicle.year,
+              updatedVehicle.grade,
+              VehicleGrade(
+                id: '',
+                modelId: '',
+                name: updatedVehicle.grade,
+                engineDisplacement: updatedVehicle.engineDisplacement,
+                fuelType: updatedVehicle.fuelType?.name,
+                seatingCapacity: updatedVehicle.seatingCapacity,
+                vehicleWeight: updatedVehicle.vehicleWeight,
+              ),
+              contributorId: uid,
+              imageUrl: imageToShare,
+            );
+          }
+        }
+        if (!mounted) return;
         showSuccessSnackBar(context, '車両情報を更新しました');
         Navigator.pop(context, updatedVehicle);
+      } else if (mounted) {
+        final provider = Provider.of<VehicleProvider>(context, listen: false);
+        showErrorSnackBar(
+            context, provider.errorMessage ?? '更新に失敗しました。通信環境をご確認ください');
       }
     } catch (e) {
       if (mounted) {
@@ -431,6 +675,10 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         showSuccessSnackBar(context, '車両を削除しました');
         // 2つ前の画面（ホーム）に戻る
         Navigator.popUntil(context, (route) => route.isFirst);
+      } else if (mounted) {
+        final provider = Provider.of<VehicleProvider>(context, listen: false);
+        showErrorSnackBar(
+            context, provider.errorMessage ?? '削除に失敗しました。通信環境をご確認ください');
       }
     } catch (e) {
       if (mounted) {
@@ -636,6 +884,21 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                           onChanged: (grade) {
                             setState(() {
                               _selectedGrade = grade;
+                              _communitySpec = null;
+                              // Auto-fill specs from grade master data
+                              if (grade != null) {
+                                if (grade.engineDisplacement != null) {
+                                  _engineDisplacementController.text =
+                                      grade.engineDisplacement.toString();
+                                  _showAdvancedFields = true;
+                                }
+                                final ft = FuelType.fromString(grade.fuelType);
+                                if (ft != null) {
+                                  _selectedFuelType = ft;
+                                  _showAdvancedFields = true;
+                                }
+                                _fetchCommunitySpec(grade);
+                              }
                             });
                             _onFieldChanged();
                           },
@@ -651,6 +914,13 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                       ),
                     ],
                   ),
+                  // Grade spec preview card
+                  if (_selectedGrade != null &&
+                      (_selectedGrade!.hasSpecData || _communitySpec != null))
+                    _GradeSpecCard(
+                      grade: _selectedGrade!,
+                      communitySpec: _communitySpec,
+                    ),
                   AppSpacing.verticalMd,
 
                   // 走行距離
@@ -684,6 +954,10 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                   // === 車検・保険セクション ===
                   _buildSectionHeader(theme, '車検・保険', Icons.verified,
                       isImportant: true),
+                  AppSpacing.verticalSm,
+
+                  // 用途区分（車検サイクルが変わる）
+                  _buildUseCategorySelector(theme),
                   AppSpacing.verticalSm,
 
                   // 車検満了日
@@ -725,6 +999,87 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                           setState(() => _insuranceExpiryDate = date),
                     ),
                   ),
+                  AppSpacing.verticalSm,
+
+                  // 任意保険（会社名・満期日）
+                  AppTextField(
+                    controller: _voluntaryInsuranceCompanyController,
+                    labelText: '任意保険会社（任意）',
+                    hintText: '例: ○○損害保険',
+                    prefixIcon: const Icon(Icons.security),
+                  ),
+                  AppSpacing.verticalSm,
+                  _buildDatePickerTile(
+                    context: context,
+                    title: '任意保険満期日',
+                    icon: Icons.shield_outlined,
+                    date: _voluntaryInsuranceExpiryDate,
+                    hint: '任意保険証券に記載の満期日',
+                    onTap: () => _selectDate(
+                      title: '任意保険満期日を選択',
+                      currentDate: _voluntaryInsuranceExpiryDate,
+                      firstDate:
+                          DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate:
+                          DateTime.now().add(const Duration(days: 365 * 3)),
+                      onSelected: (date) =>
+                          setState(() => _voluntaryInsuranceExpiryDate = date),
+                    ),
+                  ),
+                  AppSpacing.verticalLg,
+
+                  // === リース情報セクション（リース車両のみ入力） ===
+                  _buildSectionHeader(theme, 'リース情報', Icons.assignment),
+                  AppSpacing.verticalSm,
+                  AppTextField(
+                    controller: _lessorNameController,
+                    labelText: 'リース会社（リース車両の場合）',
+                    hintText: '例: ○○オートリース',
+                    prefixIcon: const Icon(Icons.business),
+                  ),
+                  AppSpacing.verticalSm,
+                  AppTextField.number(
+                    controller: _leaseMonthlyFeeController,
+                    labelText: '月額リース料（円）',
+                    hintText: '例: 45000',
+                    prefixIcon: const Icon(Icons.payments_outlined),
+                  ),
+                  AppSpacing.verticalSm,
+                  _buildDatePickerTile(
+                    context: context,
+                    title: 'リース契約満了日',
+                    icon: Icons.event_busy,
+                    date: _leaseContractEndDate,
+                    hint: '返却・再リースの判断時期をお知らせします',
+                    onTap: () => _selectDate(
+                      title: 'リース契約満了日を選択',
+                      currentDate: _leaseContractEndDate,
+                      firstDate:
+                          DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate:
+                          DateTime.now().add(const Duration(days: 365 * 7)),
+                      onSelected: (date) =>
+                          setState(() => _leaseContractEndDate = date),
+                    ),
+                  ),
+                  AppSpacing.verticalSm,
+                  AppTextField(
+                    controller: _maintenancePackController,
+                    labelText: 'メンテナンスパック内容',
+                    hintText: '例: オイル交換・タイヤローテーション込み',
+                    prefixIcon: const Icon(Icons.build_outlined),
+                    maxLines: 3,
+                  ),
+                  AppSpacing.verticalLg,
+
+                  // === フリート参加セクション ===
+                  _buildSectionHeader(
+                      theme, 'フリート管理', Icons.business_center_outlined),
+                  AppSpacing.verticalSm,
+                  if (widget.vehicle.companyId != null)
+                    _buildFleetStatusTile(theme)
+                  else
+                    _buildFleetJoinSection(theme),
                   AppSpacing.verticalLg,
 
                   // === 詳細情報（折りたたみ） ===
@@ -1013,6 +1368,57 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     );
   }
 
+  /// 用途区分セレクター（貨物車は毎年車検のため区分が重要）
+  Widget _buildUseCategorySelector(ThemeData theme) {
+    final selected = _selectedUseCategory;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<VehicleUseCategory>(
+          key: const Key('use_category_dropdown'),
+          initialValue: selected,
+          decoration: const InputDecoration(
+            labelText: '用途区分',
+            hintText: 'ナンバープレートの分類番号で選択',
+            prefixIcon: Icon(Icons.category),
+            border: OutlineInputBorder(),
+          ),
+          items: VehicleUseCategory.values
+              .map((c) => DropdownMenuItem(
+                    value: c,
+                    child:
+                        Text(c.displayName, style: theme.textTheme.bodyMedium),
+                  ))
+              .toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedUseCategory = value;
+              _onFieldChanged();
+            });
+          },
+        ),
+        if (selected != null) ...[
+          AppSpacing.verticalXs,
+          Text(
+            selected.inspectionCycleYears == 1
+                ? '※ この区分は毎年車検が必要です'
+                : '※ 車検サイクル: ${selected.inspectionCycleYears}年ごと'
+                    '（初回${selected.firstInspectionYears}年）',
+            key: const Key('use_category_cycle_note'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: selected.inspectionCycleYears == 1
+                  ? AppColors.warning
+                  : AppColors.textTertiary,
+              fontWeight: selected.inspectionCycleYears == 1
+                  ? FontWeight.w600
+                  : FontWeight.normal,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildFuelTypeSelector(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1143,6 +1549,329 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           style: theme.textTheme.bodySmall,
         ),
       ],
+    );
+  }
+
+  Widget _buildFleetStatusTile(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.06),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle, color: AppColors.primary, size: 20),
+          AppSpacing.horizontalSm,
+          Expanded(
+            child: Text(
+              'フリートに参加中',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: AppColors.primary),
+            ),
+          ),
+          TextButton(
+            onPressed: _isJoiningFleet ? null : _leaveFleet,
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('離脱'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFleetJoinSection(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'フリートコードを入力すると、管理者の車両一覧に追加されます。',
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: AppColors.textSecondary),
+        ),
+        AppSpacing.verticalSm,
+        Row(
+          children: [
+            Expanded(
+              child: AppTextField(
+                controller: _fleetCodeController,
+                labelText: 'フリートコード',
+                hintText: '管理者から共有されたコードを入力',
+                prefixIcon: const Icon(Icons.qr_code),
+              ),
+            ),
+            AppSpacing.horizontalSm,
+            ElevatedButton(
+              onPressed: _isJoiningFleet ? null : _joinFleet,
+              child: _isJoiningFleet
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('参加'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _joinFleet() async {
+    final code = _fleetCodeController.text.trim();
+    if (code.isEmpty) {
+      showErrorSnackBar(context, 'フリートコードを入力してください');
+      return;
+    }
+    setState(() => _isJoiningFleet = true);
+    try {
+      final userId = sl.get<FirebaseService>().currentUserId;
+      if (userId == null) {
+        if (mounted) showErrorSnackBar(context, 'ログインが必要です');
+        return;
+      }
+      final result = await sl.get<FleetService>().joinFleetByCode(
+            code,
+            widget.vehicle.id,
+            userId,
+          );
+      if (!mounted) return;
+      result.when(
+        success: (_) {
+          showSuccessSnackBar(context, 'フリートに参加しました');
+          // Reflect in UI by navigating back with an updated vehicle
+          final updated = widget.vehicle.copyWith(companyId: code);
+          Navigator.pop(context, updated);
+        },
+        failure: (e) => showErrorSnackBar(context, e.message),
+      );
+    } finally {
+      if (mounted) setState(() => _isJoiningFleet = false);
+    }
+  }
+
+  Future<void> _leaveFleet() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('フリートから離脱'),
+        content: const Text('この車両をフリートから外しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('離脱する'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _isJoiningFleet = true);
+    try {
+      final userId = sl.get<FirebaseService>().currentUserId;
+      if (userId == null) {
+        if (mounted) showErrorSnackBar(context, 'ログインが必要です');
+        return;
+      }
+      final result =
+          await sl.get<FleetService>().leaveFleet(widget.vehicle.id, userId);
+      if (!mounted) return;
+      result.when(
+        success: (_) {
+          showSuccessSnackBar(context, 'フリートから離脱しました');
+          // Clear companyId by rebuilding Vehicle without it
+          Navigator.pop(
+            context,
+            Vehicle(
+              id: widget.vehicle.id,
+              userId: widget.vehicle.userId,
+              maker: widget.vehicle.maker,
+              model: widget.vehicle.model,
+              year: widget.vehicle.year,
+              grade: widget.vehicle.grade,
+              mileage: widget.vehicle.mileage,
+              imageUrl: widget.vehicle.imageUrl,
+              createdAt: widget.vehicle.createdAt,
+              updatedAt: DateTime.now(),
+              licensePlate: widget.vehicle.licensePlate,
+              vinNumber: widget.vehicle.vinNumber,
+              modelCode: widget.vehicle.modelCode,
+              inspectionExpiryDate: widget.vehicle.inspectionExpiryDate,
+              insuranceExpiryDate: widget.vehicle.insuranceExpiryDate,
+              voluntaryInsurance: widget.vehicle.voluntaryInsurance,
+              leaseInfo: widget.vehicle.leaseInfo,
+              color: widget.vehicle.color,
+              engineDisplacement: widget.vehicle.engineDisplacement,
+              fuelType: widget.vehicle.fuelType,
+              purchaseDate: widget.vehicle.purchaseDate,
+              firstRegistrationDate: widget.vehicle.firstRegistrationDate,
+              driveType: widget.vehicle.driveType,
+              transmissionType: widget.vehicle.transmissionType,
+              vehicleWeight: widget.vehicle.vehicleWeight,
+              seatingCapacity: widget.vehicle.seatingCapacity,
+              // companyId intentionally omitted to clear it
+            ),
+          );
+        },
+        failure: (e) => showErrorSnackBar(context, e.message),
+      );
+    } finally {
+      if (mounted) setState(() => _isJoiningFleet = false);
+    }
+  }
+}
+
+// ── グレードスペックプレビューカード ─────────────────────────────────────────
+
+class _GradeSpecCard extends StatelessWidget {
+  final VehicleGrade grade;
+  final VehicleSpecResult? communitySpec;
+  const _GradeSpecCard({required this.grade, this.communitySpec});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final community = communitySpec;
+    final specs = <String>[];
+    if (grade.engineDisplacement != null) {
+      specs.add('排気量: ${grade.engineDisplacement}cc');
+    }
+    if (grade.fuelType != null) {
+      final ft = FuelType.fromString(grade.fuelType);
+      if (ft != null) specs.add('燃料: ${ft.displayName}');
+    }
+    if (grade.driveType != null) {
+      final dt = DriveType.fromString(grade.driveType);
+      if (dt != null) specs.add('駆動: ${dt.displayName}');
+    }
+    if (grade.transmissionType != null) {
+      final tt = TransmissionType.fromString(grade.transmissionType);
+      if (tt != null) specs.add('変速: ${tt.displayName}');
+    }
+    if (grade.seatingCapacity != null) {
+      specs.add('定員: ${grade.seatingCapacity}名');
+    }
+    if (grade.vehicleWeight != null) {
+      specs.add('重量: ${grade.vehicleWeight}kg');
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: AppSpacing.xs),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.06),
+        borderRadius: AppSpacing.borderRadiusSm,
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, size: 14, color: AppColors.info),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'グレードスペック（マスタより自動入力）',
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: AppColors.info),
+                ),
+              ),
+              if (community != null && community.isVerified)
+                Container(
+                  key: const Key('grade_spec_verified_badge'),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.verified,
+                          size: 12, color: AppColors.success),
+                      const SizedBox(width: 2),
+                      Text(
+                        '${community.contributorCount}人が確認',
+                        style: theme.textTheme.labelSmall
+                            ?.copyWith(color: AppColors.success),
+                      ),
+                    ],
+                  ),
+                )
+              else if (community != null)
+                Text(
+                  '${community.contributorCount}人が確認',
+                  key: const Key('grade_spec_contributor_count'),
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: AppColors.textSecondary),
+                ),
+            ],
+          ),
+          // Community-contributed photo of an actual vehicle of this grade
+          if (community?.sampleImageUrl != null) ...[
+            AppSpacing.verticalXs,
+            ClipRRect(
+              key: const Key('grade_spec_sample_image'),
+              borderRadius: AppSpacing.borderRadiusSm,
+              child: Image.network(
+                community!.sampleImageUrl!,
+                height: 140,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+            AppSpacing.verticalXxs,
+            Text(
+              'オーナー提供の実車写真',
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: AppColors.textSecondary),
+            ),
+          ],
+          if (specs.isNotEmpty) ...[
+            AppSpacing.verticalXs,
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xxs,
+              children: specs
+                  .map((s) => Chip(
+                        label: Text(s, style: const TextStyle(fontSize: 11)),
+                        padding: EdgeInsets.zero,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ))
+                  .toList(),
+            ),
+          ],
+          if (grade.standardEquipment.isNotEmpty) ...[
+            AppSpacing.verticalXs,
+            Text(
+              '標準装備',
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            AppSpacing.verticalXxs,
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xxs,
+              children: grade.standardEquipment
+                  .map((e) => Chip(
+                        label: Text(e, style: const TextStyle(fontSize: 11)),
+                        padding: EdgeInsets.zero,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

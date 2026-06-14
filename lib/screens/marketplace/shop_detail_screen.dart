@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/di/service_locator.dart';
 import '../../models/shop.dart';
+import '../../models/shop_case_study.dart';
 import '../../providers/shop_provider.dart';
 import '../../core/constants/spacing.dart';
+import '../../services/shop_service.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'inquiry_screen.dart';
 
@@ -84,6 +87,8 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
                       AppSpacing.verticalMd,
                       if (shop.displayAddress.isNotEmpty)
                         _AddressSection(shop: shop),
+                      AppSpacing.verticalMd,
+                      _CaseStudiesSection(shopId: shop.id),
                       AppSpacing.verticalXl,
                     ],
                   ),
@@ -595,6 +600,137 @@ class _AddressSection extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 施工事例セクション
+// ---------------------------------------------------------------------------
+
+class _CaseStudiesSection extends StatefulWidget {
+  final String shopId;
+
+  const _CaseStudiesSection({required this.shopId});
+
+  @override
+  State<_CaseStudiesSection> createState() => _CaseStudiesSectionState();
+}
+
+class _CaseStudiesSectionState extends State<_CaseStudiesSection> {
+  late Future<List<ShopCaseStudy>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<List<ShopCaseStudy>> _load() async {
+    final result = await sl.get<ShopService>().getCaseStudies(widget.shopId);
+    return result.getOrElse([]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return FutureBuilder<List<ShopCaseStudy>>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+        final studies = snap.data ?? [];
+        if (studies.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('施工事例', style: theme.textTheme.titleSmall),
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              height: 200,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: studies.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: AppSpacing.sm),
+                itemBuilder: (_, i) => _CaseStudyCard(study: studies[i]),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CaseStudyCard extends StatelessWidget {
+  final ShopCaseStudy study;
+
+  const _CaseStudyCard({required this.study});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: 220,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 120,
+              child: study.afterImageUrl != null
+                  ? Image.network(
+                      study.afterImageUrl!,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        child: const Icon(Icons.photo_outlined, size: 40),
+                      ),
+                    )
+                  : Container(
+                      width: double.infinity,
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      child: const Icon(Icons.photo_outlined, size: 40),
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.xs),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    study.title,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (study.category != null)
+                    Text(
+                      study.category!.displayName,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  if (study.description != null)
+                    Text(
+                      study.description!,
+                      style: theme.textTheme.bodySmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

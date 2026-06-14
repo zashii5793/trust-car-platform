@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/di/service_locator.dart';
 import '../../models/part_listing.dart';
+import '../../models/post.dart';
 import '../../models/vehicle.dart';
 import '../../providers/part_recommendation_provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../services/post_service.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../sns/post_detail_screen.dart';
 
 /// AIパーツ提案画面
 ///
@@ -65,6 +69,7 @@ class _PartRecommendationScreenState extends State<PartRecommendationScreen> {
           body: Column(
             children: [
               _CategoryFilterBar(provider: provider, vehicle: widget.vehicle),
+              _OwnerExamplesSection(vehicle: widget.vehicle),
               Expanded(child: _buildBody(provider)),
             ],
           ),
@@ -779,6 +784,180 @@ class _ErrorState extends StatelessWidget {
               label: const Text('再試行'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── 同車種オーナーの装着例（SNS実例連携） ──────────────────────────────────
+
+/// Shows customization posts from owners of the same vehicle model.
+///
+/// This is the product's core differentiator: real install examples with
+/// the same car, not generic catalog reviews.
+class _OwnerExamplesSection extends StatefulWidget {
+  final Vehicle vehicle;
+  const _OwnerExamplesSection({required this.vehicle});
+
+  @override
+  State<_OwnerExamplesSection> createState() => _OwnerExamplesSectionState();
+}
+
+class _OwnerExamplesSectionState extends State<_OwnerExamplesSection> {
+  List<Post> _posts = const [];
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    // Section is optional — degrade gracefully when PostService is
+    // unavailable (e.g. in widget tests that don't register it).
+    if (!sl.isRegistered<PostService>()) {
+      return;
+    }
+    final result = await sl.get<PostService>().getFeed(
+          category: PostCategory.customization,
+          modelName: widget.vehicle.model,
+          limit: 5,
+        );
+    if (!mounted) return;
+    setState(() {
+      _posts = result.valueOrNull ?? const [];
+      _loaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Hide entirely when no examples exist — no empty-state noise.
+    if (!_loaded || _posts.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    return Column(
+      key: const Key('owner_examples_section'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.xs),
+          child: Row(
+            children: [
+              const Icon(Icons.people_outline,
+                  size: 16, color: AppColors.primary),
+              AppSpacing.horizontalXs,
+              Text(
+                '同じ${widget.vehicle.model}オーナーの装着例',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 120,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            itemCount: _posts.length,
+            itemBuilder: (context, index) {
+              final post = _posts[index];
+              return _OwnerExampleCard(post: post);
+            },
+          ),
+        ),
+        AppSpacing.verticalXs,
+      ],
+    );
+  }
+}
+
+class _OwnerExampleCard extends StatelessWidget {
+  final Post post;
+  const _OwnerExampleCard({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final thumbnail = post.media.isNotEmpty
+        ? post.media.first.thumbnailUrl ?? post.media.first.url
+        : null;
+
+    return SizedBox(
+      width: 220,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        margin: const EdgeInsets.only(right: AppSpacing.sm),
+        child: InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PostDetailScreen(post: post),
+            ),
+          ),
+          child: Row(
+            children: [
+              if (thumbnail != null)
+                SizedBox(
+                  width: 72,
+                  height: double.infinity,
+                  child: Image.network(
+                    thumbnail,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: AppColors.backgroundLight,
+                      child: const Icon(Icons.image_not_supported_outlined,
+                          size: 20, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.xs),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          post.content,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              post.userDisplayName ?? '匿名オーナー',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelSmall
+                                  ?.copyWith(color: AppColors.textSecondary),
+                            ),
+                          ),
+                          const Icon(Icons.favorite,
+                              size: 12, color: AppColors.error),
+                          const SizedBox(width: 2),
+                          Text(
+                            '${post.likeCount}',
+                            style: theme.textTheme.labelSmall,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

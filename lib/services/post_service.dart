@@ -178,6 +178,7 @@ class PostService {
     DocumentSnapshot? startAfter,
     PostCategory? category,
     String? makerId,
+    String? modelName,
   }) async {
     try {
       Query<Map<String, dynamic>> query = _postsRef
@@ -191,6 +192,10 @@ class PostService {
 
       if (makerId != null) {
         query = query.where('vehicleTag.makerId', isEqualTo: makerId);
+      }
+
+      if (modelName != null) {
+        query = query.where('vehicleTag.modelName', isEqualTo: modelName);
       }
 
       if (startAfter != null) {
@@ -209,31 +214,48 @@ class PostService {
     }
   }
 
-  /// Get posts by user
+  /// Get posts by user.
+  ///
+  /// [isViewerFollowing] — when true and [viewerId] != [userId], the query
+  /// includes both 'public' and 'followers' posts.  When false (default), only
+  /// 'public' posts are returned to non-owners.  The Firestore security rule
+  /// enforces the same constraint server-side via an `exists(follows/...)` check.
   Future<Result<List<Post>, AppError>> getUserPosts({
     required String userId,
     required String viewerId,
+    bool isViewerFollowing = false,
     int limit = 20,
     DocumentSnapshot? startAfter,
   }) async {
     try {
-      Query<Map<String, dynamic>> query = _postsRef
-          .where('userId', isEqualTo: userId)
-          .orderBy('createdAt', descending: true)
-          .limit(limit);
+      Query<Map<String, dynamic>> query =
+          _postsRef.where('userId', isEqualTo: userId);
+
+      // Apply visibility filter only for other users.
+      // This must be server-side: Firestore rules reject queries that could
+      // match restricted documents and client-side filtering leaks data anyway.
+      if (userId != viewerId) {
+        if (isViewerFollowing) {
+          // Followers can read both public and followers-only posts.
+          query = query.where('visibility', whereIn: [
+            PostVisibility.public.storageName,
+            PostVisibility.followers.storageName,
+          ]);
+        } else {
+          query = query.where('visibility',
+              isEqualTo: PostVisibility.public.storageName);
+        }
+      }
+
+      query = query.orderBy('createdAt', descending: true).limit(limit);
 
       if (startAfter != null) {
         query = query.startAfterDocument(startAfter);
       }
 
       final snapshot = await query.get();
-      var posts = snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
-
-      // Filter by visibility if not own posts
-      if (userId != viewerId) {
-        posts =
-            posts.where((p) => p.visibility == PostVisibility.public).toList();
-      }
+      final posts =
+          snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
 
       return Result.success(posts);
     } catch (e) {

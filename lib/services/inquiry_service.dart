@@ -181,6 +181,7 @@ class InquiryService {
     required bool isFromShop,
     required String content,
     List<String> attachmentUrls = const [],
+    Map<String, dynamic>? maintenancePayload,
   }) async {
     final currentUid = _auth.currentUser?.uid;
     if (currentUid == null) {
@@ -202,6 +203,8 @@ class InquiryService {
         'attachmentUrls': attachmentUrls,
         'sentAt': Timestamp.fromDate(now),
         'isRead': false,
+        if (maintenancePayload != null)
+          'maintenancePayload': maintenancePayload,
       };
 
       // Add message to subcollection
@@ -325,6 +328,28 @@ class InquiryService {
       return getInquiry(inquiryId);
     } catch (e) {
       return Result.failure(AppError.server('ステータスの更新に失敗しました: $e'));
+    }
+  }
+
+  /// Count inquiries the user has sent this calendar month.
+  ///
+  /// Used to enforce the B2C free-plan monthly inquiry limit on the client
+  /// before submission (server-side rule remains the backstop).
+  Future<Result<int, AppError>> countUserInquiriesThisMonth(
+      String userId) async {
+    try {
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+
+      final snapshot = await _inquiriesCollection
+          .where('userId', isEqualTo: userId)
+          .where('createdAt',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart))
+          .get();
+
+      return Result.success(snapshot.docs.length);
+    } catch (e) {
+      return Result.failure(AppError.server('問い合わせ数の取得に失敗しました: $e'));
     }
   }
 

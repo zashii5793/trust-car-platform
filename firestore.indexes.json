@@ -247,6 +247,16 @@
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
+    // 他ユーザーのプロフィール投稿（公開のみ）
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
     // ハッシュタグ検索
     {
       "collectionGroup": "posts",
@@ -254,6 +264,27 @@
       "fields": [
         { "fieldPath": "hashtags", "arrayConfig": "CONTAINS" },
         { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // SNS同車種フィルタ（「同じ○○オーナー」チップ）
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "vehicleTag.modelName", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // パーツ提案: 同車種オーナーの装着例（カテゴリ + 車種）
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "vehicleTag.modelName", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
@@ -380,6 +411,29 @@
       "fields": [
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "visitedAt", "order": "DESCENDING" }
+      ]
+    },
+
+    // =========================================================
+    // safety_tips
+    // =========================================================
+    // 全件 (isActive + publishedAt)
+    {
+      "collectionGroup": "safety_tips",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" }
+      ]
+    },
+    // カテゴリフィルタ付き (isActive + category + publishedAt)
+    {
+      "collectionGroup": "safety_tips",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" }
       ]
     }
 

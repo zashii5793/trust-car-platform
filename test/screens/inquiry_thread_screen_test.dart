@@ -47,6 +47,7 @@ class _StubInquiryService implements InquiryService {
     required bool isFromShop,
     required String content,
     List<String> attachmentUrls = const [],
+    Map<String, dynamic>? maintenancePayload,
   }) async =>
       Result.success(InquiryMessage(
         id: 'msg-new',
@@ -189,6 +190,7 @@ InquiryMessage _makeMessage({
   String id = 'msg-1',
   bool isFromShop = false,
   String content = 'テストメッセージ',
+  Map<String, dynamic>? maintenancePayload,
 }) {
   return InquiryMessage(
     id: id,
@@ -196,6 +198,7 @@ InquiryMessage _makeMessage({
     isFromShop: isFromShop,
     content: content,
     sentAt: DateTime(2025, 6, 1, 10, 0),
+    maintenancePayload: maintenancePayload,
   );
 }
 
@@ -366,6 +369,46 @@ void main() {
       await tester.pump();
 
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('InquiryThreadScreen — 整備明細の取込カード', () {
+    testWidgets('工場メッセージに整備明細が添付されていると取込カードが表示される', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+      stub.emitMessages([
+        _makeMessage(
+          isFromShop: true,
+          content: '整備明細をお送りします。',
+          maintenancePayload: {
+            'typeKey': 'carInspection',
+            'title': '車検整備一式',
+            'date': DateTime(2026, 5, 20).toIso8601String(),
+            'cost': 80000,
+          },
+        ),
+      ]);
+      await tester.pump();
+
+      expect(find.text('整備明細'), findsOneWidget);
+      expect(find.byKey(const Key('import_maintenance_btn')), findsOneWidget);
+    });
+
+    testWidgets('整備明細のない通常メッセージには取込カードが出ない', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+      stub.emitMessages([
+        _makeMessage(isFromShop: true, content: '通常の返信です'),
+      ]);
+      await tester.pump();
+
+      expect(find.byKey(const Key('import_maintenance_btn')), findsNothing);
     });
   });
 }

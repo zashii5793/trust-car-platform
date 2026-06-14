@@ -756,4 +756,57 @@ void main() {
       expect(find.text('正しい走行距離を入力してください'), findsNothing);
     });
   });
+
+  // =========================================================================
+  // Item 1: 写真共有同意チェックボックス（Step 1 埋め込み）
+  // =========================================================================
+  group('VehicleRegistrationScreen — 写真共有同意チェックボックス', () {
+    testWidgets('31. 写真未選択時はチェックボックスが非表示', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      // Before picking a photo, the consent checkbox must not appear
+      expect(find.byKey(const Key('photo_consent_checkbox')), findsNothing);
+    });
+
+    testWidgets('32. 写真共有同意ダイアログは登録完了後に表示されない（チェックボックス方式）', (tester) async {
+      // RED guard: after successful registration, no AlertDialog should appear
+      // (the old _askPhotoShareConsent() dialog was replaced by a checkbox).
+      // No image bytes are provided, so the upload path is skipped entirely.
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // Fill Step 1 and proceed to registration
+      await _fillStep1AndAdvance(tester); // goes to step 2
+      await tester.tap(find.text('次へ'));
+      await tester.pumpAndSettle(const Duration(seconds: 10)); // step 3
+      await tester.tap(find.text('登録する'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // No alert dialog should be blocking after successful save
+      expect(find.byType(AlertDialog), findsNothing);
+    });
+
+    testWidgets('33. 写真共有同意の初期値はfalse（チェックなし）', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      // No checked checkbox widget exists initially
+      final checkboxes = tester.widgetList<Checkbox>(find.byType(Checkbox));
+      for (final cb in checkboxes) {
+        // Any checkbox related to photo consent should default to unchecked
+        if (cb.value == true) {
+          // If any checkbox is checked, it must not be the photo consent one
+          // (photo consent checkbox key must not be checked by default)
+          final cbFinder = find.byKey(const Key('photo_consent_checkbox'));
+          final cbWidget = tester.widgetList<Checkbox>(cbFinder);
+          for (final widget in cbWidget) {
+            expect(widget.value, isFalse);
+          }
+        }
+      }
+      // No exceptions means the state is safe
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

@@ -750,4 +750,209 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('HomeScreen — ダッシュボード車検アラート', () {
+    Vehicle vehicleWithInspection(int daysFromNow) => Vehicle(
+          id: 'v-insp',
+          userId: 'u1',
+          maker: 'Toyota',
+          model: 'Prius',
+          year: 2021,
+          grade: 'S',
+          mileage: 30000,
+          // +1h: daysUntilInspection truncates partial days, keep N days
+          inspectionExpiryDate:
+              DateTime.now().add(Duration(days: daysFromNow, hours: 1)),
+          createdAt: DateTime(2024, 1, 1),
+          updatedAt: DateTime(2024, 1, 1),
+        );
+
+    testWidgets('車検まで31日以上 → 通常表示チップ', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([vehicleWithInspection(60)]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('dashboard_inspection_chip_normal')),
+          findsOneWidget);
+    });
+
+    testWidgets('車検まで30日以内 → 警告スタイルのチップ', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([vehicleWithInspection(10)]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('dashboard_inspection_chip_warning')),
+          findsOneWidget);
+    });
+
+    testWidgets('車検まで7日以内 → 重大スタイルのチップ', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([vehicleWithInspection(3)]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('dashboard_inspection_chip_critical')),
+          findsOneWidget);
+    });
+
+    testWidgets('車検日未設定 → チップ非表示', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([_makeVehicle('v1')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('dashboard_inspection_chip_normal')),
+          findsNothing);
+      expect(find.byKey(const Key('dashboard_inspection_chip_warning')),
+          findsNothing);
+      expect(find.byKey(const Key('dashboard_inspection_chip_critical')),
+          findsNothing);
+    });
+  });
+
+  group('HomeScreen — フリートプランバナー', () {
+    testWidgets('5台以上でフリートプランバナーが表示される', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles(List.generate(5, (i) => _makeVehicle('v$i')));
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('fleet_plan_banner')), findsOneWidget);
+    });
+
+    testWidgets('4台以下ではバナー非表示', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles(List.generate(4, (i) => _makeVehicle('v$i')));
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('fleet_plan_banner')), findsNothing);
+    });
+
+    testWidgets('無料開放中の文言が表示される', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles(List.generate(5, (i) => _makeVehicle('v$i')));
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.textContaining('無料開放中'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  // Item 2: 車検日未設定プロンプトカード
+  // =========================================================================
+  group('HomeScreen — 車検日未設定プロンプトカード', () {
+    Vehicle makeVehicleWithInspection(String id, DateTime inspectionDate) =>
+        Vehicle(
+          id: id,
+          userId: 'u1',
+          maker: 'Toyota',
+          model: 'Prius',
+          year: 2021,
+          grade: 'S',
+          mileage: 30000,
+          inspectionExpiryDate: inspectionDate,
+          createdAt: DateTime(2024, 1, 1),
+          updatedAt: DateTime(2024, 1, 1),
+        );
+
+    testWidgets('車検日未設定の車両があるとプロンプトカードが表示される', (tester) async {
+      final vp = _FakeVehicleProvider();
+      // Vehicle with no inspection date (default _makeVehicle has null)
+      vp.setVehicles([_makeVehicle('v1')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('inspection_setup_card')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('車検日が設定済みの場合プロンプトカードは非表示', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([
+        makeVehicleWithInspection(
+          'v1',
+          DateTime.now().add(const Duration(days: 180)),
+        ),
+      ]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('inspection_setup_card')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('一部の車両に車検日がない場合もカードが表示される', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([
+        makeVehicleWithInspection(
+          'v1',
+          DateTime.now().add(const Duration(days: 90)),
+        ),
+        _makeVehicle('v2'), // no inspection date
+      ]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('inspection_setup_card')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('全車両に車検日が設定済みの場合カードは非表示', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([
+        makeVehicleWithInspection(
+          'v1',
+          DateTime.now().add(const Duration(days: 180)),
+        ),
+        makeVehicleWithInspection(
+          'v2',
+          DateTime.now().add(const Duration(days: 365)),
+        ),
+      ]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('inspection_setup_card')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('カードに「車検日を登録」などのCTA文言が含まれる', (tester) async {
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([_makeVehicle('v1')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('inspection_setup_card')),
+          matching: find.textContaining('車検'),
+        ),
+        findsWidgets,
+      );
+    });
+  });
 }

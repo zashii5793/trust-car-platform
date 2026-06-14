@@ -32,6 +32,7 @@ class MockPostService implements PostService {
     dynamic startAfter,
     PostCategory? category,
     String? makerId,
+    String? modelName,
   }) async =>
       const Result.success([]);
 
@@ -358,6 +359,69 @@ void main() {
         await pumpApp(tester, mockService);
 
         expect(find.textContaining('投稿しましょう'), findsOneWidget);
+      });
+    });
+
+    // ── 公開範囲セレクター ──────────────────────────────────────────────────
+
+    group('公開範囲セレクター', () {
+      testWidgets('公開範囲セクションラベルが表示される', (tester) async {
+        await pumpApp(tester, mockService);
+
+        expect(find.text('公開範囲'), findsOneWidget);
+      });
+
+      testWidgets('3つの選択肢が全て表示される', (tester) async {
+        await pumpApp(tester, mockService);
+
+        expect(find.text('全体公開'), findsWidgets);
+        expect(find.text('フォロワーのみ'), findsOneWidget);
+        expect(find.text('自分のみ'), findsOneWidget);
+      });
+
+      testWidgets('フォロワーのみを選択して投稿すると visibility が followers になる',
+          (tester) async {
+        await pumpApp(tester, mockService);
+
+        await tester.tap(find.text('フォロワーのみ'));
+        await tester.pump();
+
+        await tester.enterText(find.byType(TextField).first, 'フォロワー限定投稿');
+        await tester.pump();
+        await tester.tap(find.text('投稿する'));
+        await tester.pump();
+
+        expect(mockService.lastVisibility, PostVisibility.followers);
+      });
+
+      testWidgets('自分のみを選択して投稿すると visibility が private_ になる', (tester) async {
+        await pumpApp(tester, mockService);
+
+        await tester.tap(find.text('自分のみ'));
+        await tester.pump();
+
+        await tester.enterText(find.byType(TextField).first, '非公開投稿');
+        await tester.pump();
+        await tester.tap(find.text('投稿する'));
+        await tester.pump();
+
+        expect(mockService.lastVisibility, PostVisibility.private_);
+      });
+
+      testWidgets('公開範囲を変えた後に全体公開に戻すと visibility が public になる', (tester) async {
+        await pumpApp(tester, mockService);
+
+        await tester.tap(find.text('フォロワーのみ'));
+        await tester.pump();
+        await tester.tap(find.text('全体公開'));
+        await tester.pump();
+
+        await tester.enterText(find.byType(TextField).first, '全体公開に戻した投稿');
+        await tester.pump();
+        await tester.tap(find.text('投稿する'));
+        await tester.pump();
+
+        expect(mockService.lastVisibility, PostVisibility.public);
       });
     });
   });

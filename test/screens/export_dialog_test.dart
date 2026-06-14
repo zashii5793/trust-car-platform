@@ -27,6 +27,8 @@ import 'package:trust_car_platform/services/pdf_export_service.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/core/di/service_locator.dart';
+import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:trust_car_platform/core/result/result.dart';
 
 // ---------------------------------------------------------------------------
 // Stub PdfExportService
@@ -35,11 +37,11 @@ import 'package:trust_car_platform/core/di/service_locator.dart';
 class _StubPdfExportService implements PdfExportService {
   // Returns empty PDF bytes to avoid heavy processing in tests
   @override
-  Future<Uint8List> generateMaintenanceReport({
+  Future<Result<Uint8List, AppError>> generateMaintenanceReport({
     required Vehicle vehicle,
     required List<MaintenanceRecord> records,
   }) async {
-    return Uint8List(0);
+    return Result.success(Uint8List(0));
   }
 
   @override

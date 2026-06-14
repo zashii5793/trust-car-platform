@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart' show GeoPoint;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/providers/shop_provider.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
@@ -156,6 +157,7 @@ class MockInquiryService implements InquiryService {
     required bool isFromShop,
     required String content,
     List<String> attachmentUrls = const [],
+    Map<String, dynamic>? maintenancePayload,
   }) async =>
       Result.failure(AppError.server('not implemented'));
 
@@ -183,6 +185,11 @@ class MockInquiryService implements InquiryService {
 
   @override
   Future<Result<int, AppError>> getUnreadCountForUser(String userId) async =>
+      const Result.success(0);
+
+  @override
+  Future<Result<int, AppError>> countUserInquiriesThisMonth(
+          String userId) async =>
       const Result.success(0);
 
   @override
@@ -736,6 +743,105 @@ void main() {
         provider.clearFilters();
 
         expect(notified, isTrue);
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // 距離ソート（近い順）
+    // -------------------------------------------------------------------------
+    group('sortByDistanceFrom', () {
+      // 東京駅: 35.681, 139.767 / 横浜駅: 35.466, 139.622 / 大阪駅: 34.702, 135.495
+      Shop shopAt(String id, double lat, double lng) =>
+          _makeShop(id: id).copyWith(location: GeoPoint(lat, lng));
+
+      test('現在地から近い順にソートされる', () async {
+        mockShopService.shopsResult = Result.success([
+          _makeShop(id: 'osaka')
+              .copyWith(location: const GeoPoint(34.702, 135.495)),
+          _makeShop(id: 'tokyo')
+              .copyWith(location: const GeoPoint(35.681, 139.767)),
+          _makeShop(id: 'yokohama')
+              .copyWith(location: const GeoPoint(35.466, 139.622)),
+        ]);
+        await provider.loadShops();
+
+        // 東京駅を現在地とする
+        provider.sortByDistanceFrom(35.681, 139.767);
+
+        expect(provider.shops.map((s) => s.id).toList(),
+            ['tokyo', 'yokohama', 'osaka']);
+      });
+
+      test('距離が distanceForShop で取得できる（東京→横浜は約27km）', () async {
+        mockShopService.shopsResult = Result.success([
+          shopAt('yokohama', 35.466, 139.622),
+        ]);
+        await provider.loadShops();
+
+        provider.sortByDistanceFrom(35.681, 139.767);
+
+        final km = provider.distanceForShop('yokohama');
+        expect(km, isNotNull);
+        expect(km!, greaterThan(20));
+        expect(km, lessThan(35));
+      });
+
+      test('位置情報なしの店舗は末尾に並ぶ', () async {
+        mockShopService.shopsResult = Result.success([
+          _makeShop(id: 'no-location'), // location null
+          shopAt('tokyo', 35.681, 139.767),
+        ]);
+        await provider.loadShops();
+
+        provider.sortByDistanceFrom(35.681, 139.767);
+
+        expect(provider.shops.last.id, 'no-location');
+        expect(provider.distanceForShop('no-location'), isNull);
+      });
+
+      test('ソート後にリスナーへ通知される', () async {
+        mockShopService.shopsResult =
+            Result.success([shopAt('s1', 35.0, 139.0)]);
+        await provider.loadShops();
+
+        bool notified = false;
+        provider.addListener(() => notified = true);
+        provider.sortByDistanceFrom(35.681, 139.767);
+
+        expect(notified, isTrue);
+      });
+
+      group('Edge Cases', () {
+        test('店舗0件でもクラッシュしない', () async {
+          mockShopService.shopsResult = const Result.success([]);
+          await provider.loadShops();
+
+          provider.sortByDistanceFrom(35.681, 139.767);
+
+          expect(provider.shops, isEmpty);
+        });
+
+        test('同一座標の店舗は距離0km', () async {
+          mockShopService.shopsResult =
+              Result.success([shopAt('same', 35.681, 139.767)]);
+          await provider.loadShops();
+
+          provider.sortByDistanceFrom(35.681, 139.767);
+
+          expect(provider.distanceForShop('same'), closeTo(0, 0.001));
+        });
+
+        test('loadShops を再実行すると距離情報はクリアされる', () async {
+          mockShopService.shopsResult =
+              Result.success([shopAt('s1', 35.466, 139.622)]);
+          await provider.loadShops();
+          provider.sortByDistanceFrom(35.681, 139.767);
+          expect(provider.distanceForShop('s1'), isNotNull);
+
+          await provider.loadShops();
+
+          expect(provider.distanceForShop('s1'), isNull);
+        });
       });
     });
   });

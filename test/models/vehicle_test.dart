@@ -174,6 +174,81 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // LeaseInfo
+  // -------------------------------------------------------------------------
+  group('LeaseInfo', () {
+    test('fromMap(null) でインスタンスが生成される（全フィールドnull）', () {
+      final lease = LeaseInfo.fromMap(null);
+      expect(lease.lessorName, isNull);
+      expect(lease.monthlyFee, isNull);
+      expect(lease.contractEndDate, isNull);
+      expect(lease.hasAnyValue, isFalse);
+    });
+
+    test('toMap / fromMap ラウンドトリップ', () {
+      final lease = LeaseInfo(
+        lessorName: '○○オートリース',
+        monthlyFee: 45000,
+        contractStartDate: DateTime(2024, 4, 1),
+        contractEndDate: DateTime(2027, 3, 31),
+        maintenancePackDetails: 'オイル交換・タイヤローテーション込み',
+      );
+
+      final map = lease.toMap();
+      expect(map['lessorName'], '○○オートリース');
+      expect(map['monthlyFee'], 45000);
+      expect(map['contractEndDate'], isA<Timestamp>());
+
+      final restored = LeaseInfo.fromMap(map);
+      expect(restored.lessorName, '○○オートリース');
+      expect(restored.monthlyFee, 45000);
+      expect(restored.maintenancePackDetails, 'オイル交換・タイヤローテーション込み');
+      expect(restored.contractEndDate, DateTime(2027, 3, 31));
+    });
+
+    test('hasAnyValue は1フィールドでも入力があれば true', () {
+      expect(const LeaseInfo(lessorName: 'A社').hasAnyValue, isTrue);
+      expect(const LeaseInfo(monthlyFee: 30000).hasAnyValue, isTrue);
+      expect(const LeaseInfo().hasAnyValue, isFalse);
+    });
+
+    test('isExpiringSoon は60日以内で true', () {
+      final lease = LeaseInfo(
+        contractEndDate: DateTime.now().add(const Duration(days: 30)),
+      );
+      expect(lease.isExpiringSoon, isTrue);
+    });
+
+    test('isExpiringSoon は61日以上先で false', () {
+      final lease = LeaseInfo(
+        contractEndDate: DateTime.now().add(const Duration(days: 90)),
+      );
+      expect(lease.isExpiringSoon, isFalse);
+    });
+
+    test('Vehicle.daysUntilLeaseExpiry はリース情報なしのとき null', () {
+      expect(_make().daysUntilLeaseExpiry, isNull);
+    });
+
+    test('Vehicle の toMap に leaseInfo が含まれラウンドトリップできる', () {
+      final v = _make().copyWith(
+        leaseInfo: LeaseInfo(
+          lessorName: 'B社リース',
+          monthlyFee: 52000,
+          contractEndDate: DateTime(2026, 12, 31),
+        ),
+      );
+
+      final map = v.toMap();
+      expect(map['leaseInfo'], isNotNull);
+      expect(map['leaseInfo']['lessorName'], 'B社リース');
+
+      final restored = LeaseInfo.fromMap(map['leaseInfo']);
+      expect(restored.monthlyFee, 52000);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Vehicle — construction
   // -------------------------------------------------------------------------
   group('Vehicle.construction', () {
@@ -424,6 +499,134 @@ void main() {
       // 実際の挙動を文書化するテスト
       final v = _make(grade: '　');
       expect(v.fullDisplayName, isNotEmpty);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // VehicleUseCategory（用途区分・車検サイクル）
+  // -------------------------------------------------------------------------
+  group('VehicleUseCategory', () {
+    test('自家用乗用車: 初回3年・以降2年', () {
+      expect(VehicleUseCategory.privatePassenger.firstInspectionYears, 3);
+      expect(VehicleUseCategory.privatePassenger.inspectionCycleYears, 2);
+    });
+
+    test('貨物車（1・4ナンバー）: 初回2年・以降1年（毎年車検）', () {
+      expect(VehicleUseCategory.cargo.firstInspectionYears, 2);
+      expect(VehicleUseCategory.cargo.inspectionCycleYears, 1);
+    });
+
+    test('軽貨物: 初回2年・以降2年', () {
+      expect(VehicleUseCategory.keiCargo.firstInspectionYears, 2);
+      expect(VehicleUseCategory.keiCargo.inspectionCycleYears, 2);
+    });
+
+    test('事業用・大型貨物: 初回1年・以降1年', () {
+      expect(VehicleUseCategory.commercial.firstInspectionYears, 1);
+      expect(VehicleUseCategory.commercial.inspectionCycleYears, 1);
+    });
+
+    test('displayName が日本語', () {
+      expect(VehicleUseCategory.privatePassenger.displayName, contains('乗用'));
+      expect(VehicleUseCategory.cargo.displayName, contains('貨物'));
+    });
+
+    test('fromString は有効な文字列から enum を返す', () {
+      expect(VehicleUseCategory.fromString('cargo'), VehicleUseCategory.cargo);
+      expect(VehicleUseCategory.fromString('privatePassenger'),
+          VehicleUseCategory.privatePassenger);
+    });
+
+    test('fromString は null/不正文字列で null を返す', () {
+      expect(VehicleUseCategory.fromString(null), isNull);
+      expect(VehicleUseCategory.fromString('invalid'), isNull);
+      expect(VehicleUseCategory.fromString(''), isNull);
+    });
+  });
+
+  group('Vehicle.useCategory と次回車検日計算', () {
+    Vehicle makeWithCategory({
+      VehicleUseCategory? useCategory,
+      DateTime? inspectionExpiryDate,
+    }) {
+      return Vehicle(
+        id: 'v1',
+        userId: 'u1',
+        maker: 'Toyota',
+        model: 'Hiace',
+        year: 2022,
+        grade: 'DX',
+        mileage: 50000,
+        createdAt: DateTime(2024, 1, 1),
+        updatedAt: DateTime(2024, 1, 1),
+        useCategory: useCategory,
+        inspectionExpiryDate: inspectionExpiryDate,
+      );
+    }
+
+    test('useCategory 未設定（null）の場合は自家用乗用車として扱う', () {
+      final v = makeWithCategory(useCategory: null);
+      expect(v.effectiveUseCategory, VehicleUseCategory.privatePassenger);
+    });
+
+    test('貨物車の次回車検推奨日 = 現在の満了日 + 1年', () {
+      final v = makeWithCategory(
+        useCategory: VehicleUseCategory.cargo,
+        inspectionExpiryDate: DateTime(2026, 8, 1),
+      );
+      expect(v.suggestedNextInspectionDate, DateTime(2027, 8, 1));
+    });
+
+    test('自家用乗用車の次回車検推奨日 = 現在の満了日 + 2年', () {
+      final v = makeWithCategory(
+        useCategory: VehicleUseCategory.privatePassenger,
+        inspectionExpiryDate: DateTime(2026, 8, 1),
+      );
+      expect(v.suggestedNextInspectionDate, DateTime(2028, 8, 1));
+    });
+
+    test('車検満了日が未設定なら次回推奨日は null', () {
+      final v = makeWithCategory(
+        useCategory: VehicleUseCategory.cargo,
+        inspectionExpiryDate: null,
+      );
+      expect(v.suggestedNextInspectionDate, isNull);
+    });
+
+    test('toMap に useCategory が含まれる', () {
+      final v = makeWithCategory(useCategory: VehicleUseCategory.cargo);
+      expect(v.toMap()['useCategory'], 'cargo');
+    });
+
+    test('toMap で useCategory が null の場合は null が入る', () {
+      final v = makeWithCategory(useCategory: null);
+      expect(v.toMap()['useCategory'], isNull);
+    });
+
+    test('copyWith で useCategory を変更できる', () {
+      final v = makeWithCategory(useCategory: VehicleUseCategory.cargo);
+      final copied =
+          v.copyWith(useCategory: VehicleUseCategory.privatePassenger);
+      expect(copied.useCategory, VehicleUseCategory.privatePassenger);
+    });
+
+    group('Edge Cases', () {
+      test('うるう年2/29満了の貨物車 +1年は2/28（Dartの日付正規化に従い3/1）', () {
+        final v = makeWithCategory(
+          useCategory: VehicleUseCategory.cargo,
+          inspectionExpiryDate: DateTime(2028, 2, 29),
+        );
+        // DateTime(2029, 2, 29) は 2029-03-01 に正規化される
+        expect(v.suggestedNextInspectionDate, DateTime(2029, 3, 1));
+      });
+
+      test('過去の満了日でも計算できる（期限切れ車両の更新時）', () {
+        final v = makeWithCategory(
+          useCategory: VehicleUseCategory.cargo,
+          inspectionExpiryDate: DateTime(2020, 1, 1),
+        );
+        expect(v.suggestedNextInspectionDate, DateTime(2021, 1, 1));
+      });
     });
   });
 }

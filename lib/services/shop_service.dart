@@ -1,15 +1,27 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/shop.dart';
+import '../models/shop_case_study.dart';
 
 /// Service for shop (business partner) operations
 class ShopService {
   final FirebaseFirestore _firestore;
+  final FirebaseStorage? _storageOverride;
 
-  ShopService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  // Lazy getter: FirebaseStorage.instance is only accessed when actually
+  // uploading an image, so tests that never call uploadCaseStudyImage
+  // don't require Firebase Storage to be initialized.
+  FirebaseStorage get _storage => _storageOverride ?? FirebaseStorage.instance;
+
+  ShopService({FirebaseFirestore? firestore, FirebaseStorage? storage})
+      : _firestore = firestore ?? FirebaseFirestore.instance,
+        _storageOverride = storage;
 
   CollectionReference<Map<String, dynamic>> get _shopsCollection =>
       _firestore.collection('shops');
@@ -353,6 +365,69 @@ class ShopService {
       return Result.success(shops);
     } catch (e) {
       return Result.failure(AppError.server('店舗の取得に失敗しました: $e'));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Case studies (施工事例)
+  // ---------------------------------------------------------------------------
+
+  /// Uploads a case study image and returns the download URL.
+  /// [type] should be 'before' or 'after'.
+  Future<Result<String, AppError>> uploadCaseStudyImage(
+      String shopId, XFile image, String type) async {
+    try {
+      final ext = image.path.split('.').last.toLowerCase();
+      final name = '${type}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final ref = _storage.ref().child('shops/$shopId/caseStudies/$name');
+      final uploadTask = await ref.putFile(File(image.path));
+      final url = await uploadTask.ref.getDownloadURL();
+      return Result.success(url);
+    } catch (e) {
+      return Result.failure(AppError.server('画像のアップロードに失敗しました: $e'));
+    }
+  }
+
+  CollectionReference<Map<String, dynamic>> _caseStudiesCollection(
+          String shopId) =>
+      _shopsCollection.doc(shopId).collection('caseStudies');
+
+  /// Fetches all case studies for a shop, newest first.
+  Future<Result<List<ShopCaseStudy>, AppError>> getCaseStudies(
+      String shopId) async {
+    try {
+      final snapshot = await _caseStudiesCollection(shopId)
+          .orderBy('createdAt', descending: true)
+          .limit(20)
+          .get();
+      final studies =
+          snapshot.docs.map((doc) => ShopCaseStudy.fromFirestore(doc)).toList();
+      return Result.success(studies);
+    } catch (e) {
+      return Result.failure(AppError.server('施工事例の取得に失敗しました: $e'));
+    }
+  }
+
+  /// Adds a case study. The returned study has the Firestore-generated id.
+  Future<Result<ShopCaseStudy, AppError>> addCaseStudy(
+      ShopCaseStudy study) async {
+    try {
+      final ref = await _caseStudiesCollection(study.shopId).add(study.toMap());
+      final doc = await ref.get();
+      return Result.success(ShopCaseStudy.fromFirestore(doc));
+    } catch (e) {
+      return Result.failure(AppError.server('施工事例の追加に失敗しました: $e'));
+    }
+  }
+
+  /// Deletes a case study by id.
+  Future<Result<void, AppError>> deleteCaseStudy(
+      String shopId, String studyId) async {
+    try {
+      await _caseStudiesCollection(shopId).doc(studyId).delete();
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.server('施工事例の削除に失敗しました: $e'));
     }
   }
 

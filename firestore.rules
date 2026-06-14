@@ -155,6 +155,17 @@ service cloud.firestore {
       match /private/{docId} {
         allow read, write: if isShopOwner(shopId);
       }
+
+      // 施工事例サブコレクション（ショッププロフィールの公開情報）
+      match /caseStudies/{caseStudyId} {
+        // 認証済みユーザーなら誰でも閲覧可能（店舗の公開情報の一部）
+        allow read: if isAuthenticated();
+        // 作成はオーナーのみ、かつ shopId フィールドが一致すること
+        allow create: if isShopOwner(shopId) &&
+          request.resource.data.shopId == shopId;
+        // 更新・削除はオーナーのみ
+        allow update, delete: if isShopOwner(shopId);
+      }
     }
 
     // ユーザー出品パーツリスティング (C2C Marketplace)
@@ -239,9 +250,17 @@ service cloud.firestore {
 
     // 投稿データ
     match /posts/{postId} {
-      // 公開投稿は認証済みユーザーなら誰でも閲覧可能
-      // フォロワー限定・非公開は別途フィルタリング
-      allow read: if isAuthenticated();
+      // 公開投稿: 認証済みユーザーなら誰でも閲覧可能。
+      // フォロワー限定: 投稿者をフォロー中のユーザーのみ
+      //   (follows/{viewerUid}_{authorUid} ドキュメントの存在で確認)。
+      // 非公開: 本人のみ。
+      // クライアント側フィルタだけでは SDK 直接クエリで全件取得できてしまうため
+      // ルールで強制する。クエリは必ず visibility か userId に条件を含めること。
+      allow read: if isAuthenticated() &&
+        (resource.data.visibility == 'public' ||
+         resource.data.userId == request.auth.uid ||
+         (resource.data.visibility == 'followers' &&
+          exists(/databases/$(database)/documents/follows/$(request.auth.uid + '_' + resource.data.userId))));
 
       // 作成時は自分のユーザーIDを設定していること
       allow create: if isCreatingOwnDocument();
@@ -308,8 +327,11 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         resource.data.userId == request.auth.uid;
 
-      // 通知作成は認証済みユーザー（システム側で作成）
-      allow create: if isAuthenticated();
+      // 通知作成は認証済みユーザー。actorId は必ず本人 — 他人になりすました
+      // 偽通知（フィッシング誘導等）を防ぐ
+      allow create: if isAuthenticated() &&
+        request.resource.data.actorId == request.auth.uid &&
+        request.resource.data.isRead == false;
 
       // 既読フラグの更新のみ許可
       allow update: if isAuthenticated() &&
@@ -326,8 +348,10 @@ service cloud.firestore {
       // アクティブなリスティングは認証済みユーザーなら誰でも閲覧可能
       allow read: if isAuthenticated();
 
-      // 作成時は自分のユーザーIDを設定していること
-      allow create: if isCreatingOwnDocument();
+      // 作成時は自分のユーザーIDかつ sellerId も本人であること
+      // （update/delete が sellerId で判定されるため不整合を防ぐ）
+      allow create: if isCreatingOwnDocument() &&
+        request.resource.data.sellerId == request.auth.uid;
 
       // 更新は出品者のみ（sellerId）
       allow update: if isAuthenticated() &&
@@ -490,6 +514,140 @@ service cloud.firestore {
         allow read: if isOwner(userId);
         allow write: if false; // written exclusively by Cloud Functions
       }
+    }
+
+    // ==================== コミュニティ車種グレード仕様データ ====================
+    // vehicle_grade_specs/{specId}
+    // Anyone can read; authenticated users can create with a strict schema.
+    // Updates may only add the caller once to contributorIds (badge counts
+    // cannot be inflated), keep contributorCount consistent, and backfill
+    // the sample photo when none exists yet — the first contributor's spec
+    // data stays the source of truth.
+    match /vehicle_grade_specs/{specId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && request.resource.data.keys().hasOnly([
+             'maker', 'model', 'year', 'grade',
+             'engineDisplacement', 'fuelType',
+             'seatingCapacity', 'vehicleWeight', 'standardEquipment',
+             'sampleImageUrl', 'contributorIds', 'contributorCount',
+             'updatedAt'
+           ])
+        && request.resource.data.maker is string
+        && request.resource.data.model is string
+        && request.resource.data.year is int
+        && request.resource.data.contributorIds == [request.auth.uid]
+        && request.resource.data.contributorCount == 1;
+      allow update: if isAuthenticated()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['contributorIds', 'contributorCount',
+                       'sampleImageUrl', 'updatedAt'])
+        // Caller may only append themselves, exactly once.
+        && !(request.auth.uid in resource.data.get('contributorIds', []))
+        && request.resource.data.contributorIds
+             == resource.data.get('contributorIds', []).concat([request.auth.uid])
+        && request.resource.data.contributorCount
+             == resource.data.get('contributorCount', 0) + 1
+        // Photo may only be backfilled while none exists.
+        && (!('sampleImageUrl' in request.resource.data.diff(resource.data).affectedKeys())
+            || resource.data.get('sampleImageUrl', null) == null);
+    }
+
+    // ==================== フリートメンバー管理 ====================
+    // fleet_members/{companyId}_{userId}
+    // Document ID format: {companyId}_{userId}
+    // Company owner (companyId == request.auth.uid) has full access.
+    // Members may read their own record and all records in their company.
+    match /fleet_members/{memberId} {
+      // Owner reads all members of their company; members read their own record.
+      allow read: if isAuthenticated() &&
+        (resource.data.companyId == request.auth.uid ||
+         resource.data.userId == request.auth.uid);
+
+      // Only the company owner can add members.
+      allow create: if isAuthenticated() &&
+        request.resource.data.companyId == request.auth.uid;
+
+      // Only the company owner can update roles.
+      allow update: if isAuthenticated() &&
+        resource.data.companyId == request.auth.uid;
+
+      // Owner can remove anyone; members can remove themselves.
+      allow delete: if isAuthenticated() &&
+        (resource.data.companyId == request.auth.uid ||
+         resource.data.userId == request.auth.uid);
+    }
+
+    // ==================== アクセサリーショーケース ====================
+    // accessory_showcases/{showcaseId}
+    // Community-contributed showcase posts (dashcam, tire, etc.)
+    // Anyone authenticated may read; only the creator may write/delete.
+    match /accessory_showcases/{showcaseId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow update, delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+    }
+
+    // ==================== 中古車購入問い合わせ ====================
+    // car_purchase_inquiries/{inquiryId}
+    // Created by buyers; readable by the buyer and the target shop.
+    match /car_purchase_inquiries/{inquiryId} {
+      // Buyer and target shop can read.
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid ||
+         resource.data.shopId == request.auth.uid);
+
+      // Any authenticated user can create with their own userId.
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+
+      // Only the buyer can update (e.g., close the inquiry).
+      allow update: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+
+      // Buyer can delete their own inquiry.
+      allow delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+    }
+
+    // ==================== 安全情報 ====================
+    // safety_tips/{tipId}
+    // Official safety information from JAF/NPA/MLIT/FDMA/ITARDA.
+    // Read-only for all authenticated users.
+    // Write is handled exclusively by Cloud Functions / admin SDK.
+    match /safety_tips/{tipId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // admin SDK only
+    }
+
+    // ==================== コミュニティ整備トレンド ====================
+    // community_maintenance_trends/{docId}
+    // Aggregated maintenance statistics keyed by "{maker}_{model}".
+    // Only pre-aggregated, anonymised values — no individual user data.
+    // Read: any authenticated user.  Write: admin SDK only.
+    match /community_maintenance_trends/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // admin SDK only — seeded via seed_community_trends.js
+    }
+
+    // ==================== 店舗チェーン ====================
+    // shop_chains/{chainId}
+    // Franchise chain master data (e.g., コバック, ジェームス).
+    // Read: any authenticated user.
+    // Create: any shop owner (ownerId == request.auth.uid).
+    // Update/Delete: only the chain creator (ownerId field).
+    match /shop_chains/{chainId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.get('ownerId', '') == request.auth.uid;
+
+      allow update, delete: if isAuthenticated() &&
+        resource.data.get('ownerId', '') == request.auth.uid;
     }
 
     // その他のドキュメントはデフォルトで拒否
