@@ -4,6 +4,42 @@
 
 ---
 
+## セッション 2026-06-13: Storage画像の所有者スコープ修正
+
+### 背景
+車両画像が `vehicles/{uuid}.jpg`（userId未スコープ）でアップロードされ、storage.rules で
+所有者判定不能・「認証済みなら誰でも読み書き可」という弱いルールだった。
+
+### 重要な判断・発見（再発防止）
+- **リモートの storage.rules はそもそもデプロイ不可能だった**:
+  `post_images/{userId}/{timestamp}/...` の `{timestamp}` は Storage Rules の
+  **予約パッケージ名**で `firebase deploy` がコンパイルエラー。`{ts}` にリネームして解消。
+  → ルール変更時は必ず `firebase deploy --only storage --dry-run` でコンパイル確認すること。
+- **旧々形式 `vehicles/{uuid}.jpg` の後方互換ルールが現行 storage.rules に無い**:
+  単一セグメントの match が無いためデフォルト拒否＝既存画像が表示不可になる。
+  → `scripts/migrate_vehicle_images.js` で `vehicles/{userId}/{uuid}.jpg` へ移行が**必須**。
+    Admin SDK はルールを迂回するため移行自体は本番ルール反映前でも可能。
+- **firebase-tools は JDK 21以上が必須**: CI の Storage Rules Tests ジョブは Java 21 を使う
+  （17 だと "Java version before 21" でEmulator起動失敗）。
+- 共有ブランチ `claude/continue-development-WYZZp` は複数セッションが並行pushしており、
+  別セッションが既に owner-scoping を実装済みだった。マージで統合し重複を解消。
+
+### 成果物
+- `storage.rules`: `vehicles/{userId}/{fileName}` 所有者スコープ + 予約語修正
+- `lib/screens/vehicle_{registration,edit}_screen.dart`: アップロードパスを userId スコープ化
+- `scripts/migrate_vehicle_images.js`: 旧形式画像の移行（dry-run/emulator/delete-old対応、E2E検証済み）
+- `test/rules/`: Storageルール自動テスト（16件パス）+ `ci.yml` に Storage Rules Tests ジョブ追加
+- PR: #21（ブランチ全体 → main）
+
+### 未完了（人間対応）
+- **移行スクリプトの本番実行**: 認証情報（サービスアカウント鍵）が必要。
+  `--dry-run` → 本実行 → `--delete-old` の順。新ルールの本番デプロイと同時に実施。
+- **PR #21 の Analyze & Test 失敗**: 他セッション由来のlint負債24件（test/配下の
+  unused_import 4・no_leading_underscores 15・unused warning 5）。`--fatal-infos` で
+  ブロック。Storage修正とは無関係の既存問題。
+
+---
+
 ## 現在の状態
 
 **ブランチ**: `claude/continue-development-WYZZp`
