@@ -463,6 +463,21 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
         appBar: AppBar(
           title: Text(_isEditMode ? 'メンテナンス履歴を編集' : 'メンテナンス履歴を追加'),
         ),
+        bottomNavigationBar: Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.sm,
+            AppSpacing.md,
+            AppSpacing.md + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: AppButton.primary(
+            label: _isEditMode ? '更新する' : '保存する',
+            onPressed: _isLoading ? null : _saveRecord,
+            isFullWidth: true,
+            size: AppButtonSize.large,
+            icon: Icons.check,
+          ),
+        ),
         body: AppLoadingOverlay(
           isLoading: _isLoading,
           message: '保存中...',
@@ -699,15 +714,6 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                     hintText: '詳細な内容を記入できます',
                   ),
                   AppSpacing.verticalXl,
-
-                  // 保存ボタン
-                  AppButton.primary(
-                    label: _isEditMode ? '更新する' : '保存する',
-                    onPressed: _isLoading ? null : _saveRecord,
-                    isFullWidth: true,
-                    size: AppButtonSize.large,
-                    icon: Icons.check,
-                  ),
                 ],
               ),
             ),
