@@ -11,6 +11,7 @@ import 'package:trust_car_platform/core/di/injection.dart';
 import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/result/result.dart';
+import 'package:trust_car_platform/models/app_notification.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
@@ -165,6 +166,52 @@ class MockFirebaseService implements FirebaseService {
 }
 
 // ---------------------------------------------------------------------------
+// Fake NotificationProvider for AI-suggestion section tests
+// ---------------------------------------------------------------------------
+
+class _FakeNotificationProvider extends NotificationProvider {
+  _FakeNotificationProvider()
+      : super(
+          firebaseService: MockFirebaseService(),
+          recommendationService: RecommendationService(),
+        );
+
+  List<AppNotification> _fakeNotifications = [];
+
+  void setNotifications(List<AppNotification> n) {
+    _fakeNotifications = n;
+    notifyListeners();
+  }
+
+  @override
+  List<AppNotification> get notifications => _fakeNotifications;
+
+  @override
+  List<AppNotification> getNotificationsForVehicle(String vehicleId) =>
+      _fakeNotifications.where((n) => n.vehicleId == vehicleId).toList();
+
+  @override
+  Future<void> generateNotificationsForVehicles(List<Vehicle> vehicles) async {}
+}
+
+AppNotification _makeVehicleNotif({
+  String vehicleId = 'v1',
+  String title = 'オイル交換',
+  NotificationPriority priority = NotificationPriority.medium,
+}) =>
+    AppNotification(
+      id: 'n1',
+      userId: 'test-user-id',
+      type: NotificationType.maintenanceRecommendation,
+      title: title,
+      message: 'そろそろ交換時期です',
+      isRead: false,
+      createdAt: DateTime(2024),
+      vehicleId: vehicleId,
+      priority: priority,
+    );
+
+// ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
 
@@ -207,16 +254,18 @@ Widget _buildScreen(
   Vehicle vehicle,
   MaintenanceProvider provider, {
   UserSubscriptionProvider? subscriptionProvider,
+  NotificationProvider? notificationProvider,
 }) {
   return MaterialApp(
     home: MultiProvider(
       providers: [
         ChangeNotifierProvider<MaintenanceProvider>.value(value: provider),
-        ChangeNotifierProvider<NotificationProvider>(
-          create: (_) => NotificationProvider(
-            firebaseService: MockFirebaseService(),
-            recommendationService: RecommendationService(),
-          ),
+        ChangeNotifierProvider<NotificationProvider>.value(
+          value: notificationProvider ??
+              NotificationProvider(
+                firebaseService: MockFirebaseService(),
+                recommendationService: RecommendationService(),
+              ),
         ),
         ChangeNotifierProvider<UserSubscriptionProvider>.value(
           value: subscriptionProvider ?? UserSubscriptionProvider(),
@@ -234,6 +283,7 @@ Future<void> _pumpScreen(
   WidgetTester tester,
   MaintenanceProvider provider, {
   UserSubscriptionProvider? subscriptionProvider,
+  NotificationProvider? notificationProvider,
 }) async {
   await tester.binding.setSurfaceSize(const Size(800, 1600));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -241,6 +291,7 @@ Future<void> _pumpScreen(
     _testVehicle(),
     provider,
     subscriptionProvider: subscriptionProvider,
+    notificationProvider: notificationProvider,
   ));
 }
 
@@ -877,6 +928,125 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('整備記録を追加'), findsNothing);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  group('統計セクション (_StatisticsSection)', () {
+    testWidgets('記録なしのとき総費用 ¥0 と 0件が表示される', (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('¥0'), findsOneWidget);
+      expect(find.text('0 件'), findsOneWidget);
+    });
+
+    testWidgets('2件記録があるとき合計費用と件数が表示される', (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([
+        _testRecord(id: 'r1', cost: 3000),
+        _testRecord(id: 'r2', cost: 7000),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('¥10,000'), findsOneWidget);
+      expect(find.text('2 件'), findsOneWidget);
+    });
+
+    testWidgets('記録なしのとき「統計の詳細を見る」リンクは非表示', (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('統計の詳細を見る'), findsNothing);
+    });
+
+    testWidgets('記録ありのとき「統計の詳細を見る」リンクが表示される', (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([_testRecord()]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('統計の詳細を見る'), findsOneWidget);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  group('AI提案セクション (_VehicleAiSuggestions)', () {
+    testWidgets('提案なしのとき「AIからの提案」ヘッダーが表示されない', (tester) async {
+      final np = _FakeNotificationProvider()..setNotifications([]);
+
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider, notificationProvider: np);
+      mockFirebase.emitRecords([]);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.text('AIからの提案'), findsNothing);
+    });
+
+    testWidgets('この車両の提案があるとき「AIからの提案」が表示される', (tester) async {
+      final np = _FakeNotificationProvider()
+        ..setNotifications([
+          _makeVehicleNotif(vehicleId: 'v1', title: 'タイヤ交換'),
+        ]);
+
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider, notificationProvider: np);
+      mockFirebase.emitRecords([]);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.text('AIからの提案'), findsOneWidget);
+      expect(find.text('タイヤ交換'), findsOneWidget);
+    });
+
+    testWidgets('別車両の提案は表示されない', (tester) async {
+      final np = _FakeNotificationProvider()
+        ..setNotifications([
+          _makeVehicleNotif(vehicleId: 'other-vehicle', title: '他の車のオイル交換'),
+        ]);
+
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider, notificationProvider: np);
+      mockFirebase.emitRecords([]);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.text('AIからの提案'), findsNothing);
+      expect(find.text('他の車のオイル交換'), findsNothing);
+    });
+
+    testWidgets('高優先度の提案に「緊急」バッジが表示される', (tester) async {
+      final np = _FakeNotificationProvider()
+        ..setNotifications([
+          _makeVehicleNotif(
+            vehicleId: 'v1',
+            priority: NotificationPriority.high,
+            title: '車検まもなく',
+          ),
+        ]);
+
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider, notificationProvider: np);
+      mockFirebase.emitRecords([]);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.text('緊急'), findsOneWidget);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  group('コミュニティトレンドセクション (_CommunityTrendSection)', () {
+    testWidgets('CommunityTrendService 未登録のとき section は非表示', (tester) async {
+      // setUpAll does not register CommunityTrendService, so section is hidden
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([]);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.text('コミュニティの傾向'), findsNothing);
     });
   });
 }
