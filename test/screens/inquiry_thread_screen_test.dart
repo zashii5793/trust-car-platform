@@ -241,6 +241,15 @@ void main() {
 
       expect(find.text('タイヤ交換の相談'), findsOneWidget);
     });
+
+    testWidgets('工場名がAppBarサブヘッダーに表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+      ));
+      await tester.pump();
+
+      expect(find.text('テスト工場'), findsOneWidget);
+    });
   });
 
   group('InquiryThreadScreen — メッセージ表示', () {
@@ -287,6 +296,55 @@ void main() {
       expect(find.text('こんにちは'), findsOneWidget);
       expect(find.text('いらっしゃいませ'), findsOneWidget);
     });
+
+    testWidgets('メッセージ0件のとき空状態プレースホルダーが表示される', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+      stub.emitMessages([]);
+      await tester.pump();
+
+      expect(find.text('メッセージはまだありません'), findsOneWidget);
+    });
+
+    testWidgets('メッセージにHH:mm形式のタイムスタンプが表示される', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+      // sentAt = DateTime(2025, 6, 1, 10, 0) → '10:00'
+      stub.emitMessages([_makeMessage(content: 'タイム確認')]);
+      await tester.pump();
+
+      expect(find.text('10:00'), findsOneWidget);
+    });
+
+    testWidgets('工場からのメッセージには「工場」ラベルが表示される', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+      stub.emitMessages([_makeMessage(isFromShop: true, content: '工場からの返信')]);
+      await tester.pump();
+
+      expect(find.text('工場'), findsOneWidget);
+    });
+
+    testWidgets('ユーザーのメッセージには「工場」ラベルが表示されない', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+      stub.emitMessages([_makeMessage(isFromShop: false, content: 'ユーザー発言')]);
+      await tester.pump();
+
+      expect(find.text('工場'), findsNothing);
+    });
   });
 
   group('InquiryThreadScreen — 入力フィールド', () {
@@ -315,6 +373,56 @@ void main() {
       await tester.pump();
 
       expect(find.textContaining('クローズ'), findsWidgets);
+    });
+
+    testWidgets('キャンセル済みには「キャンセルされました」が表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(status: InquiryStatus.cancelled),
+      ));
+      await tester.pump();
+
+      expect(find.textContaining('キャンセル'), findsOneWidget);
+    });
+
+    testWidgets('inProgress状態でも入力フィールドが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(status: InquiryStatus.inProgress),
+      ));
+      await tester.pump();
+
+      expect(find.byType(TextField), findsOneWidget);
+    });
+
+    testWidgets('テキスト未入力時は送信ボタンが無効', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(status: InquiryStatus.pending),
+      ));
+      await tester.pump();
+
+      final iconBtn = tester.widget<IconButton>(find.byType(IconButton));
+      expect(iconBtn.onPressed, isNull);
+    });
+
+    testWidgets('空白のみ入力では送信ボタンが無効のまま', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(status: InquiryStatus.pending),
+      ));
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField), '   ');
+      await tester.pump();
+
+      final iconBtn = tester.widget<IconButton>(find.byType(IconButton));
+      expect(iconBtn.onPressed, isNull);
+    });
+
+    testWidgets('テキストフィールドのヒントテキストが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(status: InquiryStatus.pending),
+      ));
+      await tester.pump();
+
+      expect(find.widgetWithText(TextField, 'メッセージを入力...'), findsOneWidget);
     });
   });
 
@@ -409,6 +517,54 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('import_maintenance_btn')), findsNothing);
+    });
+
+    testWidgets('整備明細カードに費用が表示される', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+      stub.emitMessages([
+        _makeMessage(
+          isFromShop: true,
+          content: '整備明細をお送りします。',
+          maintenancePayload: {
+            'typeKey': 'carInspection',
+            'title': '車検整備一式',
+            'date': DateTime(2026, 5, 20).toIso8601String(),
+            'cost': 80000,
+          },
+        ),
+      ]);
+      await tester.pump();
+
+      expect(find.textContaining('¥80000'), findsOneWidget);
+    });
+
+    testWidgets('整備明細カードに種別とタイトルが表示される', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+      stub.emitMessages([
+        _makeMessage(
+          isFromShop: true,
+          content: '整備明細をお送りします。',
+          maintenancePayload: {
+            'typeKey': 'carInspection',
+            'title': '車検整備一式',
+            'date': DateTime(2026, 5, 20).toIso8601String(),
+            'cost': 80000,
+          },
+        ),
+      ]);
+      await tester.pump();
+
+      // typeLabel '車検' and title '車検整備一式' joined with '・'
+      expect(find.textContaining('車検'), findsWidgets);
+      expect(find.textContaining('車検整備一式'), findsOneWidget);
     });
   });
 }
