@@ -298,5 +298,74 @@ void main() {
       expect(
           find.byKey(const Key('fleet_vehicle_card_critical')), findsOneWidget);
     });
+
+    testWidgets('warningフィルタ選択 → 注意車両のみ表示', (tester) async {
+      final now = DateTime.now();
+      final vehicles = [
+        _makeVehicle(
+            id: 'crit',
+            inspectionExpiryDate: now.add(const Duration(days: 3))),
+        _makeVehicle(
+            id: 'warn',
+            inspectionExpiryDate: now.add(const Duration(days: 20))),
+        _makeVehicle(
+            id: 'norm',
+            inspectionExpiryDate: now.add(const Duration(days: 90))),
+      ];
+      await tester.pumpWidget(_buildSubject(vehicles: vehicles));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('fleet_filter_warning')));
+      await tester.pump();
+
+      expect(
+          find.byKey(const Key('fleet_vehicle_card_warning')), findsOneWidget);
+      expect(
+          find.byKey(const Key('fleet_vehicle_card_critical')), findsNothing);
+      expect(find.byKey(const Key('fleet_vehicle_card_normal')), findsNothing);
+    });
+
+    testWidgets('allフィルタで全車両が再表示される', (tester) async {
+      final now = DateTime.now();
+      final vehicles = [
+        _makeVehicle(
+            id: 'crit',
+            inspectionExpiryDate: now.add(const Duration(days: 3))),
+        _makeVehicle(
+            id: 'norm',
+            inspectionExpiryDate: now.add(const Duration(days: 90))),
+      ];
+      await tester.pumpWidget(_buildSubject(vehicles: vehicles));
+      await tester.pump();
+
+      // Switch to critical filter, then back to all
+      await tester.tap(find.byKey(const Key('fleet_filter_critical')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('fleet_filter_all')));
+      await tester.pump();
+
+      expect(
+          find.byKey(const Key('fleet_vehicle_card_critical')), findsOneWidget);
+      expect(
+          find.byKey(const Key('fleet_vehicle_card_normal')), findsOneWidget);
+    });
+
+    testWidgets('空のcompanyId → 空状態が表示される', (tester) async {
+      await tester.pumpWidget(_buildSubject(vehicles: [], companyId: ''));
+      await tester.pump();
+
+      expect(find.byKey(const Key('fleet_empty_state')), findsOneWidget);
+    });
+
+    testWidgets('統計: 合計台数が正しく表示される', (tester) async {
+      final vehicles = List.generate(
+        5,
+        (i) => _makeVehicle(id: 'v$i'),
+      );
+      await tester.pumpWidget(_buildSubject(vehicles: vehicles));
+      await tester.pump();
+
+      expect(find.textContaining('5'), findsWidgets);
+    });
   });
 }

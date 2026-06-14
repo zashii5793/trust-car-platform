@@ -43,8 +43,34 @@
 ## 現在の状態
 
 **ブランチ**: `claude/continue-development-WYZZp`
-**テスト**: 3559件（2026-06-14続セッション終了時点）全パス・失敗0件
+**テスト**: 3611件（2026-06-14第3セッション終了時点）全パス・失敗0件
 **`flutter analyze lib/`**: No issues found
+
+---
+
+## セッション 2026-06-14（第3セッション）: カバレッジ拡充
+
+### 成果サマリー
+
+#### 追加テスト件数: +52件
+
+1. **`test/screens/home_screen_test.dart`** +8件
+   - `_AiSuggestionSection` 全カバレッジ追加（空状態、ヘッダー、すべて見る、高/中優先度バッジ、タイトル/メッセージ、ボトムシート、通知タブ遷移）
+
+2. **`test/services/notification_state_store_test.dart`** 新規 +13件
+   - `SharedPrefsNotificationStateStore` の read/dismissed id 永続化、上書き、独立キー、`_maxIds=500` キャップ
+
+3. **`test/providers/fleet_provider_test.dart`** 新規 +22件
+   - 初期状態、stream イベント、urgency 順ソート、全4 FleetFilter モード、setFilter 通知、refresh 成功/失敗
+
+4. **`test/screens/vehicle_detail_screen_test.dart`** +9件
+   - `_StatisticsSection`: 費用/件数表示、統計リンク表示/非表示
+   - `_VehicleAiSuggestions`: 車両スコープフィルタ、緊急バッジ
+   - `_CommunityTrendSection`: `CommunityTrendService` 未登録時に非表示
+
+### 重要な発見
+- `_DashboardSummaryCard` も `'要対応'` テキストを使うため、高優先度提案テストは `findsWidgets` で対処
+- `FleetProvider._startListening` が stream emit 時に stats も自動更新するため、failure テストは「以前の値が保持される」で検証
 
 ---
 
