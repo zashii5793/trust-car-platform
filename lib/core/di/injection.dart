@@ -8,6 +8,7 @@ import '../performance/performance_service_impl.dart';
 import '../../services/firebase_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/recommendation_service.dart';
+import '../../services/notification_state_store.dart';
 import '../../services/vehicle_certificate_ocr_service.dart';
 import '../../services/invoice_ocr_service.dart';
 import '../../services/pdf_export_service.dart';
@@ -33,6 +34,23 @@ import '../../services/newsletter_service.dart';
 import '../../services/ai_chat_service.dart';
 import '../../services/maintenance_comment_service.dart';
 import '../../services/mileage_notification_service.dart';
+import '../../services/inspection_reminder_service.dart';
+import '../../services/fleet_service.dart';
+import '../../services/fleet_csv_export_service.dart';
+import '../../services/maintenance_schedule_service.dart';
+import '../../services/vehicle_spec_service.dart';
+import '../../services/maintenance_trend_service.dart';
+import '../../services/community_trend_service.dart';
+import '../../services/faq_service.dart';
+import '../../services/vehicle_history_sharing_service.dart';
+import '../../services/license_plate_masking_service.dart';
+import '../../services/shop_chain_service.dart';
+import '../../services/popular_accessories_service.dart';
+import '../../services/car_purchase_inquiry_service.dart';
+import '../../services/safety_tip_service.dart';
+import '../../services/vehicle_retirement_service.dart';
+import '../../services/fleet_member_service.dart';
+import '../../services/shop_comparison_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -75,6 +93,8 @@ class Injection {
     locator.registerLazySingleton<AuthService>(() => AuthService());
     locator.registerLazySingleton<RecommendationService>(
         () => RecommendationService());
+    locator.registerLazySingleton<NotificationStateStore>(
+        () => SharedPrefsNotificationStateStore());
 
     // OCR & Export Services
     locator.registerLazySingleton<VehicleCertificateOcrService>(
@@ -147,6 +167,72 @@ class Injection {
     locator.registerLazySingleton<MileageNotificationService>(
       () => MileageNotificationService(),
     );
+
+    // Inspection Reminder Service (schedules 30/7/1-day local reminders
+    // before each vehicle's inspection deadline)
+    locator.registerLazySingleton<InspectionReminderService>(
+      () => InspectionReminderService(),
+    );
+
+    // Fleet Service (corporate fleet vehicle management)
+    locator.registerLazySingleton<FleetService>(() => FleetService());
+
+    // Fleet CSV Export Service (vehicle list export for fleet admins)
+    locator.registerLazySingleton<FleetCsvExportService>(
+        () => const FleetCsvExportService());
+
+    // Maintenance Schedule Service (generates standard maintenance schedule)
+    locator.registerLazySingleton<MaintenanceScheduleService>(
+        () => const MaintenanceScheduleService());
+
+    // Vehicle Spec Service (community-contributed grade spec data)
+    locator
+        .registerLazySingleton<VehicleSpecService>(() => VehicleSpecService());
+
+    // Maintenance Trend Service (pure analytics — no Firestore)
+    locator.registerLazySingleton<MaintenanceTrendService>(
+        () => const MaintenanceTrendService());
+
+    // Community Trend Service (anonymized aggregate trends by make/model)
+    locator.registerLazySingleton<CommunityTrendService>(
+        () => CommunityTrendService());
+
+    // FAQ Service (structured Q&A with shop permission control)
+    locator.registerLazySingleton<FaqService>(() => FaqService());
+
+    // Vehicle History Sharing Service (permission-based shop access to vehicle records)
+    locator.registerLazySingleton<VehicleHistorySharingService>(
+        () => VehicleHistorySharingService());
+
+    // License Plate Masking Service (privacy: black-mask plate numbers on photos)
+    locator.registerLazySingleton<LicensePlateMaskingService>(
+        () => const LicensePlateMaskingService());
+
+    // Shop Chain Service (multi-branch chains like コバック, ジェームス)
+    locator.registerLazySingleton<ShopChainService>(() => ShopChainService());
+
+    // Popular Accessories Service (community-driven accessory trends)
+    locator.registerLazySingleton<PopularAccessoriesService>(
+        () => PopularAccessoriesService());
+
+    // Car Purchase Inquiry Service (used-car search deep links + inquiries)
+    locator.registerLazySingleton<CarPurchaseInquiryService>(
+        () => CarPurchaseInquiryService());
+
+    // Safety Tip Service (official-source-only safety information)
+    locator.registerLazySingleton<SafetyTipService>(() => SafetyTipService());
+
+    // Vehicle Retirement Service (売却・廃車・リース返却・譲渡)
+    locator.registerLazySingleton<VehicleRetirementService>(
+        () => VehicleRetirementService());
+
+    // Fleet Member Service (role-based access control for fleet members)
+    locator
+        .registerLazySingleton<FleetMemberService>(() => FleetMemberService());
+
+    // Shop Comparison Service (pure comparison/recommendation — no Firestore)
+    locator.registerLazySingleton<ShopComparisonService>(
+        () => const ShopComparisonService());
 
     _initialized = true;
   }

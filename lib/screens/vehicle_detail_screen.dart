@@ -7,7 +7,9 @@ import '../models/drive_log.dart';
 import '../models/app_notification.dart';
 import '../providers/maintenance_provider.dart';
 import '../providers/notification_provider.dart';
+import '../providers/user_subscription_provider.dart';
 import '../services/drive_log_service.dart';
+import '../services/maintenance_schedule_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
@@ -18,8 +20,19 @@ import '../widgets/maintenance/maintenance_ai_comment.dart';
 import 'export/export_dialog.dart';
 import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
+import 'insurance_edit_screen.dart';
 import 'maintenance_stats_screen.dart';
 import 'maintenance_search_screen.dart';
+import '../services/firebase_service.dart';
+import '../services/community_trend_service.dart';
+
+// Data returned by _InspectionCompleteDialog when the user confirms.
+class _InspectionCompletionResult {
+  final DateTime newExpiryDate;
+  final int? mileage;
+  const _InspectionCompletionResult(
+      {required this.newExpiryDate, this.mileage});
+}
 
 class VehicleDetailScreen extends StatefulWidget {
   final Vehicle vehicle;
@@ -33,6 +46,10 @@ class VehicleDetailScreen extends StatefulWidget {
 class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   late Vehicle _vehicle;
 
+  /// Guards the quick-action flows (車検完了 / 走行距離更新) against
+  /// double-submission while an async update is in flight.
+  bool _isProcessing = false;
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +59,25 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   String _formatNumber(int number) {
     final formatter = NumberFormat('#,###');
     return formatter.format(number);
+  }
+
+  void _showPdfUpgradeDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('プレミアムプランが必要です'),
+        content: const Text(
+          'PDF出力はプレミアムプランの機能です。\n'
+          'プレミアムプランにアップグレードしてご利用ください。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _navigateToEdit() async {
@@ -56,6 +92,150 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
       setState(() {
         _vehicle = result;
       });
+    }
+  }
+
+  Future<void> _showInspectionCompleteDialog() async {
+    if (_isProcessing) return;
+    if (_vehicle.inspectionExpiryDate == null) return;
+    // Capture context-dependent objects before any async gap.
+    final maintenanceProvider = context.read<MaintenanceProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    final result = await showDialog<_InspectionCompletionResult>(
+      context: context,
+      builder: (_) => _InspectionCompleteDialog(
+        currentExpiry: _vehicle.inspectionExpiryDate!,
+      ),
+    );
+
+    if (result == null || !mounted) return;
+
+    setState(() => _isProcessing = true);
+    try {
+      final firebaseService = sl.get<FirebaseService>();
+      final updated = _vehicle.copyWith(
+        inspectionExpiryDate: result.newExpiryDate,
+        updatedAt: DateTime.now(),
+      );
+
+      final updateResult =
+          await firebaseService.updateVehicle(_vehicle.id, updated);
+      if (!mounted) return;
+
+      // Abort if the expiry-date update itself failed — do not show success.
+      if (updateResult.isFailure) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('車検完了の記録に失敗しました')),
+        );
+        return;
+      }
+
+      // Ignore an obviously-wrong mileage (below the vehicle's current value)
+      // to keep the record consistent with the odometer.
+      final mileageAtService =
+          (result.mileage != null && result.mileage! >= _vehicle.mileage)
+              ? result.mileage
+              : null;
+
+      final added = await maintenanceProvider.addMaintenanceRecord(
+        MaintenanceRecord(
+          id: '',
+          vehicleId: _vehicle.id,
+          userId: _vehicle.userId,
+          type: MaintenanceType.legalInspection24,
+          title: '車検',
+          date: DateTime.now(),
+          cost: 0,
+          createdAt: DateTime.now(),
+          mileageAtService: mileageAtService,
+        ),
+      );
+      if (!mounted) return;
+
+      setState(() => _vehicle = updated);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(added ? '車検完了を記録しました' : '満了日は更新しましたが整備記録の追加に失敗しました'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _showMileageUpdateDialog() async {
+    if (_isProcessing) return;
+    final messenger = ScaffoldMessenger.of(context);
+
+    final newMileage = await showDialog<int>(
+      context: context,
+      builder: (_) => _MileageUpdateDialog(currentMileage: _vehicle.mileage),
+    );
+
+    if (newMileage == null || !mounted) return;
+    if (newMileage <= 0) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('正しい走行距離を入力してください')),
+      );
+      return;
+    }
+
+    // Guard against odometer regression — almost always a typo. Allow the
+    // user to override for legitimate cases (meter replacement / swap).
+    if (newMileage < _vehicle.mileage) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('走行距離の確認'),
+          content: Text(
+            '入力値 ${_formatNumber(newMileage)} km は現在の登録値 '
+            '${_formatNumber(_vehicle.mileage)} km より小さい値です。'
+            'このまま更新しますか？',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('キャンセル'),
+            ),
+            FilledButton(
+              key: const Key('confirm_mileage_regression_btn'),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('更新する'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+
+    setState(() => _isProcessing = true);
+    try {
+      final firebaseService = sl.get<FirebaseService>();
+      final updated = _vehicle.copyWith(
+        mileage: newMileage,
+        mileageUpdatedAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final result = await firebaseService.updateVehicle(_vehicle.id, updated);
+      if (!mounted) return;
+
+      result.when(
+        success: (_) {
+          setState(() => _vehicle = updated);
+          messenger.showSnackBar(
+            const SnackBar(content: Text('走行距離を更新しました')),
+          );
+        },
+        failure: (_) {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('走行距離の更新に失敗しました')),
+          );
+        },
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 
@@ -89,7 +269,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                 );
               },
             ),
-            // PDF出力ボタン
+            // PDF出力ボタン（プレミアム機能）
             Consumer<MaintenanceProvider>(
               builder: (context, provider, child) {
                 return IconButton(
@@ -98,6 +278,13 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                   onPressed: provider.records.isEmpty
                       ? null
                       : () {
+                          final canExport = context
+                              .read<UserSubscriptionProvider>()
+                              .canExportPdf;
+                          if (!canExport) {
+                            _showPdfUpgradeDialog(context);
+                            return;
+                          }
                           showExportDialog(
                             context: context,
                             vehicle: _vehicle,
@@ -176,7 +363,26 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                           label: '走行距離',
                           value: '${_formatNumber(_vehicle.mileage)} km',
                         ),
-                        if (_vehicle.inspectionExpiryDate != null)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 88, top: 2),
+                          child: OutlinedButton.icon(
+                            key: const Key('update_mileage_btn'),
+                            onPressed: _showMileageUpdateDialog,
+                            icon: const Icon(Icons.edit_outlined, size: 15),
+                            label: const Text('更新する'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.info,
+                              side: const BorderSide(color: AppColors.info),
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              textStyle: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ),
+                        if (_vehicle.inspectionExpiryDate != null) ...[
                           _InfoRow(
                             icon: Icons.verified_outlined,
                             label: '車検満了日',
@@ -188,6 +394,28 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                                     ? AppColors.warning
                                     : null,
                           ),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 88, top: 2),
+                            child: OutlinedButton.icon(
+                              key: const Key('inspection_complete_btn'),
+                              onPressed: _showInspectionCompleteDialog,
+                              icon: const Icon(Icons.task_alt, size: 15),
+                              label: const Text('車検完了'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.success,
+                                side: const BorderSide(
+                                  color: AppColors.success,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                textStyle: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ),
+                        ],
                         if (_vehicle.insuranceExpiryDate != null)
                           _InfoRow(
                             icon: Icons.shield_outlined,
@@ -205,6 +433,20 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       ],
                     ),
                   ),
+
+                  // 任意保険情報セクション（未登録でも編集導線を表示）
+                  _VoluntaryInsuranceSection(
+                    vehicle: _vehicle,
+                    onUpdated: (updated) => setState(() => _vehicle = updated),
+                  ),
+
+                  // リース情報セクション
+                  if (_vehicle.leaseInfo != null &&
+                      _vehicle.leaseInfo!.hasAnyValue)
+                    _LeaseInfoSection(leaseInfo: _vehicle.leaseInfo!),
+
+                  // 点検スケジュールセクション
+                  _MaintenanceScheduleSection(vehicle: _vehicle),
 
                   const Divider(height: 1),
 
@@ -246,6 +488,9 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       );
                     },
                   ),
+
+                  // コミュニティトレンドセクション
+                  _CommunityTrendSection(vehicle: _vehicle),
 
                   const Divider(height: 1),
                 ],
@@ -300,6 +545,362 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     );
   }
 }
+
+// ── 任意保険情報セクション ────────────────────────────────────────────────────
+
+class _VoluntaryInsuranceSection extends StatelessWidget {
+  final Vehicle vehicle;
+  final ValueChanged<Vehicle> onUpdated;
+  const _VoluntaryInsuranceSection({
+    required this.vehicle,
+    required this.onUpdated,
+  });
+
+  Future<void> _openEditor(BuildContext context) async {
+    final updated = await Navigator.push<Vehicle>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => InsuranceEditScreen(vehicle: vehicle),
+      ),
+    );
+    if (updated != null) onUpdated(updated);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final insurance = vehicle.voluntaryInsurance;
+    final money = NumberFormat('#,###');
+
+    final days = insurance?.expiryDate?.difference(DateTime.now()).inDays;
+    final isExpired = days != null && days < 0;
+    final isWarning = days != null && days <= 30 && days >= 0;
+    final expiryColor = isExpired
+        ? AppColors.error
+        : isWarning
+            ? AppColors.warning
+            : null;
+
+    final hasAnyData = insurance != null &&
+        (insurance.companyName != null ||
+            insurance.expiryDate != null ||
+            insurance.hasCoverageDetails ||
+            insurance.namedInsured != null ||
+            insurance.annualPremium != null);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        Padding(
+          padding: AppSpacing.paddingScreen,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.security,
+                      size: 16, color: AppColors.textSecondary),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    '任意保険',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: AppColors.textSecondary),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    key: const Key('edit_insurance_btn'),
+                    onPressed: () => _openEditor(context),
+                    icon: Icon(
+                      hasAnyData ? Icons.edit_outlined : Icons.add,
+                      size: 15,
+                    ),
+                    label: Text(hasAnyData ? '編集' : '登録'),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  ),
+                ],
+              ),
+              if (!hasAnyData)
+                Padding(
+                  padding: const EdgeInsets.only(left: 24, top: 2),
+                  child: Text(
+                    'どんな保険に入っているか記録しておきましょう',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                )
+              else ...[
+                AppSpacing.verticalXs,
+                if (insurance.contractType != null)
+                  _InfoRow(
+                    icon: Icons.workspace_premium_outlined,
+                    label: '契約形態',
+                    value: insurance.isFleetContract
+                        ? 'フリート契約'
+                            '${insurance.fleetDiscountRate != null ? '（割増引率 ${insurance.fleetDiscountRate!.toStringAsFixed(0)}%）' : ''}'
+                        : 'ノンフリート'
+                            '${insurance.nonFleetGrade != null ? '（${insurance.nonFleetGrade}等級）' : ''}',
+                  ),
+                if (insurance.companyName != null)
+                  _InfoRow(
+                    icon: Icons.business,
+                    label: '保険会社',
+                    value: insurance.companyName!,
+                  ),
+                if (insurance.namedInsured != null)
+                  _InfoRow(
+                    icon: Icons.badge_outlined,
+                    label: '記名被保険者',
+                    value: insurance.namedInsured!,
+                  ),
+                if (insurance.expiryDate != null)
+                  _InfoRow(
+                    icon: Icons.event,
+                    label: '満期日',
+                    value:
+                        DateFormat('yyyy年MM月dd日').format(insurance.expiryDate!),
+                    valueColor: expiryColor,
+                  ),
+                if (insurance.usagePurpose != null)
+                  _InfoRow(
+                    icon: Icons.commute_outlined,
+                    label: '使用目的',
+                    value: insurance.usagePurpose!,
+                  ),
+                if (insurance.bodilyInjuryLimit != null)
+                  _InfoRow(
+                    icon: Icons.personal_injury_outlined,
+                    label: '対人賠償',
+                    value: insurance.bodilyInjuryLimit!,
+                  ),
+                if (insurance.propertyDamageLimit != null)
+                  _InfoRow(
+                    icon: Icons.car_crash_outlined,
+                    label: '対物賠償',
+                    value: insurance.propertyDamageLimit!,
+                  ),
+                if (insurance.personalInjuryAmount != null)
+                  _InfoRow(
+                    icon: Icons.healing_outlined,
+                    label: '人身傷害',
+                    value: insurance.personalInjuryAmount!,
+                  ),
+                if (insurance.hasVehicleInsurance == true)
+                  _InfoRow(
+                    icon: Icons.directions_car_outlined,
+                    label: '車両保険',
+                    value: [
+                      insurance.vehicleInsuranceType,
+                      if (insurance.vehicleInsuranceAmount != null)
+                        '¥${money.format(insurance.vehicleInsuranceAmount)}',
+                      if (insurance.vehicleInsuranceDeductible != null)
+                        '免責${insurance.vehicleInsuranceDeductible}',
+                    ].whereType<String>().join(' / '),
+                  ),
+                if (insurance.driverScope != null ||
+                    insurance.driverAgeCondition != null)
+                  _InfoRow(
+                    icon: Icons.person_outline,
+                    label: '運転者条件',
+                    value: [
+                      insurance.driverScope,
+                      insurance.driverAgeCondition,
+                    ].whereType<String>().join(' / '),
+                  ),
+                if (insurance.annualPremium != null)
+                  _InfoRow(
+                    icon: Icons.payments_outlined,
+                    label: '年間保険料',
+                    value: '¥${money.format(insurance.annualPremium)}'
+                        '${insurance.paymentMethod != null ? '（${insurance.paymentMethod}）' : ''}',
+                  ),
+                if (insurance.specialClauses.isNotEmpty)
+                  _InfoRow(
+                    icon: Icons.verified_outlined,
+                    label: '特約',
+                    value: insurance.specialClauses.join('・'),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── リース情報セクション ───────────────────────────────────────────────────────
+
+class _LeaseInfoSection extends StatelessWidget {
+  final LeaseInfo leaseInfo;
+  const _LeaseInfoSection({required this.leaseInfo});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final days = leaseInfo.contractEndDate?.difference(DateTime.now()).inDays;
+    final isExpired = days != null && days < 0;
+    final isWarning = days != null && days <= 60 && days >= 0;
+    final endDateColor = isExpired
+        ? AppColors.error
+        : isWarning
+            ? AppColors.warning
+            : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        Padding(
+          padding: AppSpacing.paddingScreen,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.assignment,
+                      size: 16, color: AppColors.textSecondary),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    'リース情報',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              AppSpacing.verticalXs,
+              if (leaseInfo.lessorName != null)
+                _InfoRow(
+                  icon: Icons.business,
+                  label: 'リース会社',
+                  value: leaseInfo.lessorName!,
+                ),
+              if (leaseInfo.monthlyFee != null)
+                _InfoRow(
+                  icon: Icons.payments_outlined,
+                  label: '月額',
+                  value:
+                      '¥${NumberFormat('#,###').format(leaseInfo.monthlyFee!)}',
+                ),
+              if (leaseInfo.contractEndDate != null)
+                _InfoRow(
+                  icon: Icons.event_busy,
+                  label: '契約満了日',
+                  value: DateFormat('yyyy年MM月dd日')
+                      .format(leaseInfo.contractEndDate!),
+                  valueColor: endDateColor,
+                ),
+              if (leaseInfo.maintenancePackDetails != null)
+                _InfoRow(
+                  icon: Icons.build_outlined,
+                  label: 'メンテパック',
+                  value: leaseInfo.maintenancePackDetails!,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── 点検スケジュールセクション ────────────────────────────────────────────────
+
+class _MaintenanceScheduleSection extends StatelessWidget {
+  final Vehicle vehicle;
+  const _MaintenanceScheduleSection({required this.vehicle});
+
+  @override
+  Widget build(BuildContext context) {
+    // Section is optional — degrade gracefully when the service is
+    // unavailable (e.g. in widget tests that don't register it).
+    if (!sl.isRegistered<MaintenanceScheduleService>()) {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    final scheduleService = sl.get<MaintenanceScheduleService>();
+    final schedule = scheduleService.generateSchedule(vehicle);
+    // Show the first 5 items only
+    final items = schedule.take(5).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        Padding(
+          padding: AppSpacing.paddingScreen,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.event_repeat,
+                      size: 16, color: AppColors.textSecondary),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    '推奨メンテナンス周期',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              AppSpacing.verticalXs,
+              ...items.map((item) {
+                final nextKm = scheduleService.nextDueMileage(vehicle, item);
+                String intervalText = '';
+                if (item.intervalKm != null && item.intervalMonths != null) {
+                  intervalText =
+                      '${NumberFormat('#,###').format(item.intervalKm!)}km / ${item.intervalMonths}ヶ月毎';
+                } else if (item.intervalKm != null) {
+                  intervalText =
+                      '${NumberFormat('#,###').format(item.intervalKm!)}km毎';
+                } else if (item.intervalMonths != null) {
+                  intervalText = '${item.intervalMonths}ヶ月毎';
+                }
+                final nextKmText = nextKm != null
+                    ? '  次回: ${NumberFormat('#,###').format(nextKm)}km'
+                    : '';
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(item.type.icon, size: 14, color: item.type.color),
+                      const SizedBox(width: AppSpacing.xs),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.type.displayName,
+                              style: theme.textTheme.bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              '$intervalText$nextKmText',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: AppColors.textTertiary, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _VehicleImage extends StatelessWidget {
   final String? imageUrl;
@@ -656,10 +1257,27 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
         ]..sort((a, b) => b.date.compareTo(a.date));
 
         if (entries.isEmpty) {
+          // Maintenance CTA starts the core value loop (record → AI提案).
+          // The drive-only tab has its own recording flow, so no CTA there.
+          final showAddCta = widget.filter != _TimelineFilter.drive;
           return AppEmptyState(
             icon: _emptyIcon,
             title: _emptyTitle,
             description: _emptyDescription,
+            buttonLabel: showAddCta ? '整備記録を追加' : null,
+            onButtonPressed: showAddCta
+                ? () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AddMaintenanceScreen(
+                          vehicleId: widget.vehicle.id,
+                          currentVehicleMileage: widget.vehicle.mileage,
+                        ),
+                      ),
+                    );
+                  }
+                : null,
           );
         }
 
@@ -1866,5 +2484,369 @@ class _SuggestionRow extends StatelessWidget {
       case NotificationType.maintenanceRecommendation:
         return Icons.car_repair;
     }
+  }
+}
+
+// ── 車検完了ダイアログ ─────────────────────────────────────────────────────────
+
+class _InspectionCompleteDialog extends StatefulWidget {
+  final DateTime currentExpiry;
+  const _InspectionCompleteDialog({required this.currentExpiry});
+
+  @override
+  State<_InspectionCompleteDialog> createState() =>
+      _InspectionCompleteDialogState();
+}
+
+class _InspectionCompleteDialogState extends State<_InspectionCompleteDialog> {
+  late DateTime _newExpiry;
+  final _mileageController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Default: 2 years from current expiry (or from today if already expired)
+    final base = widget.currentExpiry.isAfter(DateTime.now())
+        ? widget.currentExpiry
+        : DateTime.now();
+    _newExpiry = DateTime(base.year + 2, base.month, base.day);
+  }
+
+  @override
+  void dispose() {
+    _mileageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('車検完了を記録'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('新しい車検満了日', style: theme.textTheme.bodySmall),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text(
+                DateFormat('yyyy年MM月dd日').format(_newExpiry),
+                style: theme.textTheme.bodyLarge
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const Spacer(),
+              TextButton(
+                key: const Key('pick_expiry_date_btn'),
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _newExpiry,
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime(DateTime.now().year + 10),
+                  );
+                  if (picked != null) {
+                    setState(() => _newExpiry = picked);
+                  }
+                },
+                child: const Text('変更'),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            key: const Key('inspection_mileage_field'),
+            controller: _mileageController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '現在の走行距離（任意）',
+              suffixText: 'km',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          key: const Key('confirm_inspection_complete_btn'),
+          onPressed: () {
+            final mileage = int.tryParse(_mileageController.text.trim());
+            Navigator.pop(
+              context,
+              _InspectionCompletionResult(
+                newExpiryDate: _newExpiry,
+                mileage: mileage,
+              ),
+            );
+          },
+          child: const Text('記録する'),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mileage update dialog — owns its TextEditingController lifecycle
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MileageUpdateDialog extends StatefulWidget {
+  final int currentMileage;
+
+  const _MileageUpdateDialog({required this.currentMileage});
+
+  @override
+  State<_MileageUpdateDialog> createState() => _MileageUpdateDialogState();
+}
+
+class _MileageUpdateDialogState extends State<_MileageUpdateDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentMileage.toString());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('走行距離を更新'),
+      content: TextField(
+        key: const Key('mileage_input_field'),
+        controller: _controller,
+        keyboardType: TextInputType.number,
+        autofocus: true,
+        decoration: const InputDecoration(
+          labelText: '新しい走行距離',
+          suffixText: 'km',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          key: const Key('confirm_mileage_btn'),
+          onPressed: () {
+            final value = int.tryParse(_controller.text.trim());
+            Navigator.pop(context, value);
+          },
+          child: const Text('更新'),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Community trend section — shows anonymized peer maintenance stats
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CommunityTrendSection extends StatefulWidget {
+  final Vehicle vehicle;
+
+  const _CommunityTrendSection({required this.vehicle});
+
+  @override
+  State<_CommunityTrendSection> createState() => _CommunityTrendSectionState();
+}
+
+class _CommunityTrendSectionState extends State<_CommunityTrendSection> {
+  CommunityTrendData? _data;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!sl.isRegistered<CommunityTrendService>()) {
+      _loaded = true; // No service available — skip async fetch
+      return;
+    }
+    _fetchTrends();
+  }
+
+  Future<void> _fetchTrends() async {
+    final service = sl.get<CommunityTrendService>();
+    final result = await service.getTrendsForVehicle(
+      maker: widget.vehicle.maker,
+      model: widget.vehicle.model,
+    );
+    if (!mounted) return;
+    setState(() {
+      _data = result.valueOrNull;
+      _loaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded || _data == null || _data!.insights.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    final data = _data!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        Padding(
+          padding: AppSpacing.paddingScreen,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Section header pill
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.tertiary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                  border: Border.all(
+                    color: theme.colorScheme.tertiary.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.people_outline,
+                      size: 13,
+                      color: theme.colorScheme.tertiary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'コミュニティの傾向',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.tertiary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${data.maker} ${data.model} オーナー ${data.sampleVehicleCount}台のデータ',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              AppSpacing.verticalSm,
+              ...data.insights.take(4).map(
+                    (insight) => _CommunityInsightRow(insight: insight),
+                  ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CommunityInsightRow extends StatelessWidget {
+  final CommunityTrendInsight insight;
+
+  const _CommunityInsightRow({required this.insight});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = _maintenanceTypeLabel(insight.typeKey);
+    final pct = insight.popularityPercent;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Center(
+              child: Text(
+                pct != null ? '${pct.toStringAsFixed(0)}%' : '-',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  insight.description,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (insight.medianCost != null)
+            Text(
+              '¥${_formatCost(insight.medianCost!)}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _maintenanceTypeLabel(String typeKey) {
+    const labels = <String, String>{
+      'oilChange': 'オイル交換',
+      'oilFilterChange': 'オイルフィルター交換',
+      'tireRotation': 'タイヤローテーション',
+      'tireReplacement': 'タイヤ交換',
+      'brakeInspection': 'ブレーキ点検',
+      'brakeFluidChange': 'ブレーキフルード交換',
+      'coolantChange': 'クーラント交換',
+      'batteryChange': 'バッテリー交換',
+      'airFilterChange': 'エアフィルター交換',
+      'cabinFilterChange': 'エアコンフィルター交換',
+      'transmissionFluidChange': 'AT/MTフルード交換',
+      'legalInspection12': '12ヶ月法定点検',
+      'legalInspection24': '車検',
+      'carInspection': '車両点検',
+      'other': 'その他',
+    };
+    return labels[typeKey] ?? typeKey;
+  }
+
+  static String _formatCost(double cost) {
+    if (cost >= 10000) {
+      return '${(cost / 10000).toStringAsFixed(1)}万';
+    }
+    return cost.toStringAsFixed(0);
   }
 }

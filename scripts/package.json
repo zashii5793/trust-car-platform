@@ -1,0 +1,15 @@
+{
+  "name": "trust-car-platform-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "運用スクリプト（シード・移行）の依存定義",
+  "scripts": {
+    "verify-migration": "firebase emulators:exec --only firestore,storage,auth --project trust-car-platform \"node verify_migration_emulator.js\""
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  },
+  "devDependencies": {
+    "firebase-tools": "^13.0.0"
+  }
+}

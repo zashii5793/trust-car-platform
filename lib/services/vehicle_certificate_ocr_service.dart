@@ -117,8 +117,10 @@ class VehicleCertificateOcrService {
 
       return Result.success(data);
     } catch (e) {
+      // Fixed message — exception details could echo OCR text fragments
+      // that contain personal information.
       return Result.failure(
-        AppError.unknown('OCR処理中にエラーが発生しました: $e'),
+        const AppError.unknown('OCR処理中にエラーが発生しました。もう一度お試しください。'),
       );
     }
   }
@@ -136,10 +138,11 @@ class VehicleCertificateOcrService {
   VehicleCertificateData _parseText(String fullText) {
     final lines = fullText.split('\n');
 
+    // NOTE: Never log the raw OCR text — vehicle certificates contain
+    // personal information (owner name, address, license plate, VIN).
     assert(() {
-      debugPrint('=== OCR Recognized Text ===');
-      debugPrint(fullText);
-      debugPrint('=========================');
+      debugPrint('=== OCR Recognized: ${lines.length} lines, '
+          '${fullText.length} chars ===');
       return true;
     }());
 

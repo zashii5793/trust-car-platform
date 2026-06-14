@@ -2,51 +2,57 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
+import '../core/error/app_error.dart';
+import '../core/result/result.dart';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
 
 /// PDF出力サービス
 class PdfExportService {
   /// メンテナンス履歴のPDFを生成
-  Future<Uint8List> generateMaintenanceReport({
+  Future<Result<Uint8List, AppError>> generateMaintenanceReport({
     required Vehicle vehicle,
     required List<MaintenanceRecord> records,
   }) async {
-    final pdf = pw.Document();
-    final dateFormat = DateFormat('yyyy/MM/dd');
-    final numberFormat = NumberFormat('#,###');
+    try {
+      final pdf = pw.Document();
+      final dateFormat = DateFormat('yyyy/MM/dd');
+      final numberFormat = NumberFormat('#,###');
 
-    // 日付でソート（新しい順）
-    final sortedRecords = List<MaintenanceRecord>.from(records)
-      ..sort((a, b) => b.date.compareTo(a.date));
+      // 日付でソート（新しい順）
+      final sortedRecords = List<MaintenanceRecord>.from(records)
+        ..sort((a, b) => b.date.compareTo(a.date));
 
-    // 総費用計算
-    final totalCost = sortedRecords.fold<int>(0, (sum, r) => sum + r.cost);
+      // 総費用計算
+      final totalCost = sortedRecords.fold<int>(0, (sum, r) => sum + r.cost);
 
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(40),
-        maxPages: 9999,
-        header: (context) => _buildHeader(vehicle),
-        footer: (context) => _buildFooter(context),
-        build: (context) => [
-          // 車両情報セクション
-          _buildVehicleInfoSection(vehicle, numberFormat),
-          pw.SizedBox(height: 20),
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(40),
+          maxPages: 9999,
+          header: (context) => _buildHeader(vehicle),
+          footer: (context) => _buildFooter(context),
+          build: (context) => [
+            // 車両情報セクション
+            _buildVehicleInfoSection(vehicle, numberFormat),
+            pw.SizedBox(height: 20),
 
-          // サマリーセクション
-          _buildSummarySection(sortedRecords, totalCost, numberFormat),
-          pw.SizedBox(height: 20),
+            // サマリーセクション
+            _buildSummarySection(sortedRecords, totalCost, numberFormat),
+            pw.SizedBox(height: 20),
 
-          // メンテナンス履歴テーブル（スパニング対応のためテーブル直接配置）
-          ..._buildMaintenanceTableWidgets(
-              sortedRecords, dateFormat, numberFormat),
-        ],
-      ),
-    );
+            // メンテナンス履歴テーブル（スパニング対応のためテーブル直接配置）
+            ..._buildMaintenanceTableWidgets(
+                sortedRecords, dateFormat, numberFormat),
+          ],
+        ),
+      );
 
-    return pdf.save();
+      return Result.success(await pdf.save());
+    } catch (e) {
+      return Result.failure(AppError.server('PDFの生成に失敗しました: $e'));
+    }
   }
 
   /// ヘッダー

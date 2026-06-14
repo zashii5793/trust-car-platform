@@ -56,6 +56,12 @@ class InquiryMessage {
   final DateTime sentAt;
   final bool isRead;
 
+  /// Optional structured maintenance detail a shop attaches so the user can
+  /// pull it into their records with one tap. Stored as a plain map to keep the
+  /// model layer decoupled; the typed wrapper lives in
+  /// `inquiry_maintenance_importer.dart`.
+  final Map<String, dynamic>? maintenancePayload;
+
   const InquiryMessage({
     required this.id,
     required this.senderId,
@@ -64,9 +70,11 @@ class InquiryMessage {
     this.attachmentUrls = const [],
     required this.sentAt,
     this.isRead = false,
+    this.maintenancePayload,
   });
 
   factory InquiryMessage.fromMap(Map<String, dynamic> map, String id) {
+    final rawPayload = map['maintenancePayload'];
     return InquiryMessage(
       id: id,
       senderId: map['senderId'] ?? '',
@@ -75,6 +83,8 @@ class InquiryMessage {
       attachmentUrls: List<String>.from(map['attachmentUrls'] ?? []),
       sentAt: (map['sentAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isRead: map['isRead'] ?? false,
+      maintenancePayload:
+          rawPayload is Map ? Map<String, dynamic>.from(rawPayload) : null,
     );
   }
 
@@ -86,6 +96,7 @@ class InquiryMessage {
       'attachmentUrls': attachmentUrls,
       'sentAt': Timestamp.fromDate(sentAt),
       'isRead': isRead,
+      if (maintenancePayload != null) 'maintenancePayload': maintenancePayload,
     };
   }
 }

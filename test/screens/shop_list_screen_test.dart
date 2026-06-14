@@ -9,6 +9,7 @@ import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
 import 'package:trust_car_platform/models/shop.dart';
 import 'package:trust_car_platform/models/inquiry.dart';
+import 'package:trust_car_platform/models/shop_case_study.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 
@@ -95,6 +96,26 @@ class MockShopService implements ShopService {
   @override
   Future<Result<void, AppError>> deleteMyShop(String uid) async =>
       const Result.success(null);
+
+  @override
+  Future<Result<List<ShopCaseStudy>, AppError>> getCaseStudies(
+          String shopId) async =>
+      const Result.success([]);
+
+  @override
+  Future<Result<ShopCaseStudy, AppError>> addCaseStudy(
+          ShopCaseStudy study) async =>
+      Result.failure(AppError.unknown('not impl'));
+
+  @override
+  Future<Result<void, AppError>> deleteCaseStudy(
+          String shopId, String studyId) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<String, AppError>> uploadCaseStudyImage(
+          String shopId, dynamic image, String type) async =>
+      Result.failure(AppError.unknown('not impl'));
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +159,7 @@ class MockInquiryService implements InquiryService {
     required bool isFromShop,
     required String content,
     List<String> attachmentUrls = const [],
+    Map<String, dynamic>? maintenancePayload,
   }) async =>
       Result.failure(AppError.unknown('not implemented'));
 
@@ -158,6 +180,11 @@ class MockInquiryService implements InquiryService {
 
   @override
   Future<Result<int, AppError>> getUnreadCountForUser(String userId) async =>
+      const Result.success(0);
+
+  @override
+  Future<Result<int, AppError>> countUserInquiriesThisMonth(
+          String userId) async =>
       const Result.success(0);
 
   @override
@@ -339,6 +366,19 @@ void main() {
       await tester.pumpWidget(_buildApp(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
+      expect(find.text('広告'), findsOneWidget);
+    });
+
+    testWidgets('認証済みかつ注目ショップは認証バッジと「広告」ラベルの両方を表示する', (tester) async {
+      mockShop.shopsResult = Result.success([
+        _makeShop(name: '認証スポンサー店', isFeatured: true, isVerified: true),
+      ]);
+
+      await tester.pumpWidget(_buildApp(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // 透明性原則: 有料掲載は認証済みでも必ず「広告」と明示する
+      expect(find.byIcon(Icons.verified), findsOneWidget);
       expect(find.text('広告'), findsOneWidget);
     });
 

@@ -72,6 +72,13 @@ class MockAuthService implements AuthService {
       const Result.success(null);
 
   @override
+  Future<Result<void, AppError>> updateBusinessProfile({
+    required AccountType accountType,
+    required String companyName,
+  }) async =>
+      const Result.success(null);
+
+  @override
   Future<Result<void, AppError>> updateNotificationSettings(
     NotificationSettings settings,
   ) async =>

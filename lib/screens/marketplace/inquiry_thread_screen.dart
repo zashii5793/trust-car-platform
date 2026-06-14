@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/di/service_locator.dart';
 import '../../models/inquiry.dart';
+import '../../models/maintenance_record.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
+import '../../services/firebase_service.dart';
+import '../../services/inquiry_maintenance_importer.dart';
 
 /// 問い合わせスレッド画面（ユーザー側）
 ///
@@ -150,6 +154,8 @@ class _InquiryThreadScreenState extends State<InquiryThreadScreen> {
                       message: messages[index],
                       currentUserId:
                           context.read<AuthProvider>().firebaseUser?.uid ?? '',
+                      inquiryId: widget.inquiry.id,
+                      vehicleId: widget.inquiry.vehicleId,
                     );
                   },
                 );
@@ -179,10 +185,14 @@ class _InquiryThreadScreenState extends State<InquiryThreadScreen> {
 class _MessageBubble extends StatelessWidget {
   final InquiryMessage message;
   final String currentUserId;
+  final String inquiryId;
+  final String? vehicleId;
 
   const _MessageBubble({
     required this.message,
     required this.currentUserId,
+    required this.inquiryId,
+    required this.vehicleId,
   });
 
   @override
@@ -242,6 +252,16 @@ class _MessageBubble extends StatelessWidget {
               ),
             ],
           ),
+          // 工場が整備明細を添付した場合: ワンタップ取込カード（pull モデル）
+          if (message.maintenancePayload != null)
+            _MaintenanceImportCard(
+              payload: InquiryMaintenancePayload.fromMap(
+                message.maintenancePayload!,
+              ),
+              vehicleId: vehicleId,
+              userId: currentUserId,
+              inquiryId: inquiryId,
+            ),
           Padding(
             padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
             child: Text(
@@ -259,6 +279,154 @@ class _MessageBubble extends StatelessWidget {
 
   String _formatTime(DateTime dt) {
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// MaintenanceImportCard — shop-attached maintenance detail, user pulls in
+// ---------------------------------------------------------------------------
+
+class _MaintenanceImportCard extends StatefulWidget {
+  final InquiryMaintenancePayload payload;
+  final String? vehicleId;
+  final String userId;
+  final String inquiryId;
+
+  const _MaintenanceImportCard({
+    required this.payload,
+    required this.vehicleId,
+    required this.userId,
+    required this.inquiryId,
+  });
+
+  @override
+  State<_MaintenanceImportCard> createState() => _MaintenanceImportCardState();
+}
+
+class _MaintenanceImportCardState extends State<_MaintenanceImportCard> {
+  bool _importing = false;
+  bool _imported = false;
+
+  Future<void> _import() async {
+    if (_importing || _imported) return;
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (widget.vehicleId == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('車両が特定できないため取り込めません')),
+      );
+      return;
+    }
+
+    setState(() => _importing = true);
+    try {
+      final record = buildMaintenanceRecordFromPayload(
+        payload: widget.payload,
+        vehicleId: widget.vehicleId!,
+        userId: widget.userId,
+        inquiryId: widget.inquiryId,
+      );
+      final result =
+          await sl.get<FirebaseService>().addMaintenanceRecord(record);
+      if (!mounted) return;
+      result.when(
+        success: (_) {
+          setState(() => _imported = true);
+          messenger.showSnackBar(
+            const SnackBar(content: Text('整備記録に追加しました')),
+          );
+        },
+        failure: (_) {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('整備記録の追加に失敗しました')),
+          );
+        },
+      );
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final p = widget.payload;
+    final typeLabel = MaintenanceType.fromString(p.typeKey).displayName;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(top: AppSpacing.xs),
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.35),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.build_circle_outlined,
+                    size: 16, color: AppColors.primary),
+                const SizedBox(width: 4),
+                Text(
+                  '整備明細',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$typeLabel・${p.title.isEmpty ? '整備記録' : p.title}',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              [
+                if (p.cost > 0) '¥${p.cost}',
+                if (p.mileageAtService != null) '${p.mileageAtService}km',
+                '${p.date.year}/${p.date.month}/${p.date.day}',
+              ].join(' ・ '),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            SizedBox(
+              width: double.infinity,
+              child: _imported
+                  ? OutlinedButton.icon(
+                      onPressed: null,
+                      icon: const Icon(Icons.check, size: 16),
+                      label: const Text('追加済み'),
+                    )
+                  : FilledButton.icon(
+                      key: const Key('import_maintenance_btn'),
+                      onPressed: _importing ? null : _import,
+                      icon: _importing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.add, size: 16),
+                      label: const Text('記録に追加'),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

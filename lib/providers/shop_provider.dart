@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import '../models/shop.dart';
@@ -105,9 +106,62 @@ class ShopProvider with ChangeNotifier {
       },
     );
 
+    // Distances were computed against the previous list — invalidate.
+    _shopDistancesKm = {};
     _isLoading = false;
     notifyListeners();
   }
+
+  // --- 距離ソート（近い順） ---
+
+  Map<String, double> _shopDistancesKm = {};
+
+  /// 現在地からの距離（km）。距離ソート未実行/位置情報なしの店舗は null。
+  double? distanceForShop(String shopId) => _shopDistancesKm[shopId];
+
+  /// 現在地から近い順に [shops] を並べ替える。
+  /// 位置情報のない店舗は末尾に並ぶ。
+  void sortByDistanceFrom(double latitude, double longitude) {
+    _shopDistancesKm = {
+      for (final shop in _shops)
+        if (shop.location != null)
+          shop.id: _haversineKm(
+            latitude,
+            longitude,
+            shop.location!.latitude,
+            shop.location!.longitude,
+          ),
+    };
+
+    _shops = List.of(_shops)
+      ..sort((a, b) {
+        final da = _shopDistancesKm[a.id];
+        final db = _shopDistancesKm[b.id];
+        if (da == null && db == null) return 0;
+        if (da == null) return 1;
+        if (db == null) return -1;
+        return da.compareTo(db);
+      });
+
+    notifyListeners();
+  }
+
+  /// Haversine distance in kilometers.
+  static double _haversineKm(
+      double lat1, double lon1, double lat2, double lon2) {
+    const earthRadiusKm = 6371.0;
+    final dLat = _degToRad(lat2 - lat1);
+    final dLon = _degToRad(lon2 - lon1);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degToRad(lat1)) *
+            math.cos(_degToRad(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  }
+
+  static double _degToRad(double deg) => deg * math.pi / 180;
 
   /// おすすめ工場一覧を取得する
   Future<void> loadFeaturedShops() async {
@@ -210,6 +264,15 @@ class ShopProvider with ChangeNotifier {
   /// 問い合わせを送信する
   ///
   /// 成功時は Inquiry を返す、失敗時は null を返す
+  /// Counts inquiries the user sent this month.
+  ///
+  /// Returns null on failure so callers fail open — the count is a UX
+  /// pre-check; the server-side rule remains the enforcement backstop.
+  Future<int?> countUserInquiriesThisMonth(String userId) async {
+    final result = await _inquiryService.countUserInquiriesThisMonth(userId);
+    return result.valueOrNull;
+  }
+
   Future<Inquiry?> submitInquiry({
     required String userId,
     required String shopId,
@@ -522,12 +585,14 @@ class ShopProvider with ChangeNotifier {
     required String inquiryId,
     required String senderId,
     required String content,
+    Map<String, dynamic>? maintenancePayload,
   }) {
     return _inquiryService.sendMessage(
       inquiryId: inquiryId,
       senderId: senderId,
       isFromShop: true,
       content: content,
+      maintenancePayload: maintenancePayload,
     );
   }
 

@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/maintenance_record.dart';
+import '../models/post.dart';
 import '../providers/maintenance_provider.dart';
+import '../providers/vehicle_provider.dart';
 import '../services/firebase_service.dart';
 import '../services/invoice_ocr_service.dart';
+import '../services/community_trend_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
@@ -13,6 +18,7 @@ import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
 import 'document_scanner_screen.dart';
 import 'invoice_result_screen.dart';
+import 'sns/post_create_screen.dart';
 
 class AddMaintenanceScreen extends StatefulWidget {
   final String vehicleId;
@@ -47,7 +53,6 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   MaintenanceType _selectedType = MaintenanceType.repair;
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
-  bool _showAllTypes = false;
   bool _isOcrProcessing = false;
   List<String> _ocrAppliedFields = [];
 
@@ -57,19 +62,14 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   InvoiceOcrService get _invoiceOcrService => sl.get<InvoiceOcrService>();
   FirebaseService get _firebaseService => sl.get<FirebaseService>();
 
-  // よく使うメンテナンスタイプ（初期表示）
-  static const _commonTypes = [
-    MaintenanceType.oilChange,
-    MaintenanceType.legalInspection12,
-    MaintenanceType.carInspection,
-    MaintenanceType.tireChange,
-    MaintenanceType.repair,
-    MaintenanceType.partsReplacement,
-  ];
+  static const _recentTypesKey = 'maintenance_recent_types';
+  static const _maxRecentTypes = 5;
+  List<MaintenanceType> _recentTypes = [];
 
   @override
   void initState() {
     super.initState();
+    _loadRecentTypes();
     final record = widget.existingRecord;
     if (record != null) {
       _selectedType = record.type;
@@ -93,6 +93,26 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       if (record.tireSize != null) _tireSizeController.text = record.tireSize!;
       _tirePosition = record.tirePosition;
     }
+  }
+
+  Future<void> _loadRecentTypes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getStringList(_recentTypesKey) ?? [];
+    if (!mounted) return;
+    setState(() {
+      _recentTypes = stored
+          .where((s) => MaintenanceType.values.any((e) => e.name == s))
+          .map(MaintenanceType.fromString)
+          .toList();
+    });
+  }
+
+  Future<void> _saveRecentTypes() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _recentTypesKey,
+      _recentTypes.map((t) => t.name).toList(),
+    );
   }
 
   @override
@@ -243,11 +263,21 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       }
 
       if (success && mounted) {
+        // Fire-and-forget: contribute anonymized interval data to community trends
+        if (!_isEditMode) {
+          unawaited(_submitTrendData(record));
+        }
+
         showSuccessSnackBar(
           context,
           _isEditMode ? 'メンテナンス履歴を更新しました' : 'メンテナンス履歴を追加しました',
         );
-        Navigator.pop(context);
+        // Offer SNS share only for new records
+        if (!_isEditMode) {
+          await _promptSnsShare(record);
+        } else {
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -262,6 +292,112 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     }
   }
 
+  /// Fire-and-forget: contribute anonymized maintenance interval data to
+  /// community trends. All errors are suppressed — this must never block the
+  /// user's primary save flow.
+  Future<void> _submitTrendData(MaintenanceRecord record) async {
+    try {
+      if (!sl.isRegistered<CommunityTrendService>()) return;
+
+      // Resolve vehicle maker/model; VehicleProvider may not be present in all
+      // widget trees (e.g. tests), so guard with a try-catch.
+      final vehicle = context
+          .read<VehicleProvider>()
+          .vehicles
+          .where((v) => v.id == widget.vehicleId)
+          .firstOrNull;
+      if (vehicle == null) return;
+
+      // Find the most recent previous record of the same maintenance type to
+      // compute the service interval.
+      final provider = context.read<MaintenanceProvider>();
+      final previous = provider.records
+          .where((r) => r.type == record.type && r.date.isBefore(record.date))
+          .fold<MaintenanceRecord?>(null, (best, r) {
+        if (best == null) return r;
+        return r.date.isAfter(best.date) ? r : best;
+      });
+
+      // At least one prior record of the same type is required to compute an
+      // interval (first-ever records have no baseline).
+      if (previous == null) return;
+
+      final intervalDays = record.date.difference(previous.date).inDays;
+
+      // Skip the contribution entirely if mileage is missing on either side.
+      // Sending intervalKm=0 would pollute the community median downward.
+      if (record.mileageAtService == null ||
+          previous.mileageAtService == null) {
+        return;
+      }
+      final intervalKm = record.mileageAtService! - previous.mileageAtService!;
+
+      if (intervalDays <= 0 || intervalKm < 0) return;
+
+      final service = sl.get<CommunityTrendService>();
+      await service.submitVehicleTrendData(
+        maker: vehicle.maker,
+        model: vehicle.model,
+        maintenanceTypeKey: record.type.name,
+        intervalKm: intervalKm,
+        intervalDays: intervalDays,
+        cost: record.cost,
+      );
+    } catch (_) {
+      // Intentionally suppressed — community contribution is optional.
+    }
+  }
+
+  /// Shows a dialog asking if the user wants to share the maintenance record on SNS.
+  Future<void> _promptSnsShare(MaintenanceRecord record) async {
+    if (!mounted) return;
+
+    final share = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('SNSに共有'),
+        content: const Text('整備記録を SNS に投稿しますか？\n同じ車種のオーナーに参考になる情報を共有しましょう。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('スキップ'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('共有する'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+    Navigator.pop(context); // Pop AddMaintenanceScreen
+
+    if (share == true && mounted) {
+      final vehicle = context
+          .read<VehicleProvider>()
+          .vehicles
+          .where((v) => v.id == widget.vehicleId)
+          .firstOrNull;
+
+      final content = '${record.title} を実施しました。'
+          '${record.shopName != null ? "\n場所: ${record.shopName}" : ""}'
+          '${record.cost > 0 ? "\n費用: ¥${record.cost.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}円" : ""}'
+          '\n#整備記録 #${vehicle != null ? vehicle.model : "車"}';
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PostCreateScreen(
+            initialContent: content,
+            initialVehicleId: widget.vehicleId,
+            initialCategory: PostCategory.maintenance,
+          ),
+        ),
+      );
+    }
+  }
+
   /// Returns true when the selected type is tire-related.
   bool get _isTireType =>
       _selectedType == MaintenanceType.tireChange ||
@@ -270,16 +406,19 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   void _onTypeSelected(MaintenanceType type) {
     setState(() {
       _selectedType = type;
-      // タイプに応じてタイトルを自動設定（空の場合のみ）
       if (_titleController.text.isEmpty) {
         _titleController.text = type.displayName;
       }
-      // Reset tire-specific fields when switching away from tire types
       if (!_isTireType) {
         _tireSizeController.clear();
         _tirePosition = null;
       }
+      _recentTypes = [
+        type,
+        ..._recentTypes.where((t) => t != type),
+      ].take(_maxRecentTypes).toList();
     });
+    _saveRecentTypes();
   }
 
   bool get _isDirty =>
@@ -312,7 +451,6 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final typesToShow = _showAllTypes ? MaintenanceType.values : _commonTypes;
 
     return PopScope(
       canPop: !_isDirty,
@@ -324,6 +462,21 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(_isEditMode ? 'メンテナンス履歴を編集' : 'メンテナンス履歴を追加'),
+        ),
+        bottomNavigationBar: Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.sm,
+            AppSpacing.md,
+            AppSpacing.md + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: AppButton.primary(
+            label: _isEditMode ? '更新する' : '保存する',
+            onPressed: _isLoading ? null : _saveRecord,
+            isFullWidth: true,
+            size: AppButtonSize.large,
+            icon: Icons.check,
+          ),
         ),
         body: AppLoadingOverlay(
           isLoading: _isLoading,
@@ -346,59 +499,51 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   AppSpacing.verticalLg,
 
                   // タイプ選択
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'メンテナンスタイプ',
-                        style: theme.textTheme.labelLarge,
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _showAllTypes = !_showAllTypes;
-                          });
-                        },
-                        child: Text(_showAllTypes ? '簡易表示' : 'すべて表示'),
-                      ),
-                    ],
+                  Text(
+                    'メンテナンスタイプ',
+                    style: theme.textTheme.labelLarge,
                   ),
                   AppSpacing.verticalXs,
 
-                  if (_showAllTypes)
-                    // カテゴリ別表示
-                    ...MaintenanceType.groupedTypes.entries.map((entry) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8.0),
-                            child: Text(
-                              entry.key,
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                          Wrap(
-                            spacing: AppSpacing.xs,
-                            runSpacing: AppSpacing.xs,
-                            children: entry.value.map((type) {
-                              return _buildTypeChip(type);
-                            }).toList(),
-                          ),
-                        ],
-                      );
-                    })
-                  else
-                    // よく使うタイプのみ表示
+                  // 最近使ったタイプ
+                  if (_recentTypes.isNotEmpty) ...[
+                    Text(
+                      '最近使ったタイプ',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: AppSpacing.xs,
                       runSpacing: AppSpacing.xs,
-                      children: typesToShow.map((type) {
-                        return _buildTypeChip(type);
-                      }).toList(),
+                      children: _recentTypes.map(_buildTypeChip).toList(),
                     ),
+                    const Divider(height: AppSpacing.lg),
+                  ],
+
+                  // カテゴリ別全タイプ
+                  ...MaintenanceType.groupedTypes.entries.map((entry) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: Text(
+                            entry.key,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                        Wrap(
+                          spacing: AppSpacing.xs,
+                          runSpacing: AppSpacing.xs,
+                          children: entry.value.map(_buildTypeChip).toList(),
+                        ),
+                      ],
+                    );
+                  }),
 
                   AppSpacing.verticalSm,
 
@@ -569,15 +714,6 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                     hintText: '詳細な内容を記入できます',
                   ),
                   AppSpacing.verticalXl,
-
-                  // 保存ボタン
-                  AppButton.primary(
-                    label: _isEditMode ? '更新する' : '保存する',
-                    onPressed: _isLoading ? null : _saveRecord,
-                    isFullWidth: true,
-                    size: AppButtonSize.large,
-                    icon: Icons.check,
-                  ),
                 ],
               ),
             ),

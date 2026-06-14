@@ -2,6 +2,8 @@
     <!-- Location permissions for GPS drive recording -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Required on Android 13+ for FCM and local reminder notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:label="trust_car_platform"
         android:name="${applicationName}"

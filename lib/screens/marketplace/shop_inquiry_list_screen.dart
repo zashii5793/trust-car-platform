@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/inquiry.dart';
+import '../../models/maintenance_record.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../services/inquiry_service.dart';
+import '../../services/inquiry_maintenance_importer.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
@@ -523,6 +525,43 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
     );
   }
 
+  /// Compose a structured maintenance detail and attach it to a reply so the
+  /// user can pull it into their records with one tap.
+  Future<void> _sendMaintenanceDetail() async {
+    final payload = await showDialog<InquiryMaintenancePayload>(
+      context: context,
+      builder: (_) => _MaintenanceDetailForm(shopName: _inquiry.shopName),
+    );
+    if (payload == null || !mounted) return;
+
+    setState(() => _isSending = true);
+    final result = await widget.shopProvider.sendInquiryMessage(
+      inquiryId: _inquiry.id,
+      senderId: widget.senderId,
+      content: '整備明細をお送りします。「記録に追加」から保存できます。',
+      maintenancePayload: payload.toMap(),
+    );
+    if (!mounted) return;
+    setState(() => _isSending = false);
+
+    result.when(
+      success: (_) {
+        _scrollToBottom();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('整備明細を送信しました')),
+        );
+      },
+      failure: (err) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(err.userMessage),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      },
+    );
+  }
+
   /// Show confirmation dialog and update inquiry status.
   Future<void> _changeStatus(InquiryStatus newStatus) async {
     final confirmed = await showDialog<bool>(
@@ -730,6 +769,19 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
               status: _inquiry.status,
               isLoading: _isUpdatingStatus,
               onChangeStatus: _changeStatus,
+            ),
+            // Attach structured maintenance detail
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                child: TextButton.icon(
+                  key: const Key('send_maintenance_detail_btn'),
+                  onPressed: _isSending ? null : _sendMaintenanceDetail,
+                  icon: const Icon(Icons.build_circle_outlined, size: 18),
+                  label: const Text('整備明細を送る'),
+                ),
+              ),
             ),
             // Reply input area (fixed at bottom)
             _ReplyInputBar(
@@ -1047,6 +1099,150 @@ class _ReplyInputBar extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// MaintenanceDetailForm — shop composes a structured maintenance detail
+// ---------------------------------------------------------------------------
+
+class _MaintenanceDetailForm extends StatefulWidget {
+  final String? shopName;
+
+  const _MaintenanceDetailForm({this.shopName});
+
+  @override
+  State<_MaintenanceDetailForm> createState() => _MaintenanceDetailFormState();
+}
+
+class _MaintenanceDetailFormState extends State<_MaintenanceDetailForm> {
+  final _titleController = TextEditingController();
+  final _costController = TextEditingController();
+  final _mileageController = TextEditingController();
+  MaintenanceType _type = MaintenanceType.carInspection;
+  DateTime _date = DateTime.now();
+
+  // Common maintenance types a shop typically issues a detail for.
+  static const _types = [
+    MaintenanceType.carInspection,
+    MaintenanceType.legalInspection12,
+    MaintenanceType.oilChange,
+    MaintenanceType.tireChange,
+    MaintenanceType.repair,
+    MaintenanceType.partsReplacement,
+  ];
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _costController.dispose();
+    _mileageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+    );
+    if (picked != null) setState(() => _date = picked);
+  }
+
+  void _submit() {
+    final payload = InquiryMaintenancePayload(
+      typeKey: _type.name,
+      title: _titleController.text.trim().isEmpty
+          ? _type.displayName
+          : _titleController.text.trim(),
+      date: _date,
+      cost: int.tryParse(_costController.text.trim()) ?? 0,
+      mileageAtService: int.tryParse(_mileageController.text.trim()),
+      shopName: widget.shopName,
+    );
+    Navigator.pop(context, payload);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('整備明細を作成'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DropdownButtonFormField<MaintenanceType>(
+              key: const Key('detail_type_dropdown'),
+              initialValue: _type,
+              decoration: const InputDecoration(labelText: '整備区分'),
+              items: _types
+                  .map((t) => DropdownMenuItem(
+                        value: t,
+                        child: Text(t.displayName),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() => _type = v ?? _type),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              key: const Key('detail_title_field'),
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: '内容（任意）',
+                hintText: '例: 車検整備一式',
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              key: const Key('detail_cost_field'),
+              controller: _costController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '費用',
+                suffixText: '円',
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              key: const Key('detail_mileage_field'),
+              controller: _mileageController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '走行距離（任意）',
+                suffixText: 'km',
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '実施日: ${_date.year}/${_date.month}/${_date.day}',
+                  ),
+                ),
+                TextButton(
+                  onPressed: _pickDate,
+                  child: const Text('日付を選択'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          key: const Key('detail_submit_btn'),
+          onPressed: _submit,
+          child: const Text('送信'),
+        ),
+      ],
     );
   }
 }
