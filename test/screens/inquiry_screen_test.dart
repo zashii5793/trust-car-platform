@@ -105,6 +105,10 @@ class MockShopService implements ShopService {
       const Result.success(null);
 
   @override
+  Future<Result<void, AppError>> updateCaseStudy(ShopCaseStudy study) async =>
+      const Result.success(null);
+
+  @override
   Future<Result<String, AppError>> uploadCaseStudyImage(
           String shopId, dynamic image, String type) async =>
       Result.failure(AppError.unknown('not impl'));

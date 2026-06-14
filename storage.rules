@@ -90,6 +90,19 @@ service firebase.storage {
       allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
 
+    // 施工事例画像（shops/{shopId}/caseStudies/{fileName}）
+    // shopId == オーナーの uid（BtoB テナント設計）
+    // 読み取りは認証済みユーザー全員（工場の公開プロフィール情報）
+    // 書き込み・削除はショップオーナー（shopId == auth.uid）のみ
+    match /shops/{shopId}/caseStudies/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+                   && request.auth.uid == shopId
+                   && isValidFileSize()
+                   && isImageFile();
+      allow delete: if isAuthenticated() && request.auth.uid == shopId;
+    }
+
     // その他のファイルはデフォルトで拒否
     match /{allPaths=**} {
       allow read, write: if false;

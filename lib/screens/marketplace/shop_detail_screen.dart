@@ -673,30 +673,78 @@ class _CaseStudyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasBoth =
+        study.beforeImageUrl != null && study.afterImageUrl != null;
+
     return SizedBox(
-      width: 220,
+      width: hasBoth ? 300 : 220,
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Image area: side-by-side when both present, single otherwise
             SizedBox(
               height: 120,
-              child: study.afterImageUrl != null
-                  ? Image.network(
-                      study.afterImageUrl!,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        child: const Icon(Icons.photo_outlined, size: 40),
-                      ),
+              child: hasBoth
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Image.network(
+                                study.beforeImageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => _placeholder(
+                                    theme, Icons.photo_outlined),
+                              ),
+                              Positioned(
+                                bottom: 4,
+                                left: 4,
+                                child: _label('BEFORE'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 1),
+                        Expanded(
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Image.network(
+                                study.afterImageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => _placeholder(
+                                    theme, Icons.photo_outlined),
+                              ),
+                              Positioned(
+                                bottom: 4,
+                                left: 4,
+                                child: _label('AFTER'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     )
-                  : Container(
-                      width: double.infinity,
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      child: const Icon(Icons.photo_outlined, size: 40),
-                    ),
+                  : study.afterImageUrl != null
+                      ? Image.network(
+                          study.afterImageUrl!,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _placeholder(theme, Icons.photo_outlined),
+                        )
+                      : study.beforeImageUrl != null
+                          ? Image.network(
+                              study.beforeImageUrl!,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  _placeholder(theme, Icons.photo_outlined),
+                            )
+                          : _placeholder(theme, Icons.photo_outlined),
             ),
             Padding(
               padding: const EdgeInsets.all(AppSpacing.xs),
@@ -705,9 +753,8 @@ class _CaseStudyCard extends StatelessWidget {
                 children: [
                   Text(
                     study.title,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: theme.textTheme.labelMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -733,4 +780,22 @@ class _CaseStudyCard extends StatelessWidget {
       ),
     );
   }
+
+  Widget _placeholder(ThemeData theme, IconData icon) => Container(
+        color: theme.colorScheme.surfaceContainerHighest,
+        child: Center(child: Icon(icon, size: 40)),
+      );
+
+  Widget _label(String text) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(
+              color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+        ),
+      );
 }

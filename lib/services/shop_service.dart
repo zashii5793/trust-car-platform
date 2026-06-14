@@ -420,6 +420,18 @@ class ShopService {
     }
   }
 
+  /// Updates an existing case study in place.
+  Future<Result<void, AppError>> updateCaseStudy(ShopCaseStudy study) async {
+    try {
+      await _caseStudiesCollection(study.shopId)
+          .doc(study.id)
+          .update(study.toMap());
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.server('施工事例の更新に失敗しました: $e'));
+    }
+  }
+
   /// Deletes a case study by id.
   Future<Result<void, AppError>> deleteCaseStudy(
       String shopId, String studyId) async {

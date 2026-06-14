@@ -54,6 +54,29 @@ class _CaseStudyManagementScreenState extends State<CaseStudyManagementScreen> {
     );
   }
 
+  Future<void> _showEditDialog(ShopCaseStudy study) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final updated = await showDialog<ShopCaseStudy>(
+      context: context,
+      builder: (_) => _EditCaseStudyDialog(
+          study: study, service: _service),
+    );
+    if (updated == null) return;
+
+    final result = await _service.updateCaseStudy(updated);
+    if (!mounted) return;
+    result.when(
+      success: (_) => setState(() {
+        final idx = _studies.indexWhere((s) => s.id == updated.id);
+        if (idx != -1) {
+          _studies[idx] = updated;
+        }
+      }),
+      failure: (err) =>
+          messenger.showSnackBar(SnackBar(content: Text(err.userMessage))),
+    );
+  }
+
   Future<void> _showAddDialog() async {
     final messenger = ScaffoldMessenger.of(context);
     final study = await showDialog<ShopCaseStudy>(
@@ -133,6 +156,7 @@ class _CaseStudyManagementScreenState extends State<CaseStudyManagementScreen> {
                       separatorBuilder: (_, __) => AppSpacing.verticalSm,
                       itemBuilder: (_, i) => _CaseStudyTile(
                         study: _studies[i],
+                        onEdit: () => _showEditDialog(_studies[i]),
                         onDelete: () => _delete(_studies[i]),
                       ),
                     ),
@@ -189,9 +213,11 @@ class _EmptyState extends StatelessWidget {
 
 class _CaseStudyTile extends StatelessWidget {
   final ShopCaseStudy study;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
-  const _CaseStudyTile({required this.study, required this.onDelete});
+  const _CaseStudyTile(
+      {required this.study, required this.onEdit, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -231,10 +257,20 @@ class _CaseStudyTile extends StatelessWidget {
                 style: theme.textTheme.labelSmall,
               )
             : null,
-        trailing: IconButton(
-          icon: const Icon(Icons.delete_outline, color: Colors.red),
-          onPressed: onDelete,
-          tooltip: '削除',
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: onEdit,
+              tooltip: '編集',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: onDelete,
+              tooltip: '削除',
+            ),
+          ],
         ),
       ),
     );
@@ -424,6 +460,322 @@ class _AddCaseStudyDialogState extends State<_AddCaseStudyDialog> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Text('追加'),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Edit dialog
+// ---------------------------------------------------------------------------
+
+class _EditCaseStudyDialog extends StatefulWidget {
+  final ShopCaseStudy study;
+  final ShopService service;
+
+  const _EditCaseStudyDialog(
+      {required this.study, required this.service});
+
+  @override
+  State<_EditCaseStudyDialog> createState() => _EditCaseStudyDialogState();
+}
+
+class _EditCaseStudyDialogState extends State<_EditCaseStudyDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _titleCtrl;
+  late final TextEditingController _descCtrl;
+  late ServiceCategory? _category;
+
+  // Existing URLs (kept unless user picks a new image)
+  String? _beforeUrl;
+  String? _afterUrl;
+
+  // New picks (null = keep existing)
+  XFile? _beforeImage;
+  XFile? _afterImage;
+
+  bool _isUploading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtrl = TextEditingController(text: widget.study.title);
+    _descCtrl =
+        TextEditingController(text: widget.study.description ?? '');
+    _category = widget.study.category;
+    _beforeUrl = widget.study.beforeImageUrl;
+    _afterUrl = widget.study.afterImageUrl;
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage(bool isBefore) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1920,
+      maxHeight: 1920,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+    setState(() {
+      if (isBefore) {
+        _beforeImage = picked;
+      } else {
+        _afterImage = picked;
+      }
+    });
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isUploading = true);
+
+    String? beforeUrl = _beforeUrl;
+    String? afterUrl = _afterUrl;
+
+    if (_beforeImage != null) {
+      final result = await widget.service.uploadCaseStudyImage(
+          widget.study.shopId, _beforeImage!, 'before');
+      if (!mounted) return;
+      if (result.isFailure) {
+        setState(() => _isUploading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.errorOrNull!.userMessage)),
+        );
+        return;
+      }
+      beforeUrl = result.valueOrNull;
+    }
+
+    if (_afterImage != null) {
+      final result = await widget.service.uploadCaseStudyImage(
+          widget.study.shopId, _afterImage!, 'after');
+      if (!mounted) return;
+      if (result.isFailure) {
+        setState(() => _isUploading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.errorOrNull!.userMessage)),
+        );
+        return;
+      }
+      afterUrl = result.valueOrNull;
+    }
+
+    if (!mounted) return;
+    Navigator.pop(
+      context,
+      ShopCaseStudy(
+        id: widget.study.id,
+        shopId: widget.study.shopId,
+        title: _titleCtrl.text.trim(),
+        description:
+            _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+        beforeImageUrl: beforeUrl,
+        afterImageUrl: afterUrl,
+        category: _category,
+        createdAt: widget.study.createdAt,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('施工事例を編集'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppTextField(
+                controller: _titleCtrl,
+                labelText: 'タイトル',
+                hintText: '例: エンジンオイル交換',
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty)
+                        ? 'タイトルを入力してください'
+                        : null,
+              ),
+              AppSpacing.verticalSm,
+              DropdownButtonFormField<ServiceCategory>(
+                initialValue: _category,
+                decoration: const InputDecoration(
+                  labelText: 'カテゴリ（任意）',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                ),
+                items: ServiceCategory.values
+                    .map((c) => DropdownMenuItem(
+                          value: c,
+                          child: Text(c.displayName),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _category = v),
+              ),
+              AppSpacing.verticalSm,
+              AppTextField(
+                controller: _descCtrl,
+                labelText: '説明（任意）',
+                hintText: '施工内容や工夫した点など',
+                maxLines: 3,
+              ),
+              AppSpacing.verticalMd,
+              Text('ビフォー写真', style: theme.textTheme.labelMedium),
+              AppSpacing.verticalXs,
+              _beforeImage != null
+                  ? _NewImagePreview(
+                      image: _beforeImage!,
+                      onClear: () => setState(() => _beforeImage = null),
+                    )
+                  : _ExistingImageTile(
+                      url: _beforeUrl,
+                      onPick: () => _pickImage(true),
+                      onClear: () => setState(() => _beforeUrl = null),
+                    ),
+              AppSpacing.verticalSm,
+              Text('アフター写真', style: theme.textTheme.labelMedium),
+              AppSpacing.verticalXs,
+              _afterImage != null
+                  ? _NewImagePreview(
+                      image: _afterImage!,
+                      onClear: () => setState(() => _afterImage = null),
+                    )
+                  : _ExistingImageTile(
+                      url: _afterUrl,
+                      onPick: () => _pickImage(false),
+                      onClear: () => setState(() => _afterUrl = null),
+                    ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isUploading ? null : () => Navigator.pop(context),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          key: const Key('update_case_study_btn'),
+          onPressed: _isUploading ? null : _submit,
+          child: _isUploading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('更新'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExistingImageTile extends StatelessWidget {
+  final String? url;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+
+  const _ExistingImageTile(
+      {required this.url, required this.onPick, required this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    if (url != null) {
+      return Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.xs),
+            child: Image.network(
+              url!,
+              height: 120,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  const Icon(Icons.broken_image_outlined, size: 40),
+            ),
+          ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _iconBtn(Icons.edit, onPick),
+                const SizedBox(width: 4),
+                _iconBtn(Icons.close, onClear),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    return OutlinedButton.icon(
+      onPressed: onPick,
+      icon: const Icon(Icons.add_photo_alternate_outlined),
+      label: const Text('写真を選択'),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(double.infinity, 56),
+      ),
+    );
+  }
+
+  Widget _iconBtn(IconData icon, VoidCallback cb) => GestureDetector(
+        onTap: cb,
+        child: Container(
+          decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.all(4),
+          child: Icon(icon, size: 16, color: Colors.white),
+        ),
+      );
+}
+
+class _NewImagePreview extends StatelessWidget {
+  final XFile image;
+  final VoidCallback onClear;
+
+  const _NewImagePreview({required this.image, required this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppSpacing.xs),
+          child: Image.file(
+            File(image.path),
+            height: 120,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          ),
+        ),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: GestureDetector(
+            onTap: onClear,
+            child: Container(
+              decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.all(4),
+              child: const Icon(Icons.close, size: 16, color: Colors.white),
+            ),
+          ),
         ),
       ],
     );
