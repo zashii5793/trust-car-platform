@@ -43,8 +43,48 @@
 ## 現在の状態
 
 **ブランチ**: `claude/continue-development-WYZZp`
-**テスト**: 3485件（2026-06-14セッション終了時点）全パス・失敗0件
+**テスト**: 3559件（2026-06-14続セッション終了時点）全パス・失敗0件
 **`flutter analyze lib/`**: No issues found
+
+---
+
+## セッション 2026-06-14（続）: FleetRole.admin 総務担当ロール完全実装
+
+### 成果サマリー
+
+#### FleetRole.admin（総務担当）ロール全面実装
+
+1. **モデル追加** (`lib/models/fleet_member.dart`):
+   - `FleetRole.admin` 追加（owner < admin < manager < staff < viewer 位置）
+   - ドキュメントコメント更新
+
+2. **サービス層** (`lib/services/fleet_member_service.dart`):
+   - `addMember`: owner と admin が可。ただし admin は owner ロールを付与不可
+   - `updateRole`: owner と admin が可。ただし admin は owner ロールに変更不可
+   - `removeMember`: owner・admin・本人が可。ただし admin は owner を削除不可
+   - `canWrite`: 変更なし（owner + manager のみ）
+
+3. **Firestore ルール** (`firestore.rules`):
+   - `isFleetAdminOf(companyId)` ヘルパー関数追加
+   - fleet_members の read/create/update/delete に admin 条件追加
+
+4. **UI層** (`lib/screens/fleet/fleet_member_screen.dart`):
+   - FAB: owner と admin に表示
+   - 削除ボタン: admin は owner 以外に表示
+   - ロール変更 dropdown: admin は owner 以外に表示
+   - _AddMemberDialog: owner の場合は admin ロールも選択肢に表示
+   - _RoleBadge: admin に '総務担当' / AppColors.info 表示
+
+5. **テスト**: +74件（fleet_member_service: +12, fleet_member_screen: +5, part_recommendation_screen: +3）
+
+#### 装着例セクション再読み込み対応（`part_recommendation_screen.dart`）
+- `_OwnerExamplesSection` ヘッダーに refresh icon ボタン追加（Key: `owner_examples_refresh_btn`）
+- テスト 20-22: section 表示・ボタン表示・再呼び出し確認
+
+### 残課題（次セッション候補）
+- `isViewerFollowing` サーバーサイド検証（Cloud Function推奨）
+- スペック貢献: `sampleImageUrl` 既存ドキュメント上書き防止（既にテスト済み）
+- `getUserPosts` ページネーション + フォロワーフィルタの統合テスト（Emulator必要）
 
 ---
 
