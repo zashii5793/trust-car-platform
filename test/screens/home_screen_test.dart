@@ -955,4 +955,157 @@ void main() {
       );
     });
   });
+
+  // =========================================================================
+  // AIからの提案セクション (_AiSuggestionSection / _SuggestionCard)
+  // =========================================================================
+  group('HomeScreen — AIからの提案セクション', () {
+    AppNotification makeSuggestion({
+      String id = 'n1',
+      String title = 'オイル交換',
+      String message = 'そろそろオイル交換を',
+      NotificationPriority priority = NotificationPriority.medium,
+      NotificationType type = NotificationType.maintenanceRecommendation,
+      String? vehicleId,
+      String? reason,
+    }) =>
+        AppNotification(
+          id: id,
+          userId: 'u1',
+          type: type,
+          title: title,
+          message: message,
+          isRead: false,
+          createdAt: DateTime(2024, 1, 1),
+          vehicleId: vehicleId,
+          priority: priority,
+          reason: reason,
+        );
+
+    testWidgets('提案が0件の場合AIセクションが非表示', (tester) async {
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+      final np = _FakeNotificationProvider()..setNotifications([]);
+
+      await tester.pumpWidget(
+          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester.pump();
+
+      expect(find.text('AIからの提案'), findsNothing);
+    });
+
+    testWidgets('提案がある場合「AIからの提案」ヘッダーが表示される', (tester) async {
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+      final np = _FakeNotificationProvider()
+        ..setNotifications([makeSuggestion()]);
+
+      await tester.pumpWidget(
+          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester.pump();
+
+      expect(find.text('AIからの提案'), findsOneWidget);
+    });
+
+    testWidgets('提案がある場合「すべて見る」ボタンが表示される', (tester) async {
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+      final np = _FakeNotificationProvider()
+        ..setNotifications([makeSuggestion()]);
+
+      await tester.pumpWidget(
+          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester.pump();
+
+      expect(find.text('すべて見る'), findsOneWidget);
+    });
+
+    testWidgets('高優先度の提案カードに「要対応」バッジが表示される', (tester) async {
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+      final np = _FakeNotificationProvider()
+        ..setNotifications([
+          makeSuggestion(
+              priority: NotificationPriority.high, title: '車検まもなく'),
+        ]);
+
+      await tester.pumpWidget(
+          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester.pump();
+
+      // _DashboardSummaryCard also shows '要対応' label → use findsWidgets
+      expect(find.text('要対応'), findsWidgets);
+    });
+
+    testWidgets('中優先度の提案カードに「推奨」バッジが表示される', (tester) async {
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+      final np = _FakeNotificationProvider()
+        ..setNotifications([
+          makeSuggestion(priority: NotificationPriority.medium),
+        ]);
+
+      await tester.pumpWidget(
+          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester.pump();
+
+      expect(find.text('推奨'), findsOneWidget);
+    });
+
+    testWidgets('提案カードのタイトルとメッセージが表示される', (tester) async {
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+      final np = _FakeNotificationProvider()
+        ..setNotifications([
+          makeSuggestion(title: 'タイヤ交換推奨', message: '走行距離から判断'),
+        ]);
+
+      await tester.pumpWidget(
+          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester.pump();
+
+      expect(find.text('タイヤ交換推奨'), findsOneWidget);
+      expect(find.text('走行距離から判断'), findsOneWidget);
+    });
+
+    testWidgets('提案カードをタップするとボトムシートが開き「なぜ今なのか」が表示される',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+      final np = _FakeNotificationProvider()
+        ..setNotifications([
+          makeSuggestion(title: 'ブレーキパッド確認', reason: '走行距離が多め'),
+        ]);
+
+      await tester.pumpWidget(
+          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester.pump();
+
+      await tester.tap(find.text('ブレーキパッド確認'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ブレーキパッド確認'), findsWidgets);
+      expect(find.text('なぜ今なのか'), findsOneWidget);
+    });
+
+    testWidgets('「すべて見る」をタップすると通知タブに切り替わる', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+      final np = _FakeNotificationProvider()
+        ..setNotifications([makeSuggestion()]);
+
+      await tester.pumpWidget(
+          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester.pump();
+
+      await tester.tap(find.text('すべて見る'));
+      await tester.pumpAndSettle(const Duration(seconds: 3));
+
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('通知'),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
 }
