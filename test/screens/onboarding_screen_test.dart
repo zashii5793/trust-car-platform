@@ -202,5 +202,80 @@ void main() {
       expect(completed, isTrue);
       expect(find.byType(OnboardingScreen), findsOneWidget);
     });
+
+    testWidgets('1ページ目のサブタイトルが表示される', (tester) async {
+      await tester.pumpWidget(_buildOnboardingApp());
+      await tester.pump();
+
+      expect(find.textContaining('整備・点検・車検のすべてを'), findsOneWidget);
+    });
+
+    testWidgets('2ページ目にスワイプするとサブタイトルが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildOnboardingApp());
+      await tester.pump();
+
+      await tester.drag(find.byType(PageView), const Offset(-400, 0));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('修理・点検・消耗品交換'), findsOneWidget);
+    });
+
+    testWidgets('3ページ目にスワイプするとAI通知コンテンツが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildOnboardingApp());
+      await tester.pump();
+
+      for (int i = 0; i < 2; i++) {
+        await tester.drag(find.byType(PageView), const Offset(-400, 0));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.textContaining('次の点検時期を'), findsOneWidget);
+    });
+
+    testWidgets('4ページ目のサブタイトルに工場連携の説明が含まれる', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildOnboardingApp());
+      await tester.pump();
+
+      for (int i = 0; i < 3; i++) {
+        await tester.drag(find.byType(PageView), const Offset(-400, 0));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.textContaining('AIの提案から'), findsOneWidget);
+    });
+
+    testWidgets('4ページ目でもスキップボタンが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildOnboardingApp());
+      await tester.pump();
+
+      for (int i = 0; i < 3; i++) {
+        await tester.drag(find.byType(PageView), const Offset(-400, 0));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.text('スキップ'), findsOneWidget);
+    });
+
+    testWidgets('ページインジケーターが4つある', (tester) async {
+      await tester.pumpWidget(_buildOnboardingApp());
+      await tester.pump();
+
+      // All 4 dot keys must be present
+      for (int i = 0; i < 4; i++) {
+        expect(find.byKey(Key('onboarding_dot_$i')), findsOneWidget);
+      }
+    });
   });
 }
