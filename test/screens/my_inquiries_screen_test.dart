@@ -350,4 +350,93 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  // =========================================================================
+  group('MyInquiriesScreen — ステータス詳細', () {
+    testWidgets('対応中ステータスが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        shopProvider: _FakeShopProvider(inquiries: [
+          _makeInquiry(status: InquiryStatus.inProgress),
+        ]),
+      ));
+      await tester.pump();
+
+      expect(find.text('対応中'), findsOneWidget);
+    });
+
+    testWidgets('クローズステータスが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        shopProvider: _FakeShopProvider(inquiries: [
+          _makeInquiry(status: InquiryStatus.closed),
+        ]),
+      ));
+      await tester.pump();
+
+      expect(find.text('クローズ'), findsOneWidget);
+    });
+
+    testWidgets('キャンセルステータスが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        shopProvider: _FakeShopProvider(inquiries: [
+          _makeInquiry(status: InquiryStatus.cancelled),
+        ]),
+      ));
+      await tester.pump();
+
+      expect(find.text('キャンセル'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('MyInquiriesScreen — 空状態詳細', () {
+    testWidgets('空状態の説明文が表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        shopProvider: _FakeShopProvider(inquiries: []),
+      ));
+      await tester.pump();
+
+      expect(find.text('工場詳細画面から問い合わせを送れます'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('MyInquiriesScreen — ローディング状態', () {
+    testWidgets('ローディング中はCircularProgressIndicatorが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        shopProvider: _FakeShopProvider(loading: true),
+      ));
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsAtLeast(1));
+    });
+
+    testWidgets('ローディング中は問い合わせリストが表示されない', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        shopProvider: _FakeShopProvider(
+          inquiries: [_makeInquiry(subject: '非表示のはず')],
+          loading: true,
+        ),
+      ));
+      await tester.pump();
+
+      expect(find.text('非表示のはず'), findsNothing);
+    });
+  });
+
+  // =========================================================================
+  group('MyInquiriesScreen — 未読バッジ詳細', () {
+    testWidgets('未読ありと未読なしの問い合わせが混在しても正常に表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        shopProvider: _FakeShopProvider(inquiries: [
+          _makeInquiry(id: 'i1', subject: '未読あり', unreadCountUser: 3),
+          _makeInquiry(id: 'i2', subject: '未読なし', unreadCountUser: 0),
+        ]),
+      ));
+      await tester.pump();
+
+      expect(find.text('未読あり'), findsOneWidget);
+      expect(find.text('未読なし'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+    });
+  });
 }
