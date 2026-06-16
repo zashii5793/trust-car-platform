@@ -223,4 +223,63 @@ void main() {
       expect(find.textContaining('0件'), findsOneWidget);
     });
   });
+
+  // =========================================================================
+  group('ExportDialog — Option descriptions', () {
+    testWidgets('11. プレビュー/印刷オプションの説明文が表示される', (tester) async {
+      await _openDialog(tester);
+
+      expect(find.text('PDFをプレビューして印刷します'), findsOneWidget);
+    });
+
+    testWidgets('12. 共有オプションの説明文が表示される', (tester) async {
+      await _openDialog(tester);
+
+      expect(find.text('他のアプリにPDFを共有します'), findsOneWidget);
+    });
+
+    testWidgets('13. ダイレクト印刷オプションの説明文が表示される', (tester) async {
+      await _openDialog(tester);
+
+      expect(find.text('プリンターを選択して直接印刷します'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('ExportDialog — Icons', () {
+    testWidgets('14. プレビュー/印刷オプションに印刷アイコンが表示される', (tester) async {
+      await _openDialog(tester);
+
+      expect(find.byIcon(Icons.print), findsOneWidget);
+    });
+
+    testWidgets('15. 共有オプションに共有アイコンが表示される', (tester) async {
+      await _openDialog(tester);
+
+      expect(find.byIcon(Icons.share), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('ExportDialog — Loading state detailed', () {
+    testWidgets('16. ローディング中はCircularProgressIndicatorが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 1600));
+      addTearDown(() async => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_buildLauncher(vehicle: _makeVehicle(), records: []));
+      await tester.tap(find.text('OPEN'));
+      await tester.pump(); // single tick — still loading
+
+      expect(find.byType(CircularProgressIndicator), findsAtLeast(1));
+    });
+
+    testWidgets('17. ローディング中はアクションオプションが非表示', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 1600));
+      addTearDown(() async => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_buildLauncher(vehicle: _makeVehicle(), records: []));
+      await tester.tap(find.text('OPEN'));
+      await tester.pump(); // single tick — still loading
+
+      expect(find.text('プレビュー / 印刷'), findsNothing);
+    });
+  });
 }
