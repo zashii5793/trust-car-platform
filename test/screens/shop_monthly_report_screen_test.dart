@@ -208,4 +208,89 @@ void main() {
       expect(find.textContaining('2026/06/01'), findsOneWidget);
     });
   });
+
+  // =========================================================================
+  group('ShopMonthlyReportScreen — AppBar', () {
+    testWidgets('13. AppBarタイトル「月次レポート」が表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockShopService()));
+      await tester.pump();
+
+      expect(find.text('月次レポート'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('ShopMonthlyReportScreen — Section headers', () {
+    testWidgets('14. 「問い合わせ」セクションヘッダーが表示される', (tester) async {
+      final report = _makeReport();
+      await tester.pumpWidget(_buildScreen(_MockShopService(report: report)));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('問い合わせ'), findsOneWidget);
+    });
+
+    testWidgets('15. 「露出・閲覧」セクションヘッダーが表示される', (tester) async {
+      final report = _makeReport();
+      await tester.pumpWidget(_buildScreen(_MockShopService(report: report)));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('露出・閲覧'), findsOneWidget);
+    });
+
+    testWidgets('16. 「累計問い合わせ」ラベルが表示される', (tester) async {
+      final report = _makeReport();
+      await tester.pumpWidget(_buildScreen(_MockShopService(report: report)));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('累計問い合わせ'), findsOneWidget);
+    });
+
+    testWidgets('17. 「新規（今月）」ラベルが表示される', (tester) async {
+      final report = _makeReport();
+      await tester.pumpWidget(_buildScreen(_MockShopService(report: report)));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('新規（今月）'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('ShopMonthlyReportScreen — Edge cases', () {
+    testWidgets('18. 全ての値が0の場合も正常に表示される', (tester) async {
+      final report = _makeReport(
+        totalInquiries: 0,
+        newInquiries: 0,
+        resolvedInquiries: 0,
+        pageViews: 0,
+        searchAppearances: 0,
+      );
+      await tester.pumpWidget(_buildScreen(_MockShopService(report: report)));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('0 件'), findsWidgets);
+      expect(find.text('0 回'), findsWidgets);
+    });
+
+    testWidgets('19. レポートなし状態の説明文が表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockShopService()));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('Cloud Functions'), findsOneWidget);
+    });
+
+    testWidgets('20. 月ヘッダーに「のパフォーマンス」が含まれる', (tester) async {
+      final report = _makeReport(month: '2026-03');
+      await tester.pumpWidget(_buildScreen(_MockShopService(report: report)));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('2026-03 のパフォーマンス'), findsOneWidget);
+    });
+  });
 }
