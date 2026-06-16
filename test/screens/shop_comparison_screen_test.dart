@@ -166,6 +166,26 @@ void main() {
   });
 
   // =========================================================================
+  group('ShopComparisonScreen — Service chips', () {
+    testWidgets('8. primaryNeedに一致するサービスチップが強調表示される', (tester) async {
+      final shopWithBodyWork = _makeShop(
+        id: 'x',
+        name: '板金工場',
+        services: [ServiceCategory.bodyWork, ServiceCategory.maintenance],
+      );
+      await tester.pumpWidget(
+        _buildScreen(
+          shops: [shopWithBodyWork],
+          primaryNeed: ServiceCategory.bodyWork,
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text(ServiceCategory.bodyWork.displayName), findsWidgets);
+    });
+  });
+
+  // =========================================================================
   group('ShopComparisonScreen — Edge cases', () {
     testWidgets('9. 1工場でも正常に表示される', (tester) async {
       await tester.pumpWidget(_buildScreen(shops: [shopA]));
@@ -185,6 +205,89 @@ void main() {
       await tester.pump();
 
       expect(find.text('評価なし'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('ShopComparisonScreen — Rank badges', () {
+    testWidgets('11. 複数工場でランクバッジ1・2が表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(shops: [shopA, shopB]));
+      await tester.pump();
+
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+    });
+
+    testWidgets('12. 3工場でランクバッジ1・2・3が全て表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(shops: [shopA, shopB, shopC]));
+      await tester.pump();
+
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('ShopComparisonScreen — Rating display', () {
+    testWidgets('13. 評価値が表示される', (tester) async {
+      final shopRated = _makeShop(id: 'r', name: 'テスト工場', rating: 4.8);
+      await tester.pumpWidget(_buildScreen(shops: [shopRated]));
+      await tester.pump();
+
+      expect(find.text('4.8'), findsOneWidget);
+    });
+
+    testWidgets('14. レビュー件数が表示される', (tester) async {
+      final shopReviewed =
+          _makeShop(id: 'rv', name: 'レビュー工場', reviewCount: 25);
+      await tester.pumpWidget(_buildScreen(shops: [shopReviewed]));
+      await tester.pump();
+
+      expect(find.textContaining('25件'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('ShopComparisonScreen — Card details', () {
+    testWidgets('15. AIスコアラベルが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(shops: [shopA]));
+      await tester.pump();
+
+      expect(find.text('AIスコア'), findsOneWidget);
+    });
+
+    testWidgets('16. カードにIDベースのキーが設定されている', (tester) async {
+      await tester.pumpWidget(_buildScreen(shops: [shopA, shopB]));
+      await tester.pump();
+
+      expect(find.byKey(const Key('comparison_card_a')), findsOneWidget);
+      expect(find.byKey(const Key('comparison_card_b')), findsOneWidget);
+    });
+
+    testWidgets('17. 工場タイプの表示名が表示される', (tester) async {
+      final shop = _makeShop(
+        id: 't',
+        name: 'タイプ工場',
+        type: ShopType.maintenanceShop,
+      );
+      await tester.pumpWidget(_buildScreen(shops: [shop]));
+      await tester.pump();
+
+      expect(find.text(ShopType.maintenanceShop.displayName), findsOneWidget);
+    });
+
+    testWidgets('18. サービスカテゴリ名がチップに表示される', (tester) async {
+      final shop = _makeShop(
+        id: 's',
+        name: 'サービス工場',
+        services: [ServiceCategory.inspection, ServiceCategory.tire],
+      );
+      await tester.pumpWidget(_buildScreen(shops: [shop]));
+      await tester.pump();
+
+      expect(find.text(ServiceCategory.inspection.displayName), findsOneWidget);
+      expect(find.text(ServiceCategory.tire.displayName), findsOneWidget);
     });
   });
 }
