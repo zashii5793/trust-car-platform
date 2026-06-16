@@ -194,5 +194,129 @@ void main() {
 
       expect(mock.updateVehicleCalled, isTrue);
     });
+
+    testWidgets('10. 保存成功で「保険情報を保存しました」スナックバーが表示される', (tester) async {
+      final mock = _MockFirebaseService();
+      await tester.pumpWidget(_buildScreen(mock));
+      await tester.pump();
+
+      await tester.drag(find.byType(ListView), const Offset(0, -5000));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('save_insurance_btn')));
+      await tester.pump(); // trigger save
+      await tester.pump(const Duration(milliseconds: 100)); // let Future resolve
+
+      expect(find.text('保険情報を保存しました'), findsOneWidget);
+    });
+
+    testWidgets('11. 保存失敗で「保存に失敗しました」スナックバーが表示される', (tester) async {
+      final mock = _MockFirebaseService()
+        ..updateError = AppError.server('save failed');
+      await tester.pumpWidget(_buildScreen(mock));
+      await tester.pump();
+
+      await tester.drag(find.byType(ListView), const Offset(0, -5000));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('save_insurance_btn')));
+      await tester.pump(); // trigger save
+      await tester.pump(const Duration(milliseconds: 100)); // let Future resolve
+
+      expect(find.text('保存に失敗しました'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('InsuranceEditScreen — Contract type', () {
+    testWidgets('12. SegmentedButtonに「ノンフリート」が表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockFirebaseService()));
+      await tester.pump();
+
+      expect(find.text('ノンフリート'), findsOneWidget);
+    });
+
+    testWidgets('13. SegmentedButtonに「フリート（法人）」が表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockFirebaseService()));
+      await tester.pump();
+
+      expect(find.text('フリート（法人）'), findsOneWidget);
+    });
+
+    testWidgets('14. フリート契約の車両ではセクションヘッダー「料率」が表示される', (tester) async {
+      final fleetVehicle = _makeVehicle(
+        insurance: const VoluntaryInsurance(
+          contractType: InsuranceContractType.fleet,
+        ),
+      );
+      await tester.pumpWidget(_buildScreen(_MockFirebaseService(), vehicle: fleetVehicle));
+      await tester.pump();
+
+      // Scroll moderately to reveal the 料率 section (middle of form)
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pump();
+
+      expect(find.text('料率'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('InsuranceEditScreen — Date fields', () {
+    testWidgets('15. 日付フィールド「契約開始日」はデフォルト「未設定」', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockFirebaseService()));
+      await tester.pump();
+
+      // Both 契約開始日 and 満期日 show 未設定 initially
+      expect(find.text('未設定'), findsWidgets);
+    });
+
+    testWidgets('16. 「証券番号」テキストフィールドが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockFirebaseService()));
+      await tester.pump();
+
+      expect(find.widgetWithText(TextField, '証券番号'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('InsuranceEditScreen — Special clauses', () {
+    testWidgets('17. 特約チップ「弁護士費用特約」が表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockFirebaseService()));
+      await tester.pump();
+
+      await tester.drag(find.byType(ListView), const Offset(0, -5000));
+      await tester.pump();
+
+      expect(find.text('弁護士費用特約'), findsOneWidget);
+    });
+
+    testWidgets('18. 特約チップをタップすると選択状態になる', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockFirebaseService()));
+      await tester.pump();
+
+      await tester.drag(find.byType(ListView), const Offset(0, -5000));
+      await tester.pump();
+
+      // Initially unselected
+      final chip = tester.widget<FilterChip>(
+        find.widgetWithText(FilterChip, '弁護士費用特約'),
+      );
+      expect(chip.selected, isFalse);
+
+      await tester.tap(find.text('弁護士費用特約'));
+      await tester.pump();
+
+      final chipAfter = tester.widget<FilterChip>(
+        find.widgetWithText(FilterChip, '弁護士費用特約'),
+      );
+      expect(chipAfter.selected, isTrue);
+    });
+
+    testWidgets('19. テンプレートチップ「最小」が表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockFirebaseService()));
+      await tester.pump();
+
+      expect(find.text('最小'), findsOneWidget);
+    });
   });
 }
