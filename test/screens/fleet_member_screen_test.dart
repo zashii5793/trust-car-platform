@@ -380,6 +380,101 @@ void main() {
       expect(find.text('再読み込み'), findsOneWidget);
     });
   });
+
+  group('FleetMemberScreen — AppBar', () {
+    testWidgets('AppBarタイトル「メンバー管理」が表示される', (tester) async {
+      final service = _StubFleetMemberService(members: []);
+      await tester.pumpWidget(_buildScreen(service: service));
+      await tester.pumpAndSettle();
+
+      expect(find.text('メンバー管理'), findsOneWidget);
+    });
+  });
+
+  group('FleetMemberScreen — ロールバッジ', () {
+    testWidgets('オーナーバッジが表示される', (tester) async {
+      final service = _StubFleetMemberService(members: [
+        _member(userId: 'owner-1', role: FleetRole.owner, displayName: 'オーナー'),
+      ]);
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('オーナー'), findsWidgets);
+    });
+
+    testWidgets('スタッフバッジが表示される', (tester) async {
+      final service = _StubFleetMemberService(members: [
+        _member(userId: 'owner-1', role: FleetRole.owner),
+        _member(userId: 'staff-1', role: FleetRole.staff, displayName: 'スタッフ太郎'),
+      ]);
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('スタッフ'), findsOneWidget);
+    });
+
+    testWidgets('閲覧者バッジが表示される', (tester) async {
+      final service = _StubFleetMemberService(members: [
+        _member(userId: 'owner-1', role: FleetRole.owner),
+        _member(userId: 'viewer-1', role: FleetRole.viewer, displayName: '閲覧者'),
+      ]);
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('閲覧'), findsOneWidget);
+    });
+  });
+
+  group('FleetMemberScreen — 削除確認ダイアログ', () {
+    testWidgets('削除確認ダイアログに削除対象名が表示される', (tester) async {
+      final service = _StubFleetMemberService(members: [
+        _member(userId: 'owner-1', role: FleetRole.owner, displayName: 'オーナー'),
+        _member(userId: 'staff-1', role: FleetRole.staff, displayName: '削除対象'),
+      ]);
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('remove_member_staff-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('削除対象'), findsWidgets);
+      expect(find.textContaining('フリートから削除'), findsOneWidget);
+    });
+
+    testWidgets('削除確認ダイアログをキャンセルするとダイアログが閉じる', (tester) async {
+      final service = _StubFleetMemberService(members: [
+        _member(userId: 'owner-1', role: FleetRole.owner, displayName: 'オーナー'),
+        _member(userId: 'staff-1', role: FleetRole.staff, displayName: 'スタッフ'),
+      ]);
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('remove_member_staff-1')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'キャンセル'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('メンバーを削除'), findsNothing);
+    });
+
+    testWidgets('自分自身の削除ボタンは表示されない', (tester) async {
+      final service = _StubFleetMemberService(members: [
+        _member(userId: 'owner-1', role: FleetRole.owner, displayName: 'オーナー'),
+      ]);
+      await tester
+          .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));
+      await tester.pumpAndSettle();
+
+      // Owner cannot remove themselves
+      expect(find.byKey(const Key('remove_member_owner-1')), findsNothing);
+    });
+  });
 }
 
 class _FailingFleetMemberService implements FleetMemberService {
