@@ -318,4 +318,91 @@ void main() {
       expect(find.text('店舗別集計'), findsNothing);
     });
   });
+
+  // =========================================================================
+  group('MaintenanceStatsScreen — Summary card labels', () {
+    late _FakeMaintenanceProvider provider;
+
+    setUp(() {
+      provider = _FakeMaintenanceProvider(
+        records: [_makeRecord(cost: 10000)],
+      );
+    });
+
+    testWidgets('17. 「総費用」ラベルが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(provider: provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('総費用'), findsOneWidget);
+    });
+
+    testWidgets('18. 「履歴数」ラベルが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(provider: provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('履歴数'), findsOneWidget);
+    });
+
+    testWidgets('19. 「平均費用/回」ラベルが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(provider: provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('平均費用/回'), findsOneWidget);
+    });
+
+    testWidgets('20. 「種類数」ラベルが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(provider: provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('種類数'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('MaintenanceStatsScreen — Type breakdown percentages', () {
+    testWidgets('21. 2種類のタイプで50%ずつ表示される', (tester) async {
+      final provider = _FakeMaintenanceProvider(
+        records: [
+          _makeRecord(id: '1', type: MaintenanceType.oilChange, cost: 5000),
+          _makeRecord(id: '2', type: MaintenanceType.tireChange, cost: 5000),
+        ],
+      );
+      await tester.pumpWidget(_buildScreen(provider: provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.scrollUntilVisible(find.text('タイプ別内訳'), 200);
+      expect(find.text('50%'), findsWidgets);
+    });
+
+    testWidgets('22. タイプ別に件数が表示される', (tester) async {
+      final provider = _FakeMaintenanceProvider(
+        records: [
+          _makeRecord(id: '1', type: MaintenanceType.oilChange, cost: 3000),
+          _makeRecord(id: '2', type: MaintenanceType.oilChange, cost: 3000),
+        ],
+      );
+      await tester.pumpWidget(_buildScreen(provider: provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.scrollUntilVisible(find.text('タイプ別内訳'), 200);
+      expect(find.text('2回'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('MaintenanceStatsScreen — Shop breakdown costs', () {
+    testWidgets('23. 店舗別集計にコストが表示される', (tester) async {
+      final provider = _FakeMaintenanceProvider(
+        records: [
+          _makeRecord(
+              id: '1', shopName: 'テスト店舗', cost: 15000),
+        ],
+      );
+      await tester.pumpWidget(_buildScreen(provider: provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.scrollUntilVisible(find.text('店舗別集計'), 200);
+      expect(find.textContaining('15,000'), findsWidgets);
+    });
+  });
 }
