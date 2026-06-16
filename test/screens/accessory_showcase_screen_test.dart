@@ -175,5 +175,107 @@ void main() {
 
       expect(find.text('再読み込み'), findsOneWidget);
     });
+
+    testWidgets('8. エラーメッセージのテキストが表示される', (tester) async {
+      final mock = _MockPopularAccessoriesService(
+        loadError: AppError.server('接続エラーが発生しました'),
+      );
+      await tester.pumpWidget(_buildScreen(mock));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('接続エラー'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('AccessoryShowcaseScreen — Trend card details', () {
+    testWidgets('9. ブランド名が表示される', (tester) async {
+      final trends = [_makeTrend(itemName: 'ドラレコA', brand: 'Vantrue')];
+      await tester.pumpWidget(
+        _buildScreen(_MockPopularAccessoriesService(topTrends: trends)),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Vantrue'), findsOneWidget);
+    });
+
+    testWidgets('10. 使用人数チップが表示される', (tester) async {
+      final trends = [_makeTrend(itemName: 'ドラレコB', showcaseCount: 15)];
+      await tester.pumpWidget(
+        _buildScreen(_MockPopularAccessoriesService(topTrends: trends)),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('15人が使用'), findsOneWidget);
+    });
+
+    testWidgets('11. 平均評価チップが表示される', (tester) async {
+      final trends = [_makeTrend(itemName: 'ドラレコC', averageRating: 4.2)];
+      await tester.pumpWidget(
+        _buildScreen(_MockPopularAccessoriesService(topTrends: trends)),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('4.2★'), findsOneWidget);
+    });
+
+    testWidgets('12. カテゴリバッジが表示される', (tester) async {
+      final trends = [
+        _makeTrend(
+          itemName: 'ドラレコD',
+          category: AccessoryCategory.electronics,
+        ),
+      ];
+      await tester.pumpWidget(
+        _buildScreen(_MockPopularAccessoriesService(topTrends: trends)),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text(AccessoryCategory.electronics.displayName), findsWidgets);
+    });
+
+    testWidgets('13. トレンドカードのキーが設定されている', (tester) async {
+      final trends = [_makeTrend(itemName: 'テストアイテム')];
+      await tester.pumpWidget(
+        _buildScreen(_MockPopularAccessoriesService(topTrends: trends)),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('trend_card_テストアイテム')), findsOneWidget);
+    });
+
+    testWidgets('14. 上位3件のランクバッジは全て表示される', (tester) async {
+      final trends = [
+        _makeTrend(itemName: 'A', showcaseCount: 30),
+        _makeTrend(itemName: 'B', showcaseCount: 20),
+        _makeTrend(itemName: 'C', showcaseCount: 10),
+      ];
+      await tester.pumpWidget(
+        _buildScreen(_MockPopularAccessoriesService(topTrends: trends)),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('AccessoryShowcaseScreen — Empty state details', () {
+    testWidgets('15. 空状態のサブテキストが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockPopularAccessoriesService()));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('投稿する'), findsWidgets);
+    });
   });
 }

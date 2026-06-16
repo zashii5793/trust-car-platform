@@ -205,4 +205,94 @@ void main() {
       expect(find.textContaining('クルマの専門家AIに'), findsOneWidget);
     });
   });
+
+  // =========================================================================
+  group('AiChatScreen — Input behavior', () {
+    testWidgets('10. 空テキスト送信ではバブルが追加されない', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockAiChatService()));
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.send_rounded));
+      await tester.pump();
+
+      expect(find.textContaining('クルマの専門家AIに'), findsOneWidget);
+    });
+
+    testWidgets('11. 送信後にテキストフィールドがクリアされる', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockAiChatService()));
+      await tester.pump();
+      await tester.pump();
+
+      await tester.enterText(
+          find.widgetWithText(TextField, '車のことを何でも聞いてください'), '入力テスト');
+      await tester.tap(find.byIcon(Icons.send_rounded));
+      await tester.pump();
+
+      final tf = tester.widget<TextField>(
+          find.widgetWithText(TextField, '車のことを何でも聞いてください'));
+      expect(tf.controller?.text ?? '', isEmpty);
+    });
+
+    testWidgets('12. サジェストチップをタップするとメッセージが送信される', (tester) async {
+      await tester.pumpWidget(_buildScreen(
+        _MockAiChatService(replyText: 'チップから送信されました'),
+      ));
+      await tester.pump();
+      await tester.pump();
+
+      // Tap the first suggestion chip
+      await tester.tap(find.byType(ActionChip).first);
+      await tester.pumpAndSettle();
+
+      // AI reply should appear
+      expect(find.text('チップから送信されました'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('AiChatScreen — Message display details', () {
+    testWidgets('13. AIバブルにスマートトイアイコンが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockAiChatService()));
+      await tester.pump();
+      await tester.pump();
+
+      await tester.enterText(
+          find.widgetWithText(TextField, '車のことを何でも聞いてください'), '返答を見る');
+      await tester.tap(find.byIcon(Icons.send_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.smart_toy_outlined), findsOneWidget);
+    });
+
+    testWidgets('14. 空状態のサブタイトルテキストが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockAiChatService()));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('整備・トラブル・車検'), findsOneWidget);
+    });
+
+    testWidgets('15. 送信ボタンのtooltipが「送信」になっている', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockAiChatService()));
+      await tester.pump();
+      await tester.pump();
+
+      final iconBtn = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.send_rounded),
+      );
+      expect(iconBtn.tooltip, '送信');
+    });
+
+    testWidgets('16. クリアボタンのtooltipが「会話をクリア」になっている', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockAiChatService()));
+      await tester.pump();
+      await tester.pump();
+
+      final iconBtn = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.delete_outline),
+      );
+      expect(iconBtn.tooltip, '会話をクリア');
+    });
+  });
 }
