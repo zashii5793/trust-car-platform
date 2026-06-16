@@ -17,6 +17,8 @@
 //   Loading:
 //    10. Shows CircularProgressIndicator while loading
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/core/di/injection.dart';
@@ -48,6 +50,19 @@ class _MockSafetyTipService implements SafetyTipService {
       tips.where((t) => t.category == category).toList(),
     );
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _SlowMockSafetyTipService implements SafetyTipService {
+  final _completer = Completer<Result<List<SafetyTip>, AppError>>();
+
+  @override
+  Future<Result<List<SafetyTip>, AppError>> getTips({
+    SafetyTipCategory? category,
+    SafetyTipSource? source,
+  }) => _completer.future;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -194,6 +209,84 @@ void main() {
       await tester.pump();
 
       expect(find.text('再読み込み'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('SafetyTipScreen — Loading state', () {
+    testWidgets('11. ローディング中はCircularProgressIndicatorが表示される', (tester) async {
+      final slow = _SlowMockSafetyTipService();
+      sl.override<SafetyTipService>(slow);
+      await tester.pumpWidget(const MaterialApp(home: SafetyTipScreen()));
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsAtLeast(1));
+    });
+  });
+
+  // =========================================================================
+  group('SafetyTipScreen — Card details', () {
+    testWidgets('12. カードにIDベースのキーが設定されている', (tester) async {
+      final tips = [_makeTip(id: 'tip-abc', title: 'テストチップ')];
+      await tester.pumpWidget(_buildScreen(_MockSafetyTipService(tips: tips)));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('safety_tip_tip-abc')), findsOneWidget);
+    });
+
+    testWidgets('13. 公式リンクにIDベースのキーが設定されている', (tester) async {
+      final tips = [_makeTip(id: 'tip-xyz')];
+      await tester.pumpWidget(_buildScreen(_MockSafetyTipService(tips: tips)));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('official_link_tip-xyz')), findsOneWidget);
+    });
+
+    testWidgets('14. カテゴリバッジが表示される', (tester) async {
+      final tips = [
+        _makeTip(
+          id: 't1',
+          category: SafetyTipCategory.vehicleCheck,
+        ),
+      ];
+      await tester.pumpWidget(_buildScreen(_MockSafetyTipService(tips: tips)));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text(SafetyTipCategory.vehicleCheck.displayName), findsWidgets);
+    });
+
+    testWidgets('15. MLIT（国土交通省）ソースバッジが表示される', (tester) async {
+      final tips = [
+        _makeTip(
+          id: 't1',
+          source: SafetyTipSource.mlit,
+        ),
+      ];
+      await tester.pumpWidget(_buildScreen(_MockSafetyTipService(tips: tips)));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text(SafetyTipSource.mlit.displayName), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('SafetyTipScreen — Tab titles', () {
+    testWidgets('16. 「乗車前点検」タブが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockSafetyTipService()));
+      await tester.pump();
+
+      expect(find.text('乗車前点検'), findsOneWidget);
+    });
+
+    testWidgets('17. 「緊急時の対応」タブが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockSafetyTipService()));
+      await tester.pump();
+
+      expect(find.text('緊急時の対応'), findsOneWidget);
     });
   });
 }
