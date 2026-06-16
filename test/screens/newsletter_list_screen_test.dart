@@ -266,4 +266,117 @@ void main() {
       expect(find.text('再試行'), findsOneWidget);
     });
   });
+
+  // =========================================================================
+  group('NewsletterListScreen — Card details', () {
+    testWidgets('13. ニュースレターの本文が表示される', (tester) async {
+      final nl = _makeNewsletter(body: '6月のお知らせ本文です。');
+      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('6月のお知らせ本文です。'), findsOneWidget);
+    });
+
+    testWidgets('14. カテゴリバッジが表示される', (tester) async {
+      final nl = _makeNewsletter(
+        id: 'n1',
+        title: 'カテゴリテスト',
+      );
+      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester.pump();
+      await tester.pump();
+
+      // Default category is maintenanceTips → '整備・メンテナンス情報'
+      expect(
+        find.text(NewsletterCategory.maintenanceTips.displayName),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('15. 作成日が表示される', (tester) async {
+      final nl = _makeNewsletter(id: 'n1', title: '日付テスト');
+      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester.pump();
+      await tester.pump();
+
+      // createdAt = DateTime(2026, 5, 1) → '2026/05/01'
+      expect(find.textContaining('2026/05/01'), findsOneWidget);
+    });
+
+    testWidgets('16. 送信済みのsentAtが表示される', (tester) async {
+      final nl = _makeNewsletter(
+        id: 'n1',
+        title: '送信日テスト',
+        status: NewsletterStatus.sent,
+        sentAt: DateTime(2026, 5, 15),
+        recipientCount: 10,
+      );
+      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('2026/05/15'), findsOneWidget);
+    });
+
+    testWidgets('17. 下書きに編集ボタンが表示される', (tester) async {
+      final nl = _makeNewsletter(
+        id: 'n1',
+        title: '編集テスト',
+        status: NewsletterStatus.draft,
+      );
+      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('編集'), findsOneWidget);
+    });
+
+    testWidgets('18. 下書きに削除ボタンが表示される', (tester) async {
+      final nl = _makeNewsletter(
+        id: 'n1',
+        title: '削除テスト',
+        status: NewsletterStatus.draft,
+      );
+      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('削除'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('NewsletterListScreen — Empty state details', () {
+    testWidgets('19. 空状態の説明文が表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(_MockNewsletterService()));
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.textContaining('新規作成'),
+        findsWidgets,
+      );
+    });
+  });
+
+  // =========================================================================
+  group('NewsletterListScreen — Send dialog details', () {
+    testWidgets('20. 配信確認ダイアログにオーディエンスが表示される', (tester) async {
+      final nl = _makeNewsletter(
+        id: 'n-dialog',
+        title: 'オーディエンステスト',
+        status: NewsletterStatus.draft,
+      );
+      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.text('配信'));
+      await tester.pumpAndSettle();
+
+      // Default audience is allUsers → '全ユーザー'
+      expect(find.textContaining('全ユーザー'), findsOneWidget);
+    });
+  });
 }
