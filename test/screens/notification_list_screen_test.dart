@@ -511,4 +511,205 @@ void main() {
       expect(find.text('なぜ今なのか'), findsNothing);
     });
   });
+
+  // =========================================================================
+  group('NotificationListScreen — 通知カード詳細', () {
+    testWidgets('16. 通知メッセージがカードに表示される', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(
+          id: 'n1',
+          title: 'オイル交換推奨',
+          message: '走行距離5,000kmを超えました',
+        ),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.text('走行距離5,000kmを超えました'), findsOneWidget);
+    });
+
+    testWidgets('17. highプライオリティで「重要」バッジがカードに表示される', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(
+          id: 'n1',
+          title: '重要通知',
+          priority: NotificationPriority.high,
+        ),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.text('重要'), findsOneWidget);
+    });
+
+    testWidgets('18. mediumプライオリティで「要注意」バッジがカードに表示される', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(
+          id: 'n1',
+          title: '注意通知',
+          priority: NotificationPriority.medium,
+        ),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.text('要注意'), findsOneWidget);
+    });
+
+    testWidgets('19. lowプライオリティでは優先度バッジが非表示', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(
+          id: 'n1',
+          title: '情報通知',
+          priority: NotificationPriority.low,
+        ),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      // _PriorityBadge is not rendered for low priority
+      expect(find.text('情報'), findsNothing);
+    });
+
+    testWidgets('20. タイプバッジ「メンテナンス推奨」が表示される', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(
+          id: 'n1',
+          type: NotificationType.maintenanceRecommendation,
+        ),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.text('メンテナンス推奨'), findsOneWidget);
+    });
+
+    testWidgets('21. actionDateがある場合カードに推奨日テキストが表示される', (tester) async {
+      provider.mockNotifications = [
+        AppNotification(
+          id: 'n1',
+          userId: 'user1',
+          vehicleId: 'v1',
+          type: NotificationType.maintenanceRecommendation,
+          title: '推奨日テスト',
+          message: 'メッセージ',
+          priority: NotificationPriority.medium,
+          isRead: false,
+          createdAt: DateTime.now(),
+          actionDate: DateTime(2026, 6, 20),
+        ),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.textContaining('推奨日: 2026/06/20'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('NotificationListScreen — 削除キャンセル', () {
+    testWidgets('22. 左スワイプ後「キャンセル」すると通知が残る', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', title: 'キャンセルテスト'),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.drag(
+        find.text('キャンセルテスト'),
+        const Offset(-500, 0),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      // Tap cancel in the confirmation dialog
+      await tester.tap(find.widgetWithText(TextButton, 'キャンセル'));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      // Notification should still exist; removeNotification not called
+      expect(provider.lastRemovedId, isNull);
+      expect(find.text('キャンセルテスト'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('詳細シート — 追加テスト', () {
+    testWidgets('23. 詳細シートに「閉じる」ボタンが表示される', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', title: '閉じるテスト'),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.tap(find.text('閉じるテスト'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.widgetWithText(OutlinedButton, '閉じる'), findsOneWidget);
+    });
+
+    testWidgets('24. 詳細シートに「作成日時」ラベルが表示される', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', title: '作成日時テスト'),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.tap(find.text('作成日時テスト'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('作成日時'), findsOneWidget);
+    });
+
+    testWidgets('25. 詳細シートにactionDateがある場合「推奨日」ラベルが表示される', (tester) async {
+      provider.mockNotifications = [
+        AppNotification(
+          id: 'n1',
+          userId: 'user1',
+          vehicleId: 'v1',
+          type: NotificationType.inspectionReminder,
+          title: '推奨日シートテスト',
+          message: 'テストメッセージ',
+          priority: NotificationPriority.medium,
+          isRead: false,
+          createdAt: DateTime.now(),
+          actionDate: DateTime(2026, 7, 1),
+        ),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.tap(find.text('推奨日シートテスト'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('推奨日'), findsOneWidget);
+    });
+
+    testWidgets('26. 詳細シートでhighプライオリティは「重要」バッジが表示される', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(
+          id: 'n1',
+          title: 'シート重要テスト',
+          priority: NotificationPriority.high,
+        ),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.tap(find.text('シート重要テスト'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // '重要' appears in the sheet's priority badge (and possibly the card badge)
+      expect(find.text('重要'), findsWidgets);
+    });
+  });
 }
