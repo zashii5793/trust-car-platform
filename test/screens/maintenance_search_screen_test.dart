@@ -237,4 +237,98 @@ void main() {
       expect(find.text('1件'), findsOneWidget);
     });
   });
+
+  // =========================================================================
+  group('MaintenanceSearchScreen — 検索フィールド', () {
+    testWidgets('9. 検索フィールドのヒントテキストが表示される', (tester) async {
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.text('タイトル・店舗名・メモで検索'), findsOneWidget);
+    });
+
+    testWidgets('10. 入力前はクリアアイコンが表示されない', (tester) async {
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.byIcon(Icons.clear), findsNothing);
+    });
+
+    testWidgets('11. テキスト入力後にクリアアイコンが表示される', (tester) async {
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField), 'テスト');
+      await tester.pump();
+
+      expect(find.byIcon(Icons.clear), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('MaintenanceSearchScreen — 結果カード詳細', () {
+    testWidgets('12. カードに費用が表示される', (tester) async {
+      loadRecords([
+        _record(
+            id: 'r1',
+            type: MaintenanceType.oilChange,
+            title: 'オイル交換',
+            cost: 5000),
+      ]);
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.text('¥5,000'), findsOneWidget);
+    });
+
+    testWidgets('13. カードに日付が表示される', (tester) async {
+      loadRecords([
+        _record(
+            id: 'r1',
+            type: MaintenanceType.oilChange,
+            title: 'オイル交換',
+            cost: 5000),
+      ]);
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      // Record date is DateTime(2024, 5, 1) → '2024/05/01'
+      expect(find.text('2024/05/01'), findsOneWidget);
+    });
+
+    testWidgets('14. カードに店舗名が表示される', (tester) async {
+      loadRecords([
+        _record(
+            id: 'r1',
+            type: MaintenanceType.oilChange,
+            title: 'オイル交換',
+            cost: 5000,
+            shopName: 'トヨタディーラー'),
+      ]);
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.text('トヨタディーラー'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('MaintenanceSearchScreen — サマリー表示', () {
+    testWidgets('15. ソートラベル「日付が新しい順」がサマリーに表示される', (tester) async {
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.text('日付が新しい順'), findsOneWidget);
+    });
+
+    testWidgets('16. 合計費用0円の場合「合計 ¥0」が表示される', (tester) async {
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.text('合計 ¥0'), findsOneWidget);
+    });
+  });
 }
