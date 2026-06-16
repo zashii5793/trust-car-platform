@@ -385,4 +385,72 @@ void main() {
       expect(sw.value, isTrue);
     });
   });
+
+  // =========================================================================
+  group('SettingsScreen — Switch subtitles', () {
+    testWidgets('20. プッシュ通知スイッチのサブタイトルが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(provider: _FakeAuthProvider()));
+      await tester.pump();
+
+      expect(find.text('お知らせを受け取る'), findsOneWidget);
+    });
+
+    testWidgets('21. 点検リマインダースイッチのサブタイトルが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(provider: _FakeAuthProvider()));
+      await tester.pump();
+
+      expect(find.text('定期点検の時期をお知らせ'), findsOneWidget);
+    });
+
+    testWidgets('22. 車検リマインダースイッチのサブタイトルが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(provider: _FakeAuthProvider()));
+      await tester.pump();
+
+      expect(find.text('車検の時期をお知らせ'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('SettingsScreen — Additional sections', () {
+    testWidgets('23. 「メールニュースレター」セクションが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(provider: _FakeAuthProvider()));
+      await tester.pump();
+
+      expect(find.text('メールニュースレター'), findsOneWidget);
+    });
+
+    testWidgets('24. 「法人利用」セクションが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(provider: _FakeAuthProvider()));
+      await tester.pump();
+
+      expect(find.text('法人利用'), findsOneWidget);
+    });
+
+    testWidgets('25. 法人アカウント登録ListTileが表示される', (tester) async {
+      await tester.pumpWidget(_buildScreen(provider: _FakeAuthProvider()));
+      await tester.pump();
+
+      expect(find.text('法人アカウント登録'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  group('SettingsScreen — Switches with pushEnabled=true', () {
+    testWidgets('26. プッシュ通知ONのとき点検リマインダーが有効', (tester) async {
+      final provider = _FakeAuthProvider(
+        appUser: _makeAppUser(
+          notificationSettings: NotificationSettings(pushEnabled: true),
+        ),
+      );
+      await tester.pumpWidget(_buildScreen(provider: provider));
+      await tester.pump();
+
+      final inspectionSwitch = find.ancestor(
+        of: find.text('点検リマインダー'),
+        matching: find.byType(SwitchListTile),
+      );
+      final sw = tester.widget<SwitchListTile>(inspectionSwitch);
+      expect(sw.onChanged, isNotNull);
+    });
+  });
 }
