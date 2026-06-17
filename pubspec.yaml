@@ -47,6 +47,8 @@ dependencies:
   firebase_analytics: ^12.4.1
   # AI Chat: Anthropic API
   http: ^1.2.0
+  # Navigation: centralised, type-safe routing
+  go_router: ^14.0.0
 
 dev_dependencies:
   flutter_test:

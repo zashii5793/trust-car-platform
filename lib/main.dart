@@ -35,10 +35,10 @@ import 'services/shop_subscription_service.dart';
 import 'providers/subscription_provider.dart';
 import 'providers/user_subscription_provider.dart';
 import 'services/user_subscription_service.dart';
-import 'screens/home_screen.dart';
-import 'screens/auth/login_screen.dart';
 import 'screens/auth/onboarding_screen.dart';
 import 'core/theme/app_theme.dart';
+import 'core/router/app_router.dart';
+import 'package:go_router/go_router.dart';
 import 'providers/ai_chat_provider.dart';
 import 'services/ai_chat_service.dart';
 
@@ -79,7 +79,11 @@ void main() async {
   final pushService = sl.get<PushNotificationService>();
   await pushService.initialize();
 
-  runApp(const MyApp());
+  // Load the first-launch flag up front so the router can gate onboarding
+  // synchronously instead of flashing a loading screen.
+  final onboardingCompleted = await hasCompletedOnboarding();
+
+  runApp(MyApp(onboardingCompleted: onboardingCompleted));
 }
 
 /// Initialize Firebase Crashlytics for crash reporting
@@ -116,19 +120,51 @@ void _setupAuthLogging() {
   });
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  const MyApp({super.key, required this.onboardingCompleted});
+
+  /// Whether onboarding was already completed (loaded at startup).
+  final bool onboardingCompleted;
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final AuthProvider _authProvider;
+  late final ValueNotifier<bool> _onboardingCompleted;
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    // AuthProvider is owned here (not created inside MultiProvider) so the
+    // same instance can drive the router's auth-based redirects.
+    _authProvider = AuthProvider(
+      authService: sl.get<AuthService>(),
+      analyticsService: sl.get<AnalyticsService>(),
+    );
+    _onboardingCompleted = ValueNotifier<bool>(widget.onboardingCompleted);
+    _router = createAppRouter(
+      authProvider: _authProvider,
+      onboardingCompleted: _onboardingCompleted,
+    );
+  }
+
+  @override
+  void dispose() {
+    _router.dispose();
+    _onboardingCompleted.dispose();
+    _authProvider.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
-        ChangeNotifierProvider(
-            create: (_) => AuthProvider(
-                  authService: sl.get<AuthService>(),
-                  analyticsService: sl.get<AnalyticsService>(),
-                )),
+        ChangeNotifierProvider<AuthProvider>.value(value: _authProvider),
         ChangeNotifierProvider(
             create: (_) => VehicleProvider(
                   firebaseService: sl.get<FirebaseService>(),
@@ -184,74 +220,14 @@ class MyApp extends StatelessWidget {
                   service: sl.get<AiChatService>(),
                 )),
       ],
-      child: MaterialApp(
+      child: MaterialApp.router(
         title: 'クルマ統合管理',
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: ThemeMode.system,
-        home: const AuthWrapper(),
+        routerConfig: _router,
         debugShowCheckedModeBanner: false,
       ),
-    );
-  }
-}
-
-/// Routes to Home, Login, or Onboarding based on auth + first-launch state.
-class AuthWrapper extends StatefulWidget {
-  const AuthWrapper({super.key});
-
-  @override
-  State<AuthWrapper> createState() => _AuthWrapperState();
-}
-
-class _AuthWrapperState extends State<AuthWrapper> {
-  bool? _onboardingDone;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadOnboardingState();
-  }
-
-  Future<void> _loadOnboardingState() async {
-    final done = await hasCompletedOnboarding();
-    if (mounted) {
-      setState(() => _onboardingDone = done);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Still loading onboarding flag
-    if (_onboardingDone == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    return Consumer<AuthProvider>(
-      builder: (context, authProvider, child) {
-        if (authProvider.isLoading) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        // Authenticated users always go to HomeScreen
-        if (authProvider.isAuthenticated) {
-          return const HomeScreen();
-        }
-
-        // First-time visitors see onboarding. The callback swaps the screen
-        // in place — navigating away would destroy this auth-listening route.
-        if (!_onboardingDone!) {
-          return OnboardingScreen(
-            onCompleted: () => setState(() => _onboardingDone = true),
-          );
-        }
-
-        return const LoginScreen();
-      },
     );
   }
 }

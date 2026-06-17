@@ -1,6 +1,29 @@
 # Claude Session Notes
 
-最終更新: 2026-06-13
+最終更新: 2026-06-17
+
+---
+
+## 全画面UX刷新ロードマップ（進行中）
+
+**ブランチ**: `claude/eager-meitner-vn44kx`
+**デザインコンセプト**: 「クルマを楽しく、信頼のプラットフォームで管理しよう」
+（管理=信頼 と 楽しさ=コミュニティ/ドライブ の両輪。コア管理機能を最短導線に、SNS/ドライブ等の楽しい機能も一等市民として残す）
+
+**環境制約**: このリモート環境に Flutter/Dart SDK 無し → ローカルで test/analyze 不可。
+検証は CI（`.github/workflows/ci.yml`、Flutter 3.38.0）に依存。push→CI→修正のループで進行。
+
+### フェーズ計画（承認済み・当初順序）
+- [ ] **Phase 1: ルーティング基盤刷新（go_router）** ← 実装中
+  - `lib/core/router/app_router.dart` 新設。`AuthWrapper` を go_router の redirect に置換
+  - redirect ロジックは純粋関数 `resolveRedirect()` に分離しユニットテスト（`test/core/router/app_router_test.dart`）
+  - login/signup screen は未変更（既存 Navigator.push はルートNavigator上で動作継続）
+- [ ] Phase 2: IA/ナビ再設計（ボトムナビ再編・通知をAppBarへ・プロフィール物置解消・フリートはロール昇格）
+- [ ] Phase 3: デザイン遵守リファクタ（ハードコード一掃・lint導入）
+- [ ] Phase 4: 主要画面リデザイン（ホーム/車両詳細・a11y）
+
+### Phase 2 着手時の要確認事項
+- ボトムナビ一等地に「AI相談」を上げるか、SNSコミュニティを残すか（コンセプト=楽しさ重視のため要相談）
 
 ---
 
