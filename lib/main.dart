@@ -188,7 +188,10 @@ class MyApp extends StatelessWidget {
         title: 'クルマ統合管理',
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.system,
+        // コンセプト「信頼を設計する」に基づき、明るいDeep Blue基調を既定とする。
+        // 以前は ThemeMode.system だったため、OS のダーク設定で黒基調が
+        // 適用され、ブランドイメージ（落ち着いた青）と乖離していた。
+        themeMode: ThemeMode.light,
         home: const AuthWrapper(),
         debugShowCheckedModeBanner: false,
       ),

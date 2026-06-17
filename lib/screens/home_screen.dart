@@ -486,20 +486,13 @@ class _ProfileTab extends StatelessWidget {
 
           AppSpacing.verticalSm,
 
-          // ---- アカウントセクション ----
+          // ---- マイコンテンツセクション ----
+          // ドライブログ・アクセサリー等の「自分の記録・コミュニティ」系は
+          // アカウント設定とは別グループに分離し、導線の意味を明確化する。
           _buildMenuSection(
             context,
-            title: 'アカウント',
+            title: 'マイコンテンツ',
             items: [
-              _MenuItemData(
-                icon: Icons.manage_accounts_outlined,
-                label: 'プロフィールを編集',
-                color: AppColors.primary,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                ),
-              ),
               _MenuItemData(
                 icon: Icons.directions_car_outlined,
                 label: 'ドライブログ',
@@ -519,15 +512,25 @@ class _ProfileTab extends StatelessWidget {
                       builder: (_) => const AccessoryShowcaseScreen()),
                 ),
               ),
+            ],
+          ),
+
+          // ---- アカウントセクション ----
+          // 「整備工場を比較する」はここから除去した。コンセプト上、整備工場への
+          // 導線は AI 提案（→「興味あり」）やマーケットプレイスの工場一覧を起点に
+          // 提示されるべきもので、プロフィールから唐突に比較画面へ飛ぶ導線は
+          // ユーザーの意図と合致しないため。
+          _buildMenuSection(
+            context,
+            title: 'アカウント',
+            items: [
               _MenuItemData(
-                icon: Icons.compare_arrows_outlined,
-                label: '整備工場を比較する',
-                color: AppColors.info,
+                icon: Icons.manage_accounts_outlined,
+                label: 'プロフィールを編集',
+                color: AppColors.primary,
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => const ShopListScreen(compareMode: true),
-                  ),
+                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
                 ),
               ),
               if (isBusiness)

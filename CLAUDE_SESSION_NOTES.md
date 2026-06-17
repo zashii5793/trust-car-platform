@@ -1,6 +1,52 @@
 # Claude Session Notes
 
-最終更新: 2026-06-13
+最終更新: 2026-06-17
+
+---
+
+## 2026-06-17 UI/UX 全面見直し（コンセプト「信頼を設計する」準拠）
+
+ブランチ: `claude/youthful-heisenberg-77st8f`
+背景: Web ログイン後のフィードバック（黒基調・パーツのマイ出品・工場UI・
+車両画像なし・AIが中立的すぎ・プロフィールからの導線・パーツマスタの準備方法）を
+企画書 PDF「Trust_Driven_Car_Life_Platform」のコンセプトと照合して是正。
+
+⚠️ 制約: 本セッション環境に **Flutter/Dart 未インストール**。`flutter analyze/test`
+未実行。Dart 変更は外科的・低リスクに限定し、目視で整合性確認済み。
+→ 次セッションで必ず `flutter analyze lib/` と `flutter test --exclude-tags emulator` を実行すること。
+
+### 実施した変更
+1. **黒基調を解消** — `lib/main.dart` `themeMode: system → light`。
+   既存 lightTheme は Deep Blue(#1A4D8F)基調。OS ダーク設定で黒(#121212)が
+   出ていたのが原因。darkTheme は残置（将来トグル用）。
+2. **パーツ「マイ出品」(C2C) を導線から除外** — コンセプト外（パーツは AI→提携EC
+   アフィリエイト）。
+   - `marketplace_screen.dart`: 4→3 タブ（マイ出品タブ削除）。
+   - `profile/profile_screen.dart`: 「マーケットプレイス>マイ出品」セクション削除。
+   - 画面ファイル(my_listings/create_listing)とモデルは残置（参照のみ除去）。
+3. **プロフィールIA是正** — `home_screen.dart` _ProfileTab：「整備工場を比較する」を
+   プロフィールから除去（AI提案/工場一覧起点であるべき）。「マイコンテンツ」
+   （ドライブログ/みんなのアクセサリー）と「アカウント」を分離。
+4. **AIアドバイスの構造化** — `functions/src/askCarAi.ts` システムプロンプトに
+   【おすすめ/理由/メリット/デメリット・注意点/他の選択肢/次のアクション】と
+   推奨度(◎○△)を要求。断定はしないが中立に逃げず決断を後押し。
+   → 要 `firebase deploy --only functions`（本番反映・要確認）。
+5. **車両画像の改善** — `vehicle_detail_screen.dart` に loadingBuilder（Web読込中）と
+   「写真を追加すると…」プレースホルダー。
+6. **ペルソナ投入** — `scripts/seed_personas.js`（新規）。4ペルソナ（ファミリー佐藤/
+   クルマ好き鈴木/初購入田中/法人山田）+ 車両画像URL + 整備履歴。pass: `TrustCar!2026`。
+7. **パーツマスタ** — `scripts/seed_parts_master.js`（新規・ペルソナ車適合）+
+   `docs/PARTS_MASTER_GUIDE.md`（準備方法 A:シード/B:CSV/C:EC API）。
+
+### 次セッションの TODO（フォローアップ）
+- [ ] `flutter analyze lib/` / `flutter test` 実行（最優先・未検証のため）
+- [ ] seed を Emulator で実行確認（`--emulator --dry-run` → 投入）
+- [ ] Shop UI 改善: 一覧カードの情報過多解消、詳細に appealPoints/ServiceMenu 表示、
+      比較画面に推奨理由（_compositeScore の説明）を表示
+- [ ] AI Chat 回答の構造化レンダリング（markdown 風パース）
+- [ ] 車種マスタに代表画像 URL を追加（CSV+import 拡張）
+- [ ] `PartListing` に `affiliateUrl` 追加 → パーツ詳細に「ECで見る」CTA
+- [ ] ライト/ダークのユーザー設定トグル（設定画面）
 
 ---
 

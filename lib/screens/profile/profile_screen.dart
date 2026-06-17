@@ -18,7 +18,6 @@ import '../../services/firebase_service.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../export/export_dialog.dart';
-import '../marketplace/my_listings_screen.dart';
 import 'settings_screen.dart';
 
 /// プロフィール画面
@@ -116,25 +115,9 @@ class ProfileScreen extends StatelessWidget {
 
                 AppSpacing.verticalMd,
 
-                _MenuSection(
-                  title: 'マーケットプレイス',
-                  items: [
-                    _MenuItem(
-                      icon: Icons.sell_outlined,
-                      label: 'マイ出品',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const MyListingsScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-
-                AppSpacing.verticalMd,
+                // 注: 旧「マーケットプレイス > マイ出品」(C2C) セクションは削除した。
+                // コンセプト上パーツは AI レコメンド（B2C/アフィリエイト）であり、
+                // 個人出品はスコープ外のため導線から外す。
 
                 _MenuSection(
                   title: 'データ',

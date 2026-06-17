@@ -919,6 +919,22 @@ class _VehicleImage extends StatelessWidget {
         height: height,
         width: double.infinity,
         fit: BoxFit.cover,
+        // Web では画像取得に時間がかかることがあるため読み込み中表示を出す。
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return Container(
+            height: height,
+            width: double.infinity,
+            color: isDark ? AppColors.darkCard : AppColors.backgroundLight,
+            child: const Center(
+              child: SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+            ),
+          );
+        },
         errorBuilder: (_, __, ___) => _buildPlaceholder(height),
       );
     } else {
@@ -966,10 +982,26 @@ class _VehicleImage extends StatelessWidget {
         ),
       ),
       child: Center(
-        child: Icon(
-          Icons.directions_car,
-          size: 80,
-          color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.add_a_photo_outlined,
+              size: 56,
+              color:
+                  isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '写真を追加すると愛車が表示されます',
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark
+                    ? AppColors.darkTextTertiary
+                    : AppColors.textTertiary,
+              ),
+            ),
+          ],
         ),
       ),
     );
