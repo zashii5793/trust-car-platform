@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-06-17（第4ラウンド）残UX第2弾・PR作成
+
+✅ `flutter analyze lib/` クリーン / フル `flutter test --exclude-tags emulator` 実行。
+
+### 残UX第2弾
+- **ダッシュボードの透明性**: 「要対応 / 注意」カウントをタップ可能化
+  （`_DashboardSummaryCard`）。タップで対象車両と**具体的な理由**（車検切れ/自賠責切れ/
+  車検まであとN日/保険まであとN日）をボトムシート一覧表示し、各行から車両詳細へ遷移。
+- **工場一覧カードの情報階層化**（`shop_list_screen.dart`）: サービスを主要2件＋「ほかN件」に
+  集約。「広告」ラベルを枠付きアンバーで強調し、広告/有機表示の区別を明確化（透明性原則）。
+
+### PR
+- ブランチ `claude/youthful-heisenberg-77st8f` をドラフトPR化（第1〜4ラウンドをまとめて）。
+
+---
+
 ## 2026-06-17（第3ラウンド）Flutter導入で検証可能化・次アクション1-3を開発＆テスト
 
 ✅ **Flutter SDK を /tmp/flutter に導入**（stable, shallow clone）。`flutter analyze`/`flutter test`
