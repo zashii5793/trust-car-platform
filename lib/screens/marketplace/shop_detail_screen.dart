@@ -809,8 +809,16 @@ class _ServiceMenusSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // 料金メニューは補助情報。サービス未登録/取得失敗で詳細画面を壊さない。
+    Stream<List<ServiceMenu>> stream;
+    try {
+      stream =
+          sl.get<ServiceMenuService>().getActiveServiceMenus(shopId: shopId);
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
     return StreamBuilder<List<ServiceMenu>>(
-      stream: sl.get<ServiceMenuService>().getActiveServiceMenus(shopId: shopId),
+      stream: stream,
       builder: (context, snap) {
         // 取得前・エラー・空はいずれも非表示（画面を壊さない）
         if (snap.hasError) return const SizedBox.shrink();

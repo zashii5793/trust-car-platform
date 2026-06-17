@@ -939,9 +939,15 @@ class _VehicleImageState extends State<_VehicleImage> {
     super.initState();
     final hasOwn = widget.imageUrl != null && widget.imageUrl!.isNotEmpty;
     if (!hasOwn && widget.maker != null && widget.model != null) {
-      _masterImageFuture = sl
-          .get<VehicleMasterService>()
-          .getModelImageUrl(widget.maker!, widget.model!);
+      // 代表画像のフォールバックは「あれば嬉しい」程度の補助機能。
+      // サービス未登録・取得失敗で詳細画面をクラッシュさせないよう保護する。
+      try {
+        _masterImageFuture = sl
+            .get<VehicleMasterService>()
+            .getModelImageUrl(widget.maker!, widget.model!);
+      } catch (_) {
+        _masterImageFuture = null;
+      }
     }
   }
 

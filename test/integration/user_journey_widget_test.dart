@@ -928,7 +928,9 @@ void main() {
       expect(find.byIcon(Icons.storefront_outlined), findsOneWidget);
     });
 
-    testWidgets('マーケット内に 3 タブ（工場・業者、パーツ、マイ出品）が表示される', (tester) async {
+    // 注: C2C「マイ出品」タブはコンセプト（AI→提携ECアフィリエイト）に合わせて廃止。
+    // 現在のタブ構成は 工場・業者 / パーツ / 問い合わせ の3つ。
+    testWidgets('マーケット内に 3 タブ（工場・業者、パーツ、問い合わせ）が表示される', (tester) async {
       await _setSurface(tester);
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
@@ -941,7 +943,9 @@ void main() {
 
       expect(find.text('工場・業者'), findsOneWidget);
       expect(find.text('パーツ'), findsOneWidget);
-      expect(find.text('マイ出品'), findsOneWidget);
+      expect(find.text('問い合わせ'), findsOneWidget);
+      // 廃止したタブが表示されていないこと
+      expect(find.text('マイ出品'), findsNothing);
     });
   });
 
