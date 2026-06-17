@@ -4,6 +4,53 @@
 
 ---
 
+## 2026-06-17（第2ラウンド）AI方向性の明文化・UX監査・次アクション1-3実装
+
+ブランチ: `claude/youthful-heisenberg-77st8f`（完全自律指示）
+⚠️ 制約継続: Flutter 未導入のため analyze/test 未実行。加算的・低リスク編集に限定し目視確認。
+→ 次セッション最優先で `flutter analyze lib/` + `flutter test --exclude-tags emulator`。
+
+### A. AIのルール・方向性を決着（最重要フィードバック）
+- `docs/AI_DESIGN_PRINCIPLES.md` 新規。「押し付けないが、決められる材料を整える」を核に、
+  推奨度(◎○△)・出力フォーマット(【おすすめ/理由/メリット/デメリット/他の選択肢/次アクション】)・
+  ハードガードレール(断定禁止/安全法令必須明記/事業者はユーザー起点)・トーンを定義。
+  `askCarAi.ts` と `recommendation_service.dart` の正典とする。
+
+### B. 次アクション①〜③ 実装
+1. **Shop UI**
+   - 工場詳細: 「この工場の特徴(appealPoints)」「料金メニュー(service_menus)」セクション追加
+     （`shop_detail_screen.dart`、StreamBuilderで空/エラーは非表示）
+   - 工場比較: 「おすすめ」の根拠を言語化して表示（`shop_comparison_service.dart` に
+     `recommendationReasonFor()` を追加＝既存`recommend()`のAPIは不変、`shop_comparison_screen.dart`で表示）
+2. **AIチャット**: 構造化レンダラ `_RichAnswer`（【見出し】/箇条書きを整形、外部パッケージ不要）と
+   最後のAI回答への送客CTA（対応工場を探す / パーツ提案を見る）を `ai_chat_screen.dart` に実装。
+3. **車種マスタ画像**: `VehicleModel.imageUrl` フィールド追加（round-trip対応）。
+   表示フォールバック配線は非同期解決が必要なため次回（下記TODO）。
+- **パーツ**: `PartListing.affiliateUrl` 追加 + パーツ詳細に「ECで見る」CTA（`part_detail_screen.dart`、url_launcher）。
+
+### C. デモデータ
+- `scripts/seed_shop_extras.js` 新規: 既存shopsへ appealPoints と service_menus を投入
+  （工場詳細の新セクションを実データ確認できる）。
+
+### D. テスト追加（未実行・要検証）
+- `shop_comparison_service_test.dart`: recommendationReasonFor 3ケース
+- `part_listing_test.dart`: affiliateUrl round-trip
+- `vehicle_master_test.dart`: VehicleModel.imageUrl round-trip
+
+### UX監査で把握した未対応（次セッションTODO・優先順）
+- [ ] **flutter analyze/test 実行**（最優先）
+- [ ] 車種マスタ代表画像の表示フォールバック（`_VehicleImage`を FutureBuilder化、
+      `VehicleMasterService.getModelImageUrl(makerId, modelId)` を追加。makerId/modelId 導出は
+      part_recommendation_service の `_getMakerId/_getModelId` と共通化）+ CSV/import に imageUrl 列
+- [ ] ホーム空状態CTAの主張強化（`home_screen.dart` _VehicleEmptyOnboarding）
+- [ ] ダッシュボード「要対応/注意」カウントをタップ可能＋具体ラベル化
+- [ ] AI提案セクションの視認性（横スクロール→件数バッジ/縦表示）
+- [ ] ログイン: パスワード忘れ/バリデーションのエラーメッセージ具体化
+- [ ] 工場一覧カードの「広告」ラベル視認性、サービス表示の階層化
+- [ ] 設定にライト/ダーク手動トグル
+
+---
+
 ## 2026-06-17 UI/UX 全面見直し（コンセプト「信頼を設計する」準拠）
 
 ブランチ: `claude/youthful-heisenberg-77st8f`

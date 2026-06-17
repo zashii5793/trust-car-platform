@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/part_listing.dart';
 import '../../models/vehicle.dart';
 import '../../providers/part_recommendation_provider.dart';
@@ -635,22 +636,64 @@ class _InquiryBottomBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          // 問い合わせボタン
-          ElevatedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('工場・業者タブから問い合わせできます')),
-              );
-            },
-            icon: const Icon(Icons.chat_bubble_outline, size: 18),
-            label: const Text('問い合わせ'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.colorScheme.primary,
-              foregroundColor: Colors.white,
-            ),
+          // アクション群（提携ECがあれば「ECで見る」を主導線に）
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (part.affiliateUrl != null &&
+                  part.affiliateUrl!.isNotEmpty) ...[
+                ElevatedButton.icon(
+                  onPressed: () => _openAffiliate(context, part.affiliateUrl!),
+                  icon: const Icon(Icons.shopping_cart_outlined, size: 18),
+                  label: const Text('ECで見る'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // 問い合わせは副次導線（工場・業者タブ経由）
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('工場・業者タブから問い合わせできます')),
+                    );
+                  },
+                  icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                  label: const Text('問い合わせ'),
+                ),
+              ] else
+                ElevatedButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('工場・業者タブから問い合わせできます')),
+                    );
+                  },
+                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                  label: const Text('問い合わせ'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _openAffiliate(BuildContext context, String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('リンクを開けませんでした')),
+      );
+    }
   }
 }

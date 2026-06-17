@@ -517,5 +517,53 @@ void main() {
         expect(recommended!.name, 'タカヤモーター(株)');
       });
     });
+
+    // ──────────────────────────────────────────────
+    // recommendationReasonFor — 推奨理由の言語化
+    // ──────────────────────────────────────────────
+    group('recommendationReasonFor', () {
+      test('高評価・多レビューの工場は理由に評価と実績を含む', () {
+        final shop = buildShop(
+          id: 'r1',
+          name: 'High Rated',
+          services: [ServiceCategory.inspection],
+          rating: 4.7,
+          reviewCount: 120,
+        );
+        final results = service.compare(
+          shops: [shop],
+          requiredServices: [ServiceCategory.inspection],
+        );
+        final reason = service.recommendationReasonFor(
+          results.first,
+          primaryNeed: ServiceCategory.inspection,
+        );
+        expect(reason, contains('高評価'));
+        expect(reason, contains('実績'));
+        expect(reason, contains('おすすめ'));
+      });
+
+      test('評価・レビューが無い工場でも空にならずフォールバック文を返す', () {
+        final shop = buildShop(id: 'r2', name: 'No Data');
+        final results = service.compare(shops: [shop]);
+        final reason = service.recommendationReasonFor(results.first);
+        expect(reason, isNotEmpty);
+      });
+
+      test('primaryNeed に対応している場合は理由に含む', () {
+        final shop = buildShop(
+          id: 'r3',
+          name: 'Tire Shop',
+          services: [ServiceCategory.tire],
+          rating: 4.2,
+        );
+        final results = service.compare(shops: [shop]);
+        final reason = service.recommendationReasonFor(
+          results.first,
+          primaryNeed: ServiceCategory.tire,
+        );
+        expect(reason, contains(ServiceCategory.tire.displayName));
+      });
+    });
   });
 }

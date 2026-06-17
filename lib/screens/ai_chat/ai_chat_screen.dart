@@ -10,6 +10,8 @@ import '../../models/vehicle.dart';
 import '../../providers/ai_chat_provider.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../services/ai_chat_service.dart';
+import '../marketplace/shop_list_screen.dart';
+import '../parts/part_recommendation_screen.dart';
 
 /// AI chat screen — lets users ask a car expert AI questions about their vehicle.
 ///
@@ -133,7 +135,16 @@ class _AiChatViewState extends State<_AiChatView> {
                   ),
                   itemCount: provider.messages.length,
                   itemBuilder: (context, index) {
-                    return _ChatBubble(message: provider.messages[index]);
+                    final msg = provider.messages[index];
+                    // 最後のAI回答にだけ送客CTA（工場/パーツ）を出す。
+                    final isLastAssistant = index == provider.messages.length - 1 &&
+                        msg.role == ChatRole.assistant &&
+                        !msg.isLoading;
+                    return _ChatBubble(
+                      message: msg,
+                      vehicle: context.read<VehicleProvider>().selectedVehicle,
+                      showActions: isLastAssistant,
+                    );
                   },
                 );
               },
@@ -263,9 +274,15 @@ class _EmptyState extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ChatBubble extends StatelessWidget {
-  const _ChatBubble({required this.message});
+  const _ChatBubble({
+    required this.message,
+    this.vehicle,
+    this.showActions = false,
+  });
 
   final ChatMessage message;
+  final Vehicle? vehicle;
+  final bool showActions;
 
   @override
   Widget build(BuildContext context) {
@@ -319,15 +336,18 @@ class _ChatBubble extends StatelessWidget {
                   ),
                   child: message.isLoading
                       ? const _TypingIndicator()
-                      : Text(
-                          message.content,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color:
-                                isUser ? Colors.white : AppColors.textPrimary,
-                            height: 1.5,
-                          ),
-                        ),
+                      : isUser
+                          ? Text(
+                              message.content,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: Colors.white,
+                                height: 1.5,
+                              ),
+                            )
+                          : _RichAnswer(content: message.content),
                 ),
+                // AI回答末尾の送客CTA（最後の回答のみ）
+                if (showActions) _AnswerActions(vehicle: vehicle),
                 if (!message.isLoading) ...[
                   const SizedBox(height: 3),
                   Padding(
@@ -349,6 +369,173 @@ class _ChatBubble extends StatelessWidget {
             ),
           ),
           if (isUser) AppSpacing.horizontalXs,
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rich answer renderer — lightweight parser for the AI's structured format
+// (【セクション】見出し / 箇条書き / 推奨度 ◎○△) without external packages.
+// See docs/AI_DESIGN_PRINCIPLES.md for the output contract.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RichAnswer extends StatelessWidget {
+  const _RichAnswer({required this.content});
+
+  final String content;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final lines = content.split('\n');
+    final widgets = <Widget>[];
+
+    for (final raw in lines) {
+      final line = raw.trimRight();
+      if (line.trim().isEmpty) {
+        widgets.add(const SizedBox(height: 6));
+        continue;
+      }
+
+      final trimmed = line.trim();
+
+      // 【セクション】見出し（行頭が 【...】）
+      if (trimmed.startsWith('【')) {
+        final end = trimmed.indexOf('】');
+        if (end != -1) {
+          final label = trimmed.substring(1, end);
+          final rest = trimmed.substring(end + 1).trim();
+          widgets.add(Padding(
+            padding: EdgeInsets.only(
+                top: widgets.isEmpty ? 0 : 8, bottom: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 3, right: 6),
+                  width: 3,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: AppColors.textPrimary, height: 1.4),
+                      children: [
+                        TextSpan(
+                          text: label,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        if (rest.isNotEmpty) TextSpan(text: '  $rest'),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ));
+          continue;
+        }
+      }
+
+      // 箇条書き（- ・ * ●）
+      final bulletMatch = RegExp(r'^[-・*●]\s*(.*)').firstMatch(trimmed);
+      if (bulletMatch != null) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(left: 4, top: 1, bottom: 1),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 6, right: 6),
+                child: Container(
+                  width: 4,
+                  height: 4,
+                  decoration: const BoxDecoration(
+                    color: AppColors.textSecondary,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  bulletMatch.group(1) ?? '',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ));
+        continue;
+      }
+
+      // 通常テキスト
+      widgets.add(Text(
+        trimmed,
+        style: theme.textTheme.bodyMedium
+            ?.copyWith(color: AppColors.textPrimary, height: 1.5),
+      ));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: widgets,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CTA shown under the latest AI answer — keeps the user in control (concept:
+// 事業者はユーザー起点で提示）. Tapping is the user's own action.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AnswerActions extends StatelessWidget {
+  const _AnswerActions({this.vehicle});
+
+  final Vehicle? vehicle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, left: 4),
+      child: Wrap(
+        spacing: AppSpacing.xs,
+        runSpacing: AppSpacing.xs,
+        children: [
+          ActionChip(
+            avatar: const Icon(Icons.store_outlined, size: 16),
+            label: const Text('対応工場を探す'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => const ShopListScreen(),
+              ),
+            ),
+          ),
+          if (vehicle != null)
+            ActionChip(
+              avatar: const Icon(Icons.build_outlined, size: 16),
+              label: const Text('パーツ提案を見る'),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => PartRecommendationScreen(vehicle: vehicle!),
+                ),
+              ),
+            ),
         ],
       ),
     );

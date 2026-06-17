@@ -168,6 +168,16 @@ void main() {
       expect(testListing.priceDisplay, '¥50,000〜¥80,000');
     });
 
+    test('affiliateUrl round-trips through toMap and copyWith', () {
+      const url = 'https://example.com/ec/part1';
+      final withUrl = testListing.copyWith(affiliateUrl: url);
+      expect(withUrl.affiliateUrl, url);
+      expect(withUrl.toMap()['affiliateUrl'], url);
+      // 未指定時は null（既存の挙動を壊さない）
+      expect(testListing.affiliateUrl, null);
+      expect(testListing.toMap()['affiliateUrl'], null);
+    });
+
     test('priceDisplay shows single price', () {
       final singlePrice = testListing.copyWith(priceTo: 50000);
       expect(singlePrice.priceDisplay, '¥50,000');

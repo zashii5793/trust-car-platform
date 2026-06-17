@@ -96,6 +96,19 @@ void main() {
       expect(model.bodyType, BodyType.hatchback);
       expect(model.productionStartYear, 1997);
       expect(model.productionEndYear, null);
+      expect(model.imageUrl, null);
+    });
+
+    test('imageUrl round-trips through fromMap/toMap', () {
+      const url = 'https://example.com/rav4.jpg';
+      final model = VehicleModel.fromMap({
+        'makerId': 'toyota',
+        'name': 'RAV4',
+        'imageUrl': url,
+      }, 'toyota_rav4');
+
+      expect(model.imageUrl, url);
+      expect(model.toMap()['imageUrl'], url);
     });
 
     test('isAvailableInYear returns correct result', () {

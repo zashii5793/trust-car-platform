@@ -105,6 +105,7 @@ class VehicleModel {
   final int? productionEndYear; // null means still in production
   final int displayOrder;
   final bool isActive;
+  final String? imageUrl; // 車種の代表画像（個人アップロード画像が無いときのフォールバック）
 
   const VehicleModel({
     required this.id,
@@ -116,6 +117,7 @@ class VehicleModel {
     this.productionEndYear,
     this.displayOrder = 0,
     this.isActive = true,
+    this.imageUrl,
   });
 
   /// Check if the model was available in the given year
@@ -144,6 +146,7 @@ class VehicleModel {
       productionEndYear: data['productionEndYear'],
       displayOrder: data['displayOrder'] ?? 0,
       isActive: data['isActive'] ?? true,
+      imageUrl: data['imageUrl'],
     );
   }
 
@@ -158,6 +161,7 @@ class VehicleModel {
       productionEndYear: data['productionEndYear'],
       displayOrder: data['displayOrder'] ?? 0,
       isActive: data['isActive'] ?? true,
+      imageUrl: data['imageUrl'],
     );
   }
 
@@ -171,6 +175,7 @@ class VehicleModel {
       'productionEndYear': productionEndYear,
       'displayOrder': displayOrder,
       'isActive': isActive,
+      'imageUrl': imageUrl,
     };
   }
 

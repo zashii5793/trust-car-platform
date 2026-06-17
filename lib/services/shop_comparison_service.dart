@@ -105,6 +105,45 @@ class ShopComparisonService {
     return best?.shop;
   }
 
+  /// なぜこの工場が推奨されるのかを、ユーザーに見える根拠テキストで返す。
+  /// （比較画面の「おすすめ」バッジの透明性確保のため。スコアの中身を言語化する）
+  ///
+  /// 該当が無い場合は空文字を返す。
+  String recommendationReasonFor(
+    ShopComparisonResult result, {
+    ServiceCategory? primaryNeed,
+  }) {
+    final reasons = <String>[];
+    final rating = result.shop.rating;
+    final reviewCount = result.shop.reviewCount;
+
+    if (rating != null && rating >= 4.5) {
+      reasons.add('高評価（★${rating.toStringAsFixed(1)}）');
+    } else if (rating != null && rating >= 4.0) {
+      reasons.add('安定した評価（★${rating.toStringAsFixed(1)}）');
+    }
+    if (reviewCount >= 50) {
+      reasons.add('豊富な実績（$reviewCount件のレビュー）');
+    }
+    final d = result.distanceKm;
+    if (d != null && d < 5) {
+      reasons.add('近い立地（${d.toStringAsFixed(1)}km）');
+    } else if (d != null && d < 15) {
+      reasons.add('通いやすい距離（${d.toStringAsFixed(1)}km）');
+    }
+    if (result.estimatedResponseDays <= 1) {
+      reasons.add('当日対応が見込める');
+    } else if (result.estimatedResponseDays == 2) {
+      reasons.add('翌日対応が見込める');
+    }
+    if (primaryNeed != null && result.shop.offersService(primaryNeed)) {
+      reasons.add('${primaryNeed.displayName}に対応');
+    }
+
+    if (reasons.isEmpty) return 'バランスの取れた工場です';
+    return '${reasons.join('・')}のため、総合的におすすめです';
+  }
+
   // ──────────────────────────────────────────────
   // Internal helpers
   // ──────────────────────────────────────────────
