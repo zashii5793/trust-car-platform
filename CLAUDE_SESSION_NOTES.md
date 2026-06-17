@@ -4,6 +4,36 @@
 
 ---
 
+## 2026-06-17（第3ラウンド）Flutter導入で検証可能化・次アクション1-3を開発＆テスト
+
+✅ **Flutter SDK を /tmp/flutter に導入**（stable, shallow clone）。`flutter analyze`/`flutter test`
+が実行可能になり、第1〜3ラウンドの全変更を**実際に検証**した。
+- `flutter analyze lib/` → **No issues found!**（第1〜3ラウンド全変更が型・解析を通過）
+- 影響テスト（vehicle_master / part_listing / shop_comparison_service）→ **全パス(70)**
+
+### ① 検証フェーズ
+- 第1・2ラウンドの実装が analyze クリーンであることを確認（懸念だった copyWith/コンストラクタ周りも問題なし）。
+
+### ② 車種マスタ画像フォールバック（完成）
+- `lib/models/vehicle_master.dart`: 共通ヘルパ `vehicleMakerIdFromName` /
+  `vehicleModelIdFromNames` を追加（表示名→makerId/modelId）。
+- `lib/services/vehicle_master_service.dart`: `getModelImageUrl(makerName, modelName)` 追加。
+- `lib/screens/vehicle_detail_screen.dart`: `_VehicleImage` を StatefulWidget 化し、
+  個人画像が無いとき車種マスタの代表画像へフォールバック（FutureBuilder, initStateで一度だけ解決）。
+- `scripts/seed_vehicle_model_images.js`: 主要車種に代表画像を投入（フォールバックのデモ用）。
+
+### ③ 残UX一括対応（安全＆高価値を選定）
+- ログイン: パスワード再設定を「手順が分かるダイアログ＋メール形式チェック」に改善
+  （`login_screen.dart`）。
+- ホームAI提案: ヘッダーに「N件」バッジ追加（横スクロールの提案に気づける）。
+- ホーム空状態オンボーディングは既に良質のため変更不要と判断。
+
+### テスト
+- `vehicle_master_test.dart`: makerId/modelId 変換ヘルパ 3ケース追加。
+- フル `flutter test --exclude-tags emulator` を実行（結果は下記コミットで反映）。
+
+---
+
 ## 2026-06-17（第2ラウンド）AI方向性の明文化・UX監査・次アクション1-3実装
 
 ブランチ: `claude/youthful-heisenberg-77st8f`（完全自律指示）

@@ -10,6 +10,7 @@ import '../providers/notification_provider.dart';
 import '../providers/user_subscription_provider.dart';
 import '../services/drive_log_service.dart';
 import '../services/maintenance_schedule_service.dart';
+import '../services/vehicle_master_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
@@ -335,7 +336,12 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // 車両画像
-                  _VehicleImage(imageUrl: _vehicle.imageUrl, isDark: isDark),
+                  _VehicleImage(
+                    imageUrl: _vehicle.imageUrl,
+                    maker: _vehicle.maker,
+                    model: _vehicle.model,
+                    isDark: isDark,
+                  ),
 
                   // 車両基本情報
                   Padding(
@@ -902,46 +908,92 @@ class _MaintenanceScheduleSection extends StatelessWidget {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _VehicleImage extends StatelessWidget {
+class _VehicleImage extends StatefulWidget {
   final String? imageUrl;
+  final String? maker;
+  final String? model;
   final bool isDark;
 
-  const _VehicleImage({this.imageUrl, required this.isDark});
+  const _VehicleImage({
+    this.imageUrl,
+    this.maker,
+    this.model,
+    required this.isDark,
+  });
+
+  @override
+  State<_VehicleImage> createState() => _VehicleImageState();
+}
+
+class _VehicleImageState extends State<_VehicleImage> {
+  static const double _height = 220.0;
+
+  /// 個人アップロード画像が無いときの、車種マスタ代表画像の解決 Future。
+  /// rebuild のたびに再取得しないよう initState で一度だけ生成する。
+  Future<String?>? _masterImageFuture;
+
+  bool get isDark => widget.isDark;
+
+  @override
+  void initState() {
+    super.initState();
+    final hasOwn = widget.imageUrl != null && widget.imageUrl!.isNotEmpty;
+    if (!hasOwn && widget.maker != null && widget.model != null) {
+      _masterImageFuture = sl
+          .get<VehicleMasterService>()
+          .getModelImageUrl(widget.maker!, widget.model!);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    const height = 220.0;
-    Widget image;
-
-    if (imageUrl != null && imageUrl!.isNotEmpty) {
-      image = Image.network(
-        imageUrl!,
-        height: height,
-        width: double.infinity,
-        fit: BoxFit.cover,
-        // Web では画像取得に時間がかかることがあるため読み込み中表示を出す。
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
-          return Container(
-            height: height,
-            width: double.infinity,
-            color: isDark ? AppColors.darkCard : AppColors.backgroundLight,
-            child: const Center(
-              child: SizedBox(
-                width: 28,
-                height: 28,
-                child: CircularProgressIndicator(strokeWidth: 2.5),
-              ),
-            ),
-          );
-        },
-        errorBuilder: (_, __, ___) => _buildPlaceholder(height),
-      );
-    } else {
-      image = _buildPlaceholder(height);
+    final own = widget.imageUrl;
+    if (own != null && own.isNotEmpty) {
+      return _wrap(_networkImage(own));
     }
+    if (_masterImageFuture != null) {
+      return FutureBuilder<String?>(
+        future: _masterImageFuture,
+        builder: (context, snap) {
+          final url = snap.data;
+          if (url != null && url.isNotEmpty) {
+            return _wrap(_networkImage(url));
+          }
+          return _wrap(_buildPlaceholder(_height));
+        },
+      );
+    }
+    return _wrap(_buildPlaceholder(_height));
+  }
 
-    // Gradient overlay at the bottom for smooth transition into content
+  Widget _networkImage(String url) {
+    return Image.network(
+      url,
+      height: _height,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      // Web では画像取得に時間がかかることがあるため読み込み中表示を出す。
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return Container(
+          height: _height,
+          width: double.infinity,
+          color: isDark ? AppColors.darkCard : AppColors.backgroundLight,
+          child: const Center(
+            child: SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+          ),
+        );
+      },
+      errorBuilder: (_, __, ___) => _buildPlaceholder(_height),
+    );
+  }
+
+  // Gradient overlay at the bottom for smooth transition into content
+  Widget _wrap(Widget image) {
     return Stack(
       children: [
         image,

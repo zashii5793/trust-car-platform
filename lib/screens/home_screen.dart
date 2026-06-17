@@ -1813,6 +1813,27 @@ class _AiSuggestionSection extends StatelessWidget {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
+                        // 件数バッジ — 横スクロールで埋もれた提案にも気づけるように
+                        AppSpacing.horizontalXs,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary,
+                            borderRadius:
+                                BorderRadius.circular(AppSpacing.radiusFull),
+                          ),
+                          child: Text(
+                            '${suggestions.length}件',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),

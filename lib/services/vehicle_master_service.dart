@@ -93,6 +93,22 @@ class VehicleMasterService {
     }
   }
 
+  /// 車種の代表画像URLを取得する。
+  ///
+  /// 個人がアップロードした車両画像が無いときのフォールバック用。
+  /// [makerName] / [modelName] は表示名（例: 'トヨタ' / 'RAV4'）。
+  /// 該当が無い・画像未設定の場合は null。
+  Future<String?> getModelImageUrl(String makerName, String modelName) async {
+    final makerId = vehicleMakerIdFromName(makerName);
+    final modelId = vehicleModelIdFromNames(makerName, modelName);
+    final models = (await getModelsForMaker(makerId)).valueOrNull;
+    if (models == null) return null;
+    for (final m in models) {
+      if (m.id == modelId) return m.imageUrl;
+    }
+    return null;
+  }
+
   /// Get vehicle grades for a specific model
   Future<Result<List<VehicleGrade>, AppError>> getGradesForModel(
       String modelId) async {

@@ -1,5 +1,32 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// 表示名（例: 'トヨタ'）から makerId（例: 'toyota'）へ変換する。
+///
+/// 車両（[Vehicle.maker] は表示名を保持）と車種マスタ（id ベース）を
+/// 突き合わせるための共通ロジック。AI パーツ推奨・代表画像フォールバック等で共用する。
+const Map<String, String> _kMakerNameToId = {
+  'トヨタ': 'toyota',
+  'ホンダ': 'honda',
+  '日産': 'nissan',
+  'マツダ': 'mazda',
+  'スバル': 'subaru',
+  'スズキ': 'suzuki',
+  'ダイハツ': 'daihatsu',
+  '三菱': 'mitsubishi',
+  'レクサス': 'lexus',
+};
+
+String vehicleMakerIdFromName(String makerName) =>
+    _kMakerNameToId[makerName] ?? makerName.toLowerCase();
+
+/// 表示名のメーカー・車種から modelId（例: 'toyota_rav4'）を生成する。
+String vehicleModelIdFromNames(String makerName, String modelName) {
+  final makerId = vehicleMakerIdFromName(makerName);
+  final model =
+      modelName.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_');
+  return '${makerId}_$model';
+}
+
 /// Body type of vehicle
 enum BodyType {
   sedan('セダン'),

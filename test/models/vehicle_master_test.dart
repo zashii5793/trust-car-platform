@@ -3,6 +3,24 @@ import 'package:trust_car_platform/models/vehicle_master.dart';
 import 'package:trust_car_platform/data/vehicle_master_data.dart';
 
 void main() {
+  group('vehicleMakerIdFromName / vehicleModelIdFromNames', () {
+    test('日本語メーカー名を makerId に変換する', () {
+      expect(vehicleMakerIdFromName('トヨタ'), 'toyota');
+      expect(vehicleMakerIdFromName('スバル'), 'subaru');
+      expect(vehicleMakerIdFromName('ホンダ'), 'honda');
+    });
+
+    test('未知のメーカー名は小文字化してフォールバック', () {
+      expect(vehicleMakerIdFromName('Tesla'), 'tesla');
+    });
+
+    test('メーカー・車種名から modelId を生成する（空白/ハイフンは _）', () {
+      expect(vehicleModelIdFromNames('トヨタ', 'RAV4'), 'toyota_rav4');
+      expect(vehicleModelIdFromNames('スバル', 'WRX S4'), 'subaru_wrx_s4');
+      expect(vehicleModelIdFromNames('ホンダ', 'N-BOX'), 'honda_n_box');
+    });
+  });
+
   group('BodyType', () {
     test('has correct display names', () {
       expect(BodyType.sedan.displayName, 'セダン');
