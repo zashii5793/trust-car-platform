@@ -210,6 +210,41 @@ enum InspectionResult {
   }
 }
 
+/// 整備記録の来歴（データの出所）。
+///
+/// 売却時の信頼性の可視化と、抽出データ／確認済みデータの区別に使う。
+/// [isVerified] が true のものは第三者（工場）に確認された信頼できる記録。
+enum MaintenanceRecordSource {
+  manual('手入力', false),
+  ocrInvoice('請求書（読み取り）', false),
+  ocrCertificate('車検証（読み取り）', false),
+  recordBookPhoto('記録簿（写真）', false),
+  shopVerified('工場確認済み', true);
+
+  final String displayName;
+
+  /// 第三者（整備工場）により確認されたデータか。売却時の信頼度に直結する。
+  final bool isVerified;
+
+  const MaintenanceRecordSource(this.displayName, this.isVerified);
+
+  /// 文字列から復元。未知値・null は [manual]（自己申告）にフォールバック。
+  static MaintenanceRecordSource fromString(String? value) {
+    if (value == null) return MaintenanceRecordSource.manual;
+    try {
+      return MaintenanceRecordSource.values.firstWhere((e) => e.name == value);
+    } catch (_) {
+      return MaintenanceRecordSource.manual;
+    }
+  }
+
+  /// スキャン（OCR・記録簿写真）由来か。証跡画像の添付が必須となる来歴。
+  bool get isScanDerived =>
+      this == MaintenanceRecordSource.ocrInvoice ||
+      this == MaintenanceRecordSource.ocrCertificate ||
+      this == MaintenanceRecordSource.recordBookPhoto;
+}
+
 /// 作業項目
 class WorkItem {
   final String name; // 作業項目名
@@ -333,6 +368,10 @@ class MaintenanceRecord {
   // 工場連携: 問い合わせスレッド経由で取り込んだ場合の元問い合わせID（トレーサビリティ）
   final String? inquiryId;
 
+  // 来歴: データの出所（手入力 / OCR / 記録簿写真 / 工場確認済み）。
+  // 履歴の信頼度表示・証跡担保に使う。既定は手入力。
+  final MaintenanceRecordSource source;
+
   MaintenanceRecord({
     required this.id,
     required this.vehicleId,
@@ -370,7 +409,19 @@ class MaintenanceRecord {
     this.tireTreadDepth,
     // 工場連携
     this.inquiryId,
+    // 来歴
+    this.source = MaintenanceRecordSource.manual,
   });
+
+  /// 証跡（元画像）が添付されているか。スキャン由来の記録は true であるべき。
+  bool get hasEvidence => imageUrls.isNotEmpty;
+
+  /// 第三者（工場）に確認された信頼できる記録か。
+  bool get isVerified => source.isVerified;
+
+  /// 証跡の担保が満たされているか。
+  /// スキャン由来（OCR・記録簿写真）の記録は元画像の添付を必須とする。
+  bool get hasRequiredEvidence => !source.isScanDerived || hasEvidence;
 
   // Firestoreからデータを取得
   factory MaintenanceRecord.fromFirestore(DocumentSnapshot doc) {
@@ -418,6 +469,8 @@ class MaintenanceRecord {
       tireTreadDepth: data['tireTreadDepth'] as int?,
       // 工場連携
       inquiryId: data['inquiryId'] as String?,
+      // 来歴
+      source: MaintenanceRecordSource.fromString(data['source'] as String?),
     );
   }
 
@@ -511,6 +564,8 @@ class MaintenanceRecord {
       if (tireTreadDepth != null) 'tireTreadDepth': tireTreadDepth,
       // 工場連携 (only written when non-null)
       if (inquiryId != null) 'inquiryId': inquiryId,
+      // 来歴
+      'source': source.name,
     };
   }
 
@@ -589,6 +644,8 @@ class MaintenanceRecord {
     int? tireTreadDepth,
     // 工場連携
     String? inquiryId,
+    // 来歴
+    MaintenanceRecordSource? source,
   }) {
     return MaintenanceRecord(
       id: id ?? this.id,
@@ -628,6 +685,8 @@ class MaintenanceRecord {
       tireTreadDepth: tireTreadDepth ?? this.tireTreadDepth,
       // 工場連携
       inquiryId: inquiryId ?? this.inquiryId,
+      // 来歴
+      source: source ?? this.source,
     );
   }
 

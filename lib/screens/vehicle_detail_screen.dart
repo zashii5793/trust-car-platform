@@ -18,6 +18,7 @@ import '../widgets/common/app_card.dart';
 import '../widgets/common/loading_indicator.dart';
 import 'add_maintenance_screen.dart';
 import '../widgets/maintenance/maintenance_ai_comment.dart';
+import '../widgets/maintenance/maintenance_provenance_badge.dart';
 import 'export/export_dialog.dart';
 import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
@@ -1702,6 +1703,12 @@ class _MaintenanceTimelineItem extends StatelessWidget {
                                     ],
                                   ),
                                 ],
+                                // 来歴ラベル＋証跡（売却時の信頼性を可視化）
+                                AppSpacing.verticalXxs,
+                                MaintenanceProvenanceBadge(
+                                  source: record.source,
+                                  hasEvidence: record.hasEvidence,
+                                ),
                               ],
                             ),
                           ),
@@ -1992,6 +1999,20 @@ class _MaintenanceDetailSheet extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       color: typeColor,
                     ),
+                  ),
+
+                  AppSpacing.verticalSm,
+
+                  // 来歴ラベル＋証跡（タップで元画像を表示）
+                  MaintenanceProvenanceBadge(
+                    source: record.source,
+                    hasEvidence: record.hasEvidence,
+                    onViewEvidence: record.hasEvidence
+                        ? () => showMaintenanceEvidence(
+                              context,
+                              record.imageUrls,
+                            )
+                        : null,
                   ),
 
                   AppSpacing.verticalMd,

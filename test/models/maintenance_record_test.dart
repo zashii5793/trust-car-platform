@@ -264,5 +264,85 @@ void main() {
         expect(record.isReplacementDueSoon, false);
       });
     });
+
+    group('来歴 (source) と証跡 (evidence)', () {
+      MaintenanceRecord build({
+        MaintenanceRecordSource? source,
+        List<String> imageUrls = const [],
+      }) {
+        return MaintenanceRecord(
+          id: 'r1',
+          vehicleId: 'v1',
+          userId: 'u1',
+          type: MaintenanceType.oilChange,
+          title: 'Test',
+          cost: 1000,
+          date: DateTime(2024, 1, 1),
+          createdAt: DateTime(2024, 1, 1),
+          imageUrls: imageUrls,
+          source: source ?? MaintenanceRecordSource.manual,
+        );
+      }
+
+      test('source の既定値は manual（自己申告）', () {
+        expect(build().source, MaintenanceRecordSource.manual);
+        expect(build().isVerified, isFalse);
+      });
+
+      test('shopVerified は isVerified=true（工場確認済み）', () {
+        final r = build(source: MaintenanceRecordSource.shopVerified);
+        expect(r.isVerified, isTrue);
+        expect(r.source.displayName, '工場確認済み');
+      });
+
+      test('fromString は未知値・null を manual にフォールバック', () {
+        expect(MaintenanceRecordSource.fromString(null),
+            MaintenanceRecordSource.manual);
+        expect(MaintenanceRecordSource.fromString('unknown_xyz'),
+            MaintenanceRecordSource.manual);
+        expect(MaintenanceRecordSource.fromString('shopVerified'),
+            MaintenanceRecordSource.shopVerified);
+      });
+
+      test('isScanDerived は OCR・記録簿写真で true', () {
+        expect(MaintenanceRecordSource.ocrInvoice.isScanDerived, isTrue);
+        expect(MaintenanceRecordSource.ocrCertificate.isScanDerived, isTrue);
+        expect(MaintenanceRecordSource.recordBookPhoto.isScanDerived, isTrue);
+        expect(MaintenanceRecordSource.manual.isScanDerived, isFalse);
+        expect(MaintenanceRecordSource.shopVerified.isScanDerived, isFalse);
+      });
+
+      test('証跡: スキャン由来は元画像が無いと hasRequiredEvidence=false', () {
+        final noImg = build(source: MaintenanceRecordSource.ocrInvoice);
+        expect(noImg.hasEvidence, isFalse);
+        expect(noImg.hasRequiredEvidence, isFalse);
+
+        final withImg = build(
+          source: MaintenanceRecordSource.ocrInvoice,
+          imageUrls: ['https://example.com/invoice.jpg'],
+        );
+        expect(withImg.hasEvidence, isTrue);
+        expect(withImg.hasRequiredEvidence, isTrue);
+      });
+
+      test('証跡: 手入力は画像なしでも hasRequiredEvidence=true', () {
+        final r = build(source: MaintenanceRecordSource.manual);
+        expect(r.hasRequiredEvidence, isTrue);
+      });
+
+      test('source は toMap/fromFirestore で round-trip する', () {
+        final map =
+            build(source: MaintenanceRecordSource.shopVerified).toMap();
+        expect(map['source'], 'shopVerified');
+        expect(MaintenanceRecordSource.fromString(map['source'] as String?),
+            MaintenanceRecordSource.shopVerified);
+      });
+
+      test('copyWith で source を更新できる', () {
+        final updated =
+            build().copyWith(source: MaintenanceRecordSource.shopVerified);
+        expect(updated.source, MaintenanceRecordSource.shopVerified);
+      });
+    });
   });
 }
