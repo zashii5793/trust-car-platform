@@ -9,7 +9,7 @@ import 'package:trust_car_platform/core/router/app_router.dart';
 void main() {
   group('resolveRedirect', () {
     group('loading', () {
-      test('redirects to splash while auth state is resolving', () {
+      test('redirects to splash while resolving', () {
         expect(
           resolveRedirect(
             isLoading: true,
@@ -35,7 +35,7 @@ void main() {
     });
 
     group('unauthenticated', () {
-      test('first-time user is sent to onboarding', () {
+      test('first-time user goes to onboarding', () {
         expect(
           resolveRedirect(
             isLoading: false,
@@ -47,7 +47,7 @@ void main() {
         );
       });
 
-      test('stays on onboarding while it is in progress', () {
+      test('stays on onboarding while in progress', () {
         expect(
           resolveRedirect(
             isLoading: false,
@@ -59,7 +59,7 @@ void main() {
         );
       });
 
-      test('returning user is sent to login', () {
+      test('returning user goes to login', () {
         expect(
           resolveRedirect(
             isLoading: false,
@@ -147,7 +147,7 @@ void main() {
     });
 
     group('Edge Cases', () {
-      test('loading takes precedence even when authenticated', () {
+      test('loading wins even when authenticated', () {
         expect(
           resolveRedirect(
             isLoading: true,
@@ -159,8 +159,7 @@ void main() {
         );
       });
 
-      test('authenticated user with onboarding never completed still goes home',
-          () {
+      test('authed user with incomplete onboarding goes home', () {
         expect(
           resolveRedirect(
             isLoading: false,
@@ -172,8 +171,7 @@ void main() {
         );
       });
 
-      test('unknown deep-link location for a returning user falls back to login',
-          () {
+      test('unknown path for returning user falls back to login', () {
         expect(
           resolveRedirect(
             isLoading: false,
@@ -185,8 +183,7 @@ void main() {
         );
       });
 
-      test('unknown deep-link location for an authenticated user is allowed',
-          () {
+      test('unknown path for authed user is allowed', () {
         expect(
           resolveRedirect(
             isLoading: false,
