@@ -36,6 +36,9 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Firebase Emulator persisted data (local dev only)
+/emulator-data/
+
 # Symbolication related
 app.*.symbols
 

@@ -48,10 +48,14 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Use Firebase Emulator in debug mode (local development)
+  // Use Firebase Emulator in debug mode (local development).
+  // Use 127.0.0.1 (not 'localhost') so the native macOS/iOS Firebase SDK
+  // connects over IPv4. On macOS, 'localhost' may resolve to IPv6 (::1) first
+  // and the emulator (bound to 127.0.0.1) becomes unreachable, hanging
+  // Firestore/Auth calls. Web/Android are unaffected by this change.
   if (kDebugMode) {
-    await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
-    FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
+    await FirebaseAuth.instance.useAuthEmulator('127.0.0.1', 9099);
+    FirebaseFirestore.instance.useFirestoreEmulator('127.0.0.1', 8080);
     // Disable persistence for emulator (data is ephemeral)
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: false,
