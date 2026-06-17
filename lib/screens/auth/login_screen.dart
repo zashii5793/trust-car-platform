@@ -62,8 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
 
     if (email.isEmpty) {
-      showErrorSnackBar(
-          context, 'リセット用メールを送る先のメールアドレスを入力してください');
+      showErrorSnackBar(context, 'リセット用メールを送る先のメールアドレスを入力してください');
       return;
     }
     // 簡易な形式チェック（送信前に気づけるようにする）
@@ -100,8 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       showErrorSnackBar(
         context,
-        authProvider.errorMessage ??
-            'メールを送信できませんでした。時間をおいて再度お試しください',
+        authProvider.errorMessage ?? 'メールを送信できませんでした。時間をおいて再度お試しください',
       );
     }
   }

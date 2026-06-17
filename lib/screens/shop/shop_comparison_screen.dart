@@ -48,9 +48,8 @@ class _ShopComparisonScreenState extends State<ShopComparisonScreen> {
         : null;
     // 推奨工場の「なぜおすすめか」を言語化（透明性）
     if (_recommended != null) {
-      final match = _results
-          .where((r) => r.shop.id == _recommended!.id)
-          .toList();
+      final match =
+          _results.where((r) => r.shop.id == _recommended!.id).toList();
       if (match.isNotEmpty) {
         _recommendationReason = _service.recommendationReasonFor(
           match.first,
@@ -81,10 +80,9 @@ class _ShopComparisonScreenState extends State<ShopComparisonScreen> {
                 result: _results[i],
                 rank: i + 1,
                 isRecommended: _recommended?.id == _results[i].shop.id,
-                recommendationReason:
-                    _recommended?.id == _results[i].shop.id
-                        ? _recommendationReason
-                        : null,
+                recommendationReason: _recommended?.id == _results[i].shop.id
+                    ? _recommendationReason
+                    : null,
                 primaryNeed: widget.primaryNeed,
               ),
             ),

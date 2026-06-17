@@ -657,8 +657,7 @@ class _InquiryBottomBar extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('工場・業者タブから問い合わせできます')),
+                      const SnackBar(content: Text('工場・業者タブから問い合わせできます')),
                     );
                   },
                   icon: const Icon(Icons.chat_bubble_outline, size: 16),
@@ -668,8 +667,7 @@ class _InquiryBottomBar extends StatelessWidget {
                 ElevatedButton.icon(
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('工場・業者タブから問い合わせできます')),
+                      const SnackBar(content: Text('工場・業者タブから問い合わせできます')),
                     );
                   },
                   icon: const Icon(Icons.chat_bubble_outline, size: 18),

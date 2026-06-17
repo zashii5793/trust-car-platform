@@ -137,9 +137,10 @@ class _AiChatViewState extends State<_AiChatView> {
                   itemBuilder: (context, index) {
                     final msg = provider.messages[index];
                     // 最後のAI回答にだけ送客CTA（工場/パーツ）を出す。
-                    final isLastAssistant = index == provider.messages.length - 1 &&
-                        msg.role == ChatRole.assistant &&
-                        !msg.isLoading;
+                    final isLastAssistant =
+                        index == provider.messages.length - 1 &&
+                            msg.role == ChatRole.assistant &&
+                            !msg.isLoading;
                     return _ChatBubble(
                       message: msg,
                       vehicle: context.read<VehicleProvider>().selectedVehicle,
@@ -408,8 +409,7 @@ class _RichAnswer extends StatelessWidget {
           final label = trimmed.substring(1, end);
           final rest = trimmed.substring(end + 1).trim();
           widgets.add(Padding(
-            padding: EdgeInsets.only(
-                top: widgets.isEmpty ? 0 : 8, bottom: 2),
+            padding: EdgeInsets.only(top: widgets.isEmpty ? 0 : 8, bottom: 2),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

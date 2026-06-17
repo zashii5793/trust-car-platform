@@ -707,8 +707,8 @@ class _ShopCard extends StatelessWidget {
                                     AppColors.warning.withValues(alpha: 0.14),
                                 borderRadius: BorderRadius.circular(4),
                                 border: Border.all(
-                                  color: AppColors.warning
-                                      .withValues(alpha: 0.5),
+                                  color:
+                                      AppColors.warning.withValues(alpha: 0.5),
                                 ),
                               ),
                               child: Text(
