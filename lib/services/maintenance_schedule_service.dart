@@ -1,5 +1,6 @@
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
+import '../models/maintenance_preferences.dart';
 
 /// A single scheduled maintenance task with its recommended service interval.
 class ScheduledMaintenance {
@@ -22,7 +23,15 @@ class MaintenanceScheduleService {
   const MaintenanceScheduleService();
 
   /// Returns a deduplicated list of recommended maintenance items for [vehicle].
-  List<ScheduledMaintenance> generateSchedule(Vehicle vehicle) {
+  ///
+  /// When [preferences] is given, the user's per-vehicle custom intervals
+  /// override the standard values for the matching maintenance types. This lets
+  /// drivers tailor the schedule to how they actually drive (severe/short-trip
+  /// use shortens oil/tyre intervals, etc.) instead of a one-size-fits-all value.
+  List<ScheduledMaintenance> generateSchedule(
+    Vehicle vehicle, {
+    MaintenancePreferences? preferences,
+  }) {
     final fuelType = vehicle.fuelType;
     final items = <ScheduledMaintenance>[];
 
@@ -119,7 +128,19 @@ class MaintenanceScheduleService {
       ),
     ]);
 
-    return items;
+    if (preferences == null) return items;
+
+    // Apply the user's per-vehicle interval overrides.
+    return items.map((item) {
+      final override = preferences.forType(item.type);
+      if (override == null || override.isEmpty) return item;
+      return ScheduledMaintenance(
+        type: item.type,
+        intervalKm: override.intervalKm ?? item.intervalKm,
+        intervalMonths: override.intervalMonths ?? item.intervalMonths,
+        description: item.description,
+      );
+    }).toList();
   }
 
   /// Returns the next recommended service mileage for [item] given the

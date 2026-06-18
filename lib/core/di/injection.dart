@@ -38,6 +38,7 @@ import '../../services/inspection_reminder_service.dart';
 import '../../services/fleet_service.dart';
 import '../../services/fleet_csv_export_service.dart';
 import '../../services/maintenance_schedule_service.dart';
+import '../../services/maintenance_preference_service.dart';
 import '../../services/vehicle_spec_service.dart';
 import '../../services/maintenance_trend_service.dart';
 import '../../services/community_trend_service.dart';
@@ -184,6 +185,10 @@ class Injection {
     // Maintenance Schedule Service (generates standard maintenance schedule)
     locator.registerLazySingleton<MaintenanceScheduleService>(
         () => const MaintenanceScheduleService());
+
+    // Maintenance Preference Service (per-vehicle custom service intervals)
+    locator.registerLazySingleton<MaintenancePreferenceService>(
+        () => MaintenancePreferenceService());
 
     // Vehicle Spec Service (community-contributed grade spec data)
     locator

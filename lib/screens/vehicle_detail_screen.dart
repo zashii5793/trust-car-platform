@@ -11,6 +11,8 @@ import '../providers/notification_provider.dart';
 import '../providers/user_subscription_provider.dart';
 import '../services/drive_log_service.dart';
 import '../services/maintenance_schedule_service.dart';
+import '../services/maintenance_preference_service.dart';
+import '../models/maintenance_preferences.dart';
 import '../services/vehicle_master_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
@@ -27,6 +29,7 @@ import 'export/export_dialog.dart';
 import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
 import 'insurance_edit_screen.dart';
+import 'settings/maintenance_interval_settings_screen.dart';
 import 'maintenance_stats_screen.dart';
 import 'maintenance_search_screen.dart';
 import '../services/firebase_service.dart';
@@ -855,9 +858,44 @@ class _LeaseInfoSection extends StatelessWidget {
 
 // ── 点検スケジュールセクション ────────────────────────────────────────────────
 
-class _MaintenanceScheduleSection extends StatelessWidget {
+class _MaintenanceScheduleSection extends StatefulWidget {
   final Vehicle vehicle;
   const _MaintenanceScheduleSection({required this.vehicle});
+
+  @override
+  State<_MaintenanceScheduleSection> createState() =>
+      _MaintenanceScheduleSectionState();
+}
+
+class _MaintenanceScheduleSectionState
+    extends State<_MaintenanceScheduleSection> {
+  MaintenancePreferences? _prefs;
+
+  Vehicle get vehicle => widget.vehicle;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    if (!sl.isRegistered<MaintenancePreferenceService>()) return;
+    final result = await sl
+        .get<MaintenancePreferenceService>()
+        .getPreferences(vehicle.id, vehicle.userId);
+    if (!mounted) return;
+    setState(() => _prefs = result.valueOrNull);
+  }
+
+  Future<void> _openSettings() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => MaintenanceIntervalSettingsScreen(vehicle: vehicle),
+      ),
+    );
+    if (changed == true) _loadPrefs();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -868,7 +906,9 @@ class _MaintenanceScheduleSection extends StatelessWidget {
     }
     final theme = Theme.of(context);
     final scheduleService = sl.get<MaintenanceScheduleService>();
-    final schedule = scheduleService.generateSchedule(vehicle);
+    final schedule =
+        scheduleService.generateSchedule(vehicle, preferences: _prefs);
+    final hasCustom = _prefs?.overrides.isNotEmpty ?? false;
     // Show the first 5 items only
     final items = schedule.take(5).toList();
 
@@ -890,6 +930,33 @@ class _MaintenanceScheduleSection extends StatelessWidget {
                     '推奨メンテナンス周期',
                     style: theme.textTheme.titleSmall
                         ?.copyWith(color: AppColors.textSecondary),
+                  ),
+                  if (hasCustom)
+                    Padding(
+                      padding: const EdgeInsets.only(left: AppSpacing.xs),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text('カスタム',
+                            style:
+                                TextStyle(fontSize: 10, color: AppColors.info)),
+                      ),
+                    ),
+                  const Spacer(),
+                  TextButton.icon(
+                    key: const Key('edit_intervals_btn'),
+                    onPressed: _openSettings,
+                    icon: const Icon(Icons.tune, size: 15),
+                    label: const Text('編集'),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      textStyle: const TextStyle(fontSize: 12),
+                    ),
                   ),
                 ],
               ),
