@@ -110,10 +110,12 @@ class _DriveLogScreenState extends State<DriveLogScreen> {
           }
 
           if (provider.logs.isEmpty) {
-            return const AppEmptyState(
+            return AppEmptyState(
               icon: Icons.directions_car_outlined,
               title: 'ドライブログがありません',
-              description: 'ドライブを記録してみましょう',
+              description: '「記録を開始」を押すと、走行ルート・距離・時間を自動で記録します。',
+              buttonLabel: '記録を開始',
+              onButtonPressed: _startRecording,
             );
           }
 
