@@ -1,6 +1,26 @@
 # Claude Session Notes
 
-最終更新: 2026-06-13
+最終更新: 2026-06-18
+
+---
+
+## 2026-06-18 セッション（自律UI/UX改善 + 事業性評価）
+
+ブランチ: `claude/fervent-dijkstra-kamt62`（PR: ドラフト作成）
+注: この環境に flutter SDK が無く `flutter test/analyze` は未実行。変更は低リスクのみに限定。
+
+**UI/UX改善（3件）**
+1. `vehicle_detail_screen.dart`: タイムラインのローディングを `AppLoadingCenter` 化し、
+   filter別メッセージ（ドライブログ/整備記録/履歴を読み込み中）を表示。
+   → 既存テスト（CircularProgressIndicator探索）は AppLoadingCenter 内包で互換。
+2. `vehicle_detail_screen.dart`: `_InfoRow` の値を `Expanded` 化（長い値のオーバーフロー防止。
+   Expandedは Row の直接の子なので既知の制約に抵触せず）。
+3. `home_screen.dart`: AI提案バッジのダークモード時 alpha を引き上げコントラスト改善。
+
+**事業性評価**: `docs/BUSINESS_VIABILITY_ASSESSMENT.md` 新規作成（既存アピール文書への辛口カウンター）。
+結論=「個人の車検リマインダーで母数→工場B2BにROIを見せて課金」一点突破推奨。C2C/フリートは凍結提案。
+
+**次セッション候補**: ①B2B月次ROIレポート最小実装 ②AppButton/AppDialog採用率改善のIssue化 ③工場手動KYC+審査済バッジUI
 
 ---
 

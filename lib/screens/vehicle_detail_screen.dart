@@ -1011,11 +1011,13 @@ class _InfoRow extends StatelessWidget {
               style: theme.textTheme.bodyMedium,
             ),
           ),
-          Text(
-            value,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: valueColor,
-              fontWeight: valueColor != null ? FontWeight.bold : null,
+          Expanded(
+            child: Text(
+              value,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: valueColor,
+                fontWeight: valueColor != null ? FontWeight.bold : null,
+              ),
             ),
           ),
         ],
@@ -1245,7 +1247,12 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
     return Consumer<MaintenanceProvider>(
       builder: (context, maintenanceProvider, child) {
         if (maintenanceProvider.isLoading || !_driveLogsLoaded) {
-          return const Center(child: CircularProgressIndicator());
+          final loadingMessage = switch (widget.filter) {
+            _TimelineFilter.drive => 'ドライブログを読み込み中...',
+            _TimelineFilter.maintenance => '整備記録を読み込み中...',
+            _ => '履歴を読み込み中...',
+          };
+          return AppLoadingCenter(message: loadingMessage);
         }
 
         // Sort entries newest-first

@@ -1036,12 +1036,14 @@ class _VehicleCard extends StatelessWidget {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: AppColors.warning
-                                        .withValues(alpha: 0.12),
+                                    color: AppColors.warning.withValues(
+                                      alpha: isDark ? 0.22 : 0.12,
+                                    ),
                                     borderRadius: AppSpacing.borderRadiusXs,
                                     border: Border.all(
-                                      color: AppColors.warning
-                                          .withValues(alpha: 0.4),
+                                      color: AppColors.warning.withValues(
+                                        alpha: isDark ? 0.6 : 0.4,
+                                      ),
                                     ),
                                   ),
                                   child: Text(
