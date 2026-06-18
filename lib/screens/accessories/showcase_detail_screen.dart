@@ -127,7 +127,7 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
                 const SizedBox(height: AppSpacing.md),
                 const Divider(),
                 Text(
-                  'コメント',
+                  _isLoading ? 'コメント' : 'コメント (${_comments.length})',
                   style: Theme.of(
                     context,
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),

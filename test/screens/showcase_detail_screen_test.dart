@@ -75,6 +75,15 @@ void main() {
     expect(find.text('私も使っています！'), findsOneWidget);
   });
 
+  testWidgets('コメント件数がヘッダーに表示される', (tester) async {
+    await seedComment('c1', 'a', 'コメント1');
+    await seedComment('c2', 'b', 'コメント2');
+    await tester.pumpWidget(buildUnderTest());
+    await tester.pumpAndSettle();
+
+    expect(find.text('コメント (2)'), findsOneWidget);
+  });
+
   testWidgets('コメントがない場合は空メッセージを表示', (tester) async {
     await tester.pumpWidget(buildUnderTest());
     await tester.pumpAndSettle();

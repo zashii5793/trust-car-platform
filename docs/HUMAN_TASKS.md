@@ -12,6 +12,9 @@
 **なぜ必要**: 以下のルールが追加済みで未デプロイ：
 - 前セッション: `fleet_members`, `accessory_showcases`, `car_purchase_inquiries`, `safety_tips`, `shop_chains`
 - 今セッション: `community_maintenance_trends`（読み取り=認証済み、書き込み=AdminSDKのみ）
+- C2C凍結セッション（2026-06-18）: `accessory_showcases/{id}/comments` サブコレクション
+  （読み取り=認証済み、作成/削除=投稿者本人のみ、更新=不可）。
+  **未デプロイだと showcase コメントの投稿が全て弾かれる**。
 本番反映しないと全ユーザーの書き込みがルールで弾かれる。また、`safety_tips`コレクションの複合インデックス（`isActive + publishedAt`, `isActive + category + publishedAt`）も追加済み。
 
 **手順**:

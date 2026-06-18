@@ -327,6 +327,12 @@ class _TrendCard extends StatelessWidget {
                 ),
               ),
               _CategoryBadge(category: trend.category),
+              const SizedBox(width: 2),
+              const Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: AppColors.textTertiary,
+              ),
             ],
           ),
         ),
