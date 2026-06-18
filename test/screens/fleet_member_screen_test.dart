@@ -44,6 +44,32 @@ class _StubFleetMemberService implements FleetMemberService {
   }
 
   @override
+  Future<Result<FleetMember, AppError>> ensureOwner(String companyId) async {
+    return Result.success(FleetMember(
+      id: '${companyId}_$companyId',
+      companyId: companyId,
+      userId: companyId,
+      role: FleetRole.owner,
+      joinedAt: DateTime.now(),
+    ));
+  }
+
+  @override
+  Future<Result<FleetMember, AppError>> inviteByEmail({
+    required String companyId,
+    required String email,
+    required FleetRole role,
+    required String requesterId,
+  }) async {
+    return addMember(
+      companyId: companyId,
+      userId: email,
+      role: role,
+      requesterId: requesterId,
+    );
+  }
+
+  @override
   Future<Result<FleetMember, AppError>> updateRole({
     required String companyId,
     required String userId,
@@ -221,7 +247,7 @@ void main() {
       await tester.tap(find.byKey(const Key('add_member_fab')));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('add_member_user_id_field')), findsOneWidget);
+      expect(find.byKey(const Key('add_member_email_field')), findsOneWidget);
       expect(
           find.byKey(const Key('add_member_confirm_button')), findsOneWidget);
     });
@@ -241,7 +267,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Dialog should still be open (empty userId rejected)
-      expect(find.byKey(const Key('add_member_user_id_field')), findsOneWidget);
+      expect(find.byKey(const Key('add_member_email_field')), findsOneWidget);
     });
   });
 
@@ -308,6 +334,18 @@ class _FailingFleetMemberService implements FleetMemberService {
   Future<Result<FleetMember, AppError>> addMember(
           {required String companyId,
           required String userId,
+          required FleetRole role,
+          required String requesterId}) async =>
+      const Result.failure(AppError.unknown('error'));
+
+  @override
+  Future<Result<FleetMember, AppError>> ensureOwner(String companyId) async =>
+      const Result.failure(AppError.unknown('error'));
+
+  @override
+  Future<Result<FleetMember, AppError>> inviteByEmail(
+          {required String companyId,
+          required String email,
           required FleetRole role,
           required String requesterId}) async =>
       const Result.failure(AppError.unknown('error'));

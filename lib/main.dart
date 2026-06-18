@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart' hide FirebaseService;
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
@@ -52,6 +53,9 @@ void main() async {
   if (kDebugMode) {
     await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
     FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
+    // Storage emulator so local image uploads (inquiry photos, accessory
+    // showcases, etc.) work end-to-end against the emulator suite.
+    FirebaseStorage.instance.useStorageEmulator('localhost', 9199);
     // Disable persistence for emulator (data is ephemeral)
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: false,
