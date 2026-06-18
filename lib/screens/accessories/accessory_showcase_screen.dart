@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
@@ -6,6 +8,7 @@ import '../../core/di/service_locator.dart';
 import '../../models/accessory_showcase.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/vehicle_provider.dart';
+import '../../services/firebase_service.dart';
 import '../../services/popular_accessories_service.dart';
 
 /// Community accessory showcase screen.
@@ -353,6 +356,84 @@ class _SubmitShowcaseSheetState extends State<_SubmitShowcaseSheet> {
   int _rating = 4;
   bool _isSaving = false;
 
+  // 画像（ショーケースは見た目が主役。最大3枚）
+  final List<Uint8List> _pickedImages = [];
+  static const int _maxImages = 3;
+
+  Future<void> _pickImages() async {
+    final remaining = _maxImages - _pickedImages.length;
+    if (remaining <= 0) return;
+    final picked = await ImagePicker().pickMultiImage(
+      maxWidth: 1080,
+      maxHeight: 1080,
+      imageQuality: 85,
+    );
+    if (picked.isEmpty) return;
+    final bytesList = <Uint8List>[];
+    for (final x in picked.take(remaining)) {
+      bytesList.add(await x.readAsBytes());
+    }
+    if (!mounted) return;
+    setState(() => _pickedImages.addAll(bytesList));
+  }
+
+  void _removeImage(int i) => setState(() => _pickedImages.removeAt(i));
+
+  Widget _buildImagePicker() {
+    return SizedBox(
+      height: 84,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          for (var i = 0; i < _pickedImages.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      _pickedImages[i],
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: GestureDetector(
+                      onTap: () => _removeImage(i),
+                      child: const DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.close, size: 16, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (_pickedImages.length < _maxImages)
+            GestureDetector(
+              onTap: _pickImages,
+              child: Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.border),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.add_a_photo_outlined),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _itemNameController.dispose();
@@ -373,6 +454,20 @@ class _SubmitShowcaseSheetState extends State<_SubmitShowcaseSheet> {
     final priceText = _priceController.text.trim();
     final price = priceText.isEmpty ? null : int.tryParse(priceText);
 
+    // 選択画像を Storage にアップロードして URL を得る
+    final imageUrls = <String>[];
+    if (_pickedImages.isNotEmpty && uid.isNotEmpty) {
+      final fb = sl.get<FirebaseService>();
+      final base =
+          'accessory_showcases/$uid/${DateTime.now().millisecondsSinceEpoch}';
+      for (var i = 0; i < _pickedImages.length; i++) {
+        final r = await fb.uploadImageBytes(_pickedImages[i], '$base/$i.jpg');
+        final url = r.valueOrNull;
+        if (url != null) imageUrls.add(url);
+      }
+      if (!mounted) return;
+    }
+
     final result = await widget.service.submitShowcase(
       userId: uid,
       category: _category,
@@ -386,6 +481,7 @@ class _SubmitShowcaseSheetState extends State<_SubmitShowcaseSheet> {
           ? null
           : _reviewController.text.trim(),
       vehicleId: vehicleId,
+      imageUrls: imageUrls,
     );
 
     if (!mounted) return;
@@ -528,6 +624,12 @@ class _SubmitShowcaseSheetState extends State<_SubmitShowcaseSheet> {
               ),
               maxLines: 3,
             ),
+            const SizedBox(height: AppSpacing.md),
+
+            // 画像（任意・最大3枚）
+            Text('画像（任意・最大$_maxImages枚）', style: theme.textTheme.bodySmall),
+            const SizedBox(height: 6),
+            _buildImagePicker(),
             const SizedBox(height: AppSpacing.lg),
 
             // Submit
