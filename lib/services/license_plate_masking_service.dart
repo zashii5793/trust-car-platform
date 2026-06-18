@@ -18,6 +18,18 @@ class MaskRegion {
   });
 }
 
+/// How a region is obscured.
+enum MaskStyle {
+  /// Solid opaque black rectangle (most aggressive, least natural).
+  solid,
+
+  /// Gaussian blur — the area stays recognisable as a plate but is unreadable.
+  blur,
+
+  /// Mosaic / pixelation — blocky obfuscation.
+  mosaic,
+}
+
 /// Applies an opaque black mask over specified regions in a JPEG/PNG image.
 ///
 /// Privacy use case: hide vehicle license plate numbers before uploading
@@ -111,5 +123,122 @@ class LicensePlateMaskingService {
     } catch (e) {
       return Result.failure(AppError.unknown(e.toString(), originalError: e));
     }
+  }
+
+  /// Blurs [left,top,width,height] in [imageBytes] so that any text (e.g. a
+  /// license plate number) inside it becomes unreadable.
+  ///
+  /// Unlike [maskRegion], only the pixels inside the region are altered — the
+  /// rest of the photo is preserved, giving a more natural result for SNS
+  /// sharing. Use [style] to choose between a soft [MaskStyle.blur] and a
+  /// blocky [MaskStyle.mosaic]. If the region extends beyond the image it is
+  /// clipped silently.
+  Future<Result<Uint8List, AppError>> blurRegion({
+    required Uint8List imageBytes,
+    required int left,
+    required int top,
+    required int width,
+    required int height,
+    MaskStyle style = MaskStyle.blur,
+  }) async {
+    if (imageBytes.isEmpty) {
+      return const Result.failure(
+        AppError.validation('imageBytes must not be empty'),
+      );
+    }
+    if (left < 0 || top < 0) {
+      return const Result.failure(
+        AppError.validation('left and top must be non-negative'),
+      );
+    }
+    if (width <= 0 || height <= 0) {
+      return const Result.failure(
+        AppError.validation('width and height must be positive'),
+      );
+    }
+
+    return blurRegions(
+      imageBytes: imageBytes,
+      regions: [MaskRegion(left: left, top: top, width: width, height: height)],
+      style: style,
+    );
+  }
+
+  /// Blurs multiple regions in a single pass. See [blurRegion].
+  Future<Result<Uint8List, AppError>> blurRegions({
+    required Uint8List imageBytes,
+    required List<MaskRegion> regions,
+    MaskStyle style = MaskStyle.blur,
+  }) async {
+    if (imageBytes.isEmpty) {
+      return const Result.failure(
+        AppError.validation('imageBytes must not be empty'),
+      );
+    }
+
+    // A solid mask doesn't need per-region cropping — delegate to the
+    // black-rectangle implementation.
+    if (style == MaskStyle.solid) {
+      return maskMultipleRegions(imageBytes: imageBytes, regions: regions);
+    }
+
+    try {
+      final image = img.decodeImage(imageBytes);
+      if (image == null) {
+        return const Result.failure(
+          AppError.validation('failed to decode image — unsupported format'),
+        );
+      }
+
+      if (regions.isEmpty) {
+        final encoded = img.encodePng(image);
+        return Result.success(Uint8List.fromList(encoded));
+      }
+
+      for (final region in regions) {
+        // Clip the region to the image bounds.
+        final x = region.left.clamp(0, image.width - 1);
+        final y = region.top.clamp(0, image.height - 1);
+        final w = (region.left + region.width).clamp(0, image.width) - x;
+        final h = (region.top + region.height).clamp(0, image.height) - y;
+        if (w <= 0 || h <= 0) continue;
+
+        // Crop the region, obfuscate it, then composite it back in place so
+        // only the region pixels change.
+        final crop = img.copyCrop(image, x: x, y: y, width: w, height: h);
+        final obscured = switch (style) {
+          MaskStyle.mosaic => img.pixelate(
+              crop,
+              size: _mosaicSize(w, h),
+              mode: img.PixelateMode.average,
+            ),
+          // blur (solid handled above)
+          _ => img.gaussianBlur(
+              crop,
+              radius: _blurRadius(w, h),
+            ),
+        };
+        img.compositeImage(image, obscured, dstX: x, dstY: y);
+      }
+
+      final encoded = img.encodePng(image);
+      return Result.success(Uint8List.fromList(encoded));
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
+  /// Blur radius scaled to the region size so small plates are still fully
+  /// obscured. Clamped to a sensible range to keep processing fast.
+  int _blurRadius(int width, int height) {
+    final shortest = width < height ? width : height;
+    return (shortest ~/ 4).clamp(3, 30);
+  }
+
+  /// Mosaic block size scaled to the region so the plate is broken into a
+  /// handful of blocks regardless of resolution.
+  int _mosaicSize(int width, int height) {
+    final shortest = width < height ? width : height;
+    return (shortest ~/ 5).clamp(4, 40);
   }
 }
