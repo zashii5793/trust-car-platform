@@ -20,7 +20,13 @@
 **事業性評価**: `docs/BUSINESS_VIABILITY_ASSESSMENT.md` 新規作成（既存アピール文書への辛口カウンター）。
 結論=「個人の車検リマインダーで母数→工場B2BにROIを見せて課金」一点突破推奨。C2C/フリートは凍結提案。
 
-**次セッション候補**: ①B2B月次ROIレポート最小実装 ②AppButton/AppDialog採用率改善のIssue化 ③工場手動KYC+審査済バッジUI
+**PM機能精査（追加コミット）**: 全画面を実コードで精査。`docs/PM_FEATURE_AUDIT_2026-06-18.md` 作成。
+所見＝コードベースは極めて堅牢で監査候補の大半は対処済み（mounted/バリデーション/エラー処理）。実改修2件:
+- `notification_list_screen.dart:452`: スワイプ背景アイコンが両分岐 `Icons.done` のコピペバグ→既読済みを `done_all` に
+- `vehicle_edit_screen.dart`: 変更なし時の無効ボタンに「変更を加えると更新できます」補足テキスト追加
+教訓: 自動監査の誤検知率が高い→必ず実コード裏取りしてから改修する運用を徹底。
+
+**次セッション候補**: ①ダークモード `Colors.*` 直書き→`AppColors`統一 ②AppButton/AppDialog採用率改善のIssue化 ③B2B月次ROIレポート最小実装
 
 ---
 

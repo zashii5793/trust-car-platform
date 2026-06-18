@@ -1215,6 +1215,18 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                     icon: Icons.save,
                   ),
 
+                  // Clarify why the button is disabled when nothing changed.
+                  if (!_hasChanges && !_isLoading) ...[
+                    AppSpacing.verticalXs,
+                    Text(
+                      '変更を加えると更新できます',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+
                   // 車検日未設定の警告
                   if (_inspectionExpiryDate == null) ...[
                     AppSpacing.verticalMd,

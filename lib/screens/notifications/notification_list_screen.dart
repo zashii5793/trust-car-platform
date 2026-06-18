@@ -449,7 +449,7 @@ class _NotificationCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                notification.isRead ? Icons.done : Icons.done,
+                notification.isRead ? Icons.done_all : Icons.done,
                 color: Colors.white,
               ),
               const SizedBox(height: 2),
