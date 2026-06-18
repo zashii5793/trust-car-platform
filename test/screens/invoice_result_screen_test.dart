@@ -336,6 +336,17 @@ void main() {
   });
 
   group('InvoiceResultScreen — 信頼度ドリブンゲート', () {
+    // ElevatedButton.icon は Flutter のバージョンによりサブクラスを返すため、
+    // find.byType（厳密一致）ではなく is 判定で「整備記録を登録」ボタンを取る。
+    ElevatedButton submitButton(WidgetTester tester) {
+      return tester.widget<ElevatedButton>(
+        find.ancestor(
+          of: find.text('整備記録を登録'),
+          matching: find.byWidgetPredicate((w) => w is ElevatedButton),
+        ),
+      );
+    }
+
     testWidgets('低信頼では確認するまで登録ボタンが無効', (tester) async {
       // ほぼ空＝低信頼データ
       final data = _makeOcrData(date: DateTime(2025, 6, 1));
@@ -343,19 +354,12 @@ void main() {
       await tester.pump();
 
       expect(find.text('読み取りの確信度が低めです'), findsOneWidget);
-
-      final button = tester.widget<ElevatedButton>(
-        find.widgetWithText(ElevatedButton, '整備記録を登録'),
-      );
-      expect(button.onPressed, isNull); // 無効
+      expect(submitButton(tester).onPressed, isNull); // 無効
 
       await tester.tap(find.text('内容を確認しました'));
       await tester.pump();
 
-      final button2 = tester.widget<ElevatedButton>(
-        find.widgetWithText(ElevatedButton, '整備記録を登録'),
-      );
-      expect(button2.onPressed, isNotNull); // 確認後は有効
+      expect(submitButton(tester).onPressed, isNotNull); // 確認後は有効
     });
 
     testWidgets('高信頼ではゲートを表示せず即登録できる', (tester) async {
@@ -375,10 +379,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('読み取りの確信度が低めです'), findsNothing);
-      final button = tester.widget<ElevatedButton>(
-        find.widgetWithText(ElevatedButton, '整備記録を登録'),
-      );
-      expect(button.onPressed, isNotNull);
+      expect(submitButton(tester).onPressed, isNotNull);
     });
   });
 
