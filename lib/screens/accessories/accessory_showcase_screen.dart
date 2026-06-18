@@ -7,6 +7,7 @@ import '../../models/accessory_showcase.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../services/popular_accessories_service.dart';
+import 'showcase_detail_screen.dart';
 
 /// Community accessory showcase screen.
 ///
@@ -84,6 +85,77 @@ class _AccessoryShowcaseScreenState extends State<AccessoryShowcaseScreen>
     });
   }
 
+  /// Opens the individual showcase posts behind an aggregated [trend] so the
+  /// user can read reviews and join the comment thread.
+  Future<void> _openTrendShowcases(AccessoryTrend trend) async {
+    final result = await _service.getShowcasesByCategory(trend.category);
+    if (!mounted) return;
+
+    final showcases = (result.valueOrNull ?? [])
+        .where((s) => s.itemName == trend.itemName && s.brand == trend.brand)
+        .toList();
+
+    if (showcases.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('投稿が見つかりませんでした')),
+      );
+      return;
+    }
+
+    final uid = context.read<AuthProvider>().appUser?.id ?? '';
+
+    void openDetail(AccessoryShowcase showcase) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ShowcaseDetailScreen(
+            showcase: showcase,
+            service: _service,
+            currentUserId: uid,
+          ),
+        ),
+      );
+    }
+
+    if (showcases.length == 1) {
+      openDetail(showcases.first);
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Text(
+                '${trend.itemName} の投稿',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ),
+            ...showcases.map(
+              (s) => ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: Text(
+                  '★${s.rating} ${s.review ?? 'レビューなし'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  openDetail(s);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _openSubmitSheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -139,7 +211,10 @@ class _AccessoryShowcaseScreenState extends State<AccessoryShowcaseScreen>
                     if (trends.isEmpty) {
                       return const _EmptyTrends();
                     }
-                    return _TrendList(trends: trends);
+                    return _TrendList(
+                      trends: trends,
+                      onTapTrend: _openTrendShowcases,
+                    );
                   }).toList(),
                 ),
     );
@@ -150,7 +225,8 @@ class _AccessoryShowcaseScreenState extends State<AccessoryShowcaseScreen>
 
 class _TrendList extends StatelessWidget {
   final List<AccessoryTrend> trends;
-  const _TrendList({required this.trends});
+  final ValueChanged<AccessoryTrend> onTapTrend;
+  const _TrendList({required this.trends, required this.onTapTrend});
 
   @override
   Widget build(BuildContext context) {
@@ -158,7 +234,11 @@ class _TrendList extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       itemCount: trends.length,
       separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-      itemBuilder: (_, i) => _TrendCard(rank: i + 1, trend: trends[i]),
+      itemBuilder: (_, i) => _TrendCard(
+        rank: i + 1,
+        trend: trends[i],
+        onTap: () => onTapTrend(trends[i]),
+      ),
     );
   }
 }
@@ -166,80 +246,89 @@ class _TrendList extends StatelessWidget {
 class _TrendCard extends StatelessWidget {
   final int rank;
   final AccessoryTrend trend;
-  const _TrendCard({required this.rank, required this.trend});
+  final VoidCallback onTap;
+  const _TrendCard({
+    required this.rank,
+    required this.trend,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
       key: Key('trend_card_${trend.itemName}'),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Rank badge
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: rank <= 3
-                    ? AppColors.primary
-                    : AppColors.backgroundSecondary,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  '$rank',
-                  style: TextStyle(
-                    color: rank <= 3 ? Colors.white : AppColors.textSecondary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Rank badge
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: rank <= 3
+                      ? AppColors.primary
+                      : AppColors.backgroundSecondary,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    '$rank',
+                    style: TextStyle(
+                      color: rank <= 3 ? Colors.white : AppColors.textSecondary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    trend.itemName,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  if (trend.brand != null)
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      trend.brand!,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: AppColors.textSecondary),
+                      trend.itemName,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
                     ),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: AppSpacing.sm,
-                    children: [
-                      _MetaChip(
-                        icon: Icons.people_outline,
-                        label: '${trend.showcaseCount}人が使用',
+                    if (trend.brand != null)
+                      Text(
+                        trend.brand!,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: AppColors.textSecondary),
                       ),
-                      _MetaChip(
-                        icon: Icons.star_outline,
-                        label: '${trend.averageRating.toStringAsFixed(1)}★',
-                      ),
-                      if (trend.averagePriceApprox != null)
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      children: [
                         _MetaChip(
-                          icon: Icons.sell_outlined,
-                          label:
-                              '¥${_formatPrice(trend.averagePriceApprox!.toDouble())}',
+                          icon: Icons.people_outline,
+                          label: '${trend.showcaseCount}人が使用',
                         ),
-                    ],
-                  ),
-                ],
+                        _MetaChip(
+                          icon: Icons.star_outline,
+                          label: '${trend.averageRating.toStringAsFixed(1)}★',
+                        ),
+                        if (trend.averagePriceApprox != null)
+                          _MetaChip(
+                            icon: Icons.sell_outlined,
+                            label:
+                                '¥${_formatPrice(trend.averagePriceApprox!.toDouble())}',
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            _CategoryBadge(category: trend.category),
-          ],
+              _CategoryBadge(category: trend.category),
+            ],
+          ),
         ),
       ),
     );

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/models/accessory_showcase.dart';
@@ -274,6 +275,217 @@ void main() {
         final result = await service.getTopAccessories();
         expect(result.isSuccess, isTrue);
         expect(result.valueOrNull!, isEmpty);
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // addComment
+    // -------------------------------------------------------------------------
+    group('addComment', () {
+      test('正常系: ショーケースにコメントを投稿できる', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+
+        final result = await service.addComment(
+          showcaseId: 'sc-1',
+          userId: 'user-2',
+          content: 'これ私も使ってます！画質最高ですよね。',
+          userDisplayName: 'たろう',
+        );
+
+        expect(result.isSuccess, isTrue);
+        final comment = result.valueOrNull!;
+        expect(comment.id.isNotEmpty, isTrue);
+        expect(comment.showcaseId, 'sc-1');
+        expect(comment.content, 'これ私も使ってます！画質最高ですよね。');
+
+        final stored = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(comment.id)
+            .get();
+        expect(stored.exists, isTrue);
+        expect(stored.data()!['userId'], 'user-2');
+      });
+
+      group('Edge Cases', () {
+        test('空のcontentはバリデーションエラー', () async {
+          final result = await service.addComment(
+            showcaseId: 'sc-1',
+            userId: 'user-2',
+            content: '',
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空白のみのcontentはバリデーションエラー', () async {
+          final result = await service.addComment(
+            showcaseId: 'sc-1',
+            userId: 'user-2',
+            content: '   ',
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空のuserIdはバリデーションエラー', () async {
+          final result = await service.addComment(
+            showcaseId: 'sc-1',
+            userId: '',
+            content: 'コメント',
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空のshowcaseIdはバリデーションエラー', () async {
+          final result = await service.addComment(
+            showcaseId: '',
+            userId: 'user-2',
+            content: 'コメント',
+          );
+          expect(result.isFailure, isTrue);
+        });
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // getComments
+    // -------------------------------------------------------------------------
+    group('getComments', () {
+      test('正常系: コメントを古い順に取得できる', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc('c1')
+            .set({
+          'showcaseId': 'sc-1',
+          'userId': 'u1',
+          'content': '最初のコメント',
+          'createdAt': Timestamp.fromDate(DateTime(2026, 1, 1)),
+        });
+        await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc('c2')
+            .set({
+          'showcaseId': 'sc-1',
+          'userId': 'u2',
+          'content': '2番目のコメント',
+          'createdAt': Timestamp.fromDate(DateTime(2026, 1, 2)),
+        });
+
+        final result = await service.getComments('sc-1');
+
+        expect(result.isSuccess, isTrue);
+        final comments = result.valueOrNull!;
+        expect(comments, hasLength(2));
+        expect(comments.first.content, '最初のコメント');
+        expect(comments.last.content, '2番目のコメント');
+      });
+
+      group('Edge Cases', () {
+        test('コメントゼロでも空リストを返す', () async {
+          await seedShowcase(showcase(id: 'sc-1'));
+          final result = await service.getComments('sc-1');
+          expect(result.isSuccess, isTrue);
+          expect(result.valueOrNull!, isEmpty);
+        });
+
+        test('存在しないshowcaseIdでも空リストを返す', () async {
+          final result = await service.getComments('nope');
+          expect(result.isSuccess, isTrue);
+          expect(result.valueOrNull!, isEmpty);
+        });
+
+        test('空のshowcaseIdはバリデーションエラー', () async {
+          final result = await service.getComments('');
+          expect(result.isFailure, isTrue);
+        });
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // deleteComment
+    // -------------------------------------------------------------------------
+    group('deleteComment', () {
+      Future<String> seedComment({
+        String showcaseId = 'sc-1',
+        String userId = 'owner',
+      }) async {
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc(showcaseId)
+            .collection('comments')
+            .add({
+          'showcaseId': showcaseId,
+          'userId': userId,
+          'content': '削除対象コメント',
+          'createdAt': Timestamp.fromDate(now),
+        });
+        return ref.id;
+      }
+
+      test('正常系: 投稿者本人はコメントを削除できる', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final commentId = await seedComment(userId: 'owner');
+
+        final result = await service.deleteComment(
+          showcaseId: 'sc-1',
+          commentId: commentId,
+          userId: 'owner',
+        );
+
+        expect(result.isSuccess, isTrue);
+        final stored = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(commentId)
+            .get();
+        expect(stored.exists, isFalse);
+      });
+
+      group('Edge Cases', () {
+        test('他ユーザーのコメント削除は権限エラー', () async {
+          await seedShowcase(showcase(id: 'sc-1'));
+          final commentId = await seedComment(userId: 'owner');
+
+          final result = await service.deleteComment(
+            showcaseId: 'sc-1',
+            commentId: commentId,
+            userId: 'attacker',
+          );
+
+          expect(result.isFailure, isTrue);
+          // コメントは残っているべき
+          final stored = await firestore
+              .collection('accessory_showcases')
+              .doc('sc-1')
+              .collection('comments')
+              .doc(commentId)
+              .get();
+          expect(stored.exists, isTrue);
+        });
+
+        test('存在しないコメントIDはエラー', () async {
+          final result = await service.deleteComment(
+            showcaseId: 'sc-1',
+            commentId: 'missing',
+            userId: 'owner',
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空のcommentIdはバリデーションエラー', () async {
+          final result = await service.deleteComment(
+            showcaseId: 'sc-1',
+            commentId: '',
+            userId: 'owner',
+          );
+          expect(result.isFailure, isTrue);
+        });
       });
     });
   });

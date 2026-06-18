@@ -928,7 +928,7 @@ void main() {
       expect(find.byIcon(Icons.storefront_outlined), findsOneWidget);
     });
 
-    testWidgets('マーケット内に 3 タブ（工場・業者、パーツ、マイ出品）が表示される', (tester) async {
+    testWidgets('マーケット内に工場・業者/問い合わせタブが表示され、C2Cパーツ系は凍結中で非表示', (tester) async {
       await _setSurface(tester);
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
@@ -940,8 +940,10 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('工場・業者'), findsOneWidget);
-      expect(find.text('パーツ'), findsOneWidget);
-      expect(find.text('マイ出品'), findsOneWidget);
+      expect(find.text('問い合わせ'), findsOneWidget);
+      // C2Cパーツ売買は凍結（FeatureFlag.c2cPartsMarketplace=false）のため非表示
+      expect(find.text('パーツ'), findsNothing);
+      expect(find.text('マイ出品'), findsNothing);
     });
   });
 
