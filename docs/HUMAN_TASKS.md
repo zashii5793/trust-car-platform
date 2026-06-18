@@ -50,39 +50,30 @@ firebase deploy --only firestore:rules,firestore:indexes
 
 ## P2 — 任意（運用効率化）
 
-### C2C凍結フラグの Remote Config 連携（任意）
+### C2C凍結フラグの Remote Config パラメータ作成
 
 **なぜ必要**: `FeatureFlag.c2cPartsMarketplace` の再開判断を、**アプリ再リリースなし**で
-運用側から切り替えられるようにする。コード側の受け口（`FeatureFlagService` /
-`RemoteFlagSource`）は実装済み・テスト済みで、デフォルトは no-op（ローカル定数のまま）。
+運用側から切り替えられるようにする。
 
-**残りの作業（ネイティブ依存のため人間が実施）**:
-1. `pubspec.yaml` に `firebase_remote_config` を追加し `flutter pub get`
-   （Android/iOSのビルド確認が必要なため、CIの build ジョブで検証すること）
-2. Firebase Console → Remote Config で `c2c_parts_marketplace`（Boolean, デフォルト `false`）を作成
-3. `RemoteFlagSource` を Remote Config 実装に差し替え、`injection.dart` で注入:
+**実装済み（コード側は完了）**:
+- `firebase_remote_config` を `pubspec.yaml` に追加済み
+- `FirebaseRemoteFlagSource`（`RemoteFlagSource` 実装）＋ `FeatureFlagService` を
+  `injection.dart` に配線済み。起動時に `sync()` で Remote Config を取得して
+  `AppConfig` に反映。Remote Config 未設定・取得失敗時はローカル既定値（凍結）を維持。
 
-```dart
-class FirebaseRemoteFlagSource implements RemoteFlagSource {
-  @override
-  Future<Map<String, dynamic>> fetch() async {
-    final rc = FirebaseRemoteConfig.instance;
-    await rc.setDefaults(const {'c2c_parts_marketplace': false});
-    await rc.fetchAndActivate();
-    return {'c2c_parts_marketplace': rc.getBool('c2c_parts_marketplace')};
-  }
-}
+**残りの作業（人間が実施）**:
+1. **Firebase Console → Remote Config** で以下のパラメータを作成:
+   - キー名: `c2c_parts_marketplace`
+   - 型: Boolean
+   - デフォルト値: `false`（凍結のまま）
+2. CI の **build-android / build-ios** ジョブが緑であることを確認
+   （`firebase_remote_config` のネイティブビルドが通るか）。
+   ※ローカルのデバイス検証ができない場合は CI のビルド結果で代替。
+3. 動作確認: Remote Config で `c2c_parts_marketplace` を `true` に変更 →
+   アプリ再起動でマーケットの「パーツ」「マイ出品」タブが復活すること。
 
-// injection.dart
-locator.registerLazySingleton<FeatureFlagService>(
-    () => FeatureFlagService(source: FirebaseRemoteFlagSource()));
-```
-
-**確認方法**: Remote Config で `true` に変更 → アプリ再起動でマーケットの
-「パーツ」「マイ出品」タブが復活すること。
-
-**所要時間**: 30分  
-**前提条件**: Firebase Console + ネイティブビルド環境
+**所要時間**: 15分  
+**前提条件**: Firebase Console のオーナー権限
 
 ---
 
