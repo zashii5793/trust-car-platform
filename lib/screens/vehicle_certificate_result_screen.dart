@@ -36,6 +36,11 @@ class _VehicleCertificateResultScreenState
 
   bool _showImage = false;
 
+  /// 信頼度ドリブンUX: この値未満は「要確認」を必須にする。
+  static const double _kLowConfidence = 0.7;
+  bool _reviewed = false;
+  bool get _isLowConfidence => widget.ocrData.confidenceScore < _kLowConfidence;
+
   @override
   void initState() {
     super.initState();
@@ -106,6 +111,12 @@ class _VehicleCertificateResultScreenState
           // 信頼度スコア表示
           _buildConfidenceCard(),
           const SizedBox(height: 16),
+
+          // 低信頼時は確認を必須にする（信頼度ドリブンUX）
+          if (_isLowConfidence) ...[
+            _buildReviewGate(),
+            const SizedBox(height: 16),
+          ],
 
           // 基本情報セクション
           _buildSectionHeader('基本情報', Icons.directions_car),
@@ -432,6 +443,69 @@ class _VehicleCertificateResultScreenState
     }
   }
 
+  /// 低信頼の読み取りに対する「要確認」ゲート。
+  Widget _buildReviewGate() {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded,
+                  size: 18, color: AppColors.warning),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '読み取りの確信度が低めです',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: AppColors.warning,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '車台番号・型式・車検満了日などが正しいか、元画像と見比べてご確認ください。',
+            style: theme.textTheme.bodySmall,
+          ),
+          // 背景色付きコンテナ内では ListTile が使えないため Checkbox+Text で構成
+          InkWell(
+            onTap: () => setState(() => _reviewed = !_reviewed),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: _reviewed,
+                  onChanged: (v) => setState(() => _reviewed = v ?? false),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                const SizedBox(width: 4),
+                const Text('内容を確認しました'),
+              ],
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => setState(() => _showImage = true),
+              icon: const Icon(Icons.zoom_in, size: 16),
+              label: const Text('元画像を確認'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBottomBar() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -458,7 +532,9 @@ class _VehicleCertificateResultScreenState
             Expanded(
               flex: 2,
               child: ElevatedButton.icon(
-                onPressed: _validateAndSubmit,
+                onPressed: (_isLowConfidence && !_reviewed)
+                    ? null
+                    : _validateAndSubmit,
                 icon: const Icon(Icons.check),
                 label: const Text('この内容で登録'),
                 style: ElevatedButton.styleFrom(

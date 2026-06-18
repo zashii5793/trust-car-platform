@@ -307,6 +307,10 @@ void main() {
       await tester.tap(find.text('その他'));
       await tester.pump();
 
+      // 低信頼データのため、まず「内容を確認しました」で登録ゲートを解除する
+      await tester.tap(find.text('内容を確認しました'));
+      await tester.pump();
+
       // Now submit with no type
       await tester.tap(find.text('整備記録を登録'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -320,10 +324,61 @@ void main() {
       await tester.pumpWidget(_buildScreen(data));
       await tester.pump();
 
+      // 低信頼データのため、まず登録ゲートを解除する
+      await tester.tap(find.text('内容を確認しました'));
+      await tester.pump();
+
       await tester.tap(find.text('整備記録を登録'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('作業日を設定してください'), findsOneWidget);
+    });
+  });
+
+  group('InvoiceResultScreen — 信頼度ドリブンゲート', () {
+    testWidgets('低信頼では確認するまで登録ボタンが無効', (tester) async {
+      // ほぼ空＝低信頼データ
+      final data = _makeOcrData(date: DateTime(2025, 6, 1));
+      await tester.pumpWidget(_buildScreen(data));
+      await tester.pump();
+
+      expect(find.text('読み取りの確信度が低めです'), findsOneWidget);
+
+      final button = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, '整備記録を登録'),
+      );
+      expect(button.onPressed, isNull); // 無効
+
+      await tester.tap(find.text('内容を確認しました'));
+      await tester.pump();
+
+      final button2 = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, '整備記録を登録'),
+      );
+      expect(button2.onPressed, isNotNull); // 確認後は有効
+    });
+
+    testWidgets('高信頼ではゲートを表示せず即登録できる', (tester) async {
+      final data = _makeOcrData(
+        date: DateTime(2025, 6, 1),
+        totalAmount: 12000,
+        taxAmount: 1090,
+        subtotalAmount: 10910,
+        shopName: 'テスト工場',
+        shopAddress: '東京都',
+        shopPhone: '03-0000-0000',
+        invoiceNumber: 'INV-1',
+        mileage: 30000,
+        items: [InvoiceItem(name: 'オイル交換')],
+      );
+      await tester.pumpWidget(_buildScreen(data));
+      await tester.pump();
+
+      expect(find.text('読み取りの確信度が低めです'), findsNothing);
+      final button = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, '整備記録を登録'),
+      );
+      expect(button.onPressed, isNotNull);
     });
   });
 

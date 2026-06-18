@@ -29,6 +29,14 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
   MaintenanceType? _selectedType;
   bool _showImage = false;
 
+  /// この値未満を「低信頼」とみなし、確認チェックを必須にする（信頼度ドリブンUX）。
+  static const double _kLowConfidence = 0.7;
+
+  /// 低信頼時にユーザーが内容を確認したか。確定の前提条件。
+  bool _reviewed = false;
+
+  bool get _isLowConfidence => widget.ocrData.confidenceScore < _kLowConfidence;
+
   final _currencyFormat = NumberFormat('#,###', 'ja_JP');
 
   @override
@@ -101,6 +109,12 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
           // 信頼度スコア
           _buildConfidenceCard(theme),
           const SizedBox(height: 16),
+
+          // 低信頼時は「要確認」を促し、確認するまで登録できないようにする
+          if (_isLowConfidence) ...[
+            _buildReviewGate(theme),
+            const SizedBox(height: 16),
+          ],
 
           // 整備タイプ選択
           _buildSectionHeader(theme, '整備タイプ', Icons.build),
@@ -425,6 +439,68 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
     }
   }
 
+  /// 低信頼の読み取り結果に対する「要確認」ゲート。
+  Widget _buildReviewGate(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded,
+                  size: 18, color: AppColors.warning),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '読み取りの確信度が低めです',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: AppColors.warning,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '金額・日付・店舗名などが正しいか、元画像と見比べてご確認ください。',
+            style: theme.textTheme.bodySmall,
+          ),
+          // 背景色付きコンテナ内では ListTile が使えないため Checkbox+Text で構成
+          InkWell(
+            onTap: () => setState(() => _reviewed = !_reviewed),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: _reviewed,
+                  onChanged: (v) => setState(() => _reviewed = v ?? false),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                const SizedBox(width: 4),
+                const Text('内容を確認しました'),
+              ],
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => setState(() => _showImage = true),
+              icon: const Icon(Icons.zoom_in, size: 16),
+              label: const Text('元画像を確認'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBottomBar() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -451,7 +527,11 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
             Expanded(
               flex: 2,
               child: ElevatedButton.icon(
-                onPressed: _validateAndSubmit,
+                // 低信頼時は「内容を確認しました」が必須（触るまで確定不可）。
+                // 文言は固定し、無効化＋上部の警告ゲートで意図を伝える。
+                onPressed: (_isLowConfidence && !_reviewed)
+                    ? null
+                    : _validateAndSubmit,
                 icon: const Icon(Icons.check),
                 label: const Text('整備記録を登録'),
                 style: ElevatedButton.styleFrom(

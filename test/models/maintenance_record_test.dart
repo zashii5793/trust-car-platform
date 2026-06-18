@@ -331,8 +331,7 @@ void main() {
       });
 
       test('source は toMap/fromFirestore で round-trip する', () {
-        final map =
-            build(source: MaintenanceRecordSource.shopVerified).toMap();
+        final map = build(source: MaintenanceRecordSource.shopVerified).toMap();
         expect(map['source'], 'shopVerified');
         expect(MaintenanceRecordSource.fromString(map['source'] as String?),
             MaintenanceRecordSource.shopVerified);
