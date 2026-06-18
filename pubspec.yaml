@@ -47,7 +47,6 @@ dependencies:
   firebase_analytics: ^12.4.1
   # AI Chat: Anthropic API
   http: ^1.2.0
-  firebase_remote_config: ^6.5.3
 
 dev_dependencies:
   flutter_test:
