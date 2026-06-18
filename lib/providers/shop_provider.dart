@@ -7,6 +7,7 @@ import '../models/inquiry.dart';
 import '../services/shop_service.dart';
 import '../services/inquiry_service.dart';
 import '../services/analytics_service.dart';
+import '../services/shop_subscription_service.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 
@@ -21,13 +22,19 @@ class ShopProvider with ChangeNotifier {
   final InquiryService _inquiryService;
   final AnalyticsService? _analytics;
 
+  /// Optional so existing tests can construct the provider without it.
+  /// When null, monthly-report features are simply unavailable.
+  final ShopSubscriptionService? _subscriptionService;
+
   ShopProvider({
     required ShopService shopService,
     required InquiryService inquiryService,
     AnalyticsService? analyticsService,
+    ShopSubscriptionService? subscriptionService,
   })  : _shopService = shopService,
         _inquiryService = inquiryService,
-        _analytics = analyticsService;
+        _analytics = analyticsService,
+        _subscriptionService = subscriptionService;
 
   // --- Shop一覧系 ---
   List<Shop> _shops = [];
@@ -37,6 +44,10 @@ class ShopProvider with ChangeNotifier {
   // --- 自分のショップ ---
   Shop? _myShop;
   String? _submitError;
+
+  // --- 店舗オーナー向け月次レポート（B2B ROI 可視化） ---
+  ShopMonthlyReport? _monthlyReport;
+  bool _isLoadingMonthlyReport = false;
 
   // --- フィルタ状態 ---
   ShopType? _selectedType;
@@ -424,6 +435,40 @@ class ShopProvider with ChangeNotifier {
     );
 
     _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Current-month performance report for the owner's shop, or null if not
+  /// loaded / not entitled. See [loadMonthlyReport].
+  ShopMonthlyReport? get monthlyReport => _monthlyReport;
+  bool get isLoadingMonthlyReport => _isLoadingMonthlyReport;
+
+  /// Whether [shop]'s plan is entitled to the monthly report (Premium+).
+  /// Returns false when no subscription service is wired in.
+  bool shopHasMonthlyReport(Shop shop) {
+    final service = _subscriptionService;
+    if (service == null) return false;
+    return service.getPlanLimits(shop.planType).hasMonthlyReport;
+  }
+
+  /// Load the current-month performance report for [shopId].
+  ///
+  /// No-op when the subscription service is unavailable. Caller is expected
+  /// to gate display via [shopHasMonthlyReport].
+  Future<void> loadMonthlyReport(String shopId) async {
+    final service = _subscriptionService;
+    if (service == null) return;
+
+    _isLoadingMonthlyReport = true;
+    notifyListeners();
+
+    final result = await service.getMonthlyReport(shopId);
+    result.when(
+      success: (report) => _monthlyReport = report,
+      failure: (_) => _monthlyReport = null,
+    );
+
+    _isLoadingMonthlyReport = false;
     notifyListeners();
   }
 

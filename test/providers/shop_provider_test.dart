@@ -1,8 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart' show GeoPoint;
+import 'package:cloud_firestore/cloud_firestore.dart' show GeoPoint, Timestamp;
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/providers/shop_provider.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
+import 'package:trust_car_platform/services/shop_subscription_service.dart';
 import 'package:trust_car_platform/models/shop.dart';
 import 'package:trust_car_platform/models/inquiry.dart';
 import 'package:trust_car_platform/core/result/result.dart';
@@ -842,6 +844,76 @@ void main() {
 
           expect(provider.distanceForShop('s1'), isNull);
         });
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Monthly report (B2B ROI) — needs a real ShopSubscriptionService
+  // -------------------------------------------------------------------------
+  group('ShopProvider monthly report', () {
+    late FakeFirebaseFirestore fakeFs;
+    late ShopProvider provider;
+
+    Shop makeShop(String id, ShopPlanType plan) => Shop(
+          id: id,
+          ownerId: 'owner1',
+          name: 'Test Shop',
+          type: ShopType.maintenanceShop,
+          planType: plan,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+    setUp(() {
+      fakeFs = FakeFirebaseFirestore();
+      provider = ShopProvider(
+        shopService: MockShopService(),
+        inquiryService: MockInquiryService(),
+        subscriptionService: ShopSubscriptionService(firestore: fakeFs),
+      );
+    });
+
+    tearDown(() => provider.dispose());
+
+    test('shopHasMonthlyReport is false for free, true for premium', () {
+      expect(provider.shopHasMonthlyReport(makeShop('s1', ShopPlanType.free)),
+          isFalse);
+      expect(
+          provider.shopHasMonthlyReport(makeShop('s1', ShopPlanType.premium)),
+          isTrue);
+    });
+
+    test('loadMonthlyReport populates report from inquiries', () async {
+      await fakeFs.collection('inquiries').add({
+        'shopId': 's1',
+        'userId': 'u1',
+        'createdAt': Timestamp.fromDate(DateTime.now()),
+        'status': 'closed',
+        'repliedAt': Timestamp.fromDate(DateTime.now()),
+      });
+
+      await provider.loadMonthlyReport('s1');
+
+      expect(provider.monthlyReport, isNotNull);
+      expect(provider.monthlyReport!.totalInquiries, 1);
+      expect(provider.monthlyReport!.closedInquiries, 1);
+      expect(provider.isLoadingMonthlyReport, isFalse);
+    });
+
+    group('Edge Cases', () {
+      test('no subscription service → helper false and load is a no-op',
+          () async {
+        final bare = ShopProvider(
+          shopService: MockShopService(),
+          inquiryService: MockInquiryService(),
+        );
+        addTearDown(bare.dispose);
+
+        expect(bare.shopHasMonthlyReport(makeShop('s1', ShopPlanType.premium)),
+            isFalse);
+        await bare.loadMonthlyReport('s1');
+        expect(bare.monthlyReport, isNull);
       });
     });
   });

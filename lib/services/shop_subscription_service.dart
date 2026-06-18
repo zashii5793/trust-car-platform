@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/shop.dart';
+import '../models/inquiry.dart';
 
 /// Plan limits value object
 class ShopPlanLimits {
@@ -24,6 +25,41 @@ class ShopPlanLimits {
     required this.hasMonthlyReport,
     required this.maxShops,
   });
+}
+
+/// Monthly performance report for a shop (BtoB ROI visibility).
+///
+/// Answers the only question a paying shop owner cares about:
+/// "How many leads did I get this month, and how many converted?"
+/// Returned by [ShopSubscriptionService.getMonthlyReport].
+class ShopMonthlyReport {
+  final int year;
+  final int month;
+
+  /// Inquiries received in the target month.
+  final int totalInquiries;
+
+  /// Inquiries the shop has replied to (repliedAt set).
+  final int repliedInquiries;
+
+  /// Inquiries closed (treated as the closest proxy for a settled deal).
+  final int closedInquiries;
+
+  const ShopMonthlyReport({
+    required this.year,
+    required this.month,
+    required this.totalInquiries,
+    required this.repliedInquiries,
+    required this.closedInquiries,
+  });
+
+  /// Share of inquiries replied to (0.0–1.0). 0.0 when there are none.
+  double get responseRate =>
+      totalInquiries == 0 ? 0.0 : repliedInquiries / totalInquiries;
+
+  /// Share of inquiries closed (0.0–1.0). 0.0 when there are none.
+  double get conversionRate =>
+      totalInquiries == 0 ? 0.0 : closedInquiries / totalInquiries;
 }
 
 /// Service for BtoB shop subscription management.
@@ -258,6 +294,55 @@ class ShopSubscriptionService {
           .get();
 
       return Result.success(snapshot.docs.length);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // getMonthlyReport
+  // ---------------------------------------------------------------------------
+
+  /// Builds the current-month performance report for [shopId].
+  ///
+  /// Aggregates received / replied / closed inquiry counts so a shop owner can
+  /// see the ROI of their paid plan. Plan gating (whether the shop is entitled
+  /// to view this) is the caller's responsibility via [getPlanLimits].
+  Future<Result<ShopMonthlyReport, AppError>> getMonthlyReport(
+      String shopId) async {
+    if (shopId.isEmpty) {
+      return const Result.failure(
+        AppError.validation('shopId must not be empty', field: 'shopId'),
+      );
+    }
+
+    try {
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+
+      final snapshot = await _inquiries
+          .where('shopId', isEqualTo: shopId)
+          .where('createdAt',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart))
+          .get();
+
+      var total = 0;
+      var replied = 0;
+      var closed = 0;
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        total++;
+        if (data['repliedAt'] != null) replied++;
+        if (data['status'] == InquiryStatus.closed.name) closed++;
+      }
+
+      return Result.success(ShopMonthlyReport(
+        year: now.year,
+        month: now.month,
+        totalInquiries: total,
+        repliedInquiries: replied,
+        closedInquiries: closed,
+      ));
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
     }

@@ -157,6 +157,7 @@ class MyApp extends StatelessWidget {
                   shopService: sl.get<ShopService>(),
                   inquiryService: sl.get<InquiryService>(),
                   analyticsService: sl.get<AnalyticsService>(),
+                  subscriptionService: sl.get<ShopSubscriptionService>(),
                 )),
         ChangeNotifierProvider(
             create: (_) => SubscriptionProvider(

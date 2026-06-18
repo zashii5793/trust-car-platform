@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../models/shop.dart';
+import '../../services/shop_subscription_service.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_card.dart';
@@ -43,8 +44,13 @@ class _ShopOwnerScreenState extends State<ShopOwnerScreen> {
 
       // Start real-time inquiry count stream once the shop is known
       if (!mounted) return;
-      if (provider.myShop != null) {
-        provider.startWatchingInquiries(provider.myShop!.id);
+      final myShop = provider.myShop;
+      if (myShop != null) {
+        provider.startWatchingInquiries(myShop.id);
+        // Premium+ plans see a monthly performance report (B2B ROI).
+        if (provider.shopHasMonthlyReport(myShop)) {
+          provider.loadMonthlyReport(myShop.id);
+        }
       }
     });
   }
@@ -291,6 +297,11 @@ class _RegisteredBody extends StatelessWidget {
           AppSpacing.verticalMd,
           // Performance summary card
           _PerformanceSummaryCard(shop: shop, provider: provider),
+          // Monthly performance report (Premium+ plans only — B2B ROI)
+          if (provider.shopHasMonthlyReport(shop)) ...[
+            AppSpacing.verticalMd,
+            _MonthlyReportCard(provider: provider),
+          ],
           AppSpacing.verticalMd,
           // Inquiry count badge (tappable → ShopInquiryListScreen)
           _InquiryCountBadge(provider: provider, shopId: shop.id),
@@ -565,6 +576,88 @@ class _PerformanceSummaryCard extends StatelessWidget {
 
   String _formatDate(DateTime dt) =>
       '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+}
+
+/// Monthly performance report card (Premium+ plans).
+///
+/// Surfaces the ROI question a paying shop owner cares about: how many leads
+/// arrived this month, and how many were replied to / closed.
+class _MonthlyReportCard extends StatelessWidget {
+  final ShopProvider provider;
+
+  const _MonthlyReportCard({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final report = provider.monthlyReport;
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.insights_outlined,
+                size: AppSpacing.iconSm,
+                color: AppColors.accentCustom,
+              ),
+              AppSpacing.horizontalXs,
+              Text(
+                report == null
+                    ? '今月のレポート'
+                    : '${report.month}月のレポート',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          AppSpacing.verticalSm,
+          if (provider.isLoadingMonthlyReport || report == null)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+              child: AppLoadingCenter(message: 'レポートを集計中...'),
+            )
+          else ...[
+            Row(
+              children: [
+                _StatItem(
+                  icon: Icons.mail_outline,
+                  label: '今月の問い合わせ',
+                  value: '${report.totalInquiries} 件',
+                  valueColor:
+                      report.totalInquiries > 0 ? AppColors.info : null,
+                ),
+                _StatDivider(),
+                _StatItem(
+                  icon: Icons.reply_outlined,
+                  label: '返信率',
+                  value: '${(report.responseRate * 100).round()}%',
+                  valueColor: AppColors.success,
+                ),
+                _StatDivider(),
+                _StatItem(
+                  icon: Icons.handshake_outlined,
+                  label: '成約率',
+                  value: '${(report.conversionRate * 100).round()}%',
+                  valueColor: AppColors.accentCustom,
+                ),
+              ],
+            ),
+            AppSpacing.verticalXs,
+            Text(
+              '返信が早いほど成約につながりやすくなります。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class _StatItem extends StatelessWidget {

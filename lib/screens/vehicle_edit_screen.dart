@@ -1233,21 +1233,21 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.1),
+                        color: AppColors.warning.withValues(alpha: 0.1),
                         borderRadius: AppSpacing.borderRadiusSm,
                         border: Border.all(
-                            color: Colors.orange.withValues(alpha: 0.3)),
+                            color: AppColors.warning.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
                           const Icon(Icons.warning_amber,
-                              color: Colors.orange, size: 20),
+                              color: AppColors.warning, size: 20),
                           AppSpacing.horizontalSm,
                           Expanded(
                             child: Text(
                               '車検満了日を登録すると、期限が近づいた時に通知を受け取れます',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: Colors.orange.shade800,
+                                color: AppColors.warning,
                               ),
                             ),
                           ),
@@ -1273,14 +1273,14 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         Icon(
           icon,
           size: 20,
-          color: isImportant ? Colors.orange : theme.colorScheme.primary,
+          color: isImportant ? AppColors.warning : theme.colorScheme.primary,
         ),
         AppSpacing.horizontalXs,
         Text(
           title,
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
-            color: isImportant ? Colors.orange : null,
+            color: isImportant ? AppColors.warning : null,
           ),
         ),
         if (isImportant) ...[
@@ -1288,13 +1288,13 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.2),
+              color: AppColors.warning.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
               '重要',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: Colors.orange.shade800,
+                color: AppColors.warning,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -1326,7 +1326,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           borderRadius: AppSpacing.borderRadiusSm,
           border: Border.all(
             color: isWarning
-                ? Colors.orange.withValues(alpha: 0.5)
+                ? AppColors.warning.withValues(alpha: 0.5)
                 : (isDark ? AppColors.darkTextTertiary : AppColors.border),
           ),
         ),
@@ -1334,7 +1334,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           children: [
             Icon(
               icon,
-              color: isWarning ? Colors.orange : theme.colorScheme.primary,
+              color: isWarning ? AppColors.warning : theme.colorScheme.primary,
             ),
             AppSpacing.horizontalMd,
             Expanded(
@@ -1364,7 +1364,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                 fontWeight: FontWeight.bold,
                 color: date == null
                     ? (isWarning
-                        ? Colors.orange
+                        ? AppColors.warning
                         : theme.textTheme.bodySmall?.color)
                     : theme.colorScheme.primary,
               ),

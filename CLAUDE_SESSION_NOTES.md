@@ -26,7 +26,16 @@
 - `vehicle_edit_screen.dart`: 変更なし時の無効ボタンに「変更を加えると更新できます」補足テキスト追加
 教訓: 自動監査の誤検知率が高い→必ず実コード裏取りしてから改修する運用を徹底。
 
-**次セッション候補**: ①ダークモード `Colors.*` 直書き→`AppColors`統一 ②AppButton/AppDialog採用率改善のIssue化 ③B2B月次ROIレポート最小実装
+**次セッション候補→実施**: 3つとも対応。
+- ①色一貫性: `vehicle_edit_screen.dart` の警告バナー12箇所 `Colors.orange(.shade800)`→`AppColors.warning`。残りは視覚QA要のため Issue #30 化
+- ②Issue化: AppButton/AppDialog採用率→ #29、Colors.*網羅統一→ #30
+- ③B2B月次ROIレポート実装（TDD）:
+  - `ShopSubscriptionService.getMonthlyReport()` + `ShopMonthlyReport` 値オブジェクト（今月の問い合わせ/返信率/成約率）。サービステスト5件追加
+  - `ShopProvider`: `subscriptionService` をオプショナル注入（既存テスト互換）、`monthlyReport`/`shopHasMonthlyReport`/`loadMonthlyReport` 追加。プロバイダテスト追加
+  - `shop_owner_screen`: Premium+限定で `_MonthlyReportCard` 表示。`main.dart` で配線
+  - 注: フェイクProviderは subscriptionService=null→カード非表示なので既存画面テスト互換
+
+**次セッション候補**: ①Issue #29/#30 の段階対応 ②ROIレポートに前月比・平均返信時間を追加 ③工場手動KYC+審査済バッジUI
 
 ---
 

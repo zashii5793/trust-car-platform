@@ -44,12 +44,15 @@ Future<void> _seedInquiry(
   FakeFirebaseFirestore fakeFs,
   String shopId, {
   DateTime? createdAt,
+  String status = 'pending',
+  DateTime? repliedAt,
 }) async {
   await fakeFs.collection('inquiries').add({
     'shopId': shopId,
     'userId': 'user1',
     'createdAt': Timestamp.fromDate(createdAt ?? DateTime.now()),
-    'status': 'pending',
+    'status': status,
+    'repliedAt': repliedAt != null ? Timestamp.fromDate(repliedAt) : null,
   });
 }
 
@@ -373,6 +376,71 @@ void main() {
 
       expect(result.isSuccess, isTrue);
       expect(result.valueOrNull, isTrue); // trial = full access
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // getMonthlyReport (BtoB ROI visibility)
+  // -------------------------------------------------------------------------
+  group('getMonthlyReport', () {
+    test('aggregates received / replied / closed for current month', () async {
+      // 3 received this month: 1 pending, 1 replied, 1 closed (replied + closed)
+      await _seedInquiry(fakeFs, 'shop1'); // pending, no reply
+      await _seedInquiry(fakeFs, 'shop1',
+          status: 'replied', repliedAt: DateTime.now());
+      await _seedInquiry(fakeFs, 'shop1',
+          status: 'closed', repliedAt: DateTime.now());
+
+      final result = await sut.getMonthlyReport('shop1');
+
+      expect(result.isSuccess, isTrue);
+      final report = result.valueOrNull!;
+      expect(report.totalInquiries, 3);
+      expect(report.repliedInquiries, 2);
+      expect(report.closedInquiries, 1);
+      expect(report.responseRate, closeTo(2 / 3, 0.0001));
+      expect(report.conversionRate, closeTo(1 / 3, 0.0001));
+    });
+
+    test('excludes inquiries from previous months', () async {
+      final lastMonth = DateTime(DateTime.now().year, DateTime.now().month - 1, 15);
+      await _seedInquiry(fakeFs, 'shop1'); // this month
+      await _seedInquiry(fakeFs, 'shop1', createdAt: lastMonth);
+
+      final result = await sut.getMonthlyReport('shop1');
+
+      expect(result.valueOrNull!.totalInquiries, 1);
+    });
+
+    test('only counts the target shop', () async {
+      await _seedInquiry(fakeFs, 'shop1');
+      await _seedInquiry(fakeFs, 'shop2');
+
+      final result = await sut.getMonthlyReport('shop1');
+
+      expect(result.valueOrNull!.totalInquiries, 1);
+    });
+
+    group('Edge Cases', () {
+      test('no inquiries yields zeroed rates without dividing by zero',
+          () async {
+        final result = await sut.getMonthlyReport('shop1');
+
+        expect(result.isSuccess, isTrue);
+        final report = result.valueOrNull!;
+        expect(report.totalInquiries, 0);
+        expect(report.repliedInquiries, 0);
+        expect(report.closedInquiries, 0);
+        expect(report.responseRate, 0.0);
+        expect(report.conversionRate, 0.0);
+      });
+
+      test('empty shopId returns validation failure', () async {
+        final result = await sut.getMonthlyReport('');
+
+        expect(result.isFailure, isTrue);
+        expect(result.errorOrNull, isA<AppError>());
+      });
     });
   });
 }
