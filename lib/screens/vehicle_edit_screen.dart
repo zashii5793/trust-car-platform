@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
+import '../core/utils/date_formatter.dart';
 import '../models/vehicle.dart';
 import '../models/vehicle_master.dart';
 import '../providers/vehicle_provider.dart';
@@ -719,7 +720,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
 
   String _formatDate(DateTime? date) {
     if (date == null) return '未設定';
-    return '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
+    return formatDateWithWeekday(date);
   }
 
   @override

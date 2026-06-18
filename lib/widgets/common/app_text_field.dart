@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/utils/date_formatter.dart';
 
 /// アプリケーション全体で使用するテキストフィールドウィジェット
 /// DESIGN_SYSTEM.md に準拠
@@ -231,9 +232,7 @@ class AppDateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayValue = value != null
-        ? '${value!.year}/${value!.month.toString().padLeft(2, '0')}/${value!.day.toString().padLeft(2, '0')}'
-        : '';
+    final displayValue = value != null ? formatDateWithWeekday(value!) : '';
 
     return AppTextField(
       controller: TextEditingController(text: displayValue),
