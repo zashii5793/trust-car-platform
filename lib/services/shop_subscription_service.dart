@@ -45,12 +45,21 @@ class ShopMonthlyReport {
   /// Inquiries closed (treated as the closest proxy for a settled deal).
   final int closedInquiries;
 
+  /// Inquiries received in the previous month (for month-over-month trend).
+  final int previousTotalInquiries;
+
+  /// Average time to first reply for this month's replied inquiries, in hours.
+  /// Null when no inquiry has been replied to yet.
+  final double? averageResponseHours;
+
   const ShopMonthlyReport({
     required this.year,
     required this.month,
     required this.totalInquiries,
     required this.repliedInquiries,
     required this.closedInquiries,
+    this.previousTotalInquiries = 0,
+    this.averageResponseHours,
   });
 
   /// Share of inquiries replied to (0.0–1.0). 0.0 when there are none.
@@ -60,6 +69,9 @@ class ShopMonthlyReport {
   /// Share of inquiries closed (0.0–1.0). 0.0 when there are none.
   double get conversionRate =>
       totalInquiries == 0 ? 0.0 : closedInquiries / totalInquiries;
+
+  /// Change in inquiry volume vs. the previous month (can be negative).
+  int get inquiryDelta => totalInquiries - previousTotalInquiries;
 }
 
 /// Service for BtoB shop subscription management.
@@ -319,6 +331,9 @@ class ShopSubscriptionService {
     try {
       final now = DateTime.now();
       final monthStart = DateTime(now.year, now.month, 1);
+      // DateTime normalizes month 0 → previous December, so year rollover
+      // is handled automatically.
+      final prevMonthStart = DateTime(now.year, now.month - 1, 1);
 
       final snapshot = await _inquiries
           .where('shopId', isEqualTo: shopId)
@@ -329,12 +344,32 @@ class ShopSubscriptionService {
       var total = 0;
       var replied = 0;
       var closed = 0;
+      var responseHoursSum = 0.0;
       for (final doc in snapshot.docs) {
         final data = doc.data();
         total++;
-        if (data['repliedAt'] != null) replied++;
         if (data['status'] == InquiryStatus.closed.name) closed++;
+
+        final repliedAt = (data['repliedAt'] as Timestamp?)?.toDate();
+        if (repliedAt != null) {
+          replied++;
+          final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+          if (createdAt != null) {
+            // Clamp negatives (clock skew / bad data) to 0 so a single bad
+            // record can't drag the average below zero.
+            final hours = repliedAt.difference(createdAt).inMinutes / 60.0;
+            responseHoursSum += hours < 0 ? 0.0 : hours;
+          }
+        }
       }
+
+      // Previous-month volume for the month-over-month trend.
+      final prevSnapshot = await _inquiries
+          .where('shopId', isEqualTo: shopId)
+          .where('createdAt',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(prevMonthStart))
+          .where('createdAt', isLessThan: Timestamp.fromDate(monthStart))
+          .get();
 
       return Result.success(ShopMonthlyReport(
         year: now.year,
@@ -342,6 +377,8 @@ class ShopSubscriptionService {
         totalInquiries: total,
         repliedInquiries: replied,
         closedInquiries: closed,
+        previousTotalInquiries: prevSnapshot.docs.length,
+        averageResponseHours: replied == 0 ? null : responseHoursSum / replied,
       ));
     } catch (e) {
       return Result.failure(mapFirebaseError(e));

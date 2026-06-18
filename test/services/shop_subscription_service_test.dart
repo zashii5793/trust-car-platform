@@ -384,7 +384,7 @@ void main() {
   // -------------------------------------------------------------------------
   group('getMonthlyReport', () {
     test('aggregates received / replied / closed for current month', () async {
-      // 3 received this month: 1 pending, 1 replied, 1 closed (replied + closed)
+      // 3 received this month: pending, replied, closed (replied + closed)
       await _seedInquiry(fakeFs, 'shop1'); // pending, no reply
       await _seedInquiry(
         fakeFs,
@@ -430,6 +430,46 @@ void main() {
       expect(result.valueOrNull!.totalInquiries, 1);
     });
 
+    test('previousTotalInquiries counts the prior month only', () async {
+      final now = DateTime.now();
+      final lastMonth = DateTime(now.year, now.month - 1, 10);
+      final twoMonthsAgo = DateTime(now.year, now.month - 2, 10);
+      await _seedInquiry(fakeFs, 'shop1'); // this month
+      await _seedInquiry(fakeFs, 'shop1', createdAt: lastMonth);
+      await _seedInquiry(fakeFs, 'shop1', createdAt: lastMonth);
+      await _seedInquiry(fakeFs, 'shop1', createdAt: twoMonthsAgo); // excluded
+
+      final report = (await sut.getMonthlyReport('shop1')).valueOrNull!;
+
+      expect(report.totalInquiries, 1);
+      expect(report.previousTotalInquiries, 2);
+      expect(report.inquiryDelta, -1); // 1 this month vs 2 last month
+    });
+
+    test('averageResponseHours averages first-reply latency', () async {
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+      // 2h and 4h response times → average 3h.
+      await _seedInquiry(
+        fakeFs,
+        'shop1',
+        createdAt: monthStart.add(const Duration(hours: 1)),
+        status: 'replied',
+        repliedAt: monthStart.add(const Duration(hours: 3)),
+      );
+      await _seedInquiry(
+        fakeFs,
+        'shop1',
+        createdAt: monthStart.add(const Duration(hours: 1)),
+        status: 'replied',
+        repliedAt: monthStart.add(const Duration(hours: 5)),
+      );
+
+      final report = (await sut.getMonthlyReport('shop1')).valueOrNull!;
+
+      expect(report.averageResponseHours, closeTo(3.0, 0.01));
+    });
+
     group('Edge Cases', () {
       test('no inquiries yields zeroed rates without dividing by zero',
           () async {
@@ -442,6 +482,17 @@ void main() {
         expect(report.closedInquiries, 0);
         expect(report.responseRate, 0.0);
         expect(report.conversionRate, 0.0);
+        expect(report.averageResponseHours, isNull);
+        expect(report.previousTotalInquiries, 0);
+      });
+
+      test('averageResponseHours is null when nothing is replied', () async {
+        await _seedInquiry(fakeFs, 'shop1'); // pending, no repliedAt
+
+        final report = (await sut.getMonthlyReport('shop1')).valueOrNull!;
+
+        expect(report.totalInquiries, 1);
+        expect(report.averageResponseHours, isNull);
       });
 
       test('empty shopId returns validation failure', () async {

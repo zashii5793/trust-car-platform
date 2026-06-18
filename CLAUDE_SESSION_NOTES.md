@@ -35,7 +35,18 @@
   - `shop_owner_screen`: Premium+限定で `_MonthlyReportCard` 表示。`main.dart` で配線
   - 注: フェイクProviderは subscriptionService=null→カード非表示なので既存画面テスト互換
 
-**次セッション候補**: ①Issue #29/#30 の段階対応 ②ROIレポートに前月比・平均返信時間を追加 ③工場手動KYC+審査済バッジUI
+**追加実装（②③＋①手順書）**:
+- ①リリースP0手順書 `docs/DEPLOY_P0_FIRESTORE_RUNBOOK.md`（ファイル内容検証済み・コピペ実行可能）
+- ②工場KYC: `ShopVerifiedBadge` ウィジェット新規 + 店舗オーナー画面に認証ステータスカード
+  （`_VerificationStatusCard`）。用語は既存アプリに合わせ「認証済み/認証待ち」で統一。
+  ユーザー向け認証バッジは shop_detail/shop_list に既存のため重複追加せず
+- ③ROIレポート拡張: `ShopMonthlyReport` に `previousTotalInquiries`（前月比 `inquiryDelta`）と
+  `averageResponseHours`（平均返信時間）を追加。`getMonthlyReport` で前月クエリ＋返信遅延平均を算出。
+  UIに `_ReportFooter`（前月比トレンド＋平均返信）。サービステスト＋エッジケース追加
+- 注: 前月クエリは既存 inquiries(shopId+createdAt) インデックスで対応・新規不要
+- format注意: Flutter 3.38 = dart_style "tall"。ネスト三項+record はif/elseに展開して整形リスク回避
+
+**次セッション候補**: ①Issue #29/#30 の段階対応 ②認証リクエストの実フロー（現状は手動審査の表示のみ）③決済(RevenueCat)本番化サポート
 
 ---
 

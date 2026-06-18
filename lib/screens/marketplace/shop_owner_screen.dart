@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../models/shop.dart';
+import '../../services/shop_subscription_service.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../../widgets/common/shop_verified_badge.dart';
 import 'case_study_management_screen.dart';
 import 'shop_inquiry_list_screen.dart';
 import 'shop_plan_screen.dart';
@@ -294,6 +296,9 @@ class _RegisteredBody extends StatelessWidget {
           // Shop summary card
           _ShopSummaryCard(shop: shop),
           AppSpacing.verticalMd,
+          // Verification (KYC) status — owner-facing
+          _VerificationStatusCard(shop: shop),
+          AppSpacing.verticalMd,
           // Performance summary card
           _PerformanceSummaryCard(shop: shop, provider: provider),
           // Monthly performance report (Premium+ plans only — B2B ROI)
@@ -469,6 +474,10 @@ class _ShopSummaryCard extends StatelessWidget {
                 Row(
                   children: [
                     _PlanBadge(plan: shop.planType),
+                    if (shop.isVerified) ...[
+                      AppSpacing.horizontalXs,
+                      const ShopVerifiedBadge(isVerified: true),
+                    ],
                     if (shop.rating != null) ...[
                       AppSpacing.horizontalSm,
                       const Icon(
@@ -577,6 +586,71 @@ class _PerformanceSummaryCard extends StatelessWidget {
       '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
 }
 
+/// Owner-facing KYC / verification status card.
+///
+/// Surfaces whether the shop has passed the platform's manual review and, if
+/// not, what it unlocks. Review itself is performed manually by operators
+/// (sets `isVerified` in Firestore); this card only reflects that state.
+class _VerificationStatusCard extends StatelessWidget {
+  final Shop shop;
+
+  const _VerificationStatusCard({required this.shop});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final verified = shop.isVerified;
+
+    final IconData icon;
+    final Color color;
+    final String title;
+    final String body;
+    if (verified) {
+      icon = Icons.verified;
+      color = AppColors.success;
+      title = '認証済み';
+      body = 'お客様の画面に認証済みバッジが表示され、信頼されやすくなります。';
+    } else {
+      icon = Icons.shield_outlined;
+      color = AppColors.warning;
+      title = '認証待ち';
+      body = '掲載情報（住所・電話・営業時間）を充実させると運営の認証対象になります。認証されるとお客様に認証済みバッジが表示されます。';
+    }
+
+    return AppCard(
+      backgroundColor: color.withValues(alpha: 0.06),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: AppSpacing.iconMd),
+          AppSpacing.horizontalMd,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+                AppSpacing.verticalXxs,
+                Text(
+                  body,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Monthly performance report card (Premium+ plans).
 ///
 /// Surfaces the ROI question a paying shop owner cares about: how many leads
@@ -642,6 +716,8 @@ class _MonthlyReportCard extends StatelessWidget {
                 ),
               ],
             ),
+            AppSpacing.verticalSm,
+            _ReportFooter(report: report),
             AppSpacing.verticalXs,
             Text(
               '返信が早いほど成約につながりやすくなります。',
@@ -652,6 +728,61 @@ class _MonthlyReportCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Footer row of the monthly report: month-over-month trend + avg reply time.
+class _ReportFooter extends StatelessWidget {
+  final ShopMonthlyReport report;
+
+  const _ReportFooter({required this.report});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final delta = report.inquiryDelta;
+
+    IconData deltaIcon;
+    Color deltaColor;
+    String deltaLabel;
+    if (delta > 0) {
+      deltaIcon = Icons.trending_up;
+      deltaColor = AppColors.success;
+      deltaLabel = '前月比 +$delta件';
+    } else if (delta < 0) {
+      deltaIcon = Icons.trending_down;
+      deltaColor = AppColors.error;
+      deltaLabel = '前月比 $delta件';
+    } else {
+      deltaIcon = Icons.trending_flat;
+      deltaColor = muted;
+      deltaLabel = '前月比 ±0件';
+    }
+
+    final avg = report.averageResponseHours;
+    final avgLabel =
+        avg == null ? '平均返信 —' : '平均返信 約${avg.toStringAsFixed(1)}時間';
+
+    final labelStyle = theme.textTheme.bodySmall;
+
+    return Row(
+      children: [
+        Icon(deltaIcon, size: AppSpacing.iconSm, color: deltaColor),
+        const SizedBox(width: 4),
+        Text(
+          deltaLabel,
+          style: labelStyle?.copyWith(
+            color: deltaColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const Spacer(),
+        Icon(Icons.schedule_outlined, size: AppSpacing.iconSm, color: muted),
+        const SizedBox(width: 4),
+        Text(avgLabel, style: labelStyle?.copyWith(color: muted)),
+      ],
     );
   }
 }
