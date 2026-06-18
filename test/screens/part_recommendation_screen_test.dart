@@ -474,8 +474,7 @@ void main() {
 
     tearDown(() => Injection.reset());
 
-    testWidgets('20. PostService登録済みで投稿ありの場合に装着例セクションが表示される',
-        (tester) async {
+    testWidgets('20. PostService登録済みで投稿ありの場合に装着例セクションが表示される', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeProvider()));
       await tester.pumpAndSettle();
 

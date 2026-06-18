@@ -62,7 +62,8 @@ class _SlowMockSafetyTipService implements SafetyTipService {
   Future<Result<List<SafetyTip>, AppError>> getTips({
     SafetyTipCategory? category,
     SafetyTipSource? source,
-  }) => _completer.future;
+  }) =>
+      _completer.future;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -255,7 +256,8 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text(SafetyTipCategory.vehicleCheck.displayName), findsWidgets);
+      expect(
+          find.text(SafetyTipCategory.vehicleCheck.displayName), findsWidgets);
     });
 
     testWidgets('15. MLIT（国土交通省）ソースバッジが表示される', (tester) async {

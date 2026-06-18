@@ -236,7 +236,8 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text(AccessoryCategory.electronics.displayName), findsWidgets);
+      expect(
+          find.text(AccessoryCategory.electronics.displayName), findsWidgets);
     });
 
     testWidgets('13. トレンドカードのキーが設定されている', (tester) async {

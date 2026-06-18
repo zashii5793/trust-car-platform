@@ -183,7 +183,8 @@ Future<void> pumpApp(
   await tester.binding.setSurfaceSize(const Size(800, 2000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
-    _buildApp(service, initialContent: initialContent, initialCategory: initialCategory),
+    _buildApp(service,
+        initialContent: initialContent, initialCategory: initialCategory),
   );
 }
 

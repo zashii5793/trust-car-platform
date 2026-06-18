@@ -61,7 +61,7 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pump();
 
-      expect(find.textContaining('© 2026 TrustCar'), findsOneWidget);
+      expect(find.textContaining('© 2026 ZAXEL LLC'), findsOneWidget);
     });
   });
 }

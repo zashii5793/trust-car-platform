@@ -65,14 +65,14 @@ Vehicle _makeVehicle(String id, {DateTime? inspectionExpiryDate}) => Vehicle(
       updatedAt: DateTime(2024),
     );
 
-Vehicle _critical(String id) =>
-    _makeVehicle(id, inspectionExpiryDate: DateTime.now().add(const Duration(days: 3)));
+Vehicle _critical(String id) => _makeVehicle(id,
+    inspectionExpiryDate: DateTime.now().add(const Duration(days: 3)));
 
-Vehicle _warning(String id) =>
-    _makeVehicle(id, inspectionExpiryDate: DateTime.now().add(const Duration(days: 20)));
+Vehicle _warning(String id) => _makeVehicle(id,
+    inspectionExpiryDate: DateTime.now().add(const Duration(days: 20)));
 
-Vehicle _normal(String id) =>
-    _makeVehicle(id, inspectionExpiryDate: DateTime.now().add(const Duration(days: 90)));
+Vehicle _normal(String id) => _makeVehicle(id,
+    inspectionExpiryDate: DateTime.now().add(const Duration(days: 90)));
 
 Vehicle _noDate(String id) => _makeVehicle(id); // daysUntilInspection == null
 
@@ -150,7 +150,8 @@ void main() {
         expect(provider.filteredVehicles, hasLength(3));
       });
 
-      test('sorted by urgency: critical first, then warning, then normal', () async {
+      test('sorted by urgency: critical first, then warning, then normal',
+          () async {
         fakeService.emit([_normal('v3'), _critical('v1'), _warning('v2')]);
         await Future<void>.delayed(Duration.zero);
         final ids = provider.filteredVehicles.map((v) => v.id).toList();
@@ -168,7 +169,8 @@ void main() {
 
     group('filteredVehicles — FleetFilter.critical', () {
       setUp(() async {
-        fakeService.emit([_critical('c1'), _warning('w1'), _normal('n1'), _noDate('nd1')]);
+        fakeService.emit(
+            [_critical('c1'), _warning('w1'), _normal('n1'), _noDate('nd1')]);
         await Future<void>.delayed(Duration.zero);
         provider.setFilter(FleetFilter.critical);
       });
@@ -182,7 +184,8 @@ void main() {
 
     group('filteredVehicles — FleetFilter.warning', () {
       setUp(() async {
-        fakeService.emit([_critical('c1'), _warning('w1'), _warning('w2'), _normal('n1')]);
+        fakeService.emit(
+            [_critical('c1'), _warning('w1'), _warning('w2'), _normal('n1')]);
         await Future<void>.delayed(Duration.zero);
         provider.setFilter(FleetFilter.warning);
       });
@@ -272,7 +275,8 @@ void main() {
     });
 
     group('Edge Cases', () {
-      test('empty fleet returns empty filteredVehicles for all filters', () async {
+      test('empty fleet returns empty filteredVehicles for all filters',
+          () async {
         fakeService.emit([]);
         await Future<void>.delayed(Duration.zero);
 

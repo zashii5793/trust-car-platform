@@ -205,7 +205,8 @@ void main() {
 
       await tester.tap(find.byKey(const Key('save_insurance_btn')));
       await tester.pump(); // trigger save
-      await tester.pump(const Duration(milliseconds: 100)); // let Future resolve
+      await tester
+          .pump(const Duration(milliseconds: 100)); // let Future resolve
 
       expect(find.text('保険情報を保存しました'), findsOneWidget);
     });
@@ -221,7 +222,8 @@ void main() {
 
       await tester.tap(find.byKey(const Key('save_insurance_btn')));
       await tester.pump(); // trigger save
-      await tester.pump(const Duration(milliseconds: 100)); // let Future resolve
+      await tester
+          .pump(const Duration(milliseconds: 100)); // let Future resolve
 
       expect(find.text('保存に失敗しました'), findsOneWidget);
     });
@@ -249,7 +251,8 @@ void main() {
           contractType: InsuranceContractType.fleet,
         ),
       );
-      await tester.pumpWidget(_buildScreen(_MockFirebaseService(), vehicle: fleetVehicle));
+      await tester.pumpWidget(
+          _buildScreen(_MockFirebaseService(), vehicle: fleetVehicle));
       await tester.pump();
 
       // Scroll moderately to reveal the 料率 section (middle of form)

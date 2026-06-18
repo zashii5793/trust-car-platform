@@ -136,8 +136,8 @@ class FleetMemberService {
 
     try {
       final requesterRole = await _fetchRole(companyId, requesterId);
-      final canManageMembers = requesterRole == FleetRole.owner ||
-          requesterRole == FleetRole.admin;
+      final canManageMembers =
+          requesterRole == FleetRole.owner || requesterRole == FleetRole.admin;
       if (!canManageMembers) {
         return const Result.failure(
           AppError.permission('Only owners or admins can add members'),
@@ -194,8 +194,8 @@ class FleetMemberService {
 
     try {
       final requesterRole = await _fetchRole(companyId, requesterId);
-      final canManageMembers = requesterRole == FleetRole.owner ||
-          requesterRole == FleetRole.admin;
+      final canManageMembers =
+          requesterRole == FleetRole.owner || requesterRole == FleetRole.admin;
       if (!canManageMembers) {
         return const Result.failure(
           AppError.permission('Only owners or admins can update member roles'),

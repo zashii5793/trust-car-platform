@@ -451,8 +451,7 @@ void main() {
 
     // =========================================================================
     group('AIコンテキストバナー', () {
-      testWidgets('maintenanceContextが渡されるとAIバナーとアイコンが表示される',
-          (tester) async {
+      testWidgets('maintenanceContextが渡されるとAIバナーとアイコンが表示される', (tester) async {
         await tester.pumpWidget(_buildAppWith(
           provider,
           maintenanceContext: 'オイル交換',
@@ -608,8 +607,7 @@ void main() {
         await tester.tap(find.text('業種'));
         await tester.pumpAndSettle();
 
-        await tester
-            .tap(find.text(ShopType.maintenanceShop.displayName).last);
+        await tester.tap(find.text(ShopType.maintenanceShop.displayName).last);
         await tester.pumpAndSettle();
 
         // chip now shows the selected type name

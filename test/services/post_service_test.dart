@@ -658,8 +658,7 @@ void main() {
     });
 
     group('Edge Cases', () {
-      test('ページネーション + フォロワーフィルタ — followers 投稿は startAfter でも適用される',
-          () async {
+      test('ページネーション + フォロワーフィルタ — followers 投稿は startAfter でも適用される', () async {
         // Add a followers-only post (newest)
         await fakeFirestore.collection('posts').add({
           'userId': 'author-uid',

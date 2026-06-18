@@ -265,7 +265,8 @@ void main() {
     testWidgets('16. ローディング中はCircularProgressIndicatorが表示される', (tester) async {
       await tester.binding.setSurfaceSize(const Size(400, 1600));
       addTearDown(() async => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(_buildLauncher(vehicle: _makeVehicle(), records: []));
+      await tester
+          .pumpWidget(_buildLauncher(vehicle: _makeVehicle(), records: []));
       await tester.tap(find.text('OPEN'));
       await tester.pump(); // single tick — still loading
 
@@ -275,7 +276,8 @@ void main() {
     testWidgets('17. ローディング中はアクションオプションが非表示', (tester) async {
       await tester.binding.setSurfaceSize(const Size(400, 1600));
       addTearDown(() async => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(_buildLauncher(vehicle: _makeVehicle(), records: []));
+      await tester
+          .pumpWidget(_buildLauncher(vehicle: _makeVehicle(), records: []));
       await tester.tap(find.text('OPEN'));
       await tester.pump(); // single tick — still loading
 

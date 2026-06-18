@@ -394,8 +394,7 @@ void main() {
     testWidgets('23. 店舗別集計にコストが表示される', (tester) async {
       final provider = _FakeMaintenanceProvider(
         records: [
-          _makeRecord(
-              id: '1', shopName: 'テスト店舗', cost: 15000),
+          _makeRecord(id: '1', shopName: 'テスト店舗', cost: 15000),
         ],
       );
       await tester.pumpWidget(_buildScreen(provider: provider));

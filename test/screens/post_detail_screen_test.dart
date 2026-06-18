@@ -191,7 +191,6 @@ class _FakePostService implements PostService {
   Future<Result<void, AppError>> deleteComment({
     required String commentId,
     required String userId,
-    required String postId,
   }) async {
     deleteCommentCallCount++;
     return const Result.success(null);
@@ -199,10 +198,8 @@ class _FakePostService implements PostService {
 
   @override
   Future<Result<List<Comment>, AppError>> getReplies({
-    required String postId,
     required String commentId,
     int limit = 20,
-    dynamic startAfter,
   }) async =>
       const Result.success([]);
 

@@ -393,12 +393,12 @@ void main() {
 
   // =========================================================================
   group('ProfileScreen — メニューセクション', () {
-    testWidgets('マーケットプレイスセクションに「マイ出品」が表示される', (tester) async {
+    testWidgets('C2C「マイ出品」は表示されない（ユーザー間売買を廃止）', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.ensureVisible(find.text('マイ出品'));
-      expect(find.text('マイ出品'), findsOneWidget);
+      // ユーザー間売買のリスクを避けるため C2C 出品導線は撤去済み。
+      expect(find.text('マイ出品'), findsNothing);
     });
 
     testWidgets('サポートセクションに「ヘルプ」と「このアプリについて」が表示される', (tester) async {
@@ -421,8 +421,7 @@ void main() {
       expect(find.byType(AboutDialog), findsOneWidget);
     });
 
-    testWidgets('非プレミアム: データエクスポートタップでアップグレードダイアログが表示される',
-        (tester) async {
+    testWidgets('非プレミアム: データエクスポートタップでアップグレードダイアログが表示される', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -447,8 +446,7 @@ void main() {
       expect(find.text('ログアウトしてもよろしいですか？'), findsOneWidget);
     });
 
-    testWidgets('ログアウト確認ダイアログで「キャンセル」タップするとダイアログが閉じる',
-        (tester) async {
+    testWidgets('ログアウト確認ダイアログで「キャンセル」タップするとダイアログが閉じる', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
@@ -466,8 +464,7 @@ void main() {
 
   // =========================================================================
   group('ProfileScreen — 編集フォーム バリデーション', () {
-    testWidgets('表示名が空のまま保存すると「表示名を入力してください」が表示される',
-        (tester) async {
+    testWidgets('表示名が空のまま保存すると「表示名を入力してください」が表示される', (tester) async {
       await tester.pumpWidget(_buildScreen(
         appUser: AppUser(
           id: 'uid1',

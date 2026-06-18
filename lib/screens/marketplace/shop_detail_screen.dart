@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/shop.dart';
 import '../../models/shop_case_study.dart';
-import '../../models/service_menu.dart';
+// ServiceCategory は shop.dart のものを使う（ShopCaseStudy.category と一致）。
+// service_menu.dart も同名enumを持つため hide して曖昧さを解消する。
+import '../../models/service_menu.dart' hide ServiceCategory;
 import '../../providers/shop_provider.dart';
 import '../../core/constants/spacing.dart';
 import '../../services/shop_service.dart';

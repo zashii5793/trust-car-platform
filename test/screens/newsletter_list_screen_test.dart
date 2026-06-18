@@ -271,7 +271,8 @@ void main() {
   group('NewsletterListScreen — Card details', () {
     testWidgets('13. ニュースレターの本文が表示される', (tester) async {
       final nl = _makeNewsletter(body: '6月のお知らせ本文です。');
-      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester
+          .pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
       await tester.pump();
       await tester.pump();
 
@@ -283,7 +284,8 @@ void main() {
         id: 'n1',
         title: 'カテゴリテスト',
       );
-      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester
+          .pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
       await tester.pump();
       await tester.pump();
 
@@ -296,7 +298,8 @@ void main() {
 
     testWidgets('15. 作成日が表示される', (tester) async {
       final nl = _makeNewsletter(id: 'n1', title: '日付テスト');
-      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester
+          .pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
       await tester.pump();
       await tester.pump();
 
@@ -312,7 +315,8 @@ void main() {
         sentAt: DateTime(2026, 5, 15),
         recipientCount: 10,
       );
-      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester
+          .pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
       await tester.pump();
       await tester.pump();
 
@@ -325,7 +329,8 @@ void main() {
         title: '編集テスト',
         status: NewsletterStatus.draft,
       );
-      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester
+          .pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
       await tester.pump();
       await tester.pump();
 
@@ -338,7 +343,8 @@ void main() {
         title: '削除テスト',
         status: NewsletterStatus.draft,
       );
-      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester
+          .pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
       await tester.pump();
       await tester.pump();
 
@@ -368,7 +374,8 @@ void main() {
         title: 'オーディエンステスト',
         status: NewsletterStatus.draft,
       );
-      await tester.pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
+      await tester
+          .pumpWidget(_buildScreen(_MockNewsletterService(newsletters: [nl])));
       await tester.pump();
       await tester.pump();
 

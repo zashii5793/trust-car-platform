@@ -229,8 +229,8 @@ void main() {
       await tester.tap(find.byIcon(Icons.send_rounded));
       await tester.pump();
 
-      final tf = tester.widget<TextField>(
-          find.widgetWithText(TextField, '車のことを何でも聞いてください'));
+      final tf = tester
+          .widget<TextField>(find.widgetWithText(TextField, '車のことを何でも聞いてください'));
       expect(tf.controller?.text ?? '', isEmpty);
     });
 

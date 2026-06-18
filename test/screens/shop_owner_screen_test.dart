@@ -617,7 +617,8 @@ void main() {
       await tester.pumpWidget(_buildScreen(provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.byKey(const Key('case_study_management_btn')), findsOneWidget);
+      expect(
+          find.byKey(const Key('case_study_management_btn')), findsOneWidget);
       expect(find.text('施工事例'), findsOneWidget);
     });
 

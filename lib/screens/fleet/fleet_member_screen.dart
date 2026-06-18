@@ -242,9 +242,8 @@ class _FleetMemberScreenState extends State<FleetMemberScreen> {
             member: member,
             isSelf: isSelf,
             isOwner: _isOwner,
-            onRoleChanged: canManageTarget
-                ? (role) => _updateRole(member, role)
-                : null,
+            onRoleChanged:
+                canManageTarget ? (role) => _updateRole(member, role) : null,
             onRemove: canManageTarget ? () => _removeMember(member) : null,
           );
         },

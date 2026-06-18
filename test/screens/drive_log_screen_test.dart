@@ -9,7 +9,8 @@ import 'package:trust_car_platform/providers/drive_recording_provider.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
-import 'package:trust_car_platform/models/drive_log.dart' show DriveLog, DriveLogStatus, DriveStatistics, WeatherCondition, RoadType;
+import 'package:trust_car_platform/models/drive_log.dart'
+    show DriveLog, DriveLogStatus, DriveStatistics, WeatherCondition, RoadType;
 import 'package:trust_car_platform/models/user.dart';
 import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
 import 'package:trust_car_platform/core/result/result.dart';

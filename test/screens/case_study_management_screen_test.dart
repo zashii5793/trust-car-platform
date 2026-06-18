@@ -305,9 +305,7 @@ void main() {
               matching: find.byWidgetPredicate(
                 (w) =>
                     w is Text &&
-                    (w.data == '最新施工' ||
-                        w.data == '最古施工' ||
-                        w.data == '中間施工'),
+                    (w.data == '最新施工' || w.data == '最古施工' || w.data == '中間施工'),
               ),
             ),
           )

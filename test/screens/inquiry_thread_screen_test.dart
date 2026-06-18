@@ -401,7 +401,13 @@ void main() {
       ));
       await tester.pump();
 
-      final iconBtn = tester.widget<IconButton>(find.byType(IconButton));
+      // 送信ボタン（Icons.send）を特定する。写真添付ボタンも IconButton のため。
+      final iconBtn = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(Icons.send),
+          matching: find.byType(IconButton),
+        ),
+      );
       expect(iconBtn.onPressed, isNull);
     });
 
@@ -414,7 +420,12 @@ void main() {
       await tester.enterText(find.byType(TextField), '   ');
       await tester.pump();
 
-      final iconBtn = tester.widget<IconButton>(find.byType(IconButton));
+      final iconBtn = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(Icons.send),
+          matching: find.byType(IconButton),
+        ),
+      );
       expect(iconBtn.onPressed, isNull);
     });
 

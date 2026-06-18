@@ -432,7 +432,8 @@ void main() {
     testWidgets('スタッフバッジが表示される', (tester) async {
       final service = _StubFleetMemberService(members: [
         _member(userId: 'owner-1', role: FleetRole.owner),
-        _member(userId: 'staff-1', role: FleetRole.staff, displayName: 'スタッフ太郎'),
+        _member(
+            userId: 'staff-1', role: FleetRole.staff, displayName: 'スタッフ太郎'),
       ]);
       await tester
           .pumpWidget(_buildScreen(service: service, currentUserId: 'owner-1'));

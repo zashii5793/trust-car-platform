@@ -998,8 +998,8 @@ void main() {
       final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
       final np = _FakeNotificationProvider()..setNotifications([]);
 
-      await tester.pumpWidget(
-          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester
+          .pumpWidget(_buildApp(vehicleProvider: vp, notificationProvider: np));
       await tester.pump();
 
       expect(find.text('AIからの提案'), findsNothing);
@@ -1010,8 +1010,8 @@ void main() {
       final np = _FakeNotificationProvider()
         ..setNotifications([makeSuggestion()]);
 
-      await tester.pumpWidget(
-          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester
+          .pumpWidget(_buildApp(vehicleProvider: vp, notificationProvider: np));
       await tester.pump();
 
       expect(find.text('AIからの提案'), findsOneWidget);
@@ -1022,8 +1022,8 @@ void main() {
       final np = _FakeNotificationProvider()
         ..setNotifications([makeSuggestion()]);
 
-      await tester.pumpWidget(
-          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester
+          .pumpWidget(_buildApp(vehicleProvider: vp, notificationProvider: np));
       await tester.pump();
 
       expect(find.text('すべて見る'), findsOneWidget);
@@ -1033,12 +1033,11 @@ void main() {
       final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
       final np = _FakeNotificationProvider()
         ..setNotifications([
-          makeSuggestion(
-              priority: NotificationPriority.high, title: '車検まもなく'),
+          makeSuggestion(priority: NotificationPriority.high, title: '車検まもなく'),
         ]);
 
-      await tester.pumpWidget(
-          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester
+          .pumpWidget(_buildApp(vehicleProvider: vp, notificationProvider: np));
       await tester.pump();
 
       // _DashboardSummaryCard also shows '要対応' label → use findsWidgets
@@ -1052,8 +1051,8 @@ void main() {
           makeSuggestion(priority: NotificationPriority.medium),
         ]);
 
-      await tester.pumpWidget(
-          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester
+          .pumpWidget(_buildApp(vehicleProvider: vp, notificationProvider: np));
       await tester.pump();
 
       expect(find.text('推奨'), findsOneWidget);
@@ -1066,16 +1065,15 @@ void main() {
           makeSuggestion(title: 'タイヤ交換推奨', message: '走行距離から判断'),
         ]);
 
-      await tester.pumpWidget(
-          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester
+          .pumpWidget(_buildApp(vehicleProvider: vp, notificationProvider: np));
       await tester.pump();
 
       expect(find.text('タイヤ交換推奨'), findsOneWidget);
       expect(find.text('走行距離から判断'), findsOneWidget);
     });
 
-    testWidgets('提案カードをタップするとボトムシートが開き「なぜ今なのか」が表示される',
-        (tester) async {
+    testWidgets('提案カードをタップするとボトムシートが開き「なぜ今なのか」が表示される', (tester) async {
       await tester.binding.setSurfaceSize(const Size(800, 1200));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -1085,8 +1083,8 @@ void main() {
           makeSuggestion(title: 'ブレーキパッド確認', reason: '走行距離が多め'),
         ]);
 
-      await tester.pumpWidget(
-          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester
+          .pumpWidget(_buildApp(vehicleProvider: vp, notificationProvider: np));
       await tester.pump();
 
       await tester.tap(find.text('ブレーキパッド確認'));
@@ -1104,8 +1102,8 @@ void main() {
       final np = _FakeNotificationProvider()
         ..setNotifications([makeSuggestion()]);
 
-      await tester.pumpWidget(
-          _buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester
+          .pumpWidget(_buildApp(vehicleProvider: vp, notificationProvider: np));
       await tester.pump();
 
       await tester.tap(find.text('すべて見る'));

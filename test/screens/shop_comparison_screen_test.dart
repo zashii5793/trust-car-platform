@@ -239,8 +239,7 @@ void main() {
     });
 
     testWidgets('14. レビュー件数が表示される', (tester) async {
-      final shopReviewed =
-          _makeShop(id: 'rv', name: 'レビュー工場', reviewCount: 25);
+      final shopReviewed = _makeShop(id: 'rv', name: 'レビュー工場', reviewCount: 25);
       await tester.pumpWidget(_buildScreen(shops: [shopReviewed]));
       await tester.pump();
 

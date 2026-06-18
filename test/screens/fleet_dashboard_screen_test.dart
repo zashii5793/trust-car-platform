@@ -85,18 +85,7 @@ class _StubFleetService implements FleetService {
 // Auth stubs for real FleetDashboardScreen tests
 // ---------------------------------------------------------------------------
 
-class _FakeUser implements User {
-  @override
-  String get uid => 'uid-test';
-  @override
-  String? get email => 'test@example.com';
-  @override
-  String? get displayName => null;
-  @override
-  String? get photoURL => null;
-  @override
-  dynamic noSuchMethod(Invocation invocation) => null;
-}
+// (removed unused _FakeUser stub — flutter analyze --fatal-infos)
 
 class _StubAuthService implements AuthService {
   @override
@@ -133,8 +122,7 @@ class _StubAuthService implements AuthService {
       const Result.success(null);
 
   @override
-  Future<Result<void, AppError>> signOut() async =>
-      const Result.success(null);
+  Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
   Future<Result<void, AppError>> updateUserProfile({
@@ -399,8 +387,7 @@ void main() {
       final now = DateTime.now();
       final vehicles = [
         _makeVehicle(
-            id: 'crit',
-            inspectionExpiryDate: now.add(const Duration(days: 3))),
+            id: 'crit', inspectionExpiryDate: now.add(const Duration(days: 3))),
         _makeVehicle(
             id: 'warn',
             inspectionExpiryDate: now.add(const Duration(days: 20))),
@@ -425,8 +412,7 @@ void main() {
       final now = DateTime.now();
       final vehicles = [
         _makeVehicle(
-            id: 'crit',
-            inspectionExpiryDate: now.add(const Duration(days: 3))),
+            id: 'crit', inspectionExpiryDate: now.add(const Duration(days: 3))),
         _makeVehicle(
             id: 'norm',
             inspectionExpiryDate: now.add(const Duration(days: 90))),
@@ -531,8 +517,7 @@ void main() {
       final now = DateTime.now();
       final vehicles = [
         _makeVehicle(
-            id: 'crit',
-            inspectionExpiryDate: now.add(const Duration(days: 3))),
+            id: 'crit', inspectionExpiryDate: now.add(const Duration(days: 3))),
         _makeVehicle(
             id: 'norm',
             inspectionExpiryDate: now.add(const Duration(days: 90))),
@@ -546,7 +531,8 @@ void main() {
 
       expect(
           find.byKey(const Key('fleet_vehicle_card_normal')), findsOneWidget);
-      expect(find.byKey(const Key('fleet_vehicle_card_critical')), findsNothing);
+      expect(
+          find.byKey(const Key('fleet_vehicle_card_critical')), findsNothing);
     });
   });
 
@@ -556,8 +542,7 @@ void main() {
       final now = DateTime.now();
       final vehicles = [
         _makeVehicle(
-            id: 'crit',
-            inspectionExpiryDate: now.add(const Duration(days: 3))),
+            id: 'crit', inspectionExpiryDate: now.add(const Duration(days: 3))),
         _makeVehicle(
             id: 'norm',
             inspectionExpiryDate: now.add(const Duration(days: 90))),

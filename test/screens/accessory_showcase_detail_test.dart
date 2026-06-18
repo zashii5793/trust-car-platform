@@ -32,7 +32,8 @@ void main() {
 
   setUp(() async {
     fs = FakeFirebaseFirestore();
-    await seedShowcase(id: 's1', itemName: 'Vantrue N2 Pro', review: '夜間も鮮明で満足');
+    await seedShowcase(
+        id: 's1', itemName: 'Vantrue N2 Pro', review: '夜間も鮮明で満足');
     await seedShowcase(id: 's2', itemName: 'Vantrue N2 Pro', review: '取り付けが簡単');
     if (sl.isRegistered<PopularAccessoriesService>()) {
       sl.unregister<PopularAccessoriesService>();
