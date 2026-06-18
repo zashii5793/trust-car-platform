@@ -160,7 +160,16 @@ class ProfileScreen extends StatelessWidget {
                           context: context,
                           applicationName: 'クルマ統合管理',
                           applicationVersion: '1.0.0',
-                          applicationLegalese: '© 2026 Trust Car Platform',
+                          applicationLegalese:
+                              '© 2026 ZAXEL LLC All rights reserved.\n運営: ZAXEL LLC',
+                          children: const [
+                            SizedBox(height: 12),
+                            Text(
+                              '「ライセンス」には、本アプリが利用するオープンソース'
+                              'ソフトウェアのライセンス情報を掲載しています'
+                              '（各ライセンスの原文は英語です）。',
+                            ),
+                          ],
                         );
                       },
                     ),
