@@ -7,8 +7,8 @@ void main() {
     group('MaintenanceType', () {
       test('全てのMaintenanceTypeが正しい表示名を持つ', () {
         expect(MaintenanceType.repair.displayName, '修理');
-        expect(MaintenanceType.legalInspection12.displayName, '12ヶ月点検');
-        expect(MaintenanceType.legalInspection24.displayName, '24ヶ月点検');
+        expect(MaintenanceType.legalInspection12.displayName, '法定12ヶ月点検');
+        expect(MaintenanceType.legalInspection24.displayName, '法定24ヶ月点検');
         expect(MaintenanceType.carInspection.displayName, '車検');
         expect(MaintenanceType.oilChange.displayName, 'オイル交換');
         expect(MaintenanceType.tireChange.displayName, 'タイヤ交換');

@@ -6,9 +6,10 @@ enum MaintenanceType {
   // 修理・整備
   repair('修理', Icons.build, Colors.red),
 
-  // 法定点検
-  legalInspection12('12ヶ月点検', Icons.assignment, Colors.blue),
-  legalInspection24('24ヶ月点検', Icons.assignment_turned_in, Colors.indigo),
+  // 法定点検（道路運送車両法に基づく定期点検整備）
+  // 自家用乗用車は法定12ヶ月点検・法定24ヶ月点検（24ヶ月は車検と同時に実施）。
+  legalInspection12('法定12ヶ月点検', Icons.assignment, Colors.blue),
+  legalInspection24('法定24ヶ月点検', Icons.assignment_turned_in, Colors.indigo),
 
   // 車検
   carInspection('車検', Icons.verified, Colors.green),
