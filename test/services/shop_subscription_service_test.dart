@@ -386,10 +386,18 @@ void main() {
     test('aggregates received / replied / closed for current month', () async {
       // 3 received this month: 1 pending, 1 replied, 1 closed (replied + closed)
       await _seedInquiry(fakeFs, 'shop1'); // pending, no reply
-      await _seedInquiry(fakeFs, 'shop1',
-          status: 'replied', repliedAt: DateTime.now());
-      await _seedInquiry(fakeFs, 'shop1',
-          status: 'closed', repliedAt: DateTime.now());
+      await _seedInquiry(
+        fakeFs,
+        'shop1',
+        status: 'replied',
+        repliedAt: DateTime.now(),
+      );
+      await _seedInquiry(
+        fakeFs,
+        'shop1',
+        status: 'closed',
+        repliedAt: DateTime.now(),
+      );
 
       final result = await sut.getMonthlyReport('shop1');
 
@@ -403,7 +411,8 @@ void main() {
     });
 
     test('excludes inquiries from previous months', () async {
-      final lastMonth = DateTime(DateTime.now().year, DateTime.now().month - 1, 15);
+      final lastMonth =
+          DateTime(DateTime.now().year, DateTime.now().month - 1, 15);
       await _seedInquiry(fakeFs, 'shop1'); // this month
       await _seedInquiry(fakeFs, 'shop1', createdAt: lastMonth);
 

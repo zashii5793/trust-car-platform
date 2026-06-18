@@ -605,9 +605,7 @@ class _MonthlyReportCard extends StatelessWidget {
               ),
               AppSpacing.horizontalXs,
               Text(
-                report == null
-                    ? '今月のレポート'
-                    : '${report.month}月のレポート',
+                report == null ? '今月のレポート' : '${report.month}月のレポート',
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -627,8 +625,7 @@ class _MonthlyReportCard extends StatelessWidget {
                   icon: Icons.mail_outline,
                   label: '今月の問い合わせ',
                   value: '${report.totalInquiries} 件',
-                  valueColor:
-                      report.totalInquiries > 0 ? AppColors.info : null,
+                  valueColor: report.totalInquiries > 0 ? AppColors.info : null,
                 ),
                 _StatDivider(),
                 _StatItem(
