@@ -1,6 +1,30 @@
 # Claude Session Notes
 
-最終更新: 2026-06-13
+最終更新: 2026-06-18
+
+---
+
+## 進行中: ナンバープレートぼかし機能（プライバシー）
+
+**ブランチ**: `claude/clever-galileo-jg2t9l`
+**目的**: 車両写真をSNS共有する際、ナンバープレートを自動検出→ユーザー確認→ぼかし
+
+### Phase 1（Service層・TDD）— 実装済み
+- `LicensePlateMaskingService` に `blurRegion` / `blurRegions` を追加
+  （`MaskStyle.blur`=ガウシアンブラー / `MaskStyle.mosaic`=平均色モザイク /
+  `MaskStyle.solid`=既存の黒塗りに委譲）。領域のみ加工し他は保持。
+- `LicensePlateDetectionService` 新規（ML Kit text recognition）。
+  純粋関数 `findPlateRegions` でナンバー断片を検出（テスト対象）。
+- `injection.dart` に検出サービスを登録。
+- テスト追加: `license_plate_masking_service_test.dart`（blur系）/
+  `license_plate_detection_service_test.dart`（検出ヒューリスティック）。
+- ⚠️ この環境にFlutter/Dart未インストールのため `flutter test` / `analyze` 未実行。
+  **CI もしくはローカルで要実行**。
+
+### Phase 2（UI・未着手）
+- ぼかし編集画面（CustomPaintで矩形オーバーレイ、ドラッグ追加/調整/削除）。
+- `vehicle_registration_screen` / `vehicle_edit_screen` / SNS投稿フローへ統合。
+- `_sharePhotoConsent` 文言を「ぼかし済み前提」に調整。
 
 ---
 
