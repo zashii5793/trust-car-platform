@@ -5,6 +5,7 @@ import 'dart:io' as io;
 import 'dart:typed_data';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
+import '../models/mileage_record.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
@@ -44,6 +45,65 @@ class FirebaseService {
           .doc(vehicleId)
           .update(vehicle.toMap());
       return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// 走行距離を更新し、同時に履歴（サブコレクション）へ「値＋日時」を記録する。
+  ///
+  /// 車両ドキュメントの mileage / mileageUpdatedAt と、
+  /// vehicles/{id}/mileage_history への追記を1つのバッチで原子的に行うため、
+  /// 「最新値」と「履歴」が乖離しない。
+  Future<Result<void, AppError>> recordMileage(
+    String vehicleId, {
+    required int newMileage,
+    String? note,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final vehicleRef =
+          _firestore.collection(FirestoreCollections.vehicles).doc(vehicleId);
+      final batch = _firestore.batch();
+      batch.update(vehicleRef, {
+        'mileage': newMileage,
+        'mileageUpdatedAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+      });
+      final record = MileageRecord(
+        id: '',
+        userId: currentUserId ?? '',
+        mileage: newMileage,
+        recordedAt: now,
+        note: note,
+      );
+      batch.set(
+        vehicleRef.collection(FirestoreCollections.mileageHistory).doc(),
+        record.toMap(),
+      );
+      await batch.commit();
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// 走行距離の更新履歴を新しい順で取得する。
+  Future<Result<List<MileageRecord>, AppError>> getMileageHistory(
+    String vehicleId, {
+    int limit = 50,
+  }) async {
+    try {
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.vehicles)
+          .doc(vehicleId)
+          .collection(FirestoreCollections.mileageHistory)
+          .orderBy('recordedAt', descending: true)
+          .limit(limit)
+          .get();
+      return Result.success(
+        snapshot.docs.map((d) => MileageRecord.fromFirestore(d)).toList(),
+      );
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
     }

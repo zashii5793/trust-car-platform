@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
+import 'package:trust_car_platform/models/mileage_record.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
@@ -27,6 +28,24 @@ class MockFirebaseService implements FirebaseService {
 
   @override
   Stream<List<Vehicle>> getUserVehicles() => _vehiclesController.stream;
+
+  bool recordMileageCalled = false;
+  int? recordMileageArg;
+  Result<void, AppError>? recordMileageResult;
+
+  @override
+  Future<Result<void, AppError>> recordMileage(String vehicleId,
+      {required int newMileage, String? note}) async {
+    recordMileageCalled = true;
+    recordMileageArg = newMileage;
+    return recordMileageResult ?? const Result.success(null);
+  }
+
+  @override
+  Future<Result<List<MileageRecord>, AppError>> getMileageHistory(
+          String vehicleId,
+          {int limit = 50}) async =>
+      const Result.success([]);
 
   void emitVehicles(List<Vehicle> vehicles) {
     _vehiclesController.add(vehicles);
@@ -284,6 +303,29 @@ void main() {
         final success = await provider.updateVehicle('test-id', vehicle);
 
         expect(success, isFalse);
+        expect(provider.error, isA<PermissionError>());
+      });
+    });
+
+    group('recordMileage', () {
+      test('firebaseService.recordMileage を新しい距離で呼ぶ', () async {
+        await provider.recordMileage('test-id', newMileage: 52000);
+
+        expect(mockFirebaseService.recordMileageCalled, isTrue);
+        expect(mockFirebaseService.recordMileageArg, 52000);
+      });
+
+      test('成功時は true を返す', () async {
+        mockFirebaseService.recordMileageResult = const Result.success(null);
+        final ok = await provider.recordMileage('test-id', newMileage: 52000);
+        expect(ok, isTrue);
+      });
+
+      test('失敗時は false を返しエラーを保持する', () async {
+        mockFirebaseService.recordMileageResult =
+            Result.failure(const PermissionError('Forbidden'));
+        final ok = await provider.recordMileage('test-id', newMileage: 52000);
+        expect(ok, isFalse);
         expect(provider.error, isA<PermissionError>());
       });
     });

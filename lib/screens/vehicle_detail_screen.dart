@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
+import '../models/mileage_record.dart';
 import '../models/drive_log.dart';
 import '../models/app_notification.dart';
 import '../providers/maintenance_provider.dart';
@@ -14,6 +15,9 @@ import '../services/vehicle_master_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
+import '../core/utils/date_formatter.dart';
+import '../core/result/result.dart';
+import '../core/error/app_error.dart';
 import '../widgets/common/app_card.dart';
 import '../widgets/common/loading_indicator.dart';
 import 'add_maintenance_screen.dart';
@@ -220,7 +224,9 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
         updatedAt: DateTime.now(),
       );
 
-      final result = await firebaseService.updateVehicle(_vehicle.id, updated);
+      // 走行距離は履歴付きで記録する（更新の都度「値＋日時」を残す）
+      final result = await firebaseService.recordMileage(_vehicle.id,
+          newMileage: newMileage);
       if (!mounted) return;
 
       result.when(
@@ -239,6 +245,19 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
+  }
+
+  /// 走行距離の更新履歴をボトムシートで表示する。
+  void _showMileageHistory() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _MileageHistorySheet(vehicleId: _vehicle.id),
+    );
   }
 
   @override
@@ -372,21 +391,40 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                         ),
                         Padding(
                           padding: const EdgeInsets.only(left: 88, top: 2),
-                          child: OutlinedButton.icon(
-                            key: const Key('update_mileage_btn'),
-                            onPressed: _showMileageUpdateDialog,
-                            icon: const Icon(Icons.edit_outlined, size: 15),
-                            label: const Text('更新する'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.info,
-                              side: const BorderSide(color: AppColors.info),
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
+                          child: Row(
+                            children: [
+                              OutlinedButton.icon(
+                                key: const Key('update_mileage_btn'),
+                                onPressed: _showMileageUpdateDialog,
+                                icon: const Icon(Icons.edit_outlined, size: 15),
+                                label: const Text('更新する'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.info,
+                                  side: const BorderSide(color: AppColors.info),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  textStyle: const TextStyle(fontSize: 12),
+                                ),
                               ),
-                              textStyle: const TextStyle(fontSize: 12),
-                            ),
+                              const SizedBox(width: 8),
+                              TextButton.icon(
+                                key: const Key('mileage_history_btn'),
+                                onPressed: _showMileageHistory,
+                                icon: const Icon(Icons.history, size: 15),
+                                label: const Text('履歴'),
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  textStyle: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         if (_vehicle.inspectionExpiryDate != null) ...[
@@ -2959,5 +2997,138 @@ class _CommunityInsightRow extends StatelessWidget {
       return '${(cost / 10000).toStringAsFixed(1)}万';
     }
     return cost.toStringAsFixed(0);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 走行距離の更新履歴シート
+// ---------------------------------------------------------------------------
+
+class _MileageHistorySheet extends StatelessWidget {
+  final String vehicleId;
+
+  const _MileageHistorySheet({required this.vehicleId});
+
+  String _formatNumber(int number) {
+    return number.toString().replaceAllMapped(
+          RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+          (m) => '${m[1]},',
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      minChildSize: 0.35,
+      maxChildSize: 0.9,
+      builder: (context, scrollController) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.speed, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    '走行距離の履歴',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Expanded(
+                child: FutureBuilder<Result<List<MileageRecord>, AppError>>(
+                  future:
+                      sl.get<FirebaseService>().getMileageHistory(vehicleId),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final result = snapshot.data!;
+                    final records = result.valueOrNull ?? [];
+                    if (result.isFailure) {
+                      return Center(
+                        child: Text(
+                          '履歴の取得に失敗しました',
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(color: AppColors.error),
+                        ),
+                      );
+                    }
+                    if (records.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.history,
+                                size: 40,
+                                color: theme.colorScheme.outlineVariant),
+                            const SizedBox(height: AppSpacing.sm),
+                            Text(
+                              'まだ更新履歴がありません',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '走行距離を更新すると、ここに記録されます',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return ListView.separated(
+                      controller: scrollController,
+                      itemCount: records.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, i) {
+                        final r = records[i];
+                        // 直前（=次に新しい記録の1つ前）との差分。records は新しい順。
+                        final prev =
+                            i + 1 < records.length ? records[i + 1] : null;
+                        final delta =
+                            prev != null ? r.mileage - prev.mileage : null;
+                        return ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.speed_outlined, size: 18),
+                          title: Text(
+                            '${_formatNumber(r.mileage)} km',
+                            style: theme.textTheme.bodyLarge
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Text(formatDateWithWeekday(r.recordedAt)),
+                          trailing: delta != null && delta > 0
+                              ? Text(
+                                  '+${_formatNumber(delta)} km',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: AppColors.info,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                )
+                              : null,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+          ),
+        );
+      },
+    );
   }
 }

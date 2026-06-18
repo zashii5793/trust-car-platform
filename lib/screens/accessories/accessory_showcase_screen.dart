@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
+import '../../core/error/app_error.dart';
+import '../../core/result/result.dart';
 import '../../models/accessory_showcase.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/vehicle_provider.dart';
@@ -87,6 +89,18 @@ class _AccessoryShowcaseScreenState extends State<AccessoryShowcaseScreen>
     });
   }
 
+  void _showTrendDetail(AccessoryTrend trend) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _TrendDetailSheet(trend: trend, service: _service),
+    );
+  }
+
   void _openSubmitSheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -142,7 +156,10 @@ class _AccessoryShowcaseScreenState extends State<AccessoryShowcaseScreen>
                     if (trends.isEmpty) {
                       return const _EmptyTrends();
                     }
-                    return _TrendList(trends: trends);
+                    return _TrendList(
+                      trends: trends,
+                      onTapTrend: _showTrendDetail,
+                    );
                   }).toList(),
                 ),
     );
@@ -153,7 +170,8 @@ class _AccessoryShowcaseScreenState extends State<AccessoryShowcaseScreen>
 
 class _TrendList extends StatelessWidget {
   final List<AccessoryTrend> trends;
-  const _TrendList({required this.trends});
+  final void Function(AccessoryTrend) onTapTrend;
+  const _TrendList({required this.trends, required this.onTapTrend});
 
   @override
   Widget build(BuildContext context) {
@@ -161,7 +179,11 @@ class _TrendList extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       itemCount: trends.length,
       separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-      itemBuilder: (_, i) => _TrendCard(rank: i + 1, trend: trends[i]),
+      itemBuilder: (_, i) => _TrendCard(
+        rank: i + 1,
+        trend: trends[i],
+        onTap: () => onTapTrend(trends[i]),
+      ),
     );
   }
 }
@@ -169,80 +191,89 @@ class _TrendList extends StatelessWidget {
 class _TrendCard extends StatelessWidget {
   final int rank;
   final AccessoryTrend trend;
-  const _TrendCard({required this.rank, required this.trend});
+  final VoidCallback onTap;
+  const _TrendCard({
+    required this.rank,
+    required this.trend,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
       key: Key('trend_card_${trend.itemName}'),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Rank badge
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: rank <= 3
-                    ? AppColors.primary
-                    : AppColors.backgroundSecondary,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  '$rank',
-                  style: TextStyle(
-                    color: rank <= 3 ? Colors.white : AppColors.textSecondary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Rank badge
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: rank <= 3
+                      ? AppColors.primary
+                      : AppColors.backgroundSecondary,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    '$rank',
+                    style: TextStyle(
+                      color: rank <= 3 ? Colors.white : AppColors.textSecondary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    trend.itemName,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  if (trend.brand != null)
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      trend.brand!,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: AppColors.textSecondary),
+                      trend.itemName,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
                     ),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: AppSpacing.sm,
-                    children: [
-                      _MetaChip(
-                        icon: Icons.people_outline,
-                        label: '${trend.showcaseCount}人が使用',
+                    if (trend.brand != null)
+                      Text(
+                        trend.brand!,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: AppColors.textSecondary),
                       ),
-                      _MetaChip(
-                        icon: Icons.star_outline,
-                        label: '${trend.averageRating.toStringAsFixed(1)}★',
-                      ),
-                      if (trend.averagePriceApprox != null)
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      children: [
                         _MetaChip(
-                          icon: Icons.sell_outlined,
-                          label:
-                              '¥${_formatPrice(trend.averagePriceApprox!.toDouble())}',
+                          icon: Icons.people_outline,
+                          label: '${trend.showcaseCount}人が使用',
                         ),
-                    ],
-                  ),
-                ],
+                        _MetaChip(
+                          icon: Icons.star_outline,
+                          label: '${trend.averageRating.toStringAsFixed(1)}★',
+                        ),
+                        if (trend.averagePriceApprox != null)
+                          _MetaChip(
+                            icon: Icons.sell_outlined,
+                            label:
+                                '¥${_formatPrice(trend.averagePriceApprox!.toDouble())}',
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            _CategoryBadge(category: trend.category),
-          ],
+              _CategoryBadge(category: trend.category),
+            ],
+          ),
         ),
       ),
     );
@@ -650,6 +681,196 @@ class _SubmitShowcaseSheetState extends State<_SubmitShowcaseSheet> {
                     : const Text('投稿する'),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Trend detail sheet ────────────────────────────────────────────────────────
+
+/// アクセサリーのトレンド詳細。集計サマリーと、その商品の投稿（写真・レビュー）
+/// を一覧表示する。一覧タップで開く。
+class _TrendDetailSheet extends StatelessWidget {
+  final AccessoryTrend trend;
+  final PopularAccessoriesService service;
+
+  const _TrendDetailSheet({required this.trend, required this.service});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.7,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) {
+        return ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md, 0, AppSpacing.md, AppSpacing.xl),
+          children: [
+            // Header
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        trend.itemName,
+                        style: theme.textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      if (trend.brand != null)
+                        Text(
+                          trend.brand!,
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(color: AppColors.textSecondary),
+                        ),
+                    ],
+                  ),
+                ),
+                _CategoryBadge(category: trend.category),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.xs,
+              children: [
+                _MetaChip(
+                  icon: Icons.people_outline,
+                  label: '${trend.showcaseCount}人が使用',
+                ),
+                _MetaChip(
+                  icon: Icons.star_outline,
+                  label: '${trend.averageRating.toStringAsFixed(1)}★',
+                ),
+                if (trend.averagePriceApprox != null)
+                  _MetaChip(
+                    icon: Icons.sell_outlined,
+                    label: '目安 ¥${trend.averagePriceApprox}',
+                  ),
+              ],
+            ),
+            const Divider(height: AppSpacing.xl),
+            Text(
+              'みんなの投稿',
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            FutureBuilder<Result<List<AccessoryShowcase>, AppError>>(
+              future: service.getShowcasesByCategory(trend.category),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Padding(
+                    padding: EdgeInsets.all(AppSpacing.lg),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                final all = snapshot.data!.valueOrNull ?? [];
+                // この商品（itemName + brand）の投稿に絞る
+                final items = all
+                    .where((s) =>
+                        s.itemName == trend.itemName && s.brand == trend.brand)
+                    .toList();
+                if (items.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: Center(
+                      child: Text(
+                        '投稿の詳細を読み込めませんでした',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: AppColors.textTertiary),
+                      ),
+                    ),
+                  );
+                }
+                return Column(
+                  children: [
+                    for (final s in items) _ShowcasePostCard(showcase: s),
+                  ],
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// 個別の投稿カード（写真・評価・レビュー）。
+class _ShowcasePostCard extends StatelessWidget {
+  final AccessoryShowcase showcase;
+
+  const _ShowcasePostCard({required this.showcase});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                ...List.generate(
+                  5,
+                  (i) => Icon(
+                    i < showcase.rating ? Icons.star : Icons.star_outline,
+                    size: 16,
+                    color: AppColors.warning,
+                  ),
+                ),
+                const Spacer(),
+                if (showcase.priceApprox != null)
+                  Text(
+                    '¥${showcase.priceApprox}',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: AppColors.textSecondary),
+                  ),
+              ],
+            ),
+            if (showcase.imageUrls.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              SizedBox(
+                height: 120,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: showcase.imageUrls.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 6),
+                  itemBuilder: (_, i) => ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      showcase.imageUrls[i],
+                      width: 160,
+                      height: 120,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 160,
+                        height: 120,
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        child: const Icon(Icons.broken_image_outlined),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            if (showcase.review != null &&
+                showcase.review!.trim().isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(showcase.review!, style: theme.textTheme.bodyMedium),
+            ],
           ],
         ),
       ),

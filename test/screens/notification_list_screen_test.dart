@@ -12,6 +12,7 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
+import 'package:trust_car_platform/models/mileage_record.dart';
 import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 
@@ -25,6 +26,17 @@ class _StubFirebaseService implements FirebaseService {
 
   @override
   Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
+
+  @override
+  Future<Result<void, AppError>> recordMileage(String vehicleId,
+          {required int newMileage, String? note}) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<List<MileageRecord>, AppError>> getMileageHistory(
+          String vehicleId,
+          {int limit = 50}) async =>
+      const Result.success([]);
 
   @override
   Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(

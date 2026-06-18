@@ -154,6 +154,29 @@ class VehicleProvider with ChangeNotifier {
     );
   }
 
+  /// 走行距離を更新し、履歴へ記録する。
+  ///
+  /// 車両一覧はストリーム購読で自動更新されるため、ローカル状態の手動更新は不要。
+  Future<bool> recordMileage(
+    String vehicleId, {
+    required int newMileage,
+    String? note,
+  }) async {
+    final result = await _firebaseService.recordMileage(
+      vehicleId,
+      newMileage: newMileage,
+      note: note,
+    );
+    return result.when(
+      success: (_) => true,
+      failure: (error) {
+        _error = error;
+        notifyListeners();
+        return false;
+      },
+    );
+  }
+
   /// 車両を削除
   Future<bool> deleteVehicle(String vehicleId) async {
     _isLoading = true;

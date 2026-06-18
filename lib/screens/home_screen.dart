@@ -348,13 +348,10 @@ class _VehicleTab extends StatelessWidget {
             context,
             primaryVehicle,
             (newMileage) async {
-              final updated = primaryVehicle.copyWith(
-                mileage: newMileage,
-                mileageUpdatedAt: DateTime.now(),
-              );
+              // 走行距離は履歴付きで記録する（更新の都度「値＋日時」を残す）
               await context
                   .read<VehicleProvider>()
-                  .updateVehicle(primaryVehicle.id, updated);
+                  .recordMileage(primaryVehicle.id, newMileage: newMileage);
               // Schedule a 30-day reminder to update mileage again
               sl
                   .get<MileageNotificationService>()
