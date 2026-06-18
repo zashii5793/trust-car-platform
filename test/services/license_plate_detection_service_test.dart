@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/services/license_plate_detection_service.dart';
-import 'package:trust_car_platform/services/license_plate_masking_service.dart';
 
 void main() {
   group('LicensePlateDetectionService.findPlateRegions', () {
