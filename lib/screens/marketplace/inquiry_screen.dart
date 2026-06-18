@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../models/shop.dart';
 import '../../models/inquiry.dart';
@@ -7,7 +9,10 @@ import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../providers/user_subscription_provider.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/di/service_locator.dart';
+import '../../services/firebase_service.dart';
 import '../../widgets/common/loading_indicator.dart';
+import 'inquiry_thread_screen.dart';
 
 /// 問い合わせ送信画面
 ///
@@ -46,6 +51,30 @@ class _InquiryScreenState extends State<InquiryScreen> {
   int _messageLength = 0;
 
   static const _maxMessageLength = 500;
+
+  // 写真添付（見積もり時の症状写真など。最大4枚）
+  final List<Uint8List> _images = [];
+  static const _maxImages = 4;
+  bool _uploading = false;
+
+  Future<void> _pickImages() async {
+    final remaining = _maxImages - _images.length;
+    if (remaining <= 0) return;
+    final picked = await ImagePicker().pickMultiImage(
+      maxWidth: 1600,
+      maxHeight: 1600,
+      imageQuality: 85,
+    );
+    if (picked.isEmpty) return;
+    final bytesList = <Uint8List>[];
+    for (final x in picked.take(remaining)) {
+      bytesList.add(await x.readAsBytes());
+    }
+    if (!mounted) return;
+    setState(() => _images.addAll(bytesList));
+  }
+
+  void _removeImage(int i) => setState(() => _images.removeAt(i));
 
   @override
   void initState() {
@@ -113,6 +142,21 @@ class _InquiryScreenState extends State<InquiryScreen> {
       }
     }
 
+    // 添付画像を Storage にアップロードして URL を得る
+    final attachmentUrls = <String>[];
+    if (_images.isNotEmpty) {
+      setState(() => _uploading = true);
+      final fb = sl.get<FirebaseService>();
+      final base = 'inquiries/$userId/${DateTime.now().millisecondsSinceEpoch}';
+      for (var i = 0; i < _images.length; i++) {
+        final r = await fb.uploadImageBytes(_images[i], '$base/$i.jpg');
+        final url = r.valueOrNull;
+        if (url != null) attachmentUrls.add(url);
+      }
+      if (!mounted) return;
+      setState(() => _uploading = false);
+    }
+
     final inquiry = await shopProvider.submitInquiry(
       userId: userId,
       shopId: widget.shop.id,
@@ -120,13 +164,22 @@ class _InquiryScreenState extends State<InquiryScreen> {
       subject: _subjectController.text.trim(),
       message: _messageController.text.trim(),
       vehicleId: widget.vehicleId,
+      attachmentUrls: attachmentUrls,
     );
 
     if (!mounted) return;
 
     if (inquiry != null) {
-      showSuccessSnackBar(context, '問い合わせを送信しました');
-      Navigator.pop(context);
+      // 送信後はスレッド画面へ遷移し、送信したメッセージと履歴を即座に見せる
+      // （「送ったあとどうなるの？」という不安を解消する）。
+      // SnackBar はルート差し替え前に出す（アプリ直下の ScaffoldMessenger に
+      // 紐づくため、遷移後も表示が継続する）。
+      showSuccessSnackBar(context, '問い合わせを送信しました。返信はこの画面で確認できます');
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => InquiryThreadScreen(inquiry: inquiry),
+        ),
+      );
     } else {
       final error = shopProvider.error;
       if (error != null) {
@@ -208,7 +261,15 @@ class _InquiryScreenState extends State<InquiryScreen> {
                     return null;
                   },
                 ),
-                AppSpacing.verticalXs,
+                AppSpacing.verticalMd,
+
+                // 写真添付（任意・最大4枚）
+                _PhotoPicker(
+                  images: _images,
+                  maxImages: _maxImages,
+                  onAdd: _pickImages,
+                  onRemove: _removeImage,
+                ),
 
                 // 車両情報（vehicleId指定時のみ）
                 if (widget.vehicleId != null) ...[
@@ -228,20 +289,29 @@ class _InquiryScreenState extends State<InquiryScreen> {
           bottomNavigationBar: SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
-              child: FilledButton.icon(
-                onPressed: provider.isSubmitting ? null : _submit,
-                icon: provider.isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.send),
-                label: Text(provider.isSubmitting ? '送信中...' : '送信する'),
-              ),
+              child: Builder(builder: (context) {
+                final busy = provider.isSubmitting || _uploading;
+                return FilledButton.icon(
+                  onPressed: busy ? null : _submit,
+                  icon: busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.send),
+                  label: Text(
+                    _uploading
+                        ? '画像を送信中...'
+                        : provider.isSubmitting
+                            ? '送信中...'
+                            : '送信する',
+                  ),
+                );
+              }),
             ),
           ),
         );
@@ -414,6 +484,120 @@ class _VehicleInfoBadge extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 写真ピッカー（横スクロールのサムネイル＋追加タイル）
+// ---------------------------------------------------------------------------
+
+class _PhotoPicker extends StatelessWidget {
+  final List<Uint8List> images;
+  final int maxImages;
+  final VoidCallback onAdd;
+  final ValueChanged<int> onRemove;
+
+  const _PhotoPicker({
+    required this.images,
+    required this.maxImages,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.photo_camera_outlined,
+                size: 18, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Text(
+              '写真を添付（任意・最大$maxImages枚）',
+              style: theme.textTheme.titleSmall,
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '症状や気になる箇所の写真を添えると、見積もりがスムーズです。',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        SizedBox(
+          height: 88,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (var i = 0; i < images.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.memory(
+                          images[i],
+                          width: 84,
+                          height: 84,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: 2,
+                        right: 2,
+                        child: GestureDetector(
+                          onTap: () => onRemove(i),
+                          child: const DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.all(2),
+                              child: Icon(Icons.close,
+                                  size: 16, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (images.length < maxImages)
+                GestureDetector(
+                  onTap: onAdd,
+                  child: Container(
+                    width: 84,
+                    height: 84,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: theme.colorScheme.outline),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_a_photo_outlined,
+                            color: theme.colorScheme.onSurfaceVariant),
+                        const SizedBox(height: 2),
+                        Text('追加',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            )),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

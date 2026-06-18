@@ -280,6 +280,7 @@ class ShopProvider with ChangeNotifier {
     required String subject,
     required String message,
     String? vehicleId,
+    List<String> attachmentUrls = const [],
   }) async {
     _isSubmitting = true;
     notifyListeners();
@@ -291,6 +292,7 @@ class ShopProvider with ChangeNotifier {
       subject: subject,
       message: message,
       vehicleId: vehicleId,
+      attachmentUrls: attachmentUrls,
       shopName: _selectedShop?.name,
     );
 
@@ -364,12 +366,14 @@ class ShopProvider with ChangeNotifier {
     required String inquiryId,
     required String userId,
     required String content,
+    List<String> attachmentUrls = const [],
   }) {
     return _inquiryService.sendMessage(
       inquiryId: inquiryId,
       senderId: userId,
       isFromShop: false,
       content: content,
+      attachmentUrls: attachmentUrls,
     );
   }
 
