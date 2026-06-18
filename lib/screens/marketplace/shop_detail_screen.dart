@@ -3,9 +3,11 @@ import 'package:provider/provider.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/shop.dart';
 import '../../models/shop_case_study.dart';
+import '../../models/service_menu.dart';
 import '../../providers/shop_provider.dart';
 import '../../core/constants/spacing.dart';
 import '../../services/shop_service.dart';
+import '../../services/service_menu_service.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'inquiry_screen.dart';
 
@@ -79,8 +81,15 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
                     children: [
                       _ShopHeader(shop: shop),
                       AppSpacing.verticalMd,
+                      // 工場の特徴（アピールポイント）— 信頼判断の材料として上部に出す
+                      if (shop.appealPoints.isNotEmpty) ...[
+                        _AppealPointsSection(appealPoints: shop.appealPoints),
+                        AppSpacing.verticalMd,
+                      ],
                       if (shop.services.isNotEmpty) _ServiceChips(shop: shop),
                       AppSpacing.verticalMd,
+                      // 料金メニュー（透明性のため、ユーザーが事前に費用感を掴める）
+                      _ServiceMenusSection(shopId: shop.id),
                       _BusinessHoursExpansion(shop: shop),
                       AppSpacing.verticalMd,
                       _ContactInfo(shop: shop),
@@ -835,4 +844,185 @@ class _CaseStudyCard extends StatelessWidget {
               color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
         ),
       );
+}
+
+// ---------------------------------------------------------------------------
+// 工場の特徴（アピールポイント）
+// ---------------------------------------------------------------------------
+
+class _AppealPointsSection extends StatelessWidget {
+  final List<String> appealPoints;
+
+  const _AppealPointsSection({required this.appealPoints});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('この工場の特徴', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.xs,
+          runSpacing: AppSpacing.xs,
+          children: appealPoints.map((point) {
+            return Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(AppSpacing.xs),
+                border: Border.all(color: Colors.green.shade100),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle,
+                      size: 14, color: Colors.green.shade600),
+                  const SizedBox(width: 6),
+                  Text(
+                    point,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: Colors.green.shade800,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 料金メニュー（service_menus をストリームで取得・空/エラー時は非表示）
+// ---------------------------------------------------------------------------
+
+class _ServiceMenusSection extends StatelessWidget {
+  final String shopId;
+
+  const _ServiceMenusSection({required this.shopId});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // 料金メニューは補助情報。サービス未登録/取得失敗で詳細画面を壊さない。
+    Stream<List<ServiceMenu>> stream;
+    try {
+      stream =
+          sl.get<ServiceMenuService>().getActiveServiceMenus(shopId: shopId);
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
+    return StreamBuilder<List<ServiceMenu>>(
+      stream: stream,
+      builder: (context, snap) {
+        // 取得前・エラー・空はいずれも非表示（画面を壊さない）
+        if (snap.hasError) return const SizedBox.shrink();
+        final menus = snap.data ?? const <ServiceMenu>[];
+        if (menus.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('料金メニュー', style: theme.textTheme.titleSmall),
+            const SizedBox(height: AppSpacing.sm),
+            Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: AppSpacing.paddingCard,
+                child: Column(
+                  children: [
+                    for (var i = 0; i < menus.length; i++) ...[
+                      if (i > 0) const Divider(height: AppSpacing.md),
+                      _ServiceMenuTile(menu: menus[i]),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              '※ 料金は目安です。車種・状態により変動します。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            AppSpacing.verticalMd,
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ServiceMenuTile extends StatelessWidget {
+  final ServiceMenu menu;
+
+  const _ServiceMenuTile({required this.menu});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(menu.category.icon, size: 20, color: menu.category.color),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      menu.name,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  if (menu.isPopular)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Icon(Icons.local_fire_department,
+                          size: 14, color: Colors.orange.shade600),
+                    ),
+                ],
+              ),
+              if (menu.description != null && menu.description!.isNotEmpty)
+                Text(
+                  menu.description!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              if (menu.estimatedTimeDisplay.isNotEmpty)
+                Text(
+                  '所要時間: ${menu.estimatedTimeDisplay}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Text(
+          menu.priceDisplay,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      ],
+    );
+  }
 }

@@ -4,6 +4,7 @@ import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/services/recommendation_service.dart';
 import 'package:trust_car_platform/services/notification_state_store.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
+import 'package:trust_car_platform/models/mileage_record.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/app_notification.dart';
 import 'package:trust_car_platform/core/result/result.dart';
@@ -42,6 +43,17 @@ class MockFirebaseService implements FirebaseService {
   // Unused methods
   @override
   Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
+
+  @override
+  Future<Result<void, AppError>> recordMileage(String vehicleId,
+          {required int newMileage, String? note}) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<List<MileageRecord>, AppError>> getMileageHistory(
+          String vehicleId,
+          {int limit = 50}) async =>
+      const Result.success([]);
   @override
   Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(
           String vehicleId) =>
@@ -706,6 +718,17 @@ class _MockFirebaseServiceNullUser implements FirebaseService {
 
   @override
   Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
+
+  @override
+  Future<Result<void, AppError>> recordMileage(String vehicleId,
+          {required int newMileage, String? note}) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<List<MileageRecord>, AppError>> getMileageHistory(
+          String vehicleId,
+          {int limit = 50}) async =>
+      const Result.success([]);
   @override
   Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(
           String vehicleId) =>
@@ -791,6 +814,17 @@ class _MockFirebaseServiceThrowing implements FirebaseService {
 
   @override
   Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
+
+  @override
+  Future<Result<void, AppError>> recordMileage(String vehicleId,
+          {required int newMileage, String? note}) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<List<MileageRecord>, AppError>> getMileageHistory(
+          String vehicleId,
+          {int limit = 50}) async =>
+      const Result.success([]);
   @override
   Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(
           String vehicleId) =>

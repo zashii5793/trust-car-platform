@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/fleet_member.dart';
@@ -33,6 +34,81 @@ class FleetMemberService {
   Future<FleetRole?> _fetchRole(String companyId, String userId) async {
     final member = await _fetchMember(companyId, userId);
     return member?.role;
+  }
+
+  // ──────────────────────────────────────────────
+  // ensureOwner — bootstrap the company owner as a member
+  // ──────────────────────────────────────────────
+
+  /// Ensures the company owner (whose uid equals [companyId]) is registered as
+  /// an owner member. Idempotent.
+  ///
+  /// This bootstrap is required because [addMember] only allows owners to add
+  /// members — but right after a business account is created there is no owner
+  /// member document yet, so the very first invitation would always fail.
+  Future<Result<FleetMember, AppError>> ensureOwner(String companyId) async {
+    if (companyId.isEmpty) {
+      return const Result.failure(
+        AppError.validation('companyId must not be empty', field: 'companyId'),
+      );
+    }
+    try {
+      final existing = await _fetchMember(companyId, companyId);
+      if (existing != null) return Result.success(existing);
+
+      final member = FleetMember(
+        id: _docId(companyId, companyId),
+        companyId: companyId,
+        userId: companyId,
+        role: FleetRole.owner,
+        joinedAt: DateTime.now(),
+      );
+      await _col.doc(member.id).set(member.toMap());
+      return Result.success(member);
+    } catch (e, st) {
+      return Result.failure(mapFirebaseError(e, stackTrace: st));
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  // inviteByEmail — add a member by their email address
+  // ──────────────────────────────────────────────
+
+  /// Invites a member by email. Looks up the user in the `users` collection by
+  /// email, then delegates to [addMember]. Users cannot know each other's raw
+  /// Firebase UID, so email is the practical identifier.
+  Future<Result<FleetMember, AppError>> inviteByEmail({
+    required String companyId,
+    required String email,
+    required FleetRole role,
+    required String requesterId,
+  }) async {
+    final normalized = email.trim();
+    if (normalized.isEmpty) {
+      return const Result.failure(
+        AppError.validation('メールアドレスを入力してください', field: 'email'),
+      );
+    }
+    try {
+      final snap = await _firestore
+          .collection(FirestoreCollections.users)
+          .where('email', isEqualTo: normalized)
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) {
+        return const Result.failure(
+          AppError.notFound('そのメールアドレスのユーザーが見つかりません。相手に新規登録を依頼してください。'),
+        );
+      }
+      return addMember(
+        companyId: companyId,
+        userId: snap.docs.first.id,
+        role: role,
+        requesterId: requesterId,
+      );
+    } catch (e, st) {
+      return Result.failure(mapFirebaseError(e, stackTrace: st));
+    }
   }
 
   // ──────────────────────────────────────────────

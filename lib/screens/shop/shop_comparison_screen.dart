@@ -29,6 +29,7 @@ class _ShopComparisonScreenState extends State<ShopComparisonScreen> {
   late final ShopComparisonService _service;
   late final List<ShopComparisonResult> _results;
   Shop? _recommended;
+  String? _recommendationReason;
 
   @override
   void initState() {
@@ -45,6 +46,17 @@ class _ShopComparisonScreenState extends State<ShopComparisonScreen> {
             primaryNeed: widget.primaryNeed!,
           )
         : null;
+    // 推奨工場の「なぜおすすめか」を言語化（透明性）
+    if (_recommended != null) {
+      final match =
+          _results.where((r) => r.shop.id == _recommended!.id).toList();
+      if (match.isNotEmpty) {
+        _recommendationReason = _service.recommendationReasonFor(
+          match.first,
+          primaryNeed: widget.primaryNeed,
+        );
+      }
+    }
   }
 
   @override
@@ -68,6 +80,9 @@ class _ShopComparisonScreenState extends State<ShopComparisonScreen> {
                 result: _results[i],
                 rank: i + 1,
                 isRecommended: _recommended?.id == _results[i].shop.id,
+                recommendationReason: _recommended?.id == _results[i].shop.id
+                    ? _recommendationReason
+                    : null,
                 primaryNeed: widget.primaryNeed,
               ),
             ),
@@ -117,12 +132,14 @@ class _ComparisonCard extends StatelessWidget {
   final ShopComparisonResult result;
   final int rank;
   final bool isRecommended;
+  final String? recommendationReason;
   final ServiceCategory? primaryNeed;
 
   const _ComparisonCard({
     required this.result,
     required this.rank,
     required this.isRecommended,
+    this.recommendationReason,
     this.primaryNeed,
   });
 
@@ -171,6 +188,38 @@ class _ComparisonCard extends StatelessWidget {
                 if (isRecommended) _RecommendedBadge(),
               ],
             ),
+            // 推奨理由（なぜこの工場か）— おすすめバッジの根拠を明示
+            if (isRecommended &&
+                recommendationReason != null &&
+                recommendationReason!.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.auto_awesome,
+                        size: 14, color: AppColors.primary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        recommendationReason!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w500,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.sm),
 
             // 評価・距離・対応日数

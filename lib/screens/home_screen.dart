@@ -348,13 +348,10 @@ class _VehicleTab extends StatelessWidget {
             context,
             primaryVehicle,
             (newMileage) async {
-              final updated = primaryVehicle.copyWith(
-                mileage: newMileage,
-                mileageUpdatedAt: DateTime.now(),
-              );
+              // 走行距離は履歴付きで記録する（更新の都度「値＋日時」を残す）
               await context
                   .read<VehicleProvider>()
-                  .updateVehicle(primaryVehicle.id, updated);
+                  .recordMileage(primaryVehicle.id, newMileage: newMileage);
               // Schedule a 30-day reminder to update mileage again
               sl
                   .get<MileageNotificationService>()
@@ -486,20 +483,13 @@ class _ProfileTab extends StatelessWidget {
 
           AppSpacing.verticalSm,
 
-          // ---- アカウントセクション ----
+          // ---- マイコンテンツセクション ----
+          // ドライブログ・アクセサリー等の「自分の記録・コミュニティ」系は
+          // アカウント設定とは別グループに分離し、導線の意味を明確化する。
           _buildMenuSection(
             context,
-            title: 'アカウント',
+            title: 'マイコンテンツ',
             items: [
-              _MenuItemData(
-                icon: Icons.manage_accounts_outlined,
-                label: 'プロフィールを編集',
-                color: AppColors.primary,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                ),
-              ),
               _MenuItemData(
                 icon: Icons.directions_car_outlined,
                 label: 'ドライブログ',
@@ -519,15 +509,25 @@ class _ProfileTab extends StatelessWidget {
                       builder: (_) => const AccessoryShowcaseScreen()),
                 ),
               ),
+            ],
+          ),
+
+          // ---- アカウントセクション ----
+          // 「整備工場を比較する」はここから除去した。コンセプト上、整備工場への
+          // 導線は AI 提案（→「興味あり」）やマーケットプレイスの工場一覧を起点に
+          // 提示されるべきもので、プロフィールから唐突に比較画面へ飛ぶ導線は
+          // ユーザーの意図と合致しないため。
+          _buildMenuSection(
+            context,
+            title: 'アカウント',
+            items: [
               _MenuItemData(
-                icon: Icons.compare_arrows_outlined,
-                label: '整備工場を比較する',
-                color: AppColors.info,
+                icon: Icons.manage_accounts_outlined,
+                label: 'プロフィールを編集',
+                color: AppColors.primary,
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => const ShopListScreen(compareMode: true),
-                  ),
+                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
                 ),
               ),
               if (isBusiness)
@@ -1530,6 +1530,9 @@ class _DashboardSummaryCard extends StatelessWidget {
                 iconColor: expiredCount > 0
                     ? AppColors.error.withValues(alpha: 0.9)
                     : Colors.white54,
+                onTap: expiredCount > 0
+                    ? () => _showAttentionSheet(context, expired: true)
+                    : null,
               ),
               _buildDivider(),
               _buildStatItem(
@@ -1538,6 +1541,9 @@ class _DashboardSummaryCard extends StatelessWidget {
                 value: '$warnCount',
                 label: '注意',
                 iconColor: warnCount > 0 ? AppColors.warning : Colors.white54,
+                onTap: warnCount > 0
+                    ? () => _showAttentionSheet(context, expired: false)
+                    : null,
               ),
             ],
           ),
@@ -1716,29 +1722,38 @@ class _DashboardSummaryCard extends StatelessWidget {
     required String value,
     required String label,
     required Color iconColor,
+    VoidCallback? onTap,
   }) {
+    final content = Column(
+      children: [
+        Icon(icon, size: 20, color: iconColor),
+        AppSpacing.verticalXxs,
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Colors.white70,
+          ),
+        ),
+      ],
+    );
+
     return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, size: 20, color: iconColor),
-          AppSpacing.verticalXxs,
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+      child: onTap == null
+          ? content
+          : InkWell(
+              onTap: onTap,
+              borderRadius: AppSpacing.borderRadiusSm,
+              child: content,
             ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.white70,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1747,6 +1762,118 @@ class _DashboardSummaryCard extends StatelessWidget {
       width: 1,
       height: 48,
       color: Colors.white.withValues(alpha: 0.2),
+    );
+  }
+
+  /// 「要対応 / 注意」の内訳（対象車両と具体的な理由）を返す。
+  /// expired=true: 期限切れ（車検・自賠責）/ false: 期限間近。
+  List<({Vehicle vehicle, String reason})> _attentionItems(
+      {required bool expired}) {
+    final items = <({Vehicle vehicle, String reason})>[];
+    for (final v in vehicles) {
+      final reasons = <String>[];
+      if (expired) {
+        if (v.isInspectionExpired) reasons.add('車検が切れています');
+        final insDays = v.daysUntilInsuranceExpiry;
+        if (insDays != null && insDays < 0) {
+          reasons.add('自賠責保険が切れています');
+        }
+      } else {
+        if (v.isInspectionDueSoon && !v.isInspectionExpired) {
+          final d = v.daysUntilInspection;
+          reasons.add(d != null ? '車検まであと$d日' : '車検が近づいています');
+        }
+        final insDays = v.daysUntilInsuranceExpiry;
+        if (v.isInsuranceDueSoon && insDays != null && insDays >= 0) {
+          reasons.add('自賠責保険まであと$insDays日');
+        }
+      }
+      if (reasons.isNotEmpty) {
+        items.add((vehicle: v, reason: reasons.join(' / ')));
+      }
+    }
+    return items;
+  }
+
+  /// 統計カウントのタップで、対象車両と理由を一覧するボトムシートを開く。
+  /// 「数字だけで中身が分からない」状態を解消し、各行から車両詳細へ遷移できる。
+  void _showAttentionSheet(BuildContext context, {required bool expired}) {
+    final items = _attentionItems(expired: expired);
+    if (items.isEmpty) return;
+    final accent = expired ? AppColors.error : AppColors.warning;
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, 0, AppSpacing.md, AppSpacing.xs),
+                child: Row(
+                  children: [
+                    Icon(
+                      expired
+                          ? Icons.error_outline
+                          : Icons.warning_amber_outlined,
+                      size: 20,
+                      color: accent,
+                    ),
+                    AppSpacing.horizontalXs,
+                    Text(
+                      expired ? '要対応の車両' : '注意が必要な車両',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final it = items[i];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor: accent.withValues(alpha: 0.12),
+                        child:
+                            Icon(Icons.directions_car, color: accent, size: 20),
+                      ),
+                      title: Text('${it.vehicle.maker} ${it.vehicle.model}'),
+                      subtitle: Text(
+                        it.reason,
+                        style: TextStyle(color: accent),
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                VehicleDetailScreen(vehicle: it.vehicle),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -1808,6 +1935,27 @@ class _AiSuggestionSection extends StatelessWidget {
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: theme.colorScheme.primary,
                             fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        // 件数バッジ — 横スクロールで埋もれた提案にも気づけるように
+                        AppSpacing.horizontalXs,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary,
+                            borderRadius:
+                                BorderRadius.circular(AppSpacing.radiusFull),
+                          ),
+                          child: Text(
+                            '${suggestions.length}件',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 10,
+                            ),
                           ),
                         ),
                       ],

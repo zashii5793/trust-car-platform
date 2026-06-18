@@ -4,6 +4,10 @@ class FirestoreCollections {
   FirestoreCollections._();
 
   static const String vehicles = 'vehicles';
+  // 走行距離の更新履歴（vehicles/{id} のサブコレクション）
+  static const String mileageHistory = 'mileage_history';
+  // 交換目安のユーザー設定（vehicles/{id} のサブコレクション）
+  static const String maintenancePrefs = 'maintenance_prefs';
   static const String maintenanceRecords = 'maintenance_records';
   static const String documents = 'documents';
   static const String invoices = 'invoices';

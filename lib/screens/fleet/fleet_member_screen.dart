@@ -44,6 +44,13 @@ class _FleetMemberScreenState extends State<FleetMemberScreen> {
       _errorMessage = null;
     });
 
+    // Bootstrap the owner membership so the owner can actually invite members.
+    // Only the owner (uid == companyId) performs this.
+    if (widget.currentUserId == widget.companyId) {
+      await _service.ensureOwner(widget.companyId);
+      if (!mounted) return;
+    }
+
     final result = await _service.getMembers(widget.companyId);
     if (!mounted) return;
 
@@ -74,9 +81,9 @@ class _FleetMemberScreenState extends State<FleetMemberScreen> {
     );
     if (result == null) return;
 
-    final addResult = await _service.addMember(
+    final addResult = await _service.inviteByEmail(
       companyId: widget.companyId,
-      userId: result.userId,
+      email: result.email,
       role: result.role,
       requesterId: widget.currentUserId,
     );
@@ -418,9 +425,9 @@ class _RoleDropdown extends StatelessWidget {
 // ── Add member dialog ─────────────────────────────────────────────────────────
 
 class _MemberInput {
-  final String userId;
+  final String email;
   final FleetRole role;
-  _MemberInput({required this.userId, required this.role});
+  _MemberInput({required this.email, required this.role});
 }
 
 class _AddMemberDialog extends StatefulWidget {
@@ -449,12 +456,19 @@ class _AddMemberDialogState extends State<_AddMemberDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Text(
+            '招待したい相手のメールアドレスを入力してください。\n'
+            '相手は事前にアプリへの新規登録が必要です。',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           TextField(
-            key: const Key('add_member_user_id_field'),
+            key: const Key('add_member_email_field'),
             controller: _controller,
+            keyboardType: TextInputType.emailAddress,
             decoration: const InputDecoration(
-              labelText: 'ユーザーID',
-              hintText: 'Firebase Auth UID',
+              labelText: 'メールアドレス',
+              hintText: 'member@example.com',
             ),
             autofocus: true,
           ),
@@ -493,11 +507,11 @@ class _AddMemberDialogState extends State<_AddMemberDialog> {
         FilledButton(
           key: const Key('add_member_confirm_button'),
           onPressed: () {
-            final uid = _controller.text.trim();
-            if (uid.isEmpty) return;
-            Navigator.pop(context, _MemberInput(userId: uid, role: _role));
+            final email = _controller.text.trim();
+            if (email.isEmpty) return;
+            Navigator.pop(context, _MemberInput(email: email, role: _role));
           },
-          child: const Text('追加'),
+          child: const Text('招待する'),
         ),
       ],
     );

@@ -212,6 +212,10 @@ void main() {
         ocrData: VehicleCertificateData(),
       ));
 
+      // 低信頼データのため、まず登録ゲートを解除する
+      await tester.tap(find.text('内容を確認しました'));
+      await tester.pump();
+
       // 登録ボタンをタップ
       await tester.tap(find.text('この内容で登録'));
       await tester.pumpAndSettle(const Duration(seconds: 10));

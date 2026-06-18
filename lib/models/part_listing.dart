@@ -189,6 +189,7 @@ class PartListing {
   // Metadata
   final String? brand; // Part brand/manufacturer
   final String? partNumber; // Manufacturer part number
+  final String? affiliateUrl; // 提携ECサイトへの送客リンク（Amazon等）
   final List<String> tags; // Search tags
   final double? rating; // Average user rating (1-5)
   final int reviewCount;
@@ -215,6 +216,7 @@ class PartListing {
     this.prosAndCons = const [],
     this.brand,
     this.partNumber,
+    this.affiliateUrl,
     this.tags = const [],
     this.rating,
     this.reviewCount = 0,
@@ -302,6 +304,7 @@ class PartListing {
           [],
       brand: data['brand'],
       partNumber: data['partNumber'],
+      affiliateUrl: data['affiliateUrl'],
       tags: List<String>.from(data['tags'] ?? []),
       rating: data['rating']?.toDouble(),
       reviewCount: data['reviewCount'] ?? 0,
@@ -328,6 +331,7 @@ class PartListing {
       'prosAndCons': prosAndCons.map((e) => e.toMap()).toList(),
       'brand': brand,
       'partNumber': partNumber,
+      'affiliateUrl': affiliateUrl,
       'tags': tags,
       'rating': rating,
       'reviewCount': reviewCount,
@@ -354,6 +358,7 @@ class PartListing {
     List<PartProCon>? prosAndCons,
     String? brand,
     String? partNumber,
+    String? affiliateUrl,
     List<String>? tags,
     double? rating,
     int? reviewCount,
@@ -378,6 +383,7 @@ class PartListing {
       prosAndCons: prosAndCons ?? this.prosAndCons,
       brand: brand ?? this.brand,
       partNumber: partNumber ?? this.partNumber,
+      affiliateUrl: affiliateUrl ?? this.affiliateUrl,
       tags: tags ?? this.tags,
       rating: rating ?? this.rating,
       reviewCount: reviewCount ?? this.reviewCount,

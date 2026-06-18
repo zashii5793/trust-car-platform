@@ -14,6 +14,7 @@ import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/models/app_notification.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
+import 'package:trust_car_platform/models/mileage_record.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
 import 'package:trust_car_platform/providers/notification_provider.dart';
 import 'package:trust_car_platform/providers/user_subscription_provider.dart';
@@ -117,6 +118,17 @@ class MockFirebaseService implements FirebaseService {
   Future<Result<void, AppError>> updateVehicle(
           String vehicleId, Vehicle vehicle) async =>
       const Result.success(null);
+
+  @override
+  Future<Result<void, AppError>> recordMileage(String vehicleId,
+          {required int newMileage, String? note}) async =>
+      const Result.success(null);
+
+  @override
+  Future<Result<List<MileageRecord>, AppError>> getMileageHistory(
+          String vehicleId,
+          {int limit = 50}) async =>
+      const Result.success([]);
 
   @override
   Future<Result<void, AppError>> deleteVehicle(String vehicleId) async =>

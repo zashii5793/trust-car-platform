@@ -1,6 +1,145 @@
 # Claude Session Notes
 
-最終更新: 2026-06-13
+最終更新: 2026-06-17
+
+---
+
+## 2026-06-17（第4ラウンド）残UX第2弾・PR作成
+
+✅ `flutter analyze lib/` クリーン / フル `flutter test --exclude-tags emulator` 実行。
+
+### 残UX第2弾
+- **ダッシュボードの透明性**: 「要対応 / 注意」カウントをタップ可能化
+  （`_DashboardSummaryCard`）。タップで対象車両と**具体的な理由**（車検切れ/自賠責切れ/
+  車検まであとN日/保険まであとN日）をボトムシート一覧表示し、各行から車両詳細へ遷移。
+- **工場一覧カードの情報階層化**（`shop_list_screen.dart`）: サービスを主要2件＋「ほかN件」に
+  集約。「広告」ラベルを枠付きアンバーで強調し、広告/有機表示の区別を明確化（透明性原則）。
+
+### PR
+- ブランチ `claude/youthful-heisenberg-77st8f` をドラフトPR化（第1〜4ラウンドをまとめて）。
+
+---
+
+## 2026-06-17（第3ラウンド）Flutter導入で検証可能化・次アクション1-3を開発＆テスト
+
+✅ **Flutter SDK を /tmp/flutter に導入**（stable, shallow clone）。`flutter analyze`/`flutter test`
+が実行可能になり、第1〜3ラウンドの全変更を**実際に検証**した。
+- `flutter analyze lib/` → **No issues found!**（第1〜3ラウンド全変更が型・解析を通過）
+- 影響テスト（vehicle_master / part_listing / shop_comparison_service）→ **全パス(70)**
+
+### ① 検証フェーズ
+- 第1・2ラウンドの実装が analyze クリーンであることを確認（懸念だった copyWith/コンストラクタ周りも問題なし）。
+
+### ② 車種マスタ画像フォールバック（完成）
+- `lib/models/vehicle_master.dart`: 共通ヘルパ `vehicleMakerIdFromName` /
+  `vehicleModelIdFromNames` を追加（表示名→makerId/modelId）。
+- `lib/services/vehicle_master_service.dart`: `getModelImageUrl(makerName, modelName)` 追加。
+- `lib/screens/vehicle_detail_screen.dart`: `_VehicleImage` を StatefulWidget 化し、
+  個人画像が無いとき車種マスタの代表画像へフォールバック（FutureBuilder, initStateで一度だけ解決）。
+- `scripts/seed_vehicle_model_images.js`: 主要車種に代表画像を投入（フォールバックのデモ用）。
+
+### ③ 残UX一括対応（安全＆高価値を選定）
+- ログイン: パスワード再設定を「手順が分かるダイアログ＋メール形式チェック」に改善
+  （`login_screen.dart`）。
+- ホームAI提案: ヘッダーに「N件」バッジ追加（横スクロールの提案に気づける）。
+- ホーム空状態オンボーディングは既に良質のため変更不要と判断。
+
+### テスト
+- `vehicle_master_test.dart`: makerId/modelId 変換ヘルパ 3ケース追加。
+- フル `flutter test --exclude-tags emulator` を実行（結果は下記コミットで反映）。
+
+---
+
+## 2026-06-17（第2ラウンド）AI方向性の明文化・UX監査・次アクション1-3実装
+
+ブランチ: `claude/youthful-heisenberg-77st8f`（完全自律指示）
+⚠️ 制約継続: Flutter 未導入のため analyze/test 未実行。加算的・低リスク編集に限定し目視確認。
+→ 次セッション最優先で `flutter analyze lib/` + `flutter test --exclude-tags emulator`。
+
+### A. AIのルール・方向性を決着（最重要フィードバック）
+- `docs/AI_DESIGN_PRINCIPLES.md` 新規。「押し付けないが、決められる材料を整える」を核に、
+  推奨度(◎○△)・出力フォーマット(【おすすめ/理由/メリット/デメリット/他の選択肢/次アクション】)・
+  ハードガードレール(断定禁止/安全法令必須明記/事業者はユーザー起点)・トーンを定義。
+  `askCarAi.ts` と `recommendation_service.dart` の正典とする。
+
+### B. 次アクション①〜③ 実装
+1. **Shop UI**
+   - 工場詳細: 「この工場の特徴(appealPoints)」「料金メニュー(service_menus)」セクション追加
+     （`shop_detail_screen.dart`、StreamBuilderで空/エラーは非表示）
+   - 工場比較: 「おすすめ」の根拠を言語化して表示（`shop_comparison_service.dart` に
+     `recommendationReasonFor()` を追加＝既存`recommend()`のAPIは不変、`shop_comparison_screen.dart`で表示）
+2. **AIチャット**: 構造化レンダラ `_RichAnswer`（【見出し】/箇条書きを整形、外部パッケージ不要）と
+   最後のAI回答への送客CTA（対応工場を探す / パーツ提案を見る）を `ai_chat_screen.dart` に実装。
+3. **車種マスタ画像**: `VehicleModel.imageUrl` フィールド追加（round-trip対応）。
+   表示フォールバック配線は非同期解決が必要なため次回（下記TODO）。
+- **パーツ**: `PartListing.affiliateUrl` 追加 + パーツ詳細に「ECで見る」CTA（`part_detail_screen.dart`、url_launcher）。
+
+### C. デモデータ
+- `scripts/seed_shop_extras.js` 新規: 既存shopsへ appealPoints と service_menus を投入
+  （工場詳細の新セクションを実データ確認できる）。
+
+### D. テスト追加（未実行・要検証）
+- `shop_comparison_service_test.dart`: recommendationReasonFor 3ケース
+- `part_listing_test.dart`: affiliateUrl round-trip
+- `vehicle_master_test.dart`: VehicleModel.imageUrl round-trip
+
+### UX監査で把握した未対応（次セッションTODO・優先順）
+- [ ] **flutter analyze/test 実行**（最優先）
+- [ ] 車種マスタ代表画像の表示フォールバック（`_VehicleImage`を FutureBuilder化、
+      `VehicleMasterService.getModelImageUrl(makerId, modelId)` を追加。makerId/modelId 導出は
+      part_recommendation_service の `_getMakerId/_getModelId` と共通化）+ CSV/import に imageUrl 列
+- [ ] ホーム空状態CTAの主張強化（`home_screen.dart` _VehicleEmptyOnboarding）
+- [ ] ダッシュボード「要対応/注意」カウントをタップ可能＋具体ラベル化
+- [ ] AI提案セクションの視認性（横スクロール→件数バッジ/縦表示）
+- [ ] ログイン: パスワード忘れ/バリデーションのエラーメッセージ具体化
+- [ ] 工場一覧カードの「広告」ラベル視認性、サービス表示の階層化
+- [ ] 設定にライト/ダーク手動トグル
+
+---
+
+## 2026-06-17 UI/UX 全面見直し（コンセプト「信頼を設計する」準拠）
+
+ブランチ: `claude/youthful-heisenberg-77st8f`
+背景: Web ログイン後のフィードバック（黒基調・パーツのマイ出品・工場UI・
+車両画像なし・AIが中立的すぎ・プロフィールからの導線・パーツマスタの準備方法）を
+企画書 PDF「Trust_Driven_Car_Life_Platform」のコンセプトと照合して是正。
+
+⚠️ 制約: 本セッション環境に **Flutter/Dart 未インストール**。`flutter analyze/test`
+未実行。Dart 変更は外科的・低リスクに限定し、目視で整合性確認済み。
+→ 次セッションで必ず `flutter analyze lib/` と `flutter test --exclude-tags emulator` を実行すること。
+
+### 実施した変更
+1. **黒基調を解消** — `lib/main.dart` `themeMode: system → light`。
+   既存 lightTheme は Deep Blue(#1A4D8F)基調。OS ダーク設定で黒(#121212)が
+   出ていたのが原因。darkTheme は残置（将来トグル用）。
+2. **パーツ「マイ出品」(C2C) を導線から除外** — コンセプト外（パーツは AI→提携EC
+   アフィリエイト）。
+   - `marketplace_screen.dart`: 4→3 タブ（マイ出品タブ削除）。
+   - `profile/profile_screen.dart`: 「マーケットプレイス>マイ出品」セクション削除。
+   - 画面ファイル(my_listings/create_listing)とモデルは残置（参照のみ除去）。
+3. **プロフィールIA是正** — `home_screen.dart` _ProfileTab：「整備工場を比較する」を
+   プロフィールから除去（AI提案/工場一覧起点であるべき）。「マイコンテンツ」
+   （ドライブログ/みんなのアクセサリー）と「アカウント」を分離。
+4. **AIアドバイスの構造化** — `functions/src/askCarAi.ts` システムプロンプトに
+   【おすすめ/理由/メリット/デメリット・注意点/他の選択肢/次のアクション】と
+   推奨度(◎○△)を要求。断定はしないが中立に逃げず決断を後押し。
+   → 要 `firebase deploy --only functions`（本番反映・要確認）。
+5. **車両画像の改善** — `vehicle_detail_screen.dart` に loadingBuilder（Web読込中）と
+   「写真を追加すると…」プレースホルダー。
+6. **ペルソナ投入** — `scripts/seed_personas.js`（新規）。4ペルソナ（ファミリー佐藤/
+   クルマ好き鈴木/初購入田中/法人山田）+ 車両画像URL + 整備履歴。pass: `TrustCar!2026`。
+7. **パーツマスタ** — `scripts/seed_parts_master.js`（新規・ペルソナ車適合）+
+   `docs/PARTS_MASTER_GUIDE.md`（準備方法 A:シード/B:CSV/C:EC API）。
+
+### 次セッションの TODO（フォローアップ）
+- [ ] `flutter analyze lib/` / `flutter test` 実行（最優先・未検証のため）
+- [ ] seed を Emulator で実行確認（`--emulator --dry-run` → 投入）
+- [ ] Shop UI 改善: 一覧カードの情報過多解消、詳細に appealPoints/ServiceMenu 表示、
+      比較画面に推奨理由（_compositeScore の説明）を表示
+- [ ] AI Chat 回答の構造化レンダリング（markdown 風パース）
+- [ ] 車種マスタに代表画像 URL を追加（CSV+import 拡張）
+- [ ] `PartListing` に `affiliateUrl` 追加 → パーツ詳細に「ECで見る」CTA
+- [ ] ライト/ダークのユーザー設定トグル（設定画面）
 
 ---
 

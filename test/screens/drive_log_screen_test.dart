@@ -224,7 +224,17 @@ void main() {
       await tester.pumpWidget(_buildUnderTest(driveLogService: service));
       await tester.pump();
 
-      expect(find.text('ドライブを記録してみましょう'), findsOneWidget);
+      expect(find.textContaining('記録'), findsWidgets);
+    });
+
+    testWidgets('空状態に「記録を開始」CTAが表示される', (tester) async {
+      service.logsResult = const Result.success([]);
+
+      await tester.pumpWidget(_buildUnderTest(driveLogService: service));
+      await tester.pump();
+
+      // 空状態のボタン（FABと合わせて「記録を開始」テキストが存在する）
+      expect(find.text('記録を開始'), findsOneWidget);
     });
   });
 

@@ -11,6 +11,7 @@ import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../settings/privacy_policy_screen.dart';
 import '../settings/terms_of_service_screen.dart';
+import '../fleet/fleet_dashboard_screen.dart';
 
 /// 設定画面
 class SettingsScreen extends StatefulWidget {
@@ -106,6 +107,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             const Text(
               '社用車・リース車両の複数台管理に対応します。\n'
+              '登録後、フリート管理画面が開き、メンバー招待や車両の'
+              '一括管理ができます。\n'
               '5台以上の管理は法人向けプラン対象ですが、現在は無料開放中です'
               '（正式リリース後 月額¥4,980〜を予定）。',
               style: TextStyle(fontSize: 13),
@@ -149,6 +152,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       if (success) {
         showSuccessSnackBar(context, '法人アカウントとして登録しました');
+        // 登録後はフリート管理へ誘導（「登録したらどうなる」を解消）。
+        final companyId = authProvider.appUser?.id;
+        if (companyId != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => FleetDashboardScreen(companyId: companyId),
+            ),
+          );
+        }
       } else {
         showErrorSnackBar(context, '登録に失敗しました。再度お試しください。');
       }
@@ -396,16 +408,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Builder(builder: (context) {
                 final appUser = context.watch<AuthProvider>().appUser;
                 final isBusiness = appUser?.isBusiness ?? false;
-                return ListTile(
-                  leading: const Icon(Icons.business),
-                  title: Text(isBusiness ? '法人アカウント設定' : '法人アカウント登録'),
-                  subtitle: Text(
-                    isBusiness
-                        ? (appUser?.companyName ?? '会社名未設定')
-                        : '社用車・リース車両をまとめて管理（現在無料開放中）',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _showBusinessAccountDialog,
+                return Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.business),
+                      title: Text(isBusiness ? '法人アカウント設定' : '法人アカウント登録'),
+                      subtitle: Text(
+                        isBusiness
+                            ? (appUser?.companyName ?? '会社名未設定')
+                            : '社用車・リース車両をまとめて管理（現在無料開放中）',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _showBusinessAccountDialog,
+                    ),
+                    // 法人ユーザーにはフリート管理への明確な導線を出す。
+                    if (isBusiness && appUser != null) ...[
+                      const Divider(height: 1),
+                      ListTile(
+                        key: const Key('fleet_management_entry'),
+                        leading: const Icon(Icons.local_shipping_outlined),
+                        title: const Text('フリート管理'),
+                        subtitle: const Text('車両一覧・メンバー招待・一括点検'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                FleetDashboardScreen(companyId: appUser.id),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 );
               }),
             ),

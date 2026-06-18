@@ -62,19 +62,45 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
 
     if (email.isEmpty) {
-      showErrorSnackBar(context, 'メールアドレスを入力してください');
+      showErrorSnackBar(context, 'リセット用メールを送る先のメールアドレスを入力してください');
+      return;
+    }
+    // 簡易な形式チェック（送信前に気づけるようにする）
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      showErrorSnackBar(context, 'メールアドレスの形式が正しくないようです');
       return;
     }
 
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.sendPasswordResetEmail(email);
 
-    if (mounted) {
-      if (success) {
-        showSuccessSnackBar(context, 'パスワードリセットメールを送信しました');
-      } else {
-        showErrorSnackBar(context, authProvider.errorMessage ?? 'メール送信に失敗しました');
-      }
+    if (!mounted) return;
+    if (success) {
+      // 一瞬で消えるSnackBarではなく、手順が分かるダイアログで案内する
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.mark_email_read_outlined,
+              color: AppColors.secondary, size: 40),
+          title: const Text('メールを送信しました'),
+          content: Text(
+            '$email 宛にパスワード再設定用のメールを送りました。\n'
+            'メール内のリンクから新しいパスワードを設定してください。\n\n'
+            '数分待っても届かない場合は、迷惑メールフォルダもご確認ください。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showErrorSnackBar(
+        context,
+        authProvider.errorMessage ?? 'メールを送信できませんでした。時間をおいて再度お試しください',
+      );
     }
   }
 

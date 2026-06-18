@@ -701,14 +701,22 @@ class _ShopCard extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 6, vertical: 1),
                               decoration: BoxDecoration(
+                                // 透明性のため広告と有機表示を一目で区別できるよう
+                                // 控えめな枠付きのアンバー系で明示する。
                                 color:
-                                    theme.colorScheme.surfaceContainerHighest,
+                                    AppColors.warning.withValues(alpha: 0.14),
                                 borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color:
+                                      AppColors.warning.withValues(alpha: 0.5),
+                                ),
                               ),
                               child: Text(
                                 '広告',
                                 style: theme.textTheme.labelSmall?.copyWith(
                                   fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.warning,
                                 ),
                               ),
                             ),
@@ -728,14 +736,11 @@ class _ShopCard extends StatelessWidget {
                         color: theme.colorScheme.primary,
                       ),
                     ),
-                    // サービス
+                    // サービス（主要2件＋残数。情報過多を避けスキャンしやすく）
                     if (shop.services.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
-                        shop.services
-                            .take(3)
-                            .map((s) => s.displayName)
-                            .join(' · '),
+                        _serviceSummary(shop.services),
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -896,4 +901,11 @@ class _ComparePanelBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 一覧カード用のサービス要約。主要2件のみ表示し、残りは「ほかN件」に畳む。
+String _serviceSummary(List<ServiceCategory> services) {
+  final shown = services.take(2).map((s) => s.displayName).join(' · ');
+  final extra = services.length - 2;
+  return extra > 0 ? '$shown  ほか$extra件' : shown;
 }

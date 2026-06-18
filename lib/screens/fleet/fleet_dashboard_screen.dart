@@ -88,12 +88,19 @@ class FleetDashboardScreen extends StatelessWidget {
         ),
         body: Consumer<FleetProvider>(
           builder: (context, provider, _) {
-            if (provider.isLoading) {
+            // 初回ロード中（既存データが無いとき）のみスピナーを出す。
+            if (provider.isLoading && provider.allVehicles.isEmpty) {
               return const Center(child: CircularProgressIndicator());
             }
-            if (provider.errorMessage != null) {
-              return Center(child: Text(provider.errorMessage!));
+            // 取得失敗かつ表示できるデータが無いときだけエラー画面にする。
+            // データが取得できているのに一時的エラーが出ても画面は維持する。
+            if (provider.errorMessage != null && provider.allVehicles.isEmpty) {
+              return _FleetErrorState(
+                message: provider.errorMessage!,
+                onRetry: provider.refresh,
+              );
             }
+            // データ0件（エラーではない）の空状態は _FleetBody 内で出し分ける。
             return _FleetBody(provider: provider);
           },
         ),
@@ -751,6 +758,53 @@ class _VehicleSubtitle extends StatelessWidget {
 }
 
 // ── Empty state ───────────────────────────────────────────────────────────────
+
+/// 取得エラー（かつ表示データが無い）ときの親切なエラー表示＋再試行。
+/// 空状態（[_EmptyState]）とは明確に区別する。
+class _FleetErrorState extends StatelessWidget {
+  final String message;
+  final Future<void> Function() onRetry;
+  const _FleetErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      key: const Key('fleet_error_state'),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_outlined,
+                size: AppSpacing.iconXl, color: AppColors.textTertiary),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              '通信状況をご確認のうえ、再試行してください。',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: AppColors.textTertiary),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            OutlinedButton.icon(
+              key: const Key('fleet_retry_btn'),
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('再試行'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _EmptyState extends StatelessWidget {
   final FleetFilter filter;

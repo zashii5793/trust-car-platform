@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../core/constants/spacing.dart';
+import '../core/utils/date_formatter.dart';
 import '../core/di/service_locator.dart';
 import '../core/utils/insurance_templates.dart';
 import '../models/vehicle.dart';
@@ -470,7 +470,7 @@ class _InsuranceEditScreenState extends State<InsuranceEditScreen> {
         child: InputDecorator(
           decoration: InputDecoration(labelText: label, isDense: true),
           child: Text(
-            value != null ? DateFormat('yyyy年MM月dd日').format(value) : '未設定',
+            value != null ? formatDateLongWithWeekday(value) : '未設定',
           ),
         ),
       ),

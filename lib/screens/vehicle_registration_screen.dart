@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../core/utils/date_formatter.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
@@ -520,7 +521,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
 
   String _formatDate(DateTime? date) {
     if (date == null) return '未設定';
-    return '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
+    return formatDateWithWeekday(date);
   }
 
   // ---------------------------------------------------------------------------

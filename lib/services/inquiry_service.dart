@@ -87,6 +87,20 @@ class InquiryService {
       };
 
       final docRef = await _inquiriesCollection.add(inquiryData);
+
+      // Persist the user's first message into the thread subcollection so the
+      // conversation view shows it immediately after sending. Without this the
+      // thread would render "no messages yet" right after creation, leaving the
+      // user unsure whether their inquiry was sent.
+      await docRef.collection(FirestoreCollections.messages).add({
+        'senderId': userId,
+        'isFromShop': false,
+        'content': message,
+        'attachmentUrls': attachmentUrls,
+        'sentAt': Timestamp.fromDate(now),
+        'isRead': true,
+      });
+
       final doc = await docRef.get();
 
       return Result.success(Inquiry.fromFirestore(doc));

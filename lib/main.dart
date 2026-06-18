@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart' hide FirebaseService;
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
@@ -52,6 +53,9 @@ void main() async {
   if (kDebugMode) {
     await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
     FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
+    // Storage emulator so local image uploads (inquiry photos, accessory
+    // showcases, etc.) work end-to-end against the emulator suite.
+    FirebaseStorage.instance.useStorageEmulator('localhost', 9199);
     // Disable persistence for emulator (data is ephemeral)
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: false,
@@ -188,7 +192,10 @@ class MyApp extends StatelessWidget {
         title: 'クルマ統合管理',
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.system,
+        // コンセプト「信頼を設計する」に基づき、明るいDeep Blue基調を既定とする。
+        // 以前は ThemeMode.system だったため、OS のダーク設定で黒基調が
+        // 適用され、ブランドイメージ（落ち着いた青）と乖離していた。
+        themeMode: ThemeMode.light,
         home: const AuthWrapper(),
         debugShowCheckedModeBanner: false,
       ),

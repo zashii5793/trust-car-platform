@@ -71,6 +71,62 @@ class VehicleMasterData {
       'displayOrder': 9,
     },
     {
+      'id': 'mercedes',
+      'name': 'メルセデス・ベンツ',
+      'nameEn': 'Mercedes-Benz',
+      'country': 'DE',
+      'displayOrder': 11,
+    },
+    {
+      'id': 'bmw',
+      'name': 'BMW',
+      'nameEn': 'BMW',
+      'country': 'DE',
+      'displayOrder': 12,
+    },
+    {
+      'id': 'volkswagen',
+      'name': 'フォルクスワーゲン',
+      'nameEn': 'Volkswagen',
+      'country': 'DE',
+      'displayOrder': 13,
+    },
+    {
+      'id': 'audi',
+      'name': 'アウディ',
+      'nameEn': 'Audi',
+      'country': 'DE',
+      'displayOrder': 14,
+    },
+    {
+      'id': 'volvo',
+      'name': 'ボルボ',
+      'nameEn': 'Volvo',
+      'country': 'SE',
+      'displayOrder': 15,
+    },
+    {
+      'id': 'mini',
+      'name': 'MINI',
+      'nameEn': 'MINI',
+      'country': 'GB',
+      'displayOrder': 16,
+    },
+    {
+      'id': 'tesla',
+      'name': 'テスラ',
+      'nameEn': 'Tesla',
+      'country': 'US',
+      'displayOrder': 17,
+    },
+    {
+      'id': 'peugeot',
+      'name': 'プジョー',
+      'nameEn': 'Peugeot',
+      'country': 'FR',
+      'displayOrder': 18,
+    },
+    {
       'id': 'other',
       'name': 'その他',
       'nameEn': 'Other',
@@ -187,6 +243,86 @@ class VehicleMasterData {
         'displayOrder': 13
       },
       {
+        'id': 'toyota_noah',
+        'name': 'ノア',
+        'nameEn': 'Noah',
+        'bodyType': 'minivan',
+        'productionStartYear': 2001,
+        'displayOrder': 50
+      },
+      {
+        'id': 'toyota_vellfire',
+        'name': 'ヴェルファイア',
+        'nameEn': 'Vellfire',
+        'bodyType': 'minivan',
+        'productionStartYear': 2008,
+        'displayOrder': 51
+      },
+      {
+        'id': 'toyota_chr',
+        'name': 'C-HR',
+        'nameEn': 'C-HR',
+        'bodyType': 'suv',
+        'productionStartYear': 2016,
+        'displayOrder': 52
+      },
+      {
+        'id': 'toyota_raize',
+        'name': 'ライズ',
+        'nameEn': 'Raize',
+        'bodyType': 'suv',
+        'productionStartYear': 2019,
+        'displayOrder': 53
+      },
+      {
+        'id': 'toyota_roomy',
+        'name': 'ルーミー',
+        'nameEn': 'Roomy',
+        'bodyType': 'minivan',
+        'productionStartYear': 2016,
+        'displayOrder': 54
+      },
+      {
+        'id': 'toyota_passo',
+        'name': 'パッソ',
+        'nameEn': 'Passo',
+        'bodyType': 'hatchback',
+        'productionStartYear': 2004,
+        'displayOrder': 55
+      },
+      {
+        'id': 'toyota_corolla_cross',
+        'name': 'カローラクロス',
+        'nameEn': 'Corolla Cross',
+        'bodyType': 'suv',
+        'productionStartYear': 2021,
+        'displayOrder': 56
+      },
+      {
+        'id': 'toyota_hiace',
+        'name': 'ハイエース',
+        'nameEn': 'Hiace',
+        'bodyType': 'van',
+        'productionStartYear': 1967,
+        'displayOrder': 57
+      },
+      {
+        'id': 'toyota_bz4x',
+        'name': 'bZ4X',
+        'nameEn': 'bZ4X',
+        'bodyType': 'suv',
+        'productionStartYear': 2022,
+        'displayOrder': 58
+      },
+      {
+        'id': 'toyota_noah_vitz',
+        'name': 'ヴィッツ',
+        'nameEn': 'Vitz',
+        'bodyType': 'hatchback',
+        'productionStartYear': 1999,
+        'displayOrder': 59
+      },
+      {
         'id': 'toyota_other',
         'name': 'その他',
         'nameEn': 'Other',
@@ -267,6 +403,62 @@ class VehicleMasterData {
         'displayOrder': 9
       },
       {
+        'id': 'honda_nwgn',
+        'name': 'N-WGN',
+        'nameEn': 'N-WGN',
+        'bodyType': 'kei',
+        'productionStartYear': 2013,
+        'displayOrder': 50
+      },
+      {
+        'id': 'honda_none',
+        'name': 'N-ONE',
+        'nameEn': 'N-ONE',
+        'bodyType': 'kei',
+        'productionStartYear': 2012,
+        'displayOrder': 51
+      },
+      {
+        'id': 'honda_nvan',
+        'name': 'N-VAN',
+        'nameEn': 'N-VAN',
+        'bodyType': 'van',
+        'productionStartYear': 2018,
+        'displayOrder': 52
+      },
+      {
+        'id': 'honda_zrv',
+        'name': 'ZR-V',
+        'nameEn': 'ZR-V',
+        'bodyType': 'suv',
+        'productionStartYear': 2023,
+        'displayOrder': 53
+      },
+      {
+        'id': 'honda_wrv',
+        'name': 'WR-V',
+        'nameEn': 'WR-V',
+        'bodyType': 'suv',
+        'productionStartYear': 2024,
+        'displayOrder': 54
+      },
+      {
+        'id': 'honda_shuttle',
+        'name': 'シャトル',
+        'nameEn': 'Shuttle',
+        'bodyType': 'wagon',
+        'productionStartYear': 2015,
+        'displayOrder': 55
+      },
+      {
+        'id': 'honda_s660',
+        'name': 'S660',
+        'nameEn': 'S660',
+        'bodyType': 'coupe',
+        'productionStartYear': 2015,
+        'displayOrder': 56
+      },
+      {
         'id': 'honda_other',
         'name': 'その他',
         'nameEn': 'Other',
@@ -339,6 +531,70 @@ class VehicleMasterData {
         'displayOrder': 8
       },
       {
+        'id': 'nissan_aura',
+        'name': 'ノートオーラ',
+        'nameEn': 'Note Aura',
+        'bodyType': 'hatchback',
+        'productionStartYear': 2021,
+        'displayOrder': 50
+      },
+      {
+        'id': 'nissan_dayz',
+        'name': 'デイズ',
+        'nameEn': 'Dayz',
+        'bodyType': 'kei',
+        'productionStartYear': 2013,
+        'displayOrder': 51
+      },
+      {
+        'id': 'nissan_roox',
+        'name': 'ルークス',
+        'nameEn': 'Roox',
+        'bodyType': 'kei',
+        'productionStartYear': 2009,
+        'displayOrder': 52
+      },
+      {
+        'id': 'nissan_sakura',
+        'name': 'サクラ',
+        'nameEn': 'Sakura',
+        'bodyType': 'kei',
+        'productionStartYear': 2022,
+        'displayOrder': 53
+      },
+      {
+        'id': 'nissan_aria',
+        'name': 'アリア',
+        'nameEn': 'Ariya',
+        'bodyType': 'suv',
+        'productionStartYear': 2022,
+        'displayOrder': 54
+      },
+      {
+        'id': 'nissan_march',
+        'name': 'マーチ',
+        'nameEn': 'March',
+        'bodyType': 'hatchback',
+        'productionStartYear': 1982,
+        'displayOrder': 55
+      },
+      {
+        'id': 'nissan_juke',
+        'name': 'ジューク',
+        'nameEn': 'Juke',
+        'bodyType': 'suv',
+        'productionStartYear': 2010,
+        'displayOrder': 56
+      },
+      {
+        'id': 'nissan_elgrand',
+        'name': 'エルグランド',
+        'nameEn': 'Elgrand',
+        'bodyType': 'minivan',
+        'productionStartYear': 1997,
+        'displayOrder': 57
+      },
+      {
         'id': 'nissan_other',
         'name': 'その他',
         'nameEn': 'Other',
@@ -393,6 +649,46 @@ class VehicleMasterData {
         'bodyType': 'suv',
         'productionStartYear': 2022,
         'displayOrder': 6
+      },
+      {
+        'id': 'mazda_mazda2',
+        'name': 'MAZDA2',
+        'nameEn': 'Mazda2',
+        'bodyType': 'hatchback',
+        'productionStartYear': 1996,
+        'displayOrder': 50
+      },
+      {
+        'id': 'mazda_cx3',
+        'name': 'CX-3',
+        'nameEn': 'CX-3',
+        'bodyType': 'suv',
+        'productionStartYear': 2015,
+        'displayOrder': 51
+      },
+      {
+        'id': 'mazda_mazda6',
+        'name': 'MAZDA6',
+        'nameEn': 'Mazda6',
+        'bodyType': 'sedan',
+        'productionStartYear': 2002,
+        'displayOrder': 52
+      },
+      {
+        'id': 'mazda_mx30',
+        'name': 'MX-30',
+        'nameEn': 'MX-30',
+        'bodyType': 'suv',
+        'productionStartYear': 2020,
+        'displayOrder': 53
+      },
+      {
+        'id': 'mazda_cx90',
+        'name': 'CX-90',
+        'nameEn': 'CX-90',
+        'bodyType': 'suv',
+        'productionStartYear': 2023,
+        'displayOrder': 54
       },
       {
         'id': 'mazda_other',
@@ -459,6 +755,38 @@ class VehicleMasterData {
         'displayOrder': 7
       },
       {
+        'id': 'subaru_legacy',
+        'name': 'レガシィ',
+        'nameEn': 'Legacy',
+        'bodyType': 'wagon',
+        'productionStartYear': 1989,
+        'displayOrder': 50
+      },
+      {
+        'id': 'subaru_solterra',
+        'name': 'ソルテラ',
+        'nameEn': 'Solterra',
+        'bodyType': 'suv',
+        'productionStartYear': 2022,
+        'displayOrder': 51
+      },
+      {
+        'id': 'subaru_sambar',
+        'name': 'サンバー',
+        'nameEn': 'Sambar',
+        'bodyType': 'van',
+        'productionStartYear': 1961,
+        'displayOrder': 52
+      },
+      {
+        'id': 'subaru_justy',
+        'name': 'ジャスティ',
+        'nameEn': 'Justy',
+        'bodyType': 'minivan',
+        'productionStartYear': 2016,
+        'displayOrder': 53
+      },
+      {
         'id': 'subaru_other',
         'name': 'その他',
         'nameEn': 'Other',
@@ -515,6 +843,54 @@ class VehicleMasterData {
         'displayOrder': 6
       },
       {
+        'id': 'suzuki_wagonr',
+        'name': 'ワゴンR',
+        'nameEn': 'Wagon R',
+        'bodyType': 'kei',
+        'productionStartYear': 1993,
+        'displayOrder': 50
+      },
+      {
+        'id': 'suzuki_every',
+        'name': 'エブリイ',
+        'nameEn': 'Every',
+        'bodyType': 'van',
+        'productionStartYear': 1982,
+        'displayOrder': 51
+      },
+      {
+        'id': 'suzuki_xbee',
+        'name': 'クロスビー',
+        'nameEn': 'Xbee',
+        'bodyType': 'suv',
+        'productionStartYear': 2017,
+        'displayOrder': 52
+      },
+      {
+        'id': 'suzuki_lapin',
+        'name': 'アルトラパン',
+        'nameEn': 'Alto Lapin',
+        'bodyType': 'kei',
+        'productionStartYear': 2002,
+        'displayOrder': 53
+      },
+      {
+        'id': 'suzuki_jimny_sierra',
+        'name': 'ジムニーシエラ',
+        'nameEn': 'Jimny Sierra',
+        'bodyType': 'suv',
+        'productionStartYear': 2018,
+        'displayOrder': 54
+      },
+      {
+        'id': 'suzuki_escudo',
+        'name': 'エスクード',
+        'nameEn': 'Escudo',
+        'bodyType': 'suv',
+        'productionStartYear': 1988,
+        'displayOrder': 55
+      },
+      {
         'id': 'suzuki_other',
         'name': 'その他',
         'nameEn': 'Other',
@@ -563,6 +939,54 @@ class VehicleMasterData {
         'displayOrder': 5
       },
       {
+        'id': 'daihatsu_mira_es',
+        'name': 'ミライース',
+        'nameEn': 'Mira e:S',
+        'bodyType': 'kei',
+        'productionStartYear': 2011,
+        'displayOrder': 50
+      },
+      {
+        'id': 'daihatsu_hijet',
+        'name': 'ハイゼット',
+        'nameEn': 'Hijet',
+        'bodyType': 'van',
+        'productionStartYear': 1960,
+        'displayOrder': 51
+      },
+      {
+        'id': 'daihatsu_copen',
+        'name': 'コペン',
+        'nameEn': 'Copen',
+        'bodyType': 'convertible',
+        'productionStartYear': 2002,
+        'displayOrder': 52
+      },
+      {
+        'id': 'daihatsu_thor',
+        'name': 'トール',
+        'nameEn': 'Thor',
+        'bodyType': 'minivan',
+        'productionStartYear': 2016,
+        'displayOrder': 53
+      },
+      {
+        'id': 'daihatsu_wake',
+        'name': 'ウェイク',
+        'nameEn': 'Wake',
+        'bodyType': 'kei',
+        'productionStartYear': 2014,
+        'displayOrder': 54
+      },
+      {
+        'id': 'daihatsu_cast',
+        'name': 'キャスト',
+        'nameEn': 'Cast',
+        'bodyType': 'kei',
+        'productionStartYear': 2015,
+        'displayOrder': 55
+      },
+      {
         'id': 'daihatsu_other',
         'name': 'その他',
         'nameEn': 'Other',
@@ -601,6 +1025,46 @@ class VehicleMasterData {
         'bodyType': 'kei',
         'productionStartYear': 2001,
         'displayOrder': 4
+      },
+      {
+        'id': 'mitsubishi_ek_cross',
+        'name': 'eKクロス',
+        'nameEn': 'eK X',
+        'bodyType': 'kei',
+        'productionStartYear': 2019,
+        'displayOrder': 50
+      },
+      {
+        'id': 'mitsubishi_delica_mini',
+        'name': 'デリカミニ',
+        'nameEn': 'Delica Mini',
+        'bodyType': 'kei',
+        'productionStartYear': 2023,
+        'displayOrder': 51
+      },
+      {
+        'id': 'mitsubishi_mirage',
+        'name': 'ミラージュ',
+        'nameEn': 'Mirage',
+        'bodyType': 'hatchback',
+        'productionStartYear': 1978,
+        'displayOrder': 52
+      },
+      {
+        'id': 'mitsubishi_rvr',
+        'name': 'RVR',
+        'nameEn': 'RVR',
+        'bodyType': 'suv',
+        'productionStartYear': 1991,
+        'displayOrder': 53
+      },
+      {
+        'id': 'mitsubishi_pajero',
+        'name': 'パジェロ',
+        'nameEn': 'Pajero',
+        'bodyType': 'suv',
+        'productionStartYear': 1982,
+        'displayOrder': 54
       },
       {
         'id': 'mitsubishi_other',
@@ -667,9 +1131,425 @@ class VehicleMasterData {
         'displayOrder': 7
       },
       {
+        'id': 'lexus_ls',
+        'name': 'LS',
+        'nameEn': 'LS',
+        'bodyType': 'sedan',
+        'productionStartYear': 1989,
+        'displayOrder': 50
+      },
+      {
+        'id': 'lexus_rc',
+        'name': 'RC',
+        'nameEn': 'RC',
+        'bodyType': 'coupe',
+        'productionStartYear': 2014,
+        'displayOrder': 51
+      },
+      {
+        'id': 'lexus_rz',
+        'name': 'RZ',
+        'nameEn': 'RZ',
+        'bodyType': 'suv',
+        'productionStartYear': 2022,
+        'displayOrder': 52
+      },
+      {
+        'id': 'lexus_lm',
+        'name': 'LM',
+        'nameEn': 'LM',
+        'bodyType': 'minivan',
+        'productionStartYear': 2019,
+        'displayOrder': 53
+      },
+      {
         'id': 'lexus_other',
         'name': 'その他',
         'nameEn': 'Other',
+        'displayOrder': 100
+      },
+    ],
+    'mercedes': [
+      {
+        'id': 'mercedes_cclass',
+        'name': 'Cクラス',
+        'nameEn': 'C-Class',
+        'bodyType': 'sedan',
+        'productionStartYear': 1993,
+        'displayOrder': 1
+      },
+      {
+        'id': 'mercedes_eclass',
+        'name': 'Eクラス',
+        'nameEn': 'E-Class',
+        'bodyType': 'sedan',
+        'productionStartYear': 1953,
+        'displayOrder': 2
+      },
+      {
+        'id': 'mercedes_aclass',
+        'name': 'Aクラス',
+        'nameEn': 'A-Class',
+        'bodyType': 'hatchback',
+        'productionStartYear': 1997,
+        'displayOrder': 3
+      },
+      {
+        'id': 'mercedes_glc',
+        'name': 'GLC',
+        'nameEn': 'GLC',
+        'bodyType': 'suv',
+        'productionStartYear': 2015,
+        'displayOrder': 4
+      },
+      {
+        'id': 'mercedes_gla',
+        'name': 'GLA',
+        'nameEn': 'GLA',
+        'bodyType': 'suv',
+        'productionStartYear': 2013,
+        'displayOrder': 5
+      },
+      {
+        'id': 'mercedes_cla',
+        'name': 'CLA',
+        'nameEn': 'CLA',
+        'bodyType': 'sedan',
+        'productionStartYear': 2013,
+        'displayOrder': 6
+      },
+      {
+        'id': 'mercedes_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'productionStartYear': 1900,
+        'displayOrder': 100
+      },
+    ],
+    'bmw': [
+      {
+        'id': 'bmw_series3',
+        'name': '3シリーズ',
+        'nameEn': '3 Series',
+        'bodyType': 'sedan',
+        'productionStartYear': 1975,
+        'displayOrder': 1
+      },
+      {
+        'id': 'bmw_series5',
+        'name': '5シリーズ',
+        'nameEn': '5 Series',
+        'bodyType': 'sedan',
+        'productionStartYear': 1972,
+        'displayOrder': 2
+      },
+      {
+        'id': 'bmw_series1',
+        'name': '1シリーズ',
+        'nameEn': '1 Series',
+        'bodyType': 'hatchback',
+        'productionStartYear': 2004,
+        'displayOrder': 3
+      },
+      {
+        'id': 'bmw_x1',
+        'name': 'X1',
+        'nameEn': 'X1',
+        'bodyType': 'suv',
+        'productionStartYear': 2009,
+        'displayOrder': 4
+      },
+      {
+        'id': 'bmw_x3',
+        'name': 'X3',
+        'nameEn': 'X3',
+        'bodyType': 'suv',
+        'productionStartYear': 2003,
+        'displayOrder': 5
+      },
+      {
+        'id': 'bmw_x5',
+        'name': 'X5',
+        'nameEn': 'X5',
+        'bodyType': 'suv',
+        'productionStartYear': 1999,
+        'displayOrder': 6
+      },
+      {
+        'id': 'bmw_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'productionStartYear': 1900,
+        'displayOrder': 100
+      },
+    ],
+    'volkswagen': [
+      {
+        'id': 'volkswagen_golf',
+        'name': 'ゴルフ',
+        'nameEn': 'Golf',
+        'bodyType': 'hatchback',
+        'productionStartYear': 1974,
+        'displayOrder': 1
+      },
+      {
+        'id': 'volkswagen_polo',
+        'name': 'ポロ',
+        'nameEn': 'Polo',
+        'bodyType': 'hatchback',
+        'productionStartYear': 1975,
+        'displayOrder': 2
+      },
+      {
+        'id': 'volkswagen_tcross',
+        'name': 'T-Cross',
+        'nameEn': 'T-Cross',
+        'bodyType': 'suv',
+        'productionStartYear': 2019,
+        'displayOrder': 3
+      },
+      {
+        'id': 'volkswagen_tiguan',
+        'name': 'ティグアン',
+        'nameEn': 'Tiguan',
+        'bodyType': 'suv',
+        'productionStartYear': 2007,
+        'displayOrder': 4
+      },
+      {
+        'id': 'volkswagen_passat',
+        'name': 'パサート',
+        'nameEn': 'Passat',
+        'bodyType': 'sedan',
+        'productionStartYear': 1973,
+        'displayOrder': 5
+      },
+      {
+        'id': 'volkswagen_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'productionStartYear': 1900,
+        'displayOrder': 100
+      },
+    ],
+    'audi': [
+      {
+        'id': 'audi_a3',
+        'name': 'A3',
+        'nameEn': 'A3',
+        'bodyType': 'hatchback',
+        'productionStartYear': 1996,
+        'displayOrder': 1
+      },
+      {
+        'id': 'audi_a4',
+        'name': 'A4',
+        'nameEn': 'A4',
+        'bodyType': 'sedan',
+        'productionStartYear': 1994,
+        'displayOrder': 2
+      },
+      {
+        'id': 'audi_q3',
+        'name': 'Q3',
+        'nameEn': 'Q3',
+        'bodyType': 'suv',
+        'productionStartYear': 2011,
+        'displayOrder': 3
+      },
+      {
+        'id': 'audi_q5',
+        'name': 'Q5',
+        'nameEn': 'Q5',
+        'bodyType': 'suv',
+        'productionStartYear': 2008,
+        'displayOrder': 4
+      },
+      {
+        'id': 'audi_a1',
+        'name': 'A1',
+        'nameEn': 'A1',
+        'bodyType': 'hatchback',
+        'productionStartYear': 2010,
+        'displayOrder': 5
+      },
+      {
+        'id': 'audi_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'productionStartYear': 1900,
+        'displayOrder': 100
+      },
+    ],
+    'volvo': [
+      {
+        'id': 'volvo_xc40',
+        'name': 'XC40',
+        'nameEn': 'XC40',
+        'bodyType': 'suv',
+        'productionStartYear': 2017,
+        'displayOrder': 1
+      },
+      {
+        'id': 'volvo_xc60',
+        'name': 'XC60',
+        'nameEn': 'XC60',
+        'bodyType': 'suv',
+        'productionStartYear': 2008,
+        'displayOrder': 2
+      },
+      {
+        'id': 'volvo_xc90',
+        'name': 'XC90',
+        'nameEn': 'XC90',
+        'bodyType': 'suv',
+        'productionStartYear': 2002,
+        'displayOrder': 3
+      },
+      {
+        'id': 'volvo_v60',
+        'name': 'V60',
+        'nameEn': 'V60',
+        'bodyType': 'wagon',
+        'productionStartYear': 2010,
+        'displayOrder': 4
+      },
+      {
+        'id': 'volvo_v40',
+        'name': 'V40',
+        'nameEn': 'V40',
+        'bodyType': 'hatchback',
+        'productionStartYear': 2012,
+        'displayOrder': 5
+      },
+      {
+        'id': 'volvo_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'productionStartYear': 1900,
+        'displayOrder': 100
+      },
+    ],
+    'mini': [
+      {
+        'id': 'mini_mini3door',
+        'name': '3ドア',
+        'nameEn': '3 Door',
+        'bodyType': 'hatchback',
+        'productionStartYear': 2001,
+        'displayOrder': 1
+      },
+      {
+        'id': 'mini_crossover',
+        'name': 'クロスオーバー',
+        'nameEn': 'Crossover',
+        'bodyType': 'suv',
+        'productionStartYear': 2010,
+        'displayOrder': 2
+      },
+      {
+        'id': 'mini_clubman',
+        'name': 'クラブマン',
+        'nameEn': 'Clubman',
+        'bodyType': 'wagon',
+        'productionStartYear': 2007,
+        'displayOrder': 3
+      },
+      {
+        'id': 'mini_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'productionStartYear': 1900,
+        'displayOrder': 100
+      },
+    ],
+    'tesla': [
+      {
+        'id': 'tesla_model3',
+        'name': 'モデル3',
+        'nameEn': 'Model 3',
+        'bodyType': 'sedan',
+        'productionStartYear': 2017,
+        'displayOrder': 1
+      },
+      {
+        'id': 'tesla_modely',
+        'name': 'モデルY',
+        'nameEn': 'Model Y',
+        'bodyType': 'suv',
+        'productionStartYear': 2020,
+        'displayOrder': 2
+      },
+      {
+        'id': 'tesla_models',
+        'name': 'モデルS',
+        'nameEn': 'Model S',
+        'bodyType': 'sedan',
+        'productionStartYear': 2012,
+        'displayOrder': 3
+      },
+      {
+        'id': 'tesla_modelx',
+        'name': 'モデルX',
+        'nameEn': 'Model X',
+        'bodyType': 'suv',
+        'productionStartYear': 2015,
+        'displayOrder': 4
+      },
+      {
+        'id': 'tesla_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'productionStartYear': 1900,
+        'displayOrder': 100
+      },
+    ],
+    'peugeot': [
+      {
+        'id': 'peugeot_p208',
+        'name': '208',
+        'nameEn': '208',
+        'bodyType': 'hatchback',
+        'productionStartYear': 2012,
+        'displayOrder': 1
+      },
+      {
+        'id': 'peugeot_p308',
+        'name': '308',
+        'nameEn': '308',
+        'bodyType': 'hatchback',
+        'productionStartYear': 2007,
+        'displayOrder': 2
+      },
+      {
+        'id': 'peugeot_p2008',
+        'name': '2008',
+        'nameEn': '2008',
+        'bodyType': 'suv',
+        'productionStartYear': 2013,
+        'displayOrder': 3
+      },
+      {
+        'id': 'peugeot_p3008',
+        'name': '3008',
+        'nameEn': '3008',
+        'bodyType': 'suv',
+        'productionStartYear': 2009,
+        'displayOrder': 4
+      },
+      {
+        'id': 'peugeot_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'productionStartYear': 1900,
         'displayOrder': 100
       },
     ],

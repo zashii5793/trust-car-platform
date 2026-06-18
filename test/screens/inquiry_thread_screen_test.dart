@@ -124,12 +124,14 @@ class _FakeShopProvider extends ShopProvider {
     required String inquiryId,
     required String userId,
     required String content,
+    List<String> attachmentUrls = const [],
   }) =>
       _inquiryStub.sendMessage(
         inquiryId: inquiryId,
         senderId: userId,
         isFromShop: false,
         content: content,
+        attachmentUrls: attachmentUrls,
       );
 
   @override

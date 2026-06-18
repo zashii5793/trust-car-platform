@@ -67,6 +67,31 @@ service cloud.firestore {
 
       // 更新・削除は所有者のみ
       allow update, delete: if isDocumentOwner();
+
+      // 走行距離の更新履歴（監査用途のため不変: 作成のみ・更新/削除不可）
+      match /mileage_history/{recordId} {
+        function ownsParentVehicle() {
+          return isAuthenticated()
+              && get(/databases/$(database)/documents/vehicles/$(vehicleId))
+                  .data.userId == request.auth.uid;
+        }
+        allow read: if ownsParentVehicle();
+        allow create: if ownsParentVehicle()
+            && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      // 交換目安のユーザー設定（車両の所有者のみ読み書き可能）
+      match /maintenance_prefs/{docId} {
+        function ownsParentVehicleForPrefs() {
+          return isAuthenticated()
+              && get(/databases/$(database)/documents/vehicles/$(vehicleId))
+                  .data.userId == request.auth.uid;
+        }
+        allow read: if ownsParentVehicleForPrefs();
+        allow write: if ownsParentVehicleForPrefs()
+            && request.resource.data.userId == request.auth.uid;
+      }
     }
 
     // メンテナンス記録

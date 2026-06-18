@@ -872,11 +872,34 @@ void main() {
       // メッセージ一覧取得
       final messagesResult = await inquiryService.getMessages(inquiryId);
       expect(messagesResult.isSuccess, true);
-      expect(messagesResult.valueOrNull!.length, greaterThanOrEqualTo(2));
+      // 初回メッセージ + 追加2通 = 3通（送信直後から会話履歴が見える）
+      expect(messagesResult.valueOrNull!.length, greaterThanOrEqualTo(3));
       expect(
         messagesResult.valueOrNull!.any((m) => m.content.contains('10万円')),
         true,
       );
+      // 初回メッセージがスレッド先頭にユーザー発として含まれる
+      final first = messagesResult.valueOrNull!.first;
+      expect(first.isFromShop, false);
+      expect(first.content.contains('予算について確認'), true);
+    });
+
+    test('createInquiry は添付画像を初回メッセージに引き継ぐ', () async {
+      final inquiryResult = await inquiryService.createInquiry(
+        userId: userId,
+        shopId: shopIds[0],
+        type: InquiryType.estimate,
+        subject: '異音の見積もり',
+        message: 'エンジンから異音がします。写真を添付します。',
+        vehicleId: vehicleIds[0],
+        attachmentUrls: const ['https://example.com/noise.jpg'],
+      );
+      expect(inquiryResult.isSuccess, true);
+
+      final messagesResult =
+          await inquiryService.getMessages(inquiryResult.valueOrNull!.id);
+      final first = messagesResult.valueOrNull!.first;
+      expect(first.attachmentUrls, contains('https://example.com/noise.jpg'));
     });
 
     test('問い合わせのステータスが pending → inProgress に更新できる', () async {

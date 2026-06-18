@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
@@ -29,6 +31,29 @@ class _InquiryThreadScreenState extends State<InquiryThreadScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isSending = false;
 
+  // 返信に添付する写真（最大4枚）
+  final List<Uint8List> _pendingImages = [];
+  static const int _maxImages = 4;
+
+  Future<void> _pickImages() async {
+    final remaining = _maxImages - _pendingImages.length;
+    if (remaining <= 0) return;
+    final picked = await ImagePicker().pickMultiImage(
+      maxWidth: 1600,
+      maxHeight: 1600,
+      imageQuality: 85,
+    );
+    if (picked.isEmpty) return;
+    final bytesList = <Uint8List>[];
+    for (final x in picked.take(remaining)) {
+      bytesList.add(await x.readAsBytes());
+    }
+    if (!mounted) return;
+    setState(() => _pendingImages.addAll(bytesList));
+  }
+
+  void _removePendingImage(int i) => setState(() => _pendingImages.removeAt(i));
+
   @override
   void initState() {
     super.initState();
@@ -49,19 +74,40 @@ class _InquiryThreadScreenState extends State<InquiryThreadScreen> {
 
   Future<void> _sendMessage() async {
     final content = _textController.text.trim();
-    if (content.isEmpty || _isSending) return;
+    if ((content.isEmpty && _pendingImages.isEmpty) || _isSending) return;
 
     final uid = context.read<AuthProvider>().firebaseUser?.uid;
     if (uid == null) return;
+    // Capture the provider before any await to avoid using BuildContext across
+    // async gaps.
+    final shopProvider = context.read<ShopProvider>();
 
-    setState(() => _isSending = true);
+    final images = List<Uint8List>.from(_pendingImages);
+    setState(() {
+      _isSending = true;
+      _pendingImages.clear();
+    });
     _textController.clear();
 
-    await context.read<ShopProvider>().sendUserReply(
-          inquiryId: widget.inquiry.id,
-          userId: uid,
-          content: content,
-        );
+    // 添付画像を Storage にアップロード
+    final attachmentUrls = <String>[];
+    if (images.isNotEmpty) {
+      final fb = sl.get<FirebaseService>();
+      final base =
+          'inquiries/${widget.inquiry.id}/$uid/${DateTime.now().millisecondsSinceEpoch}';
+      for (var i = 0; i < images.length; i++) {
+        final r = await fb.uploadImageBytes(images[i], '$base/$i.jpg');
+        final url = r.valueOrNull;
+        if (url != null) attachmentUrls.add(url);
+      }
+    }
+
+    await shopProvider.sendUserReply(
+      inquiryId: widget.inquiry.id,
+      userId: uid,
+      content: content,
+      attachmentUrls: attachmentUrls,
+    );
 
     if (mounted) {
       setState(() => _isSending = false);
@@ -169,6 +215,10 @@ class _InquiryThreadScreenState extends State<InquiryThreadScreen> {
               controller: _textController,
               isSending: _isSending,
               onSend: _sendMessage,
+              pendingImages: _pendingImages,
+              maxImages: _maxImages,
+              onPickImages: _pickImages,
+              onRemoveImage: _removePendingImage,
             )
           else
             _ClosedNotice(status: widget.inquiry.status),
@@ -225,33 +275,40 @@ class _MessageBubble extends StatelessWidget {
                 ),
               ),
             ),
-          Row(
-            mainAxisAlignment:
-                isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-            children: [
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.sizeOf(context).width * 0.72,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
+          if (message.content.trim().isNotEmpty)
+            Row(
+              mainAxisAlignment:
+                  isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+              children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.sizeOf(context).width * 0.72,
                   ),
-                  decoration: BoxDecoration(
-                    color: bubbleColor,
-                    borderRadius: bubbleRadius,
-                  ),
-                  child: Text(
-                    message.content,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: textColor,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: bubbleRadius,
+                    ),
+                    child: Text(
+                      message.content,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: textColor,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          // 添付画像（写真）
+          if (message.attachmentUrls.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: _AttachmentThumbnails(urls: message.attachmentUrls),
+            ),
           // 工場が整備明細を添付した場合: ワンタップ取込カード（pull モデル）
           if (message.maintenancePayload != null)
             _MaintenanceImportCard(
@@ -438,17 +495,28 @@ class _MessageInputBar extends StatelessWidget {
   final TextEditingController controller;
   final bool isSending;
   final VoidCallback onSend;
+  final List<Uint8List> pendingImages;
+  final int maxImages;
+  final VoidCallback onPickImages;
+  final ValueChanged<int> onRemoveImage;
 
   const _MessageInputBar({
     required this.controller,
     required this.isSending,
     required this.onSend,
+    required this.pendingImages,
+    required this.maxImages,
+    required this.onPickImages,
+    required this.onRemoveImage,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final canSend = controller.text.trim().isNotEmpty && !isSending;
+    final canSend =
+        (controller.text.trim().isNotEmpty || pendingImages.isNotEmpty) &&
+            !isSending;
+    final canAttach = pendingImages.length < maxImages && !isSending;
 
     return SafeArea(
       child: Container(
@@ -464,54 +532,216 @@ class _MessageInputBar extends StatelessWidget {
             ),
           ),
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  hintText: 'メッセージを入力...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                    borderSide: BorderSide.none,
-                  ),
-                  filled: true,
-                  fillColor: theme.colorScheme.surfaceContainerHighest,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
-                  ),
-                  isDense: true,
+            // 送信前の添付プレビュー
+            if (pendingImages.isNotEmpty)
+              SizedBox(
+                height: 68,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    for (var i = 0; i < pendingImages.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6, bottom: 6),
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.memory(
+                                pendingImages[i],
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              child: GestureDetector(
+                                onTap: () => onRemoveImage(i),
+                                child: const DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Padding(
+                                    padding: EdgeInsets.all(2),
+                                    child: Icon(Icons.close,
+                                        size: 14, color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
-                maxLines: 4,
-                minLines: 1,
-                textInputAction: TextInputAction.newline,
               ),
-            ),
-            const SizedBox(width: AppSpacing.xs),
-            AnimatedOpacity(
-              opacity: canSend ? 1.0 : 0.4,
-              duration: const Duration(milliseconds: 200),
-              child: IconButton(
-                onPressed: canSend ? onSend : null,
-                icon: isSending
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send),
-                style: IconButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
+            Row(
+              children: [
+                IconButton(
+                  onPressed: canAttach ? onPickImages : null,
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  tooltip: '写真を添付',
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
-              ),
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    decoration: InputDecoration(
+                      hintText: 'メッセージを入力...',
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusFull),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: theme.colorScheme.surfaceContainerHighest,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.sm,
+                      ),
+                      isDense: true,
+                    ),
+                    maxLines: 4,
+                    minLines: 1,
+                    textInputAction: TextInputAction.newline,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                AnimatedOpacity(
+                  opacity: canSend ? 1.0 : 0.4,
+                  duration: const Duration(milliseconds: 200),
+                  child: IconButton(
+                    onPressed: canSend ? onSend : null,
+                    icon: isSending
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send),
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// AttachmentThumbnails — 受信/送信済みメッセージの添付画像（タップで全画面）
+// ---------------------------------------------------------------------------
+
+class _AttachmentThumbnails extends StatelessWidget {
+  final List<String> urls;
+
+  const _AttachmentThumbnails({required this.urls});
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+      ),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (var i = 0; i < urls.length; i++)
+            GestureDetector(
+              onTap: () => _showImageViewer(context, urls, i),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  urls[i],
+                  width: 96,
+                  height: 96,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 96,
+                    height: 96,
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: const Icon(Icons.broken_image_outlined),
+                  ),
+                  loadingBuilder: (_, child, progress) => progress == null
+                      ? child
+                      : Container(
+                          width: 96,
+                          height: 96,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                          child: const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 添付画像を全画面で閲覧する（スワイプで複数枚 + ピンチズーム）。
+void _showImageViewer(BuildContext context, List<String> urls, int initial) {
+  showDialog<void>(
+    context: context,
+    barrierColor: Colors.black,
+    builder: (dialogContext) {
+      final controller = PageController(initialPage: initial);
+      return Stack(
+        children: [
+          PageView.builder(
+            controller: controller,
+            itemCount: urls.length,
+            itemBuilder: (_, i) => InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              child: Center(
+                child: Image.network(
+                  urls[i],
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.broken_image_outlined,
+                    color: Colors.white,
+                    size: 48,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: SafeArea(
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.pop(dialogContext),
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
