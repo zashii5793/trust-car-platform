@@ -12,6 +12,9 @@
 **なぜ必要**: 以下のルールが追加済みで未デプロイ：
 - 前セッション: `fleet_members`, `accessory_showcases`, `car_purchase_inquiries`, `safety_tips`, `shop_chains`
 - 今セッション: `community_maintenance_trends`（読み取り=認証済み、書き込み=AdminSDKのみ）
+- C2C凍結セッション（2026-06-18）: `accessory_showcases/{id}/comments` サブコレクション
+  （読み取り=認証済み、作成/削除=投稿者本人のみ、更新=不可）。
+  **未デプロイだと showcase コメントの投稿が全て弾かれる**。
 本番反映しないと全ユーザーの書き込みがルールで弾かれる。また、`safety_tips`コレクションの複合インデックス（`isActive + publishedAt`, `isActive + category + publishedAt`）も追加済み。
 
 **手順**:
@@ -42,6 +45,44 @@ firebase deploy --only firestore:rules,firestore:indexes
 
 **所要時間**: 15分  
 **前提条件**: Firebase Consoleのオーナー権限
+
+---
+
+## P2 — 任意（運用効率化）
+
+### C2C凍結フラグの Remote Config 連携（任意）
+
+**なぜ必要**: `FeatureFlag.c2cPartsMarketplace` の再開判断を、**アプリ再リリースなし**で
+運用側から切り替えられるようにする。コード側の受け口（`FeatureFlagService` /
+`RemoteFlagSource`）は実装済み・テスト済みで、デフォルトは no-op（ローカル定数のまま）。
+
+**残りの作業（ネイティブ依存のため人間が実施）**:
+1. `pubspec.yaml` に `firebase_remote_config` を追加し `flutter pub get`
+   （Android/iOSのビルド確認が必要なため、CIの build ジョブで検証すること）
+2. Firebase Console → Remote Config で `c2c_parts_marketplace`（Boolean, デフォルト `false`）を作成
+3. `RemoteFlagSource` を Remote Config 実装に差し替え、`injection.dart` で注入:
+
+```dart
+class FirebaseRemoteFlagSource implements RemoteFlagSource {
+  @override
+  Future<Map<String, dynamic>> fetch() async {
+    final rc = FirebaseRemoteConfig.instance;
+    await rc.setDefaults(const {'c2c_parts_marketplace': false});
+    await rc.fetchAndActivate();
+    return {'c2c_parts_marketplace': rc.getBool('c2c_parts_marketplace')};
+  }
+}
+
+// injection.dart
+locator.registerLazySingleton<FeatureFlagService>(
+    () => FeatureFlagService(source: FirebaseRemoteFlagSource()));
+```
+
+**確認方法**: Remote Config で `true` に変更 → アプリ再起動でマーケットの
+「パーツ」「マイ出品」タブが復活すること。
+
+**所要時間**: 30分  
+**前提条件**: Firebase Console + ネイティブビルド環境
 
 ---
 

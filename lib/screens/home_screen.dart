@@ -486,6 +486,26 @@ class _ProfileTab extends StatelessWidget {
 
           AppSpacing.verticalSm,
 
+          // ---- コミュニティセクション ----
+          _buildMenuSection(
+            context,
+            title: 'コミュニティ',
+            items: [
+              _MenuItemData(
+                icon: Icons.forum_outlined,
+                label: 'みんなのアクセサリー（口コミ・コメント）',
+                color: AppColors.secondary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const AccessoryShowcaseScreen()),
+                ),
+              ),
+            ],
+          ),
+
+          AppSpacing.verticalSm,
+
           // ---- アカウントセクション ----
           _buildMenuSection(
             context,
@@ -507,16 +527,6 @@ class _ProfileTab extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const DriveLogScreen()),
-                ),
-              ),
-              _MenuItemData(
-                icon: Icons.storefront_outlined,
-                label: 'みんなのアクセサリー',
-                color: AppColors.secondary,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const AccessoryShowcaseScreen()),
                 ),
               ),
               _MenuItemData(

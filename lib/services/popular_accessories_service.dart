@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/accessory_showcase.dart';
+import '../models/showcase_comment.dart';
 
 /// Aggregates community accessory showcase posts to surface trending car
 /// accessories (dash cams, seat covers, etc.) per category.
@@ -117,6 +118,102 @@ class PopularAccessoriesService {
         ..sort((a, b) => b.showcaseCount.compareTo(a.showcaseCount));
 
       return Result.success(sorted.take(limit).toList());
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
+  CollectionReference<Map<String, dynamic>> _commentsRef(String showcaseId) =>
+      _firestore.collection(_collection).doc(showcaseId).collection('comments');
+
+  /// Adds a comment to the showcase [showcaseId].
+  ///
+  /// Comments let users discuss a shared part/accessory. This is the lightweight
+  /// replacement for the frozen C2C parts marketplace — share + comment only.
+  Future<Result<ShowcaseComment, AppError>> addComment({
+    required String showcaseId,
+    required String userId,
+    required String content,
+    String? userDisplayName,
+    String? userPhotoUrl,
+  }) async {
+    if (showcaseId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('showcaseId must not be empty'));
+    }
+    if (userId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('userId must not be empty'));
+    }
+    if (content.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('content must not be empty'));
+    }
+
+    try {
+      final comment = ShowcaseComment(
+        id: '',
+        showcaseId: showcaseId,
+        userId: userId,
+        userDisplayName: userDisplayName,
+        userPhotoUrl: userPhotoUrl,
+        content: content.trim(),
+        createdAt: DateTime.now(),
+      );
+      final doc = await _commentsRef(showcaseId).add(comment.toMap());
+      return Result.success(comment.copyWith(id: doc.id));
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
+  /// Returns comments for [showcaseId], oldest first (conversation order).
+  Future<Result<List<ShowcaseComment>, AppError>> getComments(
+      String showcaseId) async {
+    if (showcaseId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('showcaseId must not be empty'));
+    }
+    try {
+      final snap = await _commentsRef(showcaseId)
+          .orderBy('createdAt', descending: false)
+          .get();
+      final list = snap.docs.map(ShowcaseComment.fromFirestore).toList();
+      return Result.success(list);
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
+  /// Deletes a comment. Only the comment author may delete it.
+  Future<Result<void, AppError>> deleteComment({
+    required String showcaseId,
+    required String commentId,
+    required String userId,
+  }) async {
+    if (showcaseId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('showcaseId must not be empty'));
+    }
+    if (commentId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('commentId must not be empty'));
+    }
+
+    try {
+      final ref = _commentsRef(showcaseId).doc(commentId);
+      final snap = await ref.get();
+      if (!snap.exists) {
+        return const Result.failure(
+            AppError.notFound('comment not found', resourceType: 'コメント'));
+      }
+      final ownerId = snap.data()?['userId'] as String? ?? '';
+      if (ownerId != userId) {
+        return const Result.failure(
+            AppError.permission('only the author can delete this comment'));
+      }
+      await ref.delete();
+      return const Result.success(null);
     } catch (e) {
       return Result.failure(AppError.unknown(e.toString(), originalError: e));
     }
