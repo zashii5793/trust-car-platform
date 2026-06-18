@@ -6,8 +6,13 @@ void main() {
   group('LicensePlateDetectionService.findPlateRegions', () {
     const service = LicensePlateDetectionService();
 
-    RecognizedTextLine line(String text,
-            {int left = 100, int top = 200, int width = 120, int height = 40}) =>
+    RecognizedTextLine line(
+      String text, {
+      int left = 100,
+      int top = 200,
+      int width = 120,
+      int height = 40,
+    }) =>
         RecognizedTextLine(
           text: text,
           left: left,
@@ -45,8 +50,9 @@ void main() {
     });
 
     test('検出領域は元のボックスより大きい（マージンが付く）', () {
-      final regions = service
-          .findPlateRegions([line('12-34', left: 100, top: 200, width: 120, height: 40)]);
+      final regions = service.findPlateRegions([
+        line('12-34', left: 100, top: 200, width: 120, height: 40),
+      ]);
       expect(regions, hasLength(1));
       final r = regions.first;
       // Margin expands width/height and shifts the origin towards 0.
@@ -71,9 +77,7 @@ void main() {
       });
 
       test('住所のような長い行はプレート断片を含んでも除外する', () {
-        final regions = service.findPlateRegions([
-          line('東京都品川区北品川5丁目300番地'),
-        ]);
+        final regions = service.findPlateRegions([line('東京都品川区北品川5丁目300番地')]);
         expect(regions, isEmpty);
       });
 
@@ -86,16 +90,14 @@ void main() {
       });
 
       test('空文字・空白のみの行は無視する', () {
-        final regions = service.findPlateRegions([
-          line(''),
-          line('   '),
-        ]);
+        final regions = service.findPlateRegions([line(''), line('   ')]);
         expect(regions, isEmpty);
       });
 
       test('マージンを付けても left/top は負にならない', () {
-        final regions = service
-            .findPlateRegions([line('12-34', left: 1, top: 1, width: 120, height: 40)]);
+        final regions = service.findPlateRegions([
+          line('12-34', left: 1, top: 1, width: 120, height: 40),
+        ]);
         expect(regions, hasLength(1));
         expect(regions.first.left, greaterThanOrEqualTo(0));
         expect(regions.first.top, greaterThanOrEqualTo(0));

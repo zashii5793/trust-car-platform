@@ -51,22 +51,22 @@ class LicensePlateDetectionService {
       for (final block in recognized.blocks) {
         for (final line in block.lines) {
           final box = line.boundingBox;
-          lines.add(RecognizedTextLine(
-            text: line.text,
-            left: box.left.round(),
-            top: box.top.round(),
-            width: box.width.round(),
-            height: box.height.round(),
-          ));
+          lines.add(
+            RecognizedTextLine(
+              text: line.text,
+              left: box.left.round(),
+              top: box.top.round(),
+              width: box.width.round(),
+              height: box.height.round(),
+            ),
+          );
         }
       }
 
       return Result.success(findPlateRegions(lines));
     } catch (e) {
       // Fixed message — exception details could echo recognised plate text.
-      return Result.failure(
-        const AppError.unknown('ナンバープレートの検出中にエラーが発生しました。'),
-      );
+      return Result.failure(const AppError.unknown('ナンバープレートの検出中にエラーが発生しました。'));
     } finally {
       await recognizer.close();
     }
@@ -76,8 +76,7 @@ class LicensePlateDetectionService {
   /// <一連指定番号>" (e.g. "品川 300 あ 12-34"), often split across OCR lines.
   static final List<RegExp> _platePatterns = [
     // Whole plate on one line.
-    RegExp(
-        r'[一-龥ぁ-んァ-ヶ]{2,4}\s*\d{3}\s*[あ-んア-ン]\s*\d{1,4}([-−]\d{1,4})?'),
+    RegExp(r'[一-龥ぁ-んァ-ヶ]{2,4}\s*\d{3}\s*[あ-んア-ン]\s*\d{1,4}([-−]\d{1,4})?'),
     // Region name + classification number (optionally trailing kana),
     // e.g. "品川 300" or "品川 300 あ". Short-line guard prevents addresses.
     RegExp(r'[一-龥]{2,4}\s*\d{2,3}'),
@@ -95,10 +94,11 @@ class LicensePlateDetectionService {
     for (final line in lines) {
       if (line.width <= 0 || line.height <= 0) continue;
 
-      // Plates are short. Skip long lines (addresses, descriptions) to avoid
-      // masking unrelated text.
+      // Plates are short — a whole plate ("品川 300 あ 12-34") compacts to at
+      // most ~13 chars, whereas address lines run longer. Skip long lines to
+      // avoid masking unrelated text.
       final compact = line.text.replaceAll(RegExp(r'\s'), '');
-      if (compact.isEmpty || compact.length > 10) continue;
+      if (compact.isEmpty || compact.length > 14) continue;
 
       final isPlate = _platePatterns.any((p) => p.hasMatch(line.text.trim()));
       if (!isPlate) continue;
