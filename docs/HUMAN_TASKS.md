@@ -16,6 +16,8 @@
   （読み取り=認証済み、作成/削除=投稿者本人のみ、更新=不可）。
   **未デプロイだと showcase コメントの投稿が全て弾かれる**。
 本番反映しないと全ユーザーの書き込みがルールで弾かれる。また、`safety_tips`コレクションの複合インデックス（`isActive + publishedAt`, `isActive + category + publishedAt`）も追加済み。
+- 事業性評価セッション（2026-06-19）: `inquiries` の複合インデックス `shopId + createdAt`（ASC）を追加済み。
+  **未デプロイだと工場ダッシュボードの月次レポート（ROI可視化 #39）と月次件数チェックがクエリエラーになる**。
 
 **手順**:
 ```bash
@@ -339,6 +341,34 @@ node scripts/seed_shops.js              # 本番登録
 
 ---
 
+### 17. Google Maps Platform APIキーの発行・設定（#41 近隣検索の地図表示の前提）
+
+**なぜ必要**: 近隣検索のGoogleMap連動（提携/非提携の網羅表示, Issue #41 / 評価書 §7.7）には Maps SDK のAPIキーとネイティブ設定が必須。コード実装の前提となる人手タスク。
+
+**手順**:
+1. Google Cloud Console → 該当プロジェクト → APIとサービス → 認証情報 → APIキー発行
+2. 有効化するAPI（フェーズ別・コスト最適化のため最小限から）:
+   - **フェーズ1a**: Maps SDK for Android / Maps SDK for iOS（地図表示＝Dynamic Maps）
+   - **フェーズ1b（任意）**: Places API（非提携先の近隣検索。**従量課金が高いため要判断**）
+3. APIキー制限（必須・漏洩対策）:
+   - Android: パッケージ名＋SHA-1 で制限
+   - iOS: Bundle ID で制限
+   - 各キーで「使用するAPIのみ」に制限
+4. アプリへの設定（ハードコード禁止）:
+   - Android: `--dart-define=MAPS_API_KEY=...` ＋ `AndroidManifest.xml` の `manifestPlaceholders` 経由
+   - iOS: `AppDelegate` で注入
+5. Google Cloud で **予算アラート**を設定（無料枠超過の早期検知）
+
+**コスト目安（2026年時点・要最新確認）**:
+- 地図表示（Dynamic Maps, Essentials）: 月10,000ロードまで無料、超過後 約$7/1,000
+- Places 近隣検索（Pro）: 無料枠5,000/月、超過後 高単価（約$25〜/1,000）
+- → **フェーズ1a（地図＋提携ピンのみ）は無料枠内に収まりやすい。Places（1b）は1商圏限定＋キャッシュでコスト管理**
+
+**所要時間**: 1〜2時間  
+**前提条件**: Google Cloud プロジェクトのオーナー権限・課金有効化
+
+---
+
 ## チェックリスト（ローンチ前の確認）
 
 - [ ] P0-1: Firestore ルールデプロイ
@@ -352,6 +382,8 @@ node scripts/seed_shops.js              # 本番登録
 - [ ] P1-9: Firestore バックアップ設定
 - [ ] P1-10: SafetyTip 初期シードデータ登録（`node scripts/seed_safety_tips.js`）
 - [ ] P1-11: コミュニティトレンド初期シードデータ登録（`node scripts/seed_community_trends.js`）
+- [ ] P0-1（再掲）: `inquiries: shopId + createdAt` 複合インデックスのデプロイ（#39 月次レポートの前提）
+- [ ] P2-17: Google Maps Platform APIキー発行・設定（#41 近隣検索の地図表示の前提）
 
 ---
 

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../models/shop.dart';
+import '../../models/inquiry.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_card.dart';
@@ -45,6 +46,7 @@ class _ShopOwnerScreenState extends State<ShopOwnerScreen> {
       if (!mounted) return;
       if (provider.myShop != null) {
         provider.startWatchingInquiries(provider.myShop!.id);
+        await provider.loadMonthlyReport(provider.myShop!.id);
       }
     });
   }
@@ -292,6 +294,8 @@ class _RegisteredBody extends StatelessWidget {
           // Performance summary card
           _PerformanceSummaryCard(shop: shop, provider: provider),
           AppSpacing.verticalMd,
+          // Monthly inquiry report (ROI visibility)
+          _MonthlyReportCard(provider: provider),
           // Inquiry count badge (tappable → ShopInquiryListScreen)
           _InquiryCountBadge(provider: provider, shopId: shop.id),
           AppSpacing.verticalMd,
@@ -565,6 +569,91 @@ class _PerformanceSummaryCard extends StatelessWidget {
 
   String _formatDate(DateTime dt) =>
       '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+}
+
+/// Monthly inquiry report card (ROI visibility) for the shop owner.
+///
+/// Surfaces "how many inquiries this month, how it compares to last month, and
+/// what is still waiting on you" so the shop can see the value they pay for.
+/// Renders nothing until the report has loaded.
+class _MonthlyReportCard extends StatelessWidget {
+  final ShopProvider provider;
+
+  const _MonthlyReportCard({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final report = provider.monthlyReport;
+    if (report == null) {
+      return const SizedBox.shrink();
+    }
+
+    final pending = report.countFor(InquiryStatus.pending);
+    final replied = report.countFor(InquiryStatus.replied);
+    final change = report.momChange;
+
+    String changeLabel;
+    Color? changeColor;
+    if (change > 0) {
+      changeLabel = '前月比 +$change 件';
+      changeColor = AppColors.success;
+    } else if (change < 0) {
+      changeLabel = '前月比 $change 件';
+      changeColor = AppColors.error;
+    } else {
+      changeLabel = '前月と同じ';
+      changeColor = theme.colorScheme.onSurfaceVariant;
+    }
+
+    return Column(
+      children: [
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '今月の問い合わせ',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              AppSpacing.verticalSm,
+              Row(
+                children: [
+                  _StatItem(
+                    icon: Icons.mark_email_unread_outlined,
+                    label: '今月',
+                    value: '${report.total} 件',
+                    valueColor: report.total > 0 ? AppColors.info : null,
+                  ),
+                  _StatDivider(),
+                  _StatItem(
+                    icon: Icons.hourglass_empty_outlined,
+                    label: '未対応',
+                    value: '$pending 件',
+                    valueColor: pending > 0 ? AppColors.warning : null,
+                  ),
+                  _StatDivider(),
+                  _StatItem(
+                    icon: Icons.done_all_outlined,
+                    label: '回答済み',
+                    value: '$replied 件',
+                  ),
+                ],
+              ),
+              AppSpacing.verticalXs,
+              Text(
+                changeLabel,
+                style: theme.textTheme.bodySmall?.copyWith(color: changeColor),
+              ),
+            ],
+          ),
+        ),
+        AppSpacing.verticalMd,
+      ],
+    );
+  }
 }
 
 class _StatItem extends StatelessWidget {
