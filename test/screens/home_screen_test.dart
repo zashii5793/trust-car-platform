@@ -1049,4 +1049,91 @@ void main() {
       expect(rail.extended, isTrue);
     });
   });
+
+  // =========================================================================
+  // 広幅ダッシュボード（幅≥840 で 2カラムに拡大）
+  // =========================================================================
+  group('HomeScreen — 広幅ダッシュボード', () {
+    testWidgets('広幅でもダッシュボードサマリーが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1100, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([_makeVehicle('v1'), _makeVehicle('v2')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.text('ダッシュボード'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('広幅でも車検日未設定プロンプトカードが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1100, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final vp = _FakeVehicleProvider();
+      // _makeVehicle has no inspection date
+      vp.setVehicles([_makeVehicle('v1')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('inspection_setup_card')), findsOneWidget);
+    });
+
+    testWidgets('広幅でも車検アラートチップが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1100, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([
+        Vehicle(
+          id: 'v-insp',
+          userId: 'u1',
+          maker: 'Toyota',
+          model: 'Prius',
+          year: 2021,
+          grade: 'S',
+          mileage: 30000,
+          inspectionExpiryDate:
+              DateTime.now().add(const Duration(days: 10, hours: 1)),
+          createdAt: DateTime(2024, 1, 1),
+          updatedAt: DateTime(2024, 1, 1),
+        ),
+      ]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('dashboard_inspection_chip_warning')),
+          findsOneWidget);
+    });
+
+    testWidgets('広幅・5台以上でフリートプランバナーが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1100, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles(List.generate(5, (i) => _makeVehicle('v$i')));
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('fleet_plan_banner')), findsOneWidget);
+    });
+
+    testWidgets('広幅で車両カードがオーバーフローせず表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1100, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles(List.generate(6, (i) => _makeVehicle('v$i')));
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+    });
+  });
 }
