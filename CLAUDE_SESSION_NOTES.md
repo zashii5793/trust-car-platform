@@ -1,6 +1,37 @@
 # Claude Session Notes
 
-最終更新: 2026-06-18
+最終更新: 2026-06-19
+
+---
+
+## 意思決定ログ（2026-06-19）: 事業性評価の追補と集客モデルの合意・実装着手
+
+ブランチ `claude/charming-brahmagupta-h6bm98` / 評価書 PR #38。
+
+**背景**: オーナーから事業面で4点の提起（業態拡張／GoogleMap風の網羅表示／提携フリーミアム／価格妥当性・初年度キャンペーン）。`docs/BUSINESS_VIABILITY_ASSESSMENT.md` に §7 として追補。
+
+**合意した設計（Agree レベル / GoogleMap連動表示, 評価書 §7.7）**:
+- データ調達: **ハイブリッド**（地図=Google Maps SDK／提携=自前Firestore／非提携=Places API近隣を都度・初期1商圏限定）
+- 見せ方: 地図ピン色分け（提携=ブランド色＋審査済バッジ／非提携=グレー）＋一覧で提携を上位固定
+- 非提携の権限: 閲覧＋地図/電話リンクのみ（質問・予約・実績は提携特典→需要蓄積→プル型営業）
+
+**起票した Issue**:
+- #39 ROI可視化（問い合わせ数の月次通知）= 最優先
+- #40 ShopType にガソリンスタンド追加（業態拡張）
+- #41 GoogleMap連動の網羅表示＋提携フリーミアム（プル型集客エンジン）
+- #42 初期パートナー向けキャンペーン価格＋据え置き特権
+
+**順序の鉄則**: D(#39 ROI可視化) → B/C(#41 集客) → E(#42 キャンペーン)。ROIを見せる前に集客・値引きを先行させない。
+
+**実装（本セッション / #39 のService層）**:
+- `ShopReportService.getMonthlyReport(shopId, {asOf})` を新設（`Result<ShopMonthlyReport, AppError>`）。
+  当月総数・前月総数・前月比（momChange）・当月のstatus内訳を返す最小ROIロジック。
+- `ShopMonthlyReport` モデル新設、`injection.dart` に登録。
+- `firestore.indexes.json` に `inquiries: shopId ASC + createdAt ASC` の複合インデックスを追加
+  （既存 `getMonthlyInquiryCount` の潜在的不足も同時に解消）。
+- テスト `test/services/shop_report_service_test.dart`（totals/status内訳/月・年境界/Edge Cases）。
+- ⚠️ 残作業: 店舗ダッシュボードへのUI配線（Provider→画面）。インデックスは本番 `firebase deploy` が別途必要（要人手）。
+- ⚠️ ローカルに Flutter SDK が無く `flutter test`/`analyze` 未実行。検証は CI（subosito/flutter-action, 3.38.0）に委譲。
 
 ---
 

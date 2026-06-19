@@ -177,6 +177,15 @@
         { "fieldPath": "updatedAt", "order": "DESCENDING" }
       ]
     },
+    // 店舗の月次集計（受信件数・月次レポート / createdAt 範囲）
+    {
+      "collectionGroup": "inquiries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
     // ユーザー未読カウント
     {
       "collectionGroup": "inquiries",
