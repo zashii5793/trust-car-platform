@@ -433,3 +433,34 @@ firebase deploy --only firestore:indexes
 | Firebase サポート | Firebase基盤障害 → console.firebase.google.com/support |
 | Google Play サポート | ストア審査問題 → support.google.com/googleplay/android-developer |
 | App Store サポート | 審査問題 → developer.apple.com/contact |
+
+---
+
+## 11. Firebase プラグイン依存アップグレード方針（iOSビルド回帰の再発防止）
+
+### 背景（2026-06 に発生した回帰）
+`flutter pub add firebase_remote_config` を実行した際、`firebase_core` が
+`4.9.0 → 4.11.0` に自動で巻き上げられた。FlutterFire は全 `firebase_*` プラグインが
+**共有の Firebase iOS SDK バージョン**（`firebase_core` の `firebase_sdk_version.rb`）を
+参照するため、`firebase_core` の更新で iOS の CocoaPods SDK が変わり、
+`cloud_firestore 6.4.1` のネイティブコード（`FLTPipelineParser.m` の Pipeline API）が
+非互換になって **`build-ios` が失敗**した（Dartレベルの `cloud_firestore` 版数は不変）。
+
+### 現在の対策
+- `pubspec.yaml` で **`firebase_core: 4.9.0`（完全固定）**。これにより共有 Firebase iOS SDK が
+  固定され、`cloud_firestore` 等のネイティブ整合が保たれる。
+- `firebase_remote_config 6.5.1` はこの `firebase_core` に整合するバージョンを採用。
+
+### アップグレード手順（`firebase_*` を上げるとき）
+1. `firebase_*` パッケージは**まとめて同一 BoM 世代に揃える**（個別に1つだけ上げない）。
+2. ローカルで `flutter pub get` → `flutter analyze` → `flutter test --exclude-tags emulator`。
+3. **必ず PR を作成し、CI の `build-ios` と `build-android` が緑であることを確認**してからマージ。
+   - iOS ネイティブの非互換（Firestore Pipeline API 等）は **ユニットテストでは検出できない**。
+     CI のネイティブビルドジョブが唯一のゲート。
+4. `firebase_core` を上げる場合は、`cloud_firestore` の iOS ネイティブ（`FLTPipelineParser.m`）と
+   Firebase iOS SDK の整合を特に注視する。
+
+### ガード（CI）
+- `analyze-and-test` 配下の `build-ios` / `build-android` が `firebase_*` 変更の回帰を検出する。
+- Firestore/Storage のルール変更は `Storage & Firestore Rules Tests` ジョブで検証される
+  （`test/rules/`）。
