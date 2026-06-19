@@ -198,6 +198,25 @@ class MockInquiryService implements InquiryService {
   @override
   Stream<List<InquiryMessage>> streamMessages(String inquiryId) =>
       Stream.empty();
+
+  @override
+  Future<Result<Inquiry, AppError>> markVisited(String inquiryId) async =>
+      Result.failure(AppError.server('not implemented'));
+
+  @override
+  Future<Result<Inquiry, AppError>> markConverted(
+    String inquiryId, {
+    int? dealAmount,
+  }) async =>
+      Result.failure(AppError.server('not implemented'));
+
+  @override
+  Future<Result<ShopConversionStats, AppError>> getShopConversionStats(
+    String shopId, {
+    DateTime? from,
+    DateTime? to,
+  }) async =>
+      const Result.success(ShopConversionStats());
 }
 
 // ---------------------------------------------------------------------------
