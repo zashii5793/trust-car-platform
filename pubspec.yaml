@@ -11,7 +11,7 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.2
   flutter_dotenv: ^5.1.0
-  firebase_core: ^4.4.0
+  firebase_core: 4.9.0
   firebase_auth: ^6.1.4
   cloud_firestore: ^6.1.2
   firebase_storage: ^13.0.6
@@ -47,6 +47,7 @@ dependencies:
   firebase_analytics: ^12.4.1
   # AI Chat: Anthropic API
   http: ^1.2.0
+  firebase_remote_config: ^6.5.1
 
 dev_dependencies:
   flutter_test:

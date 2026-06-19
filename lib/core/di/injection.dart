@@ -52,6 +52,7 @@ import '../../services/vehicle_retirement_service.dart';
 import '../../services/fleet_member_service.dart';
 import '../../services/shop_comparison_service.dart';
 import '../../services/feature_flag_service.dart';
+import '../../services/firebase_remote_flag_source.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -236,13 +237,13 @@ class Injection {
         () => const ShopComparisonService());
 
     // Feature Flag Service (applies remote flag overrides onto AppConfig).
-    // Default source is a no-op; swap in a Remote Config-backed source to
-    // remotely toggle flags like c2cPartsMarketplace without an app release.
-    locator
-        .registerLazySingleton<FeatureFlagService>(() => FeatureFlagService());
+    // Backed by Firebase Remote Config so flags like c2cPartsMarketplace can be
+    // toggled remotely without an app release.
+    locator.registerLazySingleton<FeatureFlagService>(
+        () => FeatureFlagService(source: FirebaseRemoteFlagSource()));
 
     // Apply any remote flag overrides before the app reads flags.
-    // No-op by default (NoopRemoteFlagSource) and fail-safe on error.
+    // Fail-safe: if Remote Config is unavailable, local defaults are kept.
     await locator.get<FeatureFlagService>().sync();
 
     _initialized = true;

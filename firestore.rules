@@ -603,8 +603,10 @@ service cloud.firestore {
         allow delete: if isAuthenticated() &&
           resource.data.userId == request.auth.uid;
 
-        // Comments are immutable once posted (no edit in MVP scope).
-        allow update: if false;
+        // Only the author may edit their own comment; ownership is immutable.
+        allow update: if isAuthenticated() &&
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId;
       }
     }
 
