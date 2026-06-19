@@ -66,9 +66,8 @@ class ShopReportService {
           previousTotal++;
         } else {
           total++;
-          final raw = data['status'];
-          final status =
-              InquiryStatus.fromString(raw) ?? InquiryStatus.pending;
+          final parsed = InquiryStatus.fromString(data['status']);
+          final status = parsed ?? InquiryStatus.pending;
           byStatus[status] = (byStatus[status] ?? 0) + 1;
         }
       }
