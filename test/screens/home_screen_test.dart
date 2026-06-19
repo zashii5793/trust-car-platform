@@ -955,4 +955,98 @@ void main() {
       );
     });
   });
+
+  // =========================================================================
+  // レスポンシブナビゲーション（幅≥840 で NavigationRail に切り替わる）
+  // =========================================================================
+  group('HomeScreen — レスポンシブナビゲーション', () {
+    testWidgets('幅840未満ではボトム NavigationBar を使う（Rail は出ない）',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(NavigationRail), findsNothing);
+    });
+
+    testWidgets('幅840以上では NavigationRail を使う（ボトムバーは出ない）',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      expect(find.byType(NavigationRail), findsOneWidget);
+      expect(find.byType(NavigationBar), findsNothing);
+    });
+
+    testWidgets('Rail のタブをタップするとタイトルが切り替わる', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(NavigationRail),
+          matching: find.byIcon(Icons.store_outlined),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('マーケットプレイス'),
+        ),
+        findsWidgets,
+      );
+    });
+
+    testWidgets('Rail レイアウトでも未読バッジが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final np = _FakeNotificationProvider();
+      np.setNotifications([_makeNotif(isRead: false)]);
+
+      await tester.pumpWidget(_buildApp(notificationProvider: np));
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byType(NavigationRail),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Rail レイアウトでも車両タブで FAB が表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+    });
+
+    testWidgets('デスクトップ幅（≥1200）では extended Rail（ラベル併記）になる',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1300, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+      expect(rail.extended, isTrue);
+    });
+  });
 }
