@@ -62,6 +62,7 @@ enum ShopType {
   usedCarDealer('中古車販売店', 'Used Car Dealer'),
   carWash('洗車・コーティング', 'Car Wash & Coating'),
   bodyShop('板金・塗装', 'Body Shop'),
+  gasStation('ガソリンスタンド', 'Gas Station'),
   other('その他', 'Other');
 
   final String displayName;
