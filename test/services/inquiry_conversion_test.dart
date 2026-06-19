@@ -217,8 +217,7 @@ void main() {
         expect(result.errorOrNull, isA<ValidationError>());
       });
 
-      test('getShopConversionStats: 問い合わせ0件 → 全カウント0・rate 0（0除算なし）',
-          () async {
+      test('getShopConversionStats: 問い合わせ0件 → 全カウント0・rate 0（0除算なし）', () async {
         final result = await makeService().getShopConversionStats('empty-shop');
         expect(result.isSuccess, isTrue);
         final stats = result.valueOrNull!;

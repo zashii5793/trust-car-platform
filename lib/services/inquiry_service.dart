@@ -526,12 +526,10 @@ class ShopConversionStats {
   });
 
   /// Share of inquiries the shop replied to (0.0–1.0).
-  double get replyRate =>
-      inquiryCount == 0 ? 0 : repliedCount / inquiryCount;
+  double get replyRate => inquiryCount == 0 ? 0 : repliedCount / inquiryCount;
 
   /// Share of inquiries that turned into a real visit (0.0–1.0).
-  double get visitRate =>
-      inquiryCount == 0 ? 0 : visitedCount / inquiryCount;
+  double get visitRate => inquiryCount == 0 ? 0 : visitedCount / inquiryCount;
 
   /// Share of inquiries that closed into a deal (0.0–1.0).
   double get conversionRate =>
