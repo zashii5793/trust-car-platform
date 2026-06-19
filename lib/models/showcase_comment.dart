@@ -13,6 +13,8 @@ class ShowcaseComment {
   final String? userPhotoUrl;
   final String content;
   final DateTime createdAt;
+  final bool isEdited;
+  final DateTime? updatedAt;
 
   const ShowcaseComment({
     required this.id,
@@ -22,6 +24,8 @@ class ShowcaseComment {
     this.userPhotoUrl,
     required this.content,
     required this.createdAt,
+    this.isEdited = false,
+    this.updatedAt,
   });
 
   factory ShowcaseComment.fromFirestore(DocumentSnapshot doc) {
@@ -34,6 +38,8 @@ class ShowcaseComment {
       userPhotoUrl: data['userPhotoUrl'],
       content: data['content'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isEdited: data['isEdited'] ?? false,
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -45,18 +51,23 @@ class ShowcaseComment {
       'userPhotoUrl': userPhotoUrl,
       'content': content,
       'createdAt': Timestamp.fromDate(createdAt),
+      'isEdited': isEdited,
+      if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
     };
   }
 
-  ShowcaseComment copyWith({String? id}) {
+  ShowcaseComment copyWith(
+      {String? id, String? content, bool? isEdited, DateTime? updatedAt}) {
     return ShowcaseComment(
       id: id ?? this.id,
       showcaseId: showcaseId,
       userId: userId,
       userDisplayName: userDisplayName,
       userPhotoUrl: userPhotoUrl,
-      content: content,
+      content: content ?? this.content,
       createdAt: createdAt,
+      isEdited: isEdited ?? this.isEdited,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 

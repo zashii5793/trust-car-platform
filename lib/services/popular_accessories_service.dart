@@ -219,6 +219,52 @@ class PopularAccessoriesService {
     }
   }
 
+  /// Updates a comment's content. Only the comment author may edit it.
+  ///
+  /// Marks the comment as edited and records [DateTime.now] as `updatedAt`.
+  Future<Result<ShowcaseComment, AppError>> updateComment({
+    required String showcaseId,
+    required String commentId,
+    required String userId,
+    required String content,
+  }) async {
+    if (showcaseId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('showcaseId must not be empty'));
+    }
+    if (commentId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('commentId must not be empty'));
+    }
+    if (content.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('content must not be empty'));
+    }
+
+    try {
+      final ref = _commentsRef(showcaseId).doc(commentId);
+      final snap = await ref.get();
+      if (!snap.exists) {
+        return const Result.failure(
+            AppError.notFound('comment not found', resourceType: 'コメント'));
+      }
+      final ownerId = snap.data()?['userId'] as String? ?? '';
+      if (ownerId != userId) {
+        return const Result.failure(
+            AppError.permission('only the author can edit this comment'));
+      }
+      await ref.update({
+        'content': content.trim(),
+        'isEdited': true,
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+      final updated = ShowcaseComment.fromFirestore(await ref.get());
+      return Result.success(updated);
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
   List<AccessoryTrend> _aggregate(List<AccessoryShowcase> showcases) {
     // Key: "itemName||brand||category"
     final counts = <String, int>{};

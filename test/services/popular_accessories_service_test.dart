@@ -488,5 +488,91 @@ void main() {
         });
       });
     });
+
+    // -------------------------------------------------------------------------
+    // updateComment
+    // -------------------------------------------------------------------------
+    group('updateComment', () {
+      Future<String> seedComment({
+        String showcaseId = 'sc-1',
+        String userId = 'owner',
+        String content = '元のコメント',
+      }) async {
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc(showcaseId)
+            .collection('comments')
+            .add({
+          'showcaseId': showcaseId,
+          'userId': userId,
+          'content': content,
+          'createdAt': Timestamp.fromDate(now),
+        });
+        return ref.id;
+      }
+
+      test('正常系: 投稿者本人はコメントを編集でき、編集済みになる', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final commentId = await seedComment(userId: 'owner');
+
+        final result = await service.updateComment(
+          showcaseId: 'sc-1',
+          commentId: commentId,
+          userId: 'owner',
+          content: '編集後のコメント',
+        );
+
+        expect(result.isSuccess, isTrue);
+        final updated = result.valueOrNull!;
+        expect(updated.content, '編集後のコメント');
+        expect(updated.isEdited, isTrue);
+        expect(updated.updatedAt, isNotNull);
+      });
+
+      group('Edge Cases', () {
+        test('他ユーザーのコメント編集は権限エラー', () async {
+          await seedShowcase(showcase(id: 'sc-1'));
+          final commentId = await seedComment(userId: 'owner');
+
+          final result = await service.updateComment(
+            showcaseId: 'sc-1',
+            commentId: commentId,
+            userId: 'attacker',
+            content: '改ざん',
+          );
+
+          expect(result.isFailure, isTrue);
+          final stored = await firestore
+              .collection('accessory_showcases')
+              .doc('sc-1')
+              .collection('comments')
+              .doc(commentId)
+              .get();
+          expect(stored.data()!['content'], '元のコメント');
+        });
+
+        test('空のcontentはバリデーションエラー', () async {
+          await seedShowcase(showcase(id: 'sc-1'));
+          final commentId = await seedComment(userId: 'owner');
+          final result = await service.updateComment(
+            showcaseId: 'sc-1',
+            commentId: commentId,
+            userId: 'owner',
+            content: '   ',
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('存在しないコメントIDはエラー', () async {
+          final result = await service.updateComment(
+            showcaseId: 'sc-1',
+            commentId: 'missing',
+            userId: 'owner',
+            content: '更新',
+          );
+          expect(result.isFailure, isTrue);
+        });
+      });
+    });
   });
 }

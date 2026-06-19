@@ -129,4 +129,31 @@ void main() {
 
     expect(find.byKey(const Key('delete_comment_theirs')), findsNothing);
   });
+
+  testWidgets('自分のコメントには編集ボタンが表示され、他人のには出ない', (tester) async {
+    await seedComment('mine', 'viewer', '自分のコメント');
+    await seedComment('theirs', 'other', '他人のコメント');
+    await tester.pumpWidget(buildUnderTest(currentUserId: 'viewer'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('edit_comment_mine')), findsOneWidget);
+    expect(find.byKey(const Key('edit_comment_theirs')), findsNothing);
+  });
+
+  testWidgets('コメントを編集すると内容が更新され編集済み表示になる', (tester) async {
+    await seedComment('mine', 'viewer', '編集前');
+    await tester.pumpWidget(buildUnderTest(currentUserId: 'viewer'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('edit_comment_mine')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('edit_comment_field')), '編集後');
+    await tester.tap(find.byKey(const Key('edit_comment_save')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('編集後'), findsOneWidget);
+    expect(find.text('編集前'), findsNothing);
+    expect(find.text('（編集済み）'), findsOneWidget);
+  });
 }

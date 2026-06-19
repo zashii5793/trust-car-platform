@@ -112,6 +112,36 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
     );
   }
 
+  Future<void> _editComment(ShowcaseComment comment) async {
+    final newContent = await showDialog<String>(
+      context: context,
+      builder: (_) => _EditCommentDialog(initial: comment.content),
+    );
+
+    if (newContent == null ||
+        newContent.isEmpty ||
+        newContent == comment.content) {
+      return;
+    }
+
+    final result = await widget.service.updateComment(
+      showcaseId: widget.showcase.id,
+      commentId: comment.id,
+      userId: widget.currentUserId,
+      content: newContent,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (updated) => setState(() {
+        final i = _comments.indexWhere((c) => c.id == comment.id);
+        if (i != -1) _comments[i] = updated;
+      }),
+      failure: (e) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final showcase = widget.showcase;
@@ -170,8 +200,9 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
                   ..._comments.map(
                     (c) => _CommentTile(
                       comment: c,
-                      canDelete: c.userId == widget.currentUserId,
+                      isOwner: c.userId == widget.currentUserId,
                       onDelete: () => _deleteComment(c),
+                      onEdit: () => _editComment(c),
                     ),
                   ),
               ],
@@ -237,13 +268,15 @@ class _ShowcaseHeader extends StatelessWidget {
 
 class _CommentTile extends StatelessWidget {
   final ShowcaseComment comment;
-  final bool canDelete;
+  final bool isOwner;
   final VoidCallback onDelete;
+  final VoidCallback onEdit;
 
   const _CommentTile({
     required this.comment,
-    required this.canDelete,
+    required this.isOwner,
     required this.onDelete,
+    required this.onEdit,
   });
 
   @override
@@ -273,16 +306,31 @@ class _CommentTile extends StatelessWidget {
                   ),
                 ),
                 Text(comment.content, style: theme.textTheme.bodyMedium),
+                if (comment.isEdited)
+                  Text(
+                    '（編集済み）',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textTertiary,
+                      fontSize: 11,
+                    ),
+                  ),
               ],
             ),
           ),
-          if (canDelete)
+          if (isOwner) ...[
+            IconButton(
+              key: Key('edit_comment_${comment.id}'),
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              color: AppColors.textTertiary,
+              onPressed: onEdit,
+            ),
             IconButton(
               key: Key('delete_comment_${comment.id}'),
               icon: const Icon(Icons.delete_outline, size: 18),
               color: AppColors.textTertiary,
               onPressed: onDelete,
             ),
+          ],
         ],
       ),
     );
@@ -342,6 +390,59 @@ class _CommentInputBar extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Edit dialog that owns its [TextEditingController] so it is disposed only
+/// after the dialog is fully removed (avoids use-after-dispose during the
+/// dismiss animation).
+class _EditCommentDialog extends StatefulWidget {
+  final String initial;
+  const _EditCommentDialog({required this.initial});
+
+  @override
+  State<_EditCommentDialog> createState() => _EditCommentDialogState();
+}
+
+class _EditCommentDialogState extends State<_EditCommentDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initial);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('コメントを編集'),
+      content: TextField(
+        key: const Key('edit_comment_field'),
+        controller: _controller,
+        autofocus: true,
+        minLines: 1,
+        maxLines: 4,
+        decoration: const InputDecoration(hintText: 'コメントを編集…'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          key: const Key('edit_comment_save'),
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
+          child: const Text('保存'),
+        ),
+      ],
     );
   }
 }
