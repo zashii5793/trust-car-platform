@@ -960,8 +960,7 @@ void main() {
   // レスポンシブナビゲーション（幅≥840 で NavigationRail に切り替わる）
   // =========================================================================
   group('HomeScreen — レスポンシブナビゲーション', () {
-    testWidgets('幅840未満ではボトム NavigationBar を使う（Rail は出ない）',
-        (tester) async {
+    testWidgets('幅840未満ではボトム NavigationBar を使う（Rail は出ない）', (tester) async {
       await tester.binding.setSurfaceSize(const Size(800, 1000));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -972,8 +971,7 @@ void main() {
       expect(find.byType(NavigationRail), findsNothing);
     });
 
-    testWidgets('幅840以上では NavigationRail を使う（ボトムバーは出ない）',
-        (tester) async {
+    testWidgets('幅840以上では NavigationRail を使う（ボトムバーは出ない）', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1000, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -1037,8 +1035,7 @@ void main() {
       expect(find.byType(FloatingActionButton), findsOneWidget);
     });
 
-    testWidgets('デスクトップ幅（≥1200）では extended Rail（ラベル併記）になる',
-        (tester) async {
+    testWidgets('デスクトップ幅（≥1200）では extended Rail（ラベル併記）になる', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1300, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 

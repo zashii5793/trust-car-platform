@@ -321,60 +321,60 @@ class _HomeScreenState extends State<HomeScreen> {
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: IntrinsicHeight(
                 child: NavigationRail(
-                selectedIndex: _currentIndex,
-                extended: extended,
-                labelType: extended ? null : NavigationRailLabelType.all,
-                onDestinationSelected: (index) {
-                  setState(() => _currentIndex = index);
-                },
-                destinations: [
-                  const NavigationRailDestination(
-                    icon: Icon(Icons.directions_car_outlined),
-                    selectedIcon: Icon(Icons.directions_car),
-                    label: Text('マイカー'),
-                  ),
-                  const NavigationRailDestination(
-                    icon: Icon(Icons.store_outlined),
-                    selectedIcon: Icon(Icons.store),
-                    label: Text('マーケット'),
-                  ),
-                  const NavigationRailDestination(
-                    icon: Icon(Icons.forum_outlined),
-                    selectedIcon: Icon(Icons.forum),
-                    label: Text('みんなの投稿'),
-                  ),
-                  NavigationRailDestination(
-                    icon: Semantics(
-                      label: unread > 0
-                          ? '通知 未読${unread > 99 ? '99件以上' : '$unread件'}'
-                          : '通知',
-                      child: Badge(
+                  selectedIndex: _currentIndex,
+                  extended: extended,
+                  labelType: extended ? null : NavigationRailLabelType.all,
+                  onDestinationSelected: (index) {
+                    setState(() => _currentIndex = index);
+                  },
+                  destinations: [
+                    const NavigationRailDestination(
+                      icon: Icon(Icons.directions_car_outlined),
+                      selectedIcon: Icon(Icons.directions_car),
+                      label: Text('マイカー'),
+                    ),
+                    const NavigationRailDestination(
+                      icon: Icon(Icons.store_outlined),
+                      selectedIcon: Icon(Icons.store),
+                      label: Text('マーケット'),
+                    ),
+                    const NavigationRailDestination(
+                      icon: Icon(Icons.forum_outlined),
+                      selectedIcon: Icon(Icons.forum),
+                      label: Text('みんなの投稿'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Semantics(
+                        label: unread > 0
+                            ? '通知 未読${unread > 99 ? '99件以上' : '$unread件'}'
+                            : '通知',
+                        child: Badge(
+                          isLabelVisible: unread > 0,
+                          label: Text(
+                            unread > 99 ? '99+' : '$unread',
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                          child: const ExcludeSemantics(
+                            child: Icon(Icons.notifications_outlined),
+                          ),
+                        ),
+                      ),
+                      selectedIcon: Badge(
                         isLabelVisible: unread > 0,
                         label: Text(
                           unread > 99 ? '99+' : '$unread',
                           style: const TextStyle(fontSize: 10),
                         ),
-                        child: const ExcludeSemantics(
-                          child: Icon(Icons.notifications_outlined),
-                        ),
+                        child: const Icon(Icons.notifications),
                       ),
+                      label: const Text('通知'),
                     ),
-                    selectedIcon: Badge(
-                      isLabelVisible: unread > 0,
-                      label: Text(
-                        unread > 99 ? '99+' : '$unread',
-                        style: const TextStyle(fontSize: 10),
-                      ),
-                      child: const Icon(Icons.notifications),
+                    const NavigationRailDestination(
+                      icon: Icon(Icons.person_outline),
+                      selectedIcon: Icon(Icons.person),
+                      label: Text('プロフィール'),
                     ),
-                    label: const Text('通知'),
-                  ),
-                  const NavigationRailDestination(
-                    icon: Icon(Icons.person_outline),
-                    selectedIcon: Icon(Icons.person),
-                    label: Text('プロフィール'),
-                  ),
-                ],
+                  ],
                 ),
               ),
             ),
