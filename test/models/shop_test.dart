@@ -40,6 +40,62 @@ void main() {
       expect(ServiceCategory.maintenance.displayName, '整備・点検');
       expect(ServiceCategory.coating.displayName, 'コーティング');
     });
+
+    group('fromMaintenanceKeyword', () {
+      test('maps tire-related keyword to tire', () {
+        expect(ServiceCategory.fromMaintenanceKeyword('タイヤローテーション'),
+            ServiceCategory.tire);
+        expect(ServiceCategory.fromMaintenanceKeyword('タイヤ交換'),
+            ServiceCategory.tire);
+      });
+
+      test('maps statutory inspection keywords to inspection', () {
+        expect(ServiceCategory.fromMaintenanceKeyword('車検'),
+            ServiceCategory.inspection);
+        expect(ServiceCategory.fromMaintenanceKeyword('12ヶ月点検'),
+            ServiceCategory.inspection);
+        expect(ServiceCategory.fromMaintenanceKeyword('24ヶ月点検'),
+            ServiceCategory.inspection);
+      });
+
+      test('maps generic 交換/点検 keywords to maintenance', () {
+        expect(ServiceCategory.fromMaintenanceKeyword('エンジンオイル交換'),
+            ServiceCategory.maintenance);
+        expect(ServiceCategory.fromMaintenanceKeyword('オイルフィルター交換'),
+            ServiceCategory.maintenance);
+        expect(ServiceCategory.fromMaintenanceKeyword('ブレーキパッド点検'),
+            ServiceCategory.maintenance);
+        expect(ServiceCategory.fromMaintenanceKeyword('バッテリー点検'),
+            ServiceCategory.maintenance);
+      });
+
+      test('maps bodywork and coating keywords', () {
+        expect(ServiceCategory.fromMaintenanceKeyword('板金・塗装'),
+            ServiceCategory.bodyWork);
+        expect(ServiceCategory.fromMaintenanceKeyword('ボディコーティング'),
+            ServiceCategory.coating);
+      });
+
+      group('Edge Cases', () {
+        test('returns null for null', () {
+          expect(ServiceCategory.fromMaintenanceKeyword(null), isNull);
+        });
+
+        test('returns null for empty or whitespace-only string', () {
+          expect(ServiceCategory.fromMaintenanceKeyword(''), isNull);
+          expect(ServiceCategory.fromMaintenanceKeyword('   '), isNull);
+        });
+
+        test('returns null for unrelated keyword', () {
+          expect(ServiceCategory.fromMaintenanceKeyword('天気'), isNull);
+        });
+
+        test('trims surrounding whitespace before matching', () {
+          expect(ServiceCategory.fromMaintenanceKeyword('  タイヤローテーション  '),
+              ServiceCategory.tire);
+        });
+      });
+    });
   });
 
   group('BusinessHours', () {

@@ -61,6 +61,7 @@ final List<Map<String, dynamic>> shopSeeds = [
       'maintenance',  // 整備・点検
       'repair',       // 修理
       'bodyWork',     // 板金・塗装
+      'tire',         // タイヤ交換・ローテーション
       'purchase',     // 車両購入（新車・中古車販売）
       'rental',       // レンタカー
       'insurance',    // 保険

@@ -95,11 +95,18 @@ class _ShopListScreenState extends State<ShopListScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<ShopProvider>();
-      provider.loadShops();
+      // From an AI suggestion: resolve the maintenance keyword to a service
+      // category and filter by capability (Shop.services) instead of a shop
+      // name search, which never matches a maintenance keyword. Unknown
+      // keywords fall through to an unfiltered list rather than 0 results.
       if (widget.maintenanceContext != null) {
-        _searchController.text = widget.maintenanceContext!;
-        provider.searchShops(widget.maintenanceContext!);
+        final category =
+            ServiceCategory.fromMaintenanceKeyword(widget.maintenanceContext);
+        if (category != null) {
+          provider.selectService(category);
+        }
       }
+      provider.loadShops();
     });
   }
 

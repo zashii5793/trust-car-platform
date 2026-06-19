@@ -413,10 +413,25 @@ QA/PM/UX分析を踏まえた自律実装。各タスク単位でコミット。
 
 ---
 
+## マーケットプレイス検索の不一致修正（2026-06-19）
+
+AI提案カード →「近くの整備工場を探す」が常に0件になる不具合を修正。
+
+- 原因: `maintenanceContext`（例「タイヤローテーション」）を `searchShops()` の
+  工場名プレフィックス検索に流していた。ルール名は工場名に出現せず必ず0件。
+  加えてサービス区分 `ServiceCategory.tire`=「タイヤ交換」とも文字列不一致。
+- 修正: `ServiceCategory.fromMaintenanceKeyword()` を追加し、AIキーワードを
+  サービスカテゴリに変換 → `Shop.services` で絞り込み（`shop_list_screen.dart`）。
+  「タイヤローテーション」→ `tire`。未知キーワードは全件表示にフォールバック。
+- シード: `scripts/seed_shops.dart` のタカヤモーターに `tire` を追加。
+- 注意: **本番Firestoreの工場ドキュメントに `tire` が無いと検索結果に出ない**。
+  実店舗がタイヤ対応するなら `services` に `tire` を追記（再シードまたはConsole）。
+
 ## 未解決・人間が対応すべき事項
 
 | 優先度 | タスク |
 |---|---|
+| P1 | 本番工場ドキュメントの `services` に `tire` を追加（タイヤ対応する場合） |
 | P1 | PR #20 をレビュー・マージ |
 | P1 | `google-services.json` を Firebase Console からダウンロード → `android/app/` に配置 |
 | P1 | `GoogleService-Info.plist` を Firebase Console からダウンロード → `ios/Runner/` に配置 |
