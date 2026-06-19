@@ -230,6 +230,33 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     // (maker/model/year) are queried — OCR personal data never leaves
     // the device except as fields of the user's own vehicle document.
     await _suggestSpecsFromCommunity();
+
+    // One-tap path: the user chose "このまま登録" and OCR captured the required
+    // fields. Register immediately so they reach the 車検 reminder with no extra
+    // taps. Falls back to the manual form if maker/model could not be matched
+    // against the catalog.
+    if (data.quickRegister) {
+      await _attemptQuickRegister();
+    }
+  }
+
+  /// Register directly from OCR data, skipping the manual wizard.
+  ///
+  /// Mileage is not on the certificate, so it defaults to 0 (the user is told it
+  /// can be updated later) and grade is left unset — neither is required for the
+  /// 車検 reminder, which is the onboarding wedge.
+  Future<void> _attemptQuickRegister() async {
+    if (_selectedMaker == null || _selectedModel == null) {
+      // Catalog match failed — let the user finish in the form.
+      if (mounted) {
+        showErrorSnackBar(context, '車種を確認して登録してください');
+      }
+      return;
+    }
+    if (_mileageController.text.trim().isEmpty) {
+      _mileageController.text = '0';
+    }
+    await _registerVehicle(quick: true);
   }
 
   /// After OCR matches maker/model/year, look up community spec data and
@@ -385,13 +412,15 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   // 登録処理（ロジック変更なし、フォームバリデーションを手動チェックに変更）
   // ---------------------------------------------------------------------------
 
-  Future<void> _registerVehicle() async {
-    // ステップ1は既に検証済みだが念のため確認
-    if (_selectedMaker == null ||
+  Future<void> _registerVehicle({bool quick = false}) async {
+    // ステップ1は既に検証済みだが念のため確認。
+    // quick（OCRワンタップ登録）では grade / 走行距離 は任意（車検リマインダーには不要）。
+    final missingCore = _selectedMaker == null ||
         _selectedModel == null ||
-        _selectedGrade == null ||
-        _yearController.text.isEmpty ||
-        _mileageController.text.isEmpty) {
+        _yearController.text.isEmpty;
+    final missingDetail =
+        _selectedGrade == null || _mileageController.text.isEmpty;
+    if (missingCore || (!quick && missingDetail)) {
       showErrorSnackBar(context, '基本情報が不足しています。最初のステップに戻って確認してください');
       return;
     }
