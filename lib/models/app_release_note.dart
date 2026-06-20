@@ -4,6 +4,7 @@
 /// `release_notes_service.dart`) so the screen is never empty and requires no
 /// backend, matching the natural 1:1 relationship between an app version and
 /// its changelog.
+library;
 
 /// Type of a single release-note highlight, used for the colored badge.
 enum ReleaseHighlightType {

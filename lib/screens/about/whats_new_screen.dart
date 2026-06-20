@@ -41,7 +41,9 @@ class _WhatsNewScreenState extends State<WhatsNewScreen> {
         _notes = notes;
         _error = null;
       },
-      failure: (e) => _error = e.userMessage,
+      failure: (e) {
+        _error = e.userMessage;
+      },
     );
   }
 
