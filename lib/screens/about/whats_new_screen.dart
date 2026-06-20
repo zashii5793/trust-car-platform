@@ -124,8 +124,7 @@ class _ReleaseNoteSection extends StatelessWidget {
             const SizedBox(width: AppSpacing.xs),
             if (isLatest)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: AppColors.primary,
                   borderRadius: BorderRadius.circular(AppSpacing.radiusXs),
@@ -185,8 +184,7 @@ class _ReleaseNoteSection extends StatelessWidget {
     );
   }
 
-  static String _formatDate(DateTime d) =>
-      '${d.year}年${d.month}月${d.day}日';
+  static String _formatDate(DateTime d) => '${d.year}年${d.month}月${d.day}日';
 }
 
 // ── ハイライトカード ────────────────────────────────────────────────────────
