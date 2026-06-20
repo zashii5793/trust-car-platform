@@ -26,6 +26,7 @@ import '../../services/follow_service.dart';
 import '../../services/vehicle_listing_service.dart';
 import '../../services/drive_log_service.dart';
 import '../../services/part_listing_service.dart';
+import '../../services/shop_report_service.dart';
 import '../../services/shop_subscription_service.dart';
 import '../../services/revenue_cat_service.dart';
 import '../../services/analytics_service.dart';
@@ -134,6 +135,7 @@ class Injection {
       () => InquiryService(
           subscriptionService: locator.get<ShopSubscriptionService>()),
     );
+    locator.registerLazySingleton<ShopReportService>(() => ShopReportService());
     locator.registerLazySingleton<RevenueCatService>(() => RevenueCatService());
 
     // SNS/Community Services

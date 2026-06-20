@@ -31,6 +31,7 @@ import 'services/post_service.dart';
 import 'services/drive_log_service.dart';
 import 'services/shop_service.dart';
 import 'services/inquiry_service.dart';
+import 'services/shop_report_service.dart';
 import 'services/shop_subscription_service.dart';
 import 'providers/subscription_provider.dart';
 import 'providers/user_subscription_provider.dart';
@@ -157,6 +158,7 @@ class MyApp extends StatelessWidget {
                   shopService: sl.get<ShopService>(),
                   inquiryService: sl.get<InquiryService>(),
                   analyticsService: sl.get<AnalyticsService>(),
+                  reportService: sl.get<ShopReportService>(),
                 )),
         ChangeNotifierProvider(
             create: (_) => SubscriptionProvider(

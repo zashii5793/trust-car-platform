@@ -7,6 +7,7 @@ void main() {
       expect(ShopType.fromString('maintenanceShop'), ShopType.maintenanceShop);
       expect(ShopType.fromString('dealer'), ShopType.dealer);
       expect(ShopType.fromString('partsShop'), ShopType.partsShop);
+      expect(ShopType.fromString('gasStation'), ShopType.gasStation);
     });
 
     test('fromString returns null for invalid value', () {
@@ -18,6 +19,7 @@ void main() {
       expect(ShopType.maintenanceShop.displayName, '整備工場');
       expect(ShopType.dealer.displayName, 'ディーラー');
       expect(ShopType.partsShop.displayName, 'パーツショップ');
+      expect(ShopType.gasStation.displayName, 'ガソリンスタンド');
     });
   });
 
