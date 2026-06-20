@@ -31,6 +31,7 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
   final _inputController = TextEditingController();
 
   List<ShowcaseComment> _comments = [];
+  Set<String> _likedIds = {};
   bool _isLoading = true;
   bool _isSending = false;
   String? _errorMessage;
@@ -54,15 +55,96 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
     });
     final result = await widget.service.getComments(widget.showcase.id);
     if (!mounted) return;
-    result.when(
-      success: (list) => setState(() {
-        _comments = list;
-        _isLoading = false;
-      }),
-      failure: (e) => setState(() {
+    await result.when(
+      success: (list) async {
+        // Load which of these comments the current user has liked.
+        var liked = <String>{};
+        if (widget.currentUserId.isNotEmpty && list.isNotEmpty) {
+          final likedResult = await widget.service.getMyLikedCommentIds(
+            showcaseId: widget.showcase.id,
+            commentIds: list.map((c) => c.id).toList(),
+            userId: widget.currentUserId,
+          );
+          liked = likedResult.valueOrNull ?? <String>{};
+        }
+        if (!mounted) return;
+        setState(() {
+          _comments = list;
+          _likedIds = liked;
+          _isLoading = false;
+        });
+      },
+      failure: (e) async => setState(() {
         _errorMessage = e.message;
         _isLoading = false;
       }),
+    );
+  }
+
+  Future<void> _toggleLike(ShowcaseComment comment) async {
+    if (widget.currentUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('いいねするにはログインが必要です')),
+      );
+      return;
+    }
+
+    final wasLiked = _likedIds.contains(comment.id);
+    final index = _comments.indexWhere((c) => c.id == comment.id);
+    if (index == -1) return;
+
+    // Optimistic update.
+    setState(() {
+      if (wasLiked) {
+        _likedIds.remove(comment.id);
+        _comments[index] = comment.copyWith(
+          likeCount: comment.likeCount > 0 ? comment.likeCount - 1 : 0,
+        );
+      } else {
+        _likedIds.add(comment.id);
+        _comments[index] = comment.copyWith(likeCount: comment.likeCount + 1);
+      }
+    });
+
+    final result = wasLiked
+        ? await widget.service.unlikeComment(
+            showcaseId: widget.showcase.id,
+            commentId: comment.id,
+            userId: widget.currentUserId,
+          )
+        : await widget.service.likeComment(
+            showcaseId: widget.showcase.id,
+            commentId: comment.id,
+            userId: widget.currentUserId,
+          );
+    if (!mounted) return;
+
+    result.when(
+      success: (_) {},
+      failure: (e) {
+        // Revert optimistic update on failure.
+        setState(() {
+          final i = _comments.indexWhere((c) => c.id == comment.id);
+          if (wasLiked) {
+            _likedIds.add(comment.id);
+            if (i != -1) {
+              _comments[i] =
+                  _comments[i].copyWith(likeCount: _comments[i].likeCount + 1);
+            }
+          } else {
+            _likedIds.remove(comment.id);
+            if (i != -1) {
+              _comments[i] = _comments[i].copyWith(
+                likeCount:
+                    _comments[i].likeCount > 0 ? _comments[i].likeCount - 1 : 0,
+              );
+            }
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
+        );
+      },
     );
   }
 
@@ -201,8 +283,10 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
                     (c) => _CommentTile(
                       comment: c,
                       isOwner: c.userId == widget.currentUserId,
+                      isLiked: _likedIds.contains(c.id),
                       onDelete: () => _deleteComment(c),
                       onEdit: () => _editComment(c),
+                      onToggleLike: () => _toggleLike(c),
                     ),
                   ),
               ],
@@ -269,14 +353,18 @@ class _ShowcaseHeader extends StatelessWidget {
 class _CommentTile extends StatelessWidget {
   final ShowcaseComment comment;
   final bool isOwner;
+  final bool isLiked;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
+  final VoidCallback onToggleLike;
 
   const _CommentTile({
     required this.comment,
     required this.isOwner,
+    required this.isLiked,
     required this.onDelete,
     required this.onEdit,
+    required this.onToggleLike,
   });
 
   @override
@@ -315,6 +403,37 @@ class _CommentTile extends StatelessWidget {
                     ),
                   ),
               ],
+            ),
+          ),
+          // Like button + count
+          InkWell(
+            key: Key('like_comment_${comment.id}'),
+            onTap: onToggleLike,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xs,
+                vertical: 4,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isLiked ? Icons.favorite : Icons.favorite_border,
+                    size: 18,
+                    color: isLiked ? AppColors.error : AppColors.textTertiary,
+                  ),
+                  if (comment.likeCount > 0) ...[
+                    const SizedBox(width: 2),
+                    Text(
+                      '${comment.likeCount}',
+                      key: Key('like_count_${comment.id}'),
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: AppColors.textTertiary),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
           if (isOwner) ...[

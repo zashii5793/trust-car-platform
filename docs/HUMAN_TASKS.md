@@ -13,11 +13,24 @@
 - 前セッション: `fleet_members`, `accessory_showcases`, `car_purchase_inquiries`, `safety_tips`, `shop_chains`
 - 今セッション: `community_maintenance_trends`（読み取り=認証済み、書き込み=AdminSDKのみ）
 - C2C凍結セッション（2026-06-18）: `accessory_showcases/{id}/comments` サブコレクション
-  （読み取り=認証済み、作成/削除=投稿者本人のみ、更新=不可）。
-  **未デプロイだと showcase コメントの投稿が全て弾かれる**。
+  （読み取り=認証済み、作成/削除=投稿者本人のみ、編集=投稿者本人のみ、
+  いいね=`likeCount` ±1 のみ誰でも可、`comments/{id}/likes/{uid}` は本人のみ作成/削除）。
+  **未デプロイだと showcase コメントの投稿・いいねが全て弾かれる**。
 本番反映しないと全ユーザーの書き込みがルールで弾かれる。また、`safety_tips`コレクションの複合インデックス（`isActive + publishedAt`, `isActive + category + publishedAt`）も追加済み。
 - 事業性評価セッション（2026-06-19）: `inquiries` の複合インデックス `shopId + createdAt`（ASC）を追加済み。
   **未デプロイだと工場ダッシュボードの月次レポート（ROI可視化 #39）と月次件数チェックがクエリエラーになる**。
+
+> ✅ **デプロイ前検証**: `cd test/rules && npm install && npm test` で Firestore/Storage の
+> ルールを Emulator 検証できる（CI の "Storage & Firestore Rules Tests" でも自動実行）。
+> デプロイ前にローカルで一度流すと安全。
+
+#### デプロイ手順チェックリスト（ルール）
+- [ ] `firebase login`（プロジェクトオーナー権限）
+- [ ] `git pull`（最新の `firestore.rules` / `firestore.indexes.json` を取得）
+- [ ] **ドライラン**: `firebase deploy --only firestore:rules --dry-run`（差分とコンパイル確認）
+- [ ] `cd test/rules && npm test`（Emulator でルールテストが緑か）
+- [ ] 本番反映: `firebase deploy --only firestore:rules,firestore:indexes`
+- [ ] Firebase Console → Firestore → ルール → バージョン履歴で反映時刻を確認
 
 **手順**:
 ```bash

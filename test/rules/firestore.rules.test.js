@@ -75,9 +75,12 @@ async function seedComment({ userId = OWNER_UID, content = '元のコメント' 
       userId,
       content,
       isEdited: false,
+      likeCount: 0,
     });
   });
 }
+
+const likePath = (uid) => `${commentPath}/likes/${uid}`;
 
 describe('accessory_showcases/{id}/comments — read', () => {
   test('認証済みユーザーはコメントを閲覧できる', async () => {
@@ -161,5 +164,98 @@ describe('accessory_showcases/{id}/comments — update', () => {
     await assertFails(
       updateDoc(doc(dbFor(OWNER_UID), commentPath), { userId: OTHER_UID }),
     );
+  });
+});
+
+describe('accessory_showcases/{id}/comments — likeCount update（いいね）', () => {
+  test('誰でも likeCount を +1 できる（いいね）', async () => {
+    await seedComment({ userId: OWNER_UID });
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OTHER_UID), commentPath), { likeCount: 1 }),
+    );
+  });
+
+  test('likeCount を -1 できる（いいね解除）', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), commentPath), {
+        showcaseId: SHOWCASE_ID,
+        userId: OWNER_UID,
+        content: 'x',
+        isEdited: false,
+        likeCount: 1,
+      });
+    });
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OTHER_UID), commentPath), { likeCount: 0 }),
+    );
+  });
+
+  test('±1 を超える likeCount 変更は拒否される', async () => {
+    await seedComment({ userId: OWNER_UID });
+    await assertFails(
+      updateDoc(doc(dbFor(OTHER_UID), commentPath), { likeCount: 5 }),
+    );
+  });
+
+  test('非投稿者が likeCount と一緒に content も変更すると拒否される', async () => {
+    await seedComment({ userId: OWNER_UID });
+    await assertFails(
+      updateDoc(doc(dbFor(OTHER_UID), commentPath), {
+        likeCount: 1,
+        content: '改ざん',
+      }),
+    );
+  });
+});
+
+describe('accessory_showcases/{id}/comments/{id}/likes — like マーカー', () => {
+  test('本人は自分の like マーカーを作成できる', async () => {
+    await seedComment();
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER_UID), likePath(OWNER_UID)), {
+        userId: OWNER_UID,
+        showcaseId: SHOWCASE_ID,
+      }),
+    );
+  });
+
+  test('他人の uid の like マーカー作成は拒否される', async () => {
+    await seedComment();
+    await assertFails(
+      setDoc(doc(dbFor(OTHER_UID), likePath(OWNER_UID)), {
+        userId: OWNER_UID,
+        showcaseId: SHOWCASE_ID,
+      }),
+    );
+  });
+
+  test('userId フィールドの詐称は拒否される', async () => {
+    await seedComment();
+    await assertFails(
+      setDoc(doc(dbFor(OWNER_UID), likePath(OWNER_UID)), {
+        userId: OTHER_UID,
+        showcaseId: SHOWCASE_ID,
+      }),
+    );
+  });
+
+  test('本人は自分の like マーカーを削除できる', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), likePath(OWNER_UID)), {
+        userId: OWNER_UID,
+        showcaseId: SHOWCASE_ID,
+      });
+    });
+    await assertSucceeds(deleteDoc(doc(dbFor(OWNER_UID), likePath(OWNER_UID))));
+  });
+
+  test('他ユーザーは他人の like マーカーを削除できない', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), likePath(OWNER_UID)), {
+        userId: OWNER_UID,
+        showcaseId: SHOWCASE_ID,
+      });
+    });
+    await assertFails(deleteDoc(doc(dbFor(OTHER_UID), likePath(OWNER_UID))));
   });
 });
