@@ -574,5 +574,140 @@ void main() {
         });
       });
     });
+
+    // -------------------------------------------------------------------------
+    // likeComment / unlikeComment / getMyLikedCommentIds
+    // -------------------------------------------------------------------------
+    group('likes', () {
+      Future<String> seedComment({String userId = 'author'}) async {
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .add({
+          'showcaseId': 'sc-1',
+          'userId': userId,
+          'content': 'コメント',
+          'createdAt': Timestamp.fromDate(now),
+          'likeCount': 0,
+        });
+        return ref.id;
+      }
+
+      Future<int> likeCountOf(String commentId) async {
+        final snap = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(commentId)
+            .get();
+        return (snap.data()!['likeCount'] as int?) ?? 0;
+      }
+
+      test('正常系: いいねで likeCount が増え like ドキュメントが作られる', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final commentId = await seedComment();
+
+        final result = await service.likeComment(
+          showcaseId: 'sc-1',
+          commentId: commentId,
+          userId: 'user-2',
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(await likeCountOf(commentId), 1);
+        final like = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(commentId)
+            .collection('likes')
+            .doc('user-2')
+            .get();
+        expect(like.exists, isTrue);
+      });
+
+      test('正常系: 同一ユーザーの二重いいねは冪等（likeCountは1のまま）', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final commentId = await seedComment();
+
+        await service.likeComment(
+            showcaseId: 'sc-1', commentId: commentId, userId: 'user-2');
+        await service.likeComment(
+            showcaseId: 'sc-1', commentId: commentId, userId: 'user-2');
+
+        expect(await likeCountOf(commentId), 1);
+      });
+
+      test('正常系: いいね解除で likeCount が減り like ドキュメントが消える', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final commentId = await seedComment();
+        await service.likeComment(
+            showcaseId: 'sc-1', commentId: commentId, userId: 'user-2');
+
+        final result = await service.unlikeComment(
+            showcaseId: 'sc-1', commentId: commentId, userId: 'user-2');
+
+        expect(result.isSuccess, isTrue);
+        expect(await likeCountOf(commentId), 0);
+        final like = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(commentId)
+            .collection('likes')
+            .doc('user-2')
+            .get();
+        expect(like.exists, isFalse);
+      });
+
+      test('正常系: getMyLikedCommentIds が自分のいいね済みIDのみ返す', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final c1 = await seedComment();
+        final c2 = await seedComment();
+        await service.likeComment(
+            showcaseId: 'sc-1', commentId: c1, userId: 'user-2');
+
+        final result = await service.getMyLikedCommentIds(
+          showcaseId: 'sc-1',
+          commentIds: [c1, c2],
+          userId: 'user-2',
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull, {c1});
+      });
+
+      group('Edge Cases', () {
+        test('未いいね状態の解除は冪等（0のまま）', () async {
+          await seedShowcase(showcase(id: 'sc-1'));
+          final commentId = await seedComment();
+
+          final result = await service.unlikeComment(
+              showcaseId: 'sc-1', commentId: commentId, userId: 'user-2');
+
+          expect(result.isSuccess, isTrue);
+          expect(await likeCountOf(commentId), 0);
+        });
+
+        test('存在しないコメントへのいいねは notFound', () async {
+          final result = await service.likeComment(
+              showcaseId: 'sc-1', commentId: 'missing', userId: 'user-2');
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空のuserIdはバリデーションエラー', () async {
+          final result = await service.likeComment(
+              showcaseId: 'sc-1', commentId: 'c', userId: '');
+          expect(result.isFailure, isTrue);
+        });
+
+        test('getMyLikedCommentIds は空IDリストで空集合', () async {
+          final result = await service.getMyLikedCommentIds(
+              showcaseId: 'sc-1', commentIds: const [], userId: 'user-2');
+          expect(result.valueOrNull, isEmpty);
+        });
+      });
+    });
   });
 }

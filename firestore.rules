@@ -603,10 +603,31 @@ service cloud.firestore {
         allow delete: if isAuthenticated() &&
           resource.data.userId == request.auth.uid;
 
-        // Only the author may edit their own comment; ownership is immutable.
-        allow update: if isAuthenticated() &&
-          resource.data.userId == request.auth.uid &&
-          request.resource.data.userId == resource.data.userId;
+        // Two allowed updates:
+        //  1) Author edits their own comment (ownership immutable).
+        //  2) Anyone (un)likes: only `likeCount` may change, by exactly ±1.
+        //     The likes/{userId} marker enforces 1-like-per-user.
+        allow update: if isAuthenticated() && (
+          (resource.data.userId == request.auth.uid &&
+            request.resource.data.userId == resource.data.userId) ||
+          (request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['likeCount']) &&
+            (request.resource.data.likeCount == resource.data.likeCount + 1 ||
+             request.resource.data.likeCount == resource.data.likeCount - 1))
+        );
+
+        // accessory_showcases/{id}/comments/{commentId}/likes/{userId}
+        // One like marker per user. Users manage only their own marker.
+        match /likes/{likeUserId} {
+          allow read: if isAuthenticated();
+
+          allow create: if isAuthenticated() &&
+            likeUserId == request.auth.uid &&
+            request.resource.data.userId == request.auth.uid;
+
+          allow delete: if isAuthenticated() &&
+            likeUserId == request.auth.uid;
+        }
       }
     }
 

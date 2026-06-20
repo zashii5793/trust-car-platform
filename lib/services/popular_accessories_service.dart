@@ -265,6 +265,106 @@ class PopularAccessoriesService {
     }
   }
 
+  DocumentReference<Map<String, dynamic>> _likeRef(
+          String showcaseId, String commentId, String userId) =>
+      _commentsRef(showcaseId).doc(commentId).collection('likes').doc(userId);
+
+  /// Likes a comment for [userId]. Idempotent: liking again is a no-op.
+  ///
+  /// Maintains the denormalized `likeCount` on the comment and a
+  /// `likes/{userId}` marker doc (enforces 1 like per user) in one transaction.
+  Future<Result<void, AppError>> likeComment({
+    required String showcaseId,
+    required String commentId,
+    required String userId,
+  }) async {
+    if (showcaseId.trim().isEmpty ||
+        commentId.trim().isEmpty ||
+        userId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('showcaseId, commentId, userId are required'));
+    }
+    try {
+      final commentRef = _commentsRef(showcaseId).doc(commentId);
+      final likeRef = _likeRef(showcaseId, commentId, userId);
+      await _firestore.runTransaction((tx) async {
+        final commentSnap = await tx.get(commentRef);
+        if (!commentSnap.exists) {
+          throw _NotFound();
+        }
+        final likeSnap = await tx.get(likeRef);
+        if (likeSnap.exists) return; // already liked — no-op
+        final current = (commentSnap.data()?['likeCount'] as int?) ?? 0;
+        tx.set(likeRef, {
+          'userId': userId,
+          'showcaseId': showcaseId,
+          'createdAt': Timestamp.fromDate(DateTime.now()),
+        });
+        tx.update(commentRef, {'likeCount': current + 1});
+      });
+      return const Result.success(null);
+    } on _NotFound {
+      return const Result.failure(
+          AppError.notFound('comment not found', resourceType: 'コメント'));
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
+  /// Removes [userId]'s like from a comment. Idempotent: unliking when not
+  /// liked is a no-op. `likeCount` never goes below zero.
+  Future<Result<void, AppError>> unlikeComment({
+    required String showcaseId,
+    required String commentId,
+    required String userId,
+  }) async {
+    if (showcaseId.trim().isEmpty ||
+        commentId.trim().isEmpty ||
+        userId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('showcaseId, commentId, userId are required'));
+    }
+    try {
+      final commentRef = _commentsRef(showcaseId).doc(commentId);
+      final likeRef = _likeRef(showcaseId, commentId, userId);
+      await _firestore.runTransaction((tx) async {
+        final likeSnap = await tx.get(likeRef);
+        if (!likeSnap.exists) return; // not liked — no-op
+        final commentSnap = await tx.get(commentRef);
+        final current = (commentSnap.data()?['likeCount'] as int?) ?? 0;
+        tx.delete(likeRef);
+        tx.update(commentRef, {'likeCount': current > 0 ? current - 1 : 0});
+      });
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
+  /// Returns the subset of [commentIds] (within [showcaseId]) that [userId] has
+  /// liked, so the UI can render each comment's like state in one pass.
+  Future<Result<Set<String>, AppError>> getMyLikedCommentIds({
+    required String showcaseId,
+    required List<String> commentIds,
+    required String userId,
+  }) async {
+    if (userId.trim().isEmpty || commentIds.isEmpty) {
+      return const Result.success(<String>{});
+    }
+    try {
+      final snaps = await Future.wait(
+        commentIds.map((cid) => _likeRef(showcaseId, cid, userId).get()),
+      );
+      final liked = <String>{};
+      for (var i = 0; i < commentIds.length; i++) {
+        if (snaps[i].exists) liked.add(commentIds[i]);
+      }
+      return Result.success(liked);
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
   List<AccessoryTrend> _aggregate(List<AccessoryShowcase> showcases) {
     // Key: "itemName||brand||category"
     final counts = <String, int>{};
@@ -304,3 +404,7 @@ class PopularAccessoriesService {
     }).toList();
   }
 }
+
+/// Internal sentinel used to surface "comment not found" out of a Firestore
+/// transaction as a typed [AppError.notFound].
+class _NotFound implements Exception {}

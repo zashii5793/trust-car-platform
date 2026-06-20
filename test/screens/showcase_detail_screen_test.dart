@@ -156,4 +156,58 @@ void main() {
     expect(find.text('編集前'), findsNothing);
     expect(find.text('（編集済み）'), findsOneWidget);
   });
+
+  testWidgets('いいねでハートが塗られ件数が増え、Firestoreに反映される', (tester) async {
+    await seedComment('c1', 'other', 'いいね対象');
+    await tester.pumpWidget(buildUnderTest(currentUserId: 'viewer'));
+    await tester.pumpAndSettle();
+
+    // 初期: 件数表示なし（0件）
+    expect(find.byKey(const Key('like_count_c1')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('like_comment_c1')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('like_count_c1')), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
+
+    final snap = await firestore
+        .collection('accessory_showcases')
+        .doc('sc-1')
+        .collection('comments')
+        .doc('c1')
+        .get();
+    expect(snap.data()!['likeCount'], 1);
+    final like = await firestore
+        .collection('accessory_showcases')
+        .doc('sc-1')
+        .collection('comments')
+        .doc('c1')
+        .collection('likes')
+        .doc('viewer')
+        .get();
+    expect(like.exists, isTrue);
+  });
+
+  testWidgets('いいね済みを再タップで解除される', (tester) async {
+    await seedComment('c1', 'other', 'いいね対象');
+    await tester.pumpWidget(buildUnderTest(currentUserId: 'viewer'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('like_comment_c1')));
+    await tester.pumpAndSettle();
+    expect(find.text('1'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('like_comment_c1')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('like_count_c1')), findsNothing);
+    final snap = await firestore
+        .collection('accessory_showcases')
+        .doc('sc-1')
+        .collection('comments')
+        .doc('c1')
+        .get();
+    expect(snap.data()!['likeCount'], 0);
+  });
 }
