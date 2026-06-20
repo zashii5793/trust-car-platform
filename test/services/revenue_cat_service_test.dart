@@ -12,6 +12,7 @@
 //   6. planTypeFromEntitlement — entitlement → ShopPlanType mapping
 //   7. Edge cases: empty userId, unknown entitlementId
 
+import 'package:flutter/foundation.dart' show TargetPlatform;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/models/shop.dart';
@@ -39,6 +40,60 @@ void main() {
 
     test('returns null for free plan', () {
       expect(RevenueCatService.productIdFor(ShopPlanType.free), isNull);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // apiKeyForPlatform (platform routing for --dart-define keys)
+  // ---------------------------------------------------------------------------
+  group('apiKeyForPlatform', () {
+    test('returns iOS key on iOS', () {
+      expect(
+        RevenueCatService.apiKeyForPlatform(
+          TargetPlatform.iOS,
+          iosKey: 'appl_ios',
+          androidKey: 'goog_android',
+        ),
+        'appl_ios',
+      );
+    });
+
+    test('returns Android key on Android', () {
+      expect(
+        RevenueCatService.apiKeyForPlatform(
+          TargetPlatform.android,
+          iosKey: 'appl_ios',
+          androidKey: 'goog_android',
+        ),
+        'goog_android',
+      );
+    });
+
+    test('non-iOS platforms fall back to the Android key', () {
+      for (final platform in [
+        TargetPlatform.macOS,
+        TargetPlatform.windows,
+        TargetPlatform.linux,
+        TargetPlatform.fuchsia,
+      ]) {
+        expect(
+          RevenueCatService.apiKeyForPlatform(
+            platform,
+            iosKey: 'appl_ios',
+            androidKey: 'goog_android',
+          ),
+          'goog_android',
+          reason: '$platform should use the Android key',
+        );
+      }
+    });
+
+    test('defaults to compile-time defines (empty when unset in tests)', () {
+      // No --dart-define is passed under `flutter test`, so both keys resolve
+      // to the empty string. This guarantees production fails fast rather than
+      // configuring RevenueCat with a placeholder.
+      expect(RevenueCatService.apiKeyForPlatform(TargetPlatform.iOS), '');
+      expect(RevenueCatService.apiKeyForPlatform(TargetPlatform.android), '');
     });
   });
 

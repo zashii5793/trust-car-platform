@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:purchases_flutter/purchases_flutter.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
@@ -43,7 +45,18 @@ typedef EntitlementExecutor = Future<List<String>> Function(String userId);
 /// `Purchases.*` are used automatically.
 /// Test usage: inject fake executors to control responses.
 class RevenueCatService {
-  static const String _apiKey = 'REVENUECAT_API_KEY_PLACEHOLDER';
+  // RevenueCat public API keys are injected at build time via --dart-define and
+  // are NEVER hard-coded (see CLAUDE.md security policy). Example:
+  //   flutter build ipa --release \
+  //     --dart-define=REVENUECAT_API_KEY_IOS=appl_xxx
+  //   flutter build appbundle --release \
+  //     --dart-define=REVENUECAT_API_KEY_ANDROID=goog_xxx
+  // When unset, the value is an empty string and initialization fails fast
+  // instead of configuring the SDK with an invalid key.
+  static const String _apiKeyIos =
+      String.fromEnvironment('REVENUECAT_API_KEY_IOS');
+  static const String _apiKeyAndroid =
+      String.fromEnvironment('REVENUECAT_API_KEY_ANDROID');
 
   // Entitlement IDs (must match RevenueCat dashboard configuration)
   static const _entitlementStandard = 'btob_standard';
@@ -82,6 +95,23 @@ class RevenueCatService {
       ShopPlanType.enterprise => _productEnterprise,
       ShopPlanType.free => null,
     };
+  }
+
+  /// Resolves the RevenueCat public API key for [platform].
+  ///
+  /// iOS uses the `REVENUECAT_API_KEY_IOS` define; every other platform uses
+  /// `REVENUECAT_API_KEY_ANDROID`. Returns an empty string when the relevant
+  /// `--dart-define` was not provided, allowing callers to fail fast instead of
+  /// configuring the SDK with a placeholder.
+  ///
+  /// [iosKey] / [androidKey] default to the compile-time defines and are
+  /// overridable purely so the routing logic can be unit-tested.
+  static String apiKeyForPlatform(
+    TargetPlatform platform, {
+    String iosKey = _apiKeyIos,
+    String androidKey = _apiKeyAndroid,
+  }) {
+    return platform == TargetPlatform.iOS ? iosKey : androidKey;
   }
 
   /// Returns the ShopPlanType corresponding to a RevenueCat entitlement ID.
@@ -192,7 +222,15 @@ class RevenueCatService {
   // ---------------------------------------------------------------------------
 
   static Future<void> _productionInitialize(String userId) async {
-    final config = PurchasesConfiguration(_apiKey)..appUserID = userId;
+    final apiKey = apiKeyForPlatform(defaultTargetPlatform);
+    if (apiKey.isEmpty) {
+      throw StateError(
+        'RevenueCat API key not configured. Provide it at build time via '
+        '--dart-define=REVENUECAT_API_KEY_IOS=... (iOS) or '
+        '--dart-define=REVENUECAT_API_KEY_ANDROID=... (Android).',
+      );
+    }
+    final config = PurchasesConfiguration(apiKey)..appUserID = userId;
     await Purchases.configure(config);
   }
 
