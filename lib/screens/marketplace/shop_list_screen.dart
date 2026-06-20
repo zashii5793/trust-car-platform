@@ -385,6 +385,7 @@ class _FilterRow extends StatelessWidget {
             displayName: (t) => t.displayName,
             options: ShopType.values,
             onSelected: provider.selectType,
+            iconFor: (t) => t.icon,
           ),
           const SizedBox(width: AppSpacing.xs),
           _FilterDropdownChip<ServiceCategory>(
@@ -428,12 +429,17 @@ class _FilterDropdownChip<T> extends StatelessWidget {
   final List<T> options;
   final void Function(T?) onSelected;
 
+  /// Optional per-option leading icon (e.g. ShopType icon). When null,
+  /// non-selected options keep the default empty leading space.
+  final IconData Function(T)? iconFor;
+
   const _FilterDropdownChip({
     required this.label,
     required this.selected,
     required this.displayName,
     required this.options,
     required this.onSelected,
+    this.iconFor,
   });
 
   @override
@@ -520,13 +526,23 @@ class _FilterDropdownChip<T> extends StatelessWidget {
                 shrinkWrap: true,
                 children: options.map((option) {
                   final isCurrent = option == selected;
+                  final getIcon = iconFor;
+                  Widget leading;
+                  if (isCurrent) {
+                    leading = Icon(
+                      Icons.check,
+                      color: Theme.of(ctx).colorScheme.primary,
+                    );
+                  } else if (getIcon != null) {
+                    leading = Icon(
+                      getIcon(option),
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                    );
+                  } else {
+                    leading = const SizedBox(width: 24);
+                  }
                   return ListTile(
-                    leading: isCurrent
-                        ? Icon(
-                            Icons.check,
-                            color: Theme.of(ctx).colorScheme.primary,
-                          )
-                        : const SizedBox(width: 24),
+                    leading: leading,
                     title: Text(displayName(option)),
                     onTap: () {
                       onSelected(option);
@@ -717,16 +733,30 @@ class _ShopCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     // 業種 + 都道府県 + 距離
-                    Text(
-                      [
-                        shop.type.displayName,
-                        if (shop.prefecture != null) shop.prefecture!,
-                        if (distanceKm != null)
-                          '現在地から${distanceKm!.toStringAsFixed(1)}km',
-                      ].join(' · '),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                      ),
+                    Row(
+                      children: [
+                        Icon(
+                          shop.type.icon,
+                          size: 12,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            [
+                              shop.type.displayName,
+                              if (shop.prefecture != null) shop.prefecture!,
+                              if (distanceKm != null)
+                                '現在地から${distanceKm!.toStringAsFixed(1)}km',
+                            ].join(' · '),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                     // サービス
                     if (shop.services.isNotEmpty) ...[

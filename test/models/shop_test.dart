@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/models/shop.dart';
 
@@ -20,6 +21,12 @@ void main() {
       expect(ShopType.dealer.displayName, 'ディーラー');
       expect(ShopType.partsShop.displayName, 'パーツショップ');
       expect(ShopType.gasStation.displayName, 'ガソリンスタンド');
+    });
+
+    test('each type exposes a business-specific icon', () {
+      expect(ShopType.gasStation.icon, Icons.local_gas_station_outlined);
+      expect(ShopType.maintenanceShop.icon, Icons.build_outlined);
+      expect(ShopType.carWash.icon, Icons.local_car_wash_outlined);
     });
   });
 
