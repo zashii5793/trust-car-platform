@@ -179,15 +179,14 @@ storeFile=/絶対パス/trustcar-release.keystore
 
 ---
 
-### フェーズ G: 課金（RevenueCat）— ⚠️ コード対応が1つ必要
+### フェーズ G: 課金（RevenueCat）
 
-現状コードでは `lib/services/revenue_cat_service.dart` の API キーが
-`'REVENUECAT_API_KEY_PLACEHOLDER'` という **ハードコードのプレースホルダ** になっており、
-このままでは課金が動きません。ハードコードはセキュリティ方針違反のため、
-**`--dart-define` 経由で注入する方式へAIに改修依頼** してください（下記）。
+`lib/services/revenue_cat_service.dart` は **ハードコードを廃止済み**で、API キーは
+ビルド時に `--dart-define` で注入します（未設定なら本番初期化が明示エラーで fail-fast）。
+あなたは RevenueCat Dashboard の Public API Key を、ビルド時に渡すだけです。
 
 ```bash
-# 改修後のビルド例（鍵をビルド時に注入）
+# 鍵をビルド時に注入（プラットフォーム別）
 flutter build appbundle --release \
   --dart-define=REVENUECAT_API_KEY_ANDROID=<Public API Key (Android)>
 flutter build ipa --release \
@@ -196,9 +195,6 @@ flutter build ipa --release \
 
 あわせて App Store Connect / Google Play で **サブスクリプション商品** を作成し、
 RevenueCat Dashboard に紐付けます。
-
-> 👉 着手時に「RevenueCatの鍵を `--dart-define` で読むよう改修して」とAIに依頼すれば、
-> `String.fromEnvironment` への置き換え＋テストまで対応します。
 
 ---
 
@@ -251,7 +247,7 @@ RevenueCat Dashboard に紐付けます。
 - [ ] E: APNs `.p8` を Firebase にアップロード
 - [ ] E: iOS 証明書・Provisioning Profile 作成、Xcode署名設定
 - [ ] F: Android keystore 生成・`key.properties`・release署名設定
-- [ ] G: RevenueCat 鍵を `--dart-define` 化（AI改修）＋商品設定
+- [ ] G: RevenueCat Public API Key をビルド時 `--dart-define` で注入（コードは対応済み）＋商品設定
 - [ ] D: シードデータ投入（safety_tips / community_trends / shops）＋ `demo_*` 削除
 - [ ] C: Firestore バックアップ設定
 - [ ] H: 実機テスト一式
