@@ -169,40 +169,52 @@ storeFile=<keystoreファイルの絶対パス例: /Users/yourname/trustcar-rele
 EOF
 ```
 
-### 2-3. build.gradle.kts に署名設定を追加
+### 2-3. build.gradle.kts に署名設定を追加（✅ 設定済み）
 
-`android/app/build.gradle.kts` の `signingConfigs` セクションを編集:
+**この設定は `android/app/build.gradle.kts` に実装済みのため、手動編集は不要です。**
+`android/key.properties`（手順 2-2）が存在すればリリース署名を自動的に使用し、
+存在しない場合（CI・debug マシン）はデバッグ署名にフォールバックするため、
+`flutter run` や CI のリリースビルドを壊しません。
+
+実装済みの内容（参考）:
 
 ```kotlin
-// ファイル冒頭に追加
-import java.util.Properties
+// ファイル冒頭
 import java.io.FileInputStream
+import java.util.Properties
 
 val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("app/key.properties")  // 注: android/ 内の相対パス
-if (keystorePropertiesFile.exists()) {
+val keystorePropertiesFile = rootProject.file("key.properties")  // = android/key.properties
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
     // ...
     signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["storePassword"] as String
+        if (hasReleaseKeystore) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
         }
     }
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")  // debug → release に変更
-            isMinifyEnabled = true
-            isShrinkResources = true
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
 ```
+
+> 注: `key.properties` の `storeFile` はキーストアの **絶対パス**を推奨します。
 
 ### 2-4. リリース APK / AAB をビルド
 

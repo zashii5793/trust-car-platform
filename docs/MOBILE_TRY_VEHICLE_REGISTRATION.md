@@ -95,7 +95,35 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 ✅ **フェーズA完了チェック**
 - [ ] A-1 Android 実機で登録成功
 - [ ] A-2 iPhone 実機で登録成功
-- [ ] 実機テスト項目（カメラOCR・写真アップロード）の動作確認 ※`HUMAN_TASKS.md` P1-8 参照
+- [ ] A-3 下記「登録フロー実機確認チェックリスト」を一通り確認
+
+### A-3. 登録フロー実機確認チェックリスト（車両登録に特化）
+エミュレーターでは再現しないカメラ・ストレージ・権限まわりを実機で確認する。
+（全機能の網羅版は `HUMAN_TASKS.md` P1-8 を参照）
+
+**認証 → 登録の基本動線**
+- [ ] メール/パスワードで新規登録・ログインできる
+- [ ] （Google有効化時のみ）Google Sign-In が実機で完了する
+- [ ] ログイン状態でホーム → 車両登録画面に遷移できる
+
+**必須項目だけで登録（最小ケース）**
+- [ ] ステップ1: メーカー / 車種 / グレード / 年式 / 走行距離 を入力して進める
+- [ ] 写真なし・任意項目なしで「登録」が成功し、一覧に表示される
+- [ ] 年式・走行距離の境界値（例: 1900年・0km・極端な大きい値）でバリデーションが働く
+
+**写真つき登録（Storage 連携）**
+- [ ] カメラ/ギャラリーから写真を選択できる（カメラ・写真の権限ダイアログが出る）
+- [ ] 登録時に写真が Firebase Storage にアップロードされ、詳細画面で表示される
+- [ ] 「写真をコミュニティと共有」チェックの ON/OFF が反映される
+
+**車検証OCR 自動入力（任意）**
+- [ ] 「車検証をスキャンして自動入力」でカメラが起動する
+- [ ] 撮影 → OCR 結果がフォームに反映される（誤認識は手修正できる）
+
+**永続化・権限の確認**
+- [ ] アプリ再起動後も登録した車両が残っている（Firestore 保存）
+- [ ] 別アカウントでログインすると他人の車両が見えない（所有者ルールの確認）
+- [ ] 未ログイン/セッション切れ時は登録ボタンで適切なエラーが出る
 
 ---
 
@@ -110,15 +138,16 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
    keytool -genkey -v -keystore release.keystore \
      -alias trust-car-platform -keyalg RSA -keysize 2048 -validity 10000
    ```
-3. `android/key.properties` を作成（gitignore 済み）:
+3. `android/key.properties` を作成（gitignore 済み・**キーストアの絶対パス推奨**）:
    ```properties
    storePassword=<パスワード>
    keyPassword=<パスワード>
    keyAlias=trust-car-platform
-   storeFile=../../release.keystore
+   storeFile=/Users/<ユーザー名>/release.keystore
    ```
-4. `android/app/build.gradle.kts` のリリース署名設定を確認
-   （現状 `signingConfig` がデバッグのままなので **要設定** → 設定はAIに依頼可）
+4. ✅ `android/app/build.gradle.kts` のリリース署名設定は **設定済み**。
+   `android/key.properties` が存在すればリリース署名を自動使用し、無ければデバッグ署名に
+   フォールバックする（CI・`flutter run` を壊さない）。**人間の作業は 2〜3 のみ**。
 5. ビルドして AAB を作成 → Play Console にアップロード:
    ```bash
    flutter build appbundle --release
