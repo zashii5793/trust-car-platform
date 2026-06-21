@@ -233,24 +233,67 @@ flutter build apk --release
 
 ## Part 3: iOS リリースビルド（Mac 必須）
 
-### 3-1. Xcode で証明書・プロビジョニングプロファイルを設定
+### 3-0. 前提（アカウント種別で出来ることが変わる）
 
-1. Xcode → `ios/Runner.xcworkspace` を開く
-2. Runner → Signing & Capabilities
-3. Team: Apple Developer アカウントを選択
-4. Bundle Identifier: `jp.trustcar.app` を確認
-5. 「Automatically manage signing」をチェック
+| アカウント | 費用 | 実機インストール | TestFlight / App Store |
+|-----------|------|-----------------|------------------------|
+| 無料 Apple ID | 0円 | ✅（**7日間**で失効・要再インストール） | ❌ |
+| Apple Developer Program | $99/年 | ✅（1年間） | ✅ |
 
-### 3-2. Archive（ストア提出用ビルド）
+- **自分の端末でお試し**だけなら無料 Apple ID で十分（下記 3-1 の自動署名）。
+- **配布（TestFlight/App Store）**には Developer Program 加入が必須（3-2 以降）。
+- いずれの場合も `ios/Runner/GoogleService-Info.plist` の配置が必要（未配置だと起動直後にクラッシュ）。
+  → 配置手順は Part 1 / `HUMAN_TASKS.md` P0-3 参照。
+
+### 3-1. Xcode で署名を設定（自動署名＝推奨）
+
+1. Xcode → **Settings → Accounts** で Apple ID を追加（未登録の場合）
+2. `ios/Runner.xcworkspace` を開く（`.xcodeproj` ではなく **workspace**）
+3. Runner ターゲット → Signing & Capabilities
+4. **「Automatically manage signing」をチェック**
+5. **Team**: 自分の Apple ID / Developer Team を選択
+6. **Bundle Identifier**: `jp.trustcar.app` を確認
+   - 無料アカウントで「Failed to register bundle identifier」が出る場合は
+     `jp.trustcar.app.dev` 等へ一時変更（※本番IDでないと一部 Firebase 機能の挙動が変わる点に注意）
+7. iPhone を USB 接続 → 端末で「このコンピュータを信頼」
+
+#### 手動署名（自動署名が使えない / CI 用途）
+1. [Apple Developer Console](https://developer.apple.com/account/) → Certificates, Identifiers & Profiles
+2. App ID（`jp.trustcar.app`）・Distribution Certificate・Provisioning Profile を作成
+3. Xcode → Signing & Capabilities → 「Automatically manage signing」を**外し**、
+   作成した Provisioning Profile を選択
+
+### 3-2. 実機で起動（お試し）
 
 ```bash
-flutter build ios --release
+flutter devices            # 接続中の iPhone を確認
+flutter run                # 実機を選択して起動
 ```
+- 初回は iPhone の「設定 → 一般 → VPN とデバイス管理」で開発者アプリを**信頼**する。
 
-その後 Xcode で:
-1. Product → Archive
-2. Organizer が開いたら「Distribute App」
-3. App Store Connect → 自動署名 → Upload
+### 3-3. Archive / IPA（ストア・TestFlight 提出用ビルド）
+
+```bash
+# IPA を直接生成（自動署名が設定済みの場合）
+flutter build ipa --release
+# 出力先: build/ios/ipa/*.ipa
+```
+または Xcode で:
+1. `flutter build ios --release`
+2. Product → Archive
+3. Organizer →「Distribute App」→ App Store Connect → 自動署名 → Upload
+
+> ⚠️ `flutter build ipa` / Archive には Developer Program が必要（無料アカウント不可）。
+
+### 3-4. よくあるエラー
+
+| 症状 | 対処 |
+|------|------|
+| 起動直後にクラッシュ | `GoogleService-Info.plist` 未配置 / Team 未選択 |
+| `No profiles for 'jp.trustcar.app' were found` | Team 未選択、または手動署名で Profile 未作成 |
+| `Failed to register bundle identifier`（無料IDで多発） | Bundle ID を一意な値（`...app.dev`）へ変更 |
+| `pod install` 失敗 | `cd ios && pod install --repo-update`、CocoaPods を最新化 |
+| 7日後にアプリが起動しない | 無料 Apple ID の署名失効。`flutter run` で再インストール |
 
 ---
 

@@ -183,6 +183,22 @@ jobs:
             exit $BUILD_STATUS
           fi
 
+      # Verify the release signing config compiles and falls back to debug
+      # signing when android/key.properties is absent (as on CI). Guards the
+      # signingConfigs logic in app/build.gradle.kts so a broken release build
+      # is caught here instead of at Play upload time.
+      - name: Build App Bundle (release, debug-signed fallback)
+        run: |
+          flutter build appbundle --release 2>&1 | tee /tmp/aab_build.log
+          BUILD_STATUS=${PIPESTATUS[0]}
+          if [ $BUILD_STATUS -ne 0 ]; then
+            echo "::error::=== GRADLE FAILURE SECTION ==="
+            awk '/^FAILURE:/,0' /tmp/aab_build.log | head -80 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit $BUILD_STATUS
+          fi
+
       - name: Locate APK (diagnostic)
         if: always()
         run: find . -name "*.apk" -type f 2>/dev/null | head -20 || echo "No APK found"
