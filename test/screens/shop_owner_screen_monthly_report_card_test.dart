@@ -162,6 +162,8 @@ ShopMonthlyReport _makeReport({
   int previousTotal = 3,
   int pending = 2,
   int replied = 1,
+  int proposalCount = 0,
+  int proposalValue = 0,
 }) {
   return ShopMonthlyReport(
     month: DateTime(2026, 6, 1),
@@ -171,6 +173,8 @@ ShopMonthlyReport _makeReport({
       InquiryStatus.pending: pending,
       InquiryStatus.replied: replied,
     },
+    maintenanceProposalCount: proposalCount,
+    maintenanceProposalValue: proposalValue,
   );
 }
 
@@ -226,6 +230,21 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('前月と同じ'), findsOneWidget);
+    });
+
+    testWidgets('renders maintenance proposal count and total value',
+        (tester) async {
+      final provider = _FakeShopProvider(
+        shop: _makeShop(),
+        report: _makeReport(proposalCount: 3, proposalValue: 45000),
+      );
+
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('今月の整備提案（成果）'), findsOneWidget);
+      expect(find.text('3 件'), findsOneWidget); // proposal count
+      expect(find.text('¥45,000'), findsOneWidget); // formatted total value
     });
 
     testWidgets('renders nothing when report is null', (tester) async {

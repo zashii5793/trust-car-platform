@@ -489,3 +489,41 @@ QA/PM/UX分析を踏まえた自律実装。各タスク単位でコミット。
 | デザインシステム | `docs/DESIGN_SYSTEM.md` |
 | 人間タスク | `docs/HUMAN_TASKS.md` |
 | CI 設定 | `.github/workflows/ci.yml` |
+
+---
+
+## 2026-06-21 B2B ROI 可視化（整備提案メトリクス）設計
+
+### 背景 / 課題
+スタンダード ¥3,980/月を払う整備工場が知りたいのは「で、何件成約した？」。
+問い合わせ status（pending/replied/closed）は持つが、成約〜入金のCRMパイプラインは未実装。
+ROIが見えないB2B SaaSは3ヶ月で解約される。価格設定より重い課題。
+
+### 重要な制約（調査で確認）
+- `maintenance_records` は **ユーザー所有**。`firestore.rules` 上、工場は他ユーザーの整備履歴を
+  読めない（userId スコープ）。よって「工場由来で作られた履歴」を工場側から直接集計するのは
+  **ルール違反**になる。
+- 一方で工場は **自分が送った問い合わせメッセージ**（`messages.senderId == shopId`）は読める。
+  整備提案は `InquiryMessage.maintenancePayload`（cost / parts / workItems 内訳）として
+  工場自身が送っているので、これは工場が安全に集計できる。
+- 工場専用の集計置き場として `shops/{shopId}/private/`（オーナーのみ read/write）が既存。
+
+### 決定（MVP指標）
+工場の **当月の整備提案**を ROI 指標として可視化する：
+- `maintenanceProposalCount` … 当月に工場が送った `maintenancePayload` 付きメッセージ件数
+- `maintenanceProposalValue` … その `cost` 合計（円）
+
+実装はルールクリーン（クロスユーザー読み取り不要、Cloud Function 不要）。
+`ShopReportService.getMonthlyReport` が `collectionGroup('messages')` を
+`senderId == shopId` で取得し、当月＋payload有りをメモリ集計する。
+
+### 将来指標（要 Cloud Function / 本セッションのスコープ外）
+「提案がどれだけ取り込まれたか（取り込み率）」「工場別リピート率 / LTV」は
+ユーザー横断集計のため、`maintenance_records` 作成トリガの Cloud Function で
+`inquiryId → shopId` を解決し `shops/{shopId}/private/monthly_stats/{yyyymm}` に
+denormalize するのが安全。MVP（提案ベース指標）が動いてから段階的に追加する。
+
+### ROI の本質（戦略メモ）
+価値は「リード数」ではなく **整備した顧客を“自店の透明な整備履歴”ごと囲い込めること**。
+単価まで見える履歴が顧客の手元に残る → 信頼 → リピート（LTV）。
+`MaintenanceRecord.inquiryId` で「どの工場が作った履歴か」が辿れるのが将来の集計基盤。

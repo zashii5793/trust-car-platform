@@ -647,12 +647,52 @@ class _MonthlyReportCard extends StatelessWidget {
                 changeLabel,
                 style: theme.textTheme.bodySmall?.copyWith(color: changeColor),
               ),
+              AppSpacing.verticalSm,
+              const Divider(height: 1),
+              AppSpacing.verticalSm,
+              Text(
+                '今月の整備提案（成果）',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              AppSpacing.verticalSm,
+              Row(
+                children: [
+                  _StatItem(
+                    icon: Icons.build_outlined,
+                    label: '提案件数',
+                    value: '${report.maintenanceProposalCount} 件',
+                    valueColor: report.maintenanceProposalCount > 0
+                        ? AppColors.info
+                        : null,
+                  ),
+                  _StatDivider(),
+                  _StatItem(
+                    icon: Icons.payments_outlined,
+                    label: '提案総額',
+                    value: '¥${_formatYen(report.maintenanceProposalValue)}',
+                    valueColor: report.maintenanceProposalValue > 0
+                        ? AppColors.success
+                        : null,
+                  ),
+                ],
+              ),
             ],
           ),
         ),
         AppSpacing.verticalMd,
       ],
     );
+  }
+
+  /// Groups an integer yen amount with thousands separators (e.g. 45000 ->
+  /// "45,000"). Mirrors the formatting used by part listings.
+  String _formatYen(int amount) {
+    return amount.toString().replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (Match m) => '${m[1]},',
+        );
   }
 }
 
