@@ -1,6 +1,36 @@
 # Claude Session Notes
 
-最終更新: 2026-06-19
+最終更新: 2026-06-22
+
+---
+
+## 意思決定ログ（2026-06-22）: 夜間エージェント — 通報機能実装・停滞PR解消
+
+**ブランチ**: `claude/night-20260622` / PR #52（draft）
+
+**作業対象の根拠**:
+- PR #50（ROI指標）・PR #34（バグ修正）: CI全グリーン・`mergeable_state: clean` のままDRAFT放置 → Draft解除
+- Issue #37 フェーズ2（通報機能）: `claude-task` ラベルで明示。フェーズ1（いいね）はPR #47でマージ済みで次の対象
+
+**Flutter環境**: `$HOME/flutter` に 3.44.2 を導入。全テスト3436件パス・analyze クリーン
+
+**実装内容（Issue #37 フェーズ2）**:
+- `CommentReportReason` enum（spam / harassment / inappropriate / other）
+- `PopularAccessoriesService.reportComment`（重複通報防止・`comment_reports` コレクションへ保存）
+- `showcase_detail_screen`: `_CommentTile` に非オーナー向け「通報」オーバーフローメニュー
+- `_ReportCommentSheet` ボトムシート（通報理由選択UI）
+- `firestore.rules`: `comment_reports` ルール追加（create のみ・status=='pending'強制）
+- テスト +6件（reportComment の正常系2件 + Edge Cases 4件）
+
+**残作業（人間判断が必要）**:
+- 通報しきい値での自動非表示の可否（Issue #37 参照）
+- 通報レビュー運用主体・ツール（Cloud Functions / 管理画面）
+- `firebase deploy --only firestore:rules`（comment_reports ルール本番反映）
+
+**PR状況**:
+- PR #50: Draft解除（Closes #39）
+- PR #34: Draft解除
+- PR #52: 新規作成（Closes #37 フェーズ2）
 
 ---
 

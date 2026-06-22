@@ -194,6 +194,44 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
     );
   }
 
+  Future<void> _reportComment(ShowcaseComment comment) async {
+    if (widget.currentUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('通報するにはログインが必要です')),
+      );
+      return;
+    }
+
+    final reason = await showModalBottomSheet<CommentReportReason>(
+      context: context,
+      builder: (_) => const _ReportCommentSheet(),
+    );
+
+    if (reason == null || !mounted) return;
+
+    final result = await widget.service.reportComment(
+      showcaseId: widget.showcase.id,
+      commentId: comment.id,
+      reporterId: widget.currentUserId,
+      reason: reason,
+    );
+
+    if (!mounted) return;
+    result.when(
+      success: (_) => ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('通報を受け付けました。ご協力ありがとうございます。')),
+      ),
+      failure: (e) {
+        final msg = e.message.contains('already reported')
+            ? 'このコメントはすでに通報済みです'
+            : e.message;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: AppColors.error),
+        );
+      },
+    );
+  }
+
   Future<void> _editComment(ShowcaseComment comment) async {
     final newContent = await showDialog<String>(
       context: context,
@@ -287,6 +325,9 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
                       onDelete: () => _deleteComment(c),
                       onEdit: () => _editComment(c),
                       onToggleLike: () => _toggleLike(c),
+                      onReport: widget.currentUserId.isNotEmpty
+                          ? () => _reportComment(c)
+                          : null,
                     ),
                   ),
               ],
@@ -357,6 +398,7 @@ class _CommentTile extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onEdit;
   final VoidCallback onToggleLike;
+  final VoidCallback? onReport;
 
   const _CommentTile({
     required this.comment,
@@ -365,6 +407,7 @@ class _CommentTile extends StatelessWidget {
     required this.onDelete,
     required this.onEdit,
     required this.onToggleLike,
+    this.onReport,
   });
 
   @override
@@ -449,7 +492,27 @@ class _CommentTile extends StatelessWidget {
               color: AppColors.textTertiary,
               onPressed: onDelete,
             ),
-          ],
+          ] else if (onReport != null)
+            PopupMenuButton<String>(
+              key: Key('comment_menu_${comment.id}'),
+              icon: const Icon(Icons.more_vert, size: 18),
+              color: AppColors.textTertiary,
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'report',
+                  child: Row(
+                    children: [
+                      Icon(Icons.flag_outlined, size: 18),
+                      SizedBox(width: AppSpacing.xs),
+                      Text('通報'),
+                    ],
+                  ),
+                ),
+              ],
+              onSelected: (value) {
+                if (value == 'report') onReport?.call();
+              },
+            ),
         ],
       ),
     );
@@ -562,6 +625,60 @@ class _EditCommentDialogState extends State<_EditCommentDialog> {
           child: const Text('保存'),
         ),
       ],
+    );
+  }
+}
+
+/// Bottom sheet for selecting the reason when reporting a comment.
+///
+/// Returns a [CommentReportReason] when the user selects a reason, or null if
+/// they dismiss without selecting.
+class _ReportCommentSheet extends StatelessWidget {
+  const _ReportCommentSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.xs,
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    '通報の理由を選択してください',
+                    key: const Key('report_sheet_title'),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ...CommentReportReason.values.map(
+              (reason) => ListTile(
+                key: Key('report_reason_${reason.name}'),
+                leading: const Icon(Icons.flag_outlined),
+                title: Text(reason.displayName),
+                onTap: () => Navigator.pop(context, reason),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
     );
   }
 }

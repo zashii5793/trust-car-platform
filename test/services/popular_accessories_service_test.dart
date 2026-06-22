@@ -709,5 +709,126 @@ void main() {
         });
       });
     });
+
+    // -------------------------------------------------------------------------
+    // reportComment
+    // -------------------------------------------------------------------------
+    group('reportComment', () {
+      Future<String> seedComment({
+        String showcaseId = 'sc-1',
+        String userId = 'author',
+      }) async {
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc(showcaseId)
+            .collection('comments')
+            .add({
+          'showcaseId': showcaseId,
+          'userId': userId,
+          'content': 'コメント内容',
+          'createdAt': Timestamp.fromDate(now),
+          'likeCount': 0,
+        });
+        return ref.id;
+      }
+
+      test('正常系: 通報が comment_reports に保存される', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final commentId = await seedComment();
+
+        final result = await service.reportComment(
+          showcaseId: 'sc-1',
+          commentId: commentId,
+          reporterId: 'reporter-1',
+          reason: CommentReportReason.spam,
+        );
+
+        expect(result.isSuccess, isTrue);
+        final reports = await firestore.collection('comment_reports').get();
+        expect(reports.docs, hasLength(1));
+        final data = reports.docs.first.data();
+        expect(data['reporterId'], 'reporter-1');
+        expect(data['showcaseId'], 'sc-1');
+        expect(data['commentId'], commentId);
+        expect(data['reason'], CommentReportReason.spam.name);
+        expect(data['status'], 'pending');
+      });
+
+      test('正常系: 別ユーザーからの同一コメントへの通報は成功', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final commentId = await seedComment();
+
+        await service.reportComment(
+          showcaseId: 'sc-1',
+          commentId: commentId,
+          reporterId: 'reporter-1',
+          reason: CommentReportReason.spam,
+        );
+        final result = await service.reportComment(
+          showcaseId: 'sc-1',
+          commentId: commentId,
+          reporterId: 'reporter-2',
+          reason: CommentReportReason.harassment,
+        );
+
+        expect(result.isSuccess, isTrue);
+        final reports = await firestore.collection('comment_reports').get();
+        expect(reports.docs, hasLength(2));
+      });
+
+      group('Edge Cases', () {
+        test('同一ユーザーの同一コメントへの重複通報はバリデーションエラー', () async {
+          await seedShowcase(showcase(id: 'sc-1'));
+          final commentId = await seedComment();
+
+          await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: commentId,
+            reporterId: 'reporter-1',
+            reason: CommentReportReason.spam,
+          );
+          final result = await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: commentId,
+            reporterId: 'reporter-1',
+            reason: CommentReportReason.other,
+          );
+
+          expect(result.isFailure, isTrue);
+          final reports = await firestore.collection('comment_reports').get();
+          expect(reports.docs, hasLength(1));
+        });
+
+        test('空のshowcaseIdはバリデーションエラー', () async {
+          final result = await service.reportComment(
+            showcaseId: '',
+            commentId: 'c-1',
+            reporterId: 'reporter-1',
+            reason: CommentReportReason.spam,
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空のcommentIdはバリデーションエラー', () async {
+          final result = await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: '',
+            reporterId: 'reporter-1',
+            reason: CommentReportReason.spam,
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空のreporterIdはバリデーションエラー', () async {
+          final result = await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: 'c-1',
+            reporterId: '',
+            reason: CommentReportReason.spam,
+          );
+          expect(result.isFailure, isTrue);
+        });
+      });
+    });
   });
 }
