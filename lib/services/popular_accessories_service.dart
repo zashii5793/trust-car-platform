@@ -4,6 +4,27 @@ import '../core/result/result.dart';
 import '../models/accessory_showcase.dart';
 import '../models/showcase_comment.dart';
 
+/// Reasons a user can report an [AccessoryShowcase] comment.
+enum CommentReportReason {
+  spam,
+  harassment,
+  inappropriate,
+  other;
+
+  String get displayName {
+    switch (this) {
+      case CommentReportReason.spam:
+        return 'スパム・宣伝';
+      case CommentReportReason.harassment:
+        return '嫌がらせ・ハラスメント';
+      case CommentReportReason.inappropriate:
+        return '不適切なコンテンツ';
+      case CommentReportReason.other:
+        return 'その他';
+    }
+  }
+}
+
 /// Aggregates community accessory showcase posts to surface trending car
 /// accessories (dash cams, seat covers, etc.) per category.
 ///
@@ -402,6 +423,60 @@ class PopularAccessoriesService {
         averagePriceApprox: avgPrice,
       );
     }).toList();
+  }
+
+  /// Reports a comment for moderation.
+  ///
+  /// Each reporter may report the same comment only once; subsequent attempts
+  /// return [AppError.validation]. Different reporters may independently report
+  /// the same comment.
+  ///
+  /// Reports are stored in `comment_reports/{autoId}` with status `pending`.
+  /// Only admin-side tooling (Cloud Functions / Admin SDK) reads or updates them.
+  Future<Result<void, AppError>> reportComment({
+    required String showcaseId,
+    required String commentId,
+    required String reporterId,
+    required CommentReportReason reason,
+  }) async {
+    if (showcaseId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('showcaseId must not be empty'));
+    }
+    if (commentId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('commentId must not be empty'));
+    }
+    if (reporterId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('reporterId must not be empty'));
+    }
+
+    try {
+      final existing = await _firestore
+          .collection('comment_reports')
+          .where('reporterId', isEqualTo: reporterId)
+          .where('commentId', isEqualTo: commentId)
+          .limit(1)
+          .get();
+
+      if (existing.docs.isNotEmpty) {
+        return const Result.failure(
+            AppError.validation('already reported this comment'));
+      }
+
+      await _firestore.collection('comment_reports').add({
+        'reporterId': reporterId,
+        'showcaseId': showcaseId,
+        'commentId': commentId,
+        'reason': reason.name,
+        'createdAt': Timestamp.fromDate(DateTime.now()),
+        'status': 'pending',
+      });
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
   }
 }
 

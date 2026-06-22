@@ -653,6 +653,20 @@ service cloud.firestore {
         resource.data.userId == request.auth.uid;
     }
 
+    // ==================== コメント通報 ====================
+    // comment_reports/{reportId}
+    // Created by authenticated users to flag abusive comments.
+    // Reads and status updates are admin-only (Cloud Functions / Admin SDK).
+    // Client-side: create only, with reporterId == uid.
+    match /comment_reports/{reportId} {
+      allow create: if isAuthenticated() &&
+        request.resource.data.reporterId == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.keys().hasAll(['reporterId', 'showcaseId', 'commentId', 'reason', 'createdAt', 'status']);
+
+      allow read, update, delete: if false; // admin SDK only
+    }
+
     // ==================== 安全情報 ====================
     // safety_tips/{tipId}
     // Official safety information from JAF/NPA/MLIT/FDMA/ITARDA.
