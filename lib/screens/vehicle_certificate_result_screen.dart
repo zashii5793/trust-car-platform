@@ -234,7 +234,8 @@ class _VehicleCertificateResultScreenState
                   const SizedBox(height: 4),
                   Text(
                     message,
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                 ],
               ),
@@ -253,7 +254,9 @@ class _VehicleCertificateResultScreenState
       {bool isImportant = false}) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: isImportant ? AppColors.warning : AppColors.textTertiary),
+        Icon(icon,
+            size: 20,
+            color: isImportant ? AppColors.warning : AppColors.textTertiary),
         const SizedBox(width: 8),
         Text(
           title,

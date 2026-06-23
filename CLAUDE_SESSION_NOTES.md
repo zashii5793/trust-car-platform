@@ -1,6 +1,36 @@
 # Claude Session Notes
 
-最終更新: 2026-06-19
+最終更新: 2026-06-23
+
+---
+
+## 夜間エージェント実行ログ（2026-06-23）
+
+### 実施内容
+
+1. **PR #52 Draft → Ready 昇格**: コメント通報機能（Issue #37 フェーズ2）のCI全グリーン確認・Draft解除
+2. **Issue #30 フェーズ1実装**: ダークモード対応 Colors.* → AppColors 統一
+   - 対象5ファイル（OCR/工場/整備記録画面）32箇所修正
+   - `flutter analyze lib/` クリーン / 全3430件パス
+   - PR #53 作成（Ready）
+
+### 残課題（Issue #30 フェーズ2）
+
+| ファイル | 件数 |
+|---------|------|
+| `vehicle_edit_screen.dart` | 11件 |
+| `marketplace/part_list_screen.dart` | 8件 |
+| `sns/sns_feed_screen.dart` | 2件 |
+| `marketplace/case_study_management_screen.dart` | 2件 |
+| `marketplace/inquiry_screen.dart` | 1件 |
+| `add_maintenance_screen.dart` | 1件 |
+| `vehicle_registration_screen.dart` | 1件 |
+
+### ブロッカー（人間タスク）
+
+- Issue #43/#44 (Google Maps): Maps APIキー発行が前提
+- Issue #42 (キャンペーン価格): プロダクト判断未確定
+- Issue #49 (実機テスト): Firebase Auth有効化・設定ファイル配置
 
 ---
 

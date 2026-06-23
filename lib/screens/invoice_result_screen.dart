@@ -215,7 +215,8 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
                   const SizedBox(height: 4),
                   Text(
                     message,
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                 ],
               ),
@@ -314,7 +315,8 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
                 children: [
                   const Text(
                     '作業日',
-                    style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+                    style:
+                        TextStyle(fontSize: 12, color: AppColors.textTertiary),
                   ),
                   const SizedBox(height: 4),
                   Text(
