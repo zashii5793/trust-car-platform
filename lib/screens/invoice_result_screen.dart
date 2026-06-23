@@ -179,15 +179,15 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
     IconData icon;
 
     if (score >= 0.5) {
-      color = Colors.green;
+      color = AppColors.success;
       message = '多くの項目を読み取れました';
       icon = Icons.check_circle;
     } else if (score >= 0.3) {
-      color = Colors.orange;
+      color = AppColors.warning;
       message = '一部の項目を読み取れました';
       icon = Icons.info;
     } else {
-      color = Colors.red;
+      color = AppColors.error;
       message = '読み取りが難しい箇所があります';
       icon = Icons.warning;
     }
@@ -215,7 +215,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
                   const SizedBox(height: 4),
                   Text(
                     message,
-                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                 ],
               ),
@@ -233,7 +233,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
   Widget _buildSectionHeader(ThemeData theme, String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: Colors.grey),
+        Icon(icon, size: 20, color: AppColors.textTertiary),
         const SizedBox(width: 8),
         Text(
           title,
@@ -295,7 +295,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           border: Border.all(
-            color: hasDate ? Colors.grey.shade300 : Colors.orange,
+            color: hasDate ? AppColors.border : AppColors.warning,
             width: hasDate ? 1 : 2,
           ),
           borderRadius: BorderRadius.circular(8),
@@ -305,7 +305,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
           children: [
             Icon(
               Icons.event,
-              color: hasDate ? theme.colorScheme.primary : Colors.orange,
+              color: hasDate ? theme.colorScheme.primary : AppColors.warning,
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -314,7 +314,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
                 children: [
                   const Text(
                     '作業日',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -324,7 +324,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: hasDate ? null : Colors.orange,
+                      color: hasDate ? null : AppColors.warning,
                     ),
                   ),
                 ],
@@ -473,7 +473,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('整備タイプを選択してください'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -483,7 +483,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('作業日を設定してください'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
