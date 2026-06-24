@@ -9,6 +9,7 @@ import '../services/firebase_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
+import '../core/ui/app_dialog.dart';
 import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
@@ -242,26 +243,15 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   /// Asks for explicit consent before sharing the vehicle photo with the
   /// community. Defaults to NOT sharing (privacy-safe).
   Future<bool> _askPhotoShareConsent() async {
-    final consent = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('実車写真の共有（任意）'),
-        content: const Text('車両の保存は完了しています。\n\n'
-            'あなたの車の写真を、同じ車種を登録する他のユーザーへの参考写真として共有しますか？\n\n'
-            'ナンバープレートや個人情報が写っている場合は「共有しない」を選んでください。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('共有しない'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('共有する'),
-          ),
-        ],
-      ),
+    return AppDialog.showConfirm(
+      context,
+      title: '実車写真の共有（任意）',
+      message: '車両の保存は完了しています。\n\n'
+          'あなたの車の写真を、同じ車種を登録する他のユーザーへの参考写真として共有しますか？\n\n'
+          'ナンバープレートや個人情報が写っている場合は「共有しない」を選んでください。',
+      confirmText: '共有する',
+      cancelText: '共有しない',
     );
-    return consent ?? false;
   }
 
   Future<void> _fetchCommunitySpec(VehicleGrade grade) async {
@@ -411,26 +401,21 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     bool allowClear = true,
   }) async {
     if (allowClear && currentDate != null) {
-      final action = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(title),
-          content: const Text('日付を変更しますか、それともクリアしますか？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'cancel'),
-              child: const Text('キャンセル'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'clear'),
-              child: const Text('クリア'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'change'),
-              child: const Text('変更'),
-            ),
-          ],
-        ),
+      final action = await AppDialog.showSelection<String>(
+        context,
+        title: title,
+        options: [
+          const SelectionOption(
+            value: 'change',
+            label: '変更',
+            icon: Icons.edit_calendar,
+          ),
+          const SelectionOption(
+            value: 'clear',
+            label: 'クリア',
+            icon: Icons.clear,
+          ),
+        ],
       );
 
       if (action == 'clear') {
@@ -638,26 +623,13 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   }
 
   Future<void> _deleteVehicle() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('車両を削除'),
-        content: Text(
-          '${widget.vehicle.maker} ${widget.vehicle.model}を削除しますか？\n'
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      title: '車両を削除',
+      message: '${widget.vehicle.maker} ${widget.vehicle.model}を削除しますか？\n'
           'この操作は取り消せません。関連する整備記録も削除されます。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('削除'),
-          ),
-        ],
-      ),
+      confirmText: '削除',
+      isDestructive: true,
     );
 
     if (confirmed != true) return;
@@ -696,25 +668,13 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   Future<bool> _onWillPop() async {
     if (!_hasChanges) return true;
 
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('変更を破棄しますか？'),
-        content: const Text('保存されていない変更があります。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('破棄'),
-          ),
-        ],
-      ),
+    return AppDialog.showConfirm(
+      context,
+      title: '変更を破棄しますか？',
+      message: '保存されていない変更があります。',
+      confirmText: '破棄',
+      isDestructive: true,
     );
-
-    return result ?? false;
   }
 
   String _formatDate(DateTime? date) {
@@ -1651,23 +1611,12 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   }
 
   Future<void> _leaveFleet() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('フリートから離脱'),
-        content: const Text('この車両をフリートから外しますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('離脱する'),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      title: 'フリートから離脱',
+      message: 'この車両をフリートから外しますか？',
+      confirmText: '離脱する',
+      isDestructive: true,
     );
     if (confirmed != true) return;
     setState(() => _isJoiningFleet = true);

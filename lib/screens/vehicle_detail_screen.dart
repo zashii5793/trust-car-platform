@@ -13,6 +13,7 @@ import '../services/maintenance_schedule_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
+import '../core/ui/app_dialog.dart';
 import '../widgets/common/app_card.dart';
 import '../widgets/common/loading_indicator.dart';
 import 'add_maintenance_screen.dart';
@@ -62,21 +63,12 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   }
 
   void _showPdfUpgradeDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('プレミアムプランが必要です'),
-        content: const Text(
-          'PDF出力はプレミアムプランの機能です。\n'
+    AppDialog.showInfo(
+      context,
+      title: 'プレミアムプランが必要です',
+      message: 'PDF出力はプレミアムプランの機能です。\n'
           'プレミアムプランにアップグレードしてご利用ください。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('閉じる'),
-          ),
-        ],
-      ),
+      buttonText: '閉じる',
     );
   }
 
@@ -2041,23 +2033,12 @@ class _MaintenanceDetailSheet extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('記録を削除'),
-        content: const Text('この整備記録を削除します。この操作は取り消せません。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('削除'),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      title: '記録を削除',
+      message: 'この整備記録を削除します。この操作は取り消せません。',
+      confirmText: '削除',
+      isDestructive: true,
     );
 
     if (confirmed == true && context.mounted) {
