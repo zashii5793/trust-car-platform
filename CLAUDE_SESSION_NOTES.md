@@ -64,9 +64,18 @@
 
 ## 現在の状態
 
-**ブランチ**: `claude/continue-development-WYZZp`
-**テスト**: 3284件以上（第13弾で+走行距離4件+コミュニティトレンド2件追加）全パス・失敗0件
+**ブランチ**: `claude/night-20260625`（夜間エージェント 2026-06-25）
+**テスト**: 3000件超 全パス・失敗0件（ページネーション +7件追加）
 **`flutter analyze lib/`**: No issues found
+
+## 夜間エージェント成果（2026-06-25）
+
+1. **pm_report.yml CI バグ修正**（130284a）— `$GITHUB_OUTPUT` 二重出力で 3日間失敗していた Weekly PM Report を修正
+2. **ShopService Haversine を dart:math 版に置換**（67534d9）— Taylor 級数近似 67 行 → 標準 15 行
+3. **getUserPosts ページネーション + 可視性フィルタ統合テスト**（74f402b）— +7 件追加。`startAfterDocument` の fake_cloud_firestore 制約発見・回避
+   - `post_service.dart` のクエリチェーン順を `orderBy → startAfterDocument → limit` に変更（実 Firestore では同義）
+
+詳細: `docs/night-reports/morning-briefing-2026-06-25.md`
 
 ## 人間タスク（テストユーザー配布前に必須）
 
