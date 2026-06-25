@@ -571,11 +571,11 @@ void main() {
       // day6 is newest, day1 is oldest.
       for (var day = 1; day <= 6; day++) {
         await fakeFirestore.collection('posts').add(postDoc(
-          userId: 'page-author',
-          visibility: 'public',
-          content: 'post$day',
-          createdAt: DateTime(2024, 1, day),
-        ));
+              userId: 'page-author',
+              visibility: 'public',
+              content: 'post$day',
+              createdAt: DateTime(2024, 1, day),
+            ));
       }
     });
 
@@ -676,11 +676,11 @@ void main() {
         for (var day = 1; day <= 5; day++) {
           final vis = (day % 2 == 0) ? 'followers' : 'public';
           await fakeFirestore2.collection('posts').add(postDoc(
-            userId: 'vis-author',
-            visibility: vis,
-            content: 'post$day',
-            createdAt: DateTime(2024, 1, day),
-          ));
+                userId: 'vis-author',
+                visibility: vis,
+                content: 'post$day',
+                createdAt: DateTime(2024, 1, day),
+              ));
         }
       });
 
@@ -695,8 +695,7 @@ void main() {
         result.when(
           success: (posts) {
             expect(posts.length, 2);
-            expect(
-                posts.every((p) => p.visibility == PostVisibility.public),
+            expect(posts.every((p) => p.visibility == PostVisibility.public),
                 isTrue);
             expect(posts[0].content, 'post5');
             expect(posts[1].content, 'post3');
