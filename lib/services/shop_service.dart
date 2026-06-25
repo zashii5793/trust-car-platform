@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -431,71 +432,20 @@ class ShopService {
     }
   }
 
-  // Simple Haversine distance calculation
+  // Haversine distance calculation using dart:math for accuracy
   double _calculateDistance(
       double lat1, double lon1, double lat2, double lon2) {
-    const R = 6371.0; // Earth's radius in km
-    final dLat = _toRadians(lat2 - lat1);
-    final dLon = _toRadians(lon2 - lon1);
-    final a = _sin(dLat / 2) * _sin(dLat / 2) +
-        _cos(_toRadians(lat1)) *
-            _cos(_toRadians(lat2)) *
-            _sin(dLon / 2) *
-            _sin(dLon / 2);
-    final c = 2 * _atan2(_sqrt(a), _sqrt(1 - a));
-    return R * c;
+    const earthRadiusKm = 6371.0;
+    final dLat = _degToRad(lat2 - lat1);
+    final dLon = _degToRad(lon2 - lon1);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degToRad(lat1)) *
+            math.cos(_degToRad(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusKm * c;
   }
 
-  double _toRadians(double degrees) => degrees * 3.14159265359 / 180;
-  double _sin(double x) => _taylorSin(x);
-  double _cos(double x) => _taylorSin(x + 3.14159265359 / 2);
-  double _sqrt(double x) => x > 0 ? _newtonSqrt(x) : 0;
-  double _atan2(double y, double x) {
-    if (x > 0) return _atan(y / x);
-    if (x < 0 && y >= 0) return _atan(y / x) + 3.14159265359;
-    if (x < 0 && y < 0) return _atan(y / x) - 3.14159265359;
-    if (x == 0 && y > 0) return 3.14159265359 / 2;
-    if (x == 0 && y < 0) return -3.14159265359 / 2;
-    return 0;
-  }
-
-  double _taylorSin(double x) {
-    // Normalize to [-π, π]
-    while (x > 3.14159265359) {
-      x -= 2 * 3.14159265359;
-    }
-    while (x < -3.14159265359) {
-      x += 2 * 3.14159265359;
-    }
-
-    double result = x;
-    double term = x;
-    for (int i = 1; i <= 10; i++) {
-      term *= -x * x / ((2 * i) * (2 * i + 1));
-      result += term;
-    }
-    return result;
-  }
-
-  double _atan(double x) {
-    if (x.abs() > 1) {
-      return (x > 0 ? 1 : -1) * (3.14159265359 / 2 - _atan(1 / x.abs()));
-    }
-    double result = x;
-    double term = x;
-    for (int i = 1; i <= 20; i++) {
-      term *= -x * x;
-      result += term / (2 * i + 1);
-    }
-    return result;
-  }
-
-  double _newtonSqrt(double x) {
-    if (x == 0) return 0;
-    double guess = x / 2;
-    for (int i = 0; i < 20; i++) {
-      guess = (guess + x / guess) / 2;
-    }
-    return guess;
-  }
+  double _degToRad(double degrees) => degrees * math.pi / 180;
 }
