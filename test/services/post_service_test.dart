@@ -380,6 +380,7 @@ void main() {
     required String userId,
     required String visibility,
     String content = 'test',
+    DateTime? createdAt,
   }) =>
       {
         'userId': userId,
@@ -394,8 +395,8 @@ void main() {
         'viewCount': 0,
         'isEdited': false,
         'media': <dynamic>[],
-        'createdAt': Timestamp.fromDate(DateTime(2024, 1, 1)),
-        'updatedAt': Timestamp.fromDate(DateTime(2024, 1, 1)),
+        'createdAt': Timestamp.fromDate(createdAt ?? DateTime(2024, 1, 1)),
+        'updatedAt': Timestamp.fromDate(createdAt ?? DateTime(2024, 1, 1)),
       };
 
   group('PostService.getUserPosts — フォロワー限定投稿', () {
@@ -547,6 +548,248 @@ void main() {
         result.when(
           success: (posts) {
             expect(posts.every((p) => p.userId == 'author-uid'), isTrue);
+          },
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Item 3b: getUserPosts — ページネーション
+  // ---------------------------------------------------------------------------
+
+  group('getUserPosts — ページネーション', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    setUp(() async {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+
+      // 6 public posts with distinct createdAt so ordering is deterministic.
+      // day6 is newest, day1 is oldest.
+      for (var day = 1; day <= 6; day++) {
+        await fakeFirestore.collection('posts').add(postDoc(
+          userId: 'page-author',
+          visibility: 'public',
+          content: 'post$day',
+          createdAt: DateTime(2024, 1, day),
+        ));
+      }
+    });
+
+    test('limit=3 で最初の3件（新しい順）を返す', () async {
+      final result = await service.getUserPosts(
+        userId: 'page-author',
+        viewerId: 'viewer',
+        limit: 3,
+      );
+
+      result.when(
+        success: (posts) {
+          expect(posts.length, 3);
+          expect(posts[0].content, 'post6');
+          expect(posts[1].content, 'post5');
+          expect(posts[2].content, 'post4');
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('startAfter で2ページ目を取得できる', () async {
+      // Get page 1 via service to obtain the real cursor post ID.
+      final page1Result = await service.getUserPosts(
+        userId: 'page-author',
+        viewerId: 'viewer',
+        limit: 3,
+      );
+      late String cursorId;
+      page1Result.when(
+        success: (posts) {
+          expect(posts.length, 3);
+          cursorId = posts.last.id;
+        },
+        failure: (e) => fail('Page 1 failed: $e'),
+      );
+      // Fetch the cursor document by ID to avoid query-context mismatch.
+      final cursor =
+          await fakeFirestore.collection('posts').doc(cursorId).get();
+
+      final result = await service.getUserPosts(
+        userId: 'page-author',
+        viewerId: 'viewer',
+        limit: 3,
+        startAfter: cursor,
+      );
+
+      result.when(
+        success: (posts) {
+          expect(posts.length, 3);
+          expect(posts[0].content, 'post3');
+          expect(posts[1].content, 'post2');
+          expect(posts[2].content, 'post1');
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('最終ページの次は空リストを返す', () async {
+      final allResult = await service.getUserPosts(
+        userId: 'page-author',
+        viewerId: 'viewer',
+        limit: 20,
+      );
+      late String lastId;
+      allResult.when(
+        success: (posts) {
+          expect(posts.length, 6);
+          lastId = posts.last.id;
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+      final lastCursor =
+          await fakeFirestore.collection('posts').doc(lastId).get();
+
+      final result = await service.getUserPosts(
+        userId: 'page-author',
+        viewerId: 'viewer',
+        startAfter: lastCursor,
+      );
+
+      result.when(
+        success: (posts) => expect(posts, isEmpty),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    group('ページネーション × 可視性フィルタ', () {
+      late FakeFirebaseFirestore fakeFirestore2;
+      late PostService service2;
+
+      setUp(() async {
+        fakeFirestore2 = FakeFirebaseFirestore();
+        service2 = PostService(firestore: fakeFirestore2);
+
+        // 5 posts. By day (newest=5, oldest=1):
+        //   day5=public, day4=followers, day3=public, day2=followers, day1=public
+        for (var day = 1; day <= 5; day++) {
+          final vis = (day % 2 == 0) ? 'followers' : 'public';
+          await fakeFirestore2.collection('posts').add(postDoc(
+            userId: 'vis-author',
+            visibility: vis,
+            content: 'post$day',
+            createdAt: DateTime(2024, 1, day),
+          ));
+        }
+      });
+
+      test('非フォロワー: ページ1(limit=2)はpublic投稿のみ2件', () async {
+        final result = await service2.getUserPosts(
+          userId: 'vis-author',
+          viewerId: 'stranger',
+          isViewerFollowing: false,
+          limit: 2,
+        );
+
+        result.when(
+          success: (posts) {
+            expect(posts.length, 2);
+            expect(
+                posts.every((p) => p.visibility == PostVisibility.public),
+                isTrue);
+            expect(posts[0].content, 'post5');
+            expect(posts[1].content, 'post3');
+          },
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+
+      test('非フォロワー: ページ2はpublic残り1件のみ', () async {
+        final page1Result = await service2.getUserPosts(
+          userId: 'vis-author',
+          viewerId: 'stranger',
+          isViewerFollowing: false,
+          limit: 2,
+        );
+        late String cursorId;
+        page1Result.when(
+          success: (posts) {
+            expect(posts.length, 2);
+            cursorId = posts.last.id;
+          },
+          failure: (e) => fail('Page 1 failed: $e'),
+        );
+        final cursor =
+            await fakeFirestore2.collection('posts').doc(cursorId).get();
+
+        final result = await service2.getUserPosts(
+          userId: 'vis-author',
+          viewerId: 'stranger',
+          isViewerFollowing: false,
+          limit: 2,
+          startAfter: cursor,
+        );
+
+        result.when(
+          success: (posts) {
+            expect(posts.length, 1);
+            expect(posts[0].content, 'post1');
+          },
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+
+      test('フォロワー: ページ1(limit=3)はpublic+followers投稿3件', () async {
+        final result = await service2.getUserPosts(
+          userId: 'vis-author',
+          viewerId: 'follower',
+          isViewerFollowing: true,
+          limit: 3,
+        );
+
+        result.when(
+          success: (posts) {
+            expect(posts.length, 3);
+            expect(posts[0].content, 'post5');
+            expect(posts[1].content, 'post4');
+            expect(posts[2].content, 'post3');
+          },
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+
+      test('フォロワー: ページ2はpublic+followers残り2件', () async {
+        final page1Result = await service2.getUserPosts(
+          userId: 'vis-author',
+          viewerId: 'follower',
+          isViewerFollowing: true,
+          limit: 3,
+        );
+        late String cursorId;
+        page1Result.when(
+          success: (posts) {
+            expect(posts.length, 3);
+            cursorId = posts.last.id;
+          },
+          failure: (e) => fail('Page 1 failed: $e'),
+        );
+        final cursor =
+            await fakeFirestore2.collection('posts').doc(cursorId).get();
+
+        final result = await service2.getUserPosts(
+          userId: 'vis-author',
+          viewerId: 'follower',
+          isViewerFollowing: true,
+          limit: 3,
+          startAfter: cursor,
+        );
+
+        result.when(
+          success: (posts) {
+            expect(posts.length, 2);
+            expect(posts[0].content, 'post2');
+            expect(posts[1].content, 'post1');
           },
           failure: (e) => fail('Expected success, got: $e'),
         );
