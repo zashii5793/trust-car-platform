@@ -808,7 +808,7 @@ class _ErrorState extends StatelessWidget {
 /// the same car, not generic catalog reviews.
 class _OwnerExamplesSection extends StatefulWidget {
   final Vehicle vehicle;
-  const _OwnerExamplesSection({required this.vehicle});
+  const _OwnerExamplesSection({super.key, required this.vehicle});
 
   @override
   State<_OwnerExamplesSection> createState() => _OwnerExamplesSectionState();
