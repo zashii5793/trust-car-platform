@@ -29,6 +29,10 @@ class PartRecommendationScreen extends StatefulWidget {
 }
 
 class _PartRecommendationScreenState extends State<PartRecommendationScreen> {
+  // Incrementing this key forces _OwnerExamplesSection to re-init and re-fetch
+  // when the user taps the AppBar refresh button.
+  int _ownerExamplesKey = 0;
+
   @override
   void initState() {
     super.initState();
@@ -62,14 +66,20 @@ class _PartRecommendationScreenState extends State<PartRecommendationScreen> {
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   tooltip: '再読み込み',
-                  onPressed: () => provider.loadRecommendations(widget.vehicle),
+                  onPressed: () {
+                    provider.loadRecommendations(widget.vehicle);
+                    setState(() => _ownerExamplesKey++);
+                  },
                 ),
             ],
           ),
           body: Column(
             children: [
               _CategoryFilterBar(provider: provider, vehicle: widget.vehicle),
-              _OwnerExamplesSection(vehicle: widget.vehicle),
+              _OwnerExamplesSection(
+                key: ValueKey(_ownerExamplesKey),
+                vehicle: widget.vehicle,
+              ),
               Expanded(child: _buildBody(provider)),
             ],
           ),
