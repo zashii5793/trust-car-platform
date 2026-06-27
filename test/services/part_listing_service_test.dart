@@ -555,4 +555,198 @@ void main() {
       expect(input.shippingMethod, ShippingMethod.buyerPays);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // createListing — 実書き込み（FakeFirebaseFirestore）
+  // ---------------------------------------------------------------------------
+
+  group('PartListingService.createListing 書き込み', () {
+    late FakeFirebaseFirestore fakeFs;
+    late PartListingService service;
+
+    setUp(() {
+      fakeFs = FakeFirebaseFirestore();
+      service = PartListingService(
+        firestore: fakeFs,
+        firebaseService: _StubFirebaseService(),
+        getCurrentUid: () => 'user1',
+      );
+    });
+
+    const validInput = CreatePartListingInput(
+      title: 'Air Filter',
+      category: PartCategory.maintenance,
+      condition: PartCondition.likeNew,
+      price: 3000,
+      description: 'Genuine part',
+      shippingMethod: ShippingMethod.includedInPrice,
+    );
+
+    test('成功時はドキュメントIDを返しFirestoreに保存される', () async {
+      final result = await service.createListing(validInput);
+
+      expect(result.isSuccess, true);
+      final docId = result.valueOrNull!;
+      final snap =
+          await fakeFs.collection('user_part_listings').doc(docId).get();
+      expect(snap.exists, true);
+      final data = snap.data()!;
+      expect(data['sellerId'], 'user1');
+      expect(data['title'], 'Air Filter');
+      expect(data['price'], 3000);
+      expect(data['payout'], calculatePayout(3000));
+      expect(data['status'], 'active');
+    });
+
+    test('タイトル前後の空白はトリムされて保存される', () async {
+      final result = await service.createListing(
+        const CreatePartListingInput(
+          title: '  Brake Pad  ',
+          category: PartCategory.maintenance,
+          condition: PartCondition.goodCondition,
+          price: 2500,
+          description: '  説明  ',
+          shippingMethod: ShippingMethod.includedInPrice,
+        ),
+      );
+      expect(result.isSuccess, true);
+      final snap = await fakeFs
+          .collection('user_part_listings')
+          .doc(result.valueOrNull!)
+          .get();
+      expect(snap.data()!['title'], 'Brake Pad');
+      expect(snap.data()!['description'], '説明');
+    });
+
+    test('未認証時は AuthError を返し書き込みされない', () async {
+      final unauth = PartListingService(
+        firestore: fakeFs,
+        firebaseService: _StubFirebaseService(),
+        getCurrentUid: () => null,
+      );
+      final result = await unauth.createListing(validInput);
+      expect(result.isFailure, true);
+      expect(result.errorOrNull, isA<AuthError>());
+
+      final all = await fakeFs.collection('user_part_listings').get();
+      expect(all.docs, isEmpty);
+    });
+
+    test('タイトルが空のとき ValidationError(field=title)', () async {
+      final result = await service.createListing(
+        const CreatePartListingInput(
+          title: '   ',
+          category: PartCategory.maintenance,
+          condition: PartCondition.goodCondition,
+          price: 1000,
+          description: 'x',
+          shippingMethod: ShippingMethod.includedInPrice,
+        ),
+      );
+      expect(result.isFailure, true);
+      expect((result.errorOrNull as ValidationError).field, 'title');
+    });
+
+    test('priceが0のとき ValidationError(field=price)', () async {
+      final result = await service.createListing(
+        const CreatePartListingInput(
+          title: 'Valid',
+          category: PartCategory.maintenance,
+          condition: PartCondition.goodCondition,
+          price: 0,
+          description: 'x',
+          shippingMethod: ShippingMethod.includedInPrice,
+        ),
+      );
+      expect(result.isFailure, true);
+      expect((result.errorOrNull as ValidationError).field, 'price');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // updateListing — 実更新（FakeFirebaseFirestore）
+  // ---------------------------------------------------------------------------
+
+  group('PartListingService.updateListing 更新', () {
+    late FakeFirebaseFirestore fakeFs;
+    late PartListingService service;
+    late String existingId;
+
+    setUp(() async {
+      fakeFs = FakeFirebaseFirestore();
+      service = PartListingService(
+        firestore: fakeFs,
+        firebaseService: _StubFirebaseService(),
+        getCurrentUid: () => 'user1',
+      );
+      existingId = await _seedListing(fakeFs, sellerId: 'user1', price: 5000);
+    });
+
+    UpdatePartListingInput updateInput({
+      String? listingId,
+      String title = '更新後タイトル',
+      int price = 8000,
+      List<String> existingImageUrls = const [],
+    }) =>
+        UpdatePartListingInput(
+          listingId: listingId ?? existingId,
+          title: title,
+          category: PartCategory.maintenance,
+          condition: PartCondition.goodCondition,
+          price: price,
+          description: '更新後の説明',
+          existingImageUrls: existingImageUrls,
+          shippingMethod: ShippingMethod.includedInPrice,
+        );
+
+    test('成功時はFirestoreの内容が更新される', () async {
+      final result = await service.updateListing(updateInput());
+      expect(result.isSuccess, true);
+
+      final snap =
+          await fakeFs.collection('user_part_listings').doc(existingId).get();
+      expect(snap.data()!['title'], '更新後タイトル');
+      expect(snap.data()!['price'], 8000);
+      expect(snap.data()!['payout'], calculatePayout(8000));
+    });
+
+    test('既存画像URLが保持される', () async {
+      final result = await service.updateListing(
+        updateInput(existingImageUrls: ['https://img/a.jpg', 'https://img/b.jpg']),
+      );
+      expect(result.isSuccess, true);
+      final snap =
+          await fakeFs.collection('user_part_listings').doc(existingId).get();
+      expect(snap.data()!['imageUrls'], ['https://img/a.jpg', 'https://img/b.jpg']);
+    });
+
+    test('listingIdが空のとき ValidationError(field=listingId)', () async {
+      final result = await service.updateListing(updateInput(listingId: ''));
+      expect(result.isFailure, true);
+      expect((result.errorOrNull as ValidationError).field, 'listingId');
+    });
+
+    test('タイトルが空のとき ValidationError(field=title)', () async {
+      final result = await service.updateListing(updateInput(title: '  '));
+      expect(result.isFailure, true);
+      expect((result.errorOrNull as ValidationError).field, 'title');
+    });
+
+    test('priceが0のとき ValidationError(field=price)', () async {
+      final result = await service.updateListing(updateInput(price: 0));
+      expect(result.isFailure, true);
+      expect((result.errorOrNull as ValidationError).field, 'price');
+    });
+
+    test('未認証時は AuthError を返す', () async {
+      final unauth = PartListingService(
+        firestore: fakeFs,
+        firebaseService: _StubFirebaseService(),
+        getCurrentUid: () => null,
+      );
+      final result = await unauth.updateListing(updateInput());
+      expect(result.isFailure, true);
+      expect(result.errorOrNull, isA<AuthError>());
+    });
+  });
 }

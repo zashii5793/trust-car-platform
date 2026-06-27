@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart' show GeoPoint;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/models/shop.dart';
 import 'package:trust_car_platform/services/shop_comparison_service.dart';
@@ -16,6 +17,7 @@ void main() {
     int reviewCount = 0,
     double? lat,
     double? lng,
+    List<ReservationMethod> reservationMethods = const [],
   }) {
     return Shop(
       id: id,
@@ -24,6 +26,8 @@ void main() {
       services: services,
       rating: rating,
       reviewCount: reviewCount,
+      reservationMethods: reservationMethods,
+      location: (lat != null && lng != null) ? GeoPoint(lat, lng) : null,
       createdAt: now,
       updatedAt: now,
     );
@@ -563,6 +567,139 @@ void main() {
           primaryNeed: ServiceCategory.tire,
         );
         expect(reason, contains(ServiceCategory.tire.displayName));
+      });
+
+      test('評価4.0〜4.4の工場は「安定した評価」を理由に含む', () {
+        final shop = buildShop(
+          id: 'r-mid',
+          name: 'Mid Rated',
+          rating: 4.2,
+          reviewCount: 10,
+        );
+        final results = service.compare(shops: [shop]);
+        final reason = service.recommendationReasonFor(results.first);
+        expect(reason, contains('安定した評価'));
+        expect(reason, contains('4.2'));
+      });
+
+      test('レビュー50件以上の工場は「豊富な実績」を理由に含む', () {
+        final shop = buildShop(
+          id: 'r-rev',
+          name: 'Many Reviews',
+          rating: 3.0,
+          reviewCount: 80,
+        );
+        final results = service.compare(shops: [shop]);
+        final reason = service.recommendationReasonFor(results.first);
+        expect(reason, contains('豊富な実績'));
+        expect(reason, contains('80件'));
+      });
+
+      test('5km未満の工場は「近い立地」を理由に含む', () {
+        // ユーザー位置と同一座標に近い店舗 → 距離≒0km
+        final shop = buildShop(
+          id: 'r-near',
+          name: 'Near Shop',
+          lat: 35.0001,
+          lng: 139.0001,
+        );
+        final results = service.compare(
+          shops: [shop],
+          userLat: 35.0,
+          userLng: 139.0,
+        );
+        final reason = service.recommendationReasonFor(results.first);
+        expect(reason, contains('近い立地'));
+      });
+
+      test('5〜15kmの工場は「通いやすい距離」を理由に含む', () {
+        // 緯度0.1度 ≒ 約11km
+        final shop = buildShop(
+          id: 'r-mid-dist',
+          name: 'Mid Distance Shop',
+          lat: 35.1,
+          lng: 139.0,
+        );
+        final results = service.compare(
+          shops: [shop],
+          userLat: 35.0,
+          userLng: 139.0,
+        );
+        final reason = service.recommendationReasonFor(results.first);
+        expect(reason, contains('通いやすい距離'));
+      });
+
+      test('walk-in対応の工場は「当日対応」を理由に含む', () {
+        final shop = buildShop(
+          id: 'r-walkin',
+          name: 'Walk-in Shop',
+          reservationMethods: [ReservationMethod.walkIn],
+        );
+        final results = service.compare(shops: [shop]);
+        final reason = service.recommendationReasonFor(results.first);
+        expect(reason, contains('当日対応'));
+      });
+
+      test('電話予約のみの工場は「翌日対応」を理由に含む', () {
+        final shop = buildShop(
+          id: 'r-phone',
+          name: 'Phone Shop',
+          reservationMethods: [ReservationMethod.phone],
+        );
+        final results = service.compare(shops: [shop]);
+        final reason = service.recommendationReasonFor(results.first);
+        expect(reason, contains('翌日対応'));
+      });
+    });
+
+    // ──────────────────────────────────────────────
+    // compare — 距離計算（Haversine）
+    // ──────────────────────────────────────────────
+    group('compare — 距離計算', () {
+      test('ユーザー位置と店舗位置からdistanceKmが算出される', () {
+        final shop = buildShop(
+          id: 'd1',
+          name: 'Located Shop',
+          lat: 35.1,
+          lng: 139.0,
+        );
+        final results = service.compare(
+          shops: [shop],
+          userLat: 35.0,
+          userLng: 139.0,
+        );
+        // 緯度0.1度 ≒ 約11km（許容幅を持たせて検証）
+        expect(results.first.distanceKm, isNotNull);
+        expect(results.first.distanceKm, greaterThan(9));
+        expect(results.first.distanceKm, lessThan(13));
+      });
+
+      test('店舗にlocationが無い場合distanceKmはnull', () {
+        final shop = buildShop(id: 'd2', name: 'No Location');
+        final results = service.compare(
+          shops: [shop],
+          userLat: 35.0,
+          userLng: 139.0,
+        );
+        expect(results.first.distanceKm, isNull);
+      });
+
+      test('位置あり店舗と位置なし店舗が混在しても位置なしが末尾にソートされる', () {
+        final located = buildShop(
+          id: 'd-loc',
+          name: 'Located',
+          lat: 35.05,
+          lng: 139.0,
+        );
+        final noLoc = buildShop(id: 'd-noloc', name: 'No Location');
+        final results = service.compare(
+          shops: [noLoc, located],
+          userLat: 35.0,
+          userLng: 139.0,
+        );
+        // 位置ありが先頭、位置なし(null距離)が末尾
+        expect(results.first.shop.id, 'd-loc');
+        expect(results.last.distanceKm, isNull);
       });
     });
   });
