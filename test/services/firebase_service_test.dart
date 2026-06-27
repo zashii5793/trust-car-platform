@@ -404,7 +404,8 @@ void main() {
           'type': 'oilChange',
           'title': 'record-$i',
           'cost': 1000,
-          'date': Timestamp.fromDate(DateTime(2024, 1, 1).add(Duration(days: i))),
+          'date':
+              Timestamp.fromDate(DateTime(2024, 1, 1).add(Duration(days: i))),
           'createdAt': Timestamp.fromDate(DateTime(2024, 1, 1)),
         });
       }
