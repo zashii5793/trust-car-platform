@@ -87,8 +87,7 @@ void main() {
 
     test('interval を指定すると、その間隔で検出する', () {
       final records = [_rec(date: DateTime(2024, 1, 1), mileage: 12000)];
-      final result =
-          MileageMilestoneDetector.detect(records, interval: 5000);
+      final result = MileageMilestoneDetector.detect(records, interval: 5000);
       expect(result.map((m) => m.mileage), [5000, 10000]);
     });
 
@@ -134,7 +133,9 @@ void main() {
       test('interval が負では空を返す', () {
         final records = [_rec(date: DateTime(2024, 1, 1), mileage: 50000)];
         expect(
-            MileageMilestoneDetector.detect(records, interval: -100), isEmpty);
+          MileageMilestoneDetector.detect(records, interval: -100),
+          isEmpty,
+        );
       });
     });
   });
