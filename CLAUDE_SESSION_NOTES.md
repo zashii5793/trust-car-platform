@@ -31,7 +31,16 @@
 - ベンチマーク手順を `MAINTENANCE_RUNBOOK.md §12` に追記。
 - ⚠️ 当環境に Flutter 未インストールのため Dart テストはローカル未実行。CI の `Analyze & Test` で検証される。
 
-**残り**: Phase 3（schemaVersion 設計ドキュメント）。
+**Phase 3（schemaVersion マイグレーション戦略 / 設計ドキュメント先行）**:
+- `docs/SCHEMA_MIGRATION_STRATEGY.md` を新規作成（コードなし・合意用の設計案）。
+- 方式: **Lazy Migration on Read + `schemaVersion(int)`**。読み込み時に旧版を順次変換、書込は常に現行版。
+  Eager（Functions トリガ）/ versioned collections は現規模では過剰として不採用案に。
+- `DocumentMigrator` レジストリのスカフォールド案、段階ロールアウト（Step 0 土台 → 高頻度3モデル先行 → 横展開）、
+  TDD 方針、合意論点4点を明記。
+- **要・人間判断**: 方式採否 / フィールド名 / 先行モデル / ローンチ前後どちらで着手するか。合意後に Step 0 実装。
+
+**全体ステータス**: Phase 1（検証・PR #61）+ Phase 2（負荷検証seed・境界テスト）+ Phase 3（設計案）を
+ブランチ `claude/hopeful-maxwell-k021i2` に集約。Phase 3 は合意待ちのため実装は未着手。
 
 ---
 
