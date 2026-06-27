@@ -259,3 +259,57 @@ describe('accessory_showcases/{id}/comments/{id}/likes — like マーカー', (
     await assertFails(deleteDoc(doc(dbFor(OTHER_UID), likePath(OWNER_UID))));
   });
 });
+
+describe('comment_reports — コメント通報', () => {
+  const reportId = `${COMMENT_ID}_${OWNER_UID}`;
+  const reportPath = `comment_reports/${reportId}`;
+
+  test('本人は自分の通報を作成できる', async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER_UID), reportPath), {
+        showcaseId: SHOWCASE_ID,
+        commentId: COMMENT_ID,
+        reporterId: OWNER_UID,
+        reason: 'spam',
+        status: 'pending',
+      }),
+    );
+  });
+
+  test('reporterId の詐称は拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OTHER_UID), reportPath), {
+        showcaseId: SHOWCASE_ID,
+        commentId: COMMENT_ID,
+        reporterId: OWNER_UID,
+        reason: 'spam',
+        status: 'pending',
+      }),
+    );
+  });
+
+  test('未認証ユーザーは通報を作成できない', async () => {
+    await assertFails(
+      setDoc(doc(unauthDb(), reportPath), {
+        showcaseId: SHOWCASE_ID,
+        commentId: COMMENT_ID,
+        reporterId: OWNER_UID,
+        reason: 'spam',
+        status: 'pending',
+      }),
+    );
+  });
+
+  test('クライアントは通報を読み取れない（サーバー専用）', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), reportPath), {
+        showcaseId: SHOWCASE_ID,
+        commentId: COMMENT_ID,
+        reporterId: OWNER_UID,
+        reason: 'spam',
+        status: 'pending',
+      });
+    });
+    await assertFails(getDoc(doc(dbFor(OWNER_UID), reportPath)));
+  });
+});

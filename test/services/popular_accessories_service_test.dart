@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/models/accessory_showcase.dart';
+import 'package:trust_car_platform/models/comment_report.dart';
 import 'package:trust_car_platform/services/popular_accessories_service.dart';
 
 void main() {
@@ -706,6 +707,76 @@ void main() {
           final result = await service.getMyLikedCommentIds(
               showcaseId: 'sc-1', commentIds: const [], userId: 'user-2');
           expect(result.valueOrNull, isEmpty);
+        });
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // reportComment
+    // -------------------------------------------------------------------------
+    group('reportComment', () {
+      test('正常系: 通報が comment_reports に決定的IDで作成される', () async {
+        final result = await service.reportComment(
+          showcaseId: 'sc-1',
+          commentId: 'c-1',
+          reporterId: 'user-2',
+          reason: ReportReason.spam,
+        );
+
+        expect(result.isSuccess, isTrue);
+        final doc = await firestore
+            .collection('comment_reports')
+            .doc('c-1_user-2')
+            .get();
+        expect(doc.exists, isTrue);
+        expect(doc.data()!['reporterId'], 'user-2');
+        expect(doc.data()!['commentId'], 'c-1');
+        expect(doc.data()!['reason'], 'spam');
+        expect(doc.data()!['status'], 'pending');
+      });
+
+      test('正常系: 同一ユーザーの再通報は冪等（重複ドキュメントを作らない）', () async {
+        await service.reportComment(
+          showcaseId: 'sc-1',
+          commentId: 'c-1',
+          reporterId: 'user-2',
+          reason: ReportReason.spam,
+        );
+        await service.reportComment(
+          showcaseId: 'sc-1',
+          commentId: 'c-1',
+          reporterId: 'user-2',
+          reason: ReportReason.harassment,
+        );
+
+        final snap = await firestore
+            .collection('comment_reports')
+            .where('commentId', isEqualTo: 'c-1')
+            .get();
+        expect(snap.docs, hasLength(1));
+        // 最新の理由で上書きされる
+        expect(snap.docs.first.data()['reason'], 'harassment');
+      });
+
+      group('Edge Cases', () {
+        test('空のreporterIdはバリデーションエラー', () async {
+          final result = await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: 'c-1',
+            reporterId: '',
+            reason: ReportReason.other,
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空のcommentIdはバリデーションエラー', () async {
+          final result = await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: '',
+            reporterId: 'user-2',
+            reason: ReportReason.other,
+          );
+          expect(result.isFailure, isTrue);
         });
       });
     });

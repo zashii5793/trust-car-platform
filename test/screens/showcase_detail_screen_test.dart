@@ -210,4 +210,34 @@ void main() {
         .get();
     expect(snap.data()!['likeCount'], 0);
   });
+
+  testWidgets('他人のコメントには通報ボタン、自分のコメントには出ない', (tester) async {
+    await seedComment('theirs', 'other', '他人のコメント');
+    await seedComment('mine', 'viewer', '自分のコメント');
+    await tester.pumpWidget(buildUnderTest(currentUserId: 'viewer'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('report_comment_theirs')), findsOneWidget);
+    expect(find.byKey(const Key('report_comment_mine')), findsNothing);
+  });
+
+  testWidgets('通報すると理由ダイアログから comment_reports に保存される', (tester) async {
+    await seedComment('theirs', 'other', '他人のコメント');
+    await tester.pumpWidget(buildUnderTest(currentUserId: 'viewer'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('report_comment_theirs')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('report_reason_spam')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('通報を受け付けました'), findsOneWidget);
+
+    final snap = await firestore.collection('comment_reports').get();
+    expect(snap.docs, hasLength(1));
+    expect(snap.docs.first.data()['reporterId'], 'viewer');
+    expect(snap.docs.first.data()['commentId'], 'theirs');
+    expect(snap.docs.first.data()['reason'], 'spam');
+  });
 }
