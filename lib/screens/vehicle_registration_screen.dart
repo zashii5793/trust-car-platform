@@ -549,7 +549,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('中断する', style: TextStyle(color: Colors.red)),
+            child: const Text('中断する', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),

@@ -5,6 +5,7 @@ import '../../models/vehicle.dart';
 import '../../providers/part_recommendation_provider.dart';
 import 'create_listing_screen.dart';
 import 'part_detail_screen.dart';
+import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
 
@@ -500,7 +501,7 @@ class _PartCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+              const Icon(Icons.chevron_right, color: AppColors.textTertiary, size: 20),
             ],
           ),
         ),
@@ -547,26 +548,26 @@ class _CompatibilityBadge extends StatelessWidget {
   Color _backgroundColor(BuildContext context) {
     switch (level) {
       case CompatibilityLevel.perfect:
-        return Colors.green.shade50;
+        return AppColors.successBackground;
       case CompatibilityLevel.compatible:
-        return Colors.blue.shade50;
+        return AppColors.infoBackground;
       case CompatibilityLevel.conditional:
-        return Colors.orange.shade50;
+        return AppColors.warningBackground;
       case CompatibilityLevel.incompatible:
-        return Colors.red.shade50;
+        return AppColors.errorBackground;
     }
   }
 
   Color _textColor(BuildContext context) {
     switch (level) {
       case CompatibilityLevel.perfect:
-        return Colors.green.shade700;
+        return AppColors.success;
       case CompatibilityLevel.compatible:
-        return Colors.blue.shade700;
+        return AppColors.info;
       case CompatibilityLevel.conditional:
-        return Colors.orange.shade700;
+        return AppColors.warning;
       case CompatibilityLevel.incompatible:
-        return Colors.red.shade700;
+        return AppColors.error;
     }
   }
 

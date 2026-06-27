@@ -440,7 +440,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('破棄する', style: TextStyle(color: Colors.red)),
+            child: const Text('破棄する', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
