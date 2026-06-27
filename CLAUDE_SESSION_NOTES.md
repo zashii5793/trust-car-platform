@@ -22,7 +22,16 @@
 - `docs/LAUNCH_READINESS.md` を新規作成（人間が `firebase deploy` する際の検証済みチェックリスト）。
 - ⚠️ 実デプロイ（`firebase deploy`）は要オーナー権限のため人間タスクとして残す。
 
-**残り**: Phase 2（大量データ負荷検証 seed + ページネーション境界テスト）、Phase 3（schemaVersion 設計ドキュメント）。
+**Phase 2（大量データ負荷検証）**:
+- `scripts/seed_load_test.js` を新規作成（posts 1000 / vehicles 100 / maintenance_records 3000 / inquiries 500 = 計4600。emulator必須の安全装置・dry-run・バッチ分割対応）。dry-run を firebase-admin@12 で検証済み。
+- **発見**: `firebase-admin@14` で namespaced API が削除され、既存 seed スクリプト全体が `npm install firebase-admin` で壊れる。v12 ピンをスクリプトと RUNBOOK に注記。
+- ページネーション境界テストを追加: `post_service_test.dart`（getFeed の limit/カーソル継続/空/limit未満）、`firebase_service_test.dart`（limit打ち切り/空/他車両分離）。
+- `FirebaseService` を injectable コンストラクタ化（後方互換・テスト容易性向上）。
+- **判断**: `getMaintenanceRecordsForVehicle` への startAfter 追加は撤回。`implements FirebaseService` する約10スタブ＋生成mockのオーバーライドを壊し、Flutter未インストールで全体検証不可のため、mock更新込みで別PR対応とする。
+- ベンチマーク手順を `MAINTENANCE_RUNBOOK.md §12` に追記。
+- ⚠️ 当環境に Flutter 未インストールのため Dart テストはローカル未実行。CI の `Analyze & Test` で検証される。
+
+**残り**: Phase 3（schemaVersion 設計ドキュメント）。
 
 ---
 

@@ -464,3 +464,53 @@ firebase deploy --only firestore:indexes
 - `analyze-and-test` 配下の `build-ios` / `build-android` が `firebase_*` 変更の回帰を検出する。
 - Firestore/Storage のルール変更は `Storage & Firestore Rules Tests` ジョブで検証される
   （`test/rules/`）。
+
+---
+
+## 12. 大量データ負荷検証（ページネーション・インデックス）
+
+ローンチ後にデータが増えても一覧画面が破綻しないことを、Emulator 上で大量データを
+投入して確認する手順。
+
+### 前提
+- `firebase-admin@12`（v14 以降は namespaced API が削除されており seed スクリプトが動かない）
+- Java 21+（Firestore Emulator 要件）
+
+### 手順
+
+```bash
+# 1. Emulator 起動（別ターミナル）
+firebase emulators:start --only firestore
+
+# 2. 投入予定を確認（書き込みなし）
+node scripts/seed_load_test.js --dry-run
+
+# 3. Emulator に大量データを投入（既定: posts 1000 / vehicles 100 /
+#    maintenance_records 3000 / inquiries 500 = 計 4600 ドキュメント）
+node scripts/seed_load_test.js --emulator
+
+# 規模を変える例
+node scripts/seed_load_test.js --emulator --posts 5000 --inquiries 2000
+```
+
+> ⚠️ `seed_load_test.js` は本番誤投入を防ぐため、`--emulator` なしでは中断する。
+> 投入データは `loadtest_` プレフィックスのIDで作成され、検証後に一括削除しやすい。
+
+### 確認項目（目標値は §冒頭のパフォーマンス目標に準拠）
+- [ ] フィード（`posts`）の初回ロードが limit 件で打ち切られ、`< 1秒` で表示される
+- [ ] スクロールでカーソル（`startAfter`）による次ページ取得が機能する
+- [ ] 工場ダッシュボードの問い合わせ一覧（`inquiries`）が `shopId + createdAt` インデックスで
+      高速に引ける（インデックス未デプロイだとここでエラー → §LAUNCH_READINESS 参照）
+- [ ] Firestore Emulator UI（`localhost:4000`）で読み取り件数が「1ページ分のみ」であること
+
+### 自動テスト（境界値）
+ページネーションの境界は単体テストでも保証している（`flutter test`）:
+- `test/services/post_service_test.dart` — `getFeed` の limit 打ち切り・カーソル継続・空・limit 未満
+- `test/services/firebase_service_test.dart` — `getMaintenanceRecordsForVehicle` の limit 打ち切り・空・他車両分離
+
+### 既知の制約（follow-up）
+- Service 層は `List<Model>` を返すため、UI 側がカーソル（最後の `DocumentSnapshot`）を
+  受け取れない。真のカーソルページングを UI まで通すには、ページ結果に「次カーソル」を含める
+  API 変更が必要（別 Issue）。
+- `getMaintenanceRecordsForVehicle` への `startAfter` 追加は、`FirebaseService` を implements する
+  多数のテストスタブ・生成 mock の更新を伴うため別 PR で対応する。
