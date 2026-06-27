@@ -3,6 +3,7 @@ import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/accessory_showcase.dart';
 import '../models/showcase_comment.dart';
+import '../models/comment_report.dart';
 
 /// Aggregates community accessory showcase posts to surface trending car
 /// accessories (dash cams, seat covers, etc.) per category.
@@ -360,6 +361,45 @@ class PopularAccessoriesService {
         if (snaps[i].exists) liked.add(commentIds[i]);
       }
       return Result.success(liked);
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
+  static const _reportsCollection = 'comment_reports';
+
+  /// Reports a comment for manual moderation. One report per user per comment
+  /// (idempotent: re-reporting overwrites the existing report rather than
+  /// creating duplicates). Reports are write-only for clients; no automatic
+  /// hiding is applied (see Issue #37).
+  Future<Result<void, AppError>> reportComment({
+    required String showcaseId,
+    required String commentId,
+    required String reporterId,
+    required ReportReason reason,
+  }) async {
+    if (showcaseId.trim().isEmpty ||
+        commentId.trim().isEmpty ||
+        reporterId.trim().isEmpty) {
+      return const Result.failure(AppError.validation(
+          'showcaseId, commentId, reporterId are required'));
+    }
+    try {
+      // Deterministic id => one report per (comment, reporter).
+      final reportId = '${commentId}_$reporterId';
+      final report = CommentReport(
+        id: reportId,
+        showcaseId: showcaseId,
+        commentId: commentId,
+        reporterId: reporterId,
+        reason: reason,
+        createdAt: DateTime.now(),
+      );
+      await _firestore
+          .collection(_reportsCollection)
+          .doc(reportId)
+          .set(report.toMap());
+      return const Result.success(null);
     } catch (e) {
       return Result.failure(AppError.unknown(e.toString(), originalError: e));
     }

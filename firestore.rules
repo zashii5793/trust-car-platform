@@ -626,6 +626,20 @@ service cloud.firestore {
       }
     }
 
+    // ==================== コメント通報（モデレーション） ====================
+    // comment_reports/{reportId}
+    // Users report showcase comments for manual moderation. Write-only for
+    // clients (one report per user/comment via deterministic id); reading and
+    // moderation are server-side only (Admin SDK / Cloud Functions).
+    match /comment_reports/{reportId} {
+      allow read: if false;
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.reporterId == request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
     // ==================== 中古車購入問い合わせ ====================
     // car_purchase_inquiries/{inquiryId}
     // Created by buyers; readable by the buyer and the target shop.
