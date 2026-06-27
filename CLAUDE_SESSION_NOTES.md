@@ -39,8 +39,17 @@
   TDD 方針、合意論点4点を明記。
 - **要・人間判断**: 方式採否 / フィールド名 / 先行モデル / ローンチ前後どちらで着手するか。合意後に Step 0 実装。
 
-**全体ステータス**: Phase 1（検証・PR #61）+ Phase 2（負荷検証seed・境界テスト）+ Phase 3（設計案）を
-ブランチ `claude/hopeful-maxwell-k021i2` に集約。Phase 3 は合意待ちのため実装は未着手。
+**追加対応（同セッション後半）**:
+- **CI修正**: `Analyze & Test` 失敗は `dart format` 差分が原因（テスト不具合ではない）。Flutter 3.38.0/Dart 3.10 を取得し
+  CI同一フォーマッタで整形。`fake_cloud_firestore` がカーソル非対応と判明 → getFeed カーソル継続検証は
+  Emulator統合テストへ移動、unit側は startAfter 受理確認のみ。**全unitテスト 3438件パス**をローカル確認。
+- **Phase 3 Step 0 実装**: `lib/core/migration/document_migrator.dart` + テスト10件（format/analyze/test 緑）。
+  Lazy Migration の土台。モデル配線（Step 1+）は §7 合意後。挙動変更なし。
+- **firebase-admin v14 問題の横展開**: `scripts/package.json` は既に `firebase-admin@^12` ピン済みだった。
+  根因は HUMAN_TASKS が `npm install firebase-admin`（v14を引く）を案内していたこと → `cd scripts && npm install` に修正（3箇所）。
+
+**全体ステータス**: Phase 1〜3 を `claude/hopeful-maxwell-k021i2` / PR #61 に集約。
+Phase 3 は Step 0（土台）まで実装、モデル配線は合意待ち。
 
 ---
 

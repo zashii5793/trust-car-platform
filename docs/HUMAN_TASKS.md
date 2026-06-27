@@ -221,9 +221,10 @@ storeFile=../../release.keystore
 
 **手順**:
 ```bash
-# 1. 依存パッケージのインストール
-cd /path/to/trust-car-platform
-npm install firebase-admin
+# 1. 依存パッケージのインストール（scripts/package.json が firebase-admin@12 をピン）
+#    ⚠️ ルートで `npm install firebase-admin` すると v14 が入り、namespaced API 削除で
+#       seed スクリプトが全滅する。必ず scripts/ で npm install すること。
+cd /path/to/trust-car-platform/scripts && npm install && cd ..
 
 # 2. Emulator で動作確認（オプション）
 firebase emulators:start --only firestore
@@ -248,8 +249,8 @@ node scripts/seed_safety_tips.js
 
 **手順**:
 ```bash
-# 1. 依存パッケージのインストール（seed_safety_tips.js と共有）
-npm install firebase-admin
+# 1. 依存パッケージのインストール（seed_safety_tips.js と共有 / firebase-admin@12 ピン）
+cd scripts && npm install && cd ..
 
 # 2. Emulator で動作確認（オプション）
 node scripts/seed_community_trends.js --dry-run   # データ確認のみ
@@ -276,7 +277,7 @@ node scripts/seed_community_trends.js
 
 **手順**:
 ```bash
-npm install firebase-admin
+cd scripts && npm install && cd ..   # firebase-admin@12 をピン（v14は namespaced API 削除で非互換）
 node scripts/seed_shops.js --dry-run    # 登録内容の確認
 node scripts/seed_shops.js --emulator   # Emulatorで動作確認
 
