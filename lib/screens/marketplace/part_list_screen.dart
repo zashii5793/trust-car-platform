@@ -501,7 +501,11 @@ class _PartCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.textTertiary, size: 20),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textTertiary,
+                size: 20,
+              ),
             ],
           ),
         ),

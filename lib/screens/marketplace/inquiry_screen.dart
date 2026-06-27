@@ -307,8 +307,11 @@ class _ShopMiniCard extends StatelessWidget {
                     if (shop.isVerified)
                       const Padding(
                         padding: EdgeInsets.only(left: 4),
-                        child:
-                            Icon(Icons.verified, size: 14, color: AppColors.info),
+                        child: Icon(
+                          Icons.verified,
+                          size: 14,
+                          color: AppColors.info,
+                        ),
                       ),
                   ],
                 ),
