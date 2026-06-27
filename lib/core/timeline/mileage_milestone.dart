@@ -46,9 +46,10 @@ class MileageMilestoneDetector {
   }) {
     if (interval <= 0) return const [];
 
-    final withMileage =
-        records.where((r) => (r.mileageAtService ?? 0) > 0).toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
+    final withMileage = records
+        .where((r) => (r.mileageAtService ?? 0) > 0)
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
 
     final milestones = <MileageMilestone>[];
     var next = interval;
