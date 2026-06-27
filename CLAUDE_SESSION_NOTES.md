@@ -1,6 +1,28 @@
 # Claude Session Notes
 
-最終更新: 2026-06-19
+最終更新: 2026-06-27
+
+---
+
+## 進捗ログ（2026-06-27）: ローンチ前データ運用の強化（3フェーズ計画）
+
+ブランチ `claude/hopeful-maxwell-k021i2`。
+
+**背景**: オーナーから「大量データ検証」「バージョンアップ時のデータ運用（マイグレーション）」の懸念。現状調査の結果:
+- カーソルページネーション（`startAfter`）は主要7サービス・45箇所で**実装済み**（基盤は良好）。
+- `schemaVersion` は全32モデルに**存在せず**（マイグレーション戦略が未整備＝バージョンアップ時のデータ破損リスク）。
+- Firestoreルール／インデックスが**本番未デプロイ**（ローンチブロッカー、HUMAN_TASKS P0）。
+
+**合意した進め方**: 3フェーズを別PRで段階実装。順序は Phase 1 → 2 → 3。Phase 3（schemaVersion = Agreeレベル）は**設計ドキュメント先行**で合意を取ってからローンチ後に実装。
+
+**Phase 1（本コミット / ローンチブロッカー検証）**:
+- AI自動検証を実施: `test/rules` の Emulator テストで `firestore.rules` のコンパイル確認＋挙動テスト **35件全パス**。
+- `firestore.indexes.json` 構造検証: 42インデックス / 16コレクション。JSONC（コメント付き）のため標準JSON.parseは弾く点を記録。
+- 未デプロイ申告項目（rules 6コレクション / `inquiries: shopId+createdAt` / `safety_tips`×2）がすべてファイルに存在することを照合。
+- `docs/LAUNCH_READINESS.md` を新規作成（人間が `firebase deploy` する際の検証済みチェックリスト）。
+- ⚠️ 実デプロイ（`firebase deploy`）は要オーナー権限のため人間タスクとして残す。
+
+**残り**: Phase 2（大量データ負荷検証 seed + ページネーション境界テスト）、Phase 3（schemaVersion 設計ドキュメント）。
 
 ---
 
