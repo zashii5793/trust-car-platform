@@ -39,6 +39,7 @@ import 'package:trust_car_platform/services/post_service.dart';
 import 'package:trust_car_platform/providers/drive_log_provider.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/providers/user_subscription_provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 
 // ---------------------------------------------------------------------------
@@ -94,7 +95,7 @@ class _StubFirebaseService implements FirebaseService {
   @override
   Future<Result<List<MaintenanceRecord>, AppError>>
       getMaintenanceRecordsForVehicle(String vehicleId,
-              {int limit = 20}) async =>
+              {int limit = 20, DocumentSnapshot? startAfter}) async =>
           const Result.success([]);
 
   @override

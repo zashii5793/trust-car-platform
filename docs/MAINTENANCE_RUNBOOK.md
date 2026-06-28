@@ -505,12 +505,14 @@ node scripts/seed_load_test.js --emulator --posts 5000 --inquiries 2000
 
 ### 自動テスト（境界値）
 ページネーションの境界は単体テストでも保証している（`flutter test`）:
-- `test/services/post_service_test.dart` — `getFeed` の limit 打ち切り・カーソル継続・空・limit 未満
-- `test/services/firebase_service_test.dart` — `getMaintenanceRecordsForVehicle` の limit 打ち切り・空・他車両分離
+- `test/services/post_service_test.dart` — `getFeed` の limit 打ち切り・startAfter 受理・空・limit 未満
+- `test/services/firebase_service_test.dart` — `getMaintenanceRecordsForVehicle` の limit 打ち切り・
+  startAfter 受理・空・他車両分離
+- 真のカーソル継続（前ページと重複しない次ページ）は `fake_cloud_firestore` が `startAfterDocument` を
+  完全サポートしないため、Emulator 統合テスト（`post_service_integration_test.dart`）で検証する。
 
 ### 既知の制約（follow-up）
 - Service 層は `List<Model>` を返すため、UI 側がカーソル（最後の `DocumentSnapshot`）を
   受け取れない。真のカーソルページングを UI まで通すには、ページ結果に「次カーソル」を含める
-  API 変更が必要（別 Issue）。
-- `getMaintenanceRecordsForVehicle` への `startAfter` 追加は、`FirebaseService` を implements する
-  多数のテストスタブ・生成 mock の更新を伴うため別 PR で対応する。
+  API 変更が必要（別 Issue）。`getFeed` / `getMaintenanceRecordsForVehicle` は `startAfter` を
+  受け取れるが、UI への配線はこの API 変更とセットで行う。

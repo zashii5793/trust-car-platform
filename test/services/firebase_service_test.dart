@@ -432,6 +432,28 @@ void main() {
       );
     });
 
+    // 真のカーソル継続（前ページと重複しない次ページ）は fake_cloud_firestore が
+    // startAfterDocument を完全サポートしないため Emulator 統合テストで検証する。
+    // ここでは startAfter を渡してもクエリが成立し成功を返すことのみ確認する。
+    test('startAfter を渡してもエラーにならず成功を返す', () async {
+      await seedRecords('v1', 25);
+
+      final firstPage = await fakeFirestore
+          .collection('maintenance_records')
+          .where('vehicleId', isEqualTo: 'v1')
+          .orderBy('date', descending: true)
+          .limit(10)
+          .get();
+
+      final result = await service.getMaintenanceRecordsForVehicle(
+        'v1',
+        limit: 10,
+        startAfter: firstPage.docs.last,
+      );
+
+      expect(result.isSuccess, isTrue);
+    });
+
     group('Edge Cases', () {
       test('レコードが存在しない車両は空リストを返す（0件境界）', () async {
         final result =

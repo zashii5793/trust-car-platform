@@ -48,8 +48,18 @@
 - **firebase-admin v14 問題の横展開**: `scripts/package.json` は既に `firebase-admin@^12` ピン済みだった。
   根因は HUMAN_TASKS が `npm install firebase-admin`（v14を引く）を案内していたこと → `cd scripts && npm install` に修正（3箇所）。
 
+**追加対応（さらに後半 / 委任「1,2,3」継続）**:
+- **Phase 3 Step 1a（Vehicle パイロット配線）**: `Vehicle` に `schemaVersion=1` と `_migrator`（空ステップ）を配線。
+  `fromFirestore` で `migrate` 適用、`toMap` で `schemaVersion` をスタンプ。currentVersion=1 のため挙動不変。
+  全unitテスト **3449件パス**で波及ゼロを確認。残り2モデル（MaintenanceRecord/Post）は同一パターンで横展開予定。
+- **maintenance_records カーソル化（旧 follow-up を実装）**: `getMaintenanceRecordsForVehicle` に `startAfter` を再追加。
+  影響は「`MockFirebaseService` は implements/noSuchMethod のため無傷、壊れるのは明示オーバーライドの
+  `_StubFirebaseService` 6箇所のみ」と判明 → 6スタブのシグネチャ更新＋3ファイルに cloud_firestore import 追加（build_runner 不要）。
+  firebase_service_test に startAfter 受理テスト追加。
+- **マージは保留**: GitHub MCP 一時切断＋main はレビュー必須ゲート＋Phase 3 設計が合意待ちのため、自動マージせず確認待ち。
+
 **全体ステータス**: Phase 1〜3 を `claude/hopeful-maxwell-k021i2` / PR #61 に集約。
-Phase 3 は Step 0（土台）まで実装、モデル配線は合意待ち。
+Phase 3 は Step 0（土台）+ Step 1a（Vehicle）まで実装。MaintenanceRecord/Post 配線とマージは合意・確認待ち。
 
 ---
 

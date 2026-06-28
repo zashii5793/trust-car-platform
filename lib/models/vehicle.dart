@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../core/migration/document_migrator.dart';
+
 /// 車両の現在のステータス
 ///
 /// 売却・廃車後もデータを保持したい場合は isDataRetained=true で
@@ -610,8 +612,22 @@ class Vehicle {
       grade.isNotEmpty ? '$maker $model $grade' : '$maker $model';
 
   // Firestoreからデータを取得
+  /// Current schema version for persisted `vehicles` documents.
+  /// Bump this and register a step in [_migrator] whenever the stored shape
+  /// changes. See `docs/SCHEMA_MIGRATION_STRATEGY.md`.
+  static const int schemaVersion = 1;
+
+  /// Lazy migrator applied on read. Empty step map = no migration yet
+  /// (currentVersion == 1), so behaviour is unchanged until the first real
+  /// schema change adds a `1 -> 2` step.
+  static const DocumentMigrator _migrator = DocumentMigrator(
+    <int, MigrationStep>{},
+    currentVersion: schemaVersion,
+  );
+
   factory Vehicle.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    final raw = doc.data() as Map<String, dynamic>;
+    final data = _migrator.migrate(raw);
     return Vehicle(
       id: doc.id,
       userId: data['userId'] ?? '',
@@ -728,6 +744,9 @@ class Vehicle {
       'retiredAt': retiredAt != null ? Timestamp.fromDate(retiredAt!) : null,
       'retirementNote': retirementNote,
       'isDataRetained': isDataRetained,
+      // Always stamp the current schema version on write so future reads of
+      // this document need no migration.
+      DocumentMigrator.versionField: schemaVersion,
     };
   }
 
