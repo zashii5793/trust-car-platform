@@ -36,6 +36,8 @@ import 'fleet/fleet_dashboard_screen.dart';
 import 'vehicle/retired_vehicles_screen.dart';
 import 'accessories/accessory_showcase_screen.dart';
 import 'safety/safety_tip_screen.dart';
+import '../models/maintenance_suggestion.dart';
+import '../services/maintenance_schedule_service.dart';
 import '../widgets/vehicle/mileage_reminder_banner.dart';
 import '../widgets/vehicle/mileage_update_dialog.dart';
 
@@ -1772,129 +1774,352 @@ class _AiSuggestionSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<NotificationProvider>(
       builder: (context, notificationProvider, child) {
-        final suggestions = notificationProvider.topSuggestions;
+        return Consumer<VehicleProvider>(
+          builder: (context, vehicleProvider, child) {
+            return Consumer<MaintenanceProvider>(
+              builder: (context, maintenanceProvider, child) {
+                final notifSuggestions = notificationProvider.topSuggestions;
 
-        // 提案がなければセクション自体を非表示
-        if (suggestions.isEmpty) return const SizedBox.shrink();
+                // Schedule-based suggestions from MaintenanceScheduleService
+                final scheduleSuggestions = <MaintenanceSuggestion>[];
+                Vehicle? primaryVehicle;
+                if (sl.isRegistered<MaintenanceScheduleService>()) {
+                  final schedService = sl.get<MaintenanceScheduleService>();
+                  final vehicles = vehicleProvider.vehicles
+                      .where((v) => v.status == VehicleStatus.active)
+                      .toList();
+                  if (vehicles.isNotEmpty) {
+                    primaryVehicle = vehicles.first;
+                    final records = maintenanceProvider.records;
+                    scheduleSuggestions.addAll(
+                        schedService.generateSuggestionsForVehicle(
+                            primaryVehicle, records));
+                  }
+                }
 
-        final theme = Theme.of(context);
-        final isDark = theme.brightness == Brightness.dark;
+                if (notifSuggestions.isEmpty && scheduleSuggestions.isEmpty) {
+                  return const SizedBox.shrink();
+                }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ---- ヘッダー ----
-            Padding(
-              padding: const EdgeInsets.only(
-                top: AppSpacing.xs,
-                bottom: AppSpacing.xs,
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: AppSpacing.xxs,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.08),
-                      borderRadius:
-                          BorderRadius.circular(AppSpacing.radiusFull),
-                      border: Border.all(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                final theme = Theme.of(context);
+                final isDark = theme.brightness == Brightness.dark;
+
+                // Combine: high/medium schedule suggestions first, then notifications.
+                // Keep only up to 5 total to avoid an overwhelming list.
+                final urgentSchedule = scheduleSuggestions
+                    .where((s) =>
+                        s.urgency == SuggestionUrgency.high ||
+                        s.urgency == SuggestionUrgency.medium)
+                    .take(3)
+                    .toList();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ---- ヘッダー ----
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        top: AppSpacing.xs,
+                        bottom: AppSpacing.xs,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                              vertical: AppSpacing.xxs,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary
+                                  .withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(
+                                  AppSpacing.radiusFull),
+                              border: Border.all(
+                                color: theme.colorScheme.primary
+                                    .withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.auto_awesome,
+                                  size: 13,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                AppSpacing.horizontalXs,
+                                Text(
+                                  'AIからの提案',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: onSeeAll,
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, 0),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'すべて見る',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.chevron_right,
+                                  size: 16,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.auto_awesome,
-                          size: 13,
-                          color: theme.colorScheme.primary,
-                        ),
-                        AppSpacing.horizontalXs,
-                        Text(
-                          'AIからの提案',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: onSeeAll,
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      minimumSize: const Size(0, 0),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'すべて見る',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                        Icon(
-                          Icons.chevron_right,
-                          size: 16,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
 
-            // ---- 横スクロールカード ----
-            SizedBox(
-              height: 168,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: suggestions.length,
-                separatorBuilder: (_, __) => AppSpacing.horizontalSm,
-                itemBuilder: (context, index) {
-                  final n = suggestions[index];
-                  return _SuggestionCard(
-                    notification: n,
-                    isDark: isDark,
-                    onTap: n.vehicleId != null
-                        ? () {
-                            final vehicles =
-                                context.read<VehicleProvider>().vehicles;
-                            final vehicle =
-                                vehicles.cast<Vehicle?>().firstWhere(
-                                      (v) => v?.id == n.vehicleId,
-                                      orElse: () => null,
-                                    );
-                            if (vehicle == null || !context.mounted) return;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => AddMaintenanceScreen(
-                                  vehicleId: vehicle.id,
-                                  currentVehicleMileage: vehicle.mileage,
+                    // ---- 横スクロールカード ----
+                    SizedBox(
+                      height: 168,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          // Schedule-based suggestion cards (high/medium urgency)
+                          ...urgentSchedule.map((s) => Padding(
+                                padding: const EdgeInsets.only(
+                                    right: AppSpacing.sm),
+                                child: _ScheduleSuggestionCard(
+                                  suggestion: s,
+                                  isDark: isDark,
+                                  onTap: primaryVehicle != null
+                                      ? () {
+                                          if (!context.mounted) return;
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  AddMaintenanceScreen(
+                                                vehicleId: primaryVehicle!.id,
+                                                currentVehicleMileage:
+                                                    primaryVehicle.mileage,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      : null,
                                 ),
-                              ),
-                            );
-                          }
-                        : null,
-                  );
-                },
-              ),
-            ),
+                              )),
+                          // Notification-based suggestion cards
+                          ...notifSuggestions.map((n) => Padding(
+                                padding: const EdgeInsets.only(
+                                    right: AppSpacing.sm),
+                                child: _SuggestionCard(
+                                  notification: n,
+                                  isDark: isDark,
+                                  onTap: n.vehicleId != null
+                                      ? () {
+                                          final vehicles = context
+                                              .read<VehicleProvider>()
+                                              .vehicles;
+                                          final vehicle = vehicles
+                                              .cast<Vehicle?>()
+                                              .firstWhere(
+                                                (v) => v?.id == n.vehicleId,
+                                                orElse: () => null,
+                                              );
+                                          if (vehicle == null ||
+                                              !context.mounted) {
+                                            return;
+                                          }
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  AddMaintenanceScreen(
+                                                vehicleId: vehicle.id,
+                                                currentVehicleMileage:
+                                                    vehicle.mileage,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      : null,
+                                ),
+                              )),
+                        ],
+                      ),
+                    ),
 
-            AppSpacing.verticalMd,
-          ],
+                    AppSpacing.verticalMd,
+                  ],
+                );
+              },
+            );
+          },
         );
       },
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// スケジュールベースの提案カード（MaintenanceSuggestion用）
+// ---------------------------------------------------------------------------
+
+class _ScheduleSuggestionCard extends StatelessWidget {
+  final MaintenanceSuggestion suggestion;
+  final bool isDark;
+  final VoidCallback? onTap;
+
+  const _ScheduleSuggestionCard({
+    required this.suggestion,
+    required this.isDark,
+    this.onTap,
+  });
+
+  Color _urgencyColor() {
+    switch (suggestion.urgency) {
+      case SuggestionUrgency.high:
+        return AppColors.error;
+      case SuggestionUrgency.medium:
+        return AppColors.warning;
+      case SuggestionUrgency.low:
+        return AppColors.info;
+    }
+  }
+
+  String _badgeText() {
+    switch (suggestion.urgency) {
+      case SuggestionUrgency.high:
+        return '要対応';
+      case SuggestionUrgency.medium:
+        return '推奨';
+      case SuggestionUrgency.low:
+        return '確認';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = _urgencyColor();
+    final remaining = suggestion.remainingKm;
+    final remainingText = remaining != null ? 'あと${_fmt(remaining)}km' : '';
+
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 210,
+        child: Card(
+          margin: EdgeInsets.zero,
+          elevation: 2,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: AppSpacing.borderRadiusMd,
+            side: BorderSide(color: color.withValues(alpha: 0.25)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(height: 3, color: color),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 14,
+                            backgroundColor: color.withValues(alpha: 0.12),
+                            child: Icon(suggestion.type.icon,
+                                size: 15, color: color),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _badgeText(),
+                              style: TextStyle(
+                                color: color,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      AppSpacing.verticalXs,
+                      Text(
+                        suggestion.title,
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      AppSpacing.verticalXxs,
+                      Expanded(
+                        child: Text(
+                          suggestion.reason,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: isDark
+                                ? AppColors.darkTextTertiary
+                                : AppColors.textTertiary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      AppSpacing.verticalXxs,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (remainingText.isNotEmpty)
+                            Text(
+                              remainingText,
+                              style: TextStyle(
+                                color: color,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          Icon(Icons.chevron_right, size: 13, color: color),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _fmt(int km) {
+    final str = km.abs().toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) buf.write(',');
+      buf.write(str[i]);
+    }
+    return km < 0 ? '-${buf.toString()}' : buf.toString();
   }
 }
 
