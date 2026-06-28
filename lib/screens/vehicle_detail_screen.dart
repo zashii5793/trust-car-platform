@@ -11,6 +11,7 @@ import '../providers/user_subscription_provider.dart';
 import '../services/drive_log_service.dart';
 import '../services/maintenance_schedule_service.dart';
 import '../core/di/service_locator.dart';
+import '../core/timeline/mileage_milestone.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../widgets/common/app_card.dart';
@@ -1164,6 +1165,12 @@ class _TimelineEntryItem extends _TimelineListItem {
   _TimelineEntryItem(this.entry, {required this.isFirst, required this.isLast});
 }
 
+class _MilestoneListItem extends _TimelineListItem {
+  final MileageMilestone milestone;
+  final bool isLast;
+  _MilestoneListItem(this.milestone, {required this.isLast});
+}
+
 class _VehicleTimeline extends StatefulWidget {
   final Vehicle vehicle;
   final _TimelineFilter filter;
@@ -1281,36 +1288,73 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
           );
         }
 
+        // Detect mileage milestones (all tabs except drive-only)
+        final milestones = widget.filter != _TimelineFilter.drive
+            ? MileageMilestoneDetector.detect(maintenanceProvider.records)
+            : <MileageMilestone>[];
+
+        // Build a combined, newest-first ordered list of entries and milestones.
+        // For same date, milestones appear above (newer side) the triggering record.
+        final combined = <({DateTime date, bool isMilestone, Object data})>[];
+        for (final e in entries) {
+          combined.add((date: e.date, isMilestone: false, data: e));
+        }
+        for (final m in milestones) {
+          // Tiebreaker: milestone sorts slightly newer (microsecond) so it
+          // appears above the record that triggered it.
+          combined.add((
+            date: m.reachedOn.add(const Duration(microseconds: 1)),
+            isMilestone: true,
+            data: m,
+          ));
+        }
+        combined.sort((a, b) => b.date.compareTo(a.date));
+
         // Build the flat list: insert a month-header before each new year/month group
         final items = <_TimelineListItem>[];
         int? lastYear;
         int? lastMonth;
-        // Track entry indices to set isFirst/isLast relative to actual entries only
-        final entryIndices = <int>[]; // positions in `items` that hold entries
-        for (final entry in entries) {
-          final y = entry.date.year;
-          final m = entry.date.month;
+        // Track non-header node positions for isFirst/isLast
+        final nodeIndices = <int>[];
+        for (final node in combined) {
+          final y = node.date.year;
+          final m = node.date.month;
           if (y != lastYear || m != lastMonth) {
             items.add(_TimelineMonthHeader(y, m));
             lastYear = y;
             lastMonth = m;
           }
-          entryIndices.add(items.length);
-          items.add(_TimelineEntryItem(
-            entry,
-            isFirst: entryIndices.length == 1,
-            isLast: false, // updated below
-          ));
+          nodeIndices.add(items.length);
+          if (node.isMilestone) {
+            items.add(_MilestoneListItem(
+              node.data as MileageMilestone,
+              isLast: false, // updated below
+            ));
+          } else {
+            items.add(_TimelineEntryItem(
+              node.data as _TimelineEntry,
+              isFirst: nodeIndices.length == 1,
+              isLast: false, // updated below
+            ));
+          }
         }
-        // Mark the last actual entry
-        if (entryIndices.isNotEmpty) {
-          final lastPos = entryIndices.last;
-          final last = items[lastPos] as _TimelineEntryItem;
-          items[lastPos] = _TimelineEntryItem(
-            last.entry,
-            isFirst: last.isFirst,
-            isLast: true,
-          );
+        // Apply isFirst to the first node and isLast to the last node
+        if (nodeIndices.isNotEmpty) {
+          final firstPos = nodeIndices.first;
+          if (items[firstPos] is _TimelineEntryItem) {
+            final e = items[firstPos] as _TimelineEntryItem;
+            items[firstPos] =
+                _TimelineEntryItem(e.entry, isFirst: true, isLast: e.isLast);
+          }
+          final lastPos = nodeIndices.last;
+          if (items[lastPos] is _TimelineEntryItem) {
+            final e = items[lastPos] as _TimelineEntryItem;
+            items[lastPos] =
+                _TimelineEntryItem(e.entry, isFirst: e.isFirst, isLast: true);
+          } else if (items[lastPos] is _MilestoneListItem) {
+            final ms = items[lastPos] as _MilestoneListItem;
+            items[lastPos] = _MilestoneListItem(ms.milestone, isLast: true);
+          }
         }
 
         return ListView.builder(
@@ -1326,6 +1370,8 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
             return switch (item) {
               _TimelineMonthHeader(:final year, :final month) =>
                 _MonthSectionHeader(year: year, month: month),
+              _MilestoneListItem(:final milestone, :final isLast) =>
+                _MilestoneTimelineItem(milestone: milestone, isLast: isLast),
               _TimelineEntryItem(:final entry, :final isFirst, :final isLast) =>
                 switch (entry) {
                   _MaintenanceEntry(:final record) => _MaintenanceTimelineItem(
@@ -1797,6 +1843,92 @@ class _DriveTimelineItem extends StatelessWidget {
                       ),
                     ],
                   ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mileage milestone timeline row
+// ---------------------------------------------------------------------------
+
+class _MilestoneTimelineItem extends StatelessWidget {
+  final MileageMilestone milestone;
+  final bool isLast;
+
+  const _MilestoneTimelineItem({
+    required this.milestone,
+    required this.isLast,
+  });
+
+  static const double _lineWidth = 2.0;
+  static const double _leftColumnWidth = 48.0;
+  static const _accentColor = Color(0xFFD97706); // amber-600
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final lineColor = isDark ? AppColors.darkCard : AppColors.divider;
+    final label = '${NumberFormat('#,###').format(milestone.mileage)} km 突破';
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ---- Left: line + marker ----
+          SizedBox(
+            width: _leftColumnWidth,
+            child: Column(
+              children: [
+                SizedBox(
+                  width: _lineWidth,
+                  height: 16,
+                  child: ColoredBox(color: lineColor),
+                ),
+                const CircleAvatar(
+                  radius: 14,
+                  backgroundColor: _accentColor,
+                  child:
+                      Icon(Icons.emoji_events, size: 15, color: Colors.white),
+                ),
+                Expanded(
+                  child: isLast
+                      ? const SizedBox.shrink()
+                      : Center(
+                          child: SizedBox(
+                            width: _lineWidth,
+                            child: ColoredBox(color: lineColor),
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.horizontalSm,
+          // ---- Right: slim badge ----
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xxs,
+              ),
+              decoration: BoxDecoration(
+                color: _accentColor.withValues(alpha: 0.1),
+                border: Border.all(color: _accentColor.withValues(alpha: 0.3)),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+              ),
+              child: Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: _accentColor,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
