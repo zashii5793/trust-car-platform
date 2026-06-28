@@ -48,7 +48,7 @@ void main() {
       test('全提案は MaintenanceSuggestion 型を返す', () {
         final vehicle = _makeVehicle(mileage: 5000);
         final result = service.generateSuggestionsForVehicle(vehicle, []);
-        expect(result.every((s) => s is MaintenanceSuggestion), isTrue);
+        expect(result, everyElement(isA<MaintenanceSuggestion>()));
       });
 
       test('提案は緊急度降順（urgency.index 昇順）でソートされている', () {
