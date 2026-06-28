@@ -1,3 +1,4 @@
+import '../models/maintenance_suggestion.dart';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
 
@@ -131,5 +132,71 @@ class MaintenanceScheduleService {
     // If mileage is exactly a multiple, next due is the next interval
     final base = intervals * item.intervalKm!;
     return base <= vehicle.mileage ? base + item.intervalKm! : base;
+  }
+
+  /// Returns a sorted list of maintenance suggestions for [vehicle] based on
+  /// its mileage and fuel type.  [records] is used to avoid duplicate entries
+  /// per maintenance type.  Suggestions are ordered by urgency (high first)
+  /// then by remaining km ascending.
+  List<MaintenanceSuggestion> generateSuggestionsForVehicle(
+    Vehicle vehicle,
+    List<MaintenanceRecord> records,
+  ) {
+    final schedule = generateSchedule(vehicle);
+    final seen = <MaintenanceType>{};
+    final suggestions = <MaintenanceSuggestion>[];
+
+    for (final item in schedule) {
+      // Skip month-only items (no km interval) and duplicates.
+      if (item.intervalKm == null) continue;
+      if (seen.contains(item.type)) continue;
+      seen.add(item.type);
+
+      final nextKm = nextDueMileage(vehicle, item);
+      if (nextKm == null) continue;
+
+      final remaining = nextKm - vehicle.mileage;
+
+      final SuggestionUrgency urgency;
+      if (remaining <= 500) {
+        urgency = SuggestionUrgency.high;
+      } else if (remaining <= 2000) {
+        urgency = SuggestionUrgency.medium;
+      } else {
+        urgency = SuggestionUrgency.low;
+      }
+
+      final currentStr = _formatKm(vehicle.mileage);
+      final nextStr = _formatKm(nextKm);
+      final remainStr = _formatKm(remaining);
+      final reason = '現在${currentStr}km走行。次回は${nextStr}kmまで（あと${remainStr}km）。'
+          '${item.description}';
+
+      suggestions.add(MaintenanceSuggestion(
+        type: item.type,
+        title: item.type.displayName,
+        reason: reason,
+        remainingKm: remaining,
+        urgency: urgency,
+      ));
+    }
+
+    suggestions.sort((a, b) {
+      final urgencyCmp = a.urgency.index.compareTo(b.urgency.index);
+      if (urgencyCmp != 0) return urgencyCmp;
+      return (a.remainingKm ?? 0).compareTo(b.remainingKm ?? 0);
+    });
+
+    return suggestions;
+  }
+
+  static String _formatKm(int km) {
+    final buf = StringBuffer();
+    final str = km.abs().toString();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) buf.write(',');
+      buf.write(str[i]);
+    }
+    return km < 0 ? '-${buf.toString()}' : buf.toString();
   }
 }
