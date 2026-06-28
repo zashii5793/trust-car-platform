@@ -904,5 +904,102 @@ void main() {
         expect(await reportCountOf(id), 1);
       });
     });
+
+    // -------------------------------------------------------------------------
+    // 通知（social_notifications）
+    // -------------------------------------------------------------------------
+    group('notifications', () {
+      Future<int> notifCount() async {
+        final s = await firestore.collection('social_notifications').get();
+        return s.docs.length;
+      }
+
+      test('コメントで投稿主に通知が作成される', () async {
+        await seedShowcase(showcase(id: 'sc-1', userId: 'owner'));
+
+        await service.addComment(
+          showcaseId: 'sc-1',
+          userId: 'commenter',
+          content: 'いいですね',
+        );
+
+        final s = await firestore.collection('social_notifications').get();
+        expect(s.docs, hasLength(1));
+        expect(s.docs.first.data()['userId'], 'owner');
+        expect(s.docs.first.data()['actorId'], 'commenter');
+        expect(s.docs.first.data()['type'], 'comment');
+        expect(s.docs.first.data()['showcaseId'], 'sc-1');
+      });
+
+      test('自分の投稿への自分のコメントは通知しない', () async {
+        await seedShowcase(showcase(id: 'sc-1', userId: 'owner'));
+
+        await service.addComment(
+          showcaseId: 'sc-1',
+          userId: 'owner',
+          content: '補足です',
+        );
+
+        expect(await notifCount(), 0);
+      });
+
+      test('いいねでコメント投稿者に通知が作成される', () async {
+        await seedShowcase(showcase(id: 'sc-1', userId: 'owner'));
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .add({
+          'showcaseId': 'sc-1',
+          'userId': 'author',
+          'content': 'c',
+          'createdAt': Timestamp.fromDate(now),
+          'likeCount': 0,
+          'reportCount': 0,
+        });
+
+        await service.likeComment(
+          showcaseId: 'sc-1',
+          commentId: ref.id,
+          userId: 'liker',
+        );
+
+        final s = await firestore
+            .collection('social_notifications')
+            .where('type', isEqualTo: 'like')
+            .get();
+        expect(s.docs, hasLength(1));
+        expect(s.docs.first.data()['userId'], 'author');
+        expect(s.docs.first.data()['actorId'], 'liker');
+      });
+
+      test('自分のコメントへの自分のいいねは通知しない', () async {
+        await seedShowcase(showcase(id: 'sc-1', userId: 'owner'));
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .add({
+          'showcaseId': 'sc-1',
+          'userId': 'author',
+          'content': 'c',
+          'createdAt': Timestamp.fromDate(now),
+          'likeCount': 0,
+          'reportCount': 0,
+        });
+
+        await service.likeComment(
+          showcaseId: 'sc-1',
+          commentId: ref.id,
+          userId: 'author',
+        );
+
+        final s = await firestore
+            .collection('social_notifications')
+            .where('type', isEqualTo: 'like')
+            .get();
+        expect(s.docs, isEmpty);
+      });
+    });
   });
 }

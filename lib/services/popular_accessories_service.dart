@@ -4,6 +4,7 @@ import '../core/result/result.dart';
 import '../models/accessory_showcase.dart';
 import '../models/showcase_comment.dart';
 import '../models/comment_report.dart';
+import '../models/follow.dart' show NotificationType;
 
 /// Aggregates community accessory showcase posts to surface trending car
 /// accessories (dash cams, seat covers, etc.) per category.
@@ -162,9 +163,58 @@ class PopularAccessoriesService {
         createdAt: DateTime.now(),
       );
       final doc = await _commentsRef(showcaseId).add(comment.toMap());
+
+      // Notify the showcase owner that someone commented (best-effort).
+      try {
+        final showcaseSnap =
+            await _firestore.collection(_collection).doc(showcaseId).get();
+        final ownerId = showcaseSnap.data()?['userId'] as String? ?? '';
+        await _notify(
+          recipientId: ownerId,
+          actorId: userId,
+          actorDisplayName: userDisplayName,
+          type: NotificationType.comment,
+          showcaseId: showcaseId,
+          commentId: doc.id,
+          previewText: content.trim(),
+        );
+      } catch (_) {
+        // Notification failures must never fail the comment.
+      }
+
       return Result.success(comment.copyWith(id: doc.id));
     } catch (e) {
       return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
+  /// Writes a social notification (best-effort). No-op if the recipient is the
+  /// actor or unknown. Mirrors the `social_notifications` schema used by
+  /// PostService/FollowService so showcase activity surfaces in the same feed.
+  Future<void> _notify({
+    required String recipientId,
+    required String actorId,
+    String? actorDisplayName,
+    required NotificationType type,
+    required String showcaseId,
+    String? commentId,
+    String? previewText,
+  }) async {
+    if (recipientId.isEmpty || recipientId == actorId) return;
+    try {
+      await _firestore.collection('social_notifications').add({
+        'userId': recipientId,
+        'actorId': actorId,
+        if (actorDisplayName != null) 'actorDisplayName': actorDisplayName,
+        'type': type.name,
+        'showcaseId': showcaseId,
+        if (commentId != null) 'commentId': commentId,
+        if (previewText != null) 'previewText': previewText,
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Best-effort; notification failures are non-fatal.
     }
   }
 
@@ -312,11 +362,14 @@ class PopularAccessoriesService {
     try {
       final commentRef = _commentsRef(showcaseId).doc(commentId);
       final likeRef = _likeRef(showcaseId, commentId, userId);
+      var newlyLiked = false;
+      var commentAuthorId = '';
       await _firestore.runTransaction((tx) async {
         final commentSnap = await tx.get(commentRef);
         if (!commentSnap.exists) {
           throw _NotFound();
         }
+        commentAuthorId = commentSnap.data()?['userId'] as String? ?? '';
         final likeSnap = await tx.get(likeRef);
         if (likeSnap.exists) return; // already liked — no-op
         final current = (commentSnap.data()?['likeCount'] as int?) ?? 0;
@@ -326,7 +379,18 @@ class PopularAccessoriesService {
           'createdAt': Timestamp.fromDate(DateTime.now()),
         });
         tx.update(commentRef, {'likeCount': current + 1});
+        newlyLiked = true;
       });
+      if (newlyLiked) {
+        // Notify the comment author of the like (best-effort).
+        await _notify(
+          recipientId: commentAuthorId,
+          actorId: userId,
+          type: NotificationType.like,
+          showcaseId: showcaseId,
+          commentId: commentId,
+        );
+      }
       return const Result.success(null);
     } on _NotFound {
       return const Result.failure(
