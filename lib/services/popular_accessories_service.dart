@@ -168,18 +168,42 @@ class PopularAccessoriesService {
     }
   }
 
-  /// Returns comments for [showcaseId], oldest first (conversation order).
+  /// Returns comments for [showcaseId].
+  ///
+  /// [sort] controls ordering (oldest/newest/most-liked) and [limit] caps the
+  /// number fetched (for pagination — increase to load more). Comments with
+  /// [kReportHideThreshold] or more reports are hidden (lightweight, client-side
+  /// moderation; robust enforcement would move to Cloud Functions).
   Future<Result<List<ShowcaseComment>, AppError>> getComments(
-      String showcaseId) async {
+    String showcaseId, {
+    CommentSort sort = CommentSort.oldest,
+    int? limit,
+  }) async {
     if (showcaseId.trim().isEmpty) {
       return const Result.failure(
           AppError.validation('showcaseId must not be empty'));
     }
     try {
-      final snap = await _commentsRef(showcaseId)
-          .orderBy('createdAt', descending: false)
-          .get();
-      final list = snap.docs.map(ShowcaseComment.fromFirestore).toList();
+      Query<Map<String, dynamic>> query = _commentsRef(showcaseId);
+      switch (sort) {
+        case CommentSort.oldest:
+          query = query.orderBy('createdAt');
+          break;
+        case CommentSort.newest:
+          query = query.orderBy('createdAt', descending: true);
+          break;
+        case CommentSort.mostLiked:
+          query = query.orderBy('likeCount', descending: true);
+          break;
+      }
+      if (limit != null && limit > 0) {
+        query = query.limit(limit);
+      }
+      final snap = await query.get();
+      final list = snap.docs
+          .map(ShowcaseComment.fromFirestore)
+          .where((c) => c.reportCount < kReportHideThreshold)
+          .toList();
       return Result.success(list);
     } catch (e) {
       return Result.failure(AppError.unknown(e.toString(), originalError: e));
@@ -369,9 +393,12 @@ class PopularAccessoriesService {
   static const _reportsCollection = 'comment_reports';
 
   /// Reports a comment for manual moderation. One report per user per comment
-  /// (idempotent: re-reporting overwrites the existing report rather than
-  /// creating duplicates). Reports are write-only for clients; no automatic
-  /// hiding is applied (see Issue #37).
+  /// (idempotent: re-reporting overwrites the report and never double-counts).
+  ///
+  /// On the first report by a given user, the comment's denormalized
+  /// `reportCount` is incremented; once it reaches [kReportHideThreshold] the
+  /// comment is hidden from [getComments]. Report documents themselves are
+  /// write-only for clients (moderation is server-side — see Issue #37).
   Future<Result<void, AppError>> reportComment({
     required String showcaseId,
     required String commentId,
@@ -395,10 +422,20 @@ class PopularAccessoriesService {
         reason: reason,
         createdAt: DateTime.now(),
       );
-      await _firestore
-          .collection(_reportsCollection)
-          .doc(reportId)
-          .set(report.toMap());
+      final reportRef = _firestore.collection(_reportsCollection).doc(reportId);
+      final commentRef = _commentsRef(showcaseId).doc(commentId);
+      await _firestore.runTransaction((tx) async {
+        final existing = await tx.get(reportRef);
+        if (!existing.exists) {
+          // First report by this user — bump the comment's reportCount.
+          final commentSnap = await tx.get(commentRef);
+          if (commentSnap.exists) {
+            final current = (commentSnap.data()?['reportCount'] as int?) ?? 0;
+            tx.update(commentRef, {'reportCount': current + 1});
+          }
+        }
+        tx.set(reportRef, report.toMap());
+      });
       return const Result.success(null);
     } catch (e) {
       return Result.failure(AppError.unknown(e.toString(), originalError: e));
@@ -448,3 +485,10 @@ class PopularAccessoriesService {
 /// Internal sentinel used to surface "comment not found" out of a Firestore
 /// transaction as a typed [AppError.notFound].
 class _NotFound implements Exception {}
+
+/// Number of distinct reports at which a comment is hidden from [getComments].
+/// Lightweight client-side moderation; robust enforcement would move server-side.
+const int kReportHideThreshold = 3;
+
+/// Ordering options for [PopularAccessoriesService.getComments].
+enum CommentSort { oldest, newest, mostLiked }

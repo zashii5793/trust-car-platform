@@ -16,6 +16,7 @@ class ShowcaseComment {
   final bool isEdited;
   final DateTime? updatedAt;
   final int likeCount;
+  final int reportCount;
 
   const ShowcaseComment({
     required this.id,
@@ -28,6 +29,7 @@ class ShowcaseComment {
     this.isEdited = false,
     this.updatedAt,
     this.likeCount = 0,
+    this.reportCount = 0,
   });
 
   factory ShowcaseComment.fromFirestore(DocumentSnapshot doc) {
@@ -43,6 +45,7 @@ class ShowcaseComment {
       isEdited: data['isEdited'] ?? false,
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
       likeCount: data['likeCount'] ?? 0,
+      reportCount: data['reportCount'] ?? 0,
     );
   }
 
@@ -57,6 +60,7 @@ class ShowcaseComment {
       'isEdited': isEdited,
       if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
       'likeCount': likeCount,
+      'reportCount': reportCount,
     };
   }
 
@@ -66,6 +70,7 @@ class ShowcaseComment {
     bool? isEdited,
     DateTime? updatedAt,
     int? likeCount,
+    int? reportCount,
   }) {
     return ShowcaseComment(
       id: id ?? this.id,
@@ -78,6 +83,7 @@ class ShowcaseComment {
       isEdited: isEdited ?? this.isEdited,
       updatedAt: updatedAt ?? this.updatedAt,
       likeCount: likeCount ?? this.likeCount,
+      reportCount: reportCount ?? this.reportCount,
     );
   }
 

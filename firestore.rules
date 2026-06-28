@@ -598,17 +598,21 @@ service cloud.firestore {
         allow delete: if isAuthenticated() &&
           resource.data.userId == request.auth.uid;
 
-        // Two allowed updates:
+        // Allowed updates:
         //  1) Author edits their own comment (ownership immutable).
         //  2) Anyone (un)likes: only `likeCount` may change, by exactly ±1.
         //     The likes/{userId} marker enforces 1-like-per-user.
+        //  3) Anyone reports: only `reportCount` may change, by exactly +1.
         allow update: if isAuthenticated() && (
           (resource.data.userId == request.auth.uid &&
             request.resource.data.userId == resource.data.userId) ||
           (request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['likeCount']) &&
             (request.resource.data.likeCount == resource.data.likeCount + 1 ||
-             request.resource.data.likeCount == resource.data.likeCount - 1))
+             request.resource.data.likeCount == resource.data.likeCount - 1)) ||
+          (request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['reportCount']) &&
+            request.resource.data.reportCount == resource.data.reportCount + 1)
         );
 
         // accessory_showcases/{id}/comments/{commentId}/likes/{userId}
