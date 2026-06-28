@@ -1,8 +1,21 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mockito/mockito.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
+import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/result/result.dart';
+
+// FirebaseService only touches Firestore in the methods under test. Auth and
+// Storage are injected as bare mocks so the constructor never reaches the
+// uninitialised FirebaseAuth.instance / FirebaseStorage.instance singletons.
+class _FakeAuth extends Mock implements FirebaseAuth {}
+
+class _FakeStorage extends Mock implements FirebaseStorage {}
 
 void main() {
   group('FirebaseService Result Pattern Tests', () {
@@ -368,6 +381,116 @@ void main() {
             const AuthError('test', type: AuthErrorType.invalidCredentials)
                 .isRetryable,
             false);
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 大量データ検証: getMaintenanceRecordsForVehicle の limit ページング境界
+  //
+  // maintenance_records は車両ごとに無制限に蓄積するため、limit で1ページ分に
+  // 制限されること・境界値を検証する。
+  // ---------------------------------------------------------------------------
+  group('FirebaseService.getMaintenanceRecordsForVehicle — pagination', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late FirebaseService service;
+
+    // date を1日ずつずらして 25 件投入（新しいものが先頭になる desc 順）
+    Future<void> seedRecords(String vehicleId, int count) async {
+      for (var i = 0; i < count; i++) {
+        await fakeFirestore.collection('maintenance_records').add({
+          'vehicleId': vehicleId,
+          'userId': 'owner-uid',
+          'type': 'oilChange',
+          'title': 'record-$i',
+          'cost': 1000,
+          'date':
+              Timestamp.fromDate(DateTime(2024, 1, 1).add(Duration(days: i))),
+          'createdAt': Timestamp.fromDate(DateTime(2024, 1, 1)),
+        });
+      }
+    }
+
+    setUp(() {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = FirebaseService(
+        firestore: fakeFirestore,
+        auth: _FakeAuth(),
+        storage: _FakeStorage(),
+      );
+    });
+
+    test('limit を超える件数があるとき limit 件で打ち切る', () async {
+      await seedRecords('v1', 25);
+
+      final result =
+          await service.getMaintenanceRecordsForVehicle('v1', limit: 10);
+
+      result.when(
+        success: (records) => expect(records.length, 10),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    // 真のカーソル継続（前ページと重複しない次ページ）は fake_cloud_firestore が
+    // startAfterDocument を完全サポートしないため Emulator 統合テストで検証する。
+    // ここでは startAfter を渡してもクエリが成立し成功を返すことのみ確認する。
+    test('startAfter を渡してもエラーにならず成功を返す', () async {
+      await seedRecords('v1', 25);
+
+      final firstPage = await fakeFirestore
+          .collection('maintenance_records')
+          .where('vehicleId', isEqualTo: 'v1')
+          .orderBy('date', descending: true)
+          .limit(10)
+          .get();
+
+      final result = await service.getMaintenanceRecordsForVehicle(
+        'v1',
+        limit: 10,
+        startAfter: firstPage.docs.last,
+      );
+
+      expect(result.isSuccess, isTrue);
+    });
+
+    group('Edge Cases', () {
+      test('レコードが存在しない車両は空リストを返す（0件境界）', () async {
+        final result =
+            await service.getMaintenanceRecordsForVehicle('no-such-vehicle');
+
+        result.when(
+          success: (records) => expect(records, isEmpty),
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+
+      test('件数が limit 未満のときは全件を返す', () async {
+        await seedRecords('v1', 3);
+
+        final result =
+            await service.getMaintenanceRecordsForVehicle('v1', limit: 10);
+
+        result.when(
+          success: (records) => expect(records.length, 3),
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+
+      test('他車両のレコードは混入しない', () async {
+        await seedRecords('v1', 5);
+        await seedRecords('v2', 5);
+
+        final result =
+            await service.getMaintenanceRecordsForVehicle('v1', limit: 50);
+
+        result.when(
+          success: (records) {
+            expect(records.length, 5);
+            expect(records.every((r) => r.vehicleId == 'v1'), isTrue);
+          },
+          failure: (e) => fail('Expected success, got: $e'),
+        );
       });
     });
   });

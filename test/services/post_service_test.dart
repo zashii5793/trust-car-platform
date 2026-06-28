@@ -553,4 +553,95 @@ void main() {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // 大量データ検証: getFeed のカーソルページネーション（最重要トラフィック）
+  // ---------------------------------------------------------------------------
+  group('PostService.getFeed — pagination', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    // createdAt を1分ずつずらして public 投稿を count 件投入
+    Future<void> seedPublicPosts(int count) async {
+      for (var i = 0; i < count; i++) {
+        await fakeFirestore.collection('posts').add({
+          'userId': 'feed-author',
+          'visibility': 'public',
+          'content': 'feed-$i',
+          'category': 'general',
+          'hashtags': <String>[],
+          'mentionedUserIds': <String>[],
+          'likeCount': 0,
+          'commentCount': 0,
+          'shareCount': 0,
+          'viewCount': 0,
+          'isEdited': false,
+          'media': <dynamic>[],
+          'createdAt': Timestamp.fromDate(
+              DateTime(2024, 1, 1).add(Duration(minutes: i))),
+          'updatedAt': Timestamp.fromDate(DateTime(2024, 1, 1)),
+        });
+      }
+    }
+
+    setUp(() {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+    });
+
+    test('limit を超える件数があるとき limit 件で打ち切る', () async {
+      await seedPublicPosts(30);
+
+      final result = await service.getFeed(limit: 20);
+
+      result.when(
+        success: (posts) => expect(posts.length, 20),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    // 真のカーソル継続（前ページと重複しない次ページ取得）は fake_cloud_firestore が
+    // startAfterDocument を完全サポートしないため、Emulator を使う統合テスト
+    // post_service_integration_test.dart で検証する。ここでは startAfter を渡しても
+    // クエリが成立し成功を返すこと（コードパスが通ること）のみ確認する。
+    test('startAfter を渡してもエラーにならず成功を返す', () async {
+      await seedPublicPosts(30);
+
+      final firstPageSnap = await fakeFirestore
+          .collection('posts')
+          .where('visibility', isEqualTo: 'public')
+          .orderBy('createdAt', descending: true)
+          .limit(20)
+          .get();
+
+      final result = await service.getFeed(
+        limit: 20,
+        startAfter: firstPageSnap.docs.last,
+      );
+
+      expect(result.isSuccess, isTrue);
+    });
+
+    group('Edge Cases', () {
+      test('投稿が無いとき空リストを返す（0件境界）', () async {
+        final result = await service.getFeed(limit: 20);
+
+        result.when(
+          success: (posts) => expect(posts, isEmpty),
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+
+      test('件数が limit 未満のときは全件を返す', () async {
+        await seedPublicPosts(5);
+
+        final result = await service.getFeed(limit: 20);
+
+        result.when(
+          success: (posts) => expect(posts.length, 5),
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+    });
+  });
 }

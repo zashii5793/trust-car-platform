@@ -603,6 +603,11 @@ void main() {
       expect(v.toMap()['useCategory'], isNull);
     });
 
+    test('toMap に schemaVersion が含まれる（マイグレーション基盤）', () {
+      final v = makeWithCategory(useCategory: VehicleUseCategory.cargo);
+      expect(v.toMap()['schemaVersion'], Vehicle.schemaVersion);
+    });
+
     test('copyWith で useCategory を変更できる', () {
       final v = makeWithCategory(useCategory: VehicleUseCategory.cargo);
       final copied =

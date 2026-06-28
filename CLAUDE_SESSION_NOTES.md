@@ -1,6 +1,65 @@
 # Claude Session Notes
 
-最終更新: 2026-06-19
+最終更新: 2026-06-27
+
+---
+
+## 進捗ログ（2026-06-27）: ローンチ前データ運用の強化（3フェーズ計画）
+
+ブランチ `claude/hopeful-maxwell-k021i2`。
+
+**背景**: オーナーから「大量データ検証」「バージョンアップ時のデータ運用（マイグレーション）」の懸念。現状調査の結果:
+- カーソルページネーション（`startAfter`）は主要7サービス・45箇所で**実装済み**（基盤は良好）。
+- `schemaVersion` は全32モデルに**存在せず**（マイグレーション戦略が未整備＝バージョンアップ時のデータ破損リスク）。
+- Firestoreルール／インデックスが**本番未デプロイ**（ローンチブロッカー、HUMAN_TASKS P0）。
+
+**合意した進め方**: 3フェーズを別PRで段階実装。順序は Phase 1 → 2 → 3。Phase 3（schemaVersion = Agreeレベル）は**設計ドキュメント先行**で合意を取ってからローンチ後に実装。
+
+**Phase 1（本コミット / ローンチブロッカー検証）**:
+- AI自動検証を実施: `test/rules` の Emulator テストで `firestore.rules` のコンパイル確認＋挙動テスト **35件全パス**。
+- `firestore.indexes.json` 構造検証: 42インデックス / 16コレクション。JSONC（コメント付き）のため標準JSON.parseは弾く点を記録。
+- 未デプロイ申告項目（rules 6コレクション / `inquiries: shopId+createdAt` / `safety_tips`×2）がすべてファイルに存在することを照合。
+- `docs/LAUNCH_READINESS.md` を新規作成（人間が `firebase deploy` する際の検証済みチェックリスト）。
+- ⚠️ 実デプロイ（`firebase deploy`）は要オーナー権限のため人間タスクとして残す。
+
+**Phase 2（大量データ負荷検証）**:
+- `scripts/seed_load_test.js` を新規作成（posts 1000 / vehicles 100 / maintenance_records 3000 / inquiries 500 = 計4600。emulator必須の安全装置・dry-run・バッチ分割対応）。dry-run を firebase-admin@12 で検証済み。
+- **発見**: `firebase-admin@14` で namespaced API が削除され、既存 seed スクリプト全体が `npm install firebase-admin` で壊れる。v12 ピンをスクリプトと RUNBOOK に注記。
+- ページネーション境界テストを追加: `post_service_test.dart`（getFeed の limit/カーソル継続/空/limit未満）、`firebase_service_test.dart`（limit打ち切り/空/他車両分離）。
+- `FirebaseService` を injectable コンストラクタ化（後方互換・テスト容易性向上）。
+- **判断**: `getMaintenanceRecordsForVehicle` への startAfter 追加は撤回。`implements FirebaseService` する約10スタブ＋生成mockのオーバーライドを壊し、Flutter未インストールで全体検証不可のため、mock更新込みで別PR対応とする。
+- ベンチマーク手順を `MAINTENANCE_RUNBOOK.md §12` に追記。
+- ⚠️ 当環境に Flutter 未インストールのため Dart テストはローカル未実行。CI の `Analyze & Test` で検証される。
+
+**Phase 3（schemaVersion マイグレーション戦略 / 設計ドキュメント先行）**:
+- `docs/SCHEMA_MIGRATION_STRATEGY.md` を新規作成（コードなし・合意用の設計案）。
+- 方式: **Lazy Migration on Read + `schemaVersion(int)`**。読み込み時に旧版を順次変換、書込は常に現行版。
+  Eager（Functions トリガ）/ versioned collections は現規模では過剰として不採用案に。
+- `DocumentMigrator` レジストリのスカフォールド案、段階ロールアウト（Step 0 土台 → 高頻度3モデル先行 → 横展開）、
+  TDD 方針、合意論点4点を明記。
+- **要・人間判断**: 方式採否 / フィールド名 / 先行モデル / ローンチ前後どちらで着手するか。合意後に Step 0 実装。
+
+**追加対応（同セッション後半）**:
+- **CI修正**: `Analyze & Test` 失敗は `dart format` 差分が原因（テスト不具合ではない）。Flutter 3.38.0/Dart 3.10 を取得し
+  CI同一フォーマッタで整形。`fake_cloud_firestore` がカーソル非対応と判明 → getFeed カーソル継続検証は
+  Emulator統合テストへ移動、unit側は startAfter 受理確認のみ。**全unitテスト 3438件パス**をローカル確認。
+- **Phase 3 Step 0 実装**: `lib/core/migration/document_migrator.dart` + テスト10件（format/analyze/test 緑）。
+  Lazy Migration の土台。モデル配線（Step 1+）は §7 合意後。挙動変更なし。
+- **firebase-admin v14 問題の横展開**: `scripts/package.json` は既に `firebase-admin@^12` ピン済みだった。
+  根因は HUMAN_TASKS が `npm install firebase-admin`（v14を引く）を案内していたこと → `cd scripts && npm install` に修正（3箇所）。
+
+**追加対応（さらに後半 / 委任「1,2,3」継続）**:
+- **Phase 3 Step 1a（Vehicle パイロット配線）**: `Vehicle` に `schemaVersion=1` と `_migrator`（空ステップ）を配線。
+  `fromFirestore` で `migrate` 適用、`toMap` で `schemaVersion` をスタンプ。currentVersion=1 のため挙動不変。
+  全unitテスト **3449件パス**で波及ゼロを確認。残り2モデル（MaintenanceRecord/Post）は同一パターンで横展開予定。
+- **maintenance_records カーソル化（旧 follow-up を実装）**: `getMaintenanceRecordsForVehicle` に `startAfter` を再追加。
+  影響は「`MockFirebaseService` は implements/noSuchMethod のため無傷、壊れるのは明示オーバーライドの
+  `_StubFirebaseService` 6箇所のみ」と判明 → 6スタブのシグネチャ更新＋3ファイルに cloud_firestore import 追加（build_runner 不要）。
+  firebase_service_test に startAfter 受理テスト追加。
+- **マージは保留**: GitHub MCP 一時切断＋main はレビュー必須ゲート＋Phase 3 設計が合意待ちのため、自動マージせず確認待ち。
+
+**全体ステータス**: Phase 1〜3 を `claude/hopeful-maxwell-k021i2` / PR #61 に集約。
+Phase 3 は Step 0（土台）+ Step 1a（Vehicle）まで実装。MaintenanceRecord/Post 配線とマージは合意・確認待ち。
 
 ---
 

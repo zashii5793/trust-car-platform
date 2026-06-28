@@ -14,9 +14,20 @@ import '../core/result/result.dart';
 /// すべてのメソッドは[Result]を返し、
 /// エラーハンドリングを一貫して行える
 class FirebaseService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
+  final FirebaseStorage _storage;
+
+  /// Dependencies default to the singleton instances in production.
+  /// Tests inject fakes (e.g. [FakeFirebaseFirestore]) to exercise queries
+  /// such as pagination without a live backend.
+  FirebaseService({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+    FirebaseStorage? storage,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance,
+        _storage = storage ?? FirebaseStorage.instance;
 
   // 現在のユーザーID取得
   String? get currentUserId => _auth.currentUser?.uid;
@@ -174,19 +185,29 @@ class FirebaseService {
     });
   }
 
-  /// 車両の履歴一覧を取得（Future版、通知生成用）
+  /// 車両の履歴一覧を取得（Future版、通知生成用・ページネーション対応）
+  ///
+  /// maintenance_records は車両ごとに無制限に蓄積するため [limit] で1ページ分に
+  /// 制限する。[startAfter] にひとつ前のページ末尾の [DocumentSnapshot] を渡すと、
+  /// その続きから [limit] 件を取得する（カーソルページネーション）。
   Future<Result<List<MaintenanceRecord>, AppError>>
       getMaintenanceRecordsForVehicle(
     String vehicleId, {
     int limit = 20,
+    DocumentSnapshot? startAfter,
   }) async {
     try {
-      final snapshot = await _firestore
+      Query<Map<String, dynamic>> query = _firestore
           .collection(FirestoreCollections.maintenanceRecords)
           .where('vehicleId', isEqualTo: vehicleId)
           .orderBy('date', descending: true)
-          .limit(limit)
-          .get();
+          .limit(limit);
+
+      if (startAfter != null) {
+        query = query.startAfterDocument(startAfter);
+      }
+
+      final snapshot = await query.get();
 
       final records = snapshot.docs
           .map((doc) => MaintenanceRecord.fromFirestore(doc))
