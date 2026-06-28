@@ -83,21 +83,24 @@ void main() {
 
     group('燃料タイプ別', () {
       test('ガソリン車: オイル交換提案を含む', () {
-        final vehicle = _makeVehicle(mileage: 4500, fuelType: FuelType.gasoline);
+        final vehicle =
+            _makeVehicle(mileage: 4500, fuelType: FuelType.gasoline);
         final result = service.generateSuggestionsForVehicle(vehicle, []);
         expect(result.any((s) => s.type == MaintenanceType.oilChange), isTrue,
             reason: 'Gasoline should suggest oil change');
       });
 
       test('EV: オイル交換提案を含まない', () {
-        final vehicle = _makeVehicle(mileage: 9000, fuelType: FuelType.electric);
+        final vehicle =
+            _makeVehicle(mileage: 9000, fuelType: FuelType.electric);
         final result = service.generateSuggestionsForVehicle(vehicle, []);
         expect(result.any((s) => s.type == MaintenanceType.oilChange), isFalse,
             reason: 'EV should not suggest oil change');
       });
 
       test('EV: タイヤローテーション提案を含む', () {
-        final vehicle = _makeVehicle(mileage: 9500, fuelType: FuelType.electric);
+        final vehicle =
+            _makeVehicle(mileage: 9500, fuelType: FuelType.electric);
         final result = service.generateSuggestionsForVehicle(vehicle, []);
         expect(
           result.any((s) => s.type == MaintenanceType.tireRotation),
@@ -109,7 +112,8 @@ void main() {
       test('ハイブリッド: オイル交換は 10,000km インターバル、9500km で remaining=500', () {
         final vehicle = _makeVehicle(mileage: 9500, fuelType: FuelType.hybrid);
         final result = service.generateSuggestionsForVehicle(vehicle, []);
-        final oil = result.firstWhere((s) => s.type == MaintenanceType.oilChange);
+        final oil =
+            result.firstWhere((s) => s.type == MaintenanceType.oilChange);
         expect(oil.remainingKm, equals(500));
         // remaining=500 <= 500 → high
         expect(oil.urgency, equals(SuggestionUrgency.high));
@@ -125,7 +129,8 @@ void main() {
     group('緊急度判定', () {
       test('残り 500km 以下: urgency = high', () {
         // Gasoline 5000km interval: at 4600, next at 5000, remaining = 400
-        final vehicle = _makeVehicle(mileage: 4600, fuelType: FuelType.gasoline);
+        final vehicle =
+            _makeVehicle(mileage: 4600, fuelType: FuelType.gasoline);
         final result = service.generateSuggestionsForVehicle(vehicle, []);
         final oilSugg =
             result.firstWhere((s) => s.type == MaintenanceType.oilChange);
@@ -135,7 +140,8 @@ void main() {
 
       test('残り 501〜2000km: urgency = medium', () {
         // At 9100km, oil change next at 10000 → remaining = 900
-        final vehicle = _makeVehicle(mileage: 9100, fuelType: FuelType.gasoline);
+        final vehicle =
+            _makeVehicle(mileage: 9100, fuelType: FuelType.gasoline);
         final result = service.generateSuggestionsForVehicle(vehicle, []);
         final oilSugg =
             result.firstWhere((s) => s.type == MaintenanceType.oilChange);
@@ -144,7 +150,8 @@ void main() {
       });
 
       test('残り 2001km 超: urgency = low', () {
-        final vehicle = _makeVehicle(mileage: 1000, fuelType: FuelType.gasoline);
+        final vehicle =
+            _makeVehicle(mileage: 1000, fuelType: FuelType.gasoline);
         final result = service.generateSuggestionsForVehicle(vehicle, []);
         final oilSugg =
             result.firstWhere((s) => s.type == MaintenanceType.oilChange);
@@ -155,7 +162,8 @@ void main() {
 
       test('タイヤローテーション(EV) at 9600km: urgency = high (remaining=400)', () {
         // EV tire rotation 10000km interval: next at 10000, remaining = 400
-        final vehicle = _makeVehicle(mileage: 9600, fuelType: FuelType.electric);
+        final vehicle =
+            _makeVehicle(mileage: 9600, fuelType: FuelType.electric);
         final result = service.generateSuggestionsForVehicle(vehicle, []);
         final tire =
             result.firstWhere((s) => s.type == MaintenanceType.tireRotation);
@@ -166,7 +174,8 @@ void main() {
 
     group('reason 文字列', () {
       test('high urgency 提案の reason は km を含む', () {
-        final vehicle = _makeVehicle(mileage: 4600, fuelType: FuelType.gasoline);
+        final vehicle =
+            _makeVehicle(mileage: 4600, fuelType: FuelType.gasoline);
         final result = service.generateSuggestionsForVehicle(vehicle, []);
         final high =
             result.where((s) => s.urgency == SuggestionUrgency.high).toList();
@@ -177,7 +186,8 @@ void main() {
       });
 
       test('通常提案の reason は残り km を含む', () {
-        final vehicle = _makeVehicle(mileage: 1000, fuelType: FuelType.gasoline);
+        final vehicle =
+            _makeVehicle(mileage: 1000, fuelType: FuelType.gasoline);
         final result = service.generateSuggestionsForVehicle(vehicle, []);
         expect(result, isNotEmpty);
         expect(result.first.reason.contains('km'), isTrue);
@@ -197,7 +207,8 @@ void main() {
 
       test('走行距離がインターバルの倍数: 次のインターバルを推奨', () {
         // At 5000km, gasoline oil change next due at 10000
-        final vehicle = _makeVehicle(mileage: 5000, fuelType: FuelType.gasoline);
+        final vehicle =
+            _makeVehicle(mileage: 5000, fuelType: FuelType.gasoline);
         final result = service.generateSuggestionsForVehicle(vehicle, []);
         final oil =
             result.firstWhere((s) => s.type == MaintenanceType.oilChange);
@@ -228,7 +239,8 @@ void main() {
             _makeVehicle(mileage: 9000, fuelType: FuelType.gasoline);
         final records = List<MaintenanceRecord>.generate(
           5,
-          (i) => _makeRecord(MaintenanceType.oilChange, mileage: 1000 * (i + 1)),
+          (i) =>
+              _makeRecord(MaintenanceType.oilChange, mileage: 1000 * (i + 1)),
         );
         final result = service.generateSuggestionsForVehicle(vehicle, records);
         final oilCount =

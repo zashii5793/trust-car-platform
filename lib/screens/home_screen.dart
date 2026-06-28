@@ -1832,8 +1832,8 @@ class _AiSuggestionSection extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: theme.colorScheme.primary
                                   .withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(
-                                  AppSpacing.radiusFull),
+                              borderRadius:
+                                  BorderRadius.circular(AppSpacing.radiusFull),
                               border: Border.all(
                                 color: theme.colorScheme.primary
                                     .withValues(alpha: 0.2),
@@ -1895,8 +1895,8 @@ class _AiSuggestionSection extends StatelessWidget {
                         children: [
                           // Schedule-based suggestion cards (high/medium urgency)
                           ...urgentSchedule.map((s) => Padding(
-                                padding: const EdgeInsets.only(
-                                    right: AppSpacing.sm),
+                                padding:
+                                    const EdgeInsets.only(right: AppSpacing.sm),
                                 child: _ScheduleSuggestionCard(
                                   suggestion: s,
                                   isDark: isDark,
@@ -1920,8 +1920,8 @@ class _AiSuggestionSection extends StatelessWidget {
                               )),
                           // Notification-based suggestion cards
                           ...notifSuggestions.map((n) => Padding(
-                                padding: const EdgeInsets.only(
-                                    right: AppSpacing.sm),
+                                padding:
+                                    const EdgeInsets.only(right: AppSpacing.sm),
                                 child: _SuggestionCard(
                                   notification: n,
                                   isDark: isDark,

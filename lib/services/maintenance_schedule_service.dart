@@ -169,8 +169,7 @@ class MaintenanceScheduleService {
       final currentStr = _formatKm(vehicle.mileage);
       final nextStr = _formatKm(nextKm);
       final remainStr = _formatKm(remaining);
-      final reason =
-          '現在${currentStr}km走行。次回は${nextStr}kmまで（あと${remainStr}km）。'
+      final reason = '現在${currentStr}km走行。次回は${nextStr}kmまで（あと${remainStr}km）。'
           '${item.description}';
 
       suggestions.add(MaintenanceSuggestion(
