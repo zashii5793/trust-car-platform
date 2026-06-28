@@ -76,6 +76,7 @@ async function seedComment({ userId = OWNER_UID, content = '元のコメント' 
       content,
       isEdited: false,
       likeCount: 0,
+      reportCount: 0,
     });
   });
 }
@@ -204,6 +205,38 @@ describe('accessory_showcases/{id}/comments — likeCount update（いいね）'
         likeCount: 1,
         content: '改ざん',
       }),
+    );
+  });
+});
+
+describe('accessory_showcases/{id}/comments — reportCount update（通報集計）', () => {
+  test('誰でも reportCount を +1 できる（通報）', async () => {
+    await seedComment({ userId: OWNER_UID });
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OTHER_UID), commentPath), { reportCount: 1 }),
+    );
+  });
+
+  test('reportCount を -1（減算）はできない', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), commentPath), {
+        showcaseId: SHOWCASE_ID,
+        userId: OWNER_UID,
+        content: 'x',
+        isEdited: false,
+        likeCount: 0,
+        reportCount: 2,
+      });
+    });
+    await assertFails(
+      updateDoc(doc(dbFor(OTHER_UID), commentPath), { reportCount: 1 }),
+    );
+  });
+
+  test('+1 を超える reportCount 変更は拒否される', async () => {
+    await seedComment({ userId: OWNER_UID });
+    await assertFails(
+      updateDoc(doc(dbFor(OTHER_UID), commentPath), { reportCount: 5 }),
     );
   });
 });

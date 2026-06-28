@@ -31,8 +31,13 @@ class ShowcaseDetailScreen extends StatefulWidget {
 class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
   final _inputController = TextEditingController();
 
+  static const _pageSize = 20;
+
   List<ShowcaseComment> _comments = [];
   Set<String> _likedIds = {};
+  CommentSort _sort = CommentSort.oldest;
+  int _limit = _pageSize;
+  bool _hasMore = false;
   bool _isLoading = true;
   bool _isSending = false;
   String? _errorMessage;
@@ -40,6 +45,20 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _loadComments();
+  }
+
+  void _changeSort(CommentSort sort) {
+    if (sort == _sort) return;
+    setState(() {
+      _sort = sort;
+      _limit = _pageSize;
+    });
+    _loadComments();
+  }
+
+  void _loadMore() {
+    setState(() => _limit += _pageSize);
     _loadComments();
   }
 
@@ -54,7 +73,11 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
-    final result = await widget.service.getComments(widget.showcase.id);
+    final result = await widget.service.getComments(
+      widget.showcase.id,
+      sort: _sort,
+      limit: _limit,
+    );
     if (!mounted) return;
     await result.when(
       success: (list) async {
@@ -72,6 +95,7 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
         setState(() {
           _comments = list;
           _likedIds = liked;
+          _hasMore = list.length >= _limit;
           _isLoading = false;
         });
       },
@@ -283,11 +307,39 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
                 _ShowcaseHeader(showcase: showcase),
                 const SizedBox(height: AppSpacing.md),
                 const Divider(),
-                Text(
-                  _isLoading ? 'コメント' : 'コメント (${_comments.length})',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _isLoading ? 'コメント' : 'コメント (${_comments.length})',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    PopupMenuButton<CommentSort>(
+                      key: const Key('comment_sort_menu'),
+                      initialValue: _sort,
+                      onSelected: _changeSort,
+                      icon: const Icon(Icons.sort, size: 20),
+                      tooltip: '並び替え',
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: CommentSort.oldest,
+                          child: Text('古い順'),
+                        ),
+                        PopupMenuItem(
+                          value: CommentSort.newest,
+                          child: Text('新しい順'),
+                        ),
+                        PopupMenuItem(
+                          value: CommentSort.mostLiked,
+                          child: Text('いいね順'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 if (_isLoading)
@@ -323,7 +375,7 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
                       ),
                     ),
                   )
-                else
+                else ...[
                   ..._comments.map(
                     (c) => _CommentTile(
                       comment: c,
@@ -335,6 +387,15 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
                       onReport: () => _reportComment(c),
                     ),
                   ),
+                  if (_hasMore)
+                    Center(
+                      child: TextButton(
+                        key: const Key('load_more_comments'),
+                        onPressed: _loadMore,
+                        child: const Text('もっと見る'),
+                      ),
+                    ),
+                ],
               ],
             ),
           ),

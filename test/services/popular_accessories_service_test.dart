@@ -780,5 +780,226 @@ void main() {
         });
       });
     });
+
+    // -------------------------------------------------------------------------
+    // getComments: sort / pagination / moderation hide
+    // -------------------------------------------------------------------------
+    group('getComments sort/pagination/hide', () {
+      Future<void> seedComment(String id, int likeCount, DateTime created,
+          {int reportCount = 0}) async {
+        await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(id)
+            .set({
+          'showcaseId': 'sc-1',
+          'userId': 'u',
+          'content': id,
+          'createdAt': Timestamp.fromDate(created),
+          'likeCount': likeCount,
+          'reportCount': reportCount,
+        });
+      }
+
+      test('newest: 新しい順に並ぶ', () async {
+        await seedComment('old', 0, DateTime(2026, 1, 1));
+        await seedComment('new', 0, DateTime(2026, 1, 3));
+
+        final result =
+            await service.getComments('sc-1', sort: CommentSort.newest);
+        final ids = result.valueOrNull!.map((c) => c.id).toList();
+        expect(ids.first, 'new');
+        expect(ids.last, 'old');
+      });
+
+      test('mostLiked: いいね数の多い順に並ぶ', () async {
+        await seedComment('a', 1, DateTime(2026, 1, 1));
+        await seedComment('b', 5, DateTime(2026, 1, 2));
+
+        final result =
+            await service.getComments('sc-1', sort: CommentSort.mostLiked);
+        expect(result.valueOrNull!.first.id, 'b');
+      });
+
+      test('limit: 取得件数を制限できる', () async {
+        for (var i = 0; i < 5; i++) {
+          await seedComment('c$i', 0, DateTime(2026, 1, 1 + i));
+        }
+        final result = await service.getComments('sc-1', limit: 2);
+        expect(result.valueOrNull!, hasLength(2));
+      });
+
+      test('reportCount が閾値以上のコメントは非表示', () async {
+        await seedComment('ok', 0, DateTime(2026, 1, 1), reportCount: 2);
+        await seedComment('hidden', 0, DateTime(2026, 1, 2),
+            reportCount: kReportHideThreshold);
+
+        final result = await service.getComments('sc-1');
+        final ids = result.valueOrNull!.map((c) => c.id).toList();
+        expect(ids, contains('ok'));
+        expect(ids, isNot(contains('hidden')));
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // reportComment: reportCount 集計
+    // -------------------------------------------------------------------------
+    group('reportComment reportCount', () {
+      Future<String> seedComment() async {
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .add({
+          'showcaseId': 'sc-1',
+          'userId': 'author',
+          'content': 'c',
+          'createdAt': Timestamp.fromDate(now),
+          'likeCount': 0,
+          'reportCount': 0,
+        });
+        return ref.id;
+      }
+
+      Future<int> reportCountOf(String id) async {
+        final s = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(id)
+            .get();
+        return (s.data()!['reportCount'] as int?) ?? 0;
+      }
+
+      test('別ユーザーからの通報で reportCount が増える', () async {
+        final id = await seedComment();
+        await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: id,
+            reporterId: 'u1',
+            reason: ReportReason.spam);
+        await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: id,
+            reporterId: 'u2',
+            reason: ReportReason.spam);
+
+        expect(await reportCountOf(id), 2);
+      });
+
+      test('同一ユーザーの再通報では reportCount は増えない', () async {
+        final id = await seedComment();
+        await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: id,
+            reporterId: 'u1',
+            reason: ReportReason.spam);
+        await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: id,
+            reporterId: 'u1',
+            reason: ReportReason.harassment);
+
+        expect(await reportCountOf(id), 1);
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // 通知（social_notifications）
+    // -------------------------------------------------------------------------
+    group('notifications', () {
+      Future<int> notifCount() async {
+        final s = await firestore.collection('social_notifications').get();
+        return s.docs.length;
+      }
+
+      test('コメントで投稿主に通知が作成される', () async {
+        await seedShowcase(showcase(id: 'sc-1', userId: 'owner'));
+
+        await service.addComment(
+          showcaseId: 'sc-1',
+          userId: 'commenter',
+          content: 'いいですね',
+        );
+
+        final s = await firestore.collection('social_notifications').get();
+        expect(s.docs, hasLength(1));
+        expect(s.docs.first.data()['userId'], 'owner');
+        expect(s.docs.first.data()['actorId'], 'commenter');
+        expect(s.docs.first.data()['type'], 'comment');
+        expect(s.docs.first.data()['showcaseId'], 'sc-1');
+      });
+
+      test('自分の投稿への自分のコメントは通知しない', () async {
+        await seedShowcase(showcase(id: 'sc-1', userId: 'owner'));
+
+        await service.addComment(
+          showcaseId: 'sc-1',
+          userId: 'owner',
+          content: '補足です',
+        );
+
+        expect(await notifCount(), 0);
+      });
+
+      test('いいねでコメント投稿者に通知が作成される', () async {
+        await seedShowcase(showcase(id: 'sc-1', userId: 'owner'));
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .add({
+          'showcaseId': 'sc-1',
+          'userId': 'author',
+          'content': 'c',
+          'createdAt': Timestamp.fromDate(now),
+          'likeCount': 0,
+          'reportCount': 0,
+        });
+
+        await service.likeComment(
+          showcaseId: 'sc-1',
+          commentId: ref.id,
+          userId: 'liker',
+        );
+
+        final s = await firestore
+            .collection('social_notifications')
+            .where('type', isEqualTo: 'like')
+            .get();
+        expect(s.docs, hasLength(1));
+        expect(s.docs.first.data()['userId'], 'author');
+        expect(s.docs.first.data()['actorId'], 'liker');
+      });
+
+      test('自分のコメントへの自分のいいねは通知しない', () async {
+        await seedShowcase(showcase(id: 'sc-1', userId: 'owner'));
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .add({
+          'showcaseId': 'sc-1',
+          'userId': 'author',
+          'content': 'c',
+          'createdAt': Timestamp.fromDate(now),
+          'likeCount': 0,
+          'reportCount': 0,
+        });
+
+        await service.likeComment(
+          showcaseId: 'sc-1',
+          commentId: ref.id,
+          userId: 'author',
+        );
+
+        final s = await firestore
+            .collection('social_notifications')
+            .where('type', isEqualTo: 'like')
+            .get();
+        expect(s.docs, isEmpty);
+      });
+    });
   });
 }
