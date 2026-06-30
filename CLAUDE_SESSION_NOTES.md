@@ -1,6 +1,30 @@
 # Claude Session Notes
 
-最終更新: 2026-06-19
+最終更新: 2026-06-21
+
+---
+
+## 意思決定ログ（2026-06-21）: 実機での車両登録準備とリリースビルド整備（PR #48）
+
+ブランチ `claude/friendly-bardeen-4wwnpa` / PR #48（draft）。
+
+**目的**: 携帯実機（iOS/Android）で自分のクルマを1台登録 → 将来は配布。AIでは代替不可の人間作業の準備。
+
+**成果物**:
+- `docs/MOBILE_TRY_VEHICLE_REGISTRATION.md` 新規（フェーズ0=Auth有効化/ルールデプロイ/Storage有効化/設定ファイル配置、A=実機お試し、B=配布、A-3=登録フロー実機チェックリスト）。
+- `docs/SETUP_AND_STORE_GUIDE.md` の iOS署名(Part3)を拡充（無料ID vs Developer Program、自動/手動署名、IPA、トラブル表）。
+- GitHub Issue #49（`claude-task`/`priority: high`）にフェーズ0〜B進捗チェックリスト。
+
+**Android リリース署名**: `android/app/build.gradle.kts` の TODO を解消。`android/key.properties` があればリリース署名、無ければ debug にフォールバック（CI・`flutter run` を壊さない）。
+
+**CI 強化**: `build-android` に `flutter build appbundle --release` を追加 → keystore無しでも署名フォールバックを毎回検証。
+
+**重要な発見と修正（OCR）**: 上記リリースビルド検証で R8 が ML Kit の言語別クラス未解決で失敗。原因は `google_mlkit_text_recognition` が Latin モデルしか同梱せず、Android では非Latin言語を gradle で手動追加する必要があるのに**日本語モデル未追加**だったこと。アプリは `TextRecognitionScript.japanese`（車検証/請求書OCR）を使うため、これは**日本語OCRがリリースで動かない潜在バグ**でもあった。
+- 修正: `com.google.mlkit:text-recognition-japanese:16.0.1` を追加。未使用の中国語/デバナガリ/韓国語は `android/app/proguard-rules.pro` で `-dontwarn`。
+- **方針（オーナー合意 2026-06-21）**: 多言語OCRは今後。当面は日本語のみでOK。
+- iOS: プラグインの podspec が全言語を自動同梱するため追加対応不要（実機OCR確認は A-3 チェックリストでカバー）。
+
+**ツール制約**: GitHub Project（カンバン）へのアイテム追加は現行 MCP に書き込みツールが無く `gh` CLI も使用不可 → Issue #49 のボード追加は手動が必要。
 
 ---
 
