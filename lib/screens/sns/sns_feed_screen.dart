@@ -602,9 +602,9 @@ class _VisibilityBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, label, color) = switch (visibility) {
-      PostVisibility.followers => (Icons.group, 'フォロワー', Colors.blue),
-      PostVisibility.private_ => (Icons.lock, '非公開', Colors.grey),
-      PostVisibility.public => (Icons.public, '', Colors.green),
+      PostVisibility.followers => (Icons.group, 'フォロワー', AppColors.info),
+      PostVisibility.private_ => (Icons.lock, '非公開', AppColors.textTertiary),
+      PostVisibility.public => (Icons.public, '', AppColors.success),
     };
 
     if (visibility == PostVisibility.public) return const SizedBox.shrink();

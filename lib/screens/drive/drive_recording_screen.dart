@@ -198,7 +198,7 @@ class _DriveRecordingScreenState extends State<DriveRecordingScreen> {
                               fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.redAccent,
+                          backgroundColor: AppColors.error,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: AppSpacing.borderRadiusMd,
@@ -217,9 +217,9 @@ class _DriveRecordingScreenState extends State<DriveRecordingScreen> {
   }
 
   Color _speedColor(double kmh) {
-    if (kmh >= 100) return Colors.redAccent;
-    if (kmh >= 60) return Colors.orangeAccent;
-    return Colors.greenAccent;
+    if (kmh >= 100) return AppColors.error;
+    if (kmh >= 60) return AppColors.warning;
+    return AppColors.success;
   }
 
   String _formatDistance(double km) {
@@ -351,7 +351,7 @@ class _PulsingGpsIndicatorState extends State<_PulsingGpsIndicator>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color:
-                      Colors.greenAccent.withValues(alpha: _pulse.value * 0.3),
+                      AppColors.success.withValues(alpha: _pulse.value * 0.3),
                 ),
               ),
               Container(
@@ -359,7 +359,7 @@ class _PulsingGpsIndicatorState extends State<_PulsingGpsIndicator>
                 height: 10,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.greenAccent,
+                  color: AppColors.success,
                 ),
               ),
             ],

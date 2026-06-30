@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/shop.dart';
@@ -86,7 +87,7 @@ class _CaseStudyManagementScreenState extends State<CaseStudyManagementScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             child: const Text('削除'),
           ),
         ],
@@ -232,7 +233,7 @@ class _CaseStudyTile extends StatelessWidget {
               )
             : null,
         trailing: IconButton(
-          icon: const Icon(Icons.delete_outline, color: Colors.red),
+          icon: const Icon(Icons.delete_outline, color: AppColors.error),
           onPressed: onDelete,
           tooltip: '削除',
         ),

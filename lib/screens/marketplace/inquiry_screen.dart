@@ -6,6 +6,7 @@ import '../../models/user_plan.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../providers/user_subscription_provider.dart';
+import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
 
@@ -307,8 +308,11 @@ class _ShopMiniCard extends StatelessWidget {
                     if (shop.isVerified)
                       const Padding(
                         padding: EdgeInsets.only(left: 4),
-                        child:
-                            Icon(Icons.verified, size: 14, color: Colors.blue),
+                        child: Icon(
+                          Icons.verified,
+                          size: 14,
+                          color: AppColors.info,
+                        ),
                       ),
                   ],
                 ),
