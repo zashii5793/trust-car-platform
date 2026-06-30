@@ -198,15 +198,15 @@ class _VehicleCertificateResultScreenState
     IconData icon;
 
     if (score >= 0.7) {
-      color = Colors.green;
+      color = AppColors.success;
       message = '多くの項目を読み取れました';
       icon = Icons.check_circle;
     } else if (score >= 0.4) {
-      color = Colors.orange;
+      color = AppColors.warning;
       message = '一部の項目を読み取れました';
       icon = Icons.info;
     } else {
-      color = Colors.red;
+      color = AppColors.error;
       message = '読み取りが難しい箇所があります';
       icon = Icons.warning;
     }
@@ -234,7 +234,8 @@ class _VehicleCertificateResultScreenState
                   const SizedBox(height: 4),
                   Text(
                     message,
-                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                 ],
               ),
@@ -253,14 +254,16 @@ class _VehicleCertificateResultScreenState
       {bool isImportant = false}) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: isImportant ? Colors.orange : Colors.grey),
+        Icon(icon,
+            size: 20,
+            color: isImportant ? AppColors.warning : AppColors.textTertiary),
         const SizedBox(width: 8),
         Text(
           title,
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: isImportant ? Colors.orange[800] : null,
+            color: isImportant ? AppColors.warning : null,
           ),
         ),
         if (isImportant) ...[
@@ -268,14 +271,14 @@ class _VehicleCertificateResultScreenState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.orange[100],
+              color: AppColors.warningBackground,
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Text(
               '重要',
               style: TextStyle(
                 fontSize: 11,
-                color: Colors.orange,
+                color: AppColors.warning,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -322,7 +325,7 @@ class _VehicleCertificateResultScreenState
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           border: Border.all(
-            color: hasDate ? Colors.green : Colors.orange,
+            color: hasDate ? AppColors.success : AppColors.warning,
             width: hasDate ? 1 : 2,
           ),
           borderRadius: BorderRadius.circular(8),
@@ -332,7 +335,7 @@ class _VehicleCertificateResultScreenState
           children: [
             Icon(
               Icons.event,
-              color: hasDate ? Colors.green : Colors.orange,
+              color: hasDate ? AppColors.success : AppColors.warning,
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -343,7 +346,7 @@ class _VehicleCertificateResultScreenState
                     '車検満了日',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey,
+                      color: AppColors.textTertiary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -354,7 +357,7 @@ class _VehicleCertificateResultScreenState
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: hasDate ? null : Colors.orange,
+                      color: hasDate ? null : AppColors.warning,
                     ),
                   ),
                 ],
@@ -382,7 +385,7 @@ class _VehicleCertificateResultScreenState
           children: [
             const Text(
               '燃料タイプ',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
             ),
             if (isExtracted) ...[
               const SizedBox(width: 8),
@@ -480,7 +483,7 @@ class _VehicleCertificateResultScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('メーカーまたは車種を入力してください'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;

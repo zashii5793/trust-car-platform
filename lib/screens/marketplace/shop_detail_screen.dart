@@ -4,6 +4,7 @@ import '../../core/di/service_locator.dart';
 import '../../models/shop.dart';
 import '../../models/shop_case_study.dart';
 import '../../providers/shop_provider.dart';
+import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../services/shop_service.dart';
 import '../../widgets/common/loading_indicator.dart';
@@ -62,7 +63,7 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
               if (shop.isVerified)
                 const Padding(
                   padding: EdgeInsets.only(right: AppSpacing.sm),
-                  child: Icon(Icons.verified, color: Colors.blue),
+                  child: Icon(Icons.verified, color: AppColors.info),
                 ),
             ],
           ),
@@ -266,18 +267,18 @@ class _ShopHeader extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: AppColors.infoBackground,
                   borderRadius: BorderRadius.circular(AppSpacing.xs),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.verified, size: 12, color: Colors.blue),
+                    const Icon(Icons.verified, size: 12, color: AppColors.info),
                     const SizedBox(width: 4),
                     Text(
                       '認証済み',
                       style: theme.textTheme.labelSmall
-                          ?.copyWith(color: Colors.blue),
+                          ?.copyWith(color: AppColors.info),
                     ),
                   ],
                 ),
@@ -425,7 +426,7 @@ class _BusinessHoursExpansion extends StatelessWidget {
                 '今日: $todaySummary',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: shop.isOpenNow
-                      ? Colors.green.shade600
+                      ? AppColors.success
                       : theme.colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.bold,
                 ),
@@ -436,7 +437,7 @@ class _BusinessHoursExpansion extends StatelessWidget {
                   width: 6,
                   height: 6,
                   decoration: const BoxDecoration(
-                    color: Colors.green,
+                    color: AppColors.success,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -486,13 +487,13 @@ class _BusinessHoursExpansion extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 6, vertical: 1),
                               decoration: BoxDecoration(
-                                color: Colors.green.shade50,
+                                color: AppColors.successBackground,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 '営業中',
                                 style: theme.textTheme.labelSmall?.copyWith(
-                                  color: Colors.green.shade700,
+                                  color: AppColors.success,
                                   fontSize: 10,
                                 ),
                               ),
