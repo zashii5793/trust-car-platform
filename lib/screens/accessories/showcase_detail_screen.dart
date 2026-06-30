@@ -3,6 +3,7 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../models/accessory_showcase.dart';
 import '../../models/showcase_comment.dart';
+import '../../models/comment_report.dart';
 import '../../services/popular_accessories_service.dart';
 
 /// Detail view for a single accessory showcase post with its comment thread.
@@ -224,6 +225,50 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
     );
   }
 
+  Future<void> _reportComment(ShowcaseComment comment) async {
+    if (widget.currentUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('通報するにはログインが必要です')),
+      );
+      return;
+    }
+
+    final reason = await showDialog<ReportReason>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('このコメントを通報'),
+        children: [
+          for (final r in ReportReason.values)
+            SimpleDialogOption(
+              key: Key('report_reason_${r.name}'),
+              onPressed: () => Navigator.pop(dialogContext, r),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                child: Text(r.label),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (reason == null) return;
+
+    final result = await widget.service.reportComment(
+      showcaseId: widget.showcase.id,
+      commentId: comment.id,
+      reporterId: widget.currentUserId,
+      reason: reason,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (_) => ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('通報を受け付けました。ご協力ありがとうございます。')),
+      ),
+      failure: (e) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final showcase = widget.showcase;
@@ -287,6 +332,7 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
                       onDelete: () => _deleteComment(c),
                       onEdit: () => _editComment(c),
                       onToggleLike: () => _toggleLike(c),
+                      onReport: () => _reportComment(c),
                     ),
                   ),
               ],
@@ -357,6 +403,7 @@ class _CommentTile extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onEdit;
   final VoidCallback onToggleLike;
+  final VoidCallback onReport;
 
   const _CommentTile({
     required this.comment,
@@ -365,6 +412,7 @@ class _CommentTile extends StatelessWidget {
     required this.onDelete,
     required this.onEdit,
     required this.onToggleLike,
+    required this.onReport,
   });
 
   @override
@@ -449,7 +497,14 @@ class _CommentTile extends StatelessWidget {
               color: AppColors.textTertiary,
               onPressed: onDelete,
             ),
-          ],
+          ] else
+            IconButton(
+              key: Key('report_comment_${comment.id}'),
+              icon: const Icon(Icons.flag_outlined, size: 18),
+              color: AppColors.textTertiary,
+              tooltip: '通報',
+              onPressed: onReport,
+            ),
         ],
       ),
     );
