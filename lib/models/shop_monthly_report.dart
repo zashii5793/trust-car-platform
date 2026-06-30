@@ -18,11 +18,21 @@ class ShopMonthlyReport {
   /// Count of current-month inquiries per status.
   final Map<InquiryStatus, int> byStatus;
 
+  /// Number of maintenance proposals the shop sent this month (inquiry messages
+  /// carrying a `maintenancePayload`). The ROI signal a shop can act on: more
+  /// proposals -> more maintenance history captured for its customers.
+  final int maintenanceProposalCount;
+
+  /// Total quoted value (yen) of this month's maintenance proposals.
+  final int maintenanceProposalValue;
+
   const ShopMonthlyReport({
     required this.month,
     required this.total,
     required this.previousTotal,
     required this.byStatus,
+    this.maintenanceProposalCount = 0,
+    this.maintenanceProposalValue = 0,
   });
 
   /// Month-over-month change in inquiry volume (positive = growth).

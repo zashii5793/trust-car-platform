@@ -72,11 +72,37 @@ class ShopReportService {
         }
       }
 
+      // Maintenance proposals the shop itself sent this month. Sourced from the
+      // shop's own messages (senderId == shopId), so this stays within what the
+      // shop is allowed to read — no cross-user maintenance_records access.
+      final messages = await _firestore
+          .collectionGroup('messages')
+          .where('senderId', isEqualTo: shopId)
+          .get();
+
+      var proposalCount = 0;
+      var proposalValue = 0;
+      for (final doc in messages.docs) {
+        final data = doc.data();
+        if (data['maintenancePayload'] is! Map) continue;
+        final sentAt = (data['sentAt'] as Timestamp?)?.toDate();
+        if (sentAt == null) continue;
+        if (sentAt.isBefore(monthStart) || !sentAt.isBefore(nextMonthStart)) {
+          continue;
+        }
+        proposalCount++;
+        final payload = data['maintenancePayload'] as Map;
+        final cost = payload['cost'];
+        if (cost is num) proposalValue += cost.toInt();
+      }
+
       return Result.success(ShopMonthlyReport(
         month: monthStart,
         total: total,
         previousTotal: previousTotal,
         byStatus: byStatus,
+        maintenanceProposalCount: proposalCount,
+        maintenanceProposalValue: proposalValue,
       ));
     } catch (e) {
       return Result.failure(mapFirebaseError(e));

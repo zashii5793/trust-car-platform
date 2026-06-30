@@ -31,6 +31,50 @@ Future<void> _seedInquiry(
   });
 }
 
+/// Creates an inquiry doc and returns its id so messages can be attached.
+Future<String> _seedInquiryDoc(
+  FakeFirebaseFirestore fakeFs,
+  String shopId, {
+  required DateTime createdAt,
+}) async {
+  final ref = await fakeFs.collection('inquiries').add({
+    'shopId': shopId,
+    'userId': 'user1',
+    'createdAt': Timestamp.fromDate(createdAt),
+    'status': InquiryStatus.replied.name,
+  });
+  return ref.id;
+}
+
+/// Seeds a message in an inquiry thread. When [withPayload] is true the message
+/// carries a `maintenancePayload` (a shop's maintenance proposal).
+Future<void> _seedMessage(
+  FakeFirebaseFirestore fakeFs,
+  String inquiryId, {
+  required String senderId,
+  required DateTime sentAt,
+  int? cost,
+  bool withPayload = true,
+}) async {
+  await fakeFs
+      .collection('inquiries')
+      .doc(inquiryId)
+      .collection('messages')
+      .add({
+    'senderId': senderId,
+    'isFromShop': senderId != 'user1',
+    'content': 'msg',
+    'sentAt': Timestamp.fromDate(sentAt),
+    if (withPayload)
+      'maintenancePayload': <String, dynamic>{
+        'typeKey': 'oilChange',
+        'title': 'オイル交換',
+        'date': sentAt.toIso8601String(),
+        if (cost != null) 'cost': cost,
+      },
+  });
+}
+
 void main() {
   late FakeFirebaseFirestore fakeFs;
   late ShopReportService sut;
@@ -145,6 +189,88 @@ void main() {
       final report = result.valueOrNull!;
       expect(report.countFor(InquiryStatus.pending), 1);
       expect(report.countFor(InquiryStatus.replied), 0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // getMonthlyReport - maintenance proposals (ROI metric)
+  // -------------------------------------------------------------------------
+  group('getMonthlyReport maintenance proposals', () {
+    test('counts proposals and sums their value for the current month',
+        () async {
+      final inq = await _seedInquiryDoc(fakeFs, 'shop1', createdAt: thisMonth);
+      await _seedMessage(fakeFs, inq,
+          senderId: 'shop1', sentAt: thisMonth, cost: 12000);
+      await _seedMessage(fakeFs, inq,
+          senderId: 'shop1', sentAt: thisMonth, cost: 8000);
+
+      final result = await sut.getMonthlyReport('shop1', asOf: asOf);
+
+      final report = result.valueOrNull!;
+      expect(report.maintenanceProposalCount, 2);
+      expect(report.maintenanceProposalValue, 20000);
+    });
+
+    test('ignores messages without a maintenance payload', () async {
+      final inq = await _seedInquiryDoc(fakeFs, 'shop1', createdAt: thisMonth);
+      await _seedMessage(fakeFs, inq,
+          senderId: 'shop1', sentAt: thisMonth, cost: 5000);
+      await _seedMessage(fakeFs, inq,
+          senderId: 'shop1', sentAt: thisMonth, withPayload: false);
+
+      final result = await sut.getMonthlyReport('shop1', asOf: asOf);
+
+      final report = result.valueOrNull!;
+      expect(report.maintenanceProposalCount, 1);
+      expect(report.maintenanceProposalValue, 5000);
+    });
+
+    test('ignores proposals sent in the previous month', () async {
+      final inq = await _seedInquiryDoc(fakeFs, 'shop1', createdAt: prevMonth);
+      await _seedMessage(fakeFs, inq,
+          senderId: 'shop1', sentAt: prevMonth, cost: 9000);
+
+      final result = await sut.getMonthlyReport('shop1', asOf: asOf);
+
+      final report = result.valueOrNull!;
+      expect(report.maintenanceProposalCount, 0);
+      expect(report.maintenanceProposalValue, 0);
+    });
+
+    test('does not count proposals sent by other shops', () async {
+      final inq = await _seedInquiryDoc(fakeFs, 'shop1', createdAt: thisMonth);
+      await _seedMessage(fakeFs, inq,
+          senderId: 'shop1', sentAt: thisMonth, cost: 3000);
+      // A message whose sender is a different shop must be excluded.
+      await _seedMessage(fakeFs, inq,
+          senderId: 'other_shop', sentAt: thisMonth, cost: 99999);
+
+      final result = await sut.getMonthlyReport('shop1', asOf: asOf);
+
+      final report = result.valueOrNull!;
+      expect(report.maintenanceProposalCount, 1);
+      expect(report.maintenanceProposalValue, 3000);
+    });
+
+    test('payload without cost counts but adds zero to value', () async {
+      final inq = await _seedInquiryDoc(fakeFs, 'shop1', createdAt: thisMonth);
+      await _seedMessage(fakeFs, inq, senderId: 'shop1', sentAt: thisMonth);
+
+      final result = await sut.getMonthlyReport('shop1', asOf: asOf);
+
+      final report = result.valueOrNull!;
+      expect(report.maintenanceProposalCount, 1);
+      expect(report.maintenanceProposalValue, 0);
+    });
+
+    test('no proposals -> zero count and value', () async {
+      await _seedInquiry(fakeFs, 'shop1', createdAt: thisMonth);
+
+      final result = await sut.getMonthlyReport('shop1', asOf: asOf);
+
+      final report = result.valueOrNull!;
+      expect(report.maintenanceProposalCount, 0);
+      expect(report.maintenanceProposalValue, 0);
     });
   });
 
