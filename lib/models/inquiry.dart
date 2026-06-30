@@ -128,6 +128,12 @@ class Inquiry {
   final DateTime? repliedAt; // First reply from shop
   final DateTime? closedAt;
 
+  // Lead-conversion tracking (B2B ROI funnel). Set manually by the shop as the
+  // inquiry progresses from a digital lead to an in-person visit and a deal.
+  final DateTime? visitedAt; // Customer actually visited the shop
+  final DateTime? convertedAt; // Deal closed (service/sale completed)
+  final int? dealAmount; // Closed deal amount in JPY (optional)
+
   // Counts
   final int messageCount;
   final int unreadCountUser; // Unread messages for user
@@ -152,6 +158,9 @@ class Inquiry {
     required this.updatedAt,
     this.repliedAt,
     this.closedAt,
+    this.visitedAt,
+    this.convertedAt,
+    this.dealAmount,
     this.messageCount = 1,
     this.unreadCountUser = 0,
     this.unreadCountShop = 1,
@@ -163,6 +172,12 @@ class Inquiry {
   /// Check if inquiry is open
   bool get isOpen =>
       status != InquiryStatus.closed && status != InquiryStatus.cancelled;
+
+  /// Whether the customer has visited the shop (lead → visit)
+  bool get hasVisited => visitedAt != null;
+
+  /// Whether the inquiry resulted in a closed deal (visit → conversion)
+  bool get isConverted => convertedAt != null;
 
   /// Get display status with context
   String get displayStatus {
@@ -202,6 +217,9 @@ class Inquiry {
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       repliedAt: (data['repliedAt'] as Timestamp?)?.toDate(),
       closedAt: (data['closedAt'] as Timestamp?)?.toDate(),
+      visitedAt: (data['visitedAt'] as Timestamp?)?.toDate(),
+      convertedAt: (data['convertedAt'] as Timestamp?)?.toDate(),
+      dealAmount: data['dealAmount'],
       messageCount: data['messageCount'] ?? 1,
       unreadCountUser: data['unreadCountUser'] ?? 0,
       unreadCountShop: data['unreadCountShop'] ?? 1,
@@ -227,6 +245,10 @@ class Inquiry {
       'updatedAt': Timestamp.fromDate(updatedAt),
       'repliedAt': repliedAt != null ? Timestamp.fromDate(repliedAt!) : null,
       'closedAt': closedAt != null ? Timestamp.fromDate(closedAt!) : null,
+      'visitedAt': visitedAt != null ? Timestamp.fromDate(visitedAt!) : null,
+      'convertedAt':
+          convertedAt != null ? Timestamp.fromDate(convertedAt!) : null,
+      'dealAmount': dealAmount,
       'messageCount': messageCount,
       'unreadCountUser': unreadCountUser,
       'unreadCountShop': unreadCountShop,
@@ -252,6 +274,9 @@ class Inquiry {
     DateTime? updatedAt,
     DateTime? repliedAt,
     DateTime? closedAt,
+    DateTime? visitedAt,
+    DateTime? convertedAt,
+    int? dealAmount,
     int? messageCount,
     int? unreadCountUser,
     int? unreadCountShop,
@@ -275,6 +300,9 @@ class Inquiry {
       updatedAt: updatedAt ?? this.updatedAt,
       repliedAt: repliedAt ?? this.repliedAt,
       closedAt: closedAt ?? this.closedAt,
+      visitedAt: visitedAt ?? this.visitedAt,
+      convertedAt: convertedAt ?? this.convertedAt,
+      dealAmount: dealAmount ?? this.dealAmount,
       messageCount: messageCount ?? this.messageCount,
       unreadCountUser: unreadCountUser ?? this.unreadCountUser,
       unreadCountShop: unreadCountShop ?? this.unreadCountShop,

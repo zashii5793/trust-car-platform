@@ -446,27 +446,63 @@ class _VehicleCertificateResultScreenState
         ],
       ),
       child: SafeArea(
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('キャンセル'),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton.icon(
-                onPressed: _validateAndSubmit,
-                icon: const Icon(Icons.check),
-                label: const Text('この内容で登録'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+            // One-tap path: shown only when OCR captured every required field.
+            if (_canQuickRegister) ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _validateAndSubmit(quickRegister: true),
+                  icon: const Icon(Icons.bolt),
+                  label: const Text('このまま登録'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
                 ),
               ),
+              const SizedBox(height: 4),
+              Text(
+                '車検満了日まで読み取れました。走行距離は後で更新できます',
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('キャンセル'),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 2,
+                  child: _canQuickRegister
+                      ? OutlinedButton.icon(
+                          onPressed: () => _validateAndSubmit(),
+                          icon: const Icon(Icons.edit),
+                          label: const Text('この内容で登録'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                        )
+                      : ElevatedButton.icon(
+                          onPressed: () => _validateAndSubmit(),
+                          icon: const Icon(Icons.check),
+                          label: const Text('この内容で登録'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                        ),
+                ),
+              ],
             ),
           ],
         ),
@@ -474,7 +510,15 @@ class _VehicleCertificateResultScreenState
     );
   }
 
-  void _validateAndSubmit() {
+  /// Whether OCR captured every field required to register without the manual
+  /// wizard (maker / model / year / inspection expiry). Drives the one-tap path.
+  bool get _canQuickRegister =>
+      _makerController.text.trim().isNotEmpty &&
+      _modelController.text.trim().isNotEmpty &&
+      int.tryParse(_yearController.text) != null &&
+      _inspectionExpiryDate != null;
+
+  void _validateAndSubmit({bool quickRegister = false}) {
     // バリデーション
     if (_makerController.text.isEmpty && _modelController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -504,6 +548,7 @@ class _VehicleCertificateResultScreenState
       engineDisplacement: int.tryParse(_engineDisplacementController.text),
       fuelType: _selectedFuelType,
       color: _colorController.text.isNotEmpty ? _colorController.text : null,
+      quickRegister: quickRegister,
     );
 
     Navigator.of(context).pop(result);
@@ -523,6 +568,10 @@ class VehicleRegistrationData {
   final FuelType? fuelType;
   final String? color;
 
+  /// When true the user chose "このまま登録": OCR captured every required field,
+  /// so the caller should register immediately and skip the manual wizard.
+  final bool quickRegister;
+
   VehicleRegistrationData({
     required this.maker,
     required this.model,
@@ -534,5 +583,6 @@ class VehicleRegistrationData {
     this.engineDisplacement,
     this.fuelType,
     this.color,
+    this.quickRegister = false,
   });
 }

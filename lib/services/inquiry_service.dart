@@ -81,6 +81,9 @@ class InquiryService {
         'updatedAt': Timestamp.fromDate(now),
         'repliedAt': null,
         'closedAt': null,
+        'visitedAt': null,
+        'convertedAt': null,
+        'dealAmount': null,
         'messageCount': 1,
         'unreadCountUser': 0,
         'unreadCountShop': 1,
@@ -331,6 +334,118 @@ class InquiryService {
     }
   }
 
+  /// Mark that the customer has visited the shop (lead → visit).
+  ///
+  /// Part of the B2B ROI funnel: lets a shop record real-world conversion so the
+  /// platform can prove send-through value when selling to other shops.
+  Future<Result<Inquiry, AppError>> markVisited(String inquiryId) async {
+    try {
+      final doc = await _inquiriesCollection.doc(inquiryId).get();
+      if (!doc.exists) {
+        return Result.failure(AppError.notFound('問い合わせが見つかりません'));
+      }
+
+      final now = DateTime.now();
+      await _inquiriesCollection.doc(inquiryId).update({
+        'visitedAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      return getInquiry(inquiryId);
+    } catch (e) {
+      return Result.failure(AppError.server('来店記録の更新に失敗しました: $e'));
+    }
+  }
+
+  /// Mark that the inquiry resulted in a closed deal (visit → conversion).
+  ///
+  /// A conversion implies a visit, so [visitedAt] is back-filled when it has not
+  /// been recorded yet. [dealAmount] is the closed amount in JPY (optional);
+  /// negative values are rejected.
+  Future<Result<Inquiry, AppError>> markConverted(
+    String inquiryId, {
+    int? dealAmount,
+  }) async {
+    if (dealAmount != null && dealAmount < 0) {
+      return const Result.failure(
+        AppError.validation('成約金額に負の値は指定できません', field: 'dealAmount'),
+      );
+    }
+    try {
+      final doc = await _inquiriesCollection.doc(inquiryId).get();
+      if (!doc.exists) {
+        return Result.failure(AppError.notFound('問い合わせが見つかりません'));
+      }
+
+      final now = DateTime.now();
+      final existing = Inquiry.fromFirestore(doc);
+      final updateData = <String, dynamic>{
+        'convertedAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+        if (dealAmount != null) 'dealAmount': dealAmount,
+        // A closed deal means the customer came in — back-fill the visit.
+        if (existing.visitedAt == null) 'visitedAt': Timestamp.fromDate(now),
+      };
+
+      await _inquiriesCollection.doc(inquiryId).update(updateData);
+
+      return getInquiry(inquiryId);
+    } catch (e) {
+      return Result.failure(AppError.server('成約記録の更新に失敗しました: $e'));
+    }
+  }
+
+  /// Aggregate the lead-conversion funnel for a shop over an optional period.
+  ///
+  /// Returns inquiry → reply → visit → conversion counts plus the total closed
+  /// deal amount. This is the raw material for the monthly B2B ROI report.
+  Future<Result<ShopConversionStats, AppError>> getShopConversionStats(
+    String shopId, {
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    try {
+      Query<Map<String, dynamic>> query =
+          _inquiriesCollection.where('shopId', isEqualTo: shopId);
+
+      if (from != null) {
+        query = query.where('createdAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(from));
+      }
+      if (to != null) {
+        query = query.where('createdAt',
+            isLessThanOrEqualTo: Timestamp.fromDate(to));
+      }
+
+      final snapshot = await query.get();
+      final inquiries =
+          snapshot.docs.map((doc) => Inquiry.fromFirestore(doc)).toList();
+
+      var replied = 0;
+      var visited = 0;
+      var converted = 0;
+      var totalDeal = 0;
+      for (final inq in inquiries) {
+        if (inq.hasReply) replied++;
+        if (inq.hasVisited) visited++;
+        if (inq.isConverted) {
+          converted++;
+          totalDeal += inq.dealAmount ?? 0;
+        }
+      }
+
+      return Result.success(ShopConversionStats(
+        inquiryCount: inquiries.length,
+        repliedCount: replied,
+        visitedCount: visited,
+        convertedCount: converted,
+        totalDealAmount: totalDeal,
+      ));
+    } catch (e) {
+      return Result.failure(AppError.server('送客集計の取得に失敗しました: $e'));
+    }
+  }
+
   /// Count inquiries the user has sent this calendar month.
   ///
   /// Used to enforce the B2C free-plan monthly inquiry limit on the client
@@ -389,4 +504,34 @@ class InquiryService {
             .map((doc) => InquiryMessage.fromMap(doc.data(), doc.id))
             .toList());
   }
+}
+
+/// Aggregated lead-conversion funnel for a single shop.
+///
+/// Drives the B2B ROI story: "we sent you N leads, you replied to R, V came in,
+/// and C closed for ¥total". Rates are guarded against division by zero.
+class ShopConversionStats {
+  final int inquiryCount;
+  final int repliedCount;
+  final int visitedCount;
+  final int convertedCount;
+  final int totalDealAmount; // JPY
+
+  const ShopConversionStats({
+    this.inquiryCount = 0,
+    this.repliedCount = 0,
+    this.visitedCount = 0,
+    this.convertedCount = 0,
+    this.totalDealAmount = 0,
+  });
+
+  /// Share of inquiries the shop replied to (0.0–1.0).
+  double get replyRate => inquiryCount == 0 ? 0 : repliedCount / inquiryCount;
+
+  /// Share of inquiries that turned into a real visit (0.0–1.0).
+  double get visitRate => inquiryCount == 0 ? 0 : visitedCount / inquiryCount;
+
+  /// Share of inquiries that closed into a deal (0.0–1.0).
+  double get conversionRate =>
+      inquiryCount == 0 ? 0 : convertedCount / inquiryCount;
 }
