@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
+import '../../core/ui/app_dialog.dart';
 import '../../models/newsletter.dart';
 import '../../services/newsletter_service.dart';
 import '../../widgets/common/app_card.dart';
@@ -57,23 +58,12 @@ class _NewsletterListScreenState extends State<NewsletterListScreen> {
   }
 
   Future<void> _send(Newsletter newsletter) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('ニュースレターを配信'),
-        content: Text(
-            '「${newsletter.title}」を${newsletter.audience.displayName}に配信しますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('配信する'),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      title: 'ニュースレターを配信',
+      message:
+          '「${newsletter.title}」を${newsletter.audience.displayName}に配信しますか？',
+      confirmText: '配信する',
     );
     if (confirmed != true || !mounted) return;
 
@@ -101,23 +91,12 @@ class _NewsletterListScreenState extends State<NewsletterListScreen> {
   }
 
   Future<void> _delete(Newsletter newsletter) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('下書きを削除'),
-        content: Text('「${newsletter.title}」を削除しますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('削除'),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      title: '下書きを削除',
+      message: '「${newsletter.title}」を削除しますか？',
+      confirmText: '削除',
+      isDestructive: true,
     );
     if (confirmed != true || !mounted) return;
 
