@@ -247,11 +247,13 @@ class PostService {
         }
       }
 
-      query = query.orderBy('createdAt', descending: true).limit(limit);
+      query = query.orderBy('createdAt', descending: true);
 
       if (startAfter != null) {
         query = query.startAfterDocument(startAfter);
       }
+
+      query = query.limit(limit);
 
       final snapshot = await query.get();
       final posts =

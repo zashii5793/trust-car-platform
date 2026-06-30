@@ -46,7 +46,7 @@ jobs:
         id: analyze
         run: |
           flutter analyze 2>&1 | tee analyze_output.txt
-          ISSUE_COUNT=$(grep -c "^  " analyze_output.txt || echo "0")
+          ISSUE_COUNT=$(grep -c "^  " analyze_output.txt) || ISSUE_COUNT=0
           echo "issue_count=$ISSUE_COUNT" >> $GITHUB_OUTPUT
           if flutter analyze > /dev/null 2>&1; then
             echo "status=clean" >> $GITHUB_OUTPUT
@@ -58,8 +58,10 @@ jobs:
         id: tests
         run: |
           flutter test --exclude-tags emulator 2>&1 | tee test_output.txt
-          PASS=$(grep -oP '\+\K[0-9]+(?=:)' test_output.txt | tail -1 || echo "0")
-          FAIL=$(grep -oP '-\K[0-9]+(?=:)' test_output.txt | tail -1 || echo "0")
+          PASS=$(grep -Eo '[+][0-9]+:' test_output.txt | tail -1 | tr -d '+:') || PASS=0
+          [ -z "$PASS" ] && PASS=0
+          FAIL=$(grep -Eo '[-][0-9]+:' test_output.txt | tail -1 | tr -d '-:') || FAIL=0
+          [ -z "$FAIL" ] && FAIL=0
           echo "passed=$PASS" >> $GITHUB_OUTPUT
           echo "failed=$FAIL" >> $GITHUB_OUTPUT
           if [ "$FAIL" = "0" ]; then
@@ -108,8 +110,8 @@ jobs:
 
           # HUMAN_TASKS.md の未チェック項目数
           if [ -f docs/HUMAN_TASKS.md ]; then
-            OPEN=$(grep -c "^- \[ \]" docs/HUMAN_TASKS.md || echo "0")
-            DONE=$(grep -c "^- \[x\]" docs/HUMAN_TASKS.md || echo "0")
+            OPEN=$(grep -c "^- \[ \]" docs/HUMAN_TASKS.md) || OPEN=0
+            DONE=$(grep -c "^- \[x\]" docs/HUMAN_TASKS.md) || DONE=0
             echo "open_tasks=$OPEN" >> $GITHUB_OUTPUT
             echo "done_tasks=$DONE" >> $GITHUB_OUTPUT
           else
