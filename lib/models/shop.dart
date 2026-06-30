@@ -127,6 +127,43 @@ enum ServiceCategory {
       return null;
     }
   }
+
+  /// Maps an AI maintenance recommendation keyword (the Japanese rule name,
+  /// e.g. "タイヤローテーション") to the [ServiceCategory] best suited to handle
+  /// it.
+  ///
+  /// AI suggestion cards pass their rule name as a free-text keyword. Matching
+  /// it against shop names returns nothing because rule names never appear in
+  /// names. Instead we resolve the keyword to a capability category so the
+  /// marketplace can filter shops by [Shop.services].
+  ///
+  /// Returns null when no category confidently applies; callers should then
+  /// fall back to showing all shops rather than an empty result.
+  static ServiceCategory? fromMaintenanceKeyword(String? keyword) {
+    if (keyword == null) return null;
+    final k = keyword.trim();
+    if (k.isEmpty) return null;
+
+    // Tire-related work (rotation, replacement).
+    if (k.contains('タイヤ')) return tire;
+    // Statutory inspections / 車検. Checked before the generic 点検 rule below
+    // because "12ヶ月点検"/"24ヶ月点検" also contain "点検".
+    if (k.contains('車検') ||
+        k.contains('法定点検') ||
+        k.contains('12ヶ月点検') ||
+        k.contains('24ヶ月点検')) {
+      return inspection;
+    }
+    // Body work / paint.
+    if (k.contains('板金') || k.contains('塗装')) return bodyWork;
+    // Coating.
+    if (k.contains('コーティング')) return coating;
+    // Generic periodic maintenance: oil/filter/fluid/battery/brake checks and
+    // swaps all fall under 整備・点検.
+    if (k.contains('交換') || k.contains('点検')) return maintenance;
+
+    return null;
+  }
 }
 
 /// Business hours for a day

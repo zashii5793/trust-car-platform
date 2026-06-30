@@ -471,10 +471,52 @@ QA/PM/UX分析を踏まえた自律実装。各タスク単位でコミット。
 
 ---
 
+## マーケットプレイス検索の不一致修正（2026-06-19）
+
+AI提案カード →「近くの整備工場を探す」が常に0件になる不具合を修正。
+
+- 原因: `maintenanceContext`（例「タイヤローテーション」）を `searchShops()` の
+  工場名プレフィックス検索に流していた。ルール名は工場名に出現せず必ず0件。
+  加えてサービス区分 `ServiceCategory.tire`=「タイヤ交換」とも文字列不一致。
+- 修正: `ServiceCategory.fromMaintenanceKeyword()` を追加し、AIキーワードを
+  サービスカテゴリに変換 → `Shop.services` で絞り込み（`shop_list_screen.dart`）。
+  「タイヤローテーション」→ `tire`。未知キーワードは全件表示にフォールバック。
+- シード: `scripts/seed_shops.dart` のタカヤモーターに `tire` を追加。
+- 注意: **本番Firestoreの工場ドキュメントに `tire` が無いと検索結果に出ない**。
+  実店舗がタイヤ対応するなら `services` に `tire` を追記（再シードまたはConsole）。
+
+## レスポンシブUI対応（2026-06-19）
+
+タブレット/デスクトップ幅でのレイアウト最適化（候補1・2）を実装。
+
+1. **Breakpoints 基盤新設**（`lib/core/constants/breakpoints.dart`）:
+   - Material 3 window size class 準拠（mobile<600 / tablet600-1199 / desktop1200+）
+   - 横並びナビ・多カラム切替の閾値 `wideLayout = 840dp`（expanded）
+   - 判定は純粋関数（`sizeForWidth` 等）に集約しユニットテスト済み
+   - **設計判断**: 切替閾値を840dpにしたのは、Flutterテストのデフォルト幅
+     800pxを compact 扱いに保ち既存ウィジェットテストの回帰を防ぐため
+     （かつ Material の expanded 境界と一致）
+
+2. **候補2: レスポンシブナビゲーション**（`home_screen.dart`）:
+   - `LayoutBuilder` で分岐。compact/medium はボトム `NavigationBar` を維持、
+     expanded(840+) は横並び `NavigationRail`、desktop(1200+) は extended Rail
+   - 通知バッジ・FAB・AppBarアクションは全レイアウトで保持
+   - Rail は公式サンプル準拠（SingleChildScrollView+ConstrainedBox+IntrinsicHeight）
+     で縦狭 viewport のオーバーフローを防止
+
+3. **候補1: 広幅ダッシュボード拡大**（`_VehicleTab`）:
+   - 840+ で2カラム化（左:サマリー / 右:車検未設定カード+AI提案）。最大幅1100で中央寄せ
+   - 車両カードは単一カラム維持（グリッド化の崩れリスク回避）
+
+**テスト**: breakpoints 単体 + Rail/広幅ダッシュボードのウィジェットテストを追加。
+※ 本環境にFlutterランタイムが無く実行未確認のため **CIでの確認をお願いします**。
+**ブランチ**: `claude/relaxed-knuth-rxxy6b` / **PR**: #34 に追加
+
 ## 未解決・人間が対応すべき事項
 
 | 優先度 | タスク |
 |---|---|
+| P1 | 本番工場ドキュメントの `services` に `tire` を追加（タイヤ対応する場合） |
 | P1 | PR #20 をレビュー・マージ |
 | P1 | `google-services.json` を Firebase Console からダウンロード → `android/app/` に配置 |
 | P1 | `GoogleService-Info.plist` を Firebase Console からダウンロード → `ios/Runner/` に配置 |

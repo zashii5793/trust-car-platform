@@ -955,4 +955,182 @@ void main() {
       );
     });
   });
+
+  // =========================================================================
+  // レスポンシブナビゲーション（幅≥840 で NavigationRail に切り替わる）
+  // =========================================================================
+  group('HomeScreen — レスポンシブナビゲーション', () {
+    testWidgets('幅840未満ではボトム NavigationBar を使う（Rail は出ない）', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(NavigationRail), findsNothing);
+    });
+
+    testWidgets('幅840以上では NavigationRail を使う（ボトムバーは出ない）', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      expect(find.byType(NavigationRail), findsOneWidget);
+      expect(find.byType(NavigationBar), findsNothing);
+    });
+
+    testWidgets('Rail のタブをタップするとタイトルが切り替わる', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(NavigationRail),
+          matching: find.byIcon(Icons.store_outlined),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('マーケットプレイス'),
+        ),
+        findsWidgets,
+      );
+    });
+
+    testWidgets('Rail レイアウトでも未読バッジが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final np = _FakeNotificationProvider();
+      np.setNotifications([_makeNotif(isRead: false)]);
+
+      await tester.pumpWidget(_buildApp(notificationProvider: np));
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byType(NavigationRail),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Rail レイアウトでも車両タブで FAB が表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+    });
+
+    testWidgets('デスクトップ幅（≥1200）では extended Rail（ラベル併記）になる', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1300, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+      expect(rail.extended, isTrue);
+    });
+  });
+
+  // =========================================================================
+  // 広幅ダッシュボード（幅≥840 で 2カラムに拡大）
+  // =========================================================================
+  group('HomeScreen — 広幅ダッシュボード', () {
+    testWidgets('広幅でもダッシュボードサマリーが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1100, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([_makeVehicle('v1'), _makeVehicle('v2')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.text('ダッシュボード'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('広幅でも車検日未設定プロンプトカードが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1100, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final vp = _FakeVehicleProvider();
+      // _makeVehicle has no inspection date
+      vp.setVehicles([_makeVehicle('v1')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('inspection_setup_card')), findsOneWidget);
+    });
+
+    testWidgets('広幅でも車検アラートチップが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1100, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles([
+        Vehicle(
+          id: 'v-insp',
+          userId: 'u1',
+          maker: 'Toyota',
+          model: 'Prius',
+          year: 2021,
+          grade: 'S',
+          mileage: 30000,
+          inspectionExpiryDate:
+              DateTime.now().add(const Duration(days: 10, hours: 1)),
+          createdAt: DateTime(2024, 1, 1),
+          updatedAt: DateTime(2024, 1, 1),
+        ),
+      ]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('dashboard_inspection_chip_warning')),
+          findsOneWidget);
+    });
+
+    testWidgets('広幅・5台以上でフリートプランバナーが表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1100, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles(List.generate(5, (i) => _makeVehicle('v$i')));
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(find.byKey(const Key('fleet_plan_banner')), findsOneWidget);
+    });
+
+    testWidgets('広幅で車両カードがオーバーフローせず表示される', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1100, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final vp = _FakeVehicleProvider();
+      vp.setVehicles(List.generate(6, (i) => _makeVehicle('v$i')));
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

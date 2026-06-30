@@ -10,6 +10,7 @@ import '../providers/user_subscription_provider.dart';
 import '../models/vehicle.dart';
 import '../models/app_notification.dart';
 import '../models/fleet_plan.dart';
+import '../core/constants/breakpoints.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../core/utils/inspection_urgency.dart';
@@ -181,32 +182,54 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // expanded（840dp）以上では横並びの NavigationRail に切り替える。
+        // compact/medium ではモバイル向けのボトム NavigationBar を維持する。
+        final wide = Breakpoints.useWideLayout(constraints.maxWidth);
+        return wide ? _buildWideScaffold(constraints) : _buildCompactScaffold();
+      },
+    );
+  }
+
+  // ---- 共通要素 ----
+
+  PreferredSizeWidget _buildAppBar() => AppBar(
         title: Text(_appBarTitle),
         actions: _buildAppBarActions(),
-      ),
-      body: Column(
+      );
+
+  Widget _buildContent() => Column(
         children: [
           const OfflineBanner(),
           Expanded(child: _buildBody()),
         ],
-      ),
-      // FABは車両タブのみ表示（SNSタブのFABはSnsFeedScreen内で管理）
-      floatingActionButton: _currentIndex == 0
-          ? FloatingActionButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const VehicleRegistrationScreen(),
-                  ),
-                );
-              },
-              tooltip: '車両を登録',
-              child: const Icon(Icons.add),
-            )
-          : null,
+      );
+
+  // FABは車両タブのみ表示（SNSタブのFABはSnsFeedScreen内で管理）
+  Widget? _buildFab() {
+    if (_currentIndex != 0) return null;
+    return FloatingActionButton(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const VehicleRegistrationScreen(),
+          ),
+        );
+      },
+      tooltip: '車両を登録',
+      child: const Icon(Icons.add),
+    );
+  }
+
+  // ---- compact/medium レイアウト（ボトムナビ） ----
+
+  Widget _buildCompactScaffold() {
+    return Scaffold(
+      appBar: _buildAppBar(),
+      body: _buildContent(),
+      floatingActionButton: _buildFab(),
       bottomNavigationBar: Consumer<NotificationProvider>(
         builder: (context, notificationProvider, child) {
           final unread = notificationProvider.unreadCount;
@@ -266,6 +289,98 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
+    );
+  }
+
+  // ---- expanded/large レイアウト（横並び NavigationRail） ----
+
+  Widget _buildWideScaffold(BoxConstraints constraints) {
+    final extended = Breakpoints.useExtendedRail(constraints.maxWidth);
+    return Scaffold(
+      appBar: _buildAppBar(),
+      floatingActionButton: _buildFab(),
+      body: Row(
+        children: [
+          _buildNavigationRail(extended: extended),
+          const VerticalDivider(width: 1, thickness: 1),
+          Expanded(child: _buildContent()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavigationRail({required bool extended}) {
+    return Consumer<NotificationProvider>(
+      builder: (context, notificationProvider, child) {
+        final unread = notificationProvider.unreadCount;
+        // 公式サンプル準拠: 縦に狭い viewport でも Rail がオーバーフローせず
+        // スクロール可能になるよう、利用可能な高さを minHeight に与える。
+        return LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: NavigationRail(
+                  selectedIndex: _currentIndex,
+                  extended: extended,
+                  labelType: extended ? null : NavigationRailLabelType.all,
+                  onDestinationSelected: (index) {
+                    setState(() => _currentIndex = index);
+                  },
+                  destinations: [
+                    const NavigationRailDestination(
+                      icon: Icon(Icons.directions_car_outlined),
+                      selectedIcon: Icon(Icons.directions_car),
+                      label: Text('マイカー'),
+                    ),
+                    const NavigationRailDestination(
+                      icon: Icon(Icons.store_outlined),
+                      selectedIcon: Icon(Icons.store),
+                      label: Text('マーケット'),
+                    ),
+                    const NavigationRailDestination(
+                      icon: Icon(Icons.forum_outlined),
+                      selectedIcon: Icon(Icons.forum),
+                      label: Text('みんなの投稿'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Semantics(
+                        label: unread > 0
+                            ? '通知 未読${unread > 99 ? '99件以上' : '$unread件'}'
+                            : '通知',
+                        child: Badge(
+                          isLabelVisible: unread > 0,
+                          label: Text(
+                            unread > 99 ? '99+' : '$unread',
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                          child: const ExcludeSemantics(
+                            child: Icon(Icons.notifications_outlined),
+                          ),
+                        ),
+                      ),
+                      selectedIcon: Badge(
+                        isLabelVisible: unread > 0,
+                        label: Text(
+                          unread > 99 ? '99+' : '$unread',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                        child: const Icon(Icons.notifications),
+                      ),
+                      label: const Text('通知'),
+                    ),
+                    const NavigationRailDestination(
+                      icon: Icon(Icons.person_outline),
+                      selectedIcon: Icon(Icons.person),
+                      label: Text('プロフィール'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -364,29 +479,80 @@ class _VehicleTab extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: Builder(builder: (context) {
+          child: LayoutBuilder(builder: (context, constraints) {
             final vehicles = vehicleProvider.vehicles;
             final hasVehicleWithoutInspection =
                 vehicles.any((v) => v.inspectionExpiryDate == null);
 
-            // Build item list: fixed cards + optional prompt + vehicle rows
-            final items = <Widget>[
-              _DashboardSummaryCard(vehicles: vehicles),
-              if (hasVehicleWithoutInspection)
-                _InspectionSetupCard(vehicles: vehicles),
-              _AiSuggestionSection(onSeeAll: onNavigateToNotifications),
-              ...vehicles.map((v) => _VehicleCard(vehicle: v)),
-              _RetiredVehiclesLink(),
-            ];
-
-            return ListView.builder(
-              padding: AppSpacing.paddingScreen,
-              itemCount: items.length,
-              itemBuilder: (_, i) => items[i],
-            );
+            // expanded（840dp）以上では横幅を活かしてダッシュボードを
+            // 2カラム化する。狭い画面は従来どおりの単一カラム。
+            return Breakpoints.useWideLayout(constraints.maxWidth)
+                ? _buildWideBody(vehicles, hasVehicleWithoutInspection)
+                : _buildNarrowBody(vehicles, hasVehicleWithoutInspection);
           }),
         ),
       ],
+    );
+  }
+
+  /// 狭い画面（compact/medium）の単一カラム表示。
+  Widget _buildNarrowBody(
+      List<Vehicle> vehicles, bool hasVehicleWithoutInspection) {
+    final items = <Widget>[
+      _DashboardSummaryCard(vehicles: vehicles),
+      if (hasVehicleWithoutInspection) _InspectionSetupCard(vehicles: vehicles),
+      _AiSuggestionSection(onSeeAll: onNavigateToNotifications),
+      ...vehicles.map((v) => _VehicleCard(vehicle: v)),
+      _RetiredVehiclesLink(),
+    ];
+
+    return ListView.builder(
+      padding: AppSpacing.paddingScreen,
+      itemCount: items.length,
+      itemBuilder: (_, i) => items[i],
+    );
+  }
+
+  /// 広い画面（expanded/large）向けの拡大ダッシュボード。
+  ///
+  /// サマリーカードと AI 提案を横並びにして横幅を活用し、最大幅で中央寄せ
+  /// して可読性を保つ。車両カードは引き続き単一カラムの安定したリスト。
+  Widget _buildWideBody(
+      List<Vehicle> vehicles, bool hasVehicleWithoutInspection) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1100),
+        child: ListView(
+          padding: AppSpacing.paddingScreen,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 5,
+                  child: _DashboardSummaryCard(vehicles: vehicles),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  flex: 4,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (hasVehicleWithoutInspection)
+                        _InspectionSetupCard(vehicles: vehicles),
+                      _AiSuggestionSection(
+                        onSeeAll: onNavigateToNotifications,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            ...vehicles.map((v) => _VehicleCard(vehicle: v)),
+            _RetiredVehiclesLink(),
+          ],
+        ),
+      ),
     );
   }
 }
