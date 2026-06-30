@@ -62,8 +62,16 @@ app.*.map.json
 *.key
 *.keystore
 *.jks
+*.p8
+*.mobileprovision
 google-services.json
 GoogleService-Info.plist
+# Android release signing (contains keystore passwords)
+android/key.properties
+key.properties
+# Firebase Admin SDK service account (full DB access)
+serviceAccount*.json
+**/serviceAccount*.json
 
 # Business strategy & customer acquisition (keep off GitHub)
 docs/pitch_deck.html

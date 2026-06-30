@@ -11,6 +11,7 @@ import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../settings/privacy_policy_screen.dart';
 import '../settings/terms_of_service_screen.dart';
+import '../about/whats_new_screen.dart';
 
 /// 設定画面
 class SettingsScreen extends StatefulWidget {
@@ -429,10 +430,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   ListTile(
                     title: const Text('バージョン'),
-                    trailing: Text(
-                      '1.0.0',
-                      style: theme.textTheme.bodyMedium,
+                    subtitle: const Text('アップデート情報を見る'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '1.0.0',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        const Icon(Icons.chevron_right),
+                      ],
                     ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const WhatsNewScreen(),
+                        ),
+                      );
+                    },
                   ),
                   const Divider(height: 1),
                   ListTile(

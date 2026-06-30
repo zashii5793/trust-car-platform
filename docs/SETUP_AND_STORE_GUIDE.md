@@ -169,18 +169,21 @@ storeFile=<keystoreファイルの絶対パス例: /Users/yourname/trustcar-rele
 EOF
 ```
 
-### 2-3. build.gradle.kts に署名設定を追加
+### 2-3. build.gradle.kts に署名設定（実装済み）
 
-`android/app/build.gradle.kts` の `signingConfigs` セクションを編集:
+`android/app/build.gradle.kts` には **keystore が無くても壊れない条件付き署名設定が既に実装済み**です。
+あなたは `android/key.properties` を置くだけでリリース署名が有効になります（無ければ debug 署名に
+フォールバックするので CI / クローン直後も壊れません）。実装内容は以下のとおり:
 
 ```kotlin
-// ファイル冒頭に追加
-import java.util.Properties
+// ファイル冒頭
 import java.io.FileInputStream
+import java.util.Properties
 
 val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("app/key.properties")  // 注: android/ 内の相対パス
-if (keystorePropertiesFile.exists()) {
+val keystorePropertiesFile = rootProject.file("key.properties")  // = android/key.properties
+val hasKeystore = keystorePropertiesFile.exists()
+if (hasKeystore) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
@@ -188,21 +191,29 @@ android {
     // ...
     signingConfigs {
         create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["storePassword"] as String
+            if (hasKeystore) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
         }
     }
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")  // debug → release に変更
-            isMinifyEnabled = true
-            isShrinkResources = true
+            signingConfig = if (hasKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")  // CI / keystore未設定時のフォールバック
+            }
         }
     }
 }
 ```
+
+> 💡 R8 による難読化（`isMinifyEnabled` / `isShrinkResources`）は ProGuard ルール未整備だと
+> Firebase 等のリフレクション利用箇所で実行時クラッシュの恐れがあるため、**今回は有効化していません**。
+> 有効化する場合は別途 `proguard-rules.pro` を整備し、リリースビルドで動作確認すること。
 
 ### 2-4. リリース APK / AAB をビルド
 
