@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 /// Listing plan type for BtoB shop registration
 enum ShopPlanType {
@@ -55,19 +56,20 @@ enum ShopSubscriptionStatus {
 
 /// Shop type classification
 enum ShopType {
-  maintenanceShop('整備工場', 'Maintenance Shop'),
-  dealer('ディーラー', 'Dealer'),
-  partsShop('パーツショップ', 'Parts Shop'),
-  customShop('カスタムショップ', 'Custom Shop'),
-  usedCarDealer('中古車販売店', 'Used Car Dealer'),
-  carWash('洗車・コーティング', 'Car Wash & Coating'),
-  bodyShop('板金・塗装', 'Body Shop'),
-  gasStation('ガソリンスタンド', 'Gas Station'),
-  other('その他', 'Other');
+  maintenanceShop('整備工場', 'Maintenance Shop', Icons.build_outlined),
+  dealer('ディーラー', 'Dealer', Icons.directions_car_outlined),
+  partsShop('パーツショップ', 'Parts Shop', Icons.settings_outlined),
+  customShop('カスタムショップ', 'Custom Shop', Icons.tune_outlined),
+  usedCarDealer('中古車販売店', 'Used Car Dealer', Icons.sell_outlined),
+  carWash('洗車・コーティング', 'Car Wash & Coating', Icons.local_car_wash_outlined),
+  bodyShop('板金・塗装', 'Body Shop', Icons.format_paint_outlined),
+  gasStation('ガソリンスタンド', 'Gas Station', Icons.local_gas_station_outlined),
+  other('その他', 'Other', Icons.store_outlined);
 
   final String displayName;
   final String displayNameEn;
-  const ShopType(this.displayName, this.displayNameEn);
+  final IconData icon;
+  const ShopType(this.displayName, this.displayNameEn, this.icon);
 
   static ShopType? fromString(String? value) {
     if (value == null) return null;
