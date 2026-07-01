@@ -1,6 +1,26 @@
 # Claude Session Notes
 
-最終更新: 2026-06-19
+最終更新: 2026-07-01
+
+---
+
+## 夜間セッションログ（2026-07-01）: Issue #64 愛車カルテ PDF出力
+
+**ブランチ**: `claude/night-20260701` / **PR**: #69 (Draft)
+
+### 実装内容
+- `PdfExportService.generateCarteReport()` — 車両基本情報・費用集計・走行距離一貫性チェック付きPDF
+- `detectMileageAnomalies()` — `@visibleForTesting` 純粋関数で単体テスト可能
+- `export_dialog.dart` に `ExportReportType` 列挙型・`showCarteDialog()` を追加
+- `vehicle_detail_screen.dart` に `_showExportFormatSheet()` を追加（形式選択UI）
+- テスト: 23件追加、全件パス。`flutter analyze lib/` クリーン。
+
+### 残タスク（人間対応）
+- PR #69 のレビュー承認 → main マージ
+- Issue #49 ShopComparison UI（店舗データ収集が先行タスク）
+
+### 環境メモ
+- Flutter 3.38.0を `/home/user/flutter/` に手動インストール済み（curl経由、git clone はプロキシ制限で不可）
 
 ---
 
