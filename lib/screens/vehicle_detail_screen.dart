@@ -61,6 +61,77 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     return formatter.format(number);
   }
 
+  /// PDF出力の形式（メンテナンス履歴 / 愛車カルテ）を選択するシート
+  void _showExportFormatSheet(
+    BuildContext context, {
+    required Vehicle vehicle,
+    required List<MaintenanceRecord> records,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Text('出力形式を選択', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const Icon(Icons.description_outlined),
+                  title: const Text('メンテナンス履歴レポート'),
+                  subtitle: const Text('整備履歴の一覧表（標準形式）'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    showExportDialog(
+                      context: context,
+                      vehicle: vehicle,
+                      records: records,
+                    );
+                  },
+                ),
+                ListTile(
+                  key: const Key('carte_export_btn'),
+                  leading: const Icon(Icons.medical_services_outlined),
+                  title: const Text('愛車カルテ'),
+                  subtitle: const Text('車両詳細＋走行距離チェック付きの総合記録'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    showCarteDialog(
+                      context: context,
+                      vehicle: vehicle,
+                      records: records,
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  child: const Text('キャンセル'),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showPdfUpgradeDialog(BuildContext context) {
     showDialog<void>(
       context: context,
@@ -269,7 +340,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                 );
               },
             ),
-            // PDF出力ボタン（プレミアム機能）
+            // PDF出力ボタン（プレミアム機能・出力形式選択）
             Consumer<MaintenanceProvider>(
               builder: (context, provider, child) {
                 return IconButton(
@@ -285,8 +356,8 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                             _showPdfUpgradeDialog(context);
                             return;
                           }
-                          showExportDialog(
-                            context: context,
+                          _showExportFormatSheet(
+                            context,
                             vehicle: _vehicle,
                             records: provider.records,
                           );

@@ -12,7 +12,16 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
 
-/// PDF出力ダイアログを表示
+/// エクスポートするレポートの種類
+enum ExportReportType {
+  /// 従来のメンテナンス履歴レポート
+  maintenance,
+
+  /// 「愛車カルテ」形式（Issue #64）
+  carte,
+}
+
+/// メンテナンス履歴レポートの出力ダイアログを表示
 Future<void> showExportDialog({
   required BuildContext context,
   required Vehicle vehicle,
@@ -26,6 +35,26 @@ Future<void> showExportDialog({
     builder: (context) => _ExportDialog(
       vehicle: vehicle,
       records: records,
+      reportType: ExportReportType.maintenance,
+    ),
+  );
+}
+
+/// 「愛車カルテ」PDF出力ダイアログを表示（Issue #64）
+Future<void> showCarteDialog({
+  required BuildContext context,
+  required Vehicle vehicle,
+  required List<MaintenanceRecord> records,
+}) async {
+  showModalBottomSheet(
+    context: context,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (context) => _ExportDialog(
+      vehicle: vehicle,
+      records: records,
+      reportType: ExportReportType.carte,
     ),
   );
 }
@@ -33,10 +62,12 @@ Future<void> showExportDialog({
 class _ExportDialog extends StatefulWidget {
   final Vehicle vehicle;
   final List<MaintenanceRecord> records;
+  final ExportReportType reportType;
 
   const _ExportDialog({
     required this.vehicle,
     required this.records,
+    required this.reportType,
   });
 
   @override
@@ -44,10 +75,11 @@ class _ExportDialog extends StatefulWidget {
 }
 
 class _ExportDialogState extends State<_ExportDialog> {
-  // Service (DI経由)
   PdfExportService get _pdfService => sl.get<PdfExportService>();
   bool _isLoading = false;
   Uint8List? _pdfData;
+
+  bool get _isCarte => widget.reportType == ExportReportType.carte;
 
   @override
   void initState() {
@@ -58,10 +90,15 @@ class _ExportDialogState extends State<_ExportDialog> {
   Future<void> _generatePdf() async {
     setState(() => _isLoading = true);
 
-    final result = await _pdfService.generateMaintenanceReport(
-      vehicle: widget.vehicle,
-      records: widget.records,
-    );
+    final result = _isCarte
+        ? await _pdfService.generateCarteReport(
+            vehicle: widget.vehicle,
+            records: widget.records,
+          )
+        : await _pdfService.generateMaintenanceReport(
+            vehicle: widget.vehicle,
+            records: widget.records,
+          );
 
     if (!mounted) return;
     result.when(
@@ -73,9 +110,7 @@ class _ExportDialogState extends State<_ExportDialog> {
 
   Future<void> _previewPdf() async {
     if (_pdfData == null) return;
-
     Navigator.pop(context);
-
     await Printing.layoutPdf(
       onLayout: (_) async => _pdfData!,
       name: _getFileName(),
@@ -87,8 +122,6 @@ class _ExportDialogState extends State<_ExportDialog> {
 
     try {
       setState(() => _isLoading = true);
-
-      // 一時ファイルに保存
       final tempDir = await getTemporaryDirectory();
       final file = File('${tempDir.path}/${_getFileName()}');
       await file.writeAsBytes(_pdfData!);
@@ -96,27 +129,20 @@ class _ExportDialogState extends State<_ExportDialog> {
       if (!mounted) return;
       Navigator.pop(context);
 
-      // 共有
       await Share.shareXFiles(
         [XFile(file.path)],
-        subject: '${widget.vehicle.maker} ${widget.vehicle.model} メンテナンス履歴',
+        subject: _shareSubject(),
       );
     } catch (e) {
-      if (mounted) {
-        showErrorSnackBar(context, '共有に失敗しました: $e');
-      }
+      if (mounted) showErrorSnackBar(context, '共有に失敗しました: $e');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _printPdf() async {
     if (_pdfData == null) return;
-
     Navigator.pop(context);
-
     await Printing.directPrintPdf(
       printer: await Printing.pickPrinter(context: context) ??
           const Printer(url: ''),
@@ -127,8 +153,20 @@ class _ExportDialogState extends State<_ExportDialog> {
 
   String _getFileName() {
     final date = DateTime.now();
-    return 'maintenance_report_${widget.vehicle.maker}_${widget.vehicle.model}_${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}.pdf';
+    final dateStr =
+        '${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}';
+    final prefix = _isCarte ? 'carte' : 'maintenance_report';
+    return '${prefix}_${widget.vehicle.maker}_${widget.vehicle.model}_$dateStr.pdf';
   }
+
+  String _shareSubject() {
+    final name = '${widget.vehicle.maker} ${widget.vehicle.model}';
+    return _isCarte ? '$name 愛車カルテ' : '$name メンテナンス履歴';
+  }
+
+  String get _dialogTitle => _isCarte ? '愛車カルテを出力' : 'メンテナンス履歴をエクスポート';
+
+  String get _loadingMessage => _isCarte ? '愛車カルテを生成中...' : 'PDFを生成中...';
 
   @override
   Widget build(BuildContext context) {
@@ -156,7 +194,7 @@ class _ExportDialogState extends State<_ExportDialog> {
 
             // タイトル
             Text(
-              'メンテナンス履歴をエクスポート',
+              _dialogTitle,
               style: theme.textTheme.headlineLarge,
               textAlign: TextAlign.center,
             ),
@@ -169,12 +207,11 @@ class _ExportDialogState extends State<_ExportDialog> {
             AppSpacing.verticalLg,
 
             if (_isLoading) ...[
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                child: AppLoadingCenter(message: 'PDFを生成中...'),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                child: AppLoadingCenter(message: _loadingMessage),
               ),
             ] else ...[
-              // プレビュー/印刷ボタン
               _ExportOption(
                 icon: Icons.print,
                 title: 'プレビュー / 印刷',
@@ -182,8 +219,6 @@ class _ExportDialogState extends State<_ExportDialog> {
                 onTap: _previewPdf,
               ),
               AppSpacing.verticalSm,
-
-              // 共有ボタン
               _ExportOption(
                 icon: Icons.share,
                 title: '共有',
@@ -191,8 +226,6 @@ class _ExportDialogState extends State<_ExportDialog> {
                 onTap: _sharePdf,
               ),
               AppSpacing.verticalSm,
-
-              // ダイレクト印刷ボタン
               _ExportOption(
                 icon: Icons.local_printshop,
                 title: 'ダイレクト印刷',
@@ -202,8 +235,6 @@ class _ExportDialogState extends State<_ExportDialog> {
             ],
 
             AppSpacing.verticalLg,
-
-            // キャンセルボタン
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('キャンセル'),
@@ -250,10 +281,7 @@ class _ExportOption extends StatelessWidget {
                   color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: AppSpacing.borderRadiusSm,
                 ),
-                child: Icon(
-                  icon,
-                  color: AppColors.primary,
-                ),
+                child: Icon(icon, color: AppColors.primary),
               ),
               AppSpacing.horizontalMd,
               Expanded(
@@ -266,10 +294,7 @@ class _ExportOption extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    Text(
-                      description,
-                      style: theme.textTheme.bodySmall,
-                    ),
+                    Text(description, style: theme.textTheme.bodySmall),
                   ],
                 ),
               ),
