@@ -29,6 +29,8 @@ import 'marketplace/marketplace_screen.dart';
 import 'marketplace/shop_list_screen.dart';
 import 'marketplace/shop_owner_screen.dart';
 import 'sns/sns_feed_screen.dart';
+import 'sns/social_notification_screen.dart';
+import '../providers/social_notification_provider.dart';
 import 'drive/drive_log_screen.dart';
 import 'add_maintenance_screen.dart';
 import 'ai_chat/ai_chat_screen.dart';
@@ -142,6 +144,40 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
+
+    // SNS タブにソーシャル通知ベルを表示
+    if (_currentIndex == 2) {
+      actions.add(
+        Consumer<SocialNotificationProvider>(
+          builder: (context, socialProvider, _) {
+            return IconButton(
+              icon: Badge(
+                isLabelVisible: socialProvider.unreadCount > 0,
+                label: Text(
+                  socialProvider.unreadCount > 99
+                      ? '99+'
+                      : '${socialProvider.unreadCount}',
+                  style: const TextStyle(fontSize: 10),
+                ),
+                child: const Icon(Icons.notifications_outlined),
+              ),
+              tooltip: 'SNS通知',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => Scaffold(
+                      appBar: AppBar(title: const Text('SNS通知')),
+                      body: const SocialNotificationScreen(),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      );
+    }
 
     // マーケットプレイスタブにオーナー掲載ボタンを表示
     if (_currentIndex == 1) {

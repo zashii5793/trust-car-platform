@@ -23,6 +23,7 @@ SocialNotification _makeNotification({
   String? actorDisplayName,
   NotificationType type = NotificationType.like,
   bool isRead = false,
+  String? showcaseId,
 }) {
   return SocialNotification(
     id: id,
@@ -31,6 +32,7 @@ SocialNotification _makeNotification({
     actorDisplayName: actorDisplayName,
     type: type,
     isRead: isRead,
+    showcaseId: showcaseId,
     createdAt: DateTime.now(),
   );
 }
@@ -225,6 +227,90 @@ void main() {
       expect(map['type'], 'like');
       expect(map['userId'], 'user1');
       expect(map['actorId'], 'actor1');
+    });
+  });
+
+  // ── SocialNotification.showcaseId ────────────────────────────────────────
+
+  group('SocialNotification: showcaseId', () {
+    test('showcaseId を指定して作成できる', () {
+      final n = _makeNotification(showcaseId: 'sc123');
+      expect(n.showcaseId, 'sc123');
+    });
+
+    test('showcaseId を省略すると null になる', () {
+      final n = _makeNotification();
+      expect(n.showcaseId, isNull);
+    });
+
+    test('copyWith で showcaseId を設定できる', () {
+      final n = _makeNotification(showcaseId: null);
+      final updated = n.copyWith(showcaseId: 'sc999');
+      expect(updated.showcaseId, 'sc999');
+      expect(updated.id, n.id);
+    });
+
+    test('toMap に showcaseId が含まれる（設定時）', () {
+      final n = _makeNotification(showcaseId: 'sc_abc', type: NotificationType.comment);
+      final map = n.toMap();
+      expect(map['showcaseId'], 'sc_abc');
+    });
+
+    test('toMap に showcaseId が含まれない（未設定時）', () {
+      final n = _makeNotification(showcaseId: null);
+      final map = n.toMap();
+      expect(map.containsKey('showcaseId'), isFalse);
+    });
+
+    test('like + showcaseId → ショーケース向けメッセージ', () {
+      final n = _makeNotification(
+        type: NotificationType.like,
+        actorDisplayName: '田中太郎',
+        showcaseId: 'sc1',
+      );
+      expect(n.message, contains('ショーケース'));
+    });
+
+    test('comment + showcaseId → ショーケース向けメッセージ', () {
+      final n = _makeNotification(
+        type: NotificationType.comment,
+        actorDisplayName: '佐藤花子',
+        showcaseId: 'sc2',
+      );
+      expect(n.message, contains('ショーケース'));
+    });
+
+    test('like + showcaseId なし → 従来のメッセージ', () {
+      final n = _makeNotification(
+        type: NotificationType.like,
+        actorDisplayName: '山田太郎',
+        showcaseId: null,
+      );
+      expect(n.message, '山田太郎があなたの投稿にいいねしました');
+    });
+
+    group('Edge Cases', () {
+      test('空文字 showcaseId は null と区別される', () {
+        final n = _makeNotification(showcaseId: '');
+        // 空文字はshowcaseIdとして保持されるが、ナビゲーション時に空チェックが必要
+        expect(n.showcaseId, '');
+        expect(n.showcaseId?.isNotEmpty, isFalse);
+      });
+
+      test('copyWith で showcaseId を null にクリアできる', () {
+        final n = _makeNotification(showcaseId: 'sc1');
+        // copyWith でnullをセットするパターン
+        final cleared = SocialNotification(
+          id: n.id,
+          userId: n.userId,
+          actorId: n.actorId,
+          type: n.type,
+          isRead: n.isRead,
+          showcaseId: null,
+          createdAt: n.createdAt,
+        );
+        expect(cleared.showcaseId, isNull);
+      });
     });
   });
 

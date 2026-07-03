@@ -164,6 +164,8 @@ enum NotificationType {
   }
 }
 
+const _sentinel = Object();
+
 /// Social notification model
 class SocialNotification {
   final String id;
@@ -173,6 +175,7 @@ class SocialNotification {
   final String? actorPhotoUrl;
   final NotificationType type;
   final String? postId;
+  final String? showcaseId;
   final String? commentId;
   final String? previewText;
   final bool isRead;
@@ -186,6 +189,7 @@ class SocialNotification {
     this.actorPhotoUrl,
     required this.type,
     this.postId,
+    this.showcaseId,
     this.commentId,
     this.previewText,
     this.isRead = false,
@@ -202,6 +206,7 @@ class SocialNotification {
       actorPhotoUrl: data['actorPhotoUrl'],
       type: NotificationType.fromString(data['type']) ?? NotificationType.like,
       postId: data['postId'],
+      showcaseId: data['showcaseId'],
       commentId: data['commentId'],
       previewText: data['previewText'],
       isRead: data['isRead'] ?? false,
@@ -217,6 +222,7 @@ class SocialNotification {
       'actorPhotoUrl': actorPhotoUrl,
       'type': type.name,
       if (postId != null) 'postId': postId,
+      if (showcaseId != null) 'showcaseId': showcaseId,
       if (commentId != null) 'commentId': commentId,
       if (previewText != null) 'previewText': previewText,
       'isRead': isRead,
@@ -232,6 +238,7 @@ class SocialNotification {
     String? actorPhotoUrl,
     NotificationType? type,
     String? postId,
+    Object? showcaseId = _sentinel,
     String? commentId,
     String? previewText,
     bool? isRead,
@@ -245,6 +252,7 @@ class SocialNotification {
       actorPhotoUrl: actorPhotoUrl ?? this.actorPhotoUrl,
       type: type ?? this.type,
       postId: postId ?? this.postId,
+      showcaseId: showcaseId == _sentinel ? this.showcaseId : showcaseId as String?,
       commentId: commentId ?? this.commentId,
       previewText: previewText ?? this.previewText,
       isRead: isRead ?? this.isRead,
@@ -254,17 +262,24 @@ class SocialNotification {
 
   /// Get notification message
   String get message {
+    final actor = actorDisplayName ?? 'ユーザー';
     switch (type) {
       case NotificationType.like:
-        return '${actorDisplayName ?? 'ユーザー'}があなたの投稿にいいねしました';
+        if (showcaseId != null) {
+          return '$actorがあなたのショーケースコメントにいいねしました';
+        }
+        return '$actorがあなたの投稿にいいねしました';
       case NotificationType.comment:
-        return '${actorDisplayName ?? 'ユーザー'}があなたの投稿にコメントしました';
+        if (showcaseId != null) {
+          return '$actorがあなたのショーケースにコメントしました';
+        }
+        return '$actorがあなたの投稿にコメントしました';
       case NotificationType.follow:
-        return '${actorDisplayName ?? 'ユーザー'}があなたをフォローしました';
+        return '$actorがあなたをフォローしました';
       case NotificationType.mention:
-        return '${actorDisplayName ?? 'ユーザー'}があなたをメンションしました';
+        return '$actorがあなたをメンションしました';
       case NotificationType.reply:
-        return '${actorDisplayName ?? 'ユーザー'}があなたのコメントに返信しました';
+        return '$actorがあなたのコメントに返信しました';
     }
   }
 

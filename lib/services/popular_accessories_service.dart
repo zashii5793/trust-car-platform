@@ -67,6 +67,22 @@ class PopularAccessoriesService {
     }
   }
 
+  /// Returns a single showcase by document ID.
+  Future<Result<AccessoryShowcase, AppError>> getShowcaseById(
+      String showcaseId) async {
+    try {
+      final doc =
+          await _firestore.collection(_collection).doc(showcaseId).get();
+      if (!doc.exists) {
+        return Result.failure(
+            const AppError.notFound('ショーケースが見つかりません'));
+      }
+      return Result.success(AccessoryShowcase.fromFirestore(doc));
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
   /// Returns all showcase posts for [category], newest first.
   Future<Result<List<AccessoryShowcase>, AppError>> getShowcasesByCategory(
       AccessoryCategory category) async {

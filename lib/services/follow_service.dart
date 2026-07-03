@@ -293,6 +293,7 @@ class FollowService {
     String? actorPhotoUrl,
     required NotificationType type,
     String? postId,
+    String? showcaseId,
     String? commentId,
     String? previewText,
   }) async {
@@ -309,6 +310,7 @@ class FollowService {
         'actorPhotoUrl': actorPhotoUrl,
         'type': type.name,
         if (postId != null) 'postId': postId,
+        if (showcaseId != null) 'showcaseId': showcaseId,
         if (commentId != null) 'commentId': commentId,
         if (previewText != null) 'previewText': previewText,
         'isRead': false,

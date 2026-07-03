@@ -39,6 +39,8 @@ import 'package:trust_car_platform/services/post_service.dart';
 import 'package:trust_car_platform/providers/drive_log_provider.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/providers/user_subscription_provider.dart';
+import 'package:trust_car_platform/providers/social_notification_provider.dart';
+import 'package:trust_car_platform/services/follow_service.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 
 // ---------------------------------------------------------------------------
@@ -339,6 +341,11 @@ Widget _buildApp({
       ),
       ChangeNotifierProvider<UserSubscriptionProvider>(
         create: (_) => UserSubscriptionProvider(),
+      ),
+      ChangeNotifierProvider<SocialNotificationProvider>(
+        create: (_) => SocialNotificationProvider(
+          followService: FollowService(firestore: FakeFirebaseFirestore()),
+        ),
       ),
     ],
     child: const MaterialApp(home: HomeScreen()),
