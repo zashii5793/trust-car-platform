@@ -74,8 +74,7 @@ class PopularAccessoriesService {
       final doc =
           await _firestore.collection(_collection).doc(showcaseId).get();
       if (!doc.exists) {
-        return Result.failure(
-            const AppError.notFound('ショーケースが見つかりません'));
+        return Result.failure(const AppError.notFound('ショーケースが見つかりません'));
       }
       return Result.success(AccessoryShowcase.fromFirestore(doc));
     } catch (e) {

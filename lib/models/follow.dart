@@ -252,7 +252,8 @@ class SocialNotification {
       actorPhotoUrl: actorPhotoUrl ?? this.actorPhotoUrl,
       type: type ?? this.type,
       postId: postId ?? this.postId,
-      showcaseId: showcaseId == _sentinel ? this.showcaseId : showcaseId as String?,
+      showcaseId:
+          showcaseId == _sentinel ? this.showcaseId : showcaseId as String?,
       commentId: commentId ?? this.commentId,
       previewText: previewText ?? this.previewText,
       isRead: isRead ?? this.isRead,

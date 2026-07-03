@@ -174,14 +174,11 @@ class _NotificationTile extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: AppSpacing.sm),
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: isUnread
-              ? AppColors.primary.withAlpha(20)
-              : theme.cardColor,
+          color: isUnread ? AppColors.primary.withAlpha(20) : theme.cardColor,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isUnread
-                ? AppColors.primary.withAlpha(60)
-                : theme.dividerColor,
+            color:
+                isUnread ? AppColors.primary.withAlpha(60) : theme.dividerColor,
           ),
         ),
         child: Row(

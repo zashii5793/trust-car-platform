@@ -251,7 +251,8 @@ void main() {
     });
 
     test('toMap に showcaseId が含まれる（設定時）', () {
-      final n = _makeNotification(showcaseId: 'sc_abc', type: NotificationType.comment);
+      final n = _makeNotification(
+          showcaseId: 'sc_abc', type: NotificationType.comment);
       final map = n.toMap();
       expect(map['showcaseId'], 'sc_abc');
     });

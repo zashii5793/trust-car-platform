@@ -34,7 +34,8 @@ class SocialNotificationProvider with ChangeNotifier {
     _error = null;
     notifyListeners();
 
-    final result = await _followService.getNotifications(userId: uid, limit: 50);
+    final result =
+        await _followService.getNotifications(userId: uid, limit: 50);
     result.when(
       success: (list) {
         _notifications = list;
@@ -50,8 +51,7 @@ class SocialNotificationProvider with ChangeNotifier {
   }
 
   Future<void> markAsRead(String notificationId) async {
-    final result =
-        await _followService.markNotificationAsRead(notificationId);
+    final result = await _followService.markNotificationAsRead(notificationId);
     if (result.isSuccess) {
       _notifications = _notifications.map((n) {
         if (n.id == notificationId) return n.copyWith(isRead: true);
@@ -67,9 +67,8 @@ class SocialNotificationProvider with ChangeNotifier {
     if (uid == null) return;
     final result = await _followService.markAllNotificationsAsRead(uid);
     if (result.isSuccess) {
-      _notifications = _notifications
-          .map((n) => n.copyWith(isRead: true))
-          .toList();
+      _notifications =
+          _notifications.map((n) => n.copyWith(isRead: true)).toList();
       _unreadCount = 0;
       notifyListeners();
     }
