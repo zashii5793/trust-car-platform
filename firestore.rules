@@ -698,6 +698,21 @@ service cloud.firestore {
         resource.data.get('ownerId', '') == request.auth.uid;
     }
 
+    // ==================== SNS投稿コメント通報（モデレーション） ====================
+    // post_comment_reports/{reportId}
+    // Users report SNS post comments for manual moderation. Write-only for
+    // clients (one report per user/comment via deterministic id
+    // "{commentId}_{reporterId}"); reading and moderation are server-side only.
+    match /post_comment_reports/{reportId} {
+      allow read: if false;
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.reporterId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+
+      allow update, delete: if false;
+    }
+
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;

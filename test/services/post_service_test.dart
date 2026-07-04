@@ -740,4 +740,67 @@ void main() {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // PostService.getMyLikedCommentIds
+  // ---------------------------------------------------------------------------
+
+  group('PostService.getMyLikedCommentIds', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    setUp(() {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+    });
+
+    test('いいね済みコメントIDのセットを返す', () async {
+      // Seed: user-1 liked c-1 and c-3, not c-2
+      await fakeFirestore
+          .collection('comment_likes')
+          .doc('c-1_user-1')
+          .set({'commentId': 'c-1', 'userId': 'user-1'});
+      await fakeFirestore
+          .collection('comment_likes')
+          .doc('c-3_user-1')
+          .set({'commentId': 'c-3', 'userId': 'user-1'});
+
+      final result = await service.getMyLikedCommentIds(
+          userId: 'user-1', commentIds: ['c-1', 'c-2', 'c-3']);
+
+      result.when(
+          success: (ids) {
+            expect(ids, containsAll(['c-1', 'c-3']));
+            expect(ids, isNot(contains('c-2')));
+          },
+          failure: (e) => fail('Expected success, got $e'));
+    });
+
+    test('いいね0件のときは空セットを返す', () async {
+      final result = await service
+          .getMyLikedCommentIds(userId: 'user-1', commentIds: ['c-1', 'c-2']);
+
+      result.when(
+          success: (ids) => expect(ids, isEmpty),
+          failure: (e) => fail('Expected success, got $e'));
+    });
+
+    group('Edge Cases', () {
+      test('空の commentIds は空セットを即返す（Firestore未アクセス）', () async {
+        final result = await service
+            .getMyLikedCommentIds(userId: 'user-1', commentIds: []);
+        result.when(
+            success: (ids) => expect(ids, isEmpty),
+            failure: (e) => fail('Expected success, got $e'));
+      });
+
+      test('空の userId は空セットを即返す', () async {
+        final result =
+            await service.getMyLikedCommentIds(userId: '', commentIds: ['c-1']);
+        result.when(
+            success: (ids) => expect(ids, isEmpty),
+            failure: (e) => fail('Expected success, got $e'));
+      });
+    });
+  });
 }

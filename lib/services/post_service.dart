@@ -671,6 +671,32 @@ class PostService {
     }
   }
 
+  /// Batch-fetches which of [commentIds] the [userId] has liked.
+  /// Returns a [Set] of liked comment IDs for efficient UI rendering.
+  Future<Result<Set<String>, AppError>> getMyLikedCommentIds({
+    required String userId,
+    required List<String> commentIds,
+  }) async {
+    if (userId.trim().isEmpty || commentIds.isEmpty) {
+      return const Result.success(<String>{});
+    }
+    try {
+      final snaps = await Future.wait(
+        commentIds.map((cid) => _commentLikesRef.doc('${cid}_$userId').get()),
+      );
+      final liked = <String>{};
+      for (var i = 0; i < commentIds.length; i++) {
+        if (snaps[i].exists) liked.add(commentIds[i]);
+      }
+      return Result.success(liked);
+    } catch (e) {
+      return Result.failure(AppError.unknown(
+        'いいね状態の取得に失敗しました',
+        originalError: e,
+      ));
+    }
+  }
+
   /// Increment view count
   Future<void> incrementViewCount(String postId) async {
     try {

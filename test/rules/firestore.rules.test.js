@@ -313,3 +313,50 @@ describe('comment_reports — コメント通報', () => {
     await assertFails(getDoc(doc(dbFor(OWNER_UID), reportPath)));
   });
 });
+
+describe('post_comment_reports — SNS投稿コメント通報', () => {
+  const postCommentId = 'pc_1';
+  const postReportId = `${postCommentId}_${OWNER_UID}`;
+  const postReportPath = `post_comment_reports/${postReportId}`;
+
+  const validReport = () => ({
+    commentId: postCommentId,
+    reporterId: OWNER_UID,
+    reason: 'spam',
+    status: 'pending',
+  });
+
+  test('本人は自分の通報を作成できる', async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER_UID), postReportPath), validReport()),
+    );
+  });
+
+  test('reporterId の詐称は拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OTHER_UID), postReportPath), validReport()),
+    );
+  });
+
+  test('未認証ユーザーは通報を作成できない', async () => {
+    await assertFails(
+      setDoc(doc(unauthDb(), postReportPath), validReport()),
+    );
+  });
+
+  test('status が pending 以外は拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OWNER_UID), postReportPath), {
+        ...validReport(),
+        status: 'resolved',
+      }),
+    );
+  });
+
+  test('クライアントは通報を読み取れない（サーバー専用）', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), postReportPath), validReport());
+    });
+    await assertFails(getDoc(doc(dbFor(OWNER_UID), postReportPath)));
+  });
+});
