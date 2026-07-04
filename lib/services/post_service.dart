@@ -6,6 +6,7 @@ import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/post.dart';
 import '../models/comment.dart';
+import '../models/comment_report.dart';
 import '../models/follow.dart';
 
 /// Service for managing posts and comments
@@ -572,6 +573,10 @@ class PostService {
     required String commentId,
     required String userId,
   }) async {
+    if (commentId.trim().isEmpty || userId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('commentId と userId は必須です'));
+    }
     try {
       final likeId = '${commentId}_$userId';
       final likeDoc = await _commentLikesRef.doc(likeId).get();
@@ -597,6 +602,70 @@ class PostService {
     } catch (e) {
       return Result.failure(AppError.unknown(
         'いいねに失敗しました',
+        originalError: e,
+      ));
+    }
+  }
+
+  /// Unlike a comment (idempotent: no-op if not yet liked)
+  Future<Result<void, AppError>> unlikeComment({
+    required String commentId,
+    required String userId,
+  }) async {
+    if (commentId.trim().isEmpty || userId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('commentId と userId は必須です'));
+    }
+    try {
+      final likeId = '${commentId}_$userId';
+      final likeDoc = await _commentLikesRef.doc(likeId).get();
+
+      if (!likeDoc.exists) {
+        return Result.success(null);
+      }
+
+      final batch = _firestore.batch();
+      batch.delete(_commentLikesRef.doc(likeId));
+      batch.update(_commentsRef.doc(commentId), {
+        'likeCount': FieldValue.increment(-1),
+      });
+      await batch.commit();
+      return Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.unknown(
+        'いいね取り消しに失敗しました',
+        originalError: e,
+      ));
+    }
+  }
+
+  /// Report a comment for manual moderation.
+  /// One report per (comment, reporter) — idempotent via deterministic doc ID.
+  Future<Result<void, AppError>> reportComment({
+    required String commentId,
+    required String reporterId,
+    required ReportReason reason,
+  }) async {
+    if (commentId.trim().isEmpty || reporterId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('commentId と reporterId は必須です'));
+    }
+    try {
+      final reportId = '${commentId}_$reporterId';
+      await _firestore
+          .collection(FirestoreCollections.postCommentReports)
+          .doc(reportId)
+          .set({
+        'commentId': commentId,
+        'reporterId': reporterId,
+        'reason': reason.name,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.unknown(
+        '通報に失敗しました',
         originalError: e,
       ));
     }

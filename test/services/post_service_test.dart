@@ -13,6 +13,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/models/post.dart';
+import 'package:trust_car_platform/models/comment_report.dart';
 import 'package:trust_car_platform/services/post_service.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/result/result.dart';
@@ -550,6 +551,192 @@ void main() {
           },
           failure: (e) => fail('Expected success, got: $e'),
         );
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // PostService.likeComment / unlikeComment
+  // ---------------------------------------------------------------------------
+
+  group('PostService.likeComment / unlikeComment', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    Future<String> seedComment({int likeCount = 0}) async {
+      final ref = await fakeFirestore.collection('comments').add({
+        'postId': 'post-1',
+        'userId': 'author-uid',
+        'content': 'test comment',
+        'likeCount': likeCount,
+        'createdAt': Timestamp.fromDate(DateTime(2024, 1, 1)),
+      });
+      return ref.id;
+    }
+
+    setUp(() {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+    });
+
+    test('likeComment — 初回いいねで likeCount が 1 増加する', () async {
+      final commentId = await seedComment();
+      final result =
+          await service.likeComment(commentId: commentId, userId: 'user-1');
+      result.when(
+          success: (_) {}, failure: (e) => fail('Expected success, got $e'));
+
+      final snap =
+          await fakeFirestore.collection('comments').doc(commentId).get();
+      expect(snap.data()!['likeCount'], 1);
+    });
+
+    test('likeComment — 同じユーザーが2度いいねしても likeCount は 1 のまま', () async {
+      final commentId = await seedComment();
+      await service.likeComment(commentId: commentId, userId: 'user-1');
+      await service.likeComment(commentId: commentId, userId: 'user-1');
+
+      final snap =
+          await fakeFirestore.collection('comments').doc(commentId).get();
+      expect(snap.data()!['likeCount'], 1);
+    });
+
+    test('likeComment — 異なるユーザー2人がいいねすると likeCount は 2', () async {
+      final commentId = await seedComment();
+      await service.likeComment(commentId: commentId, userId: 'user-1');
+      await service.likeComment(commentId: commentId, userId: 'user-2');
+
+      final snap =
+          await fakeFirestore.collection('comments').doc(commentId).get();
+      expect(snap.data()!['likeCount'], 2);
+    });
+
+    test('unlikeComment — いいね後に取り消すと likeCount が 0 に戻る', () async {
+      final commentId = await seedComment();
+      await service.likeComment(commentId: commentId, userId: 'user-1');
+
+      final result =
+          await service.unlikeComment(commentId: commentId, userId: 'user-1');
+      result.when(
+          success: (_) {}, failure: (e) => fail('Expected success, got $e'));
+
+      final snap =
+          await fakeFirestore.collection('comments').doc(commentId).get();
+      expect(snap.data()!['likeCount'], 0);
+    });
+
+    test('unlikeComment — いいねしていないコメントを unlike しても no-op（エラーなし）', () async {
+      final commentId = await seedComment();
+      final result =
+          await service.unlikeComment(commentId: commentId, userId: 'user-1');
+
+      result.when(
+          success: (_) {}, failure: (e) => fail('Expected success, got $e'));
+
+      final snap =
+          await fakeFirestore.collection('comments').doc(commentId).get();
+      expect(snap.data()!['likeCount'], 0);
+    });
+
+    group('Edge Cases', () {
+      test('likeComment — 空の commentId はバリデーションエラーを返す', () async {
+        final result =
+            await service.likeComment(commentId: '', userId: 'user-1');
+        result.when(
+            success: (_) => fail('Expected failure'),
+            failure: (e) => expect(e, isA<AppError>()));
+      });
+
+      test('likeComment — 空の userId はバリデーションエラーを返す', () async {
+        final result = await service.likeComment(commentId: 'c-1', userId: '');
+        result.when(
+            success: (_) => fail('Expected failure'),
+            failure: (e) => expect(e, isA<AppError>()));
+      });
+
+      test('unlikeComment — 空の commentId はバリデーションエラーを返す', () async {
+        final result =
+            await service.unlikeComment(commentId: '', userId: 'user-1');
+        result.when(
+            success: (_) => fail('Expected failure'),
+            failure: (e) => expect(e, isA<AppError>()));
+      });
+
+      test('unlikeComment — 空の userId はバリデーションエラーを返す', () async {
+        final result =
+            await service.unlikeComment(commentId: 'c-1', userId: '');
+        result.when(
+            success: (_) => fail('Expected failure'),
+            failure: (e) => expect(e, isA<AppError>()));
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // PostService.reportComment
+  // ---------------------------------------------------------------------------
+
+  group('PostService.reportComment', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    setUp(() {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+    });
+
+    test('通報が post_comment_reports コレクションに保存される', () async {
+      final result = await service.reportComment(
+        commentId: 'comment-1',
+        reporterId: 'user-1',
+        reason: ReportReason.spam,
+      );
+      result.when(
+          success: (_) {}, failure: (e) => fail('Expected success, got $e'));
+
+      final snap = await fakeFirestore.collection('post_comment_reports').get();
+      expect(snap.docs.length, 1);
+      expect(snap.docs.first.data()['commentId'], 'comment-1');
+      expect(snap.docs.first.data()['reporterId'], 'user-1');
+      expect(snap.docs.first.data()['reason'], 'spam');
+      expect(snap.docs.first.data()['status'], 'pending');
+    });
+
+    test('同一ユーザーが同じコメントを再通報しても重複しない（idempotent）', () async {
+      await service.reportComment(
+          commentId: 'c-1', reporterId: 'u-1', reason: ReportReason.spam);
+      await service.reportComment(
+          commentId: 'c-1', reporterId: 'u-1', reason: ReportReason.other);
+
+      final snap = await fakeFirestore.collection('post_comment_reports').get();
+      expect(snap.docs.length, 1);
+    });
+
+    test('異なるユーザーが通報すると別々のドキュメントになる', () async {
+      await service.reportComment(
+          commentId: 'c-1', reporterId: 'u-1', reason: ReportReason.spam);
+      await service.reportComment(
+          commentId: 'c-1', reporterId: 'u-2', reason: ReportReason.harassment);
+
+      final snap = await fakeFirestore.collection('post_comment_reports').get();
+      expect(snap.docs.length, 2);
+    });
+
+    group('Edge Cases', () {
+      test('空の commentId はバリデーションエラーを返す', () async {
+        final result = await service.reportComment(
+            commentId: '', reporterId: 'u-1', reason: ReportReason.spam);
+        result.when(
+            success: (_) => fail('Expected failure'),
+            failure: (e) => expect(e, isA<AppError>()));
+      });
+
+      test('空の reporterId はバリデーションエラーを返す', () async {
+        final result = await service.reportComment(
+            commentId: 'c-1', reporterId: '', reason: ReportReason.spam);
+        result.when(
+            success: (_) => fail('Expected failure'),
+            failure: (e) => expect(e, isA<AppError>()));
       });
     });
   });
