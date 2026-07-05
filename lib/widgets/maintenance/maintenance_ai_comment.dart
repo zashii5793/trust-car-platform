@@ -1,27 +1,182 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/spacing.dart';
 import '../../models/maintenance_record.dart';
+import '../../models/vehicle.dart';
 import '../../services/maintenance_comment_service.dart';
+import '../../services/maintenance_insight_service.dart';
 
-/// Displays an AI-generated comment for a single maintenance record.
+/// Displays an AI-generated explanation for a single maintenance record.
 ///
-/// Shows timing evaluation (good/acceptable/overdue) and next-service schedule.
-/// Based only on rule-based logic — no LLM required, no network call.
-/// Returns [SizedBox.shrink] when no comment can be generated.
+/// When [vehicle] is provided, renders the richer *insight* — what the record
+/// means (why it matters), whether the timing was good, what's next, and why
+/// keeping the record is worth it — from the very first record.
+/// When [vehicle] is null, falls back to the timing-only comment.
+///
+/// Based only on rule-based logic — no LLM, no network call.
+/// Returns [SizedBox.shrink] when nothing meaningful can be generated.
 class MaintenanceAiComment extends StatelessWidget {
   final MaintenanceRecord record;
   final List<MaintenanceRecord> allRecords;
   final int currentMileage;
+
+  /// Optional — when supplied, the widget shows the full explanation
+  /// (meaning + reasons + next step + asset note) instead of timing only.
+  final Vehicle? vehicle;
 
   const MaintenanceAiComment({
     super.key,
     required this.record,
     required this.allRecords,
     required this.currentMileage,
+    this.vehicle,
   });
 
   @override
   Widget build(BuildContext context) {
+    final v = vehicle;
+    if (v != null) return _buildInsight(context, v);
+    return _buildComment(context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Insight view (with vehicle) — "what this record means"
+  // ---------------------------------------------------------------------------
+  Widget _buildInsight(BuildContext context, Vehicle vehicle) {
+    final insight = MaintenanceInsightService().explain(
+      record: record,
+      vehicle: vehicle,
+      allRecords: allRecords,
+      currentMileage: currentMileage,
+    );
+    if (insight == null) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final (color, icon) = _meaningStyle(context, insight.meaning);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Icon(Icons.smart_toy_outlined, size: 15, color: color),
+              const SizedBox(width: 6),
+              Text(
+                'AI解説',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+
+          // Headline (timing evaluation)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  insight.headline,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                    height: 1.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Reasons — the "meaning" (why / detail / risk)
+          for (final reason in insight.reasons) ...[
+            const SizedBox(height: 4),
+            _iconLine(
+              context,
+              icon: Icons.subject,
+              iconColor: theme.colorScheme.outline,
+              text: reason,
+            ),
+          ],
+
+          // Next step
+          if (insight.nextStep != null) ...[
+            const SizedBox(height: 4),
+            _iconLine(
+              context,
+              icon: Icons.calendar_today_outlined,
+              iconColor: theme.colorScheme.outline,
+              text: insight.nextStep!,
+            ),
+          ],
+
+          // Asset / provenance note
+          if (insight.assetNote != null) ...[
+            const SizedBox(height: 4),
+            _iconLine(
+              context,
+              icon: Icons.trending_up,
+              iconColor: Colors.green.shade600,
+              text: insight.assetNote!,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _iconLine(
+    BuildContext context, {
+    required IconData icon,
+    required Color iconColor,
+    required String text,
+  }) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 13, color: iconColor),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            text,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  (Color, IconData) _meaningStyle(BuildContext context, InsightMeaning meaning) {
+    final cs = Theme.of(context).colorScheme;
+    return switch (meaning) {
+      InsightMeaning.onTime => (
+          Colors.green.shade600,
+          Icons.check_circle_outline
+        ),
+      InsightMeaning.overdue => (cs.error, Icons.error_outline),
+      InsightMeaning.baseline => (cs.primary, Icons.flag_outlined),
+      InsightMeaning.informational => (cs.primary, Icons.info_outline),
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Comment view (no vehicle) — timing only, backward compatible
+  // ---------------------------------------------------------------------------
+  Widget _buildComment(BuildContext context) {
     final service = MaintenanceCommentService();
     final comment = service.generateComment(
       record: record,

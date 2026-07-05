@@ -1334,6 +1334,7 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
                       isLast: isLast,
                       onTap: () => _showMaintenanceDetailSheet(
                         context,
+                        widget.vehicle,
                         record,
                         maintenanceProvider,
                         widget.vehicle.mileage,
@@ -1354,6 +1355,7 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
 
   void _showMaintenanceDetailSheet(
     BuildContext context,
+    Vehicle vehicle,
     MaintenanceRecord record,
     MaintenanceProvider provider,
     int currentVehicleMileage,
@@ -1366,6 +1368,7 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) => _MaintenanceDetailSheet(
+        vehicle: vehicle,
         record: record,
         provider: provider,
         currentVehicleMileage: currentVehicleMileage,
@@ -1812,11 +1815,13 @@ class _DriveTimelineItem extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _MaintenanceDetailSheet extends StatelessWidget {
+  final Vehicle vehicle;
   final MaintenanceRecord record;
   final MaintenanceProvider provider;
   final int currentVehicleMileage;
 
   const _MaintenanceDetailSheet({
+    required this.vehicle,
     required this.record,
     required this.provider,
     required this.currentVehicleMileage,
@@ -1906,11 +1911,13 @@ class _MaintenanceDetailSheet extends StatelessWidget {
 
                   AppSpacing.verticalMd,
 
-                  // AI comment — why this maintenance matters and next schedule
+                  // AI insight — what this maintenance means, timing, next
+                  // schedule, and why keeping the record matters
                   MaintenanceAiComment(
                     record: record,
                     allRecords: provider.records,
                     currentMileage: currentVehicleMileage,
+                    vehicle: vehicle,
                   ),
 
                   AppSpacing.verticalMd,
