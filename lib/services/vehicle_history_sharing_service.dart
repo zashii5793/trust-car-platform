@@ -49,17 +49,18 @@ class VehicleHistorySharingService {
     }
 
     try {
-      final docRef = _firestore
-          .collection(_collection)
-          .doc(_docId(vehicleId, shopId));
+      final docRef =
+          _firestore.collection(_collection).doc(_docId(vehicleId, shopId));
 
       // B2: Check existing ownerId to prevent ownership hijacking.
       final existing = await docRef.get();
       if (existing.exists) {
-        final existingOwner = (existing.data() as Map<String, dynamic>)['ownerId'] as String?;
+        final existingOwner =
+            (existing.data() as Map<String, dynamic>)['ownerId'] as String?;
         if (existingOwner != null && existingOwner != ownerId) {
           return const Result.failure(
-            AppError.permission('only the vehicle owner can modify sharing permission'),
+            AppError.permission(
+                'only the vehicle owner can modify sharing permission'),
           );
         }
       }

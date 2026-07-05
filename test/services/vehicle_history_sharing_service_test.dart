@@ -117,7 +117,8 @@ void main() {
           expect(result.isFailure, isTrue);
         });
 
-        test('異常系: 攻撃者が ownerId を書き換えた後も revokePermission が元オーナーに有効 (B2)', () async {
+        test('異常系: 攻撃者が ownerId を書き換えた後も revokePermission が元オーナーに有効 (B2)',
+            () async {
           await service.grantPermission(
             vehicleId: 'v1',
             shopId: 'shop1',
