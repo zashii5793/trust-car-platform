@@ -507,9 +507,7 @@ void main() {
       expect(result, isNull);
     });
 
-    test(
-        '別車両（vehicleId 違い）の同タイプ記録は「前回」に使われない → noHistory',
-        () {
+    test('別車両（vehicleId 違い）の同タイプ記録は「前回」に使われない → noHistory', () {
       // 複数台所有ユーザー: v1 のオイル交換に対し、allRecords には別車 v2 の
       // 過去オイル交換が混ざっている。v2 の記録を前回扱いしてはいけない。
       final otherVehiclePrev = _makeRecord(
@@ -538,9 +536,7 @@ void main() {
       expect(comment!.tone, CommentTone.noHistory);
     });
 
-    test(
-        '複数車両混在時は同一車両の前回記録のみを参照する',
-        () {
+    test('複数車両混在時は同一車両の前回記録のみを参照する', () {
       // v2 の記録（別車・時期は近い）に引きずられず、v1 自身の前回を使う。
       final v1Prev = _makeRecord(
         id: 'r_v1_prev',

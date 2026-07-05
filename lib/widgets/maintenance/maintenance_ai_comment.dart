@@ -99,37 +99,41 @@ class MaintenanceAiComment extends StatelessWidget {
           ),
 
           // Reasons — the "meaning" (why / detail / risk)
-          for (final reason in insight.reasons) ...[
-            const SizedBox(height: 4),
-            _iconLine(
-              context,
-              icon: Icons.subject,
-              iconColor: theme.colorScheme.outline,
-              text: reason,
+          ...insight.reasons.map(
+            (reason) => Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: _iconLine(
+                context,
+                icon: Icons.subject,
+                iconColor: theme.colorScheme.outline,
+                text: reason,
+              ),
             ),
-          ],
+          ),
 
           // Next step
-          if (insight.nextStep != null) ...[
-            const SizedBox(height: 4),
-            _iconLine(
-              context,
-              icon: Icons.calendar_today_outlined,
-              iconColor: theme.colorScheme.outline,
-              text: insight.nextStep!,
+          if (insight.nextStep != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: _iconLine(
+                context,
+                icon: Icons.calendar_today_outlined,
+                iconColor: theme.colorScheme.outline,
+                text: insight.nextStep!,
+              ),
             ),
-          ],
 
           // Asset / provenance note
-          if (insight.assetNote != null) ...[
-            const SizedBox(height: 4),
-            _iconLine(
-              context,
-              icon: Icons.trending_up,
-              iconColor: Colors.green.shade600,
-              text: insight.assetNote!,
+          if (insight.assetNote != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: _iconLine(
+                context,
+                icon: Icons.trending_up,
+                iconColor: Colors.green.shade600,
+                text: insight.assetNote!,
+              ),
             ),
-          ],
         ],
       ),
     );
