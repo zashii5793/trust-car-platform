@@ -506,5 +506,73 @@ void main() {
 
       expect(result, isNull);
     });
+
+    test(
+        '別車両（vehicleId 違い）の同タイプ記録は「前回」に使われない → noHistory',
+        () {
+      // 複数台所有ユーザー: v1 のオイル交換に対し、allRecords には別車 v2 の
+      // 過去オイル交換が混ざっている。v2 の記録を前回扱いしてはいけない。
+      final otherVehiclePrev = _makeRecord(
+        id: 'r_other',
+        vehicleId: 'v2', // 別の車
+        type: MaintenanceType.oilChange,
+        date: _baseDate.subtract(const Duration(days: 150)),
+        mileageAtService: 25000,
+      );
+      final record = _makeRecord(
+        id: 'r1',
+        vehicleId: 'v1',
+        type: MaintenanceType.oilChange,
+        date: _baseDate,
+        mileageAtService: 29500,
+      );
+
+      final comment = service.generateComment(
+        record: record,
+        allRecords: [otherVehiclePrev, record],
+        currentMileage: 29500,
+      );
+
+      // v1 には前回記録が存在しないので noHistory になるべき
+      expect(comment, isNotNull);
+      expect(comment!.tone, CommentTone.noHistory);
+    });
+
+    test(
+        '複数車両混在時は同一車両の前回記録のみを参照する',
+        () {
+      // v2 の記録（別車・時期は近い）に引きずられず、v1 自身の前回を使う。
+      final v1Prev = _makeRecord(
+        id: 'r_v1_prev',
+        vehicleId: 'v1',
+        type: MaintenanceType.oilChange,
+        date: _baseDate.subtract(const Duration(days: 150)), // 5ヶ月前
+        mileageAtService: 25000,
+      );
+      final v2Noise = _makeRecord(
+        id: 'r_v2_noise',
+        vehicleId: 'v2',
+        type: MaintenanceType.oilChange,
+        date: _baseDate.subtract(const Duration(days: 300)), // 10ヶ月前（overdue寄り）
+        mileageAtService: 10000,
+      );
+      final record = _makeRecord(
+        id: 'r1',
+        vehicleId: 'v1',
+        type: MaintenanceType.oilChange,
+        date: _baseDate,
+        mileageAtService: 29500, // v1前回から5ヶ月・4,500km → good
+      );
+
+      final comment = service.generateComment(
+        record: record,
+        allRecords: [v1Prev, v2Noise, record],
+        currentMileage: 29500,
+      );
+
+      // v1 の前回（5ヶ月・4,500km）を使えば good。v2 のノイズに引きずられない。
+      expect(comment, isNotNull);
+      expect(comment!.tone, CommentTone.good);
+    });
   });
 }

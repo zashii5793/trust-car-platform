@@ -75,10 +75,14 @@ class MaintenanceCommentService {
     final rule = _rules[record.type];
     if (rule == null) return null;
 
-    // Find the most recent previous record of the same type
+    // Find the most recent previous record of the same type on the SAME vehicle.
+    // Without the vehicleId guard, a household with multiple vehicles would pick
+    // another car's record of the same type as the "previous" one, producing a
+    // wrong timing evaluation and next-service estimate.
     final previous = allRecords
         .where((r) =>
             r.id != record.id &&
+            r.vehicleId == record.vehicleId &&
             r.type == record.type &&
             r.date.isBefore(record.date))
         .toList()
