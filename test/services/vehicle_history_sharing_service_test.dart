@@ -100,6 +100,43 @@ void main() {
           );
           expect(result.isFailure, isTrue);
         });
+
+        // B2: 所有権検証 — 既存ドキュメントの ownerId を第三者が上書きできない
+        test('異常系: 別のユーザーが既存許可の ownerId を上書きできない (B2)', () async {
+          await service.grantPermission(
+            vehicleId: 'v1',
+            shopId: 'shop1',
+            ownerId: 'user1',
+          );
+          // attacker tries to claim ownership by passing their own ownerId
+          final result = await service.grantPermission(
+            vehicleId: 'v1',
+            shopId: 'shop1',
+            ownerId: 'attacker',
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('異常系: 攻撃者が ownerId を書き換えた後も revokePermission が元オーナーに有効 (B2)', () async {
+          await service.grantPermission(
+            vehicleId: 'v1',
+            shopId: 'shop1',
+            ownerId: 'user1',
+          );
+          // attacker's overwrite should fail
+          await service.grantPermission(
+            vehicleId: 'v1',
+            shopId: 'shop1',
+            ownerId: 'attacker',
+          );
+          // original owner should still be able to revoke
+          final revokeResult = await service.revokePermission(
+            vehicleId: 'v1',
+            shopId: 'shop1',
+            ownerId: 'user1',
+          );
+          expect(revokeResult.isSuccess, isTrue);
+        });
       });
     });
 
