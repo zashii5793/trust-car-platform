@@ -3,7 +3,7 @@ import 'package:trust_car_platform/models/maintenance_record.dart';
 
 void main() {
   group('MaintenanceRecord 検証フィールド (C1)', () {
-    MaintenanceRecord _base() => MaintenanceRecord(
+    MaintenanceRecord base() => MaintenanceRecord(
           id: 'r1',
           vehicleId: 'v1',
           userId: 'u1',
@@ -16,17 +16,17 @@ void main() {
 
     group('verificationSource', () {
       test('デフォルトは selfReported', () {
-        final record = _base();
+        final record = base();
         expect(record.verificationSource, VerificationSource.selfReported);
       });
 
       test('inquiryId が設定されている場合は shopImported', () {
-        final record = _base().copyWith(inquiryId: 'inq_123');
+        final record = base().copyWith(inquiryId: 'inq_123');
         expect(record.verificationSource, VerificationSource.shopImported);
       });
 
       test('明示的に shopVerified を設定できる', () {
-        final record = _base().copyWith(
+        final record = base().copyWith(
           verificationSourceOverride: VerificationSource.shopVerified,
           verifiedByShopId: 'shop_1',
           verifiedAt: DateTime(2024, 6, 2),
@@ -35,7 +35,7 @@ void main() {
       });
 
       test('shopImported は shopVerified より優先度が低い（明示 shopVerified が勝つ）', () {
-        final record = _base().copyWith(
+        final record = base().copyWith(
           inquiryId: 'inq_456',
           verificationSourceOverride: VerificationSource.shopVerified,
           verifiedByShopId: 'shop_1',
@@ -47,16 +47,16 @@ void main() {
 
     group('isVerified', () {
       test('selfReported は false', () {
-        expect(_base().isVerified, isFalse);
+        expect(base().isVerified, isFalse);
       });
 
       test('shopImported は true', () {
-        final record = _base().copyWith(inquiryId: 'inq_001');
+        final record = base().copyWith(inquiryId: 'inq_001');
         expect(record.isVerified, isTrue);
       });
 
       test('shopVerified は true', () {
-        final record = _base().copyWith(
+        final record = base().copyWith(
           verificationSourceOverride: VerificationSource.shopVerified,
           verifiedByShopId: 'shop_x',
           verifiedAt: DateTime(2024, 6, 2),
@@ -67,18 +67,18 @@ void main() {
 
     group('verifiedByShopId / verifiedAt', () {
       test('未設定の場合は null', () {
-        expect(_base().verifiedByShopId, isNull);
-        expect(_base().verifiedAt, isNull);
+        expect(base().verifiedByShopId, isNull);
+        expect(base().verifiedAt, isNull);
       });
 
       test('shopId を設定できる', () {
-        final record = _base().copyWith(verifiedByShopId: 'shop_abc');
+        final record = base().copyWith(verifiedByShopId: 'shop_abc');
         expect(record.verifiedByShopId, 'shop_abc');
       });
 
       test('verifiedAt を設定できる', () {
         final dt = DateTime(2025, 1, 15);
-        final record = _base().copyWith(verifiedAt: dt);
+        final record = base().copyWith(verifiedAt: dt);
         expect(record.verifiedAt, dt);
       });
     });
@@ -86,20 +86,20 @@ void main() {
     group('fromFirestore / toMap 後方互換', () {
       test('verificationSource フィールドが無い旧データは selfReported になる', () {
         // No verificationSource key in old data → defaults to selfReported
-        final record = _base();
+        final record = base();
         final map = record.toMap();
         expect(map.containsKey('verificationSource'), isTrue);
         expect(map['verificationSource'], 'selfReported');
       });
 
       test('toMap に shopImported が反映される', () {
-        final record = _base().copyWith(inquiryId: 'inq_789');
+        final record = base().copyWith(inquiryId: 'inq_789');
         final map = record.toMap();
         expect(map['verificationSource'], 'shopImported');
       });
 
       test('toMap に shopVerified が反映される', () {
-        final record = _base().copyWith(
+        final record = base().copyWith(
           verificationSourceOverride: VerificationSource.shopVerified,
           verifiedByShopId: 'shop_1',
           verifiedAt: DateTime(2024, 6, 2),
@@ -113,12 +113,12 @@ void main() {
 
     group('Edge Cases', () {
       test('verifiedByShopId が空文字の場合は null 扱い', () {
-        final record = _base().copyWith(verifiedByShopId: '');
+        final record = base().copyWith(verifiedByShopId: '');
         expect(record.verifiedByShopId, isEmpty);
       });
 
       test('copyWith で verificationSourceOverride を上書きできる', () {
-        final r1 = _base().copyWith(
+        final r1 = base().copyWith(
           verificationSourceOverride: VerificationSource.shopVerified,
         );
         final r2 = r1.copyWith(
