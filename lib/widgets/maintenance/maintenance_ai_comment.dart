@@ -8,11 +8,11 @@ import '../../services/maintenance_insight_service.dart';
 /// Displays an AI-generated explanation for a single maintenance record.
 ///
 /// When [vehicle] is provided, renders the richer *insight* — what the record
-/// means (why it matters), whether the timing was good, what's next, and why
-/// keeping the record is worth it — from the very first record.
-/// When [vehicle] is null, falls back to the timing-only comment.
+/// means, whether the timing was good, what's next, and why keeping the record
+/// matters — from the very first record. When [vehicle] is null, falls back to
+/// the timing-only comment.
 ///
-/// Based only on rule-based logic — no LLM, no network call.
+/// Based only on rule-based logic — no LLM required, no network call.
 /// Returns [SizedBox.shrink] when nothing meaningful can be generated.
 class MaintenanceAiComment extends StatelessWidget {
   final MaintenanceRecord record;
@@ -38,9 +38,7 @@ class MaintenanceAiComment extends StatelessWidget {
     return _buildComment(context);
   }
 
-  // ---------------------------------------------------------------------------
-  // Insight view (with vehicle) — "what this record means"
-  // ---------------------------------------------------------------------------
+  // Insight view (with vehicle) — "what this record means".
   Widget _buildInsight(BuildContext context, Vehicle vehicle) {
     final insight = MaintenanceInsightService().explain(
       record: record,
@@ -48,6 +46,7 @@ class MaintenanceAiComment extends StatelessWidget {
       allRecords: allRecords,
       currentMileage: currentMileage,
     );
+
     if (insight == null) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
@@ -98,42 +97,38 @@ class MaintenanceAiComment extends StatelessWidget {
             ],
           ),
 
-          // Reasons — the "meaning" (why / detail / risk)
-          ...insight.reasons.map(
-            (reason) => Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: _iconLine(
-                context,
-                icon: Icons.subject,
-                iconColor: theme.colorScheme.outline,
-                text: reason,
-              ),
+          // Meaning — why this maintenance matters
+          if (insight.reasons.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            _iconLine(
+              context,
+              icon: Icons.subject,
+              iconColor: theme.colorScheme.outline,
+              text: insight.reasons.join('\n'),
             ),
-          ),
+          ],
 
           // Next step
-          if (insight.nextStep != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: _iconLine(
-                context,
-                icon: Icons.calendar_today_outlined,
-                iconColor: theme.colorScheme.outline,
-                text: insight.nextStep!,
-              ),
+          if (insight.nextStep != null) ...[
+            const SizedBox(height: 4),
+            _iconLine(
+              context,
+              icon: Icons.calendar_today_outlined,
+              iconColor: theme.colorScheme.outline,
+              text: insight.nextStep!,
             ),
+          ],
 
           // Asset / provenance note
-          if (insight.assetNote != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: _iconLine(
-                context,
-                icon: Icons.trending_up,
-                iconColor: Colors.green.shade600,
-                text: insight.assetNote!,
-              ),
+          if (insight.assetNote != null) ...[
+            const SizedBox(height: 4),
+            _iconLine(
+              context,
+              icon: Icons.trending_up,
+              iconColor: Colors.green.shade600,
+              text: insight.assetNote!,
             ),
+          ],
         ],
       ),
     );
@@ -164,7 +159,10 @@ class MaintenanceAiComment extends StatelessWidget {
     );
   }
 
-  (Color, IconData) _meaningStyle(BuildContext context, InsightMeaning meaning) {
+  (Color, IconData) _meaningStyle(
+    BuildContext context,
+    InsightMeaning meaning,
+  ) {
     final cs = Theme.of(context).colorScheme;
     return switch (meaning) {
       InsightMeaning.onTime => (
@@ -177,9 +175,7 @@ class MaintenanceAiComment extends StatelessWidget {
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Comment view (no vehicle) — timing only, backward compatible
-  // ---------------------------------------------------------------------------
+  // Comment view (no vehicle) — timing only, backward compatible.
   Widget _buildComment(BuildContext context) {
     final service = MaintenanceCommentService();
     final comment = service.generateComment(
