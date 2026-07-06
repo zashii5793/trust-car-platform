@@ -46,7 +46,7 @@ jobs:
         id: analyze
         run: |
           flutter analyze 2>&1 | tee analyze_output.txt
-          ISSUE_COUNT=$(grep -c "^  " analyze_output.txt || echo "0")
+          ISSUE_COUNT=$(grep -c "^  " analyze_output.txt 2>/dev/null) || ISSUE_COUNT=0
           echo "issue_count=$ISSUE_COUNT" >> $GITHUB_OUTPUT
           if flutter analyze > /dev/null 2>&1; then
             echo "status=clean" >> $GITHUB_OUTPUT
@@ -108,8 +108,8 @@ jobs:
 
           # HUMAN_TASKS.md の未チェック項目数
           if [ -f docs/HUMAN_TASKS.md ]; then
-            OPEN=$(grep -c "^- \[ \]" docs/HUMAN_TASKS.md || echo "0")
-            DONE=$(grep -c "^- \[x\]" docs/HUMAN_TASKS.md || echo "0")
+            OPEN=$(grep -c "^- \[ \]" docs/HUMAN_TASKS.md 2>/dev/null) || OPEN=0
+            DONE=$(grep -c "^- \[x\]" docs/HUMAN_TASKS.md 2>/dev/null) || DONE=0
             echo "open_tasks=$OPEN" >> $GITHUB_OUTPUT
             echo "done_tasks=$DONE" >> $GITHUB_OUTPUT
           else
@@ -188,6 +188,23 @@ jobs:
             ---
 
             *生成: GitHub Actions \`pm_report.yml\` | プロジェクト: trust-car-platform*`;
+
+            // Ensure labels exist before creating the issue
+            const requiredLabels = [
+              { name: 'pm-report', color: '0075ca', description: '週次PMレポート（自動生成）' },
+              { name: 'weekly', color: 'e4e669', description: '週次自動生成' },
+            ];
+            for (const label of requiredLabels) {
+              try {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ...label,
+                });
+              } catch (_) {
+                // Label already exists — ignore
+              }
+            }
 
             await github.rest.issues.create({
               owner: context.repo.owner,
