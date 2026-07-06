@@ -188,6 +188,7 @@ MaintenanceRecord _testRecord({
   String? shopName,
   String? description,
   int? mileageAtService,
+  VerificationSource? verificationSourceOverride,
 }) =>
     MaintenanceRecord(
       id: id,
@@ -201,6 +202,7 @@ MaintenanceRecord _testRecord({
       shopName: shopName,
       description: description,
       mileageAtService: mileageAtService,
+      verificationSourceOverride: verificationSourceOverride,
     );
 
 Widget _buildScreen(
@@ -877,6 +879,65 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('整備記録を追加'), findsNothing);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  group('C4 — 工場裏書きバッジ & 検証済みサマリー', () {
+    testWidgets('verificationSource=shopVerified のレコードにバッジが表示される',
+        (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([
+        _testRecord(
+          shopName: 'テスト工場',
+          verificationSourceOverride: VerificationSource.shopVerified,
+        ),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('工場裏書き'), findsOneWidget);
+    });
+
+    testWidgets('verificationSource=selfReported のレコードにはバッジが表示されない',
+        (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([
+        _testRecord(shopName: 'テスト工場'),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('工場裏書き'), findsNothing);
+    });
+
+    testWidgets('検証済みレコードがあるとき統計に「検証済み」サマリーが表示される',
+        (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([
+        _testRecord(
+          id: 'r1',
+          verificationSourceOverride: VerificationSource.shopVerified,
+        ),
+        _testRecord(id: 'r2'),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('検証済み'), findsOneWidget);
+    });
+
+    testWidgets('検証済みレコードが0件のとき統計に「検証済み」サマリーが表示されない',
+        (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([
+        _testRecord(id: 'r1'),
+        _testRecord(id: 'r2'),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('検証済み'), findsNothing);
     });
   });
 }

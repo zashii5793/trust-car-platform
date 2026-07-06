@@ -1036,6 +1036,8 @@ class _StatisticsSection extends StatelessWidget {
       builder: (context, provider, child) {
         final totalCost = provider.getTotalCost();
         final recordCount = provider.records.length;
+        final verifiedCount =
+            provider.records.where((r) => r.isVerified).length;
 
         return Padding(
           padding: AppSpacing.paddingScreen,
@@ -1062,6 +1064,32 @@ class _StatisticsSection extends StatelessWidget {
                   ),
                 ],
               ),
+              if (verifiedCount > 0) ...[
+                AppSpacing.verticalSm,
+                Row(
+                  children: [
+                    Icon(Icons.verified,
+                        size: 14, color: AppColors.success),
+                    AppSpacing.horizontalXxs,
+                    Text(
+                      '検証済み',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    AppSpacing.horizontalXxs,
+                    Text(
+                      '$verifiedCount / $recordCount 件',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.success,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               if (recordCount > 0 && onDetailsTap != null) ...[
                 AppSpacing.verticalSm,
                 SizedBox(
@@ -1607,6 +1635,28 @@ class _MaintenanceTimelineItem extends StatelessWidget {
                                                 : AppColors.textTertiary,
                                           ),
                                           overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                                // Verification badge (optional)
+                                if (record.isVerified) ...[
+                                  AppSpacing.verticalXxs,
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.verified,
+                                        size: 13,
+                                        color: AppColors.success,
+                                      ),
+                                      AppSpacing.horizontalXxs,
+                                      Text(
+                                        '工場裏書き',
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                          color: AppColors.success,
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                     ],
