@@ -112,14 +112,19 @@ jobs:
             mkdir -p screenshots/android
 
             # スクリーンショット撮影
-            flutter test integration_test/screenshot_test.dart \
+            # binding.takeScreenshot() を実機/エミュで機能させるには、単なる
+            # `flutter test` ではなく test_driver/integration_test.dart を使う
+            # `flutter drive` が必要（ドライバ側の onScreenshot が PNG をホストの
+            # docs/screenshots/ に保存する）。
+            flutter drive \
+              --driver=test_driver/integration_test.dart \
+              --target=integration_test/screenshot_test.dart \
               --dart-define=USE_EMULATOR=true \
               -d emulator-5554 \
               2>&1 | tee screenshot_test_log.txt
 
-            # binding.takeScreenshot() で生成されたファイルを収集
-            find /sdcard/ -name "*.png" -exec adb pull {} screenshots/android/ \; 2>/dev/null || true
-            find . -name "screenshot_*.png" -exec cp {} screenshots/android/ \; 2>/dev/null || true
+            # ドライバが docs/screenshots/*.png に保存するので成果物へ集約
+            cp docs/screenshots/*.png screenshots/android/ 2>/dev/null || true
 
             echo "撮影されたスクリーンショット:"
             ls screenshots/android/ || echo "(なし)"
