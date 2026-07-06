@@ -1068,8 +1068,7 @@ class _StatisticsSection extends StatelessWidget {
                 AppSpacing.verticalSm,
                 Row(
                   children: [
-                    Icon(Icons.verified,
-                        size: 14, color: AppColors.success),
+                    Icon(Icons.verified, size: 14, color: AppColors.success),
                     AppSpacing.horizontalXxs,
                     Text(
                       '検証済み',
@@ -1653,8 +1652,8 @@ class _MaintenanceTimelineItem extends StatelessWidget {
                                       AppSpacing.horizontalXxs,
                                       Text(
                                         '工場裏書き',
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
                                           color: AppColors.success,
                                           fontWeight: FontWeight.w600,
                                         ),

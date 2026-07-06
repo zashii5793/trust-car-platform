@@ -911,8 +911,7 @@ void main() {
       expect(find.text('工場裏書き'), findsNothing);
     });
 
-    testWidgets('検証済みレコードがあるとき統計に「検証済み」サマリーが表示される',
-        (tester) async {
+    testWidgets('検証済みレコードがあるとき統計に「検証済み」サマリーが表示される', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
       await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([
@@ -927,8 +926,7 @@ void main() {
       expect(find.text('検証済み'), findsOneWidget);
     });
 
-    testWidgets('検証済みレコードが0件のとき統計に「検証済み」サマリーが表示されない',
-        (tester) async {
+    testWidgets('検証済みレコードが0件のとき統計に「検証済み」サマリーが表示されない', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
       await _pumpScreen(tester, maintenanceProvider);
       mockFirebase.emitRecords([
