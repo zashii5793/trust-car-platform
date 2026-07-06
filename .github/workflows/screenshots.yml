@@ -23,6 +23,8 @@ jobs:
   screenshots-android:
     name: Android Screenshots
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # allow committing refreshed screenshots back to the branch
 
     steps:
       - uses: actions/checkout@v4
@@ -128,6 +130,22 @@ jobs:
           name: screenshots-android
           path: screenshots/android/
           retention-days: 30
+
+      # Commit the freshly captured screenshots back to the branch so they are
+      # visible in the repo/PR and update automatically. [skip ci] prevents the
+      # CI workflow from re-running on this bot commit.
+      - name: Commit refreshed screenshots to branch
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots/*.png
+          if git diff --cached --quiet; then
+            echo "No screenshot changes to commit"
+          else
+            git commit -m "ci: refresh app screenshots [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
 
   # ──────────────────────────────────────────────
   # iOS スクリーンショット（macOS + Simulator）
