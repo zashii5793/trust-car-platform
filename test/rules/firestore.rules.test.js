@@ -293,6 +293,183 @@ describe('accessory_showcases/{id}/comments/{id}/likes — like マーカー', (
   });
 });
 
+// ==================== 車両履歴共有権限 ====================
+
+const VEHICLE_OWNER_UID = 'vehicle_owner_001';
+// shopId == shop owner's Firebase UID (schema invariant)
+const SHOP_OWNER_UID = 'shop_owner_002';
+const UNRELATED_UID = 'unrelated_003';
+const VEHICLE_ID = 'vehicle_abc';
+const permDocId = `${VEHICLE_ID}_${SHOP_OWNER_UID}`;
+const permPath = `vehicle_sharing_permissions/${permDocId}`;
+
+async function seedPermission(overrides = {}) {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), permPath), {
+      vehicleId: VEHICLE_ID,
+      shopId: SHOP_OWNER_UID,
+      ownerId: VEHICLE_OWNER_UID,
+      isActive: true,
+      grantedAt: 1000000,
+      ...overrides,
+    });
+  });
+}
+
+describe('vehicle_sharing_permissions — get', () => {
+  test('車両オーナーは自分の許可ドキュメントを取得できる', async () => {
+    await seedPermission();
+    await assertSucceeds(getDoc(doc(dbFor(VEHICLE_OWNER_UID), permPath)));
+  });
+
+  test('許可された工場オーナーは許可ドキュメントを取得できる', async () => {
+    await seedPermission();
+    await assertSucceeds(getDoc(doc(dbFor(SHOP_OWNER_UID), permPath)));
+  });
+
+  test('関係のないユーザーは取得できない', async () => {
+    await seedPermission();
+    await assertFails(getDoc(doc(dbFor(UNRELATED_UID), permPath)));
+  });
+
+  test('未認証ユーザーは取得できない', async () => {
+    await seedPermission();
+    await assertFails(getDoc(doc(unauthDb(), permPath)));
+  });
+});
+
+describe('vehicle_sharing_permissions — create（許可付与）', () => {
+  test('車両オーナーは許可を付与できる', async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(VEHICLE_OWNER_UID), permPath), {
+        vehicleId: VEHICLE_ID,
+        shopId: SHOP_OWNER_UID,
+        ownerId: VEHICLE_OWNER_UID,
+        isActive: true,
+        grantedAt: 1000000,
+      }),
+    );
+  });
+
+  test('ownerId を他ユーザーに詐称した作成は拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(UNRELATED_UID), permPath), {
+        vehicleId: VEHICLE_ID,
+        shopId: SHOP_OWNER_UID,
+        ownerId: VEHICLE_OWNER_UID,
+        isActive: true,
+        grantedAt: 1000000,
+      }),
+    );
+  });
+
+  test('vehicleId が空の場合は拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(VEHICLE_OWNER_UID), permPath), {
+        vehicleId: '',
+        shopId: SHOP_OWNER_UID,
+        ownerId: VEHICLE_OWNER_UID,
+        isActive: true,
+        grantedAt: 1000000,
+      }),
+    );
+  });
+
+  test('shopId が空の場合は拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(VEHICLE_OWNER_UID), permPath), {
+        vehicleId: VEHICLE_ID,
+        shopId: '',
+        ownerId: VEHICLE_OWNER_UID,
+        isActive: true,
+        grantedAt: 1000000,
+      }),
+    );
+  });
+
+  test('未認証ユーザーは許可を付与できない', async () => {
+    await assertFails(
+      setDoc(doc(unauthDb(), permPath), {
+        vehicleId: VEHICLE_ID,
+        shopId: SHOP_OWNER_UID,
+        ownerId: VEHICLE_OWNER_UID,
+        isActive: true,
+        grantedAt: 1000000,
+      }),
+    );
+  });
+});
+
+describe('vehicle_sharing_permissions — update（再付与・フィールド保護）', () => {
+  test('車両オーナーは許可を更新できる（isActive 変更など）', async () => {
+    await seedPermission();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(VEHICLE_OWNER_UID), permPath), {
+        isActive: false,
+        vehicleId: VEHICLE_ID,
+        shopId: SHOP_OWNER_UID,
+        ownerId: VEHICLE_OWNER_UID,
+      }),
+    );
+  });
+
+  test('ownerId の変更は拒否される（所有権乗っ取り防止）', async () => {
+    await seedPermission();
+    await assertFails(
+      updateDoc(doc(dbFor(VEHICLE_OWNER_UID), permPath), {
+        ownerId: UNRELATED_UID,
+      }),
+    );
+  });
+
+  test('vehicleId の変更は拒否される', async () => {
+    await seedPermission();
+    await assertFails(
+      updateDoc(doc(dbFor(VEHICLE_OWNER_UID), permPath), {
+        vehicleId: 'different_vehicle',
+      }),
+    );
+  });
+
+  test('shopId の変更は拒否される', async () => {
+    await seedPermission();
+    await assertFails(
+      updateDoc(doc(dbFor(VEHICLE_OWNER_UID), permPath), {
+        shopId: UNRELATED_UID,
+      }),
+    );
+  });
+
+  test('他ユーザーによる更新は拒否される', async () => {
+    await seedPermission();
+    await assertFails(
+      updateDoc(doc(dbFor(UNRELATED_UID), permPath), { isActive: false }),
+    );
+  });
+});
+
+describe('vehicle_sharing_permissions — delete（権限取り消し）', () => {
+  test('車両オーナーは許可を取り消せる', async () => {
+    await seedPermission();
+    await assertSucceeds(deleteDoc(doc(dbFor(VEHICLE_OWNER_UID), permPath)));
+  });
+
+  test('関係のないユーザーは取り消せない', async () => {
+    await seedPermission();
+    await assertFails(deleteDoc(doc(dbFor(UNRELATED_UID), permPath)));
+  });
+
+  test('工場オーナーは取り消せない（車両オーナー専用操作）', async () => {
+    await seedPermission();
+    await assertFails(deleteDoc(doc(dbFor(SHOP_OWNER_UID), permPath)));
+  });
+
+  test('未認証ユーザーは取り消せない', async () => {
+    await seedPermission();
+    await assertFails(deleteDoc(doc(unauthDb(), permPath)));
+  });
+});
+
 describe('comment_reports — コメント通報', () => {
   const reportId = `${COMMENT_ID}_${OWNER_UID}`;
   const reportPath = `comment_reports/${reportId}`;

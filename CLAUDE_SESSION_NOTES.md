@@ -1,6 +1,26 @@
 # Claude Session Notes
 
-最終更新: 2026-06-19
+最終更新: 2026-07-07
+
+---
+
+## 意思決定ログ（2026-07-07）: vehicle_sharing_permissions Firestoreルール追加
+
+**PR**: `claude/night-20260707`
+
+**問題**: `VehicleHistorySharingService` が使用する `vehicle_sharing_permissions` コレクションに Firestore ルールが存在せず、本番環境で全オペレーションが default deny により拒否されていた（サービス完全不機能バグ）。
+
+**実装**:
+- `firestore.rules`: `vehicle_sharing_permissions` ルールブロック追加（get/list/create/update/delete）
+- `firestore.indexes.json`: `vehicleId+isActive` および `shopId+isActive` の複合インデックス2本追加
+- `test/rules/firestore.rules.test.js`: 16件のルールテスト追加（get/create/update/delete を網羅）
+- `docs/night-reports/morning-briefing-2026-07-07.md`: 朝のブリーフィング作成
+
+**副次効果**: update ルールで `ownerId` の不変性を強制するため、PR #74 の B2バグ（ownerId 乗っ取り）をサーバーサイドでも防止。
+
+**テスト**: `flutter test --exclude-tags emulator` 3447件 全パス / `flutter analyze lib/` No issues
+
+**⚠️ 本番反映には人間作業が必要**: `firebase deploy --only firestore:rules,firestore:indexes`
 
 ---
 
