@@ -46,7 +46,7 @@ jobs:
         id: analyze
         run: |
           flutter analyze 2>&1 | tee analyze_output.txt
-          ISSUE_COUNT=$(grep -c "^  " analyze_output.txt || echo "0")
+          ISSUE_COUNT=$(grep -c "^  " analyze_output.txt 2>/dev/null) || ISSUE_COUNT=0
           echo "issue_count=$ISSUE_COUNT" >> $GITHUB_OUTPUT
           if flutter analyze > /dev/null 2>&1; then
             echo "status=clean" >> $GITHUB_OUTPUT
@@ -58,8 +58,10 @@ jobs:
         id: tests
         run: |
           flutter test --exclude-tags emulator 2>&1 | tee test_output.txt
-          PASS=$(grep -oP '\+\K[0-9]+(?=:)' test_output.txt | tail -1 || echo "0")
-          FAIL=$(grep -oP '-\K[0-9]+(?=:)' test_output.txt | tail -1 || echo "0")
+          PASS=$(grep -oE '\+[0-9]+' test_output.txt | tail -1 | tr -d '+'; true)
+          PASS=${PASS:-0}
+          FAIL=$(grep -oE ' -[0-9]+' test_output.txt | tail -1 | grep -oE '[0-9]+'; true)
+          FAIL=${FAIL:-0}
           echo "passed=$PASS" >> $GITHUB_OUTPUT
           echo "failed=$FAIL" >> $GITHUB_OUTPUT
           if [ "$FAIL" = "0" ]; then
@@ -108,8 +110,8 @@ jobs:
 
           # HUMAN_TASKS.md の未チェック項目数
           if [ -f docs/HUMAN_TASKS.md ]; then
-            OPEN=$(grep -c "^- \[ \]" docs/HUMAN_TASKS.md || echo "0")
-            DONE=$(grep -c "^- \[x\]" docs/HUMAN_TASKS.md || echo "0")
+            OPEN=$(grep -c "^- \[ \]" docs/HUMAN_TASKS.md 2>/dev/null) || OPEN=0
+            DONE=$(grep -c "^- \[x\]" docs/HUMAN_TASKS.md 2>/dev/null) || DONE=0
             echo "open_tasks=$OPEN" >> $GITHUB_OUTPUT
             echo "done_tasks=$DONE" >> $GITHUB_OUTPUT
           else
@@ -188,6 +190,21 @@ jobs:
             ---
 
             *生成: GitHub Actions \`pm_report.yml\` | プロジェクト: trust-car-platform*`;
+
+            // Create labels idempotently (422 = already exists, safe to ignore)
+            for (const [name, color, description] of [
+              ['pm-report', '0075ca', 'Weekly PM Status Report'],
+              ['weekly', 'e4e669', 'Weekly automated issue'],
+            ]) {
+              try {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  name, color, description,
+                });
+              } catch (e) {
+                if (e.status !== 422) throw e;
+              }
+            }
 
             await github.rest.issues.create({
               owner: context.repo.owner,
