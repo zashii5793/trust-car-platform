@@ -1,5 +1,32 @@
 # Claude Session Notes
 
+最終更新: 2026-07-11
+
+---
+
+## 夜間エージェント実行ログ（2026-07-11）
+
+**ブランチ**: `claude/night-20260711`
+**PR**: #78 https://github.com/zashii5793/trust-car-platform/pull/78
+**テスト**: 3461件 全パス / `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **stalled CI 修正**: `claude/auto-improve-fleet-urgency-dedup` の cherry-pick + `dart format` 適用
+2. **Issue #63 実装（priority: high）**: `RecommendationService` + `MaintenanceScheduleService` 連携
+   - EV・水素車へのオイル交換推奨を除外する燃料タイプ別フィルタリング
+   - `reason` フィールドに「次回目安: Xkm（あとYkm）」を追加
+   - TDDテスト13件追加
+   - PR #78 作成済み（CI確認中）
+
+### 次のアクション候補（3件）
+
+1. Issue #63 UI配線 — `HomeScreen` の提案セクションで `reason` を表示
+2. Issue #39 UI配線 — 店舗ダッシュボードに月次ROIを接続
+3. Issue #41 着手 — GoogleMap連動の集客エンジン（#39 UI完了後推奨）
+
+---
+
 最終更新: 2026-06-19
 
 ---
