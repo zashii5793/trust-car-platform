@@ -78,8 +78,7 @@ void main() {
       final oilNotifs = notifs.where(
         (n) => n.title.contains('オイル'),
       );
-      expect(oilNotifs, isEmpty,
-          reason: 'EV はオイル交換不要なので推奨を生成してはならない');
+      expect(oilNotifs, isEmpty, reason: 'EV はオイル交換不要なので推奨を生成してはならない');
     });
 
     test('水素: scheduleService ありの場合オイル交換推奨を生成しない', () {
@@ -101,8 +100,7 @@ void main() {
         userId: 'u1',
       );
       final oilNotifs = notifs.where((n) => n.title.contains('エンジンオイル'));
-      expect(oilNotifs, isNotEmpty,
-          reason: 'ガソリン車はオイル交換推奨を生成すべき');
+      expect(oilNotifs, isNotEmpty, reason: 'ガソリン車はオイル交換推奨を生成すべき');
     });
 
     test('ハイブリッド: scheduleService ありの場合オイル交換推奨を生成する（インターバルは長め）', () {
@@ -193,9 +191,7 @@ void main() {
       // which don't go through _checkRule → no nextDueKm
       // All non-rule notifications should not have 次回目安
       final carInspectionNotifs = notifs.where(
-        (n) =>
-            n.type.name == 'inspectionReminder' ||
-            n.title.contains('車検'),
+        (n) => n.type.name == 'inspectionReminder' || n.title.contains('車検'),
       );
       for (final n in carInspectionNotifs) {
         expect(
