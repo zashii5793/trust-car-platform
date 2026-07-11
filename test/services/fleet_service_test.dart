@@ -161,8 +161,7 @@ void main() {
     });
 
     group('Edge Cases', () {
-      test('しきい値の境界で緊急度が切り替わる（0/7/8/30/31日・期限切れ）',
-          () async {
+      test('しきい値の境界で緊急度が切り替わる（0/7/8/30/31日・期限切れ）', () async {
         final now = DateTime.now();
         // Buckets mirror inspectionUrgencyForDays:
         //   critical: overdue, day 0, and day 7
