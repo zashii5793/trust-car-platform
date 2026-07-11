@@ -95,7 +95,9 @@ class Injection {
     locator.registerLazySingleton<FirebaseService>(() => FirebaseService());
     locator.registerLazySingleton<AuthService>(() => AuthService());
     locator.registerLazySingleton<RecommendationService>(
-        () => RecommendationService());
+        () => RecommendationService(
+              scheduleService: locator.get<MaintenanceScheduleService>(),
+            ));
     locator.registerLazySingleton<NotificationStateStore>(
         () => SharedPrefsNotificationStateStore());
 
