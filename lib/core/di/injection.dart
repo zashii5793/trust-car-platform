@@ -242,8 +242,7 @@ class Injection {
         () => const ShopComparisonService());
 
     // Shop Demand Service (Issue #41 Phase 2: freemium question gate demand accumulation)
-    locator.registerLazySingleton<ShopDemandService>(
-        () => ShopDemandService());
+    locator.registerLazySingleton<ShopDemandService>(() => ShopDemandService());
 
     // Feature Flag Service (applies remote flag overrides onto AppConfig).
     // Backed by Firebase Remote Config so flags like c2cPartsMarketplace can be
