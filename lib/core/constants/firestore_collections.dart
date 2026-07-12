@@ -29,4 +29,5 @@ class FirestoreCollections {
   static const String listingFavorites = 'listing_favorites';
   static const String vehiclePreferences = 'vehicle_preferences';
   static const String vehicleGradeSpecs = 'vehicle_grade_specs';
+  static const String shopInquiryDemands = 'shop_inquiry_demands';
 }
