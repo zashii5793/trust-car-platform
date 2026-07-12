@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/inquiry.dart';
@@ -12,7 +13,7 @@ import '../models/shop_inquiry_demand.dart';
 /// during shop onboarding the shop can see "N users tried to contact you",
 /// creating a pull-type sales hook.
 class ShopDemandService {
-  static const _collection = 'shop_inquiry_demands';
+  static const _collection = FirestoreCollections.shopInquiryDemands;
 
   final FirebaseFirestore? _firestoreOverride;
 
@@ -121,7 +122,10 @@ class ShopDemandService {
     }
 
     try {
-      final snapshot = await _demands.where('shopId', isEqualTo: shopId).get();
+      final snapshot = await _demands
+          .where('shopId', isEqualTo: shopId)
+          .orderBy('createdAt', descending: true)
+          .get();
       final demands = snapshot.docs
           .map((doc) => ShopInquiryDemand.fromFirestore(doc))
           .toList();

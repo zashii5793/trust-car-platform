@@ -41,12 +41,12 @@ class ShopInquiryDemand {
     final data = doc.data() as Map<String, dynamic>;
     return ShopInquiryDemand(
       id: doc.id,
-      shopId: data['shopId'] as String,
-      shopOwnerId: data['shopOwnerId'] as String,
-      userId: data['userId'] as String,
+      shopId: (data['shopId'] as String?) ?? '',
+      shopOwnerId: (data['shopOwnerId'] as String?) ?? '',
+      userId: (data['userId'] as String?) ?? '',
       type: InquiryType.fromString(data['type'] as String?) ??
           InquiryType.general,
-      subject: data['subject'] as String,
+      subject: (data['subject'] as String?) ?? '',
       message: data['message'] as String?,
       vehicleId: data['vehicleId'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),

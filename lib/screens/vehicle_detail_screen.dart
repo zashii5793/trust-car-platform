@@ -465,6 +465,9 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                     },
                   ),
 
+                  // 整備記録の査定価値バナー
+                  _MaintenanceValueBanner(vehicle: _vehicle),
+
                   // AI提案
                   Consumer<NotificationProvider>(
                     builder: (context, notifProvider, _) {
@@ -1118,6 +1121,94 @@ class _StatCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Maintenance value banner (resale/appraisal benefit)
+// ---------------------------------------------------------------------------
+
+/// 整備記録が査定時に有利になることをユーザーに伝えるバナー。
+///
+/// 記録が1件以上あるときのみ表示する。車検記録（carInspection）が
+/// 含まれる場合は、より強い訴求文言に切り替える。
+class _MaintenanceValueBanner extends StatelessWidget {
+  final Vehicle vehicle;
+
+  const _MaintenanceValueBanner({required this.vehicle});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Consumer<MaintenanceProvider>(
+      builder: (context, provider, _) {
+        final records = provider.records;
+        if (records.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final hasInspection = records.any(
+          (r) => r.type == MaintenanceType.carInspection,
+        );
+        final count = records.length;
+
+        final title =
+            hasInspection ? '車検記録あり — 査定で信頼性アピール' : '整備記録 $count 件 — 査定価値UP';
+        final body = hasInspection
+            ? '車検・整備記録が揃っていると、査定士に適切なメンテナンスが行われた証拠を提示でき、査定額向上につながります。'
+            : '整備記録を残し続けることで、売却時に「きちんと管理された車」と証明できます。記録が多いほど査定評価が高まります。';
+
+        return Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: AppSpacing.paddingScreen.horizontal / 2,
+          ).copyWith(bottom: AppSpacing.sm),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withValues(alpha: 0.08),
+              borderRadius: AppSpacing.borderRadiusMd,
+              border: Border.all(
+                color: AppColors.secondary.withValues(alpha: 0.25),
+              ),
+            ),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.verified_outlined,
+                  color: AppColors.secondary,
+                  size: 20,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: AppColors.secondary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        body,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
