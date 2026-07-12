@@ -1,8 +1,8 @@
 # 夜間レポート — 2026-07-11
 
 **実行ブランチ**: `claude/night-20260711`
-**実行時刻**: 2026-07-11（UTC）
-**テスト**: 3461件 全パス / `flutter analyze lib/` No issues found
+**実行時刻**: 2026-07-11 〜 2026-07-12（UTC）
+**テスト**: 3480件 全パス / `flutter analyze lib/` No issues found
 
 ---
 
@@ -62,23 +62,65 @@ Edge Cases
 **PR #78**: https://github.com/zashii5793/trust-car-platform/pull/78
 
 - CI不通（`dart format` 未適用）を検知 → 修正コミットを追加プッシュ済み
-- 再CI実行中（2026-07-11 13:22 UTC 時点で `Analyze & Test` in_progress）
+- CI通過確認済み
+
+---
+
+## 継続セッションで追加実装（2026-07-12）
+
+### 4. Issue #41 Phase 2 — 非パートナー店舗への問い合わせ需要蓄積
+
+ユーザー承認を受け、Issue #41 の Phase 2（サービス層）を実装。
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `lib/models/shop_inquiry_demand.dart` | 新規モデル（需要記録ドキュメント） |
+| `lib/services/shop_demand_service.dart` | `recordDemand` / `getDemandCountForShop` / `getDemandsForShop` |
+| `lib/models/shop.dart` | `isPartner` getter 追加（active/trialing → true） |
+| `lib/core/constants/firestore_collections.dart` | `shopInquiryDemands` 定数追加 |
+| `firestore.rules` | `shop_inquiry_demands` セキュリティルール追加 |
+| `firestore.indexes.json` | `shopId ASC + createdAt DESC` 複合インデックス追加 |
+| `lib/core/di/injection.dart` | `ShopDemandService` 登録 |
+| `test/services/shop_demand_service_test.dart` | TDDテスト19件（新規） |
+
+**設計意図**: 非パートナー店舗への問い合わせを遮断して需要を蓄積 →
+店舗オンボーディング時に「N人があなたへの問い合わせを試みました」と表示するプルセールスフック。
+
+> Phase 1（Google Maps SDK + 地図上のピン表示）は外部APIキーが必要なため、次セッションに持ち越し。
+
+### 5. 整備記録の査定価値バナー（ユーザー要望）
+
+車両詳細画面の統計セクション直下に `_MaintenanceValueBanner` を追加。
+
+| 条件 | 表示 |
+|------|------|
+| 車検記録あり | 「車検記録あり — 査定で信頼性アピール」（緑カード） |
+| 整備記録 N件のみ | 「整備記録 N件 — 査定価値UP」（緑カード） |
+| 記録なし | 非表示 |
+
+### 6. コードコンフリクトチェック & 修正（ユーザー要望）
+
+コンカレント実装後の整合性チェックを実施し、以下の WARN を修正：
+
+- `ShopInquiryDemand.fromFirestore`: `as String` → `(as String?) ?? ''` 安全キャスト
+- `ShopDemandService.getDemandsForShop`: `orderBy('createdAt', descending: true)` 追加漏れ
+- `ShopDemandService._collection`: ハードコード文字列 → `FirestoreCollections` 定数使用
 
 ---
 
 ## 人間タスク（残積み）
 
-前セッションから引き継ぎ。今夜は変更なし。
-
 1. `firebase deploy --only firestore:rules,firestore:indexes`
-   — vehicle_grade_specs / posts可視性 / community_maintenance_trends ルール + インデックス
+   — 今セッションで追加した `shop_inquiry_demands` ルール + インデックスを含む本番反映
 2. `firebase deploy --only storage` — storage.rules の本番反映（差分確認必須）
 3. シードデータ登録（手順は `docs/HUMAN_TASKS.md` 参照）
+4. **Issue #41 Phase 2 UI配線**: `inquiry_screen.dart` の送信フローに `isPartner` チェックを組み込む
+   （`ShopDemandService.recordDemand()` 呼び出し / 非パートナー向けゲートUI）
 
 ---
 
 ## 次のアクション候補（3件）
 
-1. **Issue #63 UI配線** — `HomeScreen` の「AIからの提案」セクションで `reason` フィールドを表示するウィジェット更新（Provider→画面）
-2. **Issue #39 UI配線** — `ShopReportService.getMonthlyReport()` を店舗ダッシュボードに接続（前セッションでService層のみ実装済み）
-3. **Issue #41 着手** — GoogleMap連動の網羅表示 + 提携フリーミアム（集客エンジン。ROI可視化 #39 UI完了後に着手推奨）
+1. **Issue #41 Phase 2 UI配線** — `inquiry_screen.dart` で `Shop.isPartner` を確認し、非パートナーの場合は `ShopDemandService.recordDemand()` を呼んでゲートダイアログを表示
+2. **Issue #41 Phase 1** — Google Maps SDK 連動（地図上に提携店ピン表示）。APIキーを環境変数として設定後に着手
+3. **PR #78 マージ** — CI が全パスしていることを確認後にマージ
