@@ -340,6 +340,75 @@ void main() {
           .get();
       expect(doc.data()!['sampleImageUrl'], 'https://example.com/first.jpg');
     });
+
+    // Edge Cases —————————————————————————————————————————————————————————
+    group('Edge Cases', () {
+      test('新規ドキュメント + imageUrl=null → sampleImageUrl は null', () async {
+        final grade = _makeGrade();
+        await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+            contributorId: 'user-1', imageUrl: null);
+
+        final doc = await fakeFirestore
+            .collection('vehicle_grade_specs')
+            .doc('トヨタ_プリウス_2022_s')
+            .get();
+        expect(doc.data()!.containsKey('sampleImageUrl'), isTrue);
+        expect(doc.data()!['sampleImageUrl'], isNull);
+      });
+
+      test('既存ドキュメントに sampleImageUrl あり + 新規ユーザーが imageUrl=null で追加 → sampleImageUrl 不変',
+          () async {
+        await fakeFirestore
+            .collection('vehicle_grade_specs')
+            .doc('トヨタ_プリウス_2022_s')
+            .set({
+          'maker': 'トヨタ',
+          'model': 'プリウス',
+          'year': 2022,
+          'grade': 'S',
+          'sampleImageUrl': 'https://example.com/original.jpg',
+          'contributorIds': ['user-0'],
+          'contributorCount': 1,
+          'updatedAt': 0,
+        });
+
+        final grade = _makeGrade();
+        await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+            contributorId: 'user-1', imageUrl: null);
+
+        final doc = await fakeFirestore
+            .collection('vehicle_grade_specs')
+            .doc('トヨタ_プリウス_2022_s')
+            .get();
+        // sampleImageUrl must remain the original; null imageUrl must not clear it
+        expect(doc.data()!['sampleImageUrl'],
+            'https://example.com/original.jpg');
+        expect(doc.data()!['contributorCount'], 2);
+      });
+
+      test('同一ユーザーが2度目の saveSpec で新 imageUrl を渡しても sampleImageUrl 不変（no-op）',
+          () async {
+        final grade = _makeGrade();
+        // First save — sets sampleImageUrl
+        await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+            contributorId: 'user-1',
+            imageUrl: 'https://example.com/original.jpg');
+
+        // Second save by same user with different imageUrl — must be no-op
+        await service.saveSpec('トヨタ', 'プリウス', 2022, 'S', grade,
+            contributorId: 'user-1',
+            imageUrl: 'https://example.com/second.jpg');
+
+        final doc = await fakeFirestore
+            .collection('vehicle_grade_specs')
+            .doc('トヨタ_プリウス_2022_s')
+            .get();
+        expect(doc.data()!['sampleImageUrl'],
+            'https://example.com/original.jpg');
+        // contributorCount must also NOT increase on repeat save
+        expect(doc.data()!['contributorCount'], 1);
+      });
+    });
   });
 
   // ---------------------------------------------------------------------------
