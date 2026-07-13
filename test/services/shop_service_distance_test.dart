@@ -70,11 +70,9 @@ void main() {
     test('半径5km内の店舗のみ返す（10km圏外は除外）', () async {
       await _addShop(firestore, id: 'near', name: '近い店', location: _shop1km);
       await _addShop(firestore, id: 'mid', name: '5km店', location: _shop5km);
-      await _addShop(firestore,
-          id: 'far', name: '11km店', location: _shop11km);
+      await _addShop(firestore, id: 'far', name: '11km店', location: _shop11km);
 
-      final result =
-          await service.getNearbyShops(_tokyoStation, 10, limit: 20);
+      final result = await service.getNearbyShops(_tokyoStation, 10, limit: 20);
 
       expect(result.isSuccess, isTrue);
       final shops = result.valueOrNull!;
@@ -95,13 +93,11 @@ void main() {
     });
 
     test('location が null の店舗は除外される', () async {
-      await _addShop(firestore,
-          id: 'no-loc', name: '位置なし店', location: null);
+      await _addShop(firestore, id: 'no-loc', name: '位置なし店', location: null);
       await _addShop(firestore,
           id: 'with-loc', name: '位置あり店', location: _shop1km);
 
-      final result =
-          await service.getNearbyShops(_tokyoStation, 10, limit: 20);
+      final result = await service.getNearbyShops(_tokyoStation, 10, limit: 20);
 
       expect(result.isSuccess, isTrue);
       final shops = result.valueOrNull!;
@@ -170,10 +166,8 @@ void main() {
     });
 
     group('距離精度', () {
-      test('Osaka (~401km) は 450km 半径に含まれ 350km 半径から除外される',
-          () async {
-        await _addShop(firestore,
-            id: 'osaka', name: '大阪店', location: _osaka);
+      test('Osaka (~401km) は 450km 半径に含まれ 350km 半径から除外される', () async {
+        await _addShop(firestore, id: 'osaka', name: '大阪店', location: _osaka);
 
         final within450 =
             await service.getNearbyShops(_tokyoStation, 450, limit: 20);
@@ -181,8 +175,8 @@ void main() {
             await service.getNearbyShops(_tokyoStation, 350, limit: 20);
 
         expect(within450.valueOrNull!.map((s) => s.id), contains('osaka'));
-        expect(within350.valueOrNull!.map((s) => s.id),
-            isNot(contains('osaka')));
+        expect(
+            within350.valueOrNull!.map((s) => s.id), isNot(contains('osaka')));
       });
     });
   });
@@ -199,8 +193,7 @@ void main() {
     test('radiusKm=0 → 同一地点のみ含まれる', () async {
       await _addShop(firestore,
           id: 'same', name: '同地点', location: _tokyoStation);
-      await _addShop(firestore,
-          id: 'near', name: '1km', location: _shop1km);
+      await _addShop(firestore, id: 'near', name: '1km', location: _shop1km);
 
       final result = await service.getNearbyShops(_tokyoStation, 0, limit: 20);
 

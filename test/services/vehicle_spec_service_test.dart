@@ -356,7 +356,8 @@ void main() {
         expect(doc.data()!['sampleImageUrl'], isNull);
       });
 
-      test('既存ドキュメントに sampleImageUrl あり + 新規ユーザーが imageUrl=null で追加 → sampleImageUrl 不変',
+      test(
+          '既存ドキュメントに sampleImageUrl あり + 新規ユーザーが imageUrl=null で追加 → sampleImageUrl 不変',
           () async {
         await fakeFirestore
             .collection('vehicle_grade_specs')
@@ -381,8 +382,8 @@ void main() {
             .doc('トヨタ_プリウス_2022_s')
             .get();
         // sampleImageUrl must remain the original; null imageUrl must not clear it
-        expect(doc.data()!['sampleImageUrl'],
-            'https://example.com/original.jpg');
+        expect(
+            doc.data()!['sampleImageUrl'], 'https://example.com/original.jpg');
         expect(doc.data()!['contributorCount'], 2);
       });
 
@@ -403,8 +404,8 @@ void main() {
             .collection('vehicle_grade_specs')
             .doc('トヨタ_プリウス_2022_s')
             .get();
-        expect(doc.data()!['sampleImageUrl'],
-            'https://example.com/original.jpg');
+        expect(
+            doc.data()!['sampleImageUrl'], 'https://example.com/original.jpg');
         // contributorCount must also NOT increase on repeat save
         expect(doc.data()!['contributorCount'], 1);
       });
