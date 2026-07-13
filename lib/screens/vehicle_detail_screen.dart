@@ -2671,10 +2671,24 @@ class _CommunityTrendSectionState extends State<_CommunityTrendSection> {
   void initState() {
     super.initState();
     if (!sl.isRegistered<CommunityTrendService>()) {
-      _loaded = true; // No service available — skip async fetch
+      _loaded = true;
       return;
     }
     _fetchTrends();
+  }
+
+  @override
+  void didUpdateWidget(_CommunityTrendSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.vehicle.maker != widget.vehicle.maker ||
+        oldWidget.vehicle.model != widget.vehicle.model) {
+      if (!sl.isRegistered<CommunityTrendService>()) return;
+      setState(() {
+        _loaded = false;
+        _data = null;
+      });
+      _fetchTrends();
+    }
   }
 
   Future<void> _fetchTrends() async {
