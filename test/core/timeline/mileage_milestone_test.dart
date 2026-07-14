@@ -182,7 +182,7 @@ void main() {
         final d3 = DateTime(2024, 1, 1);
         final records = [
           _record(d1, mileage: 12000), // 10k通過
-          _record(d2, mileage: 5000),  // オドメーター誤り
+          _record(d2, mileage: 5000), // オドメーター誤り
           _record(d3, mileage: 22000), // 20k通過
         ];
         final result = MileageMilestoneDetector.detect(records);
@@ -215,7 +215,7 @@ void main() {
         final records = [
           _record(DateTime(2023, 1, 1), mileage: 8000),
           _record(DateTime(2023, 6, 1), mileage: 12000), // 10k通過
-          _record(DateTime(2024, 1, 1), mileage: 8000),  // オドメーター誤り
+          _record(DateTime(2024, 1, 1), mileage: 8000), // オドメーター誤り
           _record(DateTime(2024, 6, 1), mileage: 14000), // 10k は再度跨がない（追跡済み）
         ];
         final result = MileageMilestoneDetector.detect(records);

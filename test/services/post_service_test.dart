@@ -571,8 +571,8 @@ void main() {
         final doc = Map<String, dynamic>.from(
           postDoc(userId: userId, visibility: visibility, content: 'post-$i'),
         );
-        doc['createdAt'] =
-            Timestamp.fromDate(DateTime(2024, 1, i + 1)); // oldest=Jan1, newest=Jan5
+        doc['createdAt'] = Timestamp.fromDate(
+            DateTime(2024, 1, i + 1)); // oldest=Jan1, newest=Jan5
         await fs.collection('posts').add(doc);
       }
     }

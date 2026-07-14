@@ -28,9 +28,7 @@ class MileageMilestoneDetector {
   /// When multiple thresholds are crossed on the same calendar date, only
   /// the highest threshold is returned for that date.
   static List<MileageMilestone> detect(List<MaintenanceRecord> records) {
-    final sorted = records
-        .where((r) => r.mileageAtService != null)
-        .toList()
+    final sorted = records.where((r) => r.mileageAtService != null).toList()
       ..sort((a, b) => a.date.compareTo(b.date));
 
     if (sorted.isEmpty) return [];

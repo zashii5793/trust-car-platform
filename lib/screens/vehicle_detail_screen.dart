@@ -1394,7 +1394,11 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
                       isLast: isLast,
                     ),
                 },
-              _MilestoneListItem(:final milestone, :final isFirst, :final isLast) =>
+              _MilestoneListItem(
+                :final milestone,
+                :final isFirst,
+                :final isLast
+              ) =>
                 _MilestoneTimelineItem(
                   milestone: milestone,
                   isFirst: isFirst,
@@ -1953,9 +1957,8 @@ class _MilestoneTimelineItem extends StatelessWidget {
                   Text(
                     '$kmLabel km 突破',
                     style: theme.textTheme.labelMedium?.copyWith(
-                      color: isDark
-                          ? AppColors.warning
-                          : const Color(0xFFB45309),
+                      color:
+                          isDark ? AppColors.warning : const Color(0xFFB45309),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
