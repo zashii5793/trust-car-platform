@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
+import '../../core/ui/app_dialog.dart';
 import '../../models/shop.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
@@ -345,29 +346,16 @@ class _PlanButtonState extends State<_PlanButton> {
   }
 
   Future<void> _confirmDowngrade() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('無料プランに変更'),
-        content: const Text(
-          'フリープランに変更すると、現在のサブスクリプションは期間終了時にキャンセルされます。\n'
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      title: '無料プランに変更',
+      message: 'フリープランに変更すると、現在のサブスクリプションは期間終了時にキャンセルされます。\n'
           '変更しますか？',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('変更する'),
-          ),
-        ],
-      ),
+      confirmText: '変更する',
+      isDestructive: true,
     );
 
-    if (confirmed == true && mounted) {
+    if (confirmed && mounted) {
       await _applyPlanChange(
         ShopPlanType.free,
         ShopSubscriptionStatus.free,

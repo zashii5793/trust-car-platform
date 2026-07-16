@@ -7,6 +7,7 @@ import '../../providers/drive_recording_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/ui/app_dialog.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'drive_recording_screen.dart';
 
@@ -678,26 +679,13 @@ class _CardFooter extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, String userId) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('ドライブログを削除'),
-        content: const Text('このドライブログを削除しますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('削除'),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showDeleteConfirm(
+      context,
+      itemName: 'ドライブログ',
+      message: 'このドライブログを削除しますか？',
     );
 
-    if (confirmed == true && context.mounted) {
+    if (confirmed && context.mounted) {
       await context.read<DriveLogProvider>().deleteDriveLog(log.id, userId);
     }
   }
