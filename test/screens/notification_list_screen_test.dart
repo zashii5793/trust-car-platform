@@ -408,7 +408,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       expect(find.text('通知を削除'), findsOneWidget);
-      expect(find.text('この通知を削除しますか？'), findsOneWidget);
+      expect(find.textContaining('通知を削除してもよろしいですか'), findsOneWidget);
     });
 
     testWidgets('既読済み通知を右スワイプしても markAsRead は呼ばれない', (tester) async {

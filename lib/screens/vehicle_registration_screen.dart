@@ -13,6 +13,7 @@ import '../services/vehicle_spec_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
+import '../core/ui/app_dialog.dart';
 import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
@@ -537,24 +538,15 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       _imageBytes != null;
 
   Future<bool> _confirmDiscard(BuildContext context) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('登録を中断しますか？'),
-        content: const Text('入力中のデータは保存されません。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('続ける'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('中断する', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+    final result = await AppDialog.showConfirm(
+      context,
+      title: '登録を中断しますか？',
+      message: '入力中のデータは保存されません。',
+      confirmText: '中断する',
+      cancelText: '続ける',
+      isDestructive: true,
     );
-    return result ?? false;
+    return result;
   }
 
   @override

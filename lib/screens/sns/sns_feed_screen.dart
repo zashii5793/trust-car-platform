@@ -7,6 +7,7 @@ import '../../providers/vehicle_provider.dart';
 import '../../models/post.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/ui/app_dialog.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'post_create_screen.dart';
 import 'post_detail_screen.dart';
@@ -777,23 +778,9 @@ class _PostFooter extends StatelessWidget {
     PostProvider provider,
     String userId,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('投稿を削除'),
-        content: const Text('この投稿を削除しますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('削除'),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showDeleteConfirm(
+      context,
+      itemName: '投稿',
     );
 
     if (confirmed == true && context.mounted) {

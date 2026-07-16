@@ -8,6 +8,7 @@ import '../../providers/notification_provider.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/ui/app_dialog.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../vehicle_detail_screen.dart';
@@ -407,26 +408,10 @@ class _NotificationCard extends StatelessWidget {
         confirmDismiss: (direction) async {
           if (direction == DismissDirection.endToStart) {
             // Delete: show brief confirmation
-            return await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('通知を削除'),
-                    content: const Text('この通知を削除しますか？'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('キャンセル'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        style: TextButton.styleFrom(
-                            foregroundColor: AppColors.error),
-                        child: const Text('削除'),
-                      ),
-                    ],
-                  ),
-                ) ??
-                false;
+            return await AppDialog.showDeleteConfirm(
+              context,
+              itemName: '通知',
+            );
           }
           // startToEnd: mark as read (only if unread)
           if (!notification.isRead) {

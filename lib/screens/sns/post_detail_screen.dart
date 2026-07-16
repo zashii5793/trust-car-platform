@@ -7,6 +7,7 @@ import '../../models/post.dart';
 import '../../models/comment.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/ui/app_dialog.dart';
 import '../../core/di/service_locator.dart';
 import '../../services/post_service.dart';
 import '../../widgets/common/loading_indicator.dart';
@@ -257,23 +258,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     PostProvider provider,
     String userId,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('投稿を削除'),
-        content: const Text('この投稿を削除しますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('削除'),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showDeleteConfirm(
+      context,
+      itemName: '投稿',
     );
     if (confirmed == true && context.mounted) {
       await provider.deletePost(widget.post.id, userId);
