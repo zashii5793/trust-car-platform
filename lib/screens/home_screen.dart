@@ -24,6 +24,7 @@ import 'settings/privacy_policy_screen.dart';
 import 'settings/terms_of_service_screen.dart';
 import 'notifications/notification_list_screen.dart';
 import '../core/di/service_locator.dart';
+import '../core/ui/app_dialog.dart';
 import '../services/mileage_notification_service.dart';
 import 'marketplace/marketplace_screen.dart';
 import 'marketplace/shop_list_screen.dart';
@@ -741,45 +742,19 @@ class _ProfileTab extends StatelessWidget {
   }
 
   void _showUpgradeDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('プレミアムプランが必要です'),
-        content: const Text(
-          'データのエクスポートはプレミアムプランの機能です。\n'
+    AppDialog.showInfo(
+      context,
+      title: 'プレミアムプランが必要です',
+      message: 'データのエクスポートはプレミアムプランの機能です。\n'
           'プレミアムプランにアップグレードしてご利用ください。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('閉じる'),
-          ),
-        ],
-      ),
+      buttonText: '閉じる',
     );
   }
 
   Future<void> _confirmSignOut(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('ログアウト'),
-        content: const Text('ログアウトしますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('ログアウト'),
-          ),
-        ],
-      ),
-    );
+    final confirmed = await AppDialog.showLogoutConfirm(context);
 
-    if (confirmed == true && context.mounted) {
+    if (confirmed && context.mounted) {
       final vehicleProvider = context.read<VehicleProvider>();
       final maintenanceProvider = context.read<MaintenanceProvider>();
       final notificationProvider = context.read<NotificationProvider>();
