@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
+import '../../core/ui/app_dialog.dart';
 import '../../models/fleet_member.dart';
 import '../../services/fleet_member_service.dart';
 
@@ -121,27 +122,14 @@ class _FleetMemberScreenState extends State<FleetMemberScreen> {
   }
 
   Future<void> _removeMember(FleetMember member) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('メンバーを削除'),
-        content: Text(
-          '${member.displayName ?? member.userId} をフリートから削除しますか？',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('削除'),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      title: 'メンバーを削除',
+      message: '${member.displayName ?? member.userId} をフリートから削除しますか？',
+      confirmText: '削除',
+      isDestructive: true,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
 
     final result = await _service.removeMember(
       companyId: widget.companyId,

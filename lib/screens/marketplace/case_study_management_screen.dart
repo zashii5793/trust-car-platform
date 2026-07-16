@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
+import '../../core/ui/app_dialog.dart';
 import '../../models/shop.dart';
 import '../../models/shop_case_study.dart';
 import '../../services/shop_service.dart';
@@ -74,25 +75,14 @@ class _CaseStudyManagementScreenState extends State<CaseStudyManagementScreen> {
 
   Future<void> _delete(ShopCaseStudy study) async {
     final messenger = ScaffoldMessenger.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('施工事例を削除しますか？'),
-        content: Text('「${study.title}」を削除します。この操作は取り消せません。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('削除'),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      title: '施工事例を削除しますか？',
+      message: '「${study.title}」を削除します。この操作は取り消せません。',
+      confirmText: '削除',
+      isDestructive: true,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
 
     final result = await _service.deleteCaseStudy(widget.shopId, study.id);
     if (!mounted) return;

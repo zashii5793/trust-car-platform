@@ -13,6 +13,7 @@ import '../services/community_trend_service.dart';
 import '../core/di/service_locator.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
+import '../core/ui/app_dialog.dart';
 import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
@@ -427,25 +428,15 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       _shopNameController.text.isNotEmpty ||
       _descriptionController.text.isNotEmpty;
 
-  Future<bool> _confirmDiscard(BuildContext context) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('変更を破棄しますか？'),
-        content: const Text('保存していない変更は失われます。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('続ける'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('破棄する', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+  Future<bool> _confirmDiscard(BuildContext context) {
+    return AppDialog.showConfirm(
+      context,
+      title: '変更を破棄しますか？',
+      message: '保存していない変更は失われます。',
+      confirmText: '破棄する',
+      cancelText: '続ける',
+      isDestructive: true,
     );
-    return result ?? false;
   }
 
   @override

@@ -9,6 +9,7 @@ import '../../core/config/app_config.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
+import '../../core/ui/app_dialog.dart';
 import '../../models/maintenance_record.dart';
 import '../../models/vehicle.dart';
 import '../../providers/auth_provider.dart';
@@ -224,46 +225,17 @@ class ProfileScreen extends StatelessWidget {
   }
 
   void _showUpgradeDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('プレミアムプランが必要です'),
-        content: const Text(
-          'データのエクスポートはプレミアムプランの機能です。\n'
+    AppDialog.showInfo(
+      context,
+      title: 'プレミアムプランが必要です',
+      message: 'データのエクスポートはプレミアムプランの機能です。\n'
           'アップグレードすると整備記録や走行ログのPDFエクスポート、無制限の問い合わせが利用できます。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('閉じる'),
-          ),
-        ],
-      ),
+      buttonText: '閉じる',
     );
   }
 
-  Future<bool> _showLogoutConfirmation(BuildContext context) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('ログアウト'),
-            content: const Text('ログアウトしてもよろしいですか？'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('キャンセル'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text(
-                  'ログアウト',
-                  style: TextStyle(color: AppColors.error),
-                ),
-              ),
-            ],
-          ),
-        ) ??
-        false;
+  Future<bool> _showLogoutConfirmation(BuildContext context) {
+    return AppDialog.showLogoutConfirm(context);
   }
 
   void _showProfileEditSheet(
@@ -301,19 +273,15 @@ class ProfileScreen extends StatelessWidget {
     if (vehicles.length == 1) {
       vehicle = vehicles.first;
     } else {
-      vehicle = await showDialog<Vehicle>(
-        context: context,
-        builder: (ctx) => SimpleDialog(
-          title: const Text('エクスポートする車両を選択'),
-          children: vehicles
-              .map(
-                (v) => SimpleDialogOption(
-                  onPressed: () => Navigator.of(ctx).pop(v),
-                  child: Text('${v.maker} ${v.model}'),
-                ),
-              )
-              .toList(),
-        ),
+      vehicle = await AppDialog.showSelection<Vehicle>(
+        context,
+        title: 'エクスポートする車両を選択',
+        options: vehicles
+            .map((v) => SelectionOption(
+                  value: v,
+                  label: '${v.maker} ${v.model}',
+                ))
+            .toList(),
       );
     }
 
