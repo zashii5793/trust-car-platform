@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
+import '../../widgets/common/app_text_field.dart';
 import '../../models/accessory_showcase.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/vehicle_provider.dart';
@@ -559,38 +560,31 @@ class _SubmitShowcaseSheetState extends State<_SubmitShowcaseSheet> {
             const SizedBox(height: AppSpacing.sm),
 
             // Item name
-            TextFormField(
+            AppTextField(
               key: const Key('showcase_item_name_field'),
               controller: _itemNameController,
-              decoration: const InputDecoration(
-                labelText: '商品名 *',
-                hintText: 'Vantrue N2 Pro など',
-              ),
+              labelText: '商品名 *',
+              hintText: 'Vantrue N2 Pro など',
               validator: (v) =>
                   (v == null || v.trim().isEmpty) ? '商品名を入力してください' : null,
             ),
             const SizedBox(height: AppSpacing.sm),
 
             // Brand
-            TextFormField(
+            AppTextField(
               key: const Key('showcase_brand_field'),
               controller: _brandController,
-              decoration: const InputDecoration(
-                labelText: 'ブランド',
-                hintText: 'Vantrue など（任意）',
-              ),
+              labelText: 'ブランド',
+              hintText: 'Vantrue など（任意）',
             ),
             const SizedBox(height: AppSpacing.sm),
 
             // Price
-            TextFormField(
+            AppTextField.number(
               key: const Key('showcase_price_field'),
               controller: _priceController,
-              decoration: const InputDecoration(
-                labelText: '購入価格（円）',
-                hintText: '15000 など（任意）',
-              ),
-              keyboardType: TextInputType.number,
+              labelText: '購入価格（円）',
+              hintText: '15000 など（任意）',
             ),
             const SizedBox(height: AppSpacing.md),
 
@@ -614,13 +608,11 @@ class _SubmitShowcaseSheetState extends State<_SubmitShowcaseSheet> {
             const SizedBox(height: AppSpacing.sm),
 
             // Review
-            TextFormField(
+            AppTextField.multiline(
               key: const Key('showcase_review_field'),
               controller: _reviewController,
-              decoration: const InputDecoration(
-                labelText: 'レビュー（任意）',
-                hintText: '取り付けが簡単で夜間の映像もクリア...',
-              ),
+              labelText: 'レビュー（任意）',
+              hintText: '取り付けが簡単で夜間の映像もクリア...',
               maxLines: 3,
             ),
             const SizedBox(height: AppSpacing.lg),
