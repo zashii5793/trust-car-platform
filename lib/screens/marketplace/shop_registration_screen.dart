@@ -6,6 +6,7 @@ import '../../models/shop.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_card.dart';
+import '../../widgets/common/app_text_field.dart';
 
 /// Shop registration and edit form screen.
 ///
@@ -171,11 +172,9 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
                 _LabeledField(
                   label: '店舗名',
                   isRequired: true,
-                  child: TextFormField(
+                  child: AppTextField(
                     controller: _nameController,
-                    decoration: const InputDecoration(
-                      hintText: '例: トラスト自動車整備工場',
-                    ),
+                    hintText: '例: トラスト自動車整備工場',
                     validator: (v) =>
                         (v == null || v.trim().isEmpty) ? '店舗名を入力してください' : null,
                     textInputAction: TextInputAction.next,
@@ -202,15 +201,11 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
                 AppSpacing.verticalMd,
                 _LabeledField(
                   label: '説明文',
-                  child: TextFormField(
+                  child: AppTextField.multiline(
                     controller: _descriptionController,
-                    decoration: const InputDecoration(
-                      hintText: '店舗の特徴・強みなどを記入してください（最大500文字）',
-                      alignLabelWithHint: true,
-                    ),
+                    hintText: '店舗の特徴・強みなどを記入してください（最大500文字）',
                     maxLines: 4,
                     maxLength: 500,
-                    textInputAction: TextInputAction.next,
                   ),
                 ),
                 AppSpacing.verticalXl,
@@ -220,11 +215,9 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
                 AppSpacing.verticalSm,
                 _LabeledField(
                   label: '電話番号',
-                  child: TextFormField(
+                  child: AppTextField(
                     controller: _phoneController,
-                    decoration: const InputDecoration(
-                      hintText: '例: 03-1234-5678',
-                    ),
+                    hintText: '例: 03-1234-5678',
                     keyboardType: TextInputType.phone,
                     textInputAction: TextInputAction.next,
                   ),
@@ -232,11 +225,9 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
                 AppSpacing.verticalMd,
                 _LabeledField(
                   label: 'メールアドレス',
-                  child: TextFormField(
+                  child: AppTextField(
                     controller: _emailController,
-                    decoration: const InputDecoration(
-                      hintText: '例: info@example.com',
-                    ),
+                    hintText: '例: info@example.com',
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
                   ),
@@ -244,11 +235,9 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
                 AppSpacing.verticalMd,
                 _LabeledField(
                   label: 'ウェブサイト',
-                  child: TextFormField(
+                  child: AppTextField(
                     controller: _websiteController,
-                    decoration: const InputDecoration(
-                      hintText: '例: https://example.com',
-                    ),
+                    hintText: '例: https://example.com',
                     keyboardType: TextInputType.url,
                     textInputAction: TextInputAction.next,
                   ),
@@ -260,33 +249,27 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
                 AppSpacing.verticalSm,
                 _LabeledField(
                   label: '都道府県',
-                  child: TextFormField(
+                  child: AppTextField(
                     controller: _prefectureController,
-                    decoration: const InputDecoration(
-                      hintText: '例: 東京都',
-                    ),
+                    hintText: '例: 東京都',
                     textInputAction: TextInputAction.next,
                   ),
                 ),
                 AppSpacing.verticalMd,
                 _LabeledField(
                   label: '市区町村',
-                  child: TextFormField(
+                  child: AppTextField(
                     controller: _cityController,
-                    decoration: const InputDecoration(
-                      hintText: '例: 渋谷区',
-                    ),
+                    hintText: '例: 渋谷区',
                     textInputAction: TextInputAction.next,
                   ),
                 ),
                 AppSpacing.verticalMd,
                 _LabeledField(
                   label: '住所',
-                  child: TextFormField(
+                  child: AppTextField(
                     controller: _addressController,
-                    decoration: const InputDecoration(
-                      hintText: '例: 〇〇町1-2-3 〇〇ビル1F',
-                    ),
+                    hintText: '例: 〇〇町1-2-3 〇〇ビル1F',
                     textInputAction: TextInputAction.next,
                   ),
                 ),
