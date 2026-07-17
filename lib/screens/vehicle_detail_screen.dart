@@ -2024,8 +2024,8 @@ class _MaintenanceDetailSheet extends StatelessWidget {
                       icon: const Icon(Icons.delete_outline),
                       label: const Text('この記録を削除'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red),
+                        foregroundColor: AppColors.error,
+                        side: const BorderSide(color: AppColors.error),
                       ),
                     ),
                   ),
@@ -2053,7 +2053,7 @@ class _MaintenanceDetailSheet extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('削除'),
           ),
         ],

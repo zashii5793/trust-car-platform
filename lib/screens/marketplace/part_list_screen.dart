@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/constants/colors.dart';
 import '../../models/part_listing.dart';
 import '../../models/vehicle.dart';
 import '../../providers/part_recommendation_provider.dart';
@@ -547,26 +548,26 @@ class _CompatibilityBadge extends StatelessWidget {
   Color _backgroundColor(BuildContext context) {
     switch (level) {
       case CompatibilityLevel.perfect:
-        return Colors.green.shade50;
+        return AppColors.successBackground;
       case CompatibilityLevel.compatible:
-        return Colors.blue.shade50;
+        return AppColors.infoBackground;
       case CompatibilityLevel.conditional:
-        return Colors.orange.shade50;
+        return AppColors.warningBackground;
       case CompatibilityLevel.incompatible:
-        return Colors.red.shade50;
+        return AppColors.errorBackground;
     }
   }
 
   Color _textColor(BuildContext context) {
     switch (level) {
       case CompatibilityLevel.perfect:
-        return Colors.green.shade700;
+        return AppColors.success;
       case CompatibilityLevel.compatible:
-        return Colors.blue.shade700;
+        return AppColors.info;
       case CompatibilityLevel.conditional:
-        return Colors.orange.shade700;
+        return AppColors.warning;
       case CompatibilityLevel.incompatible:
-        return Colors.red.shade700;
+        return AppColors.error;
     }
   }
 

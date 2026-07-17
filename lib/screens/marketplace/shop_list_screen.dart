@@ -689,7 +689,7 @@ class _ShopCard extends StatelessWidget {
                             child: Icon(
                               Icons.verified,
                               size: 16,
-                              color: Colors.blue,
+                              color: AppColors.info,
                             ),
                           ),
                         // Transparency principle: a featured (paid) placement
@@ -775,7 +775,7 @@ class _ShopCard extends StatelessWidget {
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: shop.isOpenNow
-                                  ? Colors.green.shade50
+                                  ? AppColors.successBackground
                                   : Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(4),
                             ),
@@ -787,7 +787,7 @@ class _ShopCard extends StatelessWidget {
                                       : '本日${todayHours.openTime ?? ''}〜'),
                               style: theme.textTheme.labelSmall?.copyWith(
                                 color: shop.isOpenNow
-                                    ? Colors.green.shade700
+                                    ? AppColors.success
                                     : Colors.grey.shade600,
                                 fontSize: 10,
                               ),
