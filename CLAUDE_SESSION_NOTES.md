@@ -1,29 +1,39 @@
 # Claude Session Notes
 
-最終更新: 2026-07-11
+最終更新: 2026-07-12
 
 ---
 
-## 夜間エージェント実行ログ（2026-07-11）
+## 夜間エージェント実行ログ（2026-07-11〜12）
 
 **ブランチ**: `claude/night-20260711`
-**PR**: #78 https://github.com/zashii5793/trust-car-platform/pull/78
-**テスト**: 3461件 全パス / `flutter analyze lib/` No issues found
+**PR**: #78 https://github.com/zashii5793/trust-car-platform/pull/78 → **マージ済み**
+**テスト**: 3480件 全パス / `flutter analyze lib/` No issues found
 
 ### 実施内容
 
 1. **stalled CI 修正**: `claude/auto-improve-fleet-urgency-dedup` の cherry-pick + `dart format` 適用
-2. **Issue #63 実装（priority: high）**: `RecommendationService` + `MaintenanceScheduleService` 連携
+2. **Issue #63 実装**: `RecommendationService` + `MaintenanceScheduleService` 連携
    - EV・水素車へのオイル交換推奨を除外する燃料タイプ別フィルタリング
-   - `reason` フィールドに「次回目安: Xkm（あとYkm）」を追加
-   - TDDテスト13件追加
-   - PR #78 作成済み（CI確認中）
+   - `reason` フィールドに「次回目安: Xkm（あとYkm）」を追加（TDDテスト13件）
+3. **Issue #41 Phase 2 実装**: `ShopDemandService` + `ShopInquiryDemand` モデル
+   - 非パートナー店舗への問い合わせ需要を蓄積するサービス層（TDDテスト19件）
+   - `Shop.isPartner` getter 追加
+   - Firestoreルール + 複合インデックス追加
+4. **整備記録査定価値バナー**: `_MaintenanceValueBanner` (vehicle_detail_screen.dart)
+5. **コンフリクト修正**: 安全キャスト / orderBy漏れ / FirestoreCollections定数化
+
+### 人間タスク（要対応）
+
+1. `firebase deploy --only firestore:rules,firestore:indexes` — shop_inquiry_demands ルール + インデックス本番反映
+2. **Issue #41 Phase 2 UI配線**: `inquiry_screen.dart` で `Shop.isPartner` チェック + `ShopDemandService.recordDemand()` 呼び出し
+3. **Issue #41 Phase 1**: Google Maps SDK（APIキー設定後）
 
 ### 次のアクション候補（3件）
 
-1. Issue #63 UI配線 — `HomeScreen` の提案セクションで `reason` を表示
-2. Issue #39 UI配線 — 店舗ダッシュボードに月次ROIを接続
-3. Issue #41 着手 — GoogleMap連動の集客エンジン（#39 UI完了後推奨）
+1. Issue #41 Phase 2 UI配線 — `inquiry_screen.dart` にゲートロジック追加
+2. Issue #41 Phase 1 — Google Maps SDK 連動（APIキー要設定）
+3. firebase deploy — ルール + インデックスの本番反映
 
 ---
 
