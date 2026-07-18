@@ -12,6 +12,7 @@ import '../../models/user_part_listing.dart';
 import '../../services/part_listing_service.dart';
 import '../../core/result/result.dart';
 import '../../core/error/app_error.dart';
+import '../../widgets/common/app_text_field.dart';
 
 /// Screen for creating or editing a user-submitted part listing.
 ///
@@ -255,12 +256,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             // Title
             _SectionLabel(label: '商品名', required: true),
             AppSpacing.verticalXs,
-            TextFormField(
+            AppTextField(
               controller: _titleController,
-              decoration: const InputDecoration(
-                hintText: '例: BLITZ 車高調 ZZ-R',
-                border: OutlineInputBorder(),
-              ),
+              hintText: '例: BLITZ 車高調 ZZ-R',
               textInputAction: TextInputAction.next,
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return '商品名を入力してください';
@@ -290,15 +288,12 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             // Price
             _SectionLabel(label: '販売価格', required: true),
             AppSpacing.verticalXs,
-            TextFormField(
+            AppTextField(
               controller: _priceController,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
-                prefixText: '¥',
-                hintText: '0',
-                border: OutlineInputBorder(),
-              ),
+              prefixText: '¥',
+              hintText: '0',
               textInputAction: TextInputAction.next,
               onChanged: (_) => setState(() {}),
               validator: (v) {
@@ -318,27 +313,20 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             // Description
             _SectionLabel(label: '商品説明'),
             AppSpacing.verticalXs,
-            TextFormField(
+            AppTextField.multiline(
               controller: _descriptionController,
+              hintText: '状態の詳細、購入時期、使用期間など',
               maxLines: 6,
               maxLength: _maxDescriptionLength,
-              decoration: const InputDecoration(
-                hintText: '状態の詳細、購入時期、使用期間など',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
             ),
             AppSpacing.verticalLg,
 
             // Compatible vehicle
             _SectionLabel(label: '対応車種（任意）'),
             AppSpacing.verticalXs,
-            TextFormField(
+            AppTextField(
               controller: _compatibleVehicleController,
-              decoration: const InputDecoration(
-                hintText: '例: トヨタ 86 / スバル BRZ（ZN6/ZC6系）',
-                border: OutlineInputBorder(),
-              ),
+              hintText: '例: トヨタ 86 / スバル BRZ（ZN6/ZC6系）',
               textInputAction: TextInputAction.next,
             ),
             AppSpacing.verticalLg,
