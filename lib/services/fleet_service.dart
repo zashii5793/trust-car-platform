@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
+import '../core/utils/inspection_urgency.dart';
 import '../models/vehicle.dart';
 
 /// Fleet statistics summary for a company.
@@ -56,15 +57,16 @@ class FleetService {
       int critical = 0, warning = 0, normal = 0;
 
       for (final v in vehicles) {
-        final days = v.daysUntilInspection;
-        if (days == null) {
-          normal++;
-        } else if (days < 0 || days <= 7) {
-          critical++;
-        } else if (days <= 30) {
-          warning++;
-        } else {
-          normal++;
+        // Reuse the canonical urgency thresholds (≤7 critical, ≤30 warning)
+        // so fleet stats never drift from the dashboard's chip coloring.
+        switch (inspectionUrgencyForDays(v.daysUntilInspection)) {
+          case InspectionUrgency.critical:
+            critical++;
+          case InspectionUrgency.warning:
+            warning++;
+          case InspectionUrgency.normal:
+          case InspectionUrgency.none: // no inspection date → counted as normal
+            normal++;
         }
       }
 
