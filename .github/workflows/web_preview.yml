@@ -1,0 +1,72 @@
+name: Web Preview (GitHub Pages)
+
+# Flutter Web をビルドして GitHub Pages に公開する。
+# ブラウザ（PC/スマホ）から触れるプレビュー用。ローカル Flutter / firebase login 不要。
+#
+# ⚠️ 事前に一度だけ人手作業が必要:
+#   リポジトリ Settings → Pages → Build and deployment → Source = "GitHub Actions"
+#   （これを設定するまで deploy ステップが失敗する。build までは成功する）
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/current-status-review-052m8c
+    paths:
+      - 'lib/**'
+      - 'web/**'
+      - 'pubspec.yaml'
+      - '.github/workflows/web_preview.yml'
+
+# GITHUB_TOKEN に Pages 公開権限を付与（シークレット不要）
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時実行は最新のみ（古いデプロイはキャンセル）
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Flutter Web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build web
+        # プロジェクトページは https://<user>.github.io/trust-car-platform/ で配信されるため
+        # base-href をリポジトリ名に合わせる（前後スラッシュ必須）。
+        run: flutter build web --release --base-href /trust-car-platform/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
