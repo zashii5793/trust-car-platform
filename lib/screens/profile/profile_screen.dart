@@ -21,6 +21,7 @@ import '../../widgets/common/loading_indicator.dart';
 import '../export/export_dialog.dart';
 import '../marketplace/my_listings_screen.dart';
 import 'settings_screen.dart';
+import '../../widgets/common/app_text_field.dart';
 
 /// プロフィール画面
 class ProfileScreen extends StatelessWidget {
@@ -471,12 +472,9 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
               ),
             ),
             AppSpacing.verticalLg,
-            TextFormField(
+            AppTextField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '表示名',
-                border: OutlineInputBorder(),
-              ),
+              labelText: '表示名',
               validator: (v) =>
                   (v == null || v.trim().isEmpty) ? '表示名を入力してください' : null,
               textInputAction: TextInputAction.done,

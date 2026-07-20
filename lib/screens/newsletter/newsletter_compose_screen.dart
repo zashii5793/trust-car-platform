@@ -4,6 +4,7 @@ import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/newsletter.dart';
 import '../../services/newsletter_service.dart';
+import '../../widgets/common/app_text_field.dart';
 
 /// Screen for composing a new newsletter or editing a draft.
 class NewsletterComposeScreen extends StatefulWidget {
@@ -140,12 +141,10 @@ class _NewsletterComposeScreenState extends State<NewsletterComposeScreen> {
           padding: AppSpacing.paddingScreen,
           children: [
             // ---- タイトル ----
-            TextFormField(
+            AppTextField(
               controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'タイトル *',
-                hintText: '例: 冬前のタイヤ点検のご案内',
-              ),
+              labelText: 'タイトル *',
+              hintText: '例: 冬前のタイヤ点検のご案内',
               validator: (v) =>
                   (v == null || v.trim().isEmpty) ? 'タイトルを入力してください' : null,
               textInputAction: TextInputAction.next,
@@ -154,13 +153,10 @@ class _NewsletterComposeScreenState extends State<NewsletterComposeScreen> {
             AppSpacing.verticalMd,
 
             // ---- 本文 ----
-            TextFormField(
+            AppTextField.multiline(
               controller: _bodyController,
-              decoration: const InputDecoration(
-                labelText: '本文 *',
-                hintText: 'ユーザーへのメッセージを入力してください',
-                alignLabelWithHint: true,
-              ),
+              labelText: '本文 *',
+              hintText: 'ユーザーへのメッセージを入力してください',
               minLines: 6,
               maxLines: 20,
               validator: (v) =>

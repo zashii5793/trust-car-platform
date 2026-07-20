@@ -8,6 +8,7 @@ import '../../providers/shop_provider.dart';
 import '../../providers/user_subscription_provider.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../../widgets/common/app_text_field.dart';
 
 /// 問い合わせ送信画面
 ///
@@ -162,13 +163,10 @@ class _InquiryScreenState extends State<InquiryScreen> {
                 AppSpacing.verticalMd,
 
                 // 件名
-                TextFormField(
+                AppTextField(
                   controller: _subjectController,
-                  decoration: const InputDecoration(
-                    labelText: '件名',
-                    hintText: '例: 車検の見積もりについて',
-                    border: OutlineInputBorder(),
-                  ),
+                  labelText: '件名',
+                  hintText: '例: 車検の見積もりについて',
                   textInputAction: TextInputAction.next,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
