@@ -1,6 +1,35 @@
 # Claude Session Notes
 
-最終更新: 2026-07-11
+最終更新: 2026-07-20
+
+---
+
+## 夜間エージェント実行ログ（2026-07-20）
+
+**ブランチ**: `claude/night-20260719`
+**テスト**: 3505件 全パス / `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **Issue #29 Phase 3 AppTextField統一（5ファイル）**
+   - `newsletter_compose_screen.dart`: title/body → AppTextField/AppTextField.multiline
+   - `profile_screen.dart`: display-name → AppTextField
+   - `fleet_member_screen.dart`: user-ID TextField → AppTextField（key保持）
+   - `inquiry_screen.dart`: subject → AppTextField（message fieldは counterText のため保留）
+   - `settings_screen.dart`: company-name TextField → AppTextField
+
+2. **pm_report.yml CI 3バグ修正**（PR #75/#77/#83 がunmergedのため直接修正）
+   - `grep -c` 二重出力バグ
+   - `grep -oP` フラグ衝突バグ
+   - ラベル未存在による 422 エラー
+
+### 次のアクション候補（3件）
+
+1. 今夜のPRをマージ → Issue #29 進捗継続 + 週次PMレポート復旧
+2. Issue #29 Phase 4 — 残り約22ファイルの安全な変換
+3. 旧PR #75/#77/#83 をクローズ（今夜のPRで内容を統合済み）
+
+---
 
 ---
 
