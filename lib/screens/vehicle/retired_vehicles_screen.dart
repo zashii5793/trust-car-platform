@@ -122,7 +122,8 @@ class _RetiredVehiclesScreenState extends State<RetiredVehiclesScreen> {
             Text(_errorMessage!,
                 style: const TextStyle(color: AppColors.error)),
             const SizedBox(height: AppSpacing.md),
-            AppButton.primary(label: '再読み込み', onPressed: _load, icon: Icons.refresh),
+            AppButton.primary(
+                label: '再読み込み', onPressed: _load, icon: Icons.refresh),
           ],
         ),
       );

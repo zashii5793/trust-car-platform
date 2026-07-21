@@ -128,7 +128,8 @@ class _SafetyTipListState extends State<_SafetyTipList>
           children: [
             Text(_error!, style: const TextStyle(color: AppColors.error)),
             const SizedBox(height: AppSpacing.md),
-            AppButton.primary(label: '再読み込み', onPressed: _load, icon: Icons.refresh),
+            AppButton.primary(
+                label: '再読み込み', onPressed: _load, icon: Icons.refresh),
           ],
         ),
       );
