@@ -1,11 +1,15 @@
-name: Web Preview (GitHub Pages)
+name: Web Preview (Cloudflare Pages)
 
-# Flutter Web をビルドして GitHub Pages に公開する。
+# Flutter Web をビルドして Cloudflare Pages に公開する。
 # ブラウザ（PC/スマホ）から触れるプレビュー用。ローカル Flutter / firebase login 不要。
 #
-# ⚠️ 事前に一度だけ人手作業が必要:
-#   リポジトリ Settings → Pages → Build and deployment → Source = "GitHub Actions"
-#   （これを設定するまで deploy ステップが失敗する。build までは成功する）
+# ⚠️ 事前に一度だけ人手作業が必要（GitHub Secrets に2つ登録）:
+#   Settings → Secrets and variables → Actions → New repository secret
+#     - CLOUDFLARE_API_TOKEN   … Cloudflare の「Pages : Edit」権限を持つ API トークン
+#     - CLOUDFLARE_ACCOUNT_ID  … Cloudflare ダッシュボードの Account ID
+#   これらが無いと deploy ステップが失敗する（build までは成功する）。
+#
+# 公開URL: https://trust-car-platform.pages.dev/
 on:
   workflow_dispatch:
   push:
@@ -17,20 +21,16 @@ on:
       - 'pubspec.yaml'
       - '.github/workflows/web_preview.yml'
 
-# GITHUB_TOKEN に Pages 公開権限を付与（シークレット不要）
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# 同時実行は最新のみ（古いデプロイはキャンセル）
 concurrency:
-  group: pages
+  group: cloudflare-pages
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build Flutter Web
+  deploy:
+    name: Build & Deploy to Cloudflare Pages
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -47,26 +47,17 @@ jobs:
         run: flutter pub get
 
       - name: Build web
-        # プロジェクトページは https://<user>.github.io/trust-car-platform/ で配信されるため
-        # base-href をリポジトリ名に合わせる（前後スラッシュ必須）。
-        run: flutter build web --release --base-href /trust-car-platform/
+        # Cloudflare Pages はルート（*.pages.dev）で配信するため base-href は既定の "/" でよい。
+        run: flutter build web --release
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: build/web
-
-  deploy:
-    name: Deploy to GitHub Pages
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # プロジェクトが無ければ作成（既存なら無視）
+          npx --yes wrangler@3 pages project create trust-car-platform \
+            --production-branch=main 2>/dev/null || echo "project already exists"
+          # build/web をデプロイ
+          npx --yes wrangler@3 pages deploy build/web \
+            --project-name=trust-car-platform --branch=main
