@@ -6,6 +6,7 @@ import '../../core/di/service_locator.dart';
 import '../../models/vehicle.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/vehicle_retirement_service.dart';
+import '../../widgets/common/app_button.dart';
 
 /// Shows all retired vehicles (sold, scrapped, leaseReturned, transferred)
 /// for the current user, with an option to restore them.
@@ -121,7 +122,7 @@ class _RetiredVehiclesScreenState extends State<RetiredVehiclesScreen> {
             Text(_errorMessage!,
                 style: const TextStyle(color: AppColors.error)),
             const SizedBox(height: AppSpacing.md),
-            ElevatedButton(onPressed: _load, child: const Text('再読み込み')),
+            AppButton.primary(label: '再読み込み', onPressed: _load, icon: Icons.refresh),
           ],
         ),
       );

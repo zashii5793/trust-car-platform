@@ -5,6 +5,7 @@ import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/safety_tip.dart';
 import '../../services/safety_tip_service.dart';
+import '../../widgets/common/app_button.dart';
 
 /// 安全運転情報画面
 ///
@@ -127,7 +128,7 @@ class _SafetyTipListState extends State<_SafetyTipList>
           children: [
             Text(_error!, style: const TextStyle(color: AppColors.error)),
             const SizedBox(height: AppSpacing.md),
-            ElevatedButton(onPressed: _load, child: const Text('再読み込み')),
+            AppButton.primary(label: '再読み込み', onPressed: _load, icon: Icons.refresh),
           ],
         ),
       );

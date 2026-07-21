@@ -26,6 +26,7 @@ import 'maintenance_search_screen.dart';
 import '../services/firebase_service.dart';
 import '../services/community_trend_service.dart';
 import '../core/timeline/mileage_milestone.dart';
+import '../widgets/common/app_text_field.dart';
 
 // Data returned by _InspectionCompleteDialog when the user confirms.
 class _InspectionCompletionResult {
@@ -2811,14 +2812,11 @@ class _InspectionCompleteDialogState extends State<_InspectionCompleteDialog> {
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          TextField(
+          AppTextField.number(
             key: const Key('inspection_mileage_field'),
             controller: _mileageController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '現在の走行距離（任意）',
-              suffixText: 'km',
-            ),
+            labelText: '現在の走行距離（任意）',
+            suffixText: 'km',
           ),
         ],
       ),

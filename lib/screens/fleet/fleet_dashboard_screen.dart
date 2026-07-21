@@ -19,6 +19,7 @@ import '../../services/fleet_inquiry_composer.dart';
 import '../marketplace/inquiry_screen.dart';
 import '../marketplace/shop_list_screen.dart';
 import 'fleet_member_screen.dart';
+import '../../widgets/common/app_text_field.dart';
 
 /// Fleet management dashboard for business account managers.
 ///
@@ -643,14 +644,11 @@ class _AssignmentSheetState extends State<_AssignmentSheet> {
                 ?.copyWith(color: AppColors.textSecondary),
           ),
           AppSpacing.verticalMd,
-          TextField(
+          AppTextField(
             controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: '担当者名',
-              hintText: '例: 田中太郎',
-              prefixIcon: Icon(Icons.person_outline),
-              border: OutlineInputBorder(),
-            ),
+            labelText: '担当者名',
+            hintText: '例: 田中太郎',
+            prefixIcon: const Icon(Icons.person_outline),
             autofocus: true,
           ),
           AppSpacing.verticalMd,

@@ -1602,14 +1602,10 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
               ),
             ),
             AppSpacing.horizontalSm,
-            ElevatedButton(
+            AppButton.primary(
+              label: '参加',
               onPressed: _isJoiningFleet ? null : _joinFleet,
-              child: _isJoiningFleet
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('参加'),
+              isLoading: _isJoiningFleet,
             ),
           ],
         ),
