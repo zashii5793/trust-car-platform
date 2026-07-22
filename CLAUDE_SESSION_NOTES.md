@@ -1,6 +1,39 @@
 # Claude Session Notes
 
-最終更新: 2026-07-11
+最終更新: 2026-07-22
+
+---
+
+## 夜間エージェント実行ログ（2026-07-22）
+
+**ブランチ**: `claude/night-20260722`  
+**PR**: #92 https://github.com/zashii5793/trust-car-platform/pull/92  
+**テスト**: 3521件 全パス（+16件）/ `flutter analyze lib/` No issues found  
+**Flutter**: `$HOME/flutter` stable, Dart 3.12.2 — 導入成功  
+
+### 実施内容
+
+1. **pm_report.yml CI修正**: 2026-07-06以降毎週失敗していた週次PMレポートCIを修正。
+   - `grep -c` 二重出力バグ → `|| VAR=0` を `$()` の外へ移動
+   - `grep -oP '-\K...'` パターン誤認 → `grep -oE ' \-[0-9]+'` に変更
+   - ラベル未作成422エラー → Issue作成前にラベルを冪等作成するステップ追加
+   - 同等修正のPR #77, #83, #89 をマージ後にクローズ推奨
+
+2. **Issue #37 SNSコメントunlike/report API実装**（Partially closes #37）:
+   - `PostService.unlikeComment` — batch atomicにいいね削除 + likeCount -1（べき等）
+   - `PostService.reportComment` — `post_comment_reports` に決定論的IDで書き込み
+   - `PostService.getMyLikedCommentIds` — いいね済みIDセットを返す
+   - `FirestoreCollections.postCommentReports` 定数追加
+   - `firestore.rules` に `post_comment_reports` ルール追加
+   - テスト +16件（TDD RED→GREEN）
+   - PR #72 はマージ後にクローズ推奨（古いベース）
+   - ⚠️ 次ステップ: UI配線（コメントカードのハート + 通報メニュー）
+
+### 次のアクション候補（3件）
+
+1. PR #92 をレビュー・マージし、pm_report.yml 修正を本番反映
+2. Issue #37 UI配線 — コメントカードにいいね（ハート + likeCount）と通報メニューを追加
+3. `firebase deploy --only firestore:rules` — `post_comment_reports` ルールを本番反映
 
 ---
 
