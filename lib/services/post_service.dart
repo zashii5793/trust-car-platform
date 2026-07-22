@@ -31,6 +31,9 @@ class PostService {
   CollectionReference<Map<String, dynamic>> get _notificationsRef =>
       _firestore.collection('social_notifications');
 
+  CollectionReference<Map<String, dynamic>> get _commentReportsRef =>
+      _firestore.collection(FirestoreCollections.postCommentReports);
+
   // ==================== Posts ====================
 
   /// Create a new post
@@ -597,6 +600,96 @@ class PostService {
     } catch (e) {
       return Result.failure(AppError.unknown(
         'いいねに失敗しました',
+        originalError: e,
+      ));
+    }
+  }
+
+  /// Unlike a comment (idempotent — no-op if not liked)
+  Future<Result<void, AppError>> unlikeComment({
+    required String commentId,
+    required String userId,
+  }) async {
+    if (commentId.isEmpty || userId.isEmpty) {
+      return Result.failure(
+          AppError.validation('commentId and userId must not be empty'));
+    }
+    try {
+      final likeId = '${commentId}_$userId';
+      final likeDoc = await _commentLikesRef.doc(likeId).get();
+
+      if (!likeDoc.exists) {
+        return Result.success(null);
+      }
+
+      final batch = _firestore.batch();
+      batch.delete(_commentLikesRef.doc(likeId));
+      batch.update(_commentsRef.doc(commentId), {
+        'likeCount': FieldValue.increment(-1),
+      });
+
+      await batch.commit();
+      return Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.unknown(
+        'いいね解除に失敗しました',
+        originalError: e,
+      ));
+    }
+  }
+
+  /// Report a comment (idempotent per reporter — overwrites previous report)
+  Future<Result<void, AppError>> reportComment({
+    required String commentId,
+    required String reporterId,
+    required String reason,
+  }) async {
+    if (commentId.isEmpty || reporterId.isEmpty || reason.isEmpty) {
+      return Result.failure(AppError.validation(
+          'commentId, reporterId, and reason must not be empty'));
+    }
+    try {
+      final reportId = '${commentId}_$reporterId';
+      await _commentReportsRef.doc(reportId).set({
+        'commentId': commentId,
+        'reporterId': reporterId,
+        'reason': reason,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.unknown(
+        '通報に失敗しました',
+        originalError: e,
+      ));
+    }
+  }
+
+  /// Returns the subset of [commentIds] that [userId] has liked
+  Future<Result<Set<String>, AppError>> getMyLikedCommentIds({
+    required List<String> commentIds,
+    required String userId,
+  }) async {
+    if (userId.isEmpty) {
+      return Result.failure(AppError.validation('userId must not be empty'));
+    }
+    if (commentIds.isEmpty) {
+      return Result.success({});
+    }
+    try {
+      final futures = commentIds.map((cid) async {
+        final likeId = '${cid}_$userId';
+        final doc = await _commentLikesRef.doc(likeId).get();
+        return doc.exists ? cid : null;
+      });
+
+      final results = await Future.wait(futures);
+      final liked = results.whereType<String>().toSet();
+      return Result.success(liked);
+    } catch (e) {
+      return Result.failure(AppError.unknown(
+        'いいね状態の取得に失敗しました',
         originalError: e,
       ));
     }

@@ -728,4 +728,281 @@ void main() {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // unlikeComment / reportComment / getMyLikedCommentIds (Issue #37)
+  // ---------------------------------------------------------------------------
+
+  group('PostService.unlikeComment', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    setUp(() {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+    });
+
+    Future<void> seedLike(String commentId, String userId) async {
+      await fakeFirestore
+          .collection('comment_likes')
+          .doc('${commentId}_$userId')
+          .set({
+        'commentId': commentId,
+        'userId': userId,
+        'createdAt': Timestamp.now(),
+      });
+      await fakeFirestore
+          .collection('comments')
+          .doc(commentId)
+          .set({'likeCount': 1});
+    }
+
+    test('いいね済みコメントをunlikeするとlikeCountが-1される', () async {
+      await seedLike('c1', 'u1');
+
+      final result = await service.unlikeComment(commentId: 'c1', userId: 'u1');
+
+      result.when(
+        success: (_) async {
+          final likeDoc = await fakeFirestore
+              .collection('comment_likes')
+              .doc('c1_u1')
+              .get();
+          expect(likeDoc.exists, isFalse);
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('いいねしていないコメントをunlikeすると成功(no-op)', () async {
+      await fakeFirestore
+          .collection('comments')
+          .doc('c2')
+          .set({'likeCount': 0});
+
+      final result = await service.unlikeComment(commentId: 'c2', userId: 'u1');
+
+      result.when(
+        success: (_) {},
+        failure: (e) => fail('Expected success (no-op), got: $e'),
+      );
+    });
+
+    test('commentId 空文字 → ValidationError', () async {
+      final result = await service.unlikeComment(commentId: '', userId: 'u1');
+      expect(result.isFailure, isTrue);
+      result.when(
+        success: (_) => fail('should fail'),
+        failure: (e) => expect(e, isA<ValidationError>()),
+      );
+    });
+
+    test('userId 空文字 → ValidationError', () async {
+      final result = await service.unlikeComment(commentId: 'c1', userId: '');
+      expect(result.isFailure, isTrue);
+      result.when(
+        success: (_) => fail('should fail'),
+        failure: (e) => expect(e, isA<ValidationError>()),
+      );
+    });
+
+    group('Edge Cases', () {
+      test('同じユーザーが2回unlikeしても成功(idempotent)', () async {
+        await seedLike('c3', 'u2');
+        await service.unlikeComment(commentId: 'c3', userId: 'u2');
+        final result2 =
+            await service.unlikeComment(commentId: 'c3', userId: 'u2');
+        result2.when(
+          success: (_) {},
+          failure: (e) => fail('Expected idempotent success, got: $e'),
+        );
+      });
+    });
+  });
+
+  group('PostService.reportComment', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    setUp(() {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+    });
+
+    test('通報ドキュメントが post_comment_reports に書き込まれる', () async {
+      final result = await service.reportComment(
+        commentId: 'c10',
+        reporterId: 'r1',
+        reason: 'spam',
+      );
+
+      result.when(
+        success: (_) async {
+          final doc = await fakeFirestore
+              .collection('post_comment_reports')
+              .doc('c10_r1')
+              .get();
+          expect(doc.exists, isTrue);
+          expect(doc.data()!['reason'], 'spam');
+          expect(doc.data()!['status'], 'pending');
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('同一ユーザーの2回目の通報は上書き(idempotent)', () async {
+      await service.reportComment(
+          commentId: 'c11', reporterId: 'r2', reason: 'spam');
+      final result2 = await service.reportComment(
+          commentId: 'c11', reporterId: 'r2', reason: 'hate_speech');
+
+      result2.when(
+        success: (_) async {
+          final doc = await fakeFirestore
+              .collection('post_comment_reports')
+              .doc('c11_r2')
+              .get();
+          expect(doc.data()!['reason'], 'hate_speech');
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('commentId 空文字 → ValidationError', () async {
+      final result = await service.reportComment(
+          commentId: '', reporterId: 'r1', reason: 'spam');
+      result.when(
+        success: (_) => fail('should fail'),
+        failure: (e) => expect(e, isA<ValidationError>()),
+      );
+    });
+
+    test('reason 空文字 → ValidationError', () async {
+      final result = await service.reportComment(
+          commentId: 'c12', reporterId: 'r1', reason: '');
+      result.when(
+        success: (_) => fail('should fail'),
+        failure: (e) => expect(e, isA<ValidationError>()),
+      );
+    });
+
+    test('reporterId 空文字 → ValidationError', () async {
+      final result = await service.reportComment(
+          commentId: 'c12', reporterId: '', reason: 'spam');
+      result.when(
+        success: (_) => fail('should fail'),
+        failure: (e) => expect(e, isA<ValidationError>()),
+      );
+    });
+
+    group('Edge Cases', () {
+      test('異なるユーザーが同一コメントを通報 → 別ドキュメント', () async {
+        await service.reportComment(
+            commentId: 'c13', reporterId: 'r3', reason: 'spam');
+        await service.reportComment(
+            commentId: 'c13', reporterId: 'r4', reason: 'spam');
+
+        final doc1 = await fakeFirestore
+            .collection('post_comment_reports')
+            .doc('c13_r3')
+            .get();
+        final doc2 = await fakeFirestore
+            .collection('post_comment_reports')
+            .doc('c13_r4')
+            .get();
+        expect(doc1.exists, isTrue);
+        expect(doc2.exists, isTrue);
+      });
+    });
+  });
+
+  group('PostService.getMyLikedCommentIds', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    setUp(() async {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+
+      // user 'me' likes c1 and c3
+      for (final cid in ['c1', 'c3']) {
+        await fakeFirestore
+            .collection('comment_likes')
+            .doc('${cid}_me')
+            .set({'commentId': cid, 'userId': 'me'});
+      }
+    });
+
+    test('いいね済みcommentIdのみ返す', () async {
+      final result = await service.getMyLikedCommentIds(
+        commentIds: ['c1', 'c2', 'c3'],
+        userId: 'me',
+      );
+
+      result.when(
+        success: (ids) {
+          expect(ids, {'c1', 'c3'});
+          expect(ids.contains('c2'), isFalse);
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('空のcommentIds → 空Set', () async {
+      final result = await service.getMyLikedCommentIds(
+        commentIds: [],
+        userId: 'me',
+      );
+
+      result.when(
+        success: (ids) => expect(ids, isEmpty),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('userId 空文字 → ValidationError', () async {
+      final result = await service.getMyLikedCommentIds(
+        commentIds: ['c1'],
+        userId: '',
+      );
+      result.when(
+        success: (_) => fail('should fail'),
+        failure: (e) => expect(e, isA<ValidationError>()),
+      );
+    });
+
+    test('いいねが全くない場合 → 空Set', () async {
+      final result = await service.getMyLikedCommentIds(
+        commentIds: ['c99', 'c100'],
+        userId: 'stranger',
+      );
+
+      result.when(
+        success: (ids) => expect(ids, isEmpty),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    group('Edge Cases', () {
+      test('自分のいいねと他ユーザーのいいねが混在 → 自分のみ', () async {
+        await fakeFirestore
+            .collection('comment_likes')
+            .doc('c5_other')
+            .set({'commentId': 'c5', 'userId': 'other'});
+
+        final result = await service.getMyLikedCommentIds(
+          commentIds: ['c1', 'c5'],
+          userId: 'me',
+        );
+
+        result.when(
+          success: (ids) {
+            expect(ids, {'c1'});
+            expect(ids.contains('c5'), isFalse);
+          },
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+    });
+  });
 }
