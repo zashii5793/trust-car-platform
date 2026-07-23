@@ -602,6 +602,111 @@ class PostService {
     }
   }
 
+  /// Unlike a comment (idempotent: no-op if not liked)
+  Future<Result<void, AppError>> unlikeComment({
+    required String commentId,
+    required String userId,
+  }) async {
+    if (commentId.isEmpty) {
+      return Result.failure(
+          AppError.validation('commentId は必須です'));
+    }
+    if (userId.isEmpty) {
+      return Result.failure(
+          AppError.validation('userId は必須です'));
+    }
+    try {
+      final likeId = '${commentId}_$userId';
+      final likeDoc = await _commentLikesRef.doc(likeId).get();
+
+      if (!likeDoc.exists) {
+        return Result.success(null);
+      }
+
+      final batch = _firestore.batch();
+      batch.delete(_commentLikesRef.doc(likeId));
+      batch.update(_commentsRef.doc(commentId), {
+        'likeCount': FieldValue.increment(-1),
+      });
+      await batch.commit();
+      return Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.unknown(
+        'いいね解除に失敗しました',
+        originalError: e,
+      ));
+    }
+  }
+
+  /// Report a comment (idempotent via deterministic doc ID)
+  Future<Result<void, AppError>> reportComment({
+    required String commentId,
+    required String reporterId,
+    required String reason,
+  }) async {
+    if (commentId.isEmpty) {
+      return Result.failure(
+          AppError.validation('commentId は必須です'));
+    }
+    if (reporterId.isEmpty) {
+      return Result.failure(
+          AppError.validation('reporterId は必須です'));
+    }
+    if (reason.isEmpty) {
+      return Result.failure(
+          AppError.validation('reason は必須です'));
+    }
+    try {
+      final docId = '${commentId}_$reporterId';
+      await _firestore
+          .collection(FirestoreCollections.postCommentReports)
+          .doc(docId)
+          .set({
+        'commentId': commentId,
+        'reporterId': reporterId,
+        'reason': reason,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.unknown(
+        '通報に失敗しました',
+        originalError: e,
+      ));
+    }
+  }
+
+  /// Return the set of comment IDs that the user has liked
+  Future<Result<Set<String>, AppError>> getMyLikedCommentIds({
+    required List<String> commentIds,
+    required String userId,
+  }) async {
+    if (userId.isEmpty) {
+      return Result.failure(
+          AppError.validation('userId は必須です'));
+    }
+    if (commentIds.isEmpty) {
+      return Result.success(<String>{});
+    }
+    try {
+      final checks = await Future.wait(
+        commentIds.map((cid) =>
+            _commentLikesRef.doc('${cid}_$userId').get()),
+      );
+      final liked = {
+        for (int i = 0; i < commentIds.length; i++)
+          if (checks[i].exists) commentIds[i],
+      };
+      return Result.success(liked);
+    } catch (e) {
+      return Result.failure(AppError.unknown(
+        'いいね状態の取得に失敗しました',
+        originalError: e,
+      ));
+    }
+  }
+
   /// Increment view count
   Future<void> incrementViewCount(String postId) async {
     try {

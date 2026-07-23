@@ -664,6 +664,20 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // post_comment_reports/{reportId}
+    // Users report SNS post comments for moderation. Write-only for clients
+    // via deterministic id (commentId_reporterId); reading/moderation is
+    // server-side only (Admin SDK / Cloud Functions).
+    match /post_comment_reports/{reportId} {
+      allow read: if false;
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.reporterId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+
+      allow update, delete: if false;
+    }
+
     // ==================== 中古車購入問い合わせ ====================
     // car_purchase_inquiries/{inquiryId}
     // Created by buyers; readable by the buyer and the target shop.

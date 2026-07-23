@@ -42,6 +42,10 @@ class PostProvider with ChangeNotifier {
   bool _isSubmittingComment = false;
   AppError? _commentError;
 
+  // ── コメントいいね状態（ローカルキャッシュ）──────────────────────────────
+  final Set<String> _likedCommentIds = {};
+  final Set<String> _pendingCommentLikes = {};
+
   // ── Getters ───────────────────────────────────────────────────────────────
   List<Post> get feedPosts => _feedPosts;
   PostCategory? get selectedCategory => _selectedCategory;
@@ -63,6 +67,8 @@ class PostProvider with ChangeNotifier {
   String? get commentErrorMessage => _commentError?.userMessage;
 
   bool isLiked(String postId) => _likedPostIds.contains(postId);
+  bool isCommentLiked(String commentId) =>
+      _likedCommentIds.contains(commentId);
 
   // ── フィード読み込み ───────────────────────────────────────────────────────
 
@@ -283,9 +289,10 @@ class PostProvider with ChangeNotifier {
 
   // ── コメント読み込み ───────────────────────────────────────────────────────
 
-  Future<void> loadComments(String postId) async {
+  Future<void> loadComments(String postId, {String? userId}) async {
     if (_activeCommentPostId != postId) {
       _comments = [];
+      _likedCommentIds.clear();
     }
     _activeCommentPostId = postId;
     _isLoadingComments = true;
@@ -308,6 +315,12 @@ class PostProvider with ChangeNotifier {
 
     _isLoadingComments = false;
     notifyListeners();
+
+    // Load liked comment IDs in the background (non-blocking)
+    if (userId != null && userId.isNotEmpty && _comments.isNotEmpty) {
+      await loadCommentLikeStatus(
+          _comments.map((c) => c.id).toList(), userId);
+    }
   }
 
   // ── コメント投稿 ───────────────────────────────────────────────────────────
@@ -396,6 +409,89 @@ class PostProvider with ChangeNotifier {
     );
   }
 
+  // ── コメントいいね ────────────────────────────────────────────────────────
+
+  Future<void> loadCommentLikeStatus(
+      List<String> commentIds, String userId) async {
+    if (userId.isEmpty || commentIds.isEmpty) return;
+    final result = await _postService.getMyLikedCommentIds(
+      commentIds: commentIds,
+      userId: userId,
+    );
+    result.when(
+      success: (liked) {
+        _likedCommentIds.addAll(liked);
+        notifyListeners();
+      },
+      failure: (_) {},
+    );
+  }
+
+  Future<void> toggleCommentLike(
+      String commentId, String userId, String postId) async {
+    if (commentId.isEmpty || userId.isEmpty) return;
+    if (_pendingCommentLikes.contains(commentId)) return;
+
+    _pendingCommentLikes.add(commentId);
+    final wasLiked = _likedCommentIds.contains(commentId);
+
+    // Optimistic update
+    final idx = _comments.indexWhere((c) => c.id == commentId);
+    if (wasLiked) {
+      _likedCommentIds.remove(commentId);
+      if (idx != -1) {
+        _comments[idx] = _comments[idx].copyWith(
+          likeCount: (_comments[idx].likeCount - 1).clamp(0, 999999),
+        );
+      }
+    } else {
+      _likedCommentIds.add(commentId);
+      if (idx != -1) {
+        _comments[idx] =
+            _comments[idx].copyWith(likeCount: _comments[idx].likeCount + 1);
+      }
+    }
+    notifyListeners();
+
+    final result = wasLiked
+        ? await _postService.unlikeComment(
+            commentId: commentId, userId: userId)
+        : await _postService.likeComment(commentId: commentId, userId: userId);
+
+    result.when(
+      success: (_) {},
+      failure: (_) {
+        // Rollback on error
+        if (wasLiked) {
+          _likedCommentIds.add(commentId);
+          if (idx != -1) {
+            _comments[idx] = _comments[idx]
+                .copyWith(likeCount: _comments[idx].likeCount + 1);
+          }
+        } else {
+          _likedCommentIds.remove(commentId);
+          if (idx != -1) {
+            _comments[idx] = _comments[idx].copyWith(
+              likeCount: (_comments[idx].likeCount - 1).clamp(0, 999999),
+            );
+          }
+        }
+        notifyListeners();
+      },
+    );
+
+    _pendingCommentLikes.remove(commentId);
+  }
+
+  Future<void> reportPostComment(
+      String commentId, String reporterId, String reason) async {
+    await _postService.reportComment(
+      commentId: commentId,
+      reporterId: reporterId,
+      reason: reason,
+    );
+  }
+
   // ── リセット ───────────────────────────────────────────────────────────────
 
   void clear() {
@@ -415,6 +511,8 @@ class PostProvider with ChangeNotifier {
     _isLoadingComments = false;
     _isSubmittingComment = false;
     _commentError = null;
+    _likedCommentIds.clear();
+    _pendingCommentLikes.clear();
     notifyListeners();
   }
 }

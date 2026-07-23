@@ -39,7 +39,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<PostProvider>().loadComments(widget.post.id);
+      final userId =
+          context.read<AuthProvider>().firebaseUser?.uid ?? '';
+      context.read<PostProvider>().loadComments(
+            widget.post.id,
+            userId: userId,
+          );
       // 閲覧数インクリメント（fire-and-forget）
     });
   }
@@ -124,8 +129,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         children: [
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () =>
-                  context.read<PostProvider>().loadComments(widget.post.id),
+              onRefresh: () {
+                final uid =
+                    context.read<AuthProvider>().firebaseUser?.uid ?? '';
+                return context
+                    .read<PostProvider>()
+                    .loadComments(widget.post.id, userId: uid);
+              },
               child: ListView(
                 controller: _scrollController,
                 padding: const EdgeInsets.only(bottom: 8),
@@ -596,6 +606,7 @@ class _CommentTileState extends State<_CommentTile> {
   bool _isExpanded = false;
   bool _isLoadingReplies = false;
   List<Comment> _replies = [];
+  bool _isSubmittingReport = false;
 
   String _formatTime(DateTime dt) {
     final diff = DateTime.now().difference(dt);
@@ -604,6 +615,77 @@ class _CommentTileState extends State<_CommentTile> {
     if (diff.inHours < 24) return '${diff.inHours}時間前';
     if (diff.inDays < 7) return '${diff.inDays}日前';
     return DateFormat('M月d日').format(dt);
+  }
+
+  Future<void> _showReportDialog(BuildContext context, String userId) async {
+    // Capture context-dependent objects before async gaps
+    final postProvider = context.read<PostProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    final reasons = ['スパム', '不適切なコンテンツ', '誤情報', 'ハラスメント', 'その他'];
+    String? selected;
+
+    final confirmed = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setDialogState) {
+          return AlertDialog(
+            title: const Text('コメントを通報'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: reasons.map((r) {
+                return InkWell(
+                  onTap: () => setDialogState(() => selected = r),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 10),
+                    child: Row(
+                      children: [
+                        Icon(
+                          selected == r
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(r),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('キャンセル'),
+              ),
+              TextButton(
+                onPressed: selected == null
+                    ? null
+                    : () => Navigator.pop(ctx, selected),
+                child: const Text('通報する'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+
+    if (confirmed == null || !mounted) return;
+    if (_isSubmittingReport) return;
+
+    setState(() => _isSubmittingReport = true);
+    await postProvider.reportPostComment(
+      widget.comment.id,
+      userId,
+      confirmed,
+    );
+    if (!mounted) return;
+    setState(() => _isSubmittingReport = false);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('通報しました。ご協力ありがとうございます。')),
+    );
   }
 
   // 返信を取得して展開する
@@ -762,6 +844,84 @@ class _CommentTileState extends State<_CommentTile> {
                                   ),
                                 ),
                               ),
+                            );
+                          },
+                        ),
+                        // いいね + 通報
+                        const Spacer(),
+                        Consumer2<PostProvider, AuthProvider>(
+                          builder: (context, postProvider, authProvider, _) {
+                            final userId =
+                                authProvider.firebaseUser?.uid ?? '';
+                            final isLiked = postProvider
+                                .isCommentLiked(widget.comment.id);
+                            final likeCount = postProvider.comments
+                                    .where((c) => c.id == widget.comment.id)
+                                    .firstOrNull
+                                    ?.likeCount ??
+                                widget.comment.likeCount;
+
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // いいねボタン
+                                GestureDetector(
+                                  key: Key(
+                                      'comment_like_btn_${widget.comment.id}'),
+                                  onTap: userId.isEmpty
+                                      ? null
+                                      : () => postProvider.toggleCommentLike(
+                                            widget.comment.id,
+                                            userId,
+                                            widget.postId,
+                                          ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isLiked
+                                            ? Icons.favorite
+                                            : Icons.favorite_border,
+                                        size: 14,
+                                        color: isLiked
+                                            ? AppColors.error
+                                            : tertiary,
+                                      ),
+                                      if (likeCount > 0) ...[
+                                        const SizedBox(width: 2),
+                                        Text(
+                                          '$likeCount',
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                            fontSize: 11,
+                                            color: isLiked
+                                                ? AppColors.error
+                                                : tertiary,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                // 他人のコメントには通報ボタン
+                                if (widget.comment.userId != userId &&
+                                    userId.isNotEmpty) ...[
+                                  const SizedBox(width: 8),
+                                  GestureDetector(
+                                    key: Key(
+                                        'comment_report_btn_${widget.comment.id}'),
+                                    onTap: _isSubmittingReport
+                                        ? null
+                                        : () => _showReportDialog(
+                                            context, userId),
+                                    child: Icon(
+                                      Icons.flag_outlined,
+                                      size: 14,
+                                      color: tertiary,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             );
                           },
                         ),
