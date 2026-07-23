@@ -1,6 +1,38 @@
 # Claude Session Notes
 
-最終更新: 2026-07-11
+最終更新: 2026-07-23
+
+---
+
+## 夜間エージェント実行ログ（2026-07-23）
+
+**ブランチ**: `claude/night-20260723`
+**PR**: #93 https://github.com/zashii5793/trust-car-platform/pull/93
+**テスト**: 3518件 全パス（+13件）/ `flutter analyze lib/` No issues found
+**対象**: Issue #37 SNS投稿コメントのいいね/unlike/通報
+
+### 実施内容
+
+1. **Issue #37 SNS投稿コメントモデレーション完全実装**（PR #92 をスーパーセード）
+   - `PostService`: `unlikeComment`（べき等・バッチアトミック）/ `reportComment`（決定論的ID重複上書き）/ `getMyLikedCommentIds`（並列取得）追加
+   - `PostProvider`: `loadCommentLikeStatus` / `toggleCommentLike`（楽観的更新+ロールバック）/ `reportPostComment` 追加。`loadComments` に `userId` 引数追加
+   - `post_detail_screen.dart`: `_CommentTile` にハートボタン（いいね数）+ 通報ボタン（他人のコメントのみ）追加
+   - `FirestoreCollections`: `postCommentReports` 定数追加
+   - `firestore.rules`: `post_comment_reports` ルール追加（write-only・reporterId==uid・status==pending 強制）
+   - TDD 16件追加（RED→GREEN）
+
+2. **CI dart format 修正**: CI で flutter 3.38.0 の formatter が差分検出 → `dart format` 再適用してコミット
+
+### 人間タスク（必須）
+
+- `firebase deploy --only firestore:rules` — `post_comment_reports` ルールを本番反映
+- PR #92 のクローズ（今夜PRにスーパーセード済み）
+
+### 次のアクション候補（3件）
+
+1. **PR #93 レビュー・マージ** — Issue #37 UI配線の完成形。テスト全パス
+2. **PR #75 / #76 を優先マージ** — CI修正と本番セキュリティルール修正
+3. **Issue #49（実機テスト準備）** — Firebase Auth有効化・ルールデプロイで本番稼働解放
 
 ---
 
