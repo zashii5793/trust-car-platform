@@ -67,8 +67,7 @@ class PostProvider with ChangeNotifier {
   String? get commentErrorMessage => _commentError?.userMessage;
 
   bool isLiked(String postId) => _likedPostIds.contains(postId);
-  bool isCommentLiked(String commentId) =>
-      _likedCommentIds.contains(commentId);
+  bool isCommentLiked(String commentId) => _likedCommentIds.contains(commentId);
 
   // ── フィード読み込み ───────────────────────────────────────────────────────
 
@@ -318,8 +317,7 @@ class PostProvider with ChangeNotifier {
 
     // Load liked comment IDs in the background (non-blocking)
     if (userId != null && userId.isNotEmpty && _comments.isNotEmpty) {
-      await loadCommentLikeStatus(
-          _comments.map((c) => c.id).toList(), userId);
+      await loadCommentLikeStatus(_comments.map((c) => c.id).toList(), userId);
     }
   }
 
@@ -454,8 +452,7 @@ class PostProvider with ChangeNotifier {
     notifyListeners();
 
     final result = wasLiked
-        ? await _postService.unlikeComment(
-            commentId: commentId, userId: userId)
+        ? await _postService.unlikeComment(commentId: commentId, userId: userId)
         : await _postService.likeComment(commentId: commentId, userId: userId);
 
     result.when(

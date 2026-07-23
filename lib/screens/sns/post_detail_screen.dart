@@ -39,8 +39,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final userId =
-          context.read<AuthProvider>().firebaseUser?.uid ?? '';
+      final userId = context.read<AuthProvider>().firebaseUser?.uid ?? '';
       context.read<PostProvider>().loadComments(
             widget.post.id,
             userId: userId,
@@ -637,8 +636,8 @@ class _CommentTileState extends State<_CommentTile> {
                 return InkWell(
                   onTap: () => setDialogState(() => selected = r),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 10),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
                     child: Row(
                       children: [
                         Icon(
@@ -851,10 +850,9 @@ class _CommentTileState extends State<_CommentTile> {
                         const Spacer(),
                         Consumer2<PostProvider, AuthProvider>(
                           builder: (context, postProvider, authProvider, _) {
-                            final userId =
-                                authProvider.firebaseUser?.uid ?? '';
-                            final isLiked = postProvider
-                                .isCommentLiked(widget.comment.id);
+                            final userId = authProvider.firebaseUser?.uid ?? '';
+                            final isLiked =
+                                postProvider.isCommentLiked(widget.comment.id);
                             final likeCount = postProvider.comments
                                     .where((c) => c.id == widget.comment.id)
                                     .firstOrNull
@@ -912,8 +910,8 @@ class _CommentTileState extends State<_CommentTile> {
                                         'comment_report_btn_${widget.comment.id}'),
                                     onTap: _isSubmittingReport
                                         ? null
-                                        : () => _showReportDialog(
-                                            context, userId),
+                                        : () =>
+                                            _showReportDialog(context, userId),
                                     child: Icon(
                                       Icons.flag_outlined,
                                       size: 14,

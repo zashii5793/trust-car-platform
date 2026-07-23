@@ -608,12 +608,10 @@ class PostService {
     required String userId,
   }) async {
     if (commentId.isEmpty) {
-      return Result.failure(
-          AppError.validation('commentId は必須です'));
+      return Result.failure(AppError.validation('commentId は必須です'));
     }
     if (userId.isEmpty) {
-      return Result.failure(
-          AppError.validation('userId は必須です'));
+      return Result.failure(AppError.validation('userId は必須です'));
     }
     try {
       final likeId = '${commentId}_$userId';
@@ -645,16 +643,13 @@ class PostService {
     required String reason,
   }) async {
     if (commentId.isEmpty) {
-      return Result.failure(
-          AppError.validation('commentId は必須です'));
+      return Result.failure(AppError.validation('commentId は必須です'));
     }
     if (reporterId.isEmpty) {
-      return Result.failure(
-          AppError.validation('reporterId は必須です'));
+      return Result.failure(AppError.validation('reporterId は必須です'));
     }
     if (reason.isEmpty) {
-      return Result.failure(
-          AppError.validation('reason は必須です'));
+      return Result.failure(AppError.validation('reason は必須です'));
     }
     try {
       final docId = '${commentId}_$reporterId';
@@ -683,16 +678,14 @@ class PostService {
     required String userId,
   }) async {
     if (userId.isEmpty) {
-      return Result.failure(
-          AppError.validation('userId は必須です'));
+      return Result.failure(AppError.validation('userId は必須です'));
     }
     if (commentIds.isEmpty) {
       return Result.success(<String>{});
     }
     try {
       final checks = await Future.wait(
-        commentIds.map((cid) =>
-            _commentLikesRef.doc('${cid}_$userId').get()),
+        commentIds.map((cid) => _commentLikesRef.doc('${cid}_$userId').get()),
       );
       final liked = {
         for (int i = 0; i < commentIds.length; i++)
