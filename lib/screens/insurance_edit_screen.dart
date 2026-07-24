@@ -5,6 +5,7 @@ import '../core/di/service_locator.dart';
 import '../core/utils/insurance_templates.dart';
 import '../models/vehicle.dart';
 import '../services/firebase_service.dart';
+import '../widgets/common/app_text_field.dart';
 
 /// 任意保険の詳細編集画面（個人・法人フリート契約に両対応）。
 ///
@@ -420,15 +421,17 @@ class _InsuranceEditScreenState extends State<InsuranceEditScreen> {
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboard,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          isDense: true,
-        ),
-      ),
+      child: keyboard == TextInputType.number
+          ? AppTextField.number(
+              controller: controller,
+              labelText: label,
+              hintText: hint,
+            )
+          : AppTextField(
+              controller: controller,
+              labelText: label,
+              hintText: hint,
+            ),
     );
   }
 
