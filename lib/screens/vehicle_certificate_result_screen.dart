@@ -254,7 +254,8 @@ class _VehicleCertificateResultScreenState
       {bool isImportant = false}) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: isImportant ? AppColors.warning : Colors.grey),
+        Icon(icon,
+            size: 20, color: isImportant ? AppColors.warning : Colors.grey),
         const SizedBox(width: 8),
         Text(
           title,

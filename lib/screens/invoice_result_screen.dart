@@ -161,7 +161,8 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
             suffixIcon: widget.ocrData.items.isNotEmpty
                 ? const Tooltip(
                     message: 'OCRで読み取り済み',
-                    child: Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+                    child:
+                        Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
                   )
                 : null,
           ),
