@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/maintenance_record.dart';
 import '../services/invoice_ocr_service.dart';
 import '../core/constants/colors.dart';
+import '../widgets/common/app_text_field.dart';
 
 /// 請求書OCR結果確認・編集画面
 class InvoiceResultScreen extends StatefulWidget {
@@ -152,17 +153,17 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
           // 説明
           _buildSectionHeader(theme, '説明', Icons.description),
           const SizedBox(height: 8),
-          TextField(
+          AppTextField(
             controller: _descriptionController,
+            hintText: '作業内容の詳細',
             maxLines: 3,
-            decoration: InputDecoration(
-              hintText: '作業内容の詳細',
-              border: const OutlineInputBorder(),
-              filled: true,
-              fillColor: widget.ocrData.items.isNotEmpty
-                  ? Colors.amber.withValues(alpha: 0.05)
-                  : null,
-            ),
+            keyboardType: TextInputType.multiline,
+            suffixIcon: widget.ocrData.items.isNotEmpty
+                ? const Tooltip(
+                    message: 'OCRで読み取り済み',
+                    child: Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+                  )
+                : null,
           ),
           const SizedBox(height: 32),
         ],
@@ -179,15 +180,15 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
     IconData icon;
 
     if (score >= 0.5) {
-      color = Colors.green;
+      color = AppColors.success;
       message = '多くの項目を読み取れました';
       icon = Icons.check_circle;
     } else if (score >= 0.3) {
-      color = Colors.orange;
+      color = AppColors.warning;
       message = '一部の項目を読み取れました';
       icon = Icons.info;
     } else {
-      color = Colors.red;
+      color = AppColors.error;
       message = '読み取りが難しい箇所があります';
       icon = Icons.warning;
     }
@@ -295,7 +296,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           border: Border.all(
-            color: hasDate ? Colors.grey.shade300 : Colors.orange,
+            color: hasDate ? Colors.grey.shade300 : AppColors.warning,
             width: hasDate ? 1 : 2,
           ),
           borderRadius: BorderRadius.circular(8),
@@ -305,7 +306,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
           children: [
             Icon(
               Icons.event,
-              color: hasDate ? theme.colorScheme.primary : Colors.orange,
+              color: hasDate ? theme.colorScheme.primary : AppColors.warning,
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -324,7 +325,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: hasDate ? null : Colors.orange,
+                      color: hasDate ? null : AppColors.warning,
                     ),
                   ),
                 ],
@@ -349,22 +350,17 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
     TextInputType keyboardType = TextInputType.text,
     bool isExtracted = false,
   }) {
-    return TextField(
+    return AppTextField(
       controller: controller,
+      labelText: label,
       keyboardType: keyboardType,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        suffixIcon: isExtracted
-            ? const Tooltip(
-                message: 'OCRで読み取り済み',
-                child: Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
-              )
-            : null,
-        border: const OutlineInputBorder(),
-        filled: true,
-        fillColor: isExtracted ? Colors.amber.withValues(alpha: 0.05) : null,
-      ),
+      prefixIcon: Icon(icon),
+      suffixIcon: isExtracted
+          ? const Tooltip(
+              message: 'OCRで読み取り済み',
+              child: Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+            )
+          : null,
     );
   }
 
@@ -473,7 +469,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('整備タイプを選択してください'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -483,7 +479,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('作業日を設定してください'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;

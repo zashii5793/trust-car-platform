@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/vehicle.dart';
 import '../services/vehicle_certificate_ocr_service.dart';
 import '../core/constants/colors.dart';
+import '../widgets/common/app_text_field.dart';
 
 /// 車検証OCR結果確認・編集画面
 class VehicleCertificateResultScreen extends StatefulWidget {
@@ -198,15 +199,15 @@ class _VehicleCertificateResultScreenState
     IconData icon;
 
     if (score >= 0.7) {
-      color = Colors.green;
+      color = AppColors.success;
       message = '多くの項目を読み取れました';
       icon = Icons.check_circle;
     } else if (score >= 0.4) {
-      color = Colors.orange;
+      color = AppColors.warning;
       message = '一部の項目を読み取れました';
       icon = Icons.info;
     } else {
-      color = Colors.red;
+      color = AppColors.error;
       message = '読み取りが難しい箇所があります';
       icon = Icons.warning;
     }
@@ -253,14 +254,14 @@ class _VehicleCertificateResultScreenState
       {bool isImportant = false}) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: isImportant ? Colors.orange : Colors.grey),
+        Icon(icon, size: 20, color: isImportant ? AppColors.warning : Colors.grey),
         const SizedBox(width: 8),
         Text(
           title,
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: isImportant ? Colors.orange[800] : null,
+            color: isImportant ? AppColors.warning : null,
           ),
         ),
         if (isImportant) ...[
@@ -268,14 +269,14 @@ class _VehicleCertificateResultScreenState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.orange[100],
+              color: AppColors.warningBackground,
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Text(
               '重要',
               style: TextStyle(
                 fontSize: 11,
-                color: Colors.orange,
+                color: AppColors.warning,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -292,22 +293,17 @@ class _VehicleCertificateResultScreenState
     TextInputType keyboardType = TextInputType.text,
     bool isExtracted = false,
   }) {
-    return TextField(
+    return AppTextField(
       controller: controller,
+      labelText: label,
       keyboardType: keyboardType,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        suffixIcon: isExtracted
-            ? const Tooltip(
-                message: 'OCRで読み取り済み',
-                child: Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
-              )
-            : null,
-        border: const OutlineInputBorder(),
-        filled: true,
-        fillColor: isExtracted ? Colors.amber.withValues(alpha: 0.05) : null,
-      ),
+      prefixIcon: Icon(icon),
+      suffixIcon: isExtracted
+          ? const Tooltip(
+              message: 'OCRで読み取り済み',
+              child: Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+            )
+          : null,
     );
   }
 
@@ -322,7 +318,7 @@ class _VehicleCertificateResultScreenState
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           border: Border.all(
-            color: hasDate ? Colors.green : Colors.orange,
+            color: hasDate ? AppColors.success : AppColors.warning,
             width: hasDate ? 1 : 2,
           ),
           borderRadius: BorderRadius.circular(8),
@@ -332,7 +328,7 @@ class _VehicleCertificateResultScreenState
           children: [
             Icon(
               Icons.event,
-              color: hasDate ? Colors.green : Colors.orange,
+              color: hasDate ? AppColors.success : AppColors.warning,
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -354,7 +350,7 @@ class _VehicleCertificateResultScreenState
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: hasDate ? null : Colors.orange,
+                      color: hasDate ? null : AppColors.warning,
                     ),
                   ),
                 ],
