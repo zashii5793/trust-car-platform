@@ -5,6 +5,7 @@ import '../../models/accessory_showcase.dart';
 import '../../models/showcase_comment.dart';
 import '../../models/comment_report.dart';
 import '../../services/popular_accessories_service.dart';
+import '../../widgets/common/app_text_field.dart';
 
 /// Detail view for a single accessory showcase post with its comment thread.
 ///
@@ -659,13 +660,13 @@ class _EditCommentDialogState extends State<_EditCommentDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('コメントを編集'),
-      content: TextField(
+      content: AppTextField(
         key: const Key('edit_comment_field'),
         controller: _controller,
         autofocus: true,
         minLines: 1,
         maxLines: 4,
-        decoration: const InputDecoration(hintText: 'コメントを編集…'),
+        hintText: 'コメントを編集…',
       ),
       actions: [
         TextButton(

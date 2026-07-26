@@ -28,6 +28,7 @@ class AppTextField extends StatelessWidget {
   final String? suffixText;
   final FocusNode? focusNode;
   final bool autofocus;
+  final bool isDense;
 
   const AppTextField({
     super.key,
@@ -55,6 +56,7 @@ class AppTextField extends StatelessWidget {
     this.suffixText,
     this.focusNode,
     this.autofocus = false,
+    this.isDense = false,
   });
 
   /// 数値入力用テキストフィールド
@@ -201,6 +203,7 @@ class AppTextField extends StatelessWidget {
         suffixIcon: suffixIcon,
         prefixText: prefixText,
         suffixText: suffixText,
+        isDense: isDense,
       ),
     );
   }

@@ -6,6 +6,7 @@ import '../providers/maintenance_provider.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
 import '../widgets/common/loading_indicator.dart';
+import '../widgets/common/app_text_field.dart';
 
 /// 整備履歴検索画面
 ///
@@ -103,28 +104,23 @@ class _MaintenanceSearchScreenState extends State<MaintenanceSearchScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(
                 AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
-            child: TextField(
+            child: AppTextField(
               controller: _keywordController,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'タイトル・店舗名・メモで検索',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _keywordController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        tooltip: 'クリア',
-                        onPressed: () {
-                          _keywordController.clear();
-                          setState(() {});
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: AppSpacing.borderRadiusMd,
-                ),
-                isDense: true,
-              ),
+              hintText: 'タイトル・店舗名・メモで検索',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _keywordController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      tooltip: 'クリア',
+                      onPressed: () {
+                        _keywordController.clear();
+                        setState(() {});
+                      },
+                    )
+                  : null,
+              isDense: true,
               textInputAction: TextInputAction.search,
+              onChanged: (_) => setState(() {}),
             ),
           ),
 
