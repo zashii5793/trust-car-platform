@@ -1,6 +1,37 @@
 # Claude Session Notes
 
-最終更新: 2026-07-11
+最終更新: 2026-07-27
+
+---
+
+## 夜間エージェント実行ログ（2026-07-27）
+
+**ブランチ**: `claude/night-20260727`
+**PR**: #97 https://github.com/zashii5793/trust-car-platform/pull/97
+**テスト**: 3505件 全パス / `flutter analyze lib/` No issues found
+**Flutter**: 3.44.8 (stable、クラウド環境に新規導入)
+
+### 実施内容
+
+1. **pm_report.yml CI 修正**（21日間・2026-07-06以来停止）
+   - `grep -c || echo "0"` 二重出力バグ修正（GITHUB_OUTPUT汚染）
+   - `grep -oP '-\K...'` パターンがフラグ誤認識 → `grep -oE` に変更
+   - `pm-report`/`weekly` ラベル未作成で422エラー → Ensure labels exist ステップ追加
+   - PR #75/#77/#83/#89/#92/#94/#95 が同修正を7回試みたが未マージのため本PRで直接対応
+
+2. **shop_inquiry_list_screen.dart AppTextField 統一**（Issue #29）
+   - `_ReplyBar` 返信欄・`_MaintenanceDetailForm` 3フィールドを AppTextField へ統一
+   - PM レポート（Issue #87）で残作業として明記されていた筆頭ファイル
+
+### 次のアクション候補（3件）
+
+1. **本 PR #97 マージ** → pm_report.yml が復活し、次週月曜から PM レポートが自動生成される
+2. **PR #90（愛車カルテ PDF）と #93（SNS コメント UI）を優先マージ** → SUZUKI_CONNECT 強み①・Issue #37 完結
+3. **`firebase deploy` 実行** → community_maintenance_trends / vehicle_sharing_permissions 等が本番未反映
+
+---
+
+## 夜間エージェント実行ログ（2026-07-11）
 
 ---
 
