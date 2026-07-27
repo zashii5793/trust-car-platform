@@ -8,6 +8,7 @@ import '../../services/inquiry_service.dart';
 import '../../services/inquiry_maintenance_importer.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../widgets/common/app_text_field.dart';
 import '../../widgets/common/loading_indicator.dart';
 
 /// Filter options displayed in the chip row.
@@ -1065,20 +1066,12 @@ class _ReplyInputBar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
-            child: TextField(
+            child: AppTextField(
               controller: controller,
               minLines: 1,
               maxLines: 4,
+              hintText: '返信メッセージを入力...',
               textInputAction: TextInputAction.newline,
-              decoration: const InputDecoration(
-                hintText: '返信メッセージを入力...',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.sm,
-                ),
-                isDense: true,
-              ),
             ),
           ),
           AppSpacing.horizontalSm,
@@ -1187,33 +1180,27 @@ class _MaintenanceDetailFormState extends State<_MaintenanceDetailForm> {
               onChanged: (v) => setState(() => _type = v ?? _type),
             ),
             const SizedBox(height: AppSpacing.sm),
-            TextField(
+            AppTextField(
               key: const Key('detail_title_field'),
               controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: '内容（任意）',
-                hintText: '例: 車検整備一式',
-              ),
+              labelText: '内容（任意）',
+              hintText: '例: 車検整備一式',
             ),
             const SizedBox(height: AppSpacing.sm),
-            TextField(
+            AppTextField(
               key: const Key('detail_cost_field'),
               controller: _costController,
+              labelText: '費用',
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '費用',
-                suffixText: '円',
-              ),
+              suffixText: '円',
             ),
             const SizedBox(height: AppSpacing.sm),
-            TextField(
+            AppTextField(
               key: const Key('detail_mileage_field'),
               controller: _mileageController,
+              labelText: '走行距離（任意）',
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '走行距離（任意）',
-                suffixText: 'km',
-              ),
+              suffixText: 'km',
             ),
             const SizedBox(height: AppSpacing.sm),
             Row(
