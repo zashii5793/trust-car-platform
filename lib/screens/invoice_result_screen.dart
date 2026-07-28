@@ -122,7 +122,8 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
             suffixIcon: widget.ocrData.totalAmount != null
                 ? const Tooltip(
                     message: 'OCRで読み取り済み',
-                    child: Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+                    child:
+                        Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
                   )
                 : null,
             fillColor: widget.ocrData.totalAmount != null
@@ -138,7 +139,8 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
             suffixIcon: widget.ocrData.mileage != null
                 ? const Tooltip(
                     message: 'OCRで読み取り済み',
-                    child: Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+                    child:
+                        Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
                   )
                 : null,
             fillColor: widget.ocrData.mileage != null
@@ -157,7 +159,8 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
             suffixIcon: widget.ocrData.shopName != null
                 ? const Tooltip(
                     message: 'OCRで読み取り済み',
-                    child: Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+                    child:
+                        Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
                   )
                 : null,
             fillColor: widget.ocrData.shopName != null
