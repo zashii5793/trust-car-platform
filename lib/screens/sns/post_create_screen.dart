@@ -13,6 +13,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/post_provider.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../services/firebase_service.dart';
+import '../../widgets/common/app_text_field.dart';
 
 /// Post creation screen
 ///
@@ -282,16 +283,13 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  TextField(
+                  AppTextField(
                     controller: _contentController,
                     maxLines: 10,
                     minLines: 5,
                     maxLength: _maxLength,
-                    decoration: const InputDecoration(
-                      hintText: '車やドライブについて投稿しましょう...',
-                      border: OutlineInputBorder(),
-                      counterText: '',
-                    ),
+                    hintText: '車やドライブについて投稿しましょう...',
+                    counterText: '',
                   ),
                   const SizedBox(height: 4),
                   Text(
