@@ -8,6 +8,7 @@ import '../../core/di/service_locator.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/newsletter_service.dart';
 import '../../widgets/common/app_card.dart';
+import '../../widgets/common/app_text_field.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../settings/privacy_policy_screen.dart';
 import '../settings/terms_of_service_screen.dart';
@@ -111,13 +112,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(fontSize: 13),
             ),
             AppSpacing.verticalMd,
-            TextField(
+            AppTextField(
               controller: controller,
-              decoration: const InputDecoration(
-                labelText: '会社名',
-                hintText: '例: 株式会社○○商事',
-                border: OutlineInputBorder(),
-              ),
+              labelText: '会社名',
+              hintText: '例: 株式会社○○商事',
             ),
           ],
         ),

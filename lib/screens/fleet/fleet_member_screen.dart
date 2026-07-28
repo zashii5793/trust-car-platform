@@ -4,6 +4,7 @@ import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/fleet_member.dart';
 import '../../services/fleet_member_service.dart';
+import '../../widgets/common/app_text_field.dart';
 
 /// Screen for managing fleet members (roles, invitations, removals).
 ///
@@ -441,13 +442,11 @@ class _AddMemberDialogState extends State<_AddMemberDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
+          AppTextField(
             key: const Key('add_member_user_id_field'),
             controller: _controller,
-            decoration: const InputDecoration(
-              labelText: 'ユーザーID',
-              hintText: 'Firebase Auth UID',
-            ),
+            labelText: 'ユーザーID',
+            hintText: 'Firebase Auth UID',
             autofocus: true,
           ),
           const SizedBox(height: AppSpacing.md),
