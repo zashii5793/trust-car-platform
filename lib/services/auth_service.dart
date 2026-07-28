@@ -248,9 +248,8 @@ class AuthService {
     }
 
     final uid = user.uid;
-    final markerRef = _firestore
-        .collection(FirestoreCollections.accountDeletions)
-        .doc(uid);
+    final markerRef =
+        _firestore.collection(FirestoreCollections.accountDeletions).doc(uid);
 
     try {
       // 1. 削除要求マーカー（サーバー側 purge 用）

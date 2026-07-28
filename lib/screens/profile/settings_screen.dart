@@ -504,7 +504,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             AppCard(
               padding: EdgeInsets.zero,
               child: ListTile(
-                leading: const Icon(Icons.delete_forever, color: AppColors.error),
+                leading:
+                    const Icon(Icons.delete_forever, color: AppColors.error),
                 title: const Text(
                   'アカウントを削除',
                   style: TextStyle(color: AppColors.error),
