@@ -166,6 +166,32 @@ class AuthProvider with ChangeNotifier {
     );
   }
 
+  /// Apple でサインイン
+  Future<bool> signInWithApple() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    final result = await _authService.signInWithApple();
+
+    _isLoading = false;
+
+    return result.when(
+      success: (credential) {
+        if (credential != null) {
+          _analytics?.trackLogin('apple');
+        }
+        notifyListeners();
+        return credential != null;
+      },
+      failure: (error) {
+        _error = error;
+        notifyListeners();
+        return false;
+      },
+    );
+  }
+
   /// パスワードリセットメールを送信
   Future<bool> sendPasswordResetEmail(String email) async {
     _isLoading = true;

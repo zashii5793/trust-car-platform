@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:crypto/crypto.dart';
 import '../models/user.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
@@ -121,6 +125,83 @@ class AuthService {
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
     }
+  }
+
+  /// Apple でサインイン
+  ///
+  /// Apple は初回認可時のみ氏名・メールを返すため、初回サインイン時に
+  /// [_createUserDocument] で displayName を保存する。
+  /// ユーザーがキャンセルした場合は `success(null)` を返す。
+  Future<Result<UserCredential?, AppError>> signInWithApple() async {
+    try {
+      // リプレイ攻撃対策の nonce（raw を Firebase に、sha256 を Apple に渡す）
+      final rawNonce = generateNonce();
+      final hashedNonce = sha256OfString(rawNonce);
+
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: hashedNonce,
+      );
+
+      final oauthCredential = OAuthProvider('apple.com').credential(
+        idToken: appleCredential.identityToken,
+        rawNonce: rawNonce,
+      );
+
+      final userCredential = await _auth.signInWithCredential(oauthCredential);
+
+      // Apple は初回のみ氏名を返す。姓+名（日本語順）で結合。
+      final fullName = [
+        appleCredential.familyName,
+        appleCredential.givenName,
+      ].where((e) => e != null && e.isNotEmpty).join(' ');
+
+      if (userCredential.additionalUserInfo?.isNewUser ?? false) {
+        if (fullName.isNotEmpty && userCredential.user?.displayName == null) {
+          await userCredential.user?.updateDisplayName(fullName);
+        }
+        await _createUserDocument(
+          userCredential.user!,
+          displayName: fullName.isNotEmpty ? fullName : null,
+        );
+      }
+
+      return Result.success(userCredential);
+    } on SignInWithAppleAuthorizationException catch (e) {
+      // ユーザーがキャンセルした場合は失敗扱いにしない
+      if (e.code == AuthorizationErrorCode.canceled) {
+        return const Result.success(null);
+      }
+      return Result.failure(
+          AppError.auth(e.message, type: AuthErrorType.unknown));
+    } on FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthError(e));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// Sign in with Apple 用の暗号学的にランダムな nonce を生成する（純粋関数）。
+  @visibleForTesting
+  static String generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
+  }
+
+  /// 文字列の SHA-256 ハッシュを16進文字列で返す（純粋関数）。
+  @visibleForTesting
+  static String sha256OfString(String input) {
+    final bytes = utf8.encode(input);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
   }
 
   /// パスワードリセットメールを送信
