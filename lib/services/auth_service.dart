@@ -229,6 +229,63 @@ class AuthService {
     }
   }
 
+  /// アカウントを削除する（App Store ガイドライン 5.1.1(v) 対応）。
+  ///
+  /// 手順:
+  /// 1. `account_deletions/{uid}` に削除要求マーカーを記録（サーバー側の
+  ///    連鎖purgeが30日以内に自データを削除するためのトリガー）。
+  /// 2. Firebase Auth アカウントを削除（＝ログイン手段の除去）。
+  /// 3. 直近ログインが古く `requires-recent-login` になった場合は、マーカーを
+  ///    ロールバックして [AuthErrorType.sessionExpired] を返す（何も失わない）。
+  ///
+  /// 成功時、認証アカウントは消え、`authStateChanges` が null を流すため
+  /// UI は自動的にログイン画面へ戻る。
+  Future<Result<void, AppError>> deleteAccount() async {
+    final user = currentUser;
+    if (user == null) {
+      return const Result.failure(AppError.auth('User not logged in',
+          type: AuthErrorType.sessionExpired));
+    }
+
+    final uid = user.uid;
+    final markerRef = _firestore
+        .collection(FirestoreCollections.accountDeletions)
+        .doc(uid);
+
+    try {
+      // 1. 削除要求マーカー（サーバー側 purge 用）
+      await markerRef.set({
+        'uid': uid,
+        'requestedAt': Timestamp.now(),
+        'status': 'pending',
+      });
+
+      // 2. 認証アカウント削除
+      try {
+        await user.delete();
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'requires-recent-login') {
+          // 3. ロールバック（アカウントはまだ有効なのでマーカーを残さない）
+          await markerRef.delete();
+          return const Result.failure(AppError.auth('Recent login required',
+              type: AuthErrorType.sessionExpired));
+        }
+        rethrow;
+      }
+
+      // Google セッションもクリア
+      if (_googleSignIn != null) {
+        await _googleSignIn!.signOut();
+      }
+
+      return const Result.success(null);
+    } on FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthError(e));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
   /// ユーザードキュメントを Firestore に作成
   Future<void> _createUserDocument(User user, {String? displayName}) async {
     final userDoc =

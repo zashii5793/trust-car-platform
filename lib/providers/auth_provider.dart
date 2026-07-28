@@ -166,6 +166,32 @@ class AuthProvider with ChangeNotifier {
     );
   }
 
+  /// アカウントを削除する。
+  ///
+  /// 成功時 `true`。失敗時 `false` を返し、[errorMessage] にユーザー向け
+  /// メッセージを設定する（再認証が必要な場合は「再度ログインしてください」）。
+  Future<bool> deleteAccount() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    final result = await _authService.deleteAccount();
+
+    _isLoading = false;
+
+    return result.when(
+      success: (_) {
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        notifyListeners();
+        return false;
+      },
+    );
+  }
+
   /// Apple でサインイン
   Future<bool> signInWithApple() async {
     _isLoading = true;

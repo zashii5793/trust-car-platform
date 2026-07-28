@@ -4,7 +4,9 @@ import '../../providers/auth_provider.dart';
 import '../../models/user.dart';
 import '../../models/newsletter.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/constants/colors.dart';
 import '../../core/di/service_locator.dart';
+import '../../core/ui/app_dialog.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/newsletter_service.dart';
 import '../../widgets/common/app_card.dart';
@@ -86,6 +88,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
       } else {
         showErrorSnackBar(context, '設定の保存に失敗しました');
       }
+    }
+  }
+
+  /// アカウント削除（App Store ガイドライン 5.1.1(v)）
+  Future<void> _handleDeleteAccount() async {
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      title: 'アカウントを削除',
+      message: 'アカウントとすべてのデータが削除されます。この操作は取り消せません。\n'
+          '本当に削除しますか？',
+      confirmText: '削除する',
+      cancelText: 'キャンセル',
+      isDestructive: true,
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    final authProvider = context.read<AuthProvider>();
+    final success = await authProvider.deleteAccount();
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (success) {
+      // authStateChanges が null を流し、AuthWrapper が自動でログインへ戻す
+      showSuccessSnackBar(context, 'アカウントを削除しました');
+    } else {
+      showErrorSnackBar(
+        context,
+        authProvider.errorMessage ?? 'アカウントの削除に失敗しました',
+      );
     }
   }
 
@@ -463,6 +497,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
+
+            AppSpacing.verticalXxl,
+
+            // アカウント削除（破壊的操作・App Store ガイドライン 5.1.1(v)）
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: ListTile(
+                leading: const Icon(Icons.delete_forever, color: AppColors.error),
+                title: const Text(
+                  'アカウントを削除',
+                  style: TextStyle(color: AppColors.error),
+                ),
+                subtitle: const Text('アカウントとすべてのデータを完全に削除します'),
+                onTap: _isLoading ? null : _handleDeleteAccount,
+              ),
+            ),
+
+            AppSpacing.verticalLg,
           ],
         ),
       ),

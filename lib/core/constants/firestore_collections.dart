@@ -29,4 +29,8 @@ class FirestoreCollections {
   static const String listingFavorites = 'listing_favorites';
   static const String vehiclePreferences = 'vehicle_preferences';
   static const String vehicleGradeSpecs = 'vehicle_grade_specs';
+
+  /// アカウント削除要求（サーバー側の連鎖purge用）。作成は本人のみ、
+  /// 読み取り・更新はサーバー専用。
+  static const String accountDeletions = 'account_deletions';
 }

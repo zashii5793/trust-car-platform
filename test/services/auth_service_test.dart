@@ -66,6 +66,17 @@ void main() {
         expect(authError.userMessage, contains('しばらく待って'));
       });
 
+      test('mapFirebaseError maps requires-recent-login to sessionExpired', () {
+        // アカウント削除で直近ログインが古い場合の再認証シグナル
+        final error = mapFirebaseError(Exception(
+            '[firebase_auth/requires-recent-login] Please reauthenticate'));
+
+        expect(error, isA<AuthError>());
+        final authError = error as AuthError;
+        expect(authError.type, AuthErrorType.sessionExpired);
+        expect(authError.userMessage, contains('再度ログイン'));
+      });
+
       test('mapFirebaseError maps network error', () {
         final error = mapFirebaseError(Exception('network-request-failed'));
 
