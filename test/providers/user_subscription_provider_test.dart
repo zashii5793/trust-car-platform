@@ -20,6 +20,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/models/user_plan.dart';
 import 'package:trust_car_platform/providers/user_subscription_provider.dart';
+import 'package:trust_car_platform/services/revenue_cat_service.dart';
 
 void main() {
   // ---------------------------------------------------------------------------
@@ -203,6 +204,33 @@ void main() {
       sut.loadFromUser(UserPlanType.premium, null);
 
       expect(sut.driveLogRetentionDays, UserPlanLimits.unlimited);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // purchasePremium (B2C)
+  // ---------------------------------------------------------------------------
+  group('purchasePremium', () {
+    test('delegates to RevenueCatService and returns success', () async {
+      final fakeRcs = RevenueCatService(
+        purchaseExecutor: (productId, userId) async =>
+            PurchaseResult(isSuccess: true, productId: productId),
+      );
+      final sut = UserSubscriptionProvider(revenueCatService: fakeRcs);
+
+      final result = await sut.purchasePremium(userId: 'u1');
+      expect(result.isSuccess, isTrue);
+    });
+
+    test('propagates failure from RevenueCatService when executor throws',
+        () async {
+      final fakeRcs = RevenueCatService(
+        purchaseExecutor: (_, __) async => throw Exception('payment failed'),
+      );
+      final sut = UserSubscriptionProvider(revenueCatService: fakeRcs);
+
+      final result = await sut.purchasePremium(userId: 'u1');
+      expect(result.isFailure, isTrue);
     });
   });
 

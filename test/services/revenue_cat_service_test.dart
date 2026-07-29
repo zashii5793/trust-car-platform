@@ -245,6 +245,54 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // purchaseUserPremium (B2C)
+  // ---------------------------------------------------------------------------
+  group('purchaseUserPremium', () {
+    test('returns success with btoc product ID for valid userId', () async {
+      final svc = RevenueCatService(
+        purchaseExecutor: (productId, userId) async =>
+            PurchaseResult(isSuccess: true, productId: productId),
+      );
+
+      final result = await svc.purchaseUserPremium(userId: 'u1');
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull?.productId, 'trustcar_btoc_premium_monthly');
+    });
+
+    test('returns failure when executor throws', () async {
+      final svc = RevenueCatService(
+        purchaseExecutor: (_, __) async => throw Exception('cancelled'),
+      );
+
+      final result = await svc.purchaseUserPremium(userId: 'u1');
+      expect(result.isFailure, isTrue);
+    });
+
+    test('returns failure for empty userId', () async {
+      final svc = RevenueCatService(
+        purchaseExecutor: (_, __) async =>
+            const PurchaseResult(isSuccess: true, productId: 'x'),
+      );
+
+      final result = await svc.purchaseUserPremium(userId: '');
+      expect(result.isFailure, isTrue);
+      expect(result.errorOrNull, isA<ValidationError>());
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // btocPremiumProductId static accessor
+  // ---------------------------------------------------------------------------
+  group('btocPremiumProductId', () {
+    test('returns the B2C premium product ID string', () {
+      expect(
+        RevenueCatService.btocPremiumProductId,
+        'trustcar_btoc_premium_monthly',
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Edge cases
   // ---------------------------------------------------------------------------
   group('Edge cases', () {
