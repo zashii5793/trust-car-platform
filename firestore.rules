@@ -230,6 +230,26 @@ service cloud.firestore {
       }
     }
 
+    // 非提携店への質問需要（Issue #41 Phase 2 — フリーミアム質問ゲート）
+    // ユーザーが非提携店に問い合わせようとした際に蓄積される潜在需要データ。
+    // 店舗オンボーディング時に「あなた宛の質問がN件」として提示するプル型営業フック。
+    match /shop_inquiry_demands/{demandId} {
+      // 本人のみ作成可能（自分の userId であること）
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.shopId != ''
+        && request.resource.data.shopOwnerId != '';
+
+      // 本人（ユーザー）または店舗オーナーが閲覧可能
+      // shopOwnerId を非正規化することでクロスコレクション参照不要
+      allow read: if isAuthenticated()
+        && (resource.data.userId == request.auth.uid
+            || resource.data.shopOwnerId == request.auth.uid);
+
+      // 更新・削除は不可（需要データは不変）
+      allow update, delete: if false;
+    }
+
     // 車両マスターデータ (読み取り専用)
     match /vehicle_masters/{docType} {
       allow read: if isAuthenticated();
