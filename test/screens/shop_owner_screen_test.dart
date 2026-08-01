@@ -571,7 +571,8 @@ void main() {
       Injection.reset();
     });
 
-    testWidgets('shows demand card with count when demand > 0 and shop is non-partner',
+    testWidgets(
+        'shows demand card with count when demand > 0 and shop is non-partner',
         (tester) async {
       _mockDemandCount = 5;
       final provider = _FakeShopProvider(
@@ -595,7 +596,8 @@ void main() {
       expect(find.byKey(const Key('demand_notification_card')), findsNothing);
     });
 
-    testWidgets('does not show demand card for partner shop (active subscription)',
+    testWidgets(
+        'does not show demand card for partner shop (active subscription)',
         (tester) async {
       _mockDemandCount = 5;
       final provider = _FakeShopProvider(
