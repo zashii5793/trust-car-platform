@@ -31,10 +31,27 @@ import 'package:trust_car_platform/providers/shop_provider.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
+import 'package:trust_car_platform/services/shop_demand_service.dart';
 import 'package:trust_car_platform/models/shop.dart';
 import 'package:trust_car_platform/models/user.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:trust_car_platform/core/di/service_locator.dart';
+import 'package:trust_car_platform/core/di/injection.dart';
+
+// ---------------------------------------------------------------------------
+// Mock ShopDemandService (configurable via _mockDemandCount)
+// ---------------------------------------------------------------------------
+
+int _mockDemandCount = 0;
+
+class _MockShopDemandService extends ShopDemandService {
+  _MockShopDemandService() : super();
+
+  @override
+  Future<Result<int, AppError>> getDemandCountForShop(String shopId) async =>
+      Result.success(_mockDemandCount);
+}
 
 // ---------------------------------------------------------------------------
 // Stub Services
@@ -200,6 +217,7 @@ Shop _makeShop({
   double? rating,
   String? prefecture,
   String? city,
+  ShopSubscriptionStatus subscriptionStatus = ShopSubscriptionStatus.active,
 }) {
   final now = DateTime.now();
   return Shop(
@@ -207,7 +225,7 @@ Shop _makeShop({
     name: name,
     type: ShopType.maintenanceShop,
     planType: planType,
-    subscriptionStatus: ShopSubscriptionStatus.active,
+    subscriptionStatus: subscriptionStatus,
     rating: rating,
     prefecture: prefecture,
     city: city,
@@ -536,6 +554,68 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byIcon(Icons.store), findsOneWidget);
+    });
+  });
+
+  group('ShopOwnerScreen — 非提携店需要通知カード (_DemandNotificationCard)', () {
+    setUpAll(() {
+      final locator = ServiceLocator.instance;
+      if (!locator.isRegistered<ShopDemandService>()) {
+        locator.registerLazySingleton<ShopDemandService>(
+          () => _MockShopDemandService(),
+        );
+      }
+    });
+
+    tearDownAll(() {
+      Injection.reset();
+    });
+
+    testWidgets('shows demand card with count when demand > 0 and shop is non-partner',
+        (tester) async {
+      _mockDemandCount = 5;
+      final provider = _FakeShopProvider(
+        shop: _makeShop(subscriptionStatus: ShopSubscriptionStatus.free),
+      );
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('demand_notification_card')), findsOneWidget);
+      expect(find.text('お問い合わせ希望が 5 件あります'), findsOneWidget);
+    });
+
+    testWidgets('hides demand card when demand count is 0', (tester) async {
+      _mockDemandCount = 0;
+      final provider = _FakeShopProvider(
+        shop: _makeShop(subscriptionStatus: ShopSubscriptionStatus.free),
+      );
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('demand_notification_card')), findsNothing);
+    });
+
+    testWidgets('does not show demand card for partner shop (active subscription)',
+        (tester) async {
+      _mockDemandCount = 5;
+      final provider = _FakeShopProvider(
+        shop: _makeShop(subscriptionStatus: ShopSubscriptionStatus.active),
+      );
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('demand_notification_card')), findsNothing);
+    });
+
+    testWidgets('shows upgrade button on demand card', (tester) async {
+      _mockDemandCount = 3;
+      final provider = _FakeShopProvider(
+        shop: _makeShop(subscriptionStatus: ShopSubscriptionStatus.free),
+      );
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('demand_upgrade_btn')), findsOneWidget);
     });
   });
 }
