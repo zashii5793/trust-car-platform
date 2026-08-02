@@ -7,6 +7,7 @@ import '../../core/constants/spacing.dart';
 import '../../core/constants/colors.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'shop_detail_screen.dart';
+import 'nearby_shops_map_screen.dart';
 import '../shop/shop_comparison_screen.dart';
 
 /// BtoBマーケットプレイス 工場一覧画面
@@ -55,6 +56,12 @@ class ShopListScreen extends StatefulWidget {
 class _ShopListScreenState extends State<ShopListScreen> {
   final _searchController = TextEditingController();
   bool _isLocating = false;
+  bool _showMap = false;
+
+  /// 地図に切り替えられるか。
+  ///
+  /// 比較・選択モードでは一覧から選ぶのが目的なので地図は出さない。
+  bool get _canShowMap => !widget.selectMode && !widget.compareMode;
   final Set<String> _selectedIds = {};
 
   /// 現在地を取得して近い順にソートする。
@@ -136,21 +143,30 @@ class _ShopListScreenState extends State<ShopListScreen> {
                           ? '問い合わせ先の工場を選択'
                           : 'マーケットプレイス'),
                   actions: [
-                    IconButton(
-                      key: const Key('sort_by_distance_button'),
-                      icon: _isLocating
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.near_me_outlined),
-                      tooltip: '近い順に並べ替え',
-                      onPressed: _isLocating || provider.shops.isEmpty
-                          ? null
-                          : _sortByDistance,
-                    ),
-                    if (!provider.isLoading)
+                    if (_canShowMap)
+                      IconButton(
+                        key: const Key('toggle_map_button'),
+                        icon: Icon(_showMap ? Icons.list : Icons.map_outlined),
+                        tooltip: _showMap ? 'リストで見る' : '地図で見る',
+                        onPressed: () => setState(() => _showMap = !_showMap),
+                      ),
+                    if (!_showMap)
+                      IconButton(
+                        key: const Key('sort_by_distance_button'),
+                        icon: _isLocating
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.near_me_outlined),
+                        tooltip: '近い順に並べ替え',
+                        onPressed: _isLocating || provider.shops.isEmpty
+                            ? null
+                            : _sortByDistance,
+                      ),
+                    if (!provider.isLoading && !_showMap)
                       IconButton(
                         icon: const Icon(Icons.refresh),
                         tooltip: '再読み込み',
@@ -162,39 +178,48 @@ class _ShopListScreenState extends State<ShopListScreen> {
                       ),
                   ],
                 ),
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (widget.maintenanceContext != null)
-                _AiContextBanner(context: widget.maintenanceContext!),
-              _SearchBar(
-                controller: _searchController,
-                onChanged: _onSearchChanged,
-              ),
-              _FilterRow(provider: provider),
-              if (!provider.isLoading && provider.shops.isNotEmpty)
-                _ResultCount(count: provider.shops.length),
-              Expanded(child: _buildBody(provider)),
-              if (widget.compareMode)
-                _ComparePanelBar(
-                  selectedCount: _selectedIds.length,
-                  onCompare: () {
-                    final selected = provider.shops
-                        .where((s) => _selectedIds.contains(s.id))
-                        .toList();
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => ShopComparisonScreen(
-                          shops: selected,
-                          primaryNeed: widget.primaryNeed,
-                        ),
+          body: _showMap && _canShowMap
+              ? const NearbyShopsMapScreen()
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // AppBar が無い埋め込み表示では、地図への導線が
+                    // どこにも出なくなる。本文の先頭に出す。
+                    if (widget.embedded && _canShowMap)
+                      _EmbeddedMapToggle(
+                        showMap: _showMap,
+                        onPressed: () => setState(() => _showMap = !_showMap),
                       ),
-                    );
-                  },
+                    if (widget.maintenanceContext != null)
+                      _AiContextBanner(context: widget.maintenanceContext!),
+                    _SearchBar(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
+                    ),
+                    _FilterRow(provider: provider),
+                    if (!provider.isLoading && provider.shops.isNotEmpty)
+                      _ResultCount(count: provider.shops.length),
+                    Expanded(child: _buildBody(provider)),
+                    if (widget.compareMode)
+                      _ComparePanelBar(
+                        selectedCount: _selectedIds.length,
+                        onCompare: () {
+                          final selected = provider.shops
+                              .where((s) => _selectedIds.contains(s.id))
+                              .toList();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (_) => ShopComparisonScreen(
+                                shops: selected,
+                                primaryNeed: widget.primaryNeed,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                  ],
                 ),
-            ],
-          ),
         );
       },
     );
@@ -903,6 +928,35 @@ class _ComparePanelBar extends StatelessWidget {
               label: const Text('比較する'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 埋め込み表示（マーケットのタブ内）用の地図切替。
+///
+/// AppBar が無いため actions に置けない。導線が消えるのを避けるために
+/// 本文の先頭に出す。
+class _EmbeddedMapToggle extends StatelessWidget {
+  final bool showMap;
+  final VoidCallback onPressed;
+
+  const _EmbeddedMapToggle({required this.showMap, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md, AppSpacing.xs, AppSpacing.md, 0),
+        child: TextButton.icon(
+          key: const Key('toggle_map_button_embedded'),
+          onPressed: onPressed,
+          icon: Icon(showMap ? Icons.list : Icons.map_outlined, size: 18),
+          label: Text(showMap ? 'リストで見る' : '地図で見る'),
+          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
         ),
       ),
     );
