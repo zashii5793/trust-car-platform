@@ -48,6 +48,8 @@ dependencies:
   # AI Chat: Anthropic API
   http: ^1.2.0
   firebase_remote_config: ^6.5.1
+  # Issue #41 Phase 1: 近隣工場地図表示（GoogleMap連動・色分けピン）
+  google_maps_flutter: ^2.10.0
 
 dev_dependencies:
   flutter_test:

@@ -7,6 +7,7 @@ import '../../core/constants/spacing.dart';
 import '../../core/constants/colors.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'shop_detail_screen.dart';
+import 'nearby_shops_map_screen.dart';
 import '../shop/shop_comparison_screen.dart';
 
 /// BtoBマーケットプレイス 工場一覧画面
@@ -46,6 +47,7 @@ class ShopListScreen extends StatefulWidget {
 class _ShopListScreenState extends State<ShopListScreen> {
   final _searchController = TextEditingController();
   bool _isLocating = false;
+  bool _showMap = false;
   final Set<String> _selectedIds = {};
 
   /// 現在地を取得して近い順にソートする。
@@ -125,21 +127,29 @@ class _ShopListScreenState extends State<ShopListScreen> {
                     ? '問い合わせ先の工場を選択'
                     : 'マーケットプレイス'),
             actions: [
-              IconButton(
-                key: const Key('sort_by_distance_button'),
-                icon: _isLocating
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.near_me_outlined),
-                tooltip: '近い順に並べ替え',
-                onPressed: _isLocating || provider.shops.isEmpty
-                    ? null
-                    : _sortByDistance,
-              ),
-              if (!provider.isLoading)
+              if (!widget.selectMode && !widget.compareMode)
+                IconButton(
+                  key: const Key('toggle_map_button'),
+                  icon: Icon(_showMap ? Icons.list : Icons.map_outlined),
+                  tooltip: _showMap ? 'リストで見る' : '地図で見る',
+                  onPressed: () => setState(() => _showMap = !_showMap),
+                ),
+              if (!_showMap)
+                IconButton(
+                  key: const Key('sort_by_distance_button'),
+                  icon: _isLocating
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.near_me_outlined),
+                  tooltip: '近い順に並べ替え',
+                  onPressed: _isLocating || provider.shops.isEmpty
+                      ? null
+                      : _sortByDistance,
+                ),
+              if (!provider.isLoading && !_showMap)
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   tooltip: '再読み込み',
@@ -151,39 +161,41 @@ class _ShopListScreenState extends State<ShopListScreen> {
                 ),
             ],
           ),
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (widget.maintenanceContext != null)
-                _AiContextBanner(context: widget.maintenanceContext!),
-              _SearchBar(
-                controller: _searchController,
-                onChanged: _onSearchChanged,
-              ),
-              _FilterRow(provider: provider),
-              if (!provider.isLoading && provider.shops.isNotEmpty)
-                _ResultCount(count: provider.shops.length),
-              Expanded(child: _buildBody(provider)),
-              if (widget.compareMode)
-                _ComparePanelBar(
-                  selectedCount: _selectedIds.length,
-                  onCompare: () {
-                    final selected = provider.shops
-                        .where((s) => _selectedIds.contains(s.id))
-                        .toList();
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => ShopComparisonScreen(
-                          shops: selected,
-                          primaryNeed: widget.primaryNeed,
-                        ),
+          body: _showMap && !widget.selectMode && !widget.compareMode
+              ? const NearbyShopsMapScreen()
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (widget.maintenanceContext != null)
+                      _AiContextBanner(context: widget.maintenanceContext!),
+                    _SearchBar(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
+                    ),
+                    _FilterRow(provider: provider),
+                    if (!provider.isLoading && provider.shops.isNotEmpty)
+                      _ResultCount(count: provider.shops.length),
+                    Expanded(child: _buildBody(provider)),
+                    if (widget.compareMode)
+                      _ComparePanelBar(
+                        selectedCount: _selectedIds.length,
+                        onCompare: () {
+                          final selected = provider.shops
+                              .where((s) => _selectedIds.contains(s.id))
+                              .toList();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (_) => ShopComparisonScreen(
+                                shops: selected,
+                                primaryNeed: widget.primaryNeed,
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
+                  ],
                 ),
-            ],
-          ),
         );
       },
     );
