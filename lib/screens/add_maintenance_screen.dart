@@ -16,6 +16,7 @@ import '../core/constants/spacing.dart';
 import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
+import '../core/utils/thousands_separator_input_formatter.dart';
 import 'document_scanner_screen.dart';
 import 'invoice_result_screen.dart';
 import 'sns/post_create_screen.dart';
@@ -75,10 +76,11 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       _selectedType = record.type;
       _titleController.text = record.title;
       _selectedDate = record.date;
-      _costController.text = record.cost.toString();
+      _costController.text = ThousandsSeparatorInputFormatter.format(record.cost);
       if (record.shopName != null) _shopNameController.text = record.shopName!;
       if (record.mileageAtService != null) {
-        _mileageController.text = record.mileageAtService.toString();
+        _mileageController.text = ThousandsSeparatorInputFormatter.format(
+            record.mileageAtService!);
       }
       if (record.partNumber != null) {
         _partNumberController.text = record.partNumber!;
@@ -192,11 +194,13 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       applied.add('日付: ${data.date.year}/${data.date.month}/${data.date.day}');
 
       if (data.cost != null) {
-        _costController.text = data.cost.toString();
+        _costController.text =
+            ThousandsSeparatorInputFormatter.format(data.cost!);
         applied.add('費用: ¥${data.cost}');
       }
       if (data.mileage != null) {
-        _mileageController.text = data.mileage.toString();
+        _mileageController.text =
+            ThousandsSeparatorInputFormatter.format(data.mileage!);
         applied.add('走行距離: ${data.mileage} km');
       }
       if (data.shopName != null) {
@@ -231,13 +235,17 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
         description: _descriptionController.text.isEmpty
             ? null
             : _descriptionController.text,
-        cost: int.tryParse(_costController.text) ?? 0,
+        cost: int.tryParse(
+                ThousandsSeparatorInputFormatter.digitsOnly(
+                    _costController.text)) ??
+            0,
         shopName:
             _shopNameController.text.isEmpty ? null : _shopNameController.text,
         date: _selectedDate,
         mileageAtService: _mileageController.text.isEmpty
             ? null
-            : int.tryParse(_mileageController.text),
+            : int.tryParse(ThousandsSeparatorInputFormatter.digitsOnly(
+                _mileageController.text)),
         createdAt: existing?.createdAt ?? DateTime.now(),
         partNumber: _partNumberController.text.isEmpty
             ? null
@@ -584,17 +592,18 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   AppSpacing.verticalMd,
 
                   // 費用
-                  AppTextField.number(
+                  AppTextField.numberGrouped(
                     controller: _costController,
                     labelText: '費用',
-                    hintText: '例: 25000',
+                    hintText: '例: 25,000',
                     prefixText: '¥',
                     prefixIcon: const Icon(Icons.currency_yen),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return '費用を入力してください';
                       }
-                      final cost = int.tryParse(value);
+                      final cost = int.tryParse(
+                          ThousandsSeparatorInputFormatter.digitsOnly(value));
                       if (cost == null || cost < 0) {
                         return '正しい金額を入力してください';
                       }
@@ -613,17 +622,18 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   AppSpacing.verticalMd,
 
                   // 走行距離
-                  AppTextField.number(
+                  AppTextField.numberGrouped(
                     controller: _mileageController,
                     labelText: '実施時の走行距離（任意）',
-                    hintText: '例: 24500',
+                    hintText: '例: 24,500',
                     prefixIcon: const Icon(Icons.speed),
                     suffixText: 'km',
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return null; // 任意フィールド
                       }
-                      final mileage = int.tryParse(value);
+                      final mileage = int.tryParse(
+                          ThousandsSeparatorInputFormatter.digitsOnly(value));
                       if (mileage == null || mileage < 0) {
                         return '正しい走行距離を入力してください';
                       }
