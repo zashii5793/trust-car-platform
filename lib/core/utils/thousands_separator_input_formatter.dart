@@ -63,3 +63,14 @@ class ThousandsSeparatorInputFormatter extends TextInputFormatter {
 
   static bool _isDigit(int codeUnit) => codeUnit >= 0x30 && codeUnit <= 0x39;
 }
+
+/// Removes grouping separators from [value] so it can be parsed as an integer.
+/// Short wrapper around [ThousandsSeparatorInputFormatter.digitsOnly] to keep
+/// call sites on a single line.
+String stripThousands(String value) =>
+    ThousandsSeparatorInputFormatter.digitsOnly(value);
+
+/// Formats [value] with grouping separators for prefilling controllers. Short
+/// wrapper around [ThousandsSeparatorInputFormatter.format].
+String formatThousands(int value) =>
+    ThousandsSeparatorInputFormatter.format(value);

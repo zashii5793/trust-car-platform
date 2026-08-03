@@ -76,11 +76,10 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       _selectedType = record.type;
       _titleController.text = record.title;
       _selectedDate = record.date;
-      _costController.text = ThousandsSeparatorInputFormatter.format(record.cost);
+      _costController.text = formatThousands(record.cost);
       if (record.shopName != null) _shopNameController.text = record.shopName!;
       if (record.mileageAtService != null) {
-        _mileageController.text = ThousandsSeparatorInputFormatter.format(
-            record.mileageAtService!);
+        _mileageController.text = formatThousands(record.mileageAtService!);
       }
       if (record.partNumber != null) {
         _partNumberController.text = record.partNumber!;
@@ -194,13 +193,11 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       applied.add('日付: ${data.date.year}/${data.date.month}/${data.date.day}');
 
       if (data.cost != null) {
-        _costController.text =
-            ThousandsSeparatorInputFormatter.format(data.cost!);
+        _costController.text = formatThousands(data.cost!);
         applied.add('費用: ¥${data.cost}');
       }
       if (data.mileage != null) {
-        _mileageController.text =
-            ThousandsSeparatorInputFormatter.format(data.mileage!);
+        _mileageController.text = formatThousands(data.mileage!);
         applied.add('走行距離: ${data.mileage} km');
       }
       if (data.shopName != null) {
@@ -235,17 +232,13 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
         description: _descriptionController.text.isEmpty
             ? null
             : _descriptionController.text,
-        cost: int.tryParse(
-                ThousandsSeparatorInputFormatter.digitsOnly(
-                    _costController.text)) ??
-            0,
+        cost: int.tryParse(stripThousands(_costController.text)) ?? 0,
         shopName:
             _shopNameController.text.isEmpty ? null : _shopNameController.text,
         date: _selectedDate,
         mileageAtService: _mileageController.text.isEmpty
             ? null
-            : int.tryParse(ThousandsSeparatorInputFormatter.digitsOnly(
-                _mileageController.text)),
+            : int.tryParse(stripThousands(_mileageController.text)),
         createdAt: existing?.createdAt ?? DateTime.now(),
         partNumber: _partNumberController.text.isEmpty
             ? null
@@ -602,8 +595,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                       if (value == null || value.isEmpty) {
                         return '費用を入力してください';
                       }
-                      final cost = int.tryParse(
-                          ThousandsSeparatorInputFormatter.digitsOnly(value));
+                      final cost = int.tryParse(stripThousands(value));
                       if (cost == null || cost < 0) {
                         return '正しい金額を入力してください';
                       }
@@ -632,8 +624,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                       if (value == null || value.isEmpty) {
                         return null; // 任意フィールド
                       }
-                      final mileage = int.tryParse(
-                          ThousandsSeparatorInputFormatter.digitsOnly(value));
+                      final mileage = int.tryParse(stripThousands(value));
                       if (mileage == null || mileage < 0) {
                         return '正しい走行距離を入力してください';
                       }

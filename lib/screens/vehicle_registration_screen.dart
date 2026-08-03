@@ -444,9 +444,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         model: _selectedModel?.name ?? '',
         year: int.tryParse(_yearController.text) ?? DateTime.now().year,
         grade: _selectedGrade?.name ?? '',
-        mileage: int.tryParse(ThousandsSeparatorInputFormatter.digitsOnly(
-                _mileageController.text)) ??
-            0,
+        mileage: int.tryParse(stripThousands(_mileageController.text)) ?? 0,
         imageUrl: imageUrl,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -464,8 +462,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         color: _colorController.text.isEmpty ? null : _colorController.text,
         engineDisplacement: _engineDisplacementController.text.isEmpty
             ? null
-            : int.tryParse(ThousandsSeparatorInputFormatter.digitsOnly(
-                _engineDisplacementController.text)),
+            : int.tryParse(stripThousands(_engineDisplacementController.text)),
         fuelType: _selectedFuelType,
         purchaseDate: _purchaseDate,
       );
@@ -790,8 +787,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               suffixText: 'km',
               validator: (value) {
                 if (value == null || value.isEmpty) return '走行距離を入力してください';
-                final mileage = int.tryParse(
-                    ThousandsSeparatorInputFormatter.digitsOnly(value));
+                final mileage = int.tryParse(stripThousands(value));
                 if (mileage == null || mileage < 0) return '正しい走行距離を入力してください';
                 if (mileage > 2000000) return '走行距離が大きすぎます（200万km以下）';
                 return null;

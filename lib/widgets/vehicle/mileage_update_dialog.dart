@@ -50,8 +50,7 @@ class _MileageUpdateDialogState extends State<MileageUpdateDialog> {
     if (value == null || value.trim().isEmpty) {
       return '走行距離を入力してください';
     }
-    final parsed = int.tryParse(
-        ThousandsSeparatorInputFormatter.digitsOnly(value));
+    final parsed = int.tryParse(stripThousands(value));
     if (parsed == null) {
       return '整数で入力してください';
     }
@@ -59,7 +58,7 @@ class _MileageUpdateDialogState extends State<MileageUpdateDialog> {
       return '0以上の値を入力してください';
     }
     if (parsed < widget.vehicle.mileage) {
-      return '現在の走行距離（${ThousandsSeparatorInputFormatter.format(widget.vehicle.mileage)} km）以上を入力してください';
+      return '現在の走行距離（${formatThousands(widget.vehicle.mileage)} km）以上を入力してください';
     }
     return null;
   }
@@ -68,8 +67,7 @@ class _MileageUpdateDialogState extends State<MileageUpdateDialog> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    final newMileage = int.parse(
-        ThousandsSeparatorInputFormatter.digitsOnly(_controller.text));
+    final newMileage = int.parse(stripThousands(_controller.text));
 
     setState(() => _isLoading = true);
     try {
@@ -105,7 +103,7 @@ class _MileageUpdateDialogState extends State<MileageUpdateDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '現在の走行距離: ${ThousandsSeparatorInputFormatter.format(widget.vehicle.mileage)} km',
+              '現在の走行距離: ${formatThousands(widget.vehicle.mileage)} km',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -118,8 +116,7 @@ class _MileageUpdateDialogState extends State<MileageUpdateDialog> {
               inputFormatters: [ThousandsSeparatorInputFormatter()],
               decoration: InputDecoration(
                 labelText: '新しい走行距離',
-                hintText: ThousandsSeparatorInputFormatter.format(
-                    widget.vehicle.mileage),
+                hintText: formatThousands(widget.vehicle.mileage),
                 suffixText: 'km',
                 border: const OutlineInputBorder(),
               ),
