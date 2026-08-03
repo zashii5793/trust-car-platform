@@ -42,6 +42,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/onboarding_screen.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/ai_chat_provider.dart';
+import 'providers/theme_provider.dart';
 import 'services/ai_chat_service.dart';
 
 void main() async {
@@ -89,7 +90,11 @@ void main() async {
     await pushService.initialize();
   }
 
-  runApp(const MyApp());
+  // Load the persisted theme preference before first paint so there is no
+  // flash of the wrong theme.
+  final themeMode = await ThemeProvider.loadSavedMode();
+
+  runApp(MyApp(initialThemeMode: themeMode));
 }
 
 /// Initialize Firebase Crashlytics for crash reporting
@@ -127,12 +132,16 @@ void _setupAuthLogging() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final ThemeMode initialThemeMode;
+
+  const MyApp({super.key, this.initialThemeMode = ThemeMode.system});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(
+            create: (_) => ThemeProvider(initialMode: initialThemeMode)),
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
         ChangeNotifierProvider(
             create: (_) => AuthProvider(
@@ -196,13 +205,15 @@ class MyApp extends StatelessWidget {
                   service: sl.get<AiChatService>(),
                 )),
       ],
-      child: MaterialApp(
-        title: 'クルマ統合管理',
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.system,
-        home: const AuthWrapper(),
-        debugShowCheckedModeBanner: false,
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) => MaterialApp(
+          title: 'クルマ統合管理',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: themeProvider.themeMode,
+          home: const AuthWrapper(),
+          debugShowCheckedModeBanner: false,
+        ),
       ),
     );
   }
