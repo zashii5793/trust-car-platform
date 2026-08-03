@@ -7,6 +7,8 @@ import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../providers/user_subscription_provider.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/di/service_locator.dart';
+import '../../services/shop_demand_service.dart';
 import '../../widgets/common/loading_indicator.dart';
 
 /// 問い合わせ送信画面
@@ -69,6 +71,51 @@ class _InquiryScreenState extends State<InquiryScreen> {
     super.dispose();
   }
 
+  Future<void> _recordDemand({required String userId}) async {
+    final service = sl.get<ShopDemandService>();
+    final result = await service.recordDemand(
+      shopId: widget.shop.id,
+      shopOwnerId: widget.shop.ownerId ?? '',
+      userId: userId,
+      type: _selectedType,
+      subject: _subjectController.text.trim(),
+      message: _messageController.text.trim().isEmpty
+          ? null
+          : _messageController.text.trim(),
+      vehicleId: widget.vehicleId,
+    );
+    if (!mounted) return;
+    if (result.isSuccess) {
+      _showDemandRecordedDialog();
+    } else {
+      showErrorSnackBar(context, '送信に失敗しました。再度お試しください。');
+    }
+  }
+
+  void _showDemandRecordedDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('お問い合わせを受け付けました'),
+        content: const Text(
+          'この工場はまだ当プラットフォームのパートナーではありません。\n\n'
+          'いただいたお問い合わせは、工場へのご案内に活用され、'
+          'パートナー登録後にはあなたからの需要件数として工場に開示されます。\n\n'
+          'ご不便をおかけして申し訳ありません。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.pop(context);
+            },
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showInquiryLimitDialog(int maxMonthly) {
     showDialog<void>(
       context: context,
@@ -97,6 +144,12 @@ class _InquiryScreenState extends State<InquiryScreen> {
 
     if (userId == null) {
       showErrorSnackBar(context, 'ログインが必要です');
+      return;
+    }
+
+    // Issue #41 Phase 2: non-partner shops record demand instead of real inquiry
+    if (!widget.shop.isPartner) {
+      await _recordDemand(userId: userId);
       return;
     }
 
