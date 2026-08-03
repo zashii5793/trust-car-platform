@@ -1,5 +1,30 @@
 # Claude Session Notes
 
+最終更新: 2026-08-01
+
+---
+
+## 夜間エージェント実行ログ（2026-08-01）
+
+**ブランチ**: `claude/night-20260801`
+**テスト**: 3509件 全パス（+4件）/ `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **Issue #41 Phase 3 実装（非提携店向け需要通知カード）**
+   - `_DemandNotificationCard` StatefulWidget を `shop_owner_screen.dart` に追加
+   - `!shop.isPartner` の店舗オーナー画面に、需要件数（`ShopDemandService.getDemandCountForShop`）を表示
+   - count > 0 のときのみ表示・count == 0 なら `SizedBox.shrink()`
+   - 「登録」ボタン → `ShopPlanScreen` へ遷移
+   - TDD 4件追加（RED→GREEN確認済み）
+   - `shop_owner_screen_performance_card_test.dart` に `_StubShopDemandService` 登録を追加
+     （非提携店テストで `sl.get<ShopDemandService>()` が未登録エラーになるのを修正）
+
+### 次のアクション候補（3件）
+
+1. **PR を main ブランチへマージ**（`claude/night-20260801` — CI GREEN 確認後）
+2. **Issue #41 Phase 4**: 非提携店オンボーディング画面（`ShopPlanScreen` のフリープラン → パートナー申込フロー）
+3. **蓄積 PR のレビュー・マージ**: 29件超の draft PR を最優先順でレビュー（#74 → #75 の依存順に注意）
 最終更新: 2026-07-31
 
 ---
