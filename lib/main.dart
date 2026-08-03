@@ -35,6 +35,7 @@ import 'services/shop_report_service.dart';
 import 'services/shop_subscription_service.dart';
 import 'providers/subscription_provider.dart';
 import 'providers/user_subscription_provider.dart';
+import 'services/revenue_cat_service.dart';
 import 'services/user_subscription_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -167,6 +168,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
             create: (_) => UserSubscriptionProvider(
                   service: sl.get<UserSubscriptionService>(),
+                  revenueCatService: sl.get<RevenueCatService>(),
                 )),
         ChangeNotifierProvider(
             create: (_) => PostProvider(
