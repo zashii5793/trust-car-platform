@@ -25,6 +25,39 @@
 1. **PR を main ブランチへマージ**（`claude/night-20260801` — CI GREEN 確認後）
 2. **Issue #41 Phase 4**: 非提携店オンボーディング画面（`ShopPlanScreen` のフリープラン → パートナー申込フロー）
 3. **蓄積 PR のレビュー・マージ**: 29件超の draft PR を最優先順でレビュー（#74 → #75 の依存順に注意）
+最終更新: 2026-07-31
+
+---
+
+## 夜間エージェント実行ログ（2026-07-31）
+
+**ブランチ**: `claude/night-20260731`
+**PR**: #104 https://github.com/zashii5793/trust-car-platform/pull/104
+**テスト**: 3509件 全パス（+4） / `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **Issue #41 Phase 2 — フリーミアム問い合わせゲート（InquiryScreen）**
+   - `InquiryScreen._submit()` に `!widget.shop.isPartner` ゲートを追加
+   - 非提携店 → `ShopDemandService.recordDemand()` → 需要受付ダイアログ
+   - 提携店 → 従来の月次上限 + 通常問い合わせ送信フロー
+   - テスト: `MockShopDemandService`、`sl.override` パターン、新4テスト追加
+
+2. **AccessoryShowcaseScreen — プルトゥリフレッシュ**
+   - `_TrendList` に `RefreshIndicator` を追加（`onRefresh: _load`）
+
+### 調査済み（変更なし）
+
+- `pm_report.yml` 修正 → PR #103 に実装済み（未マージ）
+- `sampleImageUrl` テスト → `vehicle_spec_service_test.dart:327-409` 実装済み
+- `ShopComparisonScreen` → `home_screen.dart:539` で接続済み
+- FleetMember 総務担当 → `FleetRole.manager` 実装済み
+
+### 次のアクション候補（3件）
+
+1. **PR #103 マージ** — `pm_report.yml` 週次 CI が 6 週以上失敗中
+2. **PR #104 マージ** — Issue #41 Phase 2 フリーミアムゲート
+3. **非提携店向けオンボーディング画面** — `getDemandsForShop()` を使った「N件の問い合わせがありました」表示
 
 ---
 
