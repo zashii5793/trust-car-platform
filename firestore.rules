@@ -722,6 +722,14 @@ service cloud.firestore {
         resource.data.get('ownerId', '') == request.auth.uid;
     }
 
+    // アカウント削除要求: 作成/取消は本人のみ。
+    // 実際の連鎖purgeとステータス更新はサーバー(Admin SDK)専用。
+    match /account_deletions/{uid} {
+      allow create: if isAuthenticated() && request.auth.uid == uid;
+      allow delete: if isAuthenticated() && request.auth.uid == uid;
+      allow read, update: if false;
+    }
+
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;

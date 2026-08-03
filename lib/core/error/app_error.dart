@@ -265,6 +265,11 @@ AppError _mapFirebaseErrorInternal(dynamic error) {
     return const AppError.auth('Too many requests',
         type: AuthErrorType.tooManyRequests);
   }
+  // アカウント削除などに再認証が必要（直近ログインが古い）
+  if (errorString.contains('requires-recent-login')) {
+    return const AppError.auth('Recent login required',
+        type: AuthErrorType.sessionExpired);
+  }
 
   // Firebase Firestore エラー
   if (errorString.contains('permission-denied')) {

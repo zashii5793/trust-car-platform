@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:crypto/crypto.dart';
 import '../models/user.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
@@ -123,6 +127,83 @@ class AuthService {
     }
   }
 
+  /// Apple でサインイン
+  ///
+  /// Apple は初回認可時のみ氏名・メールを返すため、初回サインイン時に
+  /// [_createUserDocument] で displayName を保存する。
+  /// ユーザーがキャンセルした場合は `success(null)` を返す。
+  Future<Result<UserCredential?, AppError>> signInWithApple() async {
+    try {
+      // リプレイ攻撃対策の nonce（raw を Firebase に、sha256 を Apple に渡す）
+      final rawNonce = generateNonce();
+      final hashedNonce = sha256OfString(rawNonce);
+
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: hashedNonce,
+      );
+
+      final oauthCredential = OAuthProvider('apple.com').credential(
+        idToken: appleCredential.identityToken,
+        rawNonce: rawNonce,
+      );
+
+      final userCredential = await _auth.signInWithCredential(oauthCredential);
+
+      // Apple は初回のみ氏名を返す。姓+名（日本語順）で結合。
+      final fullName = [
+        appleCredential.familyName,
+        appleCredential.givenName,
+      ].where((e) => e != null && e.isNotEmpty).join(' ');
+
+      if (userCredential.additionalUserInfo?.isNewUser ?? false) {
+        if (fullName.isNotEmpty && userCredential.user?.displayName == null) {
+          await userCredential.user?.updateDisplayName(fullName);
+        }
+        await _createUserDocument(
+          userCredential.user!,
+          displayName: fullName.isNotEmpty ? fullName : null,
+        );
+      }
+
+      return Result.success(userCredential);
+    } on SignInWithAppleAuthorizationException catch (e) {
+      // ユーザーがキャンセルした場合は失敗扱いにしない
+      if (e.code == AuthorizationErrorCode.canceled) {
+        return const Result.success(null);
+      }
+      return Result.failure(
+          AppError.auth(e.message, type: AuthErrorType.unknown));
+    } on FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthError(e));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// Sign in with Apple 用の暗号学的にランダムな nonce を生成する（純粋関数）。
+  @visibleForTesting
+  static String generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
+  }
+
+  /// 文字列の SHA-256 ハッシュを16進文字列で返す（純粋関数）。
+  @visibleForTesting
+  static String sha256OfString(String input) {
+    final bytes = utf8.encode(input);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
   /// パスワードリセットメールを送信
   Future<Result<void, AppError>> sendPasswordResetEmail(String email) async {
     try {
@@ -143,6 +224,62 @@ class AuthService {
       }
       await _auth.signOut();
       return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// アカウントを削除する（App Store ガイドライン 5.1.1(v) 対応）。
+  ///
+  /// 手順:
+  /// 1. `account_deletions/{uid}` に削除要求マーカーを記録（サーバー側の
+  ///    連鎖purgeが30日以内に自データを削除するためのトリガー）。
+  /// 2. Firebase Auth アカウントを削除（＝ログイン手段の除去）。
+  /// 3. 直近ログインが古く `requires-recent-login` になった場合は、マーカーを
+  ///    ロールバックして [AuthErrorType.sessionExpired] を返す（何も失わない）。
+  ///
+  /// 成功時、認証アカウントは消え、`authStateChanges` が null を流すため
+  /// UI は自動的にログイン画面へ戻る。
+  Future<Result<void, AppError>> deleteAccount() async {
+    final user = currentUser;
+    if (user == null) {
+      return const Result.failure(AppError.auth('User not logged in',
+          type: AuthErrorType.sessionExpired));
+    }
+
+    final uid = user.uid;
+    final markerRef =
+        _firestore.collection(FirestoreCollections.accountDeletions).doc(uid);
+
+    try {
+      // 1. 削除要求マーカー（サーバー側 purge 用）
+      await markerRef.set({
+        'uid': uid,
+        'requestedAt': Timestamp.now(),
+        'status': 'pending',
+      });
+
+      // 2. 認証アカウント削除
+      try {
+        await user.delete();
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'requires-recent-login') {
+          // 3. ロールバック（アカウントはまだ有効なのでマーカーを残さない）
+          await markerRef.delete();
+          return const Result.failure(AppError.auth('Recent login required',
+              type: AuthErrorType.sessionExpired));
+        }
+        rethrow;
+      }
+
+      // Google セッションもクリア
+      if (_googleSignIn != null) {
+        await _googleSignIn!.signOut();
+      }
+
+      return const Result.success(null);
+    } on FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthError(e));
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
     }
