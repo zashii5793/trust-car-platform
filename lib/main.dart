@@ -50,8 +50,10 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Use Firebase Emulator in debug mode (local development)
-  if (kDebugMode) {
+  // Use Firebase Emulator in debug mode (local development).
+  // Skipped on web so `flutter run -d chrome` targets the production project
+  // instead of requiring a locally running emulator.
+  if (kDebugMode && !kIsWeb) {
     await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
     FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
     // Disable persistence for emulator (data is ephemeral)
@@ -74,12 +76,18 @@ void main() async {
   // Set up logging for auth state changes
   _setupAuthLogging();
 
-  // Initialize timezone for scheduled notifications
-  PushNotificationService.initializeTimezone();
+  // Push notifications and scheduled local notifications depend on mobile-only
+  // plugins (firebase_messaging / flutter_local_notifications) that are not
+  // supported on web and throw during initialization. Guarding with kIsWeb
+  // keeps main() from crashing before runApp on web builds.
+  if (!kIsWeb) {
+    // Initialize timezone for scheduled notifications
+    PushNotificationService.initializeTimezone();
 
-  // Initialize push notifications
-  final pushService = sl.get<PushNotificationService>();
-  await pushService.initialize();
+    // Initialize push notifications
+    final pushService = sl.get<PushNotificationService>();
+    await pushService.initialize();
+  }
 
   runApp(const MyApp());
 }
