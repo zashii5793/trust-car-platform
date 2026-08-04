@@ -159,6 +159,49 @@ void main() {
         failure: (e) => fail('Expected success but got failure: $e'),
       );
     });
+
+    group('Edge Cases', () {
+      test('しきい値の境界で緊急度が切り替わる（0/7/8/30/31日・期限切れ）', () async {
+        final now = DateTime.now();
+        // Buckets mirror inspectionUrgencyForDays:
+        //   critical: overdue, day 0, and day 7
+        //   warning:  day 8 and day 30
+        //   normal:   day 31 and beyond
+        final cases = <String, int>{
+          'overdue': -3, // critical
+          'today': 0, // critical
+          'day7': 7, // critical
+          'day8': 8, // warning
+          'day30': 30, // warning
+          'day31': 31, // normal
+        };
+        for (final entry in cases.entries) {
+          await _seedVehicle(
+            fakeFirestore,
+            _makeVehicle(
+              id: entry.key,
+              companyId: 'company-B',
+              // +12h avoids inDays truncation flakiness around midnight.
+              inspectionExpiryDate: now.add(
+                Duration(days: entry.value, hours: 12),
+              ),
+            ),
+          );
+        }
+
+        final result = await service.getFleetStats('company-B');
+
+        result.when(
+          success: (stats) {
+            expect(stats.total, 6);
+            expect(stats.critical, 3); // overdue, day0, day7
+            expect(stats.warning, 2); // day8, day30
+            expect(stats.normal, 1); // day31
+          },
+          failure: (e) => fail('Expected success but got failure: $e'),
+        );
+      });
+    });
   });
 
   // ── linkVehicleToCompany ─────────────────────────────────────────────────

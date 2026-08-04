@@ -58,8 +58,11 @@ jobs:
         id: tests
         run: |
           flutter test --exclude-tags emulator 2>&1 | tee test_output.txt
-          PASS=$(grep -oP '\+\K[0-9]+(?=:)' test_output.txt | tail -1 || echo "0")
-          FAIL=$(grep -oP '-\K[0-9]+(?=:)' test_output.txt | tail -1 || echo "0")
+          PASS=$(grep -oP '\+\K[0-9]+(?=:)' test_output.txt | tail -1)
+          PASS="${PASS:-0}"
+          FAIL_LINE=$(grep -oE ' -[0-9]+:' test_output.txt | tail -1)
+          FAIL=$(echo "$FAIL_LINE" | grep -oE '[0-9]+')
+          FAIL="${FAIL:-0}"
           echo "passed=$PASS" >> $GITHUB_OUTPUT
           echo "failed=$FAIL" >> $GITHUB_OUTPUT
           if [ "$FAIL" = "0" ]; then
@@ -189,20 +192,17 @@ jobs:
 
             *生成: GitHub Actions \`pm_report.yml\` | プロジェクト: trust-car-platform*`;
 
-            // Ensure labels exist before creating the issue
-            const requiredLabels = [
-              { name: 'pm-report', color: '0075ca', description: '週次PMレポート（自動生成）' },
-              { name: 'weekly', color: 'e4e669', description: '週次自動生成' },
-            ];
-            for (const label of requiredLabels) {
+            // ラベルを冪等作成（既存は 422 → 無視）
+            for (const labelName of ['pm-report', 'weekly']) {
               try {
                 await github.rest.issues.createLabel({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  ...label,
+                  name: labelName,
+                  color: 'ededed',
                 });
-              } catch (_) {
-                // Label already exists — ignore
+              } catch (e) {
+                if (e.status !== 422) throw e;
               }
             }
 

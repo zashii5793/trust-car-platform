@@ -214,6 +214,7 @@ class _AccessoryShowcaseScreenState extends State<AccessoryShowcaseScreen>
                     return _TrendList(
                       trends: trends,
                       onTapTrend: _openTrendShowcases,
+                      onRefresh: _load,
                     );
                   }).toList(),
                 ),
@@ -226,18 +227,26 @@ class _AccessoryShowcaseScreenState extends State<AccessoryShowcaseScreen>
 class _TrendList extends StatelessWidget {
   final List<AccessoryTrend> trends;
   final ValueChanged<AccessoryTrend> onTapTrend;
-  const _TrendList({required this.trends, required this.onTapTrend});
+  final Future<void> Function() onRefresh;
+  const _TrendList({
+    required this.trends,
+    required this.onTapTrend,
+    required this.onRefresh,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      itemCount: trends.length,
-      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-      itemBuilder: (_, i) => _TrendCard(
-        rank: i + 1,
-        trend: trends[i],
-        onTap: () => onTapTrend(trends[i]),
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        itemCount: trends.length,
+        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+        itemBuilder: (_, i) => _TrendCard(
+          rank: i + 1,
+          trend: trends[i],
+          onTap: () => onTapTrend(trends[i]),
+        ),
       ),
     );
   }

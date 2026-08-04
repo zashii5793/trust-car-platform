@@ -1,6 +1,7 @@
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
 import '../models/app_notification.dart';
+import 'maintenance_schedule_service.dart';
 
 /// メンテナンス推奨のルール
 class MaintenanceRule {
@@ -22,6 +23,14 @@ class MaintenanceRule {
 /// レコメンドサービス
 /// ルールベースでメンテナンス推奨を生成
 class RecommendationService {
+  /// Fuel-type-aware schedule provider. When non-null:
+  ///   • Rules not in the vehicle's schedule (e.g. oil for EVs) are skipped.
+  ///   • _generateReason() appends a "次回目安: X,XXXkm" line for km-interval items.
+  final MaintenanceScheduleService? _scheduleService;
+
+  const RecommendationService({MaintenanceScheduleService? scheduleService})
+      : _scheduleService = scheduleService;
+
   /// Stable date token (yyyyMMdd) used to build deterministic notification ids.
   ///
   /// Using the deadline/basis date — not the generation timestamp — keeps a
@@ -154,6 +163,11 @@ class RecommendationService {
     final recommendations = <AppNotification>[];
     final now = DateTime.now();
 
+    // Fuel-type-aware schedule (null when no scheduleService injected)
+    final schedule = _scheduleService?.generateSchedule(vehicle) ?? [];
+    final allowedTypes =
+        schedule.isEmpty ? null : schedule.map((s) => s.type).toSet();
+
     // 車検日が設定されている場合はそれを使用
     if (vehicle.inspectionExpiryDate != null) {
       final inspectionNotification = _checkInspectionExpiryDate(
@@ -213,14 +227,16 @@ class RecommendationService {
       }
     }
 
-    // 各ルールをチェック
+    // 各ルールをチェック（燃料タイプ別フィルタリングを適用）
     for (final rule in _rules) {
+      if (allowedTypes != null && !allowedTypes.contains(rule.type)) continue;
       final recommendation = _checkRule(
         rule: rule,
         vehicle: vehicle,
         records: records,
         userId: userId,
         now: now,
+        schedule: schedule,
       );
       if (recommendation != null) {
         recommendations.add(recommendation);
@@ -440,6 +456,7 @@ class RecommendationService {
     required List<MaintenanceRecord> records,
     required String userId,
     required DateTime now,
+    List<ScheduledMaintenance> schedule = const [],
   }) {
     // 該当するメンテナンス記録を検索
     final relevantRecords = records.where((r) {
@@ -497,6 +514,13 @@ class RecommendationService {
       return null;
     }
 
+    // 次回km目安をスケジュールサービスから取得
+    final matchingScheduled =
+        schedule.where((s) => s.type == rule.type).firstOrNull;
+    final nextDueKm = matchingScheduled != null
+        ? _scheduleService?.nextDueMileage(vehicle, matchingScheduled)
+        : null;
+
     // 通知を生成
     return AppNotification(
       id: '${vehicle.id}_${rule.name}_${_notifDateToken(lastMaintenanceDate ?? vehicle.createdAt)}',
@@ -517,6 +541,7 @@ class RecommendationService {
         lastMileage: lastMaintenanceMileage,
         now: now,
         daysUntilDue: daysUntilDue,
+        nextDueKm: nextDueKm,
       ),
       priority: priority,
       createdAt: now,
@@ -628,6 +653,7 @@ class RecommendationService {
     required int? lastMileage,
     required DateTime now,
     required int daysUntilDue,
+    int? nextDueKm,
   }) {
     final lines = <String>[];
 
@@ -656,7 +682,18 @@ class RecommendationService {
       lines.add('📌 推奨交換目安: ${rec.join(' または ')}');
     }
 
-    // Data point 3: Why now
+    // Data point 3: km-based next due (from MaintenanceScheduleService)
+    if (nextDueKm != null) {
+      final kmToNext = nextDueKm - vehicle.mileage;
+      if (kmToNext > 0) {
+        lines.add(
+            '🎯 次回目安: ${_formatKmFull(nextDueKm)}（あと${_formatKm(kmToNext)}）');
+      } else {
+        lines.add('🎯 次回目安: ${_formatKmFull(nextDueKm)}（推奨距離を超過）');
+      }
+    }
+
+    // Data point 4: Why now
     if (daysUntilDue <= 0) {
       lines.add('⚠️ すでに推奨時期を過ぎています。');
     } else if (daysUntilDue <= 30) {
@@ -676,6 +713,17 @@ class RecommendationService {
       return '${(km / 10000).toStringAsFixed(km % 10000 == 0 ? 0 : 1)}万km';
     }
     return '${km}km';
+  }
+
+  /// Comma-separated km (e.g. 50,000 km) for absolute odometer values.
+  String _formatKmFull(int km) {
+    final buf = StringBuffer();
+    final s = km.toString();
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+      buf.write(s[i]);
+    }
+    return '${buf}km';
   }
 
   /// メッセージ生成

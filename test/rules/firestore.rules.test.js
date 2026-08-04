@@ -346,3 +346,52 @@ describe('comment_reports — コメント通報', () => {
     await assertFails(getDoc(doc(dbFor(OWNER_UID), reportPath)));
   });
 });
+
+// ---------------------------------------------------------------------------
+// account_deletions/{uid} — アカウント削除要求
+//   create/delete: 本人(uid==auth.uid)のみ / read・update: サーバー専用(不可)
+// ---------------------------------------------------------------------------
+describe('account_deletions/{uid}', () => {
+  const marker = (uid) => ({ uid, requestedAt: new Date(), status: 'pending' });
+
+  test('本人は自分の削除要求を作成できる', async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER_UID), `account_deletions/${OWNER_UID}`),
+        marker(OWNER_UID)),
+    );
+  });
+
+  test('他人のuidの削除要求は作成できない', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OTHER_UID), `account_deletions/${OWNER_UID}`),
+        marker(OWNER_UID)),
+    );
+  });
+
+  test('未認証は作成できない', async () => {
+    await assertFails(
+      setDoc(doc(unauthDb(), `account_deletions/${OWNER_UID}`),
+        marker(OWNER_UID)),
+    );
+  });
+
+  test('本人は自分の削除要求を取り消せる（delete）', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `account_deletions/${OWNER_UID}`),
+        marker(OWNER_UID));
+    });
+    await assertSucceeds(
+      deleteDoc(doc(dbFor(OWNER_UID), `account_deletions/${OWNER_UID}`)),
+    );
+  });
+
+  test('読み取りはサーバー専用（本人でも不可）', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `account_deletions/${OWNER_UID}`),
+        marker(OWNER_UID));
+    });
+    await assertFails(
+      getDoc(doc(dbFor(OWNER_UID), `account_deletions/${OWNER_UID}`)),
+    );
+  });
+});
