@@ -446,6 +446,21 @@
       ]
     }
 
+    ,
+
+    // =========================================================
+    // shop_inquiry_demands (Issue #41 Phase 2)
+    // =========================================================
+    // getDemandsForShop: shopId フィルタ + createdAt 降順
+    {
+      "collectionGroup": "shop_inquiry_demands",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+
   ],
   "fieldOverrides": []
 }

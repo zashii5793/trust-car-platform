@@ -1,0 +1,396 @@
+<title>Trust Car Platform — 開発進捗ダッシュボード</title>
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --surface-2: #eef1f6;
+    --ink: #131926;
+    --ink-2: #4a5568;
+    --ink-3: #7c869a;
+    --line: #dde3ec;
+    --accent: #2f66e0;
+    --accent-soft: #e5edfd;
+    --good: #1f8a54;
+    --good-soft: #dcf1e5;
+    --warn: #b9741f;
+    --warn-soft: #f8ecd6;
+    --bad: #c1443e;
+    --bad-soft: #f8dedc;
+    --shadow: 0 1px 2px rgba(19,25,38,.06), 0 4px 16px rgba(19,25,38,.05);
+    --radius: 14px;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e131c;
+      --surface: #161d29;
+      --surface-2: #1e2735;
+      --ink: #eef2f8;
+      --ink-2: #a7b2c4;
+      --ink-3: #6d7893;
+      --line: #29323f;
+      --accent: #6a9bff;
+      --accent-soft: #1c2a45;
+      --good: #4cc487;
+      --good-soft: #172c22;
+      --warn: #e0a34e;
+      --warn-soft: #2e2417;
+      --bad: #f0716a;
+      --bad-soft: #311a19;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f6f9; --surface: #ffffff; --surface-2: #eef1f6; --ink: #131926;
+    --ink-2: #4a5568; --ink-3: #7c869a; --line: #dde3ec; --accent: #2f66e0;
+    --accent-soft: #e5edfd; --good: #1f8a54; --good-soft: #dcf1e5; --warn: #b9741f;
+    --warn-soft: #f8ecd6; --bad: #c1443e; --bad-soft: #f8dedc;
+    --shadow: 0 1px 2px rgba(19,25,38,.06), 0 4px 16px rgba(19,25,38,.05);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e131c; --surface: #161d29; --surface-2: #1e2735; --ink: #eef2f8;
+    --ink-2: #a7b2c4; --ink-3: #6d7893; --line: #29323f; --accent: #6a9bff;
+    --accent-soft: #1c2a45; --good: #4cc487; --good-soft: #172c22; --warn: #e0a34e;
+    --warn-soft: #2e2417; --bad: #f0716a; --bad-soft: #311a19;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.28);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 72px; }
+
+  /* ---- header ---- */
+  header.head { margin-bottom: 32px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 10px;
+  }
+  h1 {
+    font-size: clamp(26px, 4vw, 38px); line-height: 1.12; margin: 0 0 14px;
+    font-weight: 800; letter-spacing: -.02em; text-wrap: balance;
+  }
+  .lede {
+    font-size: 16px; color: var(--ink-2); max-width: 60ch; margin: 0;
+  }
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px;
+    font-size: 13px; color: var(--ink-3);
+  }
+  .meta-row b { color: var(--ink-2); font-weight: 600; }
+
+  /* ---- section ---- */
+  section { margin-top: 40px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+  .sec-head h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .1em;
+    font-weight: 700; color: var(--ink-2); margin: 0;
+  }
+  .sec-head .rule { flex: 1; height: 1px; background: var(--line); }
+
+  /* ---- kpi tiles ---- */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .kpi {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 18px 18px 16px; box-shadow: var(--shadow);
+  }
+  .kpi .n {
+    font-family: var(--mono); font-size: 30px; font-weight: 700; letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums; color: var(--ink); line-height: 1;
+  }
+  .kpi .n small { font-size: 15px; color: var(--ink-3); font-weight: 600; }
+  .kpi .k { font-size: 12.5px; color: var(--ink-3); margin-top: 9px; }
+
+  /* ---- shipping alert banner ---- */
+  .alert {
+    margin-top: 22px; background: var(--bad-soft); border: 1px solid var(--bad);
+    border-left-width: 4px; border-radius: var(--radius); padding: 18px 20px;
+    display: flex; gap: 16px; align-items: flex-start;
+  }
+  .alert .dot {
+    flex: none; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--bad); margin-top: 7px;
+    box-shadow: 0 0 0 4px var(--bad-soft);
+  }
+  .alert h3 { margin: 0 0 4px; font-size: 15px; color: var(--ink); }
+  .alert p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+
+  /* ---- feature progress ---- */
+  .feats { display: grid; gap: 12px; }
+  .feat {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 15px 18px; box-shadow: var(--shadow);
+  }
+  .feat-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .feat-name { font-weight: 650; font-size: 14.5px; flex: 1; }
+  .feat-sub { color: var(--ink-3); font-weight: 400; font-size: 12.5px; }
+  .bar { height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; border-radius: 99px; }
+  .fill-good > span { background: var(--good); }
+  .fill-warn > span { background: var(--warn); }
+  .fill-bad  > span { background: var(--bad); }
+
+  .chip {
+    font-size: 11.5px; font-weight: 700; letter-spacing: .02em;
+    padding: 3px 9px; border-radius: 99px; white-space: nowrap;
+  }
+  .chip.good { background: var(--good-soft); color: var(--good); }
+  .chip.warn { background: var(--warn-soft); color: var(--warn); }
+  .chip.bad  { background: var(--bad-soft);  color: var(--bad); }
+  .chip.neutral { background: var(--surface-2); color: var(--ink-2); }
+
+  /* ---- two column ---- */
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+  }
+  .card h3 { margin: 0 0 14px; font-size: 15px; }
+
+  /* PR/issue split stat */
+  .split { display: flex; gap: 10px; }
+  .split .cell { flex: 1; background: var(--surface-2); border-radius: 10px; padding: 12px 14px; }
+  .split .cell .num {
+    font-family: var(--mono); font-size: 22px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .split .cell .lbl { font-size: 11.5px; color: var(--ink-3); margin-top: 3px; }
+  .split .cell.bad .num  { color: var(--bad); }
+  .split .cell.warn .num { color: var(--warn); }
+  .split .cell.good .num { color: var(--good); }
+
+  ul.list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 9px; }
+  ul.list li { display: flex; gap: 10px; font-size: 13.5px; color: var(--ink-2); align-items: baseline; }
+  ul.list li code {
+    font-family: var(--mono); font-size: 12px; background: var(--surface-2);
+    padding: 1px 6px; border-radius: 5px; color: var(--ink); white-space: nowrap;
+  }
+
+  /* ---- challenges ---- */
+  .challenges { display: grid; gap: 11px; }
+  .ch {
+    display: grid; grid-template-columns: auto 1fr; gap: 0 16px;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px 18px 16px 0; box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .ch .stripe { width: 4px; align-self: stretch; border-radius: 0; }
+  .ch.sev-bad  .stripe { background: var(--bad); }
+  .ch.sev-warn .stripe { background: var(--warn); }
+  .ch.sev-low  .stripe { background: var(--ink-3); }
+  .ch-body { padding-left: 18px; }
+  .ch-top { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
+  .ch-title { font-weight: 650; font-size: 14.5px; }
+  .ch p { margin: 0; font-size: 13px; color: var(--ink-2); }
+
+  /* ---- next actions ---- */
+  .steps { display: grid; gap: 10px; counter-reset: step; }
+  .step {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 15px 18px; box-shadow: var(--shadow);
+  }
+  .step .idx {
+    counter-increment: step; font-family: var(--mono); font-weight: 700;
+    font-size: 15px; color: var(--accent); background: var(--accent-soft);
+    width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center;
+  }
+  .step .idx::before { content: counter(step); }
+  .step .txt { font-size: 14px; }
+  .step .txt small { display: block; color: var(--ink-3); font-size: 12.5px; margin-top: 2px; }
+
+  footer {
+    margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
+    font-size: 12px; color: var(--ink-3);
+  }
+
+  @media (max-width: 720px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .cols { grid-template-columns: 1fr; }
+    .step { grid-template-columns: auto 1fr; }
+    .step .chip { grid-column: 2; justify-self: start; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <p class="eyebrow">Trust Car Platform · プロダクト開発進捗</p>
+    <h1>機能はほぼ揃った。次の勝負は「出荷」。</h1>
+    <p class="lede">
+      Flutter + Firebase 製の車両管理アプリ。約5か月でコア機能・B2B収益化・コミュニティを作り込み、
+      品質（テスト・CI・セキュリティルール）も健全。ボトルネックは開発ではなく、
+      <b>実装済みの価値を本番ユーザーに届けること</b>にある。
+    </p>
+    <div class="meta-row">
+      <span>レポート日 <b>2026-07-13</b></span>
+      <span>開発期間 <b>2026-02-04 〜（約5か月）</b></span>
+      <span>コミット <b>184</b></span>
+      <span>ブランチ <b>claude/dev-progress-report-a9ly7w</b></span>
+    </div>
+  </header>
+
+  <!-- KPIs -->
+  <section>
+    <div class="sec-head"><h2>開発の全体像</h2><span class="rule"></span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="n">357</div><div class="k">Dart ファイル（約133,000行 / lib+test）</div></div>
+      <div class="kpi"><div class="n">3,400<small>+</small></div><div class="k">テスト（154ファイル・全パス）</div></div>
+      <div class="kpi"><div class="n">51<small> / 52</small></div><div class="k">Service / 画面（Provider 18・Model 33）</div></div>
+      <div class="kpi"><div class="n">710<small>行</small></div><div class="k">Firestoreルール（複合インデックス 42本）</div></div>
+    </div>
+
+    <div class="alert" role="note">
+      <span class="dot" aria-hidden="true"></span>
+      <div>
+        <h3>いま最大の制約：作ったものが本番に届いていない</h3>
+        <p>CI GREEN のまま未マージのPRが 20件超。加えて Firebase 本番設定（Issue #49）が未了で、実機で車両を1台も登録できない状態。この2点を解けば一気に実ユーザー検証フェーズへ進める。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature completion -->
+  <section>
+    <div class="sec-head"><h2>機能領域の完成度（プロダクト観点）</h2><span class="rule"></span></div>
+    <div class="feats">
+      <div class="feat">
+        <div class="feat-top"><span class="feat-name">B2Cコア <span class="feat-sub">車両管理・整備履歴・車検リマインダー</span></span><span class="chip good">実装＆反映済</span></div>
+        <div class="bar fill-good"><span style="width:100%"></span></div>
+      </div>
+      <div class="feat">
+        <div class="feat-top"><span class="feat-name">B2B収益化 <span class="feat-sub">店舗プラン・問い合わせ・月次ROI・法人フリート・マーケット</span></span><span class="chip good">実装＆反映済</span></div>
+        <div class="bar fill-good"><span style="width:100%"></span></div>
+      </div>
+      <div class="feat">
+        <div class="feat-top"><span class="feat-name">コミュニティ / SNS <span class="feat-sub">投稿・フォロー・いいね・コメント通報・装着例</span></span><span class="chip good">実装＆反映済</span></div>
+        <div class="bar fill-good"><span style="width:100%"></span></div>
+      </div>
+      <div class="feat">
+        <div class="feat-top"><span class="feat-name">差別化機能 <span class="feat-sub">愛車カルテPDF・AIメンテ予測・整備解説・工場裏書き</span></span><span class="chip warn">実装済・未反映（PR滞留）</span></div>
+        <div class="bar fill-warn"><span style="width:85%"></span></div>
+      </div>
+      <div class="feat">
+        <div class="feat-top"><span class="feat-name">集客エンジン <span class="feat-sub">GoogleMap連動・提携フリーミアム</span></span><span class="chip warn">Phase2のみ・API待ち</span></div>
+        <div class="bar fill-warn"><span style="width:45%"></span></div>
+      </div>
+      <div class="feat">
+        <div class="feat-top"><span class="feat-name">リリース（実機・本番） <span class="feat-sub">Firebase Auth有効化・ルールデプロイ・設定ファイル</span></span><span class="chip bad">ブロック中（#49）</span></div>
+        <div class="bar fill-bad"><span style="width:15%"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PR + Issue state -->
+  <section>
+    <div class="sec-head"><h2>リポジトリの状態</h2><span class="rule"></span></div>
+    <div class="cols">
+      <div class="card">
+        <h3>Pull Request の滞留</h3>
+        <div class="split">
+          <div class="cell bad"><div class="num">20<span style="font-size:14px">+</span></div><div class="lbl">未マージ（多くがCI GREEN）</div></div>
+          <div class="cell warn"><div class="num">~10</div><div class="lbl">古いmain分岐・要rebase</div></div>
+          <div class="cell warn"><div class="num">3</div><div class="lbl">重複実装（要整理）</div></div>
+        </div>
+        <ul class="list">
+          <li><code>#74→#75→#76</code> 車歴検証の依存チェーン（moat中核・先に順序マージ）</li>
+          <li><code>#68</code> 愛車タイムライン → Issue <code>#62</code>(high) をclose</li>
+          <li><code>#67</code> / <code>#78</code> AI提案が <code>#63</code>(high) で競合 → 要判断</li>
+          <li><code>#58</code> 159ファイルの大規模PR → 分割推奨</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>オープン Issue</h3>
+        <div class="split">
+          <div class="cell warn"><div class="num">12</div><div class="lbl">オープン総数</div></div>
+          <div class="cell bad"><div class="num">4</div><div class="lbl">priority: high</div></div>
+          <div class="cell neutral" style="background:var(--surface-2)"><div class="num" style="color:var(--ink-2)">3</div><div class="lbl">人間タスク待ち</div></div>
+        </div>
+        <ul class="list">
+          <li><span class="chip bad">high</span> <code>#49</code> 実機登録のFirebase設定（リリース解除）</li>
+          <li><span class="chip bad">high</span> <code>#41</code> GoogleMap連動集客（Maps APIキー待ち）</li>
+          <li><span class="chip bad">high</span> <code>#62 #63</code> タイムライン / AI提案（PRで実装済）</li>
+          <li><span class="chip neutral">負債</span> <code>#29 #30</code> UI一貫性・ダークモード統一</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Challenges -->
+  <section>
+    <div class="sec-head"><h2>現状の課題（深刻度順）</h2><span class="rule"></span></div>
+    <div class="challenges">
+      <div class="ch sev-bad">
+        <span class="stripe" aria-hidden="true"></span>
+        <div class="ch-body">
+          <div class="ch-top"><span class="ch-title">未マージPRの滞留</span><span class="chip bad">最重要</span></div>
+          <p>夜間自律開発で毎晩PRが増える一方、人間のレビュー/マージが追いつかない。実装済みの価値がmainに反映されず、ブランチが古いmainから離れてrebaseコストが増す悪循環。</p>
+        </div>
+      </div>
+      <div class="ch sev-bad">
+        <span class="stripe" aria-hidden="true"></span>
+        <div class="ch-body">
+          <div class="ch-top"><span class="ch-title">本番リリースをブロックする人間タスク（#49）</span><span class="chip bad">最重要</span></div>
+          <p>Firebase Auth有効化・ルール本番デプロイ・設定ファイル配置はAIで代替不可。未了のため実機で1台も車両登録できず、PMF検証を開始できない。所要は約30〜40分。</p>
+        </div>
+      </div>
+      <div class="ch sev-warn">
+        <span class="stripe" aria-hidden="true"></span>
+        <div class="ch-body">
+          <div class="ch-top"><span class="ch-title">開発環境にFlutter SDKが無い</span><span class="chip warn">中</span></div>
+          <p>クラウド/夜間セッションはネットワーク制限でFlutterを安定導入できず、検証をCIに委譲。フィードバックが1サイクル遅い。</p>
+        </div>
+      </div>
+      <div class="ch sev-warn">
+        <span class="stripe" aria-hidden="true"></span>
+        <div class="ch-body">
+          <div class="ch-top"><span class="ch-title">集客エンジンの外部API依存（#41）</span><span class="chip warn">中</span></div>
+          <p>需要蓄積のPhase2は実装済み（PR #78）。地図描画のPhase1がGoogle Maps / Places APIキー発行待ちで未着手。</p>
+        </div>
+      </div>
+      <div class="ch sev-low">
+        <span class="stripe" aria-hidden="true"></span>
+        <div class="ch-body">
+          <div class="ch-top"><span class="ch-title">UI一貫性の技術的負債（#29 / #30）</span><span class="chip neutral">低</span></div>
+          <p>ダークモード非追従の色直書き・共通UIコンポーネント採用率30〜40%。回帰リスク管理のためファイル単位で段階対応中。機能ではなく磨き込みの負債。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Next actions -->
+  <section>
+    <div class="sec-head"><h2>次のアクション（優先順）</h2><span class="rule"></span></div>
+    <div class="steps">
+      <div class="step">
+        <span class="idx" aria-hidden="true"></span>
+        <span class="txt">Issue #49 フェーズ0を実施<small>Firebase Auth有効化＋ルールデプロイ＋設定ファイル配置（約30〜40分）→ リリース解除</small></span>
+        <span class="chip bad">人間作業</span>
+      </div>
+      <div class="step">
+        <span class="idx" aria-hidden="true"></span>
+        <span class="txt">滞留PRを順序マージ<small>車歴検証 #74→#75→#76、priority:high の #68 / #67(or #78)。実装済み価値を本番へ反映</small></span>
+        <span class="chip warn">人間レビュー</span>
+      </div>
+      <div class="step">
+        <span class="idx" aria-hidden="true"></span>
+        <span class="txt">Maps/Places APIキー発行 → #41 Phase1 着手<small>集客エンジン（プル型）の起動</small></span>
+        <span class="chip warn">人間→AI</span>
+      </div>
+      <div class="step">
+        <span class="idx" aria-hidden="true"></span>
+        <span class="txt">UI負債の継続解消（#29 / #30）<small>ダークモード一貫性・共通コンポーネント採用率向上。AI単独で進行可</small></span>
+        <span class="chip good">AI単独</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    数値・状態は 2026-07-13 時点の GitHub Issue/PR とリポジトリに基づく。詳細は
+    <code>docs/DEV_PROGRESS_REPORT_2026-07-13.md</code> ／
+    <code>docs/OPEN_PR_TRIAGE_2026-07-13.md</code> ／
+    <code>docs/RELEASE_UNBLOCK_RUNBOOK_2026-07-13.md</code> を参照。
+  </footer>
+</div>

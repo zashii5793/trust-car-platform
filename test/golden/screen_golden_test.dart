@@ -54,6 +54,15 @@ class MockAuthService implements AuthService {
           Result.failure(const AuthError('Not implemented'));
 
   @override
+  Future<Result<firebase_auth.UserCredential?, AppError>>
+      signInWithApple() async =>
+          Result.failure(const AuthError('Not implemented'));
+
+  @override
+  Future<Result<void, AppError>> deleteAccount() async =>
+      const Result.success(null);
+
+  @override
   Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override

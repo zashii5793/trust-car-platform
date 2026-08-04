@@ -169,6 +169,7 @@ class _StubAuthService implements AuthService {
   Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
       const Result.success(null);
 
+  @override
   Future<Result<void, AppError>> deleteAccount() async =>
       const Result.success(null);
 
