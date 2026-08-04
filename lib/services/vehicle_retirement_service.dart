@@ -66,7 +66,7 @@ class VehicleRetirementService {
 
       return const Result.success(null);
     } catch (e) {
-      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
@@ -106,7 +106,7 @@ class VehicleRetirementService {
 
       return const Result.success(null);
     } catch (e) {
-      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
@@ -120,7 +120,7 @@ class VehicleRetirementService {
           .where('status', whereNotIn: [VehicleStatus.active.name]).get();
       return Result.success(snap.docs.map(Vehicle.fromFirestore).toList());
     } catch (e) {
-      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
@@ -135,7 +135,7 @@ class VehicleRetirementService {
           .get();
       return Result.success(snap.docs.map(Vehicle.fromFirestore).toList());
     } catch (e) {
-      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+      return Result.failure(mapFirebaseError(e));
     }
   }
 }

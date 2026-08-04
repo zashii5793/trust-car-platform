@@ -210,6 +210,25 @@ enum InspectionResult {
   }
 }
 
+/// 整備記録の検証ソース（C1 — moat核心: 工場が裏書きした記録を構造化）
+enum VerificationSource {
+  /// ユーザー自身が入力した記録（未検証）
+  selfReported,
+
+  /// 工場からの問い合わせスレッド経由で取り込んだ記録（inquiryId ≠ null）
+  shopImported,
+
+  /// 工場が明示的に裏書きした記録（最高信頼度）
+  shopVerified;
+
+  static VerificationSource fromString(String? value) {
+    return VerificationSource.values.firstWhere(
+      (e) => e.name == value,
+      orElse: () => VerificationSource.selfReported,
+    );
+  }
+}
+
 /// 作業項目
 class WorkItem {
   final String name; // 作業項目名
@@ -333,6 +352,26 @@ class MaintenanceRecord {
   // 工場連携: 問い合わせスレッド経由で取り込んだ場合の元問い合わせID（トレーサビリティ）
   final String? inquiryId;
 
+  // C1 検証フィールド（moat核心）
+  // verificationSource は getter で導出。明示的な上書きが必要な場合のみ _verificationSourceOverride を設定する
+  final VerificationSource? _verificationSourceOverride;
+  final String? verifiedByShopId; // 裏書きした工場ID（shops コレクション参照）
+  final DateTime? verifiedAt; // 裏書き日時
+
+  /// 検証ソース（inquiryId ≠ null → shopImported、明示指定 → その値、それ以外 → selfReported）
+  VerificationSource get verificationSource {
+    if (_verificationSourceOverride != null) {
+      return _verificationSourceOverride!;
+    }
+    if (inquiryId != null && inquiryId!.isNotEmpty) {
+      return VerificationSource.shopImported;
+    }
+    return VerificationSource.selfReported;
+  }
+
+  /// 工場が関与した記録かどうか（shopImported または shopVerified）
+  bool get isVerified => verificationSource != VerificationSource.selfReported;
+
   MaintenanceRecord({
     required this.id,
     required this.vehicleId,
@@ -370,7 +409,11 @@ class MaintenanceRecord {
     this.tireTreadDepth,
     // 工場連携
     this.inquiryId,
-  });
+    // C1 検証フィールド
+    VerificationSource? verificationSourceOverride,
+    this.verifiedByShopId,
+    this.verifiedAt,
+  }) : _verificationSourceOverride = verificationSourceOverride;
 
   // Firestoreからデータを取得
   factory MaintenanceRecord.fromFirestore(DocumentSnapshot doc) {
@@ -418,6 +461,12 @@ class MaintenanceRecord {
       tireTreadDepth: data['tireTreadDepth'] as int?,
       // 工場連携
       inquiryId: data['inquiryId'] as String?,
+      // C1 検証フィールド
+      verificationSourceOverride: data.containsKey('verificationSource')
+          ? VerificationSource.fromString(data['verificationSource'] as String?)
+          : null,
+      verifiedByShopId: data['verifiedByShopId'] as String?,
+      verifiedAt: _parseTimestampNullable(data['verifiedAt']),
     );
   }
 
@@ -511,6 +560,10 @@ class MaintenanceRecord {
       if (tireTreadDepth != null) 'tireTreadDepth': tireTreadDepth,
       // 工場連携 (only written when non-null)
       if (inquiryId != null) 'inquiryId': inquiryId,
+      // C1 検証フィールド
+      'verificationSource': verificationSource.name,
+      if (verifiedByShopId != null) 'verifiedByShopId': verifiedByShopId,
+      if (verifiedAt != null) 'verifiedAt': Timestamp.fromDate(verifiedAt!),
     };
   }
 
@@ -589,6 +642,10 @@ class MaintenanceRecord {
     int? tireTreadDepth,
     // 工場連携
     String? inquiryId,
+    // C1 検証フィールド
+    VerificationSource? verificationSourceOverride,
+    String? verifiedByShopId,
+    DateTime? verifiedAt,
   }) {
     return MaintenanceRecord(
       id: id ?? this.id,
@@ -628,6 +685,11 @@ class MaintenanceRecord {
       tireTreadDepth: tireTreadDepth ?? this.tireTreadDepth,
       // 工場連携
       inquiryId: inquiryId ?? this.inquiryId,
+      // C1 検証フィールド
+      verificationSourceOverride:
+          verificationSourceOverride ?? _verificationSourceOverride,
+      verifiedByShopId: verifiedByShopId ?? this.verifiedByShopId,
+      verifiedAt: verifiedAt ?? this.verifiedAt,
     );
   }
 
