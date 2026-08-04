@@ -18,6 +18,9 @@ import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
 import 'package:trust_car_platform/models/user.dart';
+import 'package:trust_car_platform/services/shop_demand_service.dart';
+import 'package:trust_car_platform/core/di/service_locator.dart';
+import 'package:trust_car_platform/models/shop_inquiry_demand.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -268,6 +271,47 @@ class MockAuthService implements AuthService {
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
+class MockShopDemandService implements ShopDemandService {
+  int recordDemandCallCount = 0;
+  bool shouldFail = false;
+
+  @override
+  Future<Result<ShopInquiryDemand, AppError>> recordDemand({
+    required String shopId,
+    required String shopOwnerId,
+    required String userId,
+    required InquiryType type,
+    required String subject,
+    String? message,
+    String? vehicleId,
+  }) async {
+    recordDemandCallCount++;
+    if (shouldFail) {
+      return Result.failure(AppError.network('demand error'));
+    }
+    return Result.success(ShopInquiryDemand(
+      id: 'demand1',
+      shopId: shopId,
+      shopOwnerId: shopOwnerId,
+      userId: userId,
+      type: type,
+      subject: subject,
+      message: message,
+      vehicleId: vehicleId,
+      createdAt: DateTime(2026),
+    ));
+  }
+
+  @override
+  Future<Result<int, AppError>> getDemandCountForShop(String shopId) async =>
+      const Result.success(0);
+
+  @override
+  Future<Result<List<ShopInquiryDemand>, AppError>> getDemandsForShop(
+          String shopId) async =>
+      const Result.success([]);
+}
+
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
@@ -276,6 +320,8 @@ Shop _testShop({
   String id = 'shop1',
   String name = 'テスト工場',
   bool isVerified = true,
+  ShopSubscriptionStatus subscriptionStatus = ShopSubscriptionStatus.active,
+  String? ownerId = 'owner1',
 }) {
   final now = DateTime.now();
   return Shop(
@@ -290,6 +336,8 @@ Shop _testShop({
     imageUrls: [],
     businessHours: {},
     reviewCount: 0,
+    subscriptionStatus: subscriptionStatus,
+    ownerId: ownerId,
     createdAt: now,
     updatedAt: now,
   );
@@ -354,17 +402,22 @@ Future<void> _fillValidForm(WidgetTester tester) async {
 void main() {
   group('InquiryScreen', () {
     late MockInquiryService mockInquiry;
+    late MockShopDemandService mockDemand;
     late ShopProvider shopProvider;
     late AuthProvider authProvider;
 
     setUp(() {
       mockInquiry = MockInquiryService();
+      mockDemand = MockShopDemandService();
+      sl.override<ShopDemandService>(mockDemand);
       shopProvider = ShopProvider(
         shopService: MockShopService(),
         inquiryService: mockInquiry,
       );
       authProvider = AuthProvider(authService: MockAuthService());
     });
+
+    tearDown(() => sl.unregister<ShopDemandService>());
 
     testWidgets('ショップのミニカード（送信先）が表示される', (tester) async {
       final shop = _testShop(name: 'メインガレージ');
@@ -685,6 +738,88 @@ void main() {
 
           expect(find.text('今月の問い合わせ上限に達しました'), findsNothing);
         });
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // 非提携店フリーミアムゲート（Issue #41 Phase 2）
+    // -------------------------------------------------------------------------
+    group('非提携店フリーミアムゲート', () {
+      testWidgets('非提携店への送信 → recordDemand が呼ばれ createInquiry は呼ばれない',
+          (tester) async {
+        final nonPartnerShop =
+            _testShop(subscriptionStatus: ShopSubscriptionStatus.free);
+
+        await tester.pumpWidget(_buildApp(
+          nonPartnerShop,
+          shopProvider: shopProvider,
+          authProvider: _LoggedInAuthProvider(),
+        ));
+        await tester.pump();
+
+        await _fillValidForm(tester);
+        await tester.tap(find.textContaining('送信').last);
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(mockDemand.recordDemandCallCount, 1);
+        expect(mockInquiry.createCallCount, 0);
+      });
+
+      testWidgets('非提携店 → 成功時に需要受付ダイアログが表示される', (tester) async {
+        final nonPartnerShop =
+            _testShop(subscriptionStatus: ShopSubscriptionStatus.free);
+
+        await tester.pumpWidget(_buildApp(
+          nonPartnerShop,
+          shopProvider: shopProvider,
+          authProvider: _LoggedInAuthProvider(),
+        ));
+        await tester.pump();
+
+        await _fillValidForm(tester);
+        await tester.tap(find.textContaining('送信').last);
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('お問い合わせを受け付けました'), findsOneWidget);
+      });
+
+      testWidgets('提携店（active） → 通常の問い合わせが送信される', (tester) async {
+        final partnerShop =
+            _testShop(subscriptionStatus: ShopSubscriptionStatus.active);
+
+        await tester.pumpWidget(_buildApp(
+          partnerShop,
+          shopProvider: shopProvider,
+          authProvider: _LoggedInAuthProvider(),
+        ));
+        await tester.pump();
+
+        await _fillValidForm(tester);
+        await tester.tap(find.textContaining('送信').last);
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(mockInquiry.createCallCount, 1);
+        expect(mockDemand.recordDemandCallCount, 0);
+      });
+
+      testWidgets('非提携店 → recordDemand 失敗時にエラーSnackBarが出る', (tester) async {
+        mockDemand.shouldFail = true;
+        final nonPartnerShop =
+            _testShop(subscriptionStatus: ShopSubscriptionStatus.free);
+
+        await tester.pumpWidget(_buildApp(
+          nonPartnerShop,
+          shopProvider: shopProvider,
+          authProvider: _LoggedInAuthProvider(),
+        ));
+        await tester.pump();
+
+        await _fillValidForm(tester);
+        await tester.tap(find.textContaining('送信').last);
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.textContaining('失敗'), findsAtLeast(1));
+        expect(find.text('お問い合わせを受け付けました'), findsNothing);
       });
     });
   });
