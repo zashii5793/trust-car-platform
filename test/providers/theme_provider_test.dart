@@ -7,8 +7,17 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('ThemeProvider', () {
-    test('defaults to system when nothing is saved', () async {
+    // Light, not system: following the OS meant a first-time visitor on a
+    // dark-themed device saw the app in dark without asking for it.
+    test('defaults to light when nothing is saved', () async {
       SharedPreferences.setMockInitialValues({});
+      expect(await ThemeProvider.loadSavedMode(), ThemeMode.light);
+    });
+
+    test('honours an explicitly saved system preference', () async {
+      SharedPreferences.setMockInitialValues({
+        ThemeProvider.prefsKey: 'system',
+      });
       expect(await ThemeProvider.loadSavedMode(), ThemeMode.system);
     });
 
@@ -44,11 +53,11 @@ void main() {
         expect(notified, 0);
       });
 
-      test('unknown persisted value falls back to system', () async {
+      test('unknown persisted value falls back to light', () async {
         SharedPreferences.setMockInitialValues({
           ThemeProvider.prefsKey: 'sepia',
         });
-        expect(await ThemeProvider.loadSavedMode(), ThemeMode.system);
+        expect(await ThemeProvider.loadSavedMode(), ThemeMode.light);
       });
     });
   });

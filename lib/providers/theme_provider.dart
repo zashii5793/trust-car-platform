@@ -58,8 +58,14 @@ class ThemeProvider extends ChangeNotifier {
         return ThemeMode.light;
       case 'dark':
         return ThemeMode.dark;
-      default:
+      case 'system':
+        // Still honoured when the user explicitly asked to follow the OS.
         return ThemeMode.system;
+      default:
+        // Nothing saved yet, or an unreadable value: start in light. This is
+        // the path a first-time user takes, so it must not fall through to
+        // system — that is what made the app open in dark unbidden.
+        return ThemeMode.light;
     }
   }
 }
