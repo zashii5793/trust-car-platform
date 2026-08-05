@@ -25,6 +25,7 @@ import 'maintenance_stats_screen.dart';
 import 'maintenance_search_screen.dart';
 import '../services/firebase_service.dart';
 import '../services/community_trend_service.dart';
+import '../core/timeline/mileage_milestone.dart';
 
 // Data returned by _InspectionCompleteDialog when the user confirms.
 class _InspectionCompletionResult {
@@ -464,6 +465,9 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       );
                     },
                   ),
+
+                  // 整備記録の査定価値バナー
+                  _MaintenanceValueBanner(vehicle: _vehicle),
 
                   // AI提案
                   Consumer<NotificationProvider>(
@@ -1036,6 +1040,8 @@ class _StatisticsSection extends StatelessWidget {
       builder: (context, provider, child) {
         final totalCost = provider.getTotalCost();
         final recordCount = provider.records.length;
+        final verifiedCount =
+            provider.records.where((r) => r.isVerified).length;
 
         return Padding(
           padding: AppSpacing.paddingScreen,
@@ -1062,6 +1068,31 @@ class _StatisticsSection extends StatelessWidget {
                   ),
                 ],
               ),
+              if (verifiedCount > 0) ...[
+                AppSpacing.verticalSm,
+                Row(
+                  children: [
+                    Icon(Icons.verified, size: 14, color: AppColors.success),
+                    AppSpacing.horizontalXxs,
+                    Text(
+                      '検証済み',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    AppSpacing.horizontalXxs,
+                    Text(
+                      '$verifiedCount / $recordCount 件',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.success,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               if (recordCount > 0 && onDetailsTap != null) ...[
                 AppSpacing.verticalSm,
                 SizedBox(
@@ -1123,6 +1154,94 @@ class _StatCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+// Maintenance value banner (resale/appraisal benefit)
+// ---------------------------------------------------------------------------
+
+/// 整備記録が査定時に有利になることをユーザーに伝えるバナー。
+///
+/// 記録が1件以上あるときのみ表示する。車検記録（carInspection）が
+/// 含まれる場合は、より強い訴求文言に切り替える。
+class _MaintenanceValueBanner extends StatelessWidget {
+  final Vehicle vehicle;
+
+  const _MaintenanceValueBanner({required this.vehicle});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Consumer<MaintenanceProvider>(
+      builder: (context, provider, _) {
+        final records = provider.records;
+        if (records.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final hasInspection = records.any(
+          (r) => r.type == MaintenanceType.carInspection,
+        );
+        final count = records.length;
+
+        final title =
+            hasInspection ? '車検記録あり — 査定で信頼性アピール' : '整備記録 $count 件 — 査定価値UP';
+        final body = hasInspection
+            ? '車検・整備記録が揃っていると、査定士に適切なメンテナンスが行われた証拠を提示でき、査定額向上につながります。'
+            : '整備記録を残し続けることで、売却時に「きちんと管理された車」と証明できます。記録が多いほど査定評価が高まります。';
+
+        return Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: AppSpacing.paddingScreen.horizontal / 2,
+          ).copyWith(bottom: AppSpacing.sm),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withValues(alpha: 0.08),
+              borderRadius: AppSpacing.borderRadiusMd,
+              border: Border.all(
+                color: AppColors.secondary.withValues(alpha: 0.25),
+              ),
+            ),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.verified_outlined,
+                  color: AppColors.secondary,
+                  size: 20,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: AppColors.secondary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        body,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Unified Vehicle Timeline (maintenance records + drive logs)
 // ---------------------------------------------------------------------------
 
@@ -1162,6 +1281,17 @@ class _TimelineEntryItem extends _TimelineListItem {
   final bool isFirst;
   final bool isLast;
   _TimelineEntryItem(this.entry, {required this.isFirst, required this.isLast});
+}
+
+class _MilestoneListItem extends _TimelineListItem {
+  final MileageMilestone milestone;
+  final bool isFirst;
+  final bool isLast;
+  _MilestoneListItem(
+    this.milestone, {
+    required this.isFirst,
+    required this.isLast,
+  });
 }
 
 class _VehicleTimeline extends StatefulWidget {
@@ -1281,36 +1411,73 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
           );
         }
 
-        // Build the flat list: insert a month-header before each new year/month group
+        // Detect walk-through milestones (maintenance-containing filters only).
+        final milestones = widget.filter != _TimelineFilter.drive
+            ? MileageMilestoneDetector.detect(maintenanceProvider.records)
+            : <MileageMilestone>[];
+
+        // Merge entries and milestones newest-first.
+        // Same-date tie-break: milestones appear above (newer side) their entry.
+        final allNodes = <(bool, DateTime, Object)>[
+          ...entries.map((e) => (false, e.date, e as Object)),
+          ...milestones.map((m) => (true, m.date, m as Object)),
+        ]..sort((a, b) {
+            final cmp = b.$2.compareTo(a.$2);
+            if (cmp != 0) return cmp;
+            // milestone (true) before entry (false) on same date
+            if (a.$1 && !b.$1) return -1;
+            if (!a.$1 && b.$1) return 1;
+            return 0;
+          });
+
+        // Build the flat list: insert a month-header before each new year/month group.
+        // Both entries and milestones participate in isFirst/isLast (line continuity).
         final items = <_TimelineListItem>[];
         int? lastYear;
         int? lastMonth;
-        // Track entry indices to set isFirst/isLast relative to actual entries only
-        final entryIndices = <int>[]; // positions in `items` that hold entries
-        for (final entry in entries) {
-          final y = entry.date.year;
-          final m = entry.date.month;
+        final nodeIndices = <int>[];
+        for (final node in allNodes) {
+          final nodeDate = node.$2;
+          final y = nodeDate.year;
+          final m = nodeDate.month;
           if (y != lastYear || m != lastMonth) {
             items.add(_TimelineMonthHeader(y, m));
             lastYear = y;
             lastMonth = m;
           }
-          entryIndices.add(items.length);
-          items.add(_TimelineEntryItem(
-            entry,
-            isFirst: entryIndices.length == 1,
-            isLast: false, // updated below
-          ));
+          final isFirstNode = nodeIndices.isEmpty;
+          nodeIndices.add(items.length);
+          if (node.$1) {
+            items.add(_MilestoneListItem(
+              node.$3 as MileageMilestone,
+              isFirst: isFirstNode,
+              isLast: false,
+            ));
+          } else {
+            items.add(_TimelineEntryItem(
+              node.$3 as _TimelineEntry,
+              isFirst: isFirstNode,
+              isLast: false,
+            ));
+          }
         }
-        // Mark the last actual entry
-        if (entryIndices.isNotEmpty) {
-          final lastPos = entryIndices.last;
-          final last = items[lastPos] as _TimelineEntryItem;
-          items[lastPos] = _TimelineEntryItem(
-            last.entry,
-            isFirst: last.isFirst,
-            isLast: true,
-          );
+        // Mark the bottommost node as isLast (no line below it)
+        if (nodeIndices.isNotEmpty) {
+          final lastPos = nodeIndices.last;
+          final last = items[lastPos];
+          if (last is _MilestoneListItem) {
+            items[lastPos] = _MilestoneListItem(
+              last.milestone,
+              isFirst: last.isFirst,
+              isLast: true,
+            );
+          } else if (last is _TimelineEntryItem) {
+            items[lastPos] = _TimelineEntryItem(
+              last.entry,
+              isFirst: last.isFirst,
+              isLast: true,
+            );
+          }
         }
 
         return ListView.builder(
@@ -1346,6 +1513,16 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
                       isLast: isLast,
                     ),
                 },
+              _MilestoneListItem(
+                :final milestone,
+                :final isFirst,
+                :final isLast
+              ) =>
+                _MilestoneTimelineItem(
+                  milestone: milestone,
+                  isFirst: isFirst,
+                  isLast: isLast,
+                ),
             };
           },
         );
@@ -1615,6 +1792,28 @@ class _MaintenanceTimelineItem extends StatelessWidget {
                                     ],
                                   ),
                                 ],
+                                // Verification badge (optional)
+                                if (record.isVerified) ...[
+                                  AppSpacing.verticalXxs,
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.verified,
+                                        size: 13,
+                                        color: AppColors.success,
+                                      ),
+                                      AppSpacing.horizontalXxs,
+                                      Text(
+                                        '工場裏書き',
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          color: AppColors.success,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -1801,6 +2000,112 @@ class _DriveTimelineItem extends StatelessWidget {
                     ],
                   ],
                 ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mileage milestone row
+// ---------------------------------------------------------------------------
+
+class _MilestoneTimelineItem extends StatelessWidget {
+  final MileageMilestone milestone;
+  final bool isFirst;
+  final bool isLast;
+
+  const _MilestoneTimelineItem({
+    required this.milestone,
+    required this.isFirst,
+    required this.isLast,
+  });
+
+  static const double _lineWidth = 2.0;
+  static const double _leftColumnWidth = 48.0;
+  static const double _markerRadius = 14.0;
+  static const Color _milestoneColor = AppColors.warning;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final lineColor = isDark ? AppColors.darkCard : AppColors.divider;
+    final kmLabel = NumberFormat('#,###').format(milestone.km);
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // ---- Left: timeline line + trophy icon ----
+          SizedBox(
+            width: _leftColumnWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: _lineWidth,
+                  height: _markerRadius + 4,
+                  child: isFirst
+                      ? const SizedBox.shrink()
+                      : ColoredBox(color: lineColor),
+                ),
+                CircleAvatar(
+                  radius: _markerRadius,
+                  backgroundColor: _milestoneColor.withValues(alpha: 0.15),
+                  child: const Icon(
+                    Icons.emoji_events_outlined,
+                    color: _milestoneColor,
+                    size: 16,
+                  ),
+                ),
+                Expanded(
+                  child: isLast
+                      ? const SizedBox.shrink()
+                      : Center(
+                          child: SizedBox(
+                            width: _lineWidth,
+                            child: ColoredBox(color: lineColor),
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+
+          AppSpacing.horizontalSm,
+
+          // ---- Right: slim badge ----
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xxs,
+              ),
+              decoration: BoxDecoration(
+                color: _milestoneColor.withValues(alpha: 0.12),
+                borderRadius: AppSpacing.borderRadiusSm,
+                border: Border.all(
+                  color: _milestoneColor.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('🏁 ', style: TextStyle(fontSize: 13)),
+                  Text(
+                    '$kmLabel km 突破',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color:
+                          isDark ? AppColors.warning : const Color(0xFFB45309),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

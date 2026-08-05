@@ -444,6 +444,45 @@
         { "fieldPath": "category", "order": "ASCENDING" },
         { "fieldPath": "publishedAt", "order": "DESCENDING" }
       ]
+    },
+
+    // =========================================================
+    // vehicle_sharing_permissions
+    // =========================================================
+    // getPermittedShops: 車両オーナーが許可した工場IDリストを取得
+    //   .where('vehicleId', isEqualTo: vehicleId).where('isActive', isEqualTo: true)
+    {
+      "collectionGroup": "vehicle_sharing_permissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" }
+      ]
+    },
+    // getPermittedVehicles: 工場が閲覧許可された車両IDリストを取得
+    //   .where('shopId', isEqualTo: shopId).where('isActive', isEqualTo: true)
+    {
+      "collectionGroup": "vehicle_sharing_permissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" }
+      ]
+    }
+
+    ,
+
+    // =========================================================
+    // shop_inquiry_demands (Issue #41 Phase 2)
+    // =========================================================
+    // getDemandsForShop: shopId フィルタ + createdAt 降順
+    {
+      "collectionGroup": "shop_inquiry_demands",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
 
   ],

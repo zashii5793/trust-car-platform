@@ -83,10 +83,73 @@ class ShopPlanScreen extends StatelessWidget {
                   ),
               textAlign: TextAlign.center,
             ),
+            AppSpacing.verticalSm,
+            // App Store ガイドライン 3.1.1: サブスクは購入復元の導線が必須
+            const _RestorePurchasesButton(),
             AppSpacing.verticalLg,
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 「購入を復元」ボタン。
+///
+/// 機種変更・再インストール時に既存サブスクリプションを復元する。
+/// App Store ガイドライン 3.1.1 で非消耗型/サブスクには必須。
+class _RestorePurchasesButton extends StatefulWidget {
+  const _RestorePurchasesButton();
+
+  @override
+  State<_RestorePurchasesButton> createState() =>
+      _RestorePurchasesButtonState();
+}
+
+class _RestorePurchasesButtonState extends State<_RestorePurchasesButton> {
+  bool _isLoading = false;
+
+  Future<void> _restore() async {
+    setState(() => _isLoading = true);
+
+    final authProvider = context.read<AuthProvider>();
+    final userId = authProvider.firebaseUser?.uid ?? '';
+    final rcService = ServiceLocator.instance.get<RevenueCatService>();
+    final result = await rcService.restorePurchases(userId: userId);
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    result.when(
+      success: (restore) {
+        showSuccessSnackBar(
+          context,
+          restore.activeEntitlements.isNotEmpty
+              ? '購入情報を復元しました'
+              : '復元できる購入はありませんでした',
+        );
+      },
+      failure: (error) {
+        final msg = error.userMessage;
+        showSuccessSnackBar(
+          context,
+          msg.isNotEmpty ? msg : '購入の復元に失敗しました',
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: _isLoading ? null : _restore,
+      child: _isLoading
+          ? const SizedBox(
+              height: 18,
+              width: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Text('購入を復元'),
     );
   }
 }
