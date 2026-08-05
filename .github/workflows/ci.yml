@@ -47,12 +47,12 @@ jobs:
           STATUS=$?
           if [ "$STATUS" -ne 0 ]; then
             echo "::group::dart format が期待する差分"
-            git --no-pager diff
+            git --no-pager diff -- lib test
             echo "::endgroup::"
             {
               echo "## ❌ dart format の差分"
               echo '```diff'
-              git --no-pager diff
+              git --no-pager diff -- lib test
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
           fi
