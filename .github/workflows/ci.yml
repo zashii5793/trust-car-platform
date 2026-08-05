@@ -1,10 +1,21 @@
 name: CI
 
+# Triggers deliberately exclude `claude/**` pushes. With 65 agent branches
+# alive, every push ran the full matrix (incl. the macos-15 iOS build) and
+# every red run mailed a notification that got filed as a task — the daily
+# "CI失敗" loop. A branch's code is still gated: the PR event covers it once,
+# instead of once per push.
 on:
   push:
-    branches: [main, develop, 'claude/**']
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
+  workflow_dispatch:
+
+# Superseded runs on the same ref are pointless spend; cancel them.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   analyze-and-test:
@@ -187,12 +198,16 @@ jobs:
         if: always()
         run: find . -name "*.apk" -type f 2>/dev/null | head -20 || echo "No APK found"
 
+      # Build verification runs on every PR, but the binary is only kept for
+      # main — per-PR APK/iOS artifacts are what pushed Actions storage over
+      # quota. Re-run with workflow_dispatch if a PR binary is needed.
       - name: Upload APK artifact
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: android-apk-debug
           path: build/app/outputs/flutter-apk/app-debug.apk
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: warn
 
   build-ios:
@@ -278,9 +293,10 @@ jobs:
           fi
 
       - name: Upload iOS artifact
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: ios-build-debug
           path: build/ios/iphoneos/
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: warn
