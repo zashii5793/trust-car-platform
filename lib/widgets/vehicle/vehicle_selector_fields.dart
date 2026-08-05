@@ -355,7 +355,8 @@ class _MakerPickerSheetState extends State<_MakerPickerSheet> {
             Expanded(
               child: ListView.builder(
                 controller: scrollController,
-                itemCount: _filteredMakers.length + (widget.allowCustom ? 1 : 0),
+                itemCount:
+                    _filteredMakers.length + (widget.allowCustom ? 1 : 0),
                 itemBuilder: (context, index) {
                   // The custom row sits at the top when the search found
                   // nothing — that is exactly when the user needs it.
@@ -784,7 +785,8 @@ class _ModelPickerSheetState extends State<_ModelPickerSheet> {
             Expanded(
               child: ListView.builder(
                 controller: scrollController,
-                itemCount: _filteredModels.length + (widget.allowCustom ? 1 : 0),
+                itemCount:
+                    _filteredModels.length + (widget.allowCustom ? 1 : 0),
                 itemBuilder: (context, index) {
                   if (widget.allowCustom && index == _filteredModels.length) {
                     return ListTile(
