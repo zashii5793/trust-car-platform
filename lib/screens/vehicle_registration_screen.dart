@@ -432,12 +432,15 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
 
     setState(() => _isLoading = true);
 
+    // Normalised once: stored in this form, and compared in this form.
+    // See core/utils/license_plate.dart for why.
+    final plate = normalizeLicensePlate(_licensePlateController.text);
+
     try {
-      if (_licensePlateController.text.isNotEmpty) {
+      if (plate.isNotEmpty) {
         final exists =
             await Provider.of<VehicleProvider>(context, listen: false)
-                .isLicensePlateExists(
-                    normalizeLicensePlate(_licensePlateController.text));
+                .isLicensePlateExists(plate);
         if (!mounted) return;
         if (exists) {
           setState(() => _isLoading = false);
@@ -482,12 +485,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         imageUrl: imageUrl,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        // Stored normalised so half/full-width variants of the same plate do
-        // not become two vehicles. See core/utils/license_plate.dart.
-        licensePlate: normalizeLicensePlate(_licensePlateController.text)
-                .isEmpty
-            ? null
-            : normalizeLicensePlate(_licensePlateController.text),
+        licensePlate: plate.isEmpty ? null : plate,
         vinNumber: _vinNumberController.text.isEmpty
             ? null
             : _vinNumberController.text,

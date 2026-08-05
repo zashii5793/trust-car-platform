@@ -16,7 +16,8 @@ void main() {
     });
 
     test('連続する空白を1つにまとめ前後を除去する', () {
-      expect(normalizeLicensePlate('  品川   300   あ   12-34  '), '品川 300 あ 12-34');
+      const messy = '  品川   300   あ   12-34  ';
+      expect(normalizeLicensePlate(messy), '品川 300 あ 12-34');
     });
 
     test('地名のかな・漢字は変換しない', () {
