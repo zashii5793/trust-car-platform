@@ -7,8 +7,17 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('ThemeProvider', () {
-    test('defaults to system when nothing is saved', () async {
+    // Light, not system: following the OS meant a first-time visitor on a
+    // dark-themed device saw the app in dark without asking for it.
+    test('defaults to light when nothing is saved', () async {
       SharedPreferences.setMockInitialValues({});
+      expect(await ThemeProvider.loadSavedMode(), ThemeMode.light);
+    });
+
+    test('honours an explicitly saved system preference', () async {
+      SharedPreferences.setMockInitialValues({
+        ThemeProvider.prefsKey: 'system',
+      });
       expect(await ThemeProvider.loadSavedMode(), ThemeMode.system);
     });
 
@@ -21,15 +30,19 @@ void main() {
 
     test('setThemeMode persists and notifies listeners', () async {
       SharedPreferences.setMockInitialValues({});
-      final provider = ThemeProvider();
+      // Start from an explicit mode and switch to a different one. Relying on
+      // the constructor default made this test silently vacuous once the
+      // default became light: setThemeMode(light) hit the "same mode" early
+      // return, so nothing was notified or persisted.
+      final provider = ThemeProvider(initialMode: ThemeMode.light);
       var notified = 0;
       provider.addListener(() => notified++);
 
-      await provider.setThemeMode(ThemeMode.light);
+      await provider.setThemeMode(ThemeMode.dark);
 
-      expect(provider.themeMode, ThemeMode.light);
+      expect(provider.themeMode, ThemeMode.dark);
       expect(notified, 1);
-      expect(await ThemeProvider.loadSavedMode(), ThemeMode.light);
+      expect(await ThemeProvider.loadSavedMode(), ThemeMode.dark);
     });
 
     group('Edge Cases', () {
@@ -44,11 +57,11 @@ void main() {
         expect(notified, 0);
       });
 
-      test('unknown persisted value falls back to system', () async {
+      test('unknown persisted value falls back to light', () async {
         SharedPreferences.setMockInitialValues({
           ThemeProvider.prefsKey: 'sepia',
         });
-        expect(await ThemeProvider.loadSavedMode(), ThemeMode.system);
+        expect(await ThemeProvider.loadSavedMode(), ThemeMode.light);
       });
     });
   });

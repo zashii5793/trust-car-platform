@@ -18,6 +18,7 @@ import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/vehicle/vehicle_selector_fields.dart';
 import '../core/utils/thousands_separator_input_formatter.dart';
+import '../core/utils/license_plate.dart';
 import 'package:uuid/uuid.dart';
 import 'document_scanner_screen.dart';
 import 'vehicle_certificate_result_screen.dart';
@@ -431,11 +432,15 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
 
     setState(() => _isLoading = true);
 
+    // Normalised once: stored in this form, and compared in this form.
+    // See core/utils/license_plate.dart for why.
+    final plate = normalizeLicensePlate(_licensePlateController.text);
+
     try {
-      if (_licensePlateController.text.isNotEmpty) {
+      if (plate.isNotEmpty) {
         final exists =
             await Provider.of<VehicleProvider>(context, listen: false)
-                .isLicensePlateExists(_licensePlateController.text);
+                .isLicensePlateExists(plate);
         if (!mounted) return;
         if (exists) {
           setState(() => _isLoading = false);
@@ -480,9 +485,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         imageUrl: imageUrl,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        licensePlate: _licensePlateController.text.isEmpty
-            ? null
-            : _licensePlateController.text,
+        licensePlate: plate.isEmpty ? null : plate,
         vinNumber: _vinNumberController.text.isEmpty
             ? null
             : _vinNumberController.text,

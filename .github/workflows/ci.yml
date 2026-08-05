@@ -44,8 +44,28 @@ jobs:
 
       # Unit tests do not need the Firebase emulators — run them first so
       # the required gate is fast and independent of emulator availability.
+      # flutter test streams results in completion order, so a failure that
+      # happens early is buried thousands of lines above the summary. The API
+      # only serves the tail of a job log, which made "N passed, 1 failed"
+      # undiagnosable without re-running locally. Re-print the failures at the
+      # end (and in the job summary) so the tail always answers "which test?".
       - name: Run unit tests with coverage
-        run: flutter test --coverage --exclude-tags emulator
+        run: |
+          set +e
+          flutter test --coverage --exclude-tags emulator 2>&1 | tee /tmp/test.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::group::失敗したテスト"
+            grep -E "❌|\[E\]|Failed to load|Test failed" /tmp/test.log | head -50
+            echo "::endgroup::"
+            {
+              echo "## ❌ 失敗したテスト"
+              echo '```'
+              grep -E "❌|\[E\]|Failed to load|Test failed" /tmp/test.log | head -50
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $STATUS
 
       # --- Emulator-backed integration tests (best effort) -----------------
       # Everything below is continue-on-error: emulator download/startup can
@@ -214,6 +234,15 @@ jobs:
     name: Build iOS
     runs-on: macos-15
     needs: analyze-and-test
+    # macOS ランナーは分数が 10 倍で課金される。実測で 1 回あたり 57〜205 課金分
+    # かかっており、private リポジトリ（Free = 月2,000分）なら iOS ビルド
+    # 10〜15 回で月の枠を使い切る。
+    # そのため PR では既定で走らせず、main への push / 手動実行 /
+    # `ios` ラベル付きの PR に限定する。
+    # iOS 固有の破壊を PR 段階で見たいときは PR に `ios` ラベルを付ける。
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'ios')
 
     steps:
       - name: Checkout repository

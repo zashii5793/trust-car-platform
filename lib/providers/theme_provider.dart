@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Holds the user's preferred [ThemeMode] and persists it on-device via
-/// SharedPreferences. Defaults to [ThemeMode.system] so the app follows the OS
-/// setting until the user explicitly picks light or dark in 設定.
+/// SharedPreferences.
+///
+/// Defaults to [ThemeMode.light], NOT [ThemeMode.system]. Following the OS
+/// setting meant a first-time visitor on a dark-themed device saw the app in
+/// dark without ever asking for it, which is not the brand's intended first
+/// impression. Dark is opt-in: it appears only once the user picks it in 設定.
 class ThemeProvider extends ChangeNotifier {
-  ThemeProvider({ThemeMode initialMode = ThemeMode.system})
+  ThemeProvider({ThemeMode initialMode = ThemeMode.light})
       : _themeMode = initialMode;
 
   static const String prefsKey = 'theme_mode';
@@ -13,14 +17,14 @@ class ThemeProvider extends ChangeNotifier {
   ThemeMode _themeMode;
   ThemeMode get themeMode => _themeMode;
 
-  /// Reads the persisted preference. Falls back to system on any error or when
-  /// nothing has been saved yet.
+  /// Reads the persisted preference. Falls back to light on any error or when
+  /// nothing has been saved yet — see the class doc on why not system.
   static Future<ThemeMode> loadSavedMode() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       return _decode(prefs.getString(prefsKey));
     } catch (_) {
-      return ThemeMode.system;
+      return ThemeMode.light;
     }
   }
 
@@ -54,8 +58,14 @@ class ThemeProvider extends ChangeNotifier {
         return ThemeMode.light;
       case 'dark':
         return ThemeMode.dark;
-      default:
+      case 'system':
+        // Still honoured when the user explicitly asked to follow the OS.
         return ThemeMode.system;
+      default:
+        // Nothing saved yet, or an unreadable value: start in light. This is
+        // the path a first-time user takes, so it must not fall through to
+        // system — that is what made the app open in dark unbidden.
+        return ThemeMode.light;
     }
   }
 }

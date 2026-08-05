@@ -111,14 +111,29 @@ class VehicleRetirementService {
   }
 
   /// Returns all retired vehicles (sold/scrapped/etc.) for [userId].
+  ///
+  /// Filters by status in Dart rather than in the query. The previous version
+  /// combined an equality filter on userId with `whereNotIn` on status, which
+  /// needs a composite (userId, status) index — and `vehicles` only has
+  /// (userId, createdAt), so the query failed outright with FAILED_PRECONDITION
+  /// and the screen showed an error. `whereNotIn` also silently drops documents
+  /// that have no `status` field at all, which is every vehicle created before
+  /// the field was introduced.
+  ///
+  /// One user owns a handful of vehicles, so filtering client-side costs
+  /// nothing and removes the index dependency entirely.
   Future<Result<List<Vehicle>, AppError>> getRetiredVehicles(
       String userId) async {
     try {
       final snap = await _firestore
           .collection(_collection)
           .where('userId', isEqualTo: userId)
-          .where('status', whereNotIn: [VehicleStatus.active.name]).get();
-      return Result.success(snap.docs.map(Vehicle.fromFirestore).toList());
+          .get();
+      final retired = snap.docs
+          .map(Vehicle.fromFirestore)
+          .where((v) => v.status != VehicleStatus.active)
+          .toList();
+      return Result.success(retired);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
     }
