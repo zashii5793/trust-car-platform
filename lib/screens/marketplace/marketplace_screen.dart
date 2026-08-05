@@ -30,9 +30,9 @@ class MarketplaceScreen extends StatelessWidget {
     ];
 
     final views = <Widget>[
-      const ShopListScreen(),
+      const ShopListScreen(embedded: true),
       if (c2cEnabled) const PartListScreen(),
-      const MyInquiriesScreen(),
+      const MyInquiriesScreen(embedded: true),
       if (c2cEnabled) const MyListingsScreen(),
     ];
 
