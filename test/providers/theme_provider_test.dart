@@ -30,15 +30,19 @@ void main() {
 
     test('setThemeMode persists and notifies listeners', () async {
       SharedPreferences.setMockInitialValues({});
-      final provider = ThemeProvider();
+      // Start from an explicit mode and switch to a different one. Relying on
+      // the constructor default made this test silently vacuous once the
+      // default became light: setThemeMode(light) hit the "same mode" early
+      // return, so nothing was notified or persisted.
+      final provider = ThemeProvider(initialMode: ThemeMode.light);
       var notified = 0;
       provider.addListener(() => notified++);
 
-      await provider.setThemeMode(ThemeMode.light);
+      await provider.setThemeMode(ThemeMode.dark);
 
-      expect(provider.themeMode, ThemeMode.light);
+      expect(provider.themeMode, ThemeMode.dark);
       expect(notified, 1);
-      expect(await ThemeProvider.loadSavedMode(), ThemeMode.light);
+      expect(await ThemeProvider.loadSavedMode(), ThemeMode.dark);
     });
 
     group('Edge Cases', () {
