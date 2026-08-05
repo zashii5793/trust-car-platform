@@ -652,6 +652,26 @@ class _ProfileTab extends StatelessWidget {
 
           AppSpacing.verticalSm,
 
+          // ---- コミュニティセクション ----
+          _buildMenuSection(
+            context,
+            title: 'コミュニティ',
+            items: [
+              _MenuItemData(
+                icon: Icons.forum_outlined,
+                label: 'みんなのアクセサリー（口コミ・コメント）',
+                color: AppColors.secondary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const AccessoryShowcaseScreen()),
+                ),
+              ),
+            ],
+          ),
+
+          AppSpacing.verticalSm,
+
           // ---- アカウントセクション ----
           _buildMenuSection(
             context,
@@ -673,16 +693,6 @@ class _ProfileTab extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const DriveLogScreen()),
-                ),
-              ),
-              _MenuItemData(
-                icon: Icons.storefront_outlined,
-                label: 'みんなのアクセサリー',
-                color: AppColors.secondary,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const AccessoryShowcaseScreen()),
                 ),
               ),
               _MenuItemData(
@@ -897,6 +907,9 @@ class _ProfileTab extends StatelessWidget {
   }
 
   void _showUpgradeDialog(BuildContext context) {
+    final subscriptionProvider = context.read<UserSubscriptionProvider>();
+    final uid = context.read<AuthProvider>().firebaseUser?.uid ?? '';
+
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -909,6 +922,27 @@ class _ProfileTab extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('閉じる'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              if (uid.isEmpty) return;
+              final result =
+                  await subscriptionProvider.purchasePremium(userId: uid);
+              if (context.mounted) {
+                result.when(
+                  success: (_) => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('プレミアムプランへの登録が完了しました'),
+                        backgroundColor: Colors.green),
+                  ),
+                  failure: (err) => ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(err.userMessage)),
+                  ),
+                );
+              }
+            },
+            child: const Text('プレミアムに登録する'),
           ),
         ],
       ),

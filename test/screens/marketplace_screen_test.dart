@@ -19,6 +19,7 @@ import 'package:trust_car_platform/models/part_listing.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:trust_car_platform/core/config/app_config.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -145,19 +146,15 @@ Widget _buildUnderTest({
 // ---------------------------------------------------------------------------
 
 void main() {
-  group('MarketplaceScreen — タブ構造', () {
+  // AppConfig はグローバルシングルトン。テスト間でフラグが漏れないよう毎回リセット。
+  tearDown(() => AppConfig.instance.reset());
+
+  group('MarketplaceScreen — C2C凍結時（デフォルト）', () {
     testWidgets('「工場・業者」タブが表示される', (tester) async {
       await tester.pumpWidget(_buildUnderTest());
       await tester.pump();
 
       expect(find.text('工場・業者'), findsOneWidget);
-    });
-
-    testWidgets('「パーツ」タブが表示される', (tester) async {
-      await tester.pumpWidget(_buildUnderTest());
-      await tester.pump();
-
-      expect(find.text('パーツ'), findsOneWidget);
     });
 
     testWidgets('「問い合わせ」タブが表示される', (tester) async {
@@ -167,6 +164,53 @@ void main() {
       expect(find.text('問い合わせ'), findsOneWidget);
     });
 
+    testWidgets('「パーツ」タブは非表示（凍結中）', (tester) async {
+      await tester.pumpWidget(_buildUnderTest());
+      await tester.pump();
+
+      expect(find.text('パーツ'), findsNothing);
+    });
+
+    testWidgets('「マイ出品」タブは非表示（凍結中）', (tester) async {
+      await tester.pumpWidget(_buildUnderTest());
+      await tester.pump();
+
+      expect(find.text('マイ出品'), findsNothing);
+    });
+
+    testWidgets('TabBar が 2 タブ持つ', (tester) async {
+      await tester.pumpWidget(_buildUnderTest());
+      await tester.pump();
+
+      expect(find.byType(Tab), findsNWidgets(2));
+    });
+
+    testWidgets('パーツアイコン（build_outlined）は表示されない', (tester) async {
+      await tester.pumpWidget(_buildUnderTest());
+      await tester.pump();
+
+      expect(find.byIcon(Icons.build_outlined), findsNothing);
+    });
+  });
+
+  group('MarketplaceScreen — C2C有効時（フラグON）', () {
+    setUp(() => AppConfig.instance
+        .setFeatureFlag(FeatureFlag.c2cPartsMarketplace, true));
+
+    testWidgets('「パーツ」タブが表示される', (tester) async {
+      await tester.pumpWidget(_buildUnderTest());
+      await tester.pump();
+
+      expect(find.text('パーツ'), findsOneWidget);
+    });
+
+    testWidgets('「マイ出品」タブが表示される', (tester) async {
+      await tester.pumpWidget(_buildUnderTest());
+      await tester.pump();
+
+      expect(find.text('マイ出品'), findsOneWidget);
+    });
+
     testWidgets('TabBar が 4 タブ持つ', (tester) async {
       await tester.pumpWidget(_buildUnderTest());
       await tester.pump();
@@ -174,40 +218,21 @@ void main() {
       expect(find.byType(Tab), findsNWidgets(4));
     });
 
-    testWidgets('デフォルトは「工場・業者」タブが選択されている', (tester) async {
+    testWidgets('パーツアイコン（build_outlined）が表示される', (tester) async {
       await tester.pumpWidget(_buildUnderTest());
       await tester.pump();
 
-      // 最初のタブのコンテンツ（ShopListScreen）が表示される
-      // TabBarView は最初のタブをデフォルト表示
-      expect(find.byType(TabBarView), findsOneWidget);
+      expect(find.byIcon(Icons.build_outlined), findsOneWidget);
     });
-  });
 
-  group('MarketplaceScreen — タブ切替', () {
-    testWidgets('「パーツ」タブをタップすると PartListScreen に切り替わる', (tester) async {
+    testWidgets('「パーツ」タブをタップすると切り替わる', (tester) async {
       await tester.pumpWidget(_buildUnderTest());
       await tester.pump();
 
       await tester.tap(find.text('パーツ'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      // TabBar の 2 番目タブがアクティブになる
-      // (各画面の空状態テキストは shop/part_list_screen_test でカバー済み)
       expect(find.text('パーツ'), findsOneWidget);
-    });
-
-    testWidgets('「工場・業者」→「パーツ」→「工場・業者」と切り替えられる', (tester) async {
-      await tester.pumpWidget(_buildUnderTest());
-      await tester.pump();
-
-      await tester.tap(find.text('パーツ'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
-
-      await tester.tap(find.text('工場・業者'));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
-
-      expect(find.text('工場・業者'), findsOneWidget);
     });
   });
 
@@ -218,13 +243,6 @@ void main() {
 
       // タブと ShopListScreen の空状態の両方に表示されうるため findsWidgets
       expect(find.byIcon(Icons.store_outlined), findsWidgets);
-    });
-
-    testWidgets('パーツアイコン（build_outlined）が表示される', (tester) async {
-      await tester.pumpWidget(_buildUnderTest());
-      await tester.pump();
-
-      expect(find.byIcon(Icons.build_outlined), findsOneWidget);
     });
   });
 

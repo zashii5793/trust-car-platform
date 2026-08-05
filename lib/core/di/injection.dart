@@ -26,6 +26,7 @@ import '../../services/follow_service.dart';
 import '../../services/vehicle_listing_service.dart';
 import '../../services/drive_log_service.dart';
 import '../../services/part_listing_service.dart';
+import '../../services/shop_report_service.dart';
 import '../../services/shop_subscription_service.dart';
 import '../../services/revenue_cat_service.dart';
 import '../../services/analytics_service.dart';
@@ -51,6 +52,9 @@ import '../../services/safety_tip_service.dart';
 import '../../services/vehicle_retirement_service.dart';
 import '../../services/fleet_member_service.dart';
 import '../../services/shop_comparison_service.dart';
+import '../../services/feature_flag_service.dart';
+import '../../services/firebase_remote_flag_source.dart';
+import '../../services/shop_demand_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -92,7 +96,9 @@ class Injection {
     locator.registerLazySingleton<FirebaseService>(() => FirebaseService());
     locator.registerLazySingleton<AuthService>(() => AuthService());
     locator.registerLazySingleton<RecommendationService>(
-        () => RecommendationService());
+        () => RecommendationService(
+              scheduleService: locator.get<MaintenanceScheduleService>(),
+            ));
     locator.registerLazySingleton<NotificationStateStore>(
         () => SharedPrefsNotificationStateStore());
 
@@ -132,6 +138,7 @@ class Injection {
       () => InquiryService(
           subscriptionService: locator.get<ShopSubscriptionService>()),
     );
+    locator.registerLazySingleton<ShopReportService>(() => ShopReportService());
     locator.registerLazySingleton<RevenueCatService>(() => RevenueCatService());
 
     // SNS/Community Services
@@ -233,6 +240,19 @@ class Injection {
     // Shop Comparison Service (pure comparison/recommendation — no Firestore)
     locator.registerLazySingleton<ShopComparisonService>(
         () => const ShopComparisonService());
+
+    // Shop Demand Service (Issue #41 Phase 2: freemium question gate demand accumulation)
+    locator.registerLazySingleton<ShopDemandService>(() => ShopDemandService());
+
+    // Feature Flag Service (applies remote flag overrides onto AppConfig).
+    // Backed by Firebase Remote Config so flags like c2cPartsMarketplace can be
+    // toggled remotely without an app release.
+    locator.registerLazySingleton<FeatureFlagService>(
+        () => FeatureFlagService(source: FirebaseRemoteFlagSource()));
+
+    // Apply any remote flag overrides before the app reads flags.
+    // Fail-safe: if Remote Config is unavailable, local defaults are kept.
+    await locator.get<FeatureFlagService>().sync();
 
     _initialized = true;
   }

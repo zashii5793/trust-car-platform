@@ -4,8 +4,10 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import '../models/shop.dart';
 import '../models/inquiry.dart';
+import '../models/shop_monthly_report.dart';
 import '../services/shop_service.dart';
 import '../services/inquiry_service.dart';
+import '../services/shop_report_service.dart';
 import '../services/analytics_service.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
@@ -20,14 +22,17 @@ class ShopProvider with ChangeNotifier {
   final ShopService _shopService;
   final InquiryService _inquiryService;
   final AnalyticsService? _analytics;
+  final ShopReportService? _reportService;
 
   ShopProvider({
     required ShopService shopService,
     required InquiryService inquiryService,
     AnalyticsService? analyticsService,
+    ShopReportService? reportService,
   })  : _shopService = shopService,
         _inquiryService = inquiryService,
-        _analytics = analyticsService;
+        _analytics = analyticsService,
+        _reportService = reportService;
 
   // --- Shop一覧系 ---
   List<Shop> _shops = [];
@@ -53,6 +58,7 @@ class ShopProvider with ChangeNotifier {
   int _inquiryTotal = 0;
   int _inquiryUnread = 0;
   bool _isLoadingShopInquiries = false;
+  ShopMonthlyReport? _monthlyReport;
 
   // --- Firestore real-time subscription for inquiry counts ---
   StreamSubscription<Map<String, int>>? _inquirySubscription;
@@ -78,6 +84,7 @@ class ShopProvider with ChangeNotifier {
   int get inquiryTotal => _inquiryTotal;
   int get inquiryUnread => _inquiryUnread;
   bool get isLoadingShopInquiries => _isLoadingShopInquiries;
+  ShopMonthlyReport? get monthlyReport => _monthlyReport;
   bool get isLoading => _isLoading;
   bool get isSubmitting => _isSubmitting;
   String? get submitError => _submitError;
@@ -444,6 +451,21 @@ class ShopProvider with ChangeNotifier {
       },
     );
 
+    notifyListeners();
+  }
+
+  /// Load the monthly inquiry report (ROI summary) for [shopId].
+  ///
+  /// No-op when no [ShopReportService] was injected.
+  Future<void> loadMonthlyReport(String shopId) async {
+    final service = _reportService;
+    if (service == null) return;
+
+    final result = await service.getMonthlyReport(shopId);
+    result.when(
+      success: (report) => _monthlyReport = report,
+      failure: (_) => _monthlyReport = null,
+    );
     notifyListeners();
   }
 

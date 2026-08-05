@@ -3,8 +3,11 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../models/shop.dart';
+import '../../models/inquiry.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/di/service_locator.dart';
+import '../../services/shop_demand_service.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'case_study_management_screen.dart';
@@ -45,6 +48,7 @@ class _ShopOwnerScreenState extends State<ShopOwnerScreen> {
       if (!mounted) return;
       if (provider.myShop != null) {
         provider.startWatchingInquiries(provider.myShop!.id);
+        await provider.loadMonthlyReport(provider.myShop!.id);
       }
     });
   }
@@ -292,6 +296,8 @@ class _RegisteredBody extends StatelessWidget {
           // Performance summary card
           _PerformanceSummaryCard(shop: shop, provider: provider),
           AppSpacing.verticalMd,
+          // Monthly inquiry report (ROI visibility)
+          _MonthlyReportCard(provider: provider),
           // Inquiry count badge (tappable → ShopInquiryListScreen)
           _InquiryCountBadge(provider: provider, shopId: shop.id),
           AppSpacing.verticalMd,
@@ -343,6 +349,11 @@ class _RegisteredBody extends StatelessWidget {
               minimumSize: const Size.fromHeight(AppSpacing.tapTargetMin),
             ),
           ),
+          // Non-partner demand notification (pull hook toward upgrade)
+          if (!shop.isPartner) ...[
+            AppSpacing.verticalMd,
+            _DemandNotificationCard(shopId: shop.id),
+          ],
           // Free plan upgrade banner
           if (isFree) ...[
             AppSpacing.verticalMd,
@@ -567,6 +578,91 @@ class _PerformanceSummaryCard extends StatelessWidget {
       '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
 }
 
+/// Monthly inquiry report card (ROI visibility) for the shop owner.
+///
+/// Surfaces "how many inquiries this month, how it compares to last month, and
+/// what is still waiting on you" so the shop can see the value they pay for.
+/// Renders nothing until the report has loaded.
+class _MonthlyReportCard extends StatelessWidget {
+  final ShopProvider provider;
+
+  const _MonthlyReportCard({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final report = provider.monthlyReport;
+    if (report == null) {
+      return const SizedBox.shrink();
+    }
+
+    final pending = report.countFor(InquiryStatus.pending);
+    final replied = report.countFor(InquiryStatus.replied);
+    final change = report.momChange;
+
+    String changeLabel;
+    Color? changeColor;
+    if (change > 0) {
+      changeLabel = '前月比 +$change 件';
+      changeColor = AppColors.success;
+    } else if (change < 0) {
+      changeLabel = '前月比 $change 件';
+      changeColor = AppColors.error;
+    } else {
+      changeLabel = '前月と同じ';
+      changeColor = theme.colorScheme.onSurfaceVariant;
+    }
+
+    return Column(
+      children: [
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '今月の問い合わせ',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              AppSpacing.verticalSm,
+              Row(
+                children: [
+                  _StatItem(
+                    icon: Icons.mark_email_unread_outlined,
+                    label: '今月',
+                    value: '${report.total} 件',
+                    valueColor: report.total > 0 ? AppColors.info : null,
+                  ),
+                  _StatDivider(),
+                  _StatItem(
+                    icon: Icons.hourglass_empty_outlined,
+                    label: '未対応',
+                    value: '$pending 件',
+                    valueColor: pending > 0 ? AppColors.warning : null,
+                  ),
+                  _StatDivider(),
+                  _StatItem(
+                    icon: Icons.done_all_outlined,
+                    label: '回答済み',
+                    value: '$replied 件',
+                  ),
+                ],
+              ),
+              AppSpacing.verticalXs,
+              Text(
+                changeLabel,
+                style: theme.textTheme.bodySmall?.copyWith(color: changeColor),
+              ),
+            ],
+          ),
+        ),
+        AppSpacing.verticalMd,
+      ],
+    );
+  }
+}
+
 class _StatItem extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -705,6 +801,88 @@ class _InquiryCountBadge extends StatelessWidget {
             const Icon(Icons.chevron_right, color: AppColors.textTertiary),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Shows latent demand count for non-partner shops as an upgrade incentive.
+class _DemandNotificationCard extends StatefulWidget {
+  final String shopId;
+
+  const _DemandNotificationCard({required this.shopId});
+
+  @override
+  State<_DemandNotificationCard> createState() =>
+      _DemandNotificationCardState();
+}
+
+class _DemandNotificationCardState extends State<_DemandNotificationCard> {
+  int _count = 0;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCount();
+  }
+
+  Future<void> _fetchCount() async {
+    final result =
+        await sl.get<ShopDemandService>().getDemandCountForShop(widget.shopId);
+    if (!mounted) return;
+    setState(() {
+      _count = result.getOrElse(0);
+      _loaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded || _count == 0) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return AppCard(
+      key: const Key('demand_notification_card'),
+      backgroundColor: AppColors.info.withValues(alpha: 0.08),
+      child: Row(
+        children: [
+          const Icon(Icons.people_outline,
+              color: AppColors.info, size: AppSpacing.iconMd),
+          AppSpacing.horizontalMd,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'お問い合わせ希望が $_count 件あります',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.info,
+                  ),
+                ),
+                Text(
+                  'パートナー登録で、この需要に応えましょう。',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            key: const Key('demand_upgrade_btn'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ShopPlanScreen(
+                  shopId: widget.shopId,
+                  currentPlan: ShopPlanType.free,
+                ),
+              ),
+            ),
+            child: const Text('登録'),
+          ),
+        ],
       ),
     );
   }

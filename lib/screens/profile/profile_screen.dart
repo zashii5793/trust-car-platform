@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/config/app_config.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
@@ -116,25 +117,27 @@ class ProfileScreen extends StatelessWidget {
 
                 AppSpacing.verticalMd,
 
-                _MenuSection(
-                  title: 'マーケットプレイス',
-                  items: [
-                    _MenuItem(
-                      icon: Icons.sell_outlined,
-                      label: 'マイ出品',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const MyListingsScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-
-                AppSpacing.verticalMd,
+                // C2Cパーツ売買は凍結中のため、フラグ有効時のみ表示する。
+                if (isFeatureEnabled(FeatureFlag.c2cPartsMarketplace)) ...[
+                  _MenuSection(
+                    title: 'マーケットプレイス',
+                    items: [
+                      _MenuItem(
+                        icon: Icons.sell_outlined,
+                        label: 'マイ出品',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const MyListingsScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  AppSpacing.verticalMd,
+                ],
 
                 _MenuSection(
                   title: 'データ',

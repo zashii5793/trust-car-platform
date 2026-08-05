@@ -1,6 +1,152 @@
 # Claude Session Notes
 
-最終更新: 2026-06-13
+最終更新: 2026-08-01
+
+---
+
+## 夜間エージェント実行ログ（2026-08-01）
+
+**ブランチ**: `claude/night-20260801`
+**テスト**: 3509件 全パス（+4件）/ `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **Issue #41 Phase 3 実装（非提携店向け需要通知カード）**
+   - `_DemandNotificationCard` StatefulWidget を `shop_owner_screen.dart` に追加
+   - `!shop.isPartner` の店舗オーナー画面に、需要件数（`ShopDemandService.getDemandCountForShop`）を表示
+   - count > 0 のときのみ表示・count == 0 なら `SizedBox.shrink()`
+   - 「登録」ボタン → `ShopPlanScreen` へ遷移
+   - TDD 4件追加（RED→GREEN確認済み）
+   - `shop_owner_screen_performance_card_test.dart` に `_StubShopDemandService` 登録を追加
+     （非提携店テストで `sl.get<ShopDemandService>()` が未登録エラーになるのを修正）
+
+### 次のアクション候補（3件）
+
+1. **PR を main ブランチへマージ**（`claude/night-20260801` — CI GREEN 確認後）
+2. **Issue #41 Phase 4**: 非提携店オンボーディング画面（`ShopPlanScreen` のフリープラン → パートナー申込フロー）
+3. **蓄積 PR のレビュー・マージ**: 29件超の draft PR を最優先順でレビュー（#74 → #75 の依存順に注意）
+最終更新: 2026-07-31
+
+---
+
+## 夜間エージェント実行ログ（2026-07-31）
+
+**ブランチ**: `claude/night-20260731`
+**PR**: #104 https://github.com/zashii5793/trust-car-platform/pull/104
+**テスト**: 3509件 全パス（+4） / `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **Issue #41 Phase 2 — フリーミアム問い合わせゲート（InquiryScreen）**
+   - `InquiryScreen._submit()` に `!widget.shop.isPartner` ゲートを追加
+   - 非提携店 → `ShopDemandService.recordDemand()` → 需要受付ダイアログ
+   - 提携店 → 従来の月次上限 + 通常問い合わせ送信フロー
+   - テスト: `MockShopDemandService`、`sl.override` パターン、新4テスト追加
+
+2. **AccessoryShowcaseScreen — プルトゥリフレッシュ**
+   - `_TrendList` に `RefreshIndicator` を追加（`onRefresh: _load`）
+
+### 調査済み（変更なし）
+
+- `pm_report.yml` 修正 → PR #103 に実装済み（未マージ）
+- `sampleImageUrl` テスト → `vehicle_spec_service_test.dart:327-409` 実装済み
+- `ShopComparisonScreen` → `home_screen.dart:539` で接続済み
+- FleetMember 総務担当 → `FleetRole.manager` 実装済み
+
+### 次のアクション候補（3件）
+
+1. **PR #103 マージ** — `pm_report.yml` 週次 CI が 6 週以上失敗中
+2. **PR #104 マージ** — Issue #41 Phase 2 フリーミアムゲート
+3. **非提携店向けオンボーディング画面** — `getDemandsForShop()` を使った「N件の問い合わせがありました」表示
+
+---
+
+最終更新: 2026-07-11
+
+---
+
+## 夜間エージェント実行ログ（2026-07-11）
+
+**ブランチ**: `claude/night-20260711`
+**PR**: #78 https://github.com/zashii5793/trust-car-platform/pull/78
+**テスト**: 3461件 全パス / `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **stalled CI 修正**: `claude/auto-improve-fleet-urgency-dedup` の cherry-pick + `dart format` 適用
+2. **Issue #63 実装（priority: high）**: `RecommendationService` + `MaintenanceScheduleService` 連携
+   - EV・水素車へのオイル交換推奨を除外する燃料タイプ別フィルタリング
+   - `reason` フィールドに「次回目安: Xkm（あとYkm）」を追加
+   - TDDテスト13件追加
+   - PR #78 作成済み（CI確認中）
+
+### 次のアクション候補（3件）
+
+1. Issue #63 UI配線 — `HomeScreen` の提案セクションで `reason` を表示
+2. Issue #39 UI配線 — 店舗ダッシュボードに月次ROIを接続
+3. Issue #41 着手 — GoogleMap連動の集客エンジン（#39 UI完了後推奨）
+
+---
+
+最終更新: 2026-06-19
+
+---
+
+## 意思決定ログ（2026-06-19）: 事業性評価の追補と集客モデルの合意・実装着手
+
+ブランチ `claude/charming-brahmagupta-h6bm98` / 評価書 PR #38。
+
+**背景**: オーナーから事業面で4点の提起（業態拡張／GoogleMap風の網羅表示／提携フリーミアム／価格妥当性・初年度キャンペーン）。`docs/BUSINESS_VIABILITY_ASSESSMENT.md` に §7 として追補。
+
+**合意した設計（Agree レベル / GoogleMap連動表示, 評価書 §7.7）**:
+- データ調達: **ハイブリッド**（地図=Google Maps SDK／提携=自前Firestore／非提携=Places API近隣を都度・初期1商圏限定）
+- 見せ方: 地図ピン色分け（提携=ブランド色＋審査済バッジ／非提携=グレー）＋一覧で提携を上位固定
+- 非提携の権限: 閲覧＋地図/電話リンクのみ（質問・予約・実績は提携特典→需要蓄積→プル型営業）
+
+**起票した Issue**:
+- #39 ROI可視化（問い合わせ数の月次通知）= 最優先
+- #40 ShopType にガソリンスタンド追加（業態拡張）
+- #41 GoogleMap連動の網羅表示＋提携フリーミアム（プル型集客エンジン）
+- #42 初期パートナー向けキャンペーン価格＋据え置き特権
+
+**順序の鉄則**: D(#39 ROI可視化) → B/C(#41 集客) → E(#42 キャンペーン)。ROIを見せる前に集客・値引きを先行させない。
+
+**実装（本セッション / #39 のService層）**:
+- `ShopReportService.getMonthlyReport(shopId, {asOf})` を新設（`Result<ShopMonthlyReport, AppError>`）。
+  当月総数・前月総数・前月比（momChange）・当月のstatus内訳を返す最小ROIロジック。
+- `ShopMonthlyReport` モデル新設、`injection.dart` に登録。
+- `firestore.indexes.json` に `inquiries: shopId ASC + createdAt ASC` の複合インデックスを追加
+  （既存 `getMonthlyInquiryCount` の潜在的不足も同時に解消）。
+- テスト `test/services/shop_report_service_test.dart`（totals/status内訳/月・年境界/Edge Cases）。
+- ⚠️ 残作業: 店舗ダッシュボードへのUI配線（Provider→画面）。インデックスは本番 `firebase deploy` が別途必要（要人手）。
+- ⚠️ ローカルに Flutter SDK が無く `flutter test`/`analyze` 未実行。検証は CI（subosito/flutter-action, 3.38.0）に委譲。
+
+---
+
+## 意思決定ログ（2026-06-18）: C2Cパーツ手数料8%機能の凍結
+
+**決定**: ロードマップ項目「2.5 C2Cパーツ手数料8%」を**凍結**。リソースは 2.1〜2.3 に集中。
+
+**背景**:
+- メルカリ/ヤフオク/モノタロウが既存。8%×低単価パーツでは運用コスト割れ。返品・送金・トラブル対応の運用負荷が重い。
+- 在庫連携は未実装（調査で確認）。
+- 当初要望は「良かったパーツをシェアし合ってコメントできる」程度の軽量機能だった。
+
+**調査で判明した事実**: C2Cパーツ売買の中核（8%手数料/ペイアウト計算・出品CRUD・問い合わせ双方向）は
+**実装済み・テスト済み**だった。よって「未着手の中止」ではなく「稼働中コードの導線遮断」として対応。
+
+**実装（本セッション）**:
+- 凍結: `FeatureFlag.c2cPartsMarketplace`（デフォルト `false`）を追加し、
+  - `MarketplaceScreen` の「パーツ」「マイ出品」タブを非表示（工場・業者/問い合わせは残置）
+  - `ProfileScreen` の「マイ出品」メニューを非表示
+  - コード・テスト・Firestoreルールは**残置**（フラグ1つで復活可能）
+- 代替の軽量機能: 既存 `AccessoryShowcase`（パーツ/アクセサリーのシェア）に**コメント機能**を追加
+  - `ShowcaseComment` モデル + `PopularAccessoriesService.{addComment,getComments,deleteComment}`
+  - `accessory_showcases/{id}/comments` サブコレクション + Firestoreルール（投稿者のみ作成/削除）
+  - `ShowcaseDetailScreen`（投稿詳細＋コメントスレッド）。トレンドカードのタップから遷移
+  - 売買・いいね・通知・在庫連携は**スコープ外**（「コメントにとどめる」方針）
+
+**人間タスク**: `firebase deploy --only firestore:rules`（showcase comments ルール反映）
 
 ---
 

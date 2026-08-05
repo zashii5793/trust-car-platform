@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../providers/auth_provider.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_button.dart';
@@ -68,6 +70,24 @@ class _SignupScreenState extends State<SignupScreen> {
       }
     }
   }
+
+  Future<void> _handleAppleSignup() async {
+    final authProvider = context.read<AuthProvider>();
+    final success = await authProvider.signInWithApple();
+
+    if (mounted) {
+      if (success) {
+        Navigator.of(context).pop();
+      } else if (authProvider.errorMessage != null) {
+        showErrorSnackBar(context, authProvider.errorMessage!);
+      }
+    }
+  }
+
+  /// Apple プラットフォームでのみ Sign in with Apple を表示する
+  /// （Apple ガイドライン 4.8: サードパーティログイン提供時は Apple 併設が必須）
+  bool get _showAppleSignIn =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
   Widget build(BuildContext context) {
@@ -215,6 +235,19 @@ class _SignupScreenState extends State<SignupScreen> {
                             ],
                           ),
                           AppSpacing.verticalMd,
+
+                          // Apple サインアップ（iOS のみ・ガイドライン 4.8）
+                          if (_showAppleSignIn) ...[
+                            SignInWithAppleButton(
+                              onPressed: _handleAppleSignup,
+                              text: 'Apple で登録',
+                              style: theme.brightness == Brightness.dark
+                                  ? SignInWithAppleButtonStyle.white
+                                  : SignInWithAppleButtonStyle.black,
+                              height: 48,
+                            ),
+                            AppSpacing.verticalMd,
+                          ],
 
                           // Google サインアップ
                           OutlinedButton.icon(

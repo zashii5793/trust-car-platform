@@ -28,11 +28,12 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
-	<!-- Location permissions for GPS drive recording -->
+	<!-- Location permission for GPS drive recording (foreground only).
+	     App requests WhenInUse; background location is not used, so the
+	     Always description is intentionally omitted to avoid App Review
+	     scrutiny (guideline 5.1.1 / background-location justification). -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>ドライブ記録のためGPSを使用します。</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>バックグラウンドでドライブルートを記録するためGPSを使用します。</string>
 	<!-- Camera and photo library permissions for OCR and image upload -->
 	<key>NSCameraUsageDescription</key>
 	<string>整備記録の写真撮影や車検証・請求書のOCR読み取りにカメラを使用します。</string>

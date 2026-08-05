@@ -78,7 +78,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   storage-rules-test:
-    name: Storage Rules Tests
+    name: Storage & Firestore Rules Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -105,9 +105,9 @@ jobs:
         working-directory: test/rules
         run: npm install
 
-      # npm test = firebase emulators:exec --only storage "jest --runInBand"
-      # storage.rules のコンパイルエラー（予約語など）もここで検出される。
-      - name: Run Storage rules tests
+      # npm test = firebase emulators:exec --only storage,firestore "jest --runInBand"
+      # storage.rules / firestore.rules のコンパイルエラー（予約語など）もここで検出される。
+      - name: Run Storage & Firestore rules tests
         working-directory: test/rules
         run: npm test
 

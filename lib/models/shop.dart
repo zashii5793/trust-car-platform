@@ -62,6 +62,7 @@ enum ShopType {
   usedCarDealer('中古車販売店', 'Used Car Dealer'),
   carWash('洗車・コーティング', 'Car Wash & Coating'),
   bodyShop('板金・塗装', 'Body Shop'),
+  gasStation('ガソリンスタンド', 'Gas Station'),
   other('その他', 'Other');
 
   final String displayName;
@@ -299,6 +300,12 @@ class Shop {
     required this.createdAt,
     required this.updatedAt,
   });
+
+  /// Returns true when this shop has an active or trialing subscription,
+  /// making them a platform partner who can receive inquiries.
+  bool get isPartner =>
+      subscriptionStatus == ShopSubscriptionStatus.active ||
+      subscriptionStatus == ShopSubscriptionStatus.trialing;
 
   /// Get display address
   String get displayAddress {

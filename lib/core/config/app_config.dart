@@ -32,6 +32,9 @@ class AppConfig {
     FeatureFlag.multiVehicle: true,
     FeatureFlag.socialSharing: false,
     FeatureFlag.premiumFeatures: false,
+    // C2C parts marketplace (8% commission) is frozen — entry points hidden.
+    // Re-enable here to restore the listing/payout/inquiry flows.
+    FeatureFlag.c2cPartsMarketplace: false,
   };
 
   // 設定値
@@ -181,6 +184,10 @@ enum FeatureFlag {
   // 機能制限
   multiVehicle,
   premiumFeatures,
+
+  // マーケットプレイス
+  // C2Cパーツ売買（手数料8%）。事業判断で凍結中（デフォルト無効）。
+  c2cPartsMarketplace,
 }
 
 /// AppConfig のショートカット

@@ -1,6 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/models/accessory_showcase.dart';
+import 'package:trust_car_platform/models/comment_report.dart';
 import 'package:trust_car_platform/services/popular_accessories_service.dart';
 
 void main() {
@@ -274,6 +276,729 @@ void main() {
         final result = await service.getTopAccessories();
         expect(result.isSuccess, isTrue);
         expect(result.valueOrNull!, isEmpty);
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // addComment
+    // -------------------------------------------------------------------------
+    group('addComment', () {
+      test('正常系: ショーケースにコメントを投稿できる', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+
+        final result = await service.addComment(
+          showcaseId: 'sc-1',
+          userId: 'user-2',
+          content: 'これ私も使ってます！画質最高ですよね。',
+          userDisplayName: 'たろう',
+        );
+
+        expect(result.isSuccess, isTrue);
+        final comment = result.valueOrNull!;
+        expect(comment.id.isNotEmpty, isTrue);
+        expect(comment.showcaseId, 'sc-1');
+        expect(comment.content, 'これ私も使ってます！画質最高ですよね。');
+
+        final stored = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(comment.id)
+            .get();
+        expect(stored.exists, isTrue);
+        expect(stored.data()!['userId'], 'user-2');
+      });
+
+      group('Edge Cases', () {
+        test('空のcontentはバリデーションエラー', () async {
+          final result = await service.addComment(
+            showcaseId: 'sc-1',
+            userId: 'user-2',
+            content: '',
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空白のみのcontentはバリデーションエラー', () async {
+          final result = await service.addComment(
+            showcaseId: 'sc-1',
+            userId: 'user-2',
+            content: '   ',
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空のuserIdはバリデーションエラー', () async {
+          final result = await service.addComment(
+            showcaseId: 'sc-1',
+            userId: '',
+            content: 'コメント',
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空のshowcaseIdはバリデーションエラー', () async {
+          final result = await service.addComment(
+            showcaseId: '',
+            userId: 'user-2',
+            content: 'コメント',
+          );
+          expect(result.isFailure, isTrue);
+        });
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // getComments
+    // -------------------------------------------------------------------------
+    group('getComments', () {
+      test('正常系: コメントを古い順に取得できる', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc('c1')
+            .set({
+          'showcaseId': 'sc-1',
+          'userId': 'u1',
+          'content': '最初のコメント',
+          'createdAt': Timestamp.fromDate(DateTime(2026, 1, 1)),
+        });
+        await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc('c2')
+            .set({
+          'showcaseId': 'sc-1',
+          'userId': 'u2',
+          'content': '2番目のコメント',
+          'createdAt': Timestamp.fromDate(DateTime(2026, 1, 2)),
+        });
+
+        final result = await service.getComments('sc-1');
+
+        expect(result.isSuccess, isTrue);
+        final comments = result.valueOrNull!;
+        expect(comments, hasLength(2));
+        expect(comments.first.content, '最初のコメント');
+        expect(comments.last.content, '2番目のコメント');
+      });
+
+      group('Edge Cases', () {
+        test('コメントゼロでも空リストを返す', () async {
+          await seedShowcase(showcase(id: 'sc-1'));
+          final result = await service.getComments('sc-1');
+          expect(result.isSuccess, isTrue);
+          expect(result.valueOrNull!, isEmpty);
+        });
+
+        test('存在しないshowcaseIdでも空リストを返す', () async {
+          final result = await service.getComments('nope');
+          expect(result.isSuccess, isTrue);
+          expect(result.valueOrNull!, isEmpty);
+        });
+
+        test('空のshowcaseIdはバリデーションエラー', () async {
+          final result = await service.getComments('');
+          expect(result.isFailure, isTrue);
+        });
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // deleteComment
+    // -------------------------------------------------------------------------
+    group('deleteComment', () {
+      Future<String> seedComment({
+        String showcaseId = 'sc-1',
+        String userId = 'owner',
+      }) async {
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc(showcaseId)
+            .collection('comments')
+            .add({
+          'showcaseId': showcaseId,
+          'userId': userId,
+          'content': '削除対象コメント',
+          'createdAt': Timestamp.fromDate(now),
+        });
+        return ref.id;
+      }
+
+      test('正常系: 投稿者本人はコメントを削除できる', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final commentId = await seedComment(userId: 'owner');
+
+        final result = await service.deleteComment(
+          showcaseId: 'sc-1',
+          commentId: commentId,
+          userId: 'owner',
+        );
+
+        expect(result.isSuccess, isTrue);
+        final stored = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(commentId)
+            .get();
+        expect(stored.exists, isFalse);
+      });
+
+      group('Edge Cases', () {
+        test('他ユーザーのコメント削除は権限エラー', () async {
+          await seedShowcase(showcase(id: 'sc-1'));
+          final commentId = await seedComment(userId: 'owner');
+
+          final result = await service.deleteComment(
+            showcaseId: 'sc-1',
+            commentId: commentId,
+            userId: 'attacker',
+          );
+
+          expect(result.isFailure, isTrue);
+          // コメントは残っているべき
+          final stored = await firestore
+              .collection('accessory_showcases')
+              .doc('sc-1')
+              .collection('comments')
+              .doc(commentId)
+              .get();
+          expect(stored.exists, isTrue);
+        });
+
+        test('存在しないコメントIDはエラー', () async {
+          final result = await service.deleteComment(
+            showcaseId: 'sc-1',
+            commentId: 'missing',
+            userId: 'owner',
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空のcommentIdはバリデーションエラー', () async {
+          final result = await service.deleteComment(
+            showcaseId: 'sc-1',
+            commentId: '',
+            userId: 'owner',
+          );
+          expect(result.isFailure, isTrue);
+        });
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // updateComment
+    // -------------------------------------------------------------------------
+    group('updateComment', () {
+      Future<String> seedComment({
+        String showcaseId = 'sc-1',
+        String userId = 'owner',
+        String content = '元のコメント',
+      }) async {
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc(showcaseId)
+            .collection('comments')
+            .add({
+          'showcaseId': showcaseId,
+          'userId': userId,
+          'content': content,
+          'createdAt': Timestamp.fromDate(now),
+        });
+        return ref.id;
+      }
+
+      test('正常系: 投稿者本人はコメントを編集でき、編集済みになる', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final commentId = await seedComment(userId: 'owner');
+
+        final result = await service.updateComment(
+          showcaseId: 'sc-1',
+          commentId: commentId,
+          userId: 'owner',
+          content: '編集後のコメント',
+        );
+
+        expect(result.isSuccess, isTrue);
+        final updated = result.valueOrNull!;
+        expect(updated.content, '編集後のコメント');
+        expect(updated.isEdited, isTrue);
+        expect(updated.updatedAt, isNotNull);
+      });
+
+      group('Edge Cases', () {
+        test('他ユーザーのコメント編集は権限エラー', () async {
+          await seedShowcase(showcase(id: 'sc-1'));
+          final commentId = await seedComment(userId: 'owner');
+
+          final result = await service.updateComment(
+            showcaseId: 'sc-1',
+            commentId: commentId,
+            userId: 'attacker',
+            content: '改ざん',
+          );
+
+          expect(result.isFailure, isTrue);
+          final stored = await firestore
+              .collection('accessory_showcases')
+              .doc('sc-1')
+              .collection('comments')
+              .doc(commentId)
+              .get();
+          expect(stored.data()!['content'], '元のコメント');
+        });
+
+        test('空のcontentはバリデーションエラー', () async {
+          await seedShowcase(showcase(id: 'sc-1'));
+          final commentId = await seedComment(userId: 'owner');
+          final result = await service.updateComment(
+            showcaseId: 'sc-1',
+            commentId: commentId,
+            userId: 'owner',
+            content: '   ',
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('存在しないコメントIDはエラー', () async {
+          final result = await service.updateComment(
+            showcaseId: 'sc-1',
+            commentId: 'missing',
+            userId: 'owner',
+            content: '更新',
+          );
+          expect(result.isFailure, isTrue);
+        });
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // likeComment / unlikeComment / getMyLikedCommentIds
+    // -------------------------------------------------------------------------
+    group('likes', () {
+      Future<String> seedComment({String userId = 'author'}) async {
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .add({
+          'showcaseId': 'sc-1',
+          'userId': userId,
+          'content': 'コメント',
+          'createdAt': Timestamp.fromDate(now),
+          'likeCount': 0,
+        });
+        return ref.id;
+      }
+
+      Future<int> likeCountOf(String commentId) async {
+        final snap = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(commentId)
+            .get();
+        return (snap.data()!['likeCount'] as int?) ?? 0;
+      }
+
+      test('正常系: いいねで likeCount が増え like ドキュメントが作られる', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final commentId = await seedComment();
+
+        final result = await service.likeComment(
+          showcaseId: 'sc-1',
+          commentId: commentId,
+          userId: 'user-2',
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(await likeCountOf(commentId), 1);
+        final like = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(commentId)
+            .collection('likes')
+            .doc('user-2')
+            .get();
+        expect(like.exists, isTrue);
+      });
+
+      test('正常系: 同一ユーザーの二重いいねは冪等（likeCountは1のまま）', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final commentId = await seedComment();
+
+        await service.likeComment(
+            showcaseId: 'sc-1', commentId: commentId, userId: 'user-2');
+        await service.likeComment(
+            showcaseId: 'sc-1', commentId: commentId, userId: 'user-2');
+
+        expect(await likeCountOf(commentId), 1);
+      });
+
+      test('正常系: いいね解除で likeCount が減り like ドキュメントが消える', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final commentId = await seedComment();
+        await service.likeComment(
+            showcaseId: 'sc-1', commentId: commentId, userId: 'user-2');
+
+        final result = await service.unlikeComment(
+            showcaseId: 'sc-1', commentId: commentId, userId: 'user-2');
+
+        expect(result.isSuccess, isTrue);
+        expect(await likeCountOf(commentId), 0);
+        final like = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(commentId)
+            .collection('likes')
+            .doc('user-2')
+            .get();
+        expect(like.exists, isFalse);
+      });
+
+      test('正常系: getMyLikedCommentIds が自分のいいね済みIDのみ返す', () async {
+        await seedShowcase(showcase(id: 'sc-1'));
+        final c1 = await seedComment();
+        final c2 = await seedComment();
+        await service.likeComment(
+            showcaseId: 'sc-1', commentId: c1, userId: 'user-2');
+
+        final result = await service.getMyLikedCommentIds(
+          showcaseId: 'sc-1',
+          commentIds: [c1, c2],
+          userId: 'user-2',
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull, {c1});
+      });
+
+      group('Edge Cases', () {
+        test('未いいね状態の解除は冪等（0のまま）', () async {
+          await seedShowcase(showcase(id: 'sc-1'));
+          final commentId = await seedComment();
+
+          final result = await service.unlikeComment(
+              showcaseId: 'sc-1', commentId: commentId, userId: 'user-2');
+
+          expect(result.isSuccess, isTrue);
+          expect(await likeCountOf(commentId), 0);
+        });
+
+        test('存在しないコメントへのいいねは notFound', () async {
+          final result = await service.likeComment(
+              showcaseId: 'sc-1', commentId: 'missing', userId: 'user-2');
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空のuserIdはバリデーションエラー', () async {
+          final result = await service.likeComment(
+              showcaseId: 'sc-1', commentId: 'c', userId: '');
+          expect(result.isFailure, isTrue);
+        });
+
+        test('getMyLikedCommentIds は空IDリストで空集合', () async {
+          final result = await service.getMyLikedCommentIds(
+              showcaseId: 'sc-1', commentIds: const [], userId: 'user-2');
+          expect(result.valueOrNull, isEmpty);
+        });
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // reportComment
+    // -------------------------------------------------------------------------
+    group('reportComment', () {
+      test('正常系: 通報が comment_reports に決定的IDで作成される', () async {
+        final result = await service.reportComment(
+          showcaseId: 'sc-1',
+          commentId: 'c-1',
+          reporterId: 'user-2',
+          reason: ReportReason.spam,
+        );
+
+        expect(result.isSuccess, isTrue);
+        final doc = await firestore
+            .collection('comment_reports')
+            .doc('c-1_user-2')
+            .get();
+        expect(doc.exists, isTrue);
+        expect(doc.data()!['reporterId'], 'user-2');
+        expect(doc.data()!['commentId'], 'c-1');
+        expect(doc.data()!['reason'], 'spam');
+        expect(doc.data()!['status'], 'pending');
+      });
+
+      test('正常系: 同一ユーザーの再通報は冪等（重複ドキュメントを作らない）', () async {
+        await service.reportComment(
+          showcaseId: 'sc-1',
+          commentId: 'c-1',
+          reporterId: 'user-2',
+          reason: ReportReason.spam,
+        );
+        await service.reportComment(
+          showcaseId: 'sc-1',
+          commentId: 'c-1',
+          reporterId: 'user-2',
+          reason: ReportReason.harassment,
+        );
+
+        final snap = await firestore
+            .collection('comment_reports')
+            .where('commentId', isEqualTo: 'c-1')
+            .get();
+        expect(snap.docs, hasLength(1));
+        // 最新の理由で上書きされる
+        expect(snap.docs.first.data()['reason'], 'harassment');
+      });
+
+      group('Edge Cases', () {
+        test('空のreporterIdはバリデーションエラー', () async {
+          final result = await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: 'c-1',
+            reporterId: '',
+            reason: ReportReason.other,
+          );
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空のcommentIdはバリデーションエラー', () async {
+          final result = await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: '',
+            reporterId: 'user-2',
+            reason: ReportReason.other,
+          );
+          expect(result.isFailure, isTrue);
+        });
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // getComments: sort / pagination / moderation hide
+    // -------------------------------------------------------------------------
+    group('getComments sort/pagination/hide', () {
+      Future<void> seedComment(String id, int likeCount, DateTime created,
+          {int reportCount = 0}) async {
+        await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(id)
+            .set({
+          'showcaseId': 'sc-1',
+          'userId': 'u',
+          'content': id,
+          'createdAt': Timestamp.fromDate(created),
+          'likeCount': likeCount,
+          'reportCount': reportCount,
+        });
+      }
+
+      test('newest: 新しい順に並ぶ', () async {
+        await seedComment('old', 0, DateTime(2026, 1, 1));
+        await seedComment('new', 0, DateTime(2026, 1, 3));
+
+        final result =
+            await service.getComments('sc-1', sort: CommentSort.newest);
+        final ids = result.valueOrNull!.map((c) => c.id).toList();
+        expect(ids.first, 'new');
+        expect(ids.last, 'old');
+      });
+
+      test('mostLiked: いいね数の多い順に並ぶ', () async {
+        await seedComment('a', 1, DateTime(2026, 1, 1));
+        await seedComment('b', 5, DateTime(2026, 1, 2));
+
+        final result =
+            await service.getComments('sc-1', sort: CommentSort.mostLiked);
+        expect(result.valueOrNull!.first.id, 'b');
+      });
+
+      test('limit: 取得件数を制限できる', () async {
+        for (var i = 0; i < 5; i++) {
+          await seedComment('c$i', 0, DateTime(2026, 1, 1 + i));
+        }
+        final result = await service.getComments('sc-1', limit: 2);
+        expect(result.valueOrNull!, hasLength(2));
+      });
+
+      test('reportCount が閾値以上のコメントは非表示', () async {
+        await seedComment('ok', 0, DateTime(2026, 1, 1), reportCount: 2);
+        await seedComment('hidden', 0, DateTime(2026, 1, 2),
+            reportCount: kReportHideThreshold);
+
+        final result = await service.getComments('sc-1');
+        final ids = result.valueOrNull!.map((c) => c.id).toList();
+        expect(ids, contains('ok'));
+        expect(ids, isNot(contains('hidden')));
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // reportComment: reportCount 集計
+    // -------------------------------------------------------------------------
+    group('reportComment reportCount', () {
+      Future<String> seedComment() async {
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .add({
+          'showcaseId': 'sc-1',
+          'userId': 'author',
+          'content': 'c',
+          'createdAt': Timestamp.fromDate(now),
+          'likeCount': 0,
+          'reportCount': 0,
+        });
+        return ref.id;
+      }
+
+      Future<int> reportCountOf(String id) async {
+        final s = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc(id)
+            .get();
+        return (s.data()!['reportCount'] as int?) ?? 0;
+      }
+
+      test('別ユーザーからの通報で reportCount が増える', () async {
+        final id = await seedComment();
+        await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: id,
+            reporterId: 'u1',
+            reason: ReportReason.spam);
+        await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: id,
+            reporterId: 'u2',
+            reason: ReportReason.spam);
+
+        expect(await reportCountOf(id), 2);
+      });
+
+      test('同一ユーザーの再通報では reportCount は増えない', () async {
+        final id = await seedComment();
+        await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: id,
+            reporterId: 'u1',
+            reason: ReportReason.spam);
+        await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: id,
+            reporterId: 'u1',
+            reason: ReportReason.harassment);
+
+        expect(await reportCountOf(id), 1);
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // 通知（social_notifications）
+    // -------------------------------------------------------------------------
+    group('notifications', () {
+      Future<int> notifCount() async {
+        final s = await firestore.collection('social_notifications').get();
+        return s.docs.length;
+      }
+
+      test('コメントで投稿主に通知が作成される', () async {
+        await seedShowcase(showcase(id: 'sc-1', userId: 'owner'));
+
+        await service.addComment(
+          showcaseId: 'sc-1',
+          userId: 'commenter',
+          content: 'いいですね',
+        );
+
+        final s = await firestore.collection('social_notifications').get();
+        expect(s.docs, hasLength(1));
+        expect(s.docs.first.data()['userId'], 'owner');
+        expect(s.docs.first.data()['actorId'], 'commenter');
+        expect(s.docs.first.data()['type'], 'comment');
+        expect(s.docs.first.data()['showcaseId'], 'sc-1');
+      });
+
+      test('自分の投稿への自分のコメントは通知しない', () async {
+        await seedShowcase(showcase(id: 'sc-1', userId: 'owner'));
+
+        await service.addComment(
+          showcaseId: 'sc-1',
+          userId: 'owner',
+          content: '補足です',
+        );
+
+        expect(await notifCount(), 0);
+      });
+
+      test('いいねでコメント投稿者に通知が作成される', () async {
+        await seedShowcase(showcase(id: 'sc-1', userId: 'owner'));
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .add({
+          'showcaseId': 'sc-1',
+          'userId': 'author',
+          'content': 'c',
+          'createdAt': Timestamp.fromDate(now),
+          'likeCount': 0,
+          'reportCount': 0,
+        });
+
+        await service.likeComment(
+          showcaseId: 'sc-1',
+          commentId: ref.id,
+          userId: 'liker',
+        );
+
+        final s = await firestore
+            .collection('social_notifications')
+            .where('type', isEqualTo: 'like')
+            .get();
+        expect(s.docs, hasLength(1));
+        expect(s.docs.first.data()['userId'], 'author');
+        expect(s.docs.first.data()['actorId'], 'liker');
+      });
+
+      test('自分のコメントへの自分のいいねは通知しない', () async {
+        await seedShowcase(showcase(id: 'sc-1', userId: 'owner'));
+        final ref = await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .add({
+          'showcaseId': 'sc-1',
+          'userId': 'author',
+          'content': 'c',
+          'createdAt': Timestamp.fromDate(now),
+          'likeCount': 0,
+          'reportCount': 0,
+        });
+
+        await service.likeComment(
+          showcaseId: 'sc-1',
+          commentId: ref.id,
+          userId: 'author',
+        );
+
+        final s = await firestore
+            .collection('social_notifications')
+            .where('type', isEqualTo: 'like')
+            .get();
+        expect(s.docs, isEmpty);
       });
     });
   });

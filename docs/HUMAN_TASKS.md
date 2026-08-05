@@ -1,7 +1,9 @@
 # 人間が実施すべきタスク一覧
 
-**最終更新**: 2026-06-13  
+**最終更新**: 2026-06-30  
 **前提**: AIが実装・テスト・コードプッシュまで完了済み。以下は **AIでは代替できない** 操作のみ。
+**出荷目標**: 2026年8月ソフトローンチ（逆算計画は `docs/LAUNCH_PLAN.md`）。
+**進捗メモ**: Apple Developer Program は**申請済み（承認待ち）** — 承認後に下記 P1-5（iOS証明書）着手可。
 
 ---
 
@@ -12,7 +14,26 @@
 **なぜ必要**: 以下のルールが追加済みで未デプロイ：
 - 前セッション: `fleet_members`, `accessory_showcases`, `car_purchase_inquiries`, `safety_tips`, `shop_chains`
 - 今セッション: `community_maintenance_trends`（読み取り=認証済み、書き込み=AdminSDKのみ）
+- C2C凍結セッション（2026-06-18〜）: `accessory_showcases/{id}/comments` サブコレクション
+  （読み取り=認証済み、作成/削除=投稿者本人のみ、編集=投稿者本人のみ、
+  いいね=`likeCount` ±1 のみ誰でも可、`comments/{id}/likes/{uid}` は本人のみ作成/削除）。
+  さらに `comment_reports/{reportId}`（コメント通報＝作成は本人のみ・読取/更新/削除はサーバー専用）。
+  **未デプロイだと showcase コメントの投稿・いいね・通報が全て弾かれる**。
 本番反映しないと全ユーザーの書き込みがルールで弾かれる。また、`safety_tips`コレクションの複合インデックス（`isActive + publishedAt`, `isActive + category + publishedAt`）も追加済み。
+- 事業性評価セッション（2026-06-19）: `inquiries` の複合インデックス `shopId + createdAt`（ASC）を追加済み。
+  **未デプロイだと工場ダッシュボードの月次レポート（ROI可視化 #39）と月次件数チェックがクエリエラーになる**。
+
+> ✅ **デプロイ前検証**: `cd test/rules && npm install && npm test` で Firestore/Storage の
+> ルールを Emulator 検証できる（CI の "Storage & Firestore Rules Tests" でも自動実行）。
+> デプロイ前にローカルで一度流すと安全。
+
+#### デプロイ手順チェックリスト（ルール）
+- [ ] `firebase login`（プロジェクトオーナー権限）
+- [ ] `git pull`（最新の `firestore.rules` / `firestore.indexes.json` を取得）
+- [ ] **ドライラン**: `firebase deploy --only firestore:rules --dry-run`（差分とコンパイル確認）
+- [ ] `cd test/rules && npm test`（Emulator でルールテストが緑か）
+- [ ] 本番反映: `firebase deploy --only firestore:rules,firestore:indexes`
+- [ ] Firebase Console → Firestore → ルール → バージョン履歴で反映時刻を確認
 
 **手順**:
 ```bash
@@ -42,6 +63,35 @@ firebase deploy --only firestore:rules,firestore:indexes
 
 **所要時間**: 15分  
 **前提条件**: Firebase Consoleのオーナー権限
+
+---
+
+## P2 — 任意（運用効率化）
+
+### C2C凍結フラグの Remote Config パラメータ作成
+
+**なぜ必要**: `FeatureFlag.c2cPartsMarketplace` の再開判断を、**アプリ再リリースなし**で
+運用側から切り替えられるようにする。
+
+**実装済み（コード・依存は完了）**:
+- `firebase_remote_config 6.5.1` を追加（**`firebase_core` は 4.9.0 に固定**して、共有 Firebase iOS SDK
+  ポッドの巻き上げ＝`cloud_firestore` の iOS ビルド破壊を回避）
+- `FirebaseRemoteFlagSource`（`RemoteFlagSource` 実装）＋ `FeatureFlagService` を `injection.dart` に
+  配線済み。起動時に `sync()` で Remote Config を取得し `AppConfig` に反映。未設定・取得失敗時は
+  ローカル既定値（凍結）を維持（フェイルセーフ）
+
+**残りの作業（人間が実施）**:
+1. **Firebase Console → Remote Config** でパラメータ作成:
+   - キー名: `c2c_parts_marketplace` / 型: Boolean / デフォルト: `false`（凍結のまま）
+2. CI の **build-ios / build-android** が緑であることを確認（ネイティブビルド検証）
+3. 動作確認: Remote Config で `true` に変更 → アプリ再起動でマーケットの
+   「パーツ」「マイ出品」タブが復活すること
+
+**注意**: 将来 `firebase_core` を上げる際は、`cloud_firestore` の iOS ネイティブコードと
+Firebase iOS SDK の整合（CocoaPods）を必ず CI ビルドで確認すること。
+
+**所要時間**: 15分  
+**前提条件**: Firebase Console のオーナー権限
 
 ---
 
@@ -78,10 +128,11 @@ firebase deploy --only firestore:rules,firestore:indexes
 ### 5. iOS: Apple Developer Account でのApp ID・証明書設定
 
 **なぜ必要**: TestFlight配布・App Store申請に必要。AIではApple Developer Consoleを操作できない。
+**状態**: Apple Developer Program は**申請済み（承認待ち）**。承認後に本タスク着手可。
 
 **手順**:
 1. [Apple Developer Console](https://developer.apple.com/account/) → Certificates, Identifiers & Profiles
-2. App ID 登録: `com.trustcar.platform`（`Bundle ID` を `ios/Runner.xcodeproj` と一致させること）
+2. App ID 登録: **`jp.trustcar.app`**（実プロジェクトの Bundle ID。Android `applicationId` / iOS `PRODUCT_BUNDLE_IDENTIFIER` と一致済み）
 3. Distribution Certificate の作成（期限切れ確認）
 4. Provisioning Profile の作成（App Store Distribution用）
 5. Xcode → Signing & Capabilities → Team 設定
@@ -307,6 +358,34 @@ node scripts/seed_shops.js              # 本番登録
 
 ---
 
+### 17. Google Maps Platform APIキーの発行・設定（#41 近隣検索の地図表示の前提）
+
+**なぜ必要**: 近隣検索のGoogleMap連動（提携/非提携の網羅表示, Issue #41 / 評価書 §7.7）には Maps SDK のAPIキーとネイティブ設定が必須。コード実装の前提となる人手タスク。
+
+**手順**:
+1. Google Cloud Console → 該当プロジェクト → APIとサービス → 認証情報 → APIキー発行
+2. 有効化するAPI（フェーズ別・コスト最適化のため最小限から）:
+   - **フェーズ1a**: Maps SDK for Android / Maps SDK for iOS（地図表示＝Dynamic Maps）
+   - **フェーズ1b（任意）**: Places API（非提携先の近隣検索。**従量課金が高いため要判断**）
+3. APIキー制限（必須・漏洩対策）:
+   - Android: パッケージ名＋SHA-1 で制限
+   - iOS: Bundle ID で制限
+   - 各キーで「使用するAPIのみ」に制限
+4. アプリへの設定（ハードコード禁止）:
+   - Android: `--dart-define=MAPS_API_KEY=...` ＋ `AndroidManifest.xml` の `manifestPlaceholders` 経由
+   - iOS: `AppDelegate` で注入
+5. Google Cloud で **予算アラート**を設定（無料枠超過の早期検知）
+
+**コスト目安（2026年時点・要最新確認）**:
+- 地図表示（Dynamic Maps, Essentials）: 月10,000ロードまで無料、超過後 約$7/1,000
+- Places 近隣検索（Pro）: 無料枠5,000/月、超過後 高単価（約$25〜/1,000）
+- → **フェーズ1a（地図＋提携ピンのみ）は無料枠内に収まりやすい。Places（1b）は1商圏限定＋キャッシュでコスト管理**
+
+**所要時間**: 1〜2時間  
+**前提条件**: Google Cloud プロジェクトのオーナー権限・課金有効化
+
+---
+
 ## チェックリスト（ローンチ前の確認）
 
 - [ ] P0-1: Firestore ルールデプロイ
@@ -320,6 +399,8 @@ node scripts/seed_shops.js              # 本番登録
 - [ ] P1-9: Firestore バックアップ設定
 - [ ] P1-10: SafetyTip 初期シードデータ登録（`node scripts/seed_safety_tips.js`）
 - [ ] P1-11: コミュニティトレンド初期シードデータ登録（`node scripts/seed_community_trends.js`）
+- [ ] P0-1（再掲）: `inquiries: shopId + createdAt` 複合インデックスのデプロイ（#39 月次レポートの前提）
+- [ ] P2-17: Google Maps Platform APIキー発行・設定（#41 近隣検索の地図表示の前提）
 
 ---
 

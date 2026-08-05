@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/vehicle_provider.dart';
+import '../../core/config/app_config.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import 'shop_list_screen.dart';
@@ -10,15 +11,33 @@ import 'my_inquiries_screen.dart';
 
 /// マーケットプレイス トップ画面
 ///
-/// 工場一覧 / パーツ一覧 / マイ出品の3タブ構成。
+/// 工場一覧 / 問い合わせ の2タブ構成。
+/// C2Cパーツ売買（パーツ一覧 / マイ出品）は [FeatureFlag.c2cPartsMarketplace]
+/// が有効なときのみ表示される（事業判断により通常は凍結）。
 /// HomeScreen の BottomNavigationBar 経由でアクセスする。
 class MarketplaceScreen extends StatelessWidget {
   const MarketplaceScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final c2cEnabled = isFeatureEnabled(FeatureFlag.c2cPartsMarketplace);
+
+    final tabs = <Tab>[
+      const Tab(icon: Icon(Icons.store_outlined), text: '工場・業者'),
+      if (c2cEnabled) const Tab(icon: Icon(Icons.build_outlined), text: 'パーツ'),
+      const Tab(icon: Icon(Icons.inbox_outlined), text: '問い合わせ'),
+      if (c2cEnabled) const Tab(icon: Icon(Icons.sell_outlined), text: 'マイ出品'),
+    ];
+
+    final views = <Widget>[
+      const ShopListScreen(),
+      if (c2cEnabled) const PartListScreen(),
+      const MyInquiriesScreen(),
+      if (c2cEnabled) const MyListingsScreen(),
+    ];
+
     return DefaultTabController(
-      length: 4,
+      length: tabs.length,
       child: Column(
         children: [
           // 選択車両コンテキストバナー
@@ -26,24 +45,10 @@ class MarketplaceScreen extends StatelessWidget {
           // タブバー（Scaffold の appBar には入らないため Column で管理）
           Material(
             color: Theme.of(context).colorScheme.surface,
-            child: const TabBar(
-              tabs: [
-                Tab(icon: Icon(Icons.store_outlined), text: '工場・業者'),
-                Tab(icon: Icon(Icons.build_outlined), text: 'パーツ'),
-                Tab(icon: Icon(Icons.inbox_outlined), text: '問い合わせ'),
-                Tab(icon: Icon(Icons.sell_outlined), text: 'マイ出品'),
-              ],
-            ),
+            child: TabBar(tabs: tabs),
           ),
-          const Expanded(
-            child: TabBarView(
-              children: [
-                ShopListScreen(),
-                PartListScreen(),
-                MyInquiriesScreen(),
-                MyListingsScreen(),
-              ],
-            ),
+          Expanded(
+            child: TabBarView(children: views),
           ),
         ],
       ),

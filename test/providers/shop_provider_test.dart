@@ -1,8 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart' show GeoPoint;
+import 'package:cloud_firestore/cloud_firestore.dart' show GeoPoint, Timestamp;
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/providers/shop_provider.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
+import 'package:trust_car_platform/services/shop_report_service.dart';
 import 'package:trust_car_platform/models/shop.dart';
 import 'package:trust_car_platform/models/inquiry.dart';
 import 'package:trust_car_platform/core/result/result.dart';
@@ -843,6 +845,59 @@ void main() {
           expect(provider.distanceForShop('s1'), isNull);
         });
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // loadMonthlyReport (ROI report wiring, #39)
+  // -------------------------------------------------------------------------
+  group('loadMonthlyReport', () {
+    late FakeFirebaseFirestore fakeFs;
+    late ShopProvider provider;
+
+    setUp(() {
+      fakeFs = FakeFirebaseFirestore();
+      provider = ShopProvider(
+        shopService: MockShopService(),
+        inquiryService: MockInquiryService(),
+        reportService: ShopReportService(firestore: fakeFs),
+      );
+    });
+
+    tearDown(() {
+      provider.dispose();
+    });
+
+    test('monthlyReport is null before loading', () {
+      expect(provider.monthlyReport, isNull);
+    });
+
+    test('populates monthlyReport from this month inquiries', () async {
+      final now = DateTime.now();
+      final thisMonth = DateTime(now.year, now.month, 5);
+      await fakeFs.collection('inquiries').add({
+        'shopId': 'shop1',
+        'userId': 'u1',
+        'createdAt': Timestamp.fromDate(thisMonth),
+        'status': 'pending',
+      });
+
+      await provider.loadMonthlyReport('shop1');
+
+      expect(provider.monthlyReport, isNotNull);
+      expect(provider.monthlyReport!.total, 1);
+    });
+
+    test('is a no-op when no report service is injected', () async {
+      final bare = ShopProvider(
+        shopService: MockShopService(),
+        inquiryService: MockInquiryService(),
+      );
+      addTearDown(bare.dispose);
+
+      await bare.loadMonthlyReport('shop1');
+
+      expect(bare.monthlyReport, isNull);
     });
   });
 }
