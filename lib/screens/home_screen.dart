@@ -226,64 +226,64 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildNavigation() {
     return Consumer<NotificationProvider>(
-        builder: (context, notificationProvider, child) {
-          final unread = notificationProvider.unreadCount;
-          return NavigationBar(
-            selectedIndex: _currentIndex,
-            onDestinationSelected: (index) {
-              setState(() => _currentIndex = index);
-            },
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.directions_car_outlined),
-                selectedIcon: Icon(Icons.directions_car),
-                label: 'マイカー',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.store_outlined),
-                selectedIcon: Icon(Icons.store),
-                label: 'マーケット',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.forum_outlined),
-                selectedIcon: Icon(Icons.forum),
-                label: 'みんなの投稿',
-              ),
-              NavigationDestination(
-                icon: Semantics(
-                  label: unread > 0
-                      ? '通知 未読${unread > 99 ? '99件以上' : '$unread件'}'
-                      : '通知',
-                  child: Badge(
-                    isLabelVisible: unread > 0,
-                    label: Text(
-                      unread > 99 ? '99+' : '$unread',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                    child: const ExcludeSemantics(
-                      child: Icon(Icons.notifications_outlined),
-                    ),
-                  ),
-                ),
-                selectedIcon: Badge(
+      builder: (context, notificationProvider, child) {
+        final unread = notificationProvider.unreadCount;
+        return NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (index) {
+            setState(() => _currentIndex = index);
+          },
+          destinations: [
+            const NavigationDestination(
+              icon: Icon(Icons.directions_car_outlined),
+              selectedIcon: Icon(Icons.directions_car),
+              label: 'マイカー',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.store_outlined),
+              selectedIcon: Icon(Icons.store),
+              label: 'マーケット',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.forum_outlined),
+              selectedIcon: Icon(Icons.forum),
+              label: 'みんなの投稿',
+            ),
+            NavigationDestination(
+              icon: Semantics(
+                label: unread > 0
+                    ? '通知 未読${unread > 99 ? '99件以上' : '$unread件'}'
+                    : '通知',
+                child: Badge(
                   isLabelVisible: unread > 0,
                   label: Text(
                     unread > 99 ? '99+' : '$unread',
                     style: const TextStyle(fontSize: 10),
                   ),
-                  child: const Icon(Icons.notifications),
+                  child: const ExcludeSemantics(
+                    child: Icon(Icons.notifications_outlined),
+                  ),
                 ),
-                label: '通知',
               ),
-              const NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: 'プロフィール',
+              selectedIcon: Badge(
+                isLabelVisible: unread > 0,
+                label: Text(
+                  unread > 99 ? '99+' : '$unread',
+                  style: const TextStyle(fontSize: 10),
+                ),
+                child: const Icon(Icons.notifications),
               ),
-            ],
-          );
-        },
-      );
+              label: '通知',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'プロフィール',
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildBody() {
