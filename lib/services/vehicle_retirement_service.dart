@@ -129,10 +129,21 @@ class VehicleRetirementService {
           .collection(_collection)
           .where('userId', isEqualTo: userId)
           .get();
-      final retired = snap.docs
-          .map(Vehicle.fromFirestore)
-          .where((v) => v.status != VehicleStatus.active)
-          .toList();
+      // 1件のパース失敗で一覧全体を落とさない。
+      //
+      // サーバー側で status を絞っていた頃は退役車両しかパースしなかったが、
+      // インデックス依存を外して userId だけで取得するようにしたため、
+      // 現役車両も含めて全件をパースする。壊れたドキュメントが1件でも
+      // あると画面全体がエラーになるので、そのドキュメントだけ飛ばす。
+      final retired = <Vehicle>[];
+      for (final doc in snap.docs) {
+        try {
+          final vehicle = Vehicle.fromFirestore(doc);
+          if (vehicle.status != VehicleStatus.active) retired.add(vehicle);
+        } catch (_) {
+          continue;
+        }
+      }
       return Result.success(retired);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
