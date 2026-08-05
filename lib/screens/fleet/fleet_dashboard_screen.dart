@@ -346,61 +346,57 @@ class _StatChip extends StatelessWidget {
     // labels were Colors.white70 — grey-looking and hard to read. Numbers and
     // labels are now plain white; the status colour is carried by a dot, which
     // keeps the meaning without sacrificing legibility.
+    // Deliberately the same height as before this became tappable: the value
+    // Text plus the label Row, with no extra padding or underline. The header
+    // sits above the filter bar in a fixed-height Column, so growing it pushes
+    // the rest of the screen down in tests.
     return Semantics(
       button: onTap != null,
       selected: isSelected,
       label: '$label $value台',
-      child: InkWell(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        borderRadius: AppSpacing.borderRadiusSm,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.xs,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$value',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '$value',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                // Selection is shown by underlining the number rather than by
+                // adding an element, so the row keeps its original height.
+                decoration:
+                    isSelected ? TextDecoration.underline : TextDecoration.none,
+                decorationColor: Colors.white,
+                decorationThickness: 2,
+              ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-              AppSpacing.verticalXxs,
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                    ),
+                AppSpacing.horizontalXxs,
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
                   ),
-                  AppSpacing.horizontalXxs,
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              // Underline marks the applied filter.
-              AppSpacing.verticalXxs,
-              Container(
-                height: 2,
-                width: 20,
-                color: isSelected ? Colors.white : Colors.transparent,
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
