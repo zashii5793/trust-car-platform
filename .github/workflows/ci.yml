@@ -44,8 +44,28 @@ jobs:
 
       # Unit tests do not need the Firebase emulators — run them first so
       # the required gate is fast and independent of emulator availability.
+      # flutter test streams results in completion order, so a failure that
+      # happens early is buried thousands of lines above the summary. The API
+      # only serves the tail of a job log, which made "N passed, 1 failed"
+      # undiagnosable without re-running locally. Re-print the failures at the
+      # end (and in the job summary) so the tail always answers "which test?".
       - name: Run unit tests with coverage
-        run: flutter test --coverage --exclude-tags emulator
+        run: |
+          set +e
+          flutter test --coverage --exclude-tags emulator 2>&1 | tee /tmp/test.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::group::失敗したテスト"
+            grep -E "❌|\[E\]|Failed to load|Test failed" /tmp/test.log | head -50
+            echo "::endgroup::"
+            {
+              echo "## ❌ 失敗したテスト"
+              echo '```'
+              grep -E "❌|\[E\]|Failed to load|Test failed" /tmp/test.log | head -50
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $STATUS
 
       # --- Emulator-backed integration tests (best effort) -----------------
       # Everything below is continue-on-error: emulator download/startup can
