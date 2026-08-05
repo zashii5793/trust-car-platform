@@ -214,6 +214,15 @@ jobs:
     name: Build iOS
     runs-on: macos-15
     needs: analyze-and-test
+    # macOS ランナーは分数が 10 倍で課金される。実測で 1 回あたり 57〜205 課金分
+    # かかっており、private リポジトリ（Free = 月2,000分）なら iOS ビルド
+    # 10〜15 回で月の枠を使い切る。
+    # そのため PR では既定で走らせず、main への push / 手動実行 /
+    # `ios` ラベル付きの PR に限定する。
+    # iOS 固有の破壊を PR 段階で見たいときは PR に `ios` ラベルを付ける。
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'ios')
 
     steps:
       - name: Checkout repository
