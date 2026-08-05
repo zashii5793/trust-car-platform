@@ -126,6 +126,59 @@ class DriveLogService {
     }
   }
 
+  /// Create a completed drive log from manually entered data (no GPS track).
+  /// Used by the manual drive-log form so users can log a drive after the fact.
+  Future<Result<DriveLog, AppError>> createManualDriveLog({
+    required String userId,
+    String? vehicleId,
+    required DateTime startTime,
+    DateTime? endTime,
+    String? title,
+    String? description,
+    String? startAddress,
+    String? endAddress,
+    required double distanceKm,
+    int durationSeconds = 0,
+    WeatherCondition? weather,
+    List<String>? tags,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final docRef = _driveLogsRef.doc();
+      final averageSpeed =
+          durationSeconds > 0 ? distanceKm / (durationSeconds / 3600) : 0.0;
+
+      final driveLog = DriveLog(
+        id: docRef.id,
+        userId: userId,
+        vehicleId: vehicleId,
+        status: DriveLogStatus.completed,
+        title: title,
+        description: description,
+        startAddress: startAddress,
+        endAddress: endAddress,
+        startTime: startTime,
+        endTime: endTime,
+        statistics: DriveStatistics(
+          totalDistance: distanceKm,
+          totalDuration: durationSeconds,
+          averageSpeed: averageSpeed,
+          maxSpeed: averageSpeed,
+        ),
+        weather: weather,
+        tags: tags ?? const [],
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await docRef.set(driveLog.toMap());
+
+      return Result.success(driveLog);
+    } catch (e) {
+      return Result.failure(AppError.unknown('ドライブログの保存に失敗しました'));
+    }
+  }
+
   /// Add waypoint to a drive
   Future<Result<void, AppError>> addWaypoint({
     required String driveLogId,
