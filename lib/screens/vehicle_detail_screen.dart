@@ -1388,6 +1388,28 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        // A failed read must not look like "you have no records".
+        // MaintenanceProvider already captures stream errors, but this screen
+        // never read them: when the Firestore query failed (a missing
+        // composite index, for example) records stayed empty and the user was
+        // told 「メンテナンス記録がありません」 — so a real error was
+        // indistinguishable from an empty history, and記録を追加しても
+        // 反映されないように見えていた。
+        final error = maintenanceProvider.error;
+        if (error != null && maintenanceProvider.records.isEmpty) {
+          return AppEmptyState(
+            key: const Key('maintenance_load_error'),
+            icon: Icons.cloud_off,
+            title: '記録を読み込めませんでした',
+            description: error.userMessage,
+            buttonLabel: maintenanceProvider.isRetryable ? '再試行' : null,
+            onButtonPressed: maintenanceProvider.isRetryable
+                ? () => maintenanceProvider
+                    .listenToMaintenanceRecords(widget.vehicle.id)
+                : null,
+          );
+        }
+
         // Sort entries newest-first
         final entries = <_TimelineEntry>[
           if (widget.filter != _TimelineFilter.drive)

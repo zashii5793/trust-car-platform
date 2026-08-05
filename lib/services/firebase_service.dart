@@ -8,6 +8,7 @@ import '../models/maintenance_record.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
+import '../core/utils/license_plate.dart';
 
 /// Firebaseサービス
 ///
@@ -111,20 +112,28 @@ class FirebaseService {
   Future<Result<bool, AppError>> isLicensePlateExists(String licensePlate,
       {String? excludeVehicleId}) async {
     try {
+      // Compare on the normalised key rather than with an equality query.
+      // Plates arrive full-width from a Japanese IME and half-width from OCR,
+      // so an exact string match let the same car be registered twice —
+      // "品川 300 あ 12-34" and "品川　３００　あ　１２－３４" were different
+      // strings. Existing documents were also stored unnormalised, so a
+      // normalised query would not find them either.
       final query = _firestore
           .collection(FirestoreCollections.vehicles)
-          .where('userId', isEqualTo: currentUserId)
-          .where('licensePlate', isEqualTo: licensePlate);
+          .where('userId', isEqualTo: currentUserId);
 
       final snapshot = await query.get();
+      final target = licensePlateKey(licensePlate);
+      if (target.isEmpty) return const Result.success(false);
 
-      // excludeVehicleIdがある場合は、そのIDを除外してチェック
-      if (excludeVehicleId != null) {
-        final exists = snapshot.docs.any((doc) => doc.id != excludeVehicleId);
-        return Result.success(exists);
-      }
+      final exists = snapshot.docs.any((doc) {
+        if (doc.id == excludeVehicleId) return false;
+        final raw = doc.data()['licensePlate'];
+        if (raw is! String || raw.isEmpty) return false;
+        return licensePlateKey(raw) == target;
+      });
 
-      return Result.success(snapshot.docs.isNotEmpty);
+      return Result.success(exists);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
     }
