@@ -236,7 +236,12 @@ class _FleetBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (stats != null) _StatsHeader(stats: stats),
+        if (stats != null)
+          _StatsHeader(
+            stats: stats,
+            selected: provider.filter,
+            onSelect: provider.setFilter,
+          ),
         _InsuranceOverviewTile(vehicles: provider.allVehicles),
         _FleetCodeTile(companyId: provider.companyId),
         _FilterChipBar(provider: provider),
@@ -259,7 +264,20 @@ class _FleetBody extends StatelessWidget {
 
 class _StatsHeader extends StatelessWidget {
   final FleetStats stats;
-  const _StatsHeader({required this.stats});
+
+  /// Currently applied list filter, so the tapped count reads as selected.
+  final FleetFilter selected;
+
+  /// Tapping a count filters the list below it. A number labelled 「注意 3」
+  /// invites a tap; leaving it inert was the defect — the filter itself
+  /// (FleetFilter) already existed, the header just was not wired to it.
+  final ValueChanged<FleetFilter> onSelect;
+
+  const _StatsHeader({
+    required this.stats,
+    required this.selected,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -273,24 +291,32 @@ class _StatsHeader extends StatelessWidget {
             label: '合計',
             value: stats.total,
             color: Colors.white,
+            isSelected: selected == FleetFilter.all,
+            onTap: () => onSelect(FleetFilter.all),
           ),
           const SizedBox(width: AppSpacing.md),
           _StatChip(
             label: '緊急',
             value: stats.critical,
             color: AppColors.error,
+            isSelected: selected == FleetFilter.critical,
+            onTap: () => onSelect(FleetFilter.critical),
           ),
           const SizedBox(width: AppSpacing.sm),
           _StatChip(
             label: '注意',
             value: stats.warning,
             color: AppColors.warning,
+            isSelected: selected == FleetFilter.warning,
+            onTap: () => onSelect(FleetFilter.warning),
           ),
           const SizedBox(width: AppSpacing.sm),
           _StatChip(
             label: '正常',
             value: stats.normal,
             color: AppColors.success,
+            isSelected: selected == FleetFilter.normal,
+            onTap: () => onSelect(FleetFilter.normal),
           ),
         ],
       ),
@@ -302,22 +328,81 @@ class _StatChip extends StatelessWidget {
   final String label;
   final int value;
   final Color color;
+  final bool isSelected;
+  final VoidCallback? onTap;
 
-  const _StatChip(
-      {required this.label, required this.value, required this.color});
+  const _StatChip({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.isSelected = false,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          '$value',
-          style: TextStyle(
-              color: color, fontSize: 22, fontWeight: FontWeight.bold),
+    // The header sits on AppColors.primary (blue). Status colours (amber for
+    // 注意, red for 緊急) do not carry enough contrast against it, and the
+    // labels were Colors.white70 — grey-looking and hard to read. Numbers and
+    // labels are now plain white; the status colour is carried by a dot, which
+    // keeps the meaning without sacrificing legibility.
+    return Semantics(
+      button: onTap != null,
+      selected: isSelected,
+      label: '$label $value台',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppSpacing.borderRadiusSm,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$value',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              AppSpacing.verticalXxs,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  AppSpacing.horizontalXxs,
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              // Underline marks the applied filter.
+              AppSpacing.verticalXxs,
+              Container(
+                height: 2,
+                width: 20,
+                color: isSelected ? Colors.white : Colors.transparent,
+              ),
+            ],
+          ),
         ),
-        Text(label,
-            style: const TextStyle(color: Colors.white70, fontSize: 11)),
-      ],
+      ),
     );
   }
 }
