@@ -240,4 +240,22 @@ void main() {
     expect(snap.docs.first.data()['commentId'], 'theirs');
     expect(snap.docs.first.data()['reason'], 'spam');
   });
+
+  testWidgets('ソートメニューから並び替えを選択できる', (tester) async {
+    await seedComment('c1', 'other', 'コメント1');
+    await seedComment('c2', 'other', 'コメント2');
+    await tester.pumpWidget(buildUnderTest(currentUserId: 'viewer'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('comment_sort_menu')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('comment_sort_menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('新しい順').last);
+    await tester.pumpAndSettle();
+
+    // 再読み込み後もコメントが表示され、クラッシュしない
+    expect(find.text('コメント1'), findsOneWidget);
+    expect(find.text('コメント2'), findsOneWidget);
+  });
 }

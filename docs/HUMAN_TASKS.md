@@ -1,7 +1,9 @@
 # 人間が実施すべきタスク一覧
 
-**最終更新**: 2026-06-13  
+**最終更新**: 2026-06-30  
 **前提**: AIが実装・テスト・コードプッシュまで完了済み。以下は **AIでは代替できない** 操作のみ。
+**出荷目標**: 2026年8月ソフトローンチ（逆算計画は `docs/LAUNCH_PLAN.md`）。
+**進捗メモ**: Apple Developer Program は**申請済み（承認待ち）** — 承認後に下記 P1-5（iOS証明書）着手可。
 
 ---
 
@@ -126,10 +128,11 @@ Firebase iOS SDK の整合（CocoaPods）を必ず CI ビルドで確認する�
 ### 5. iOS: Apple Developer Account でのApp ID・証明書設定
 
 **なぜ必要**: TestFlight配布・App Store申請に必要。AIではApple Developer Consoleを操作できない。
+**状態**: Apple Developer Program は**申請済み（承認待ち）**。承認後に本タスク着手可。
 
 **手順**:
 1. [Apple Developer Console](https://developer.apple.com/account/) → Certificates, Identifiers & Profiles
-2. App ID 登録: `com.trustcar.platform`（`Bundle ID` を `ios/Runner.xcodeproj` と一致させること）
+2. App ID 登録: **`jp.trustcar.app`**（実プロジェクトの Bundle ID。Android `applicationId` / iOS `PRODUCT_BUNDLE_IDENTIFIER` と一致済み）
 3. Distribution Certificate の作成（期限切れ確認）
 4. Provisioning Profile の作成（App Store Distribution用）
 5. Xcode → Signing & Capabilities → Team 設定

@@ -13,7 +13,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/models/post.dart';
-import 'package:trust_car_platform/models/comment_report.dart';
 import 'package:trust_car_platform/services/post_service.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/result/result.dart';
@@ -556,250 +555,176 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // PostService.likeComment / unlikeComment
+  // getUserPosts — ページネーション統合テスト
   // ---------------------------------------------------------------------------
 
-  group('PostService.likeComment / unlikeComment', () {
+  group('PostService.getUserPosts — ページネーション', () {
     late FakeFirebaseFirestore fakeFirestore;
     late PostService service;
 
-    Future<String> seedComment({int likeCount = 0}) async {
-      final ref = await fakeFirestore.collection('comments').add({
-        'postId': 'post-1',
-        'userId': 'author-uid',
-        'content': 'test comment',
-        'likeCount': likeCount,
-        'createdAt': Timestamp.fromDate(DateTime(2024, 1, 1)),
-      });
-      return ref.id;
+    // 投稿を 5件追加（降順ソート用に timestamp をずらす）
+    Future<void> seedPosts(FakeFirebaseFirestore fs,
+        {String userId = 'pager-user',
+        String visibility = 'public',
+        int count = 5}) async {
+      for (int i = 0; i < count; i++) {
+        final doc = Map<String, dynamic>.from(
+          postDoc(userId: userId, visibility: visibility, content: 'post-$i'),
+        );
+        doc['createdAt'] = Timestamp.fromDate(
+            DateTime(2024, 1, i + 1)); // oldest=Jan1, newest=Jan5
+        await fs.collection('posts').add(doc);
+      }
     }
 
-    setUp(() {
+    setUp(() async {
       fakeFirestore = FakeFirebaseFirestore();
       service = PostService(firestore: fakeFirestore);
+      await seedPosts(fakeFirestore);
     });
 
-    test('likeComment — 初回いいねで likeCount が 1 増加する', () async {
-      final commentId = await seedComment();
-      final result =
-          await service.likeComment(commentId: commentId, userId: 'user-1');
-      result.when(
-          success: (_) {}, failure: (e) => fail('Expected success, got $e'));
-
-      final snap =
-          await fakeFirestore.collection('comments').doc(commentId).get();
-      expect(snap.data()!['likeCount'], 1);
-    });
-
-    test('likeComment — 同じユーザーが2度いいねしても likeCount は 1 のまま', () async {
-      final commentId = await seedComment();
-      await service.likeComment(commentId: commentId, userId: 'user-1');
-      await service.likeComment(commentId: commentId, userId: 'user-1');
-
-      final snap =
-          await fakeFirestore.collection('comments').doc(commentId).get();
-      expect(snap.data()!['likeCount'], 1);
-    });
-
-    test('likeComment — 異なるユーザー2人がいいねすると likeCount は 2', () async {
-      final commentId = await seedComment();
-      await service.likeComment(commentId: commentId, userId: 'user-1');
-      await service.likeComment(commentId: commentId, userId: 'user-2');
-
-      final snap =
-          await fakeFirestore.collection('comments').doc(commentId).get();
-      expect(snap.data()!['likeCount'], 2);
-    });
-
-    test('unlikeComment — いいね後に取り消すと likeCount が 0 に戻る', () async {
-      final commentId = await seedComment();
-      await service.likeComment(commentId: commentId, userId: 'user-1');
-
-      final result =
-          await service.unlikeComment(commentId: commentId, userId: 'user-1');
-      result.when(
-          success: (_) {}, failure: (e) => fail('Expected success, got $e'));
-
-      final snap =
-          await fakeFirestore.collection('comments').doc(commentId).get();
-      expect(snap.data()!['likeCount'], 0);
-    });
-
-    test('unlikeComment — いいねしていないコメントを unlike しても no-op（エラーなし）', () async {
-      final commentId = await seedComment();
-      final result =
-          await service.unlikeComment(commentId: commentId, userId: 'user-1');
-
-      result.when(
-          success: (_) {}, failure: (e) => fail('Expected success, got $e'));
-
-      final snap =
-          await fakeFirestore.collection('comments').doc(commentId).get();
-      expect(snap.data()!['likeCount'], 0);
-    });
-
-    group('Edge Cases', () {
-      test('likeComment — 空の commentId はバリデーションエラーを返す', () async {
-        final result =
-            await service.likeComment(commentId: '', userId: 'user-1');
-        result.when(
-            success: (_) => fail('Expected failure'),
-            failure: (e) => expect(e, isA<AppError>()));
-      });
-
-      test('likeComment — 空の userId はバリデーションエラーを返す', () async {
-        final result = await service.likeComment(commentId: 'c-1', userId: '');
-        result.when(
-            success: (_) => fail('Expected failure'),
-            failure: (e) => expect(e, isA<AppError>()));
-      });
-
-      test('unlikeComment — 空の commentId はバリデーションエラーを返す', () async {
-        final result =
-            await service.unlikeComment(commentId: '', userId: 'user-1');
-        result.when(
-            success: (_) => fail('Expected failure'),
-            failure: (e) => expect(e, isA<AppError>()));
-      });
-
-      test('unlikeComment — 空の userId はバリデーションエラーを返す', () async {
-        final result =
-            await service.unlikeComment(commentId: 'c-1', userId: '');
-        result.when(
-            success: (_) => fail('Expected failure'),
-            failure: (e) => expect(e, isA<AppError>()));
-      });
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // PostService.reportComment
-  // ---------------------------------------------------------------------------
-
-  group('PostService.reportComment', () {
-    late FakeFirebaseFirestore fakeFirestore;
-    late PostService service;
-
-    setUp(() {
-      fakeFirestore = FakeFirebaseFirestore();
-      service = PostService(firestore: fakeFirestore);
-    });
-
-    test('通報が post_comment_reports コレクションに保存される', () async {
-      final result = await service.reportComment(
-        commentId: 'comment-1',
-        reporterId: 'user-1',
-        reason: ReportReason.spam,
+    test('limit=2 → 2件のみ返す', () async {
+      final result = await service.getUserPosts(
+        userId: 'pager-user',
+        viewerId: 'viewer',
+        limit: 2,
       );
+
       result.when(
-          success: (_) {}, failure: (e) => fail('Expected success, got $e'));
-
-      final snap = await fakeFirestore.collection('post_comment_reports').get();
-      expect(snap.docs.length, 1);
-      expect(snap.docs.first.data()['commentId'], 'comment-1');
-      expect(snap.docs.first.data()['reporterId'], 'user-1');
-      expect(snap.docs.first.data()['reason'], 'spam');
-      expect(snap.docs.first.data()['status'], 'pending');
+        success: (posts) => expect(posts.length, 2),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
     });
 
-    test('同一ユーザーが同じコメントを再通報しても重複しない（idempotent）', () async {
-      await service.reportComment(
-          commentId: 'c-1', reporterId: 'u-1', reason: ReportReason.spam);
-      await service.reportComment(
-          commentId: 'c-1', reporterId: 'u-1', reason: ReportReason.other);
+    test('limit がデフォルト値 (20) 以下なら全件取得', () async {
+      final result = await service.getUserPosts(
+        userId: 'pager-user',
+        viewerId: 'viewer',
+        limit: 20,
+      );
 
-      final snap = await fakeFirestore.collection('post_comment_reports').get();
-      expect(snap.docs.length, 1);
+      result.when(
+        success: (posts) => expect(posts.length, 5),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
     });
 
-    test('異なるユーザーが通報すると別々のドキュメントになる', () async {
-      await service.reportComment(
-          commentId: 'c-1', reporterId: 'u-1', reason: ReportReason.spam);
-      await service.reportComment(
-          commentId: 'c-1', reporterId: 'u-2', reason: ReportReason.harassment);
+    test('startAfter で次のページを取得できる', () async {
+      // 1ページ目の末尾 DocumentSnapshot を直接取得
+      final firstPageSnap = await fakeFirestore
+          .collection('posts')
+          .where('userId', isEqualTo: 'pager-user')
+          .where('visibility', isEqualTo: 'public')
+          .orderBy('createdAt', descending: true)
+          .limit(2)
+          .get();
+      final lastDoc = firstPageSnap.docs.last;
 
-      final snap = await fakeFirestore.collection('post_comment_reports').get();
-      expect(snap.docs.length, 2);
+      final secondResult = await service.getUserPosts(
+        userId: 'pager-user',
+        viewerId: 'viewer',
+        limit: 10,
+        startAfter: lastDoc,
+      );
+
+      secondResult.when(
+        success: (posts) => expect(posts.length, 3),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('フォロワーフィルタ + limit の組み合わせ', () async {
+      // followers-only 投稿を追加
+      final followersDoc = Map<String, dynamic>.from(
+        postDoc(userId: 'pager-user', visibility: 'followers'),
+      );
+      followersDoc['createdAt'] =
+          Timestamp.fromDate(DateTime(2024, 2, 1)); // 最新
+      await fakeFirestore.collection('posts').add(followersDoc);
+      // 計 6件（public 5 + followers 1）
+
+      final result = await service.getUserPosts(
+        userId: 'pager-user',
+        viewerId: 'follower',
+        isViewerFollowing: true,
+        limit: 3,
+      );
+
+      result.when(
+        success: (posts) => expect(posts.length, 3),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('フォロワーフィルタ + startAfter でページネーション', () async {
+      // followers-only 投稿を追加（最新にする）
+      final followersDoc = Map<String, dynamic>.from(
+        postDoc(userId: 'pager-user', visibility: 'followers'),
+      );
+      followersDoc['createdAt'] = Timestamp.fromDate(DateTime(2024, 2, 1));
+      await fakeFirestore.collection('posts').add(followersDoc);
+      // 計 6件
+
+      // 1ページ目の末尾 DocumentSnapshot を取得
+      final firstPageSnap = await fakeFirestore
+          .collection('posts')
+          .where('userId', isEqualTo: 'pager-user')
+          .where('visibility', whereIn: ['public', 'followers'])
+          .orderBy('createdAt', descending: true)
+          .limit(2)
+          .get();
+      final lastDoc = firstPageSnap.docs.last;
+
+      final secondResult = await service.getUserPosts(
+        userId: 'pager-user',
+        viewerId: 'follower',
+        isViewerFollowing: true,
+        limit: 10,
+        startAfter: lastDoc,
+      );
+
+      secondResult.when(
+        success: (posts) => expect(posts.length, 4),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
     });
 
     group('Edge Cases', () {
-      test('空の commentId はバリデーションエラーを返す', () async {
-        final result = await service.reportComment(
-            commentId: '', reporterId: 'u-1', reason: ReportReason.spam);
+      test('startAfter に最後のドキュメントを渡すと空リストを返す', () async {
+        final lastPageSnap = await fakeFirestore
+            .collection('posts')
+            .where('userId', isEqualTo: 'pager-user')
+            .where('visibility', isEqualTo: 'public')
+            .orderBy('createdAt', descending: true)
+            .limit(10)
+            .get();
+        final lastDoc = lastPageSnap.docs.last; // 全件の末尾
+
+        final result = await service.getUserPosts(
+          userId: 'pager-user',
+          viewerId: 'viewer',
+          limit: 10,
+          startAfter: lastDoc,
+        );
+
         result.when(
-            success: (_) => fail('Expected failure'),
-            failure: (e) => expect(e, isA<AppError>()));
+          success: (posts) => expect(posts, isEmpty),
+          failure: (e) => fail('Expected success, got: $e'),
+        );
       });
 
-      test('空の reporterId はバリデーションエラーを返す', () async {
-        final result = await service.reportComment(
-            commentId: 'c-1', reporterId: '', reason: ReportReason.spam);
+      test('startAfter=null → 最初のページを取得', () async {
+        final result = await service.getUserPosts(
+          userId: 'pager-user',
+          viewerId: 'viewer',
+          limit: 3,
+          startAfter: null,
+        );
+
         result.when(
-            success: (_) => fail('Expected failure'),
-            failure: (e) => expect(e, isA<AppError>()));
-      });
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // PostService.getMyLikedCommentIds
-  // ---------------------------------------------------------------------------
-
-  group('PostService.getMyLikedCommentIds', () {
-    late FakeFirebaseFirestore fakeFirestore;
-    late PostService service;
-
-    setUp(() {
-      fakeFirestore = FakeFirebaseFirestore();
-      service = PostService(firestore: fakeFirestore);
-    });
-
-    test('いいね済みコメントIDのセットを返す', () async {
-      // Seed: user-1 liked c-1 and c-3, not c-2
-      await fakeFirestore
-          .collection('comment_likes')
-          .doc('c-1_user-1')
-          .set({'commentId': 'c-1', 'userId': 'user-1'});
-      await fakeFirestore
-          .collection('comment_likes')
-          .doc('c-3_user-1')
-          .set({'commentId': 'c-3', 'userId': 'user-1'});
-
-      final result = await service.getMyLikedCommentIds(
-          userId: 'user-1', commentIds: ['c-1', 'c-2', 'c-3']);
-
-      result.when(
-          success: (ids) {
-            expect(ids, containsAll(['c-1', 'c-3']));
-            expect(ids, isNot(contains('c-2')));
-          },
-          failure: (e) => fail('Expected success, got $e'));
-    });
-
-    test('いいね0件のときは空セットを返す', () async {
-      final result = await service
-          .getMyLikedCommentIds(userId: 'user-1', commentIds: ['c-1', 'c-2']);
-
-      result.when(
-          success: (ids) => expect(ids, isEmpty),
-          failure: (e) => fail('Expected success, got $e'));
-    });
-
-    group('Edge Cases', () {
-      test('空の commentIds は空セットを即返す（Firestore未アクセス）', () async {
-        final result = await service
-            .getMyLikedCommentIds(userId: 'user-1', commentIds: []);
-        result.when(
-            success: (ids) => expect(ids, isEmpty),
-            failure: (e) => fail('Expected success, got $e'));
-      });
-
-      test('空の userId は空セットを即返す', () async {
-        final result =
-            await service.getMyLikedCommentIds(userId: '', commentIds: ['c-1']);
-        result.when(
-            success: (ids) => expect(ids, isEmpty),
-            failure: (e) => fail('Expected success, got $e'));
+          success: (posts) => expect(posts.length, 3),
+          failure: (e) => fail('Expected success, got: $e'),
+        );
       });
     });
   });

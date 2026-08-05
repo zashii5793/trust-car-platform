@@ -264,6 +264,12 @@ class Shop {
     required this.updatedAt,
   });
 
+  /// Returns true when this shop has an active or trialing subscription,
+  /// making them a platform partner who can receive inquiries.
+  bool get isPartner =>
+      subscriptionStatus == ShopSubscriptionStatus.active ||
+      subscriptionStatus == ShopSubscriptionStatus.trialing;
+
   /// Get display address
   String get displayAddress {
     final parts = <String>[];
