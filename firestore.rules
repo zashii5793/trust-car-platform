@@ -722,6 +722,53 @@ service cloud.firestore {
         resource.data.get('ownerId', '') == request.auth.uid;
     }
 
+    // ==================== 車両履歴共有権限 ====================
+    // vehicle_sharing_permissions/{vehicleId}_{shopId}
+    // Vehicle owners grant specific shops read access to their maintenance
+    // history (e.g., to facilitate trusted shop-assisted inspections).
+    //
+    // Schema invariant (from shops collection):
+    //   shopId == shop owner's Firebase UID
+    //
+    // Security design:
+    //   - Only the vehicle owner (ownerId) can grant or revoke access.
+    //   - Immutable fields (ownerId, vehicleId, shopId) cannot change on update.
+    //   - The Firestore rule also enforces the B2 fix at server level:
+    //     an attacker calling set() with a different ownerId is blocked by
+    //     the update rule (resource.data.ownerId must match caller).
+    //   - list is relaxed (authenticated) because vehicleId/shopId are
+    //     non-guessable Firebase-generated IDs; service-layer queries filter
+    //     results to the caller's own vehicles or shops.
+    match /vehicle_sharing_permissions/{permissionId} {
+      // Vehicle owner or the permitted shop owner can read a single doc.
+      allow get: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.shopId == request.auth.uid
+      );
+
+      // List queries (getPermittedShops / getPermittedVehicles) require auth.
+      allow list: if isAuthenticated();
+
+      // Grant: caller must be the vehicle owner.
+      allow create: if isAuthenticated() &&
+        request.resource.data.ownerId == request.auth.uid &&
+        request.resource.data.vehicleId is string &&
+        request.resource.data.vehicleId.size() > 0 &&
+        request.resource.data.shopId is string &&
+        request.resource.data.shopId.size() > 0;
+
+      // Re-grant (set() on existing doc): owner only; immutable fields unchanged.
+      allow update: if isAuthenticated() &&
+        resource.data.ownerId == request.auth.uid &&
+        request.resource.data.ownerId == resource.data.ownerId &&
+        request.resource.data.vehicleId == resource.data.vehicleId &&
+        request.resource.data.shopId == resource.data.shopId;
+
+      // Revoke: vehicle owner only.
+      allow delete: if isAuthenticated() &&
+        resource.data.ownerId == request.auth.uid;
+    }
+
     // アカウント削除要求: 作成/取消は本人のみ。
     // 実際の連鎖purgeとステータス更新はサーバー(Admin SDK)専用。
     match /account_deletions/{uid} {
