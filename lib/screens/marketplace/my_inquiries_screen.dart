@@ -51,8 +51,7 @@ class _MyInquiriesScreenState extends State<MyInquiriesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar:
-          widget.embedded ? null : AppBar(title: const Text('マイ問い合わせ')),
+      appBar: widget.embedded ? null : AppBar(title: const Text('マイ問い合わせ')),
       body: Consumer<ShopProvider>(
         builder: (context, provider, _) {
           if (provider.isLoadingUserInquiries) {
