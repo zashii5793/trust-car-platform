@@ -311,14 +311,16 @@ void main() {
       await tester.pumpWidget(_buildEdit(record: _makeRecord(cost: 12500)));
       await tester.pump();
 
-      expect(find.text('12500'), findsOneWidget);
+      // 金額入力は3桁区切りで表示される
+      expect(find.text('12,500'), findsOneWidget);
     });
 
     testWidgets('既存の走行距離が TextFormField に表示される', (tester) async {
       await tester.pumpWidget(_buildEdit(record: _makeRecord(mileage: 45000)));
       await tester.pump();
 
-      expect(find.text('45000'), findsOneWidget);
+      // 走行距離入力は3桁区切りで表示される
+      expect(find.text('45,000'), findsOneWidget);
     });
 
     testWidgets('既存の店舗名が TextFormField に表示される', (tester) async {

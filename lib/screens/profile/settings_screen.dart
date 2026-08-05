@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../models/user.dart';
 import '../../models/newsletter.dart';
 import '../../core/constants/spacing.dart';
@@ -214,6 +215,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 表示（テーマ）セクション
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.xxs,
+                bottom: AppSpacing.xs,
+              ),
+              child: Text(
+                '表示',
+                style: theme.textTheme.labelMedium,
+              ),
+            ),
+            AppCard(
+              child: Builder(builder: (context) {
+                final themeProvider = context.watch<ThemeProvider>();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('テーマ', style: theme.textTheme.titleSmall),
+                    AppSpacing.verticalSm,
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<ThemeMode>(
+                        segments: const [
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            label: Text('ライト'),
+                            icon: Icon(Icons.light_mode_outlined),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            label: Text('ダーク'),
+                            icon: Icon(Icons.dark_mode_outlined),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.system,
+                            label: Text('システム'),
+                            icon: Icon(Icons.settings_suggest_outlined),
+                          ),
+                        ],
+                        selected: {themeProvider.themeMode},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (selection) {
+                          themeProvider.setThemeMode(selection.first);
+                        },
+                      ),
+                    ),
+                    AppSpacing.verticalXs,
+                    Text(
+                      'システムを選ぶと端末の設定に追従します。',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ),
+
+            AppSpacing.verticalXxl,
+
             // 通知設定セクション
             Padding(
               padding: const EdgeInsets.only(

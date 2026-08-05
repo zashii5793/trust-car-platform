@@ -55,6 +55,16 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   void initState() {
     super.initState();
     _vehicle = widget.vehicle;
+    // Own the maintenance subscription for this vehicle so newly added records
+    // (including ones created from this screen) stream into the timeline even
+    // when the navigating screen never started the listener. Without this the
+    // timeline can stay empty right after adding a record.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<MaintenanceProvider>().listenToMaintenanceRecords(
+            _vehicle.id,
+          );
+    });
   }
 
   String _formatNumber(int number) {
