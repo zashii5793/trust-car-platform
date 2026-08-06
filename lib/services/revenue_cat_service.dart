@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
@@ -43,7 +45,27 @@ typedef EntitlementExecutor = Future<List<String>> Function(String userId);
 /// `Purchases.*` are used automatically.
 /// Test usage: inject fake executors to control responses.
 class RevenueCatService {
-  static const String _apiKey = 'REVENUECAT_API_KEY_PLACEHOLDER';
+  /// Resolves the platform-specific RevenueCat public API key from the
+  /// environment instead of hard-coding it in the binary.
+  ///
+  /// Resolution order (first non-empty wins):
+  ///   1. `--dart-define` compile-time value
+  ///      (`REVENUE_CAT_API_KEY_IOS` / `REVENUE_CAT_API_KEY_ANDROID`)
+  ///   2. `.env` runtime value via flutter_dotenv (same keys)
+  ///
+  /// Returns an empty string when unset so callers can fail gracefully.
+  static String get apiKey {
+    final useIos = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+    const iosDefine = String.fromEnvironment('REVENUE_CAT_API_KEY_IOS');
+    const androidDefine = String.fromEnvironment('REVENUE_CAT_API_KEY_ANDROID');
+    final fromDefine = useIos ? iosDefine : androidDefine;
+    if (fromDefine.isNotEmpty) return fromDefine;
+
+    final envKey =
+        useIos ? 'REVENUE_CAT_API_KEY_IOS' : 'REVENUE_CAT_API_KEY_ANDROID';
+    return dotenv.env[envKey] ?? '';
+  }
 
   // Entitlement IDs (must match RevenueCat dashboard configuration)
   static const _entitlementStandard = 'btob_standard';
@@ -223,7 +245,14 @@ class RevenueCatService {
   // ---------------------------------------------------------------------------
 
   static Future<void> _productionInitialize(String userId) async {
-    final config = PurchasesConfiguration(_apiKey)..appUserID = userId;
+    final key = apiKey;
+    if (key.isEmpty) {
+      throw StateError(
+        'RevenueCat API key is not set. Provide REVENUE_CAT_API_KEY_IOS / '
+        'REVENUE_CAT_API_KEY_ANDROID via --dart-define or a bundled .env file.',
+      );
+    }
+    final config = PurchasesConfiguration(key)..appUserID = userId;
     await Purchases.configure(config);
   }
 
