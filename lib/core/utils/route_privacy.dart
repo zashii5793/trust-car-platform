@@ -1,5 +1,3 @@
-import '../../models/drive_log.dart';
-
 /// 公開ドライブログから自宅を割り出せないようにする処理。
 ///
 /// ドライブの経路は、たいてい自宅から始まって自宅で終わる。そのまま公開
@@ -13,6 +11,8 @@ import '../../models/drive_log.dart';
 /// 半径を大きくしすぎると経路がほとんど残らないので、既定は 500m。
 /// 「どの街から出発したか」は分かるが「どの家か」は分からない粒度。
 library;
+
+import '../../models/drive_log.dart';
 
 /// 始点・終点をぼかす既定の半径（メートル）。
 const double kDefaultPrivacyRadiusMeters = 500;
@@ -36,7 +36,8 @@ List<GeoPoint2D> blurRouteEnds(
 
   final kept = route
       .where((p) =>
-          p.distanceTo(start) > radiusMeters && p.distanceTo(end) > radiusMeters)
+          p.distanceTo(start) > radiusMeters &&
+          p.distanceTo(end) > radiusMeters)
       .toList();
 
   return kept.length < 2 ? const [] : kept;
