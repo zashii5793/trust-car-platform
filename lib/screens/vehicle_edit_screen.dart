@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import '../models/vehicle.dart';
+import '../widgets/vehicle/equipment_section.dart';
 import '../models/vehicle_master.dart';
 import '../providers/vehicle_provider.dart';
 import '../services/firebase_service.dart';
@@ -75,6 +76,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   // 用途区分（車検サイクル: 貨物車は毎年）
   VehicleUseCategory? _selectedUseCategory;
 
+  // オプション・装備（ナビ / ドラレコ / ETC ほか）
+  VehicleEquipment _equipment = const VehicleEquipment();
+
   Uint8List? _newImageBytes;
   bool _isLoading = false;
   bool _hasChanges = false;
@@ -128,6 +132,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     );
     _selectedFuelType = v.fuelType;
     _purchaseDate = v.purchaseDate;
+    _equipment = v.equipment ?? const VehicleEquipment();
 
     // 詳細情報が既に設定されている場合は展開
     if (v.licensePlate != null ||
@@ -136,7 +141,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         v.color != null ||
         v.engineDisplacement != null ||
         v.fuelType != null ||
-        v.purchaseDate != null) {
+        v.purchaseDate != null ||
+        (v.equipment?.hasAnyValue ?? false)) {
       _showAdvancedFields = true;
     }
 
@@ -344,6 +350,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
             (v.leaseInfo?.maintenancePackDetails ?? '') ||
         _leaseContractEndDate != v.leaseInfo?.contractEndDate ||
         _purchaseDate != v.purchaseDate ||
+        _equipment != (v.equipment ?? const VehicleEquipment()) ||
         _newImageBytes != null;
 
     if (changed != _hasChanges) {
@@ -553,6 +560,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
             : int.tryParse(_engineDisplacementController.text),
         fuelType: _selectedFuelType,
         purchaseDate: _purchaseDate,
+        // オプション・装備。未入力なら null（空で既存を潰さない）。
+        equipment: _equipment.hasAnyValue ? _equipment : null,
         // Phase 5: preserve existing values (not editable in this screen)
         firstRegistrationDate: widget.vehicle.firstRegistrationDate,
         driveType: widget.vehicle.driveType,
@@ -1183,7 +1192,20 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
 
                     // 燃料タイプ
                     _buildFuelTypeSelector(theme),
-                    AppSpacing.verticalMd,
+                    AppSpacing.verticalLg,
+
+                    // === オプション・装備セクション ===
+                    _buildSectionHeader(
+                        theme, 'オプション・装備', Icons.settings_suggest),
+                    AppSpacing.verticalSm,
+                    EquipmentSection(
+                      value: _equipment,
+                      onChanged: (equipment) {
+                        setState(() => _equipment = equipment);
+                        _onFieldChanged();
+                      },
+                    ),
+                    AppSpacing.verticalLg,
 
                     // 購入日
                     _buildDatePickerTile(

@@ -20,6 +20,8 @@ import '../widgets/vehicle/vehicle_selector_fields.dart';
 import '../core/utils/thousands_separator_input_formatter.dart';
 import '../core/utils/license_plate.dart';
 import '../core/constants/vehicle_colors.dart';
+import '../models/vehicle_equipment.dart';
+import '../widgets/vehicle/equipment_section.dart';
 import 'package:uuid/uuid.dart';
 import 'document_scanner_screen.dart';
 import 'vehicle_certificate_result_screen.dart';
@@ -36,6 +38,9 @@ class VehicleRegistrationScreen extends StatefulWidget {
 class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   // ウィザード管理
   int _currentStep = 0;
+
+  // オプション・装備（ナビ / ドラレコ / ETC ほか）。空のままなら保存されない。
+  VehicleEquipment _equipment = const VehicleEquipment();
   final PageController _pageController = PageController();
   final _formKeyStep1 = GlobalKey<FormState>();
 
@@ -549,6 +554,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             : int.tryParse(stripThousands(_engineDisplacementController.text)),
         fuelType: _selectedFuelType,
         purchaseDate: _purchaseDate,
+        // 未入力なら null。toMap 側でも空は書き戻さない。
+        equipment: _equipment.hasAnyValue ? _equipment : null,
       );
 
       if (!mounted) return;
@@ -1093,6 +1100,14 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               lastDate: DateTime.now(),
               onSelected: (d) => setState(() => _purchaseDate = d),
             ),
+          ),
+          AppSpacing.verticalLg,
+
+          _buildSectionHeader(theme, 'オプション・装備', Icons.settings_suggest),
+          AppSpacing.verticalSm,
+          EquipmentSection(
+            value: _equipment,
+            onChanged: (equipment) => setState(() => _equipment = equipment),
           ),
           AppSpacing.verticalLg,
         ],

@@ -1,4 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'vehicle_equipment.dart';
+
+export 'vehicle_equipment.dart';
 
 /// 車両の現在のステータス
 ///
@@ -500,6 +503,9 @@ class Vehicle {
   // リース契約情報（法人・個人リース車両）
   final LeaseInfo? leaseInfo;
 
+  // オプション・装備（ナビ / ドラレコ / ETC / 有無フラグ / 自由記述）
+  final VehicleEquipment? equipment;
+
   // フリート管理: 法人アカウントの companyId（= 管理者の userId）
   final String? companyId;
   // フリート担当者アサイン
@@ -548,6 +554,7 @@ class Vehicle {
     this.seatingCapacity,
     this.voluntaryInsurance,
     this.leaseInfo,
+    this.equipment,
     this.useCategory,
     this.status = VehicleStatus.active,
     this.retiredAt,
@@ -647,6 +654,10 @@ class Vehicle {
       leaseInfo: data['leaseInfo'] != null
           ? LeaseInfo.fromMap(data['leaseInfo'])
           : null,
+      equipment: data['equipment'] != null
+          ? VehicleEquipment.fromMap(
+              Map<String, dynamic>.from(data['equipment'] as Map))
+          : null,
       companyId: data['companyId'],
       assigneeId: data['assigneeId'],
       assigneeName: data['assigneeName'],
@@ -720,6 +731,11 @@ class Vehicle {
       'seatingCapacity': seatingCapacity,
       'voluntaryInsurance': voluntaryInsurance?.toMap(),
       'leaseInfo': leaseInfo?.toMap(),
+      // 空の装備は書き戻さない。未入力で保存したときに既存の装備を
+      // 消してしまわないようにするため。
+      'equipment': (equipment != null && equipment!.hasAnyValue)
+          ? equipment!.toMap()
+          : null,
       'companyId': companyId,
       'assigneeId': assigneeId,
       'assigneeName': assigneeName,
@@ -762,6 +778,7 @@ class Vehicle {
     int? seatingCapacity,
     VoluntaryInsurance? voluntaryInsurance,
     LeaseInfo? leaseInfo,
+    VehicleEquipment? equipment,
     String? companyId,
     String? assigneeId,
     String? assigneeName,
@@ -805,6 +822,7 @@ class Vehicle {
       seatingCapacity: seatingCapacity ?? this.seatingCapacity,
       voluntaryInsurance: voluntaryInsurance ?? this.voluntaryInsurance,
       leaseInfo: leaseInfo ?? this.leaseInfo,
+      equipment: equipment ?? this.equipment,
       useCategory: useCategory ?? this.useCategory,
       status: status ?? this.status,
       retiredAt: retiredAt ?? this.retiredAt,

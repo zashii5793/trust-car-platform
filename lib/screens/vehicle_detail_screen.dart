@@ -456,6 +456,11 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       _vehicle.leaseInfo!.hasAnyValue)
                     _LeaseInfoSection(leaseInfo: _vehicle.leaseInfo!),
 
+                  // オプション・装備セクション
+                  if (_vehicle.equipment != null &&
+                      _vehicle.equipment!.hasAnyValue)
+                    _EquipmentInfoSection(equipment: _vehicle.equipment!),
+
                   // 点検スケジュールセクション
                   _MaintenanceScheduleSection(vehicle: _vehicle),
 
@@ -814,6 +819,84 @@ class _LeaseInfoSection extends StatelessWidget {
                   label: 'メンテパック',
                   value: leaseInfo.maintenancePackDetails!,
                 ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── オプション・装備セクション ──────────────────────────────────────────────
+
+class _EquipmentInfoSection extends StatelessWidget {
+  final VehicleEquipment equipment;
+  const _EquipmentInfoSection({required this.equipment});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      key: const Key('vehicle_equipment_section'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        Padding(
+          padding: AppSpacing.paddingScreen,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.settings_suggest,
+                      size: 16, color: AppColors.textSecondary),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    'オプション・装備',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              AppSpacing.verticalXs,
+              if (equipment.navigation.hasAnyValue)
+                _InfoRow(
+                  icon: Icons.navigation,
+                  label: 'カーナビ',
+                  value: equipment.navigation.displayLabel,
+                ),
+              if (equipment.driveRecorder.hasAnyValue)
+                _InfoRow(
+                  icon: Icons.videocam,
+                  label: 'ドラレコ',
+                  value: equipment.driveRecorder.displayLabel,
+                ),
+              if (equipment.etc.hasAnyValue)
+                _InfoRow(
+                  icon: Icons.toll,
+                  label: 'ETC',
+                  value: equipment.etc.displayLabel,
+                ),
+              if (equipment.features.isNotEmpty ||
+                  equipment.others.isNotEmpty) ...[
+                AppSpacing.verticalXs,
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xxs,
+                  children: [
+                    for (final f in equipment.features)
+                      Chip(
+                        label: Text(f.label),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    for (final o in equipment.others)
+                      Chip(
+                        label: Text(o),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
