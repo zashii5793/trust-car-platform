@@ -17,6 +17,7 @@ import '../widgets/common/app_card.dart';
 import '../widgets/common/loading_indicator.dart';
 import 'add_maintenance_screen.dart';
 import '../widgets/maintenance/maintenance_ai_comment.dart';
+import '../widgets/maintenance/maintenance_detail_breakdown.dart';
 import 'export/export_dialog.dart';
 import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
@@ -2409,6 +2410,11 @@ class _MaintenanceDetailSheet extends StatelessWidget {
                       ),
                     ),
                   ],
+
+                  // 明細（部品 / 金額内訳 / 次回交換 / 点検結果 / タイヤ）。
+                  // 請求書OCRが読み取った項目は保存されていたが、これまで
+                  // 表示する画面が無く誰も見られなかった。
+                  MaintenanceDetailBreakdown(record: record),
 
                   AppSpacing.verticalLg,
 

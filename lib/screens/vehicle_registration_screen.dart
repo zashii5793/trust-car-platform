@@ -20,7 +20,6 @@ import '../widgets/vehicle/vehicle_selector_fields.dart';
 import '../core/utils/thousands_separator_input_formatter.dart';
 import '../core/utils/license_plate.dart';
 import '../core/constants/vehicle_colors.dart';
-import '../models/vehicle_equipment.dart';
 import '../widgets/vehicle/equipment_section.dart';
 import 'package:uuid/uuid.dart';
 import 'document_scanner_screen.dart';

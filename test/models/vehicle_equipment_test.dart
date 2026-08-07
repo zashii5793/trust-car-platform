@@ -13,7 +13,6 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
-import 'package:trust_car_platform/models/vehicle_equipment.dart';
 
 void main() {
   group('EquipmentItem', () {
