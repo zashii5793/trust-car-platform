@@ -103,10 +103,12 @@ class ProfileScreen extends StatelessWidget {
                         currentCity: appUser?.city,
                       ),
                     ),
-                    if (appUser?.regionLabel != null)
+                    // `appUser?.x != null` では appUser 自体は昇格しないので、
+                    // 変数そのものを null チェックする。
+                    if (appUser != null && appUser.regionLabel != null)
                       _MenuItem(
                         icon: Icons.place_outlined,
-                        label: 'お住まいの地域: ${appUser!.regionLabel}',
+                        label: 'お住まいの地域: ${appUser.regionLabel}',
                         onTap: () => _showProfileEditSheet(
                           context,
                           authProvider,
