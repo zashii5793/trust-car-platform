@@ -51,8 +51,10 @@ class _PartRecommendationScreenState extends State<PartRecommendationScreen> {
                 const Text('パーツ提案'),
                 Text(
                   widget.vehicle.displayName,
+                  // AppBar は AppColors.primary（青）。white70 だと
+                  // コントラスト比が 4.5:1 を下回り読みづらい。
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white70,
+                        color: Colors.white,
                       ),
                 ),
               ],

@@ -1554,12 +1554,12 @@ class _DashboardSummaryCard extends StatelessWidget {
           Row(
             children: [
               const Icon(Icons.dashboard_outlined,
-                  size: AppSpacing.iconSm, color: Colors.white70),
+                  size: AppSpacing.iconSm, color: Colors.white),
               AppSpacing.horizontalXs,
               Text(
                 'ダッシュボード',
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: Colors.white70,
+                  color: Colors.white,
                   letterSpacing: 0.5,
                 ),
               ),
@@ -1585,7 +1585,7 @@ class _DashboardSummaryCard extends StatelessWidget {
                 label: '要対応',
                 iconColor: expiredCount > 0
                     ? AppColors.error.withValues(alpha: 0.9)
-                    : Colors.white54,
+                    : Colors.white.withValues(alpha: 0.85),
               ),
               _buildDivider(),
               _buildStatItem(
@@ -1593,7 +1593,9 @@ class _DashboardSummaryCard extends StatelessWidget {
                 icon: Icons.warning_amber_outlined,
                 value: '$warnCount',
                 label: '注意',
-                iconColor: warnCount > 0 ? AppColors.warning : Colors.white54,
+                iconColor: warnCount > 0
+                    ? AppColors.warning
+                    : Colors.white.withValues(alpha: 0.85),
               ),
             ],
           ),
@@ -1663,7 +1665,7 @@ class _DashboardSummaryCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.business, size: 14, color: Colors.white70),
+                  const Icon(Icons.business, size: 14, color: Colors.white),
                   AppSpacing.horizontalXs,
                   Expanded(
                     child: Text(
@@ -1723,7 +1725,7 @@ class _DashboardSummaryCard extends StatelessWidget {
       case InspectionUrgency.normal:
       case InspectionUrgency.none:
         background = Colors.white.withValues(alpha: 0.12);
-        iconColor = Colors.white70;
+        iconColor = Colors.white;
         icon = Icons.verified_outlined;
         fontWeight = FontWeight.normal;
         keySuffix = 'normal';
