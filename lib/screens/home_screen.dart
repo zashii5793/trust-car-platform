@@ -12,6 +12,7 @@ import '../models/app_notification.dart';
 import '../models/fleet_plan.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
+import '../widgets/common/ai_disclaimer.dart';
 import '../core/utils/inspection_urgency.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/common/offline_banner.dart';
@@ -2258,13 +2259,9 @@ class _SuggestionDetailSheet extends StatelessWidget {
             // お決めください」から変更。判断を委ねる意図だったが、こちらが情報を
             // 与えて相手に決めさせる構図になっており、上から目線に読める。
             // 主語をサービス側に置き、「参考情報である」という事実だけを伝える。
-            Text(
-              'この内容は参考情報です。実際の状態は認証工場での点検をご確認ください。',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.outline,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
+            // AIの出力に添える注記は AiDisclaimer に一本化する。
+            // 画面ごとに書き分けると必ず抜けと表記ゆれが出る。
+            const AiDisclaimer(subject: 'この提案'),
 
             const SizedBox(height: AppSpacing.lg),
 

@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/config/app_config.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/constants/japan_prefectures.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/maintenance_record.dart';
 import '../../models/vehicle.dart';
@@ -98,8 +99,23 @@ class ProfileScreen extends StatelessWidget {
                         authProvider,
                         appUser?.displayName ?? user?.displayName ?? 'ユーザー',
                         user?.photoURL,
+                        currentPrefecture: appUser?.prefecture,
+                        currentCity: appUser?.city,
                       ),
                     ),
+                    if (appUser?.regionLabel != null)
+                      _MenuItem(
+                        icon: Icons.place_outlined,
+                        label: 'お住まいの地域: ${appUser!.regionLabel}',
+                        onTap: () => _showProfileEditSheet(
+                          context,
+                          authProvider,
+                          appUser.displayName ?? user?.displayName ?? 'ユーザー',
+                          user?.photoURL,
+                          currentPrefecture: appUser.prefecture,
+                          currentCity: appUser.city,
+                        ),
+                      ),
                     _MenuItem(
                       icon: Icons.notifications_outlined,
                       label: '通知設定',
@@ -301,8 +317,10 @@ class ProfileScreen extends StatelessWidget {
     BuildContext context,
     AuthProvider authProvider,
     String currentName,
-    String? currentPhotoUrl,
-  ) {
+    String? currentPhotoUrl, {
+    String? currentPrefecture,
+    String? currentCity,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -313,6 +331,8 @@ class ProfileScreen extends StatelessWidget {
         authProvider: authProvider,
         currentName: currentName,
         currentPhotoUrl: currentPhotoUrl,
+        currentPrefecture: currentPrefecture,
+        currentCity: currentCity,
       ),
     );
   }
@@ -365,11 +385,15 @@ class _ProfileEditSheet extends StatefulWidget {
   final AuthProvider authProvider;
   final String currentName;
   final String? currentPhotoUrl;
+  final String? currentPrefecture;
+  final String? currentCity;
 
   const _ProfileEditSheet({
     required this.authProvider,
     required this.currentName,
     this.currentPhotoUrl,
+    this.currentPrefecture,
+    this.currentCity,
   });
 
   @override
@@ -379,6 +403,8 @@ class _ProfileEditSheet extends StatefulWidget {
 class _ProfileEditSheetState extends State<_ProfileEditSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
+  late final TextEditingController _cityController;
+  String? _prefecture;
   bool _isSaving = false;
   Uint8List? _pickedImageBytes;
 
@@ -386,11 +412,18 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.currentName);
+    _cityController = TextEditingController(text: widget.currentCity ?? '');
+    // 保存済みの値が一覧に無い場合（旧データなど）は未選択に倒す。
+    // DropdownButtonFormField は一覧に無い値を渡すと例外になる。
+    _prefecture = kJapanPrefectures.contains(widget.currentPrefecture)
+        ? widget.currentPrefecture
+        : null;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _cityController.dispose();
     super.dispose();
   }
 
@@ -432,6 +465,9 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
     final success = await widget.authProvider.updateProfile(
       displayName: _nameController.text.trim(),
       photoUrl: newPhotoUrl,
+      // 空文字を渡すとクリアされる。選択を外したら消せるようにする。
+      prefecture: _prefecture ?? '',
+      city: _cityController.text.trim(),
     );
 
     if (!mounted) return;
@@ -510,6 +546,56 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
               ),
               validator: (v) =>
                   (v == null || v.trim().isEmpty) ? '表示名を入力してください' : null,
+              textInputAction: TextInputAction.done,
+            ),
+            AppSpacing.verticalLg,
+
+            // お住まいの地域。近くの整備工場を探すために使う。
+            //
+            // 都道府県は47件で確定しているので選択式。市区町村は約1,700件
+            // あり網羅した一覧を保守できないので自由入力にする。
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('お住まいの地域（任意）', style: theme.textTheme.labelLarge),
+            ),
+            AppSpacing.verticalXxs,
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '近くの整備工場を探すときに使います',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: AppColors.textSecondary),
+              ),
+            ),
+            AppSpacing.verticalSm,
+            DropdownButtonFormField<String>(
+              key: const Key('profile_prefecture_dropdown'),
+              initialValue: _prefecture,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: '都道府県',
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                const DropdownMenuItem<String>(
+                  value: null,
+                  child: Text('未設定'),
+                ),
+                for (final p in kJapanPrefectures)
+                  DropdownMenuItem<String>(value: p, child: Text(p)),
+              ],
+              onChanged:
+                  _isSaving ? null : (v) => setState(() => _prefecture = v),
+            ),
+            AppSpacing.verticalSm,
+            TextFormField(
+              key: const Key('profile_city_field'),
+              controller: _cityController,
+              decoration: const InputDecoration(
+                labelText: '市区町村',
+                hintText: '例: 世田谷区 / 横浜市青葉区',
+                border: OutlineInputBorder(),
+              ),
               textInputAction: TextInputAction.done,
             ),
             AppSpacing.verticalLg,

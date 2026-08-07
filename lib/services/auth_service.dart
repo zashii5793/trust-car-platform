@@ -335,6 +335,8 @@ class AuthService {
   Future<Result<void, AppError>> updateUserProfile({
     String? displayName,
     String? photoUrl,
+    String? prefecture,
+    String? city,
   }) async {
     final user = currentUser;
     if (user == null) {
@@ -355,6 +357,15 @@ class AuthService {
       if (photoUrl != null) {
         updates['photoUrl'] = photoUrl;
         await user.updatePhotoURL(photoUrl);
+      }
+
+      // 居住地は空文字を「クリア」として扱う。null は「変更しない」。
+      // 一度入れた地域を消せないと、引っ越したときに直せない。
+      if (prefecture != null) {
+        updates['prefecture'] = prefecture.isEmpty ? null : prefecture;
+      }
+      if (city != null) {
+        updates['city'] = city.isEmpty ? null : city;
       }
 
       await _firestore

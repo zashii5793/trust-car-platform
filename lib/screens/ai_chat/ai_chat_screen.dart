@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../widgets/common/ai_disclaimer.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/chat_message.dart';
 import '../../models/vehicle.dart';
@@ -115,6 +116,12 @@ class _AiChatViewState extends State<_AiChatView> {
       ),
       body: Column(
         children: [
+          // 会話の全体に掛かる注記なので、上部に固定して常に見える位置に置く。
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
+                AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
+            child: AiDisclaimer(subject: 'AIの回答'),
+          ),
           Expanded(
             child: Consumer<AiChatProvider>(
               builder: (context, provider, _) {
