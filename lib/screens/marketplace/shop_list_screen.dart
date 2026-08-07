@@ -31,12 +31,21 @@ class ShopListScreen extends StatefulWidget {
   /// Primary service need shown in the comparison screen.
   final ServiceCategory? primaryNeed;
 
+  /// タブとして埋め込むときは true。
+  ///
+  /// この画面は単独でも push されるため AppBar を自前で持っているが、
+  /// MarketplaceScreen のタブに入ると HomeScreen 側の AppBar
+  /// （「マーケットプレイス」）と二重に表示される。埋め込み時は
+  /// AppBar を出さず、並び替えなどの操作は本文側に置く。
+  final bool embedded;
+
   const ShopListScreen({
     super.key,
     this.maintenanceContext,
     this.selectMode = false,
     this.compareMode = false,
     this.primaryNeed,
+    this.embedded = false,
   });
 
   @override
@@ -118,39 +127,41 @@ class _ShopListScreenState extends State<ShopListScreen> {
     return Consumer<ShopProvider>(
       builder: (context, provider, _) {
         return Scaffold(
-          appBar: AppBar(
-            title: Text(widget.compareMode
-                ? '比較する工場を選択 (最大3件)'
-                : widget.selectMode
-                    ? '問い合わせ先の工場を選択'
-                    : 'マーケットプレイス'),
-            actions: [
-              IconButton(
-                key: const Key('sort_by_distance_button'),
-                icon: _isLocating
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.near_me_outlined),
-                tooltip: '近い順に並べ替え',
-                onPressed: _isLocating || provider.shops.isEmpty
-                    ? null
-                    : _sortByDistance,
-              ),
-              if (!provider.isLoading)
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  tooltip: '再読み込み',
-                  onPressed: () {
-                    _searchController.clear();
-                    provider.clearFilters();
-                    provider.loadShops();
-                  },
+          appBar: widget.embedded
+              ? null
+              : AppBar(
+                  title: Text(widget.compareMode
+                      ? '比較する工場を選択 (最大3件)'
+                      : widget.selectMode
+                          ? '問い合わせ先の工場を選択'
+                          : 'マーケットプレイス'),
+                  actions: [
+                    IconButton(
+                      key: const Key('sort_by_distance_button'),
+                      icon: _isLocating
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.near_me_outlined),
+                      tooltip: '近い順に並べ替え',
+                      onPressed: _isLocating || provider.shops.isEmpty
+                          ? null
+                          : _sortByDistance,
+                    ),
+                    if (!provider.isLoading)
+                      IconButton(
+                        icon: const Icon(Icons.refresh),
+                        tooltip: '再読み込み',
+                        onPressed: () {
+                          _searchController.clear();
+                          provider.clearFilters();
+                          provider.loadShops();
+                        },
+                      ),
+                  ],
                 ),
-            ],
-          ),
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

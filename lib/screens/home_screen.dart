@@ -189,6 +189,10 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           const OfflineBanner(),
+          // 広い画面ではナビゲーションを上段に置く。ボトムナビはモバイルの
+          // 作法であって、ブラウザやタブレットでは主要メニューが画面の
+          // 一番下にあるのは不自然に映る。狭い画面では従来どおり下段。
+          if (_useTopNavigation(context)) _buildNavigation(),
           Expanded(child: _buildBody()),
         ],
       ),
@@ -207,65 +211,78 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Icon(Icons.add),
             )
           : null,
-      bottomNavigationBar: Consumer<NotificationProvider>(
-        builder: (context, notificationProvider, child) {
-          final unread = notificationProvider.unreadCount;
-          return NavigationBar(
-            selectedIndex: _currentIndex,
-            onDestinationSelected: (index) {
-              setState(() => _currentIndex = index);
-            },
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.directions_car_outlined),
-                selectedIcon: Icon(Icons.directions_car),
-                label: 'マイカー',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.store_outlined),
-                selectedIcon: Icon(Icons.store),
-                label: 'マーケット',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.forum_outlined),
-                selectedIcon: Icon(Icons.forum),
-                label: 'みんなの投稿',
-              ),
-              NavigationDestination(
-                icon: Semantics(
-                  label: unread > 0
-                      ? '通知 未読${unread > 99 ? '99件以上' : '$unread件'}'
-                      : '通知',
-                  child: Badge(
-                    isLabelVisible: unread > 0,
-                    label: Text(
-                      unread > 99 ? '99+' : '$unread',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                    child: const ExcludeSemantics(
-                      child: Icon(Icons.notifications_outlined),
-                    ),
-                  ),
-                ),
-                selectedIcon: Badge(
+      bottomNavigationBar:
+          _useTopNavigation(context) ? null : _buildNavigation(),
+    );
+  }
+
+  /// ナビゲーションを上段に出すか。
+  ///
+  /// しきい値 720 は「タブレット横向き以上」。この幅より広い環境は
+  /// マウス操作が主で、親指の届きやすさを優先するボトムナビの前提が
+  /// 成り立たない。
+  static bool _useTopNavigation(BuildContext context) =>
+      MediaQuery.sizeOf(context).width >= 720;
+
+  Widget _buildNavigation() {
+    return Consumer<NotificationProvider>(
+      builder: (context, notificationProvider, child) {
+        final unread = notificationProvider.unreadCount;
+        return NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (index) {
+            setState(() => _currentIndex = index);
+          },
+          destinations: [
+            const NavigationDestination(
+              icon: Icon(Icons.directions_car_outlined),
+              selectedIcon: Icon(Icons.directions_car),
+              label: 'マイカー',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.store_outlined),
+              selectedIcon: Icon(Icons.store),
+              label: 'マーケット',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.forum_outlined),
+              selectedIcon: Icon(Icons.forum),
+              label: 'みんなの投稿',
+            ),
+            NavigationDestination(
+              icon: Semantics(
+                label: unread > 0
+                    ? '通知 未読${unread > 99 ? '99件以上' : '$unread件'}'
+                    : '通知',
+                child: Badge(
                   isLabelVisible: unread > 0,
                   label: Text(
                     unread > 99 ? '99+' : '$unread',
                     style: const TextStyle(fontSize: 10),
                   ),
-                  child: const Icon(Icons.notifications),
+                  child: const ExcludeSemantics(
+                    child: Icon(Icons.notifications_outlined),
+                  ),
                 ),
-                label: '通知',
               ),
-              const NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: 'プロフィール',
+              selectedIcon: Badge(
+                isLabelVisible: unread > 0,
+                label: Text(
+                  unread > 99 ? '99+' : '$unread',
+                  style: const TextStyle(fontSize: 10),
+                ),
+                child: const Icon(Icons.notifications),
               ),
-            ],
-          );
-        },
-      ),
+              label: '通知',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'プロフィール',
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1505,7 +1522,12 @@ class _DashboardSummaryCard extends StatelessWidget {
 
     return Container(
       margin: AppSpacing.marginListItem,
-      padding: const EdgeInsets.all(AppSpacing.md),
+      // 画面上部を占有しすぎていたため縮小。数字の可読性は保ちつつ、
+      // 余白・アイコン・区切り線の高さを詰めている。
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -1543,7 +1565,7 @@ class _DashboardSummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          AppSpacing.verticalSm,
+          AppSpacing.verticalXxs,
 
           // ---- 統計行 ----
           Row(
@@ -1753,22 +1775,31 @@ class _DashboardSummaryCard extends StatelessWidget {
   }) {
     return Expanded(
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 20, color: iconColor),
-          AppSpacing.verticalXxs,
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+          // アイコンは数字の左に置き、1行分の高さを削る。
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: iconColor),
+              AppSpacing.horizontalXxs,
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  height: 1.1,
+                ),
+              ),
+            ],
           ),
           Text(
             label,
             style: const TextStyle(
               fontSize: 11,
-              color: Colors.white70,
+              color: Colors.white,
+              height: 1.2,
             ),
           ),
         ],
@@ -1779,7 +1810,7 @@ class _DashboardSummaryCard extends StatelessWidget {
   Widget _buildDivider() {
     return Container(
       width: 1,
-      height: 48,
+      height: 32,
       color: Colors.white.withValues(alpha: 0.2),
     );
   }
@@ -2221,8 +2252,12 @@ class _SuggestionDetailSheet extends StatelessWidget {
             ],
 
             // ---- 注意文 ----
+            // 「あなたが決めるための情報を整理しました。最終的な判断はあなた自身で
+            // お決めください」から変更。判断を委ねる意図だったが、こちらが情報を
+            // 与えて相手に決めさせる構図になっており、上から目線に読める。
+            // 主語をサービス側に置き、「参考情報である」という事実だけを伝える。
             Text(
-              'あなたが決めるための情報を整理しました。最終的な判断はあなた自身でお決めください。',
+              'この内容は参考情報です。実際の状態は認証工場での点検をご確認ください。',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.outline,
                 fontStyle: FontStyle.italic,
