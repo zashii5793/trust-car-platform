@@ -708,7 +708,10 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // OCR スキャンボタン（メインCTA）
-            _buildOcrScanButton(theme),
+            if (VehicleCertificateOcrService.isSupported)
+              _buildOcrScanButton(theme)
+            else
+              _buildOcrUnsupportedNote(theme, '車検証'),
             AppSpacing.verticalMd,
 
             // 写真選択（コンパクト）
@@ -1310,6 +1313,32 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           }).toList(),
         ),
       ],
+    );
+  }
+
+  /// Web では ML Kit が動かないため、ボタン自体を出さずに理由を示す。
+  /// 押せるのに必ず失敗するボタンより、押せない理由が書いてあるほうがよい。
+  Widget _buildOcrUnsupportedNote(ThemeData theme, String what) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.08),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, size: 20, color: AppColors.info),
+          AppSpacing.horizontalMd,
+          Expanded(
+            child: Text(
+              'Web版では$what の読み取りに対応していません。'
+              '下のフォームから入力してください。',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

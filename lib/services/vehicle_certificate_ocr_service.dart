@@ -92,16 +92,31 @@ VehicleCertificateData(
 
 /// 車検証OCRサービス
 class VehicleCertificateOcrService {
-  final TextRecognizer _textRecognizer;
+  /// この端末でOCRが使えるか。
+  ///
+  /// `google_mlkit_text_recognition` は Web に対応していない。Web で
+  /// TextRecognizer を作るとその場で例外になり、原因の分からない
+  /// エラーだけが画面に出る。使えないことを先に判定する。
+  static bool get isSupported => !kIsWeb;
 
-  VehicleCertificateOcrService()
-      : _textRecognizer =
-            TextRecognizer(script: TextRecognitionScript.japanese);
+  /// 非対応環境では生成自体が失敗するため遅延生成する。
+  TextRecognizer? _recognizer;
+
+  TextRecognizer get _textRecognizer =>
+      _recognizer ??= TextRecognizer(script: TextRecognitionScript.japanese);
+
+  VehicleCertificateOcrService();
 
   /// 画像ファイルから車検証情報を抽出
   Future<Result<VehicleCertificateData, AppError>> extractFromImage(
     File imageFile,
   ) async {
+    if (!isSupported) {
+      return Result.failure(
+        AppError.validation('Web版では車検証の読み取りに対応していません。\n下のフォームから手入力するか、'
+            'アプリ版をご利用ください。'),
+      );
+    }
     try {
       final inputImage = InputImage.fromFile(imageFile);
       final recognizedText = await _textRecognizer.processImage(inputImage);
@@ -620,7 +635,8 @@ class VehicleCertificateOcrService {
 
   /// リソースを解放
   void dispose() {
-    _textRecognizer.close();
+    _recognizer?.close();
+    _recognizer = null;
   }
 }
 
