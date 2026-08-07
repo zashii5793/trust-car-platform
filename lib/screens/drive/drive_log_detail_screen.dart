@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -428,11 +429,11 @@ class _DriveLogDetailScreenState extends State<DriveLogDetailScreen> {
 // 経路プレビュー
 // ---------------------------------------------------------------------------
 
-/// 経路の形を示す簡易プレビュー。
+/// 経路を地図に描くプレビュー。
 ///
-/// Google Maps のウィジェットは `google_maps_flutter` が入ってから差し替える。
-/// それまで真っ白にしておくと「経路が記録されていない」のか
-/// 「地図が出ていないだけ」なのか判別できないので、点列だけでも描く。
+/// 公開設定のときは [buildBlurredRoute] で両端を落とした点列が渡ってくる
+/// ので、地図に出るのもぼかし後の経路になる。ここで生の経路を描くと
+/// ぼかしの意味が無くなるため、**このウィジェットは渡された点列だけを描く**。
 class _RoutePreview extends StatelessWidget {
   final List<GeoPoint2D> waypoints;
   final bool isBlurred;
@@ -448,7 +449,7 @@ class _RoutePreview extends StatelessWidget {
     final theme = Theme.of(context);
     if (waypoints.length < 2) {
       return Container(
-        height: 140,
+        height: 180,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: AppColors.divider.withValues(alpha: 0.3),
@@ -462,90 +463,66 @@ class _RoutePreview extends StatelessWidget {
       );
     }
 
-    return Container(
-      height: 140,
-      decoration: BoxDecoration(
-        color: AppColors.divider.withValues(alpha: 0.3),
-        borderRadius: AppSpacing.borderRadiusSm,
-      ),
-      child: ClipRRect(
-        borderRadius: AppSpacing.borderRadiusSm,
-        child: CustomPaint(
-          painter: _RoutePainter(
-            waypoints: waypoints,
-            color: theme.colorScheme.primary,
+    final points = waypoints
+        .map((p) => LatLng(p.latitude, p.longitude))
+        .toList(growable: false);
+
+    return ClipRRect(
+      borderRadius: AppSpacing.borderRadiusSm,
+      child: SizedBox(
+        height: 220,
+        child: GoogleMap(
+          initialCameraPosition: CameraPosition(
+            target: _center(points),
+            zoom: 11,
           ),
-          size: Size.infinite,
+          polylines: {
+            Polyline(
+              polylineId: const PolylineId('route'),
+              points: points,
+              color: theme.colorScheme.primary,
+              width: 4,
+            ),
+          },
+          markers: {
+            Marker(
+              markerId: const MarkerId('start'),
+              position: points.first,
+              infoWindow: InfoWindow(
+                title: isBlurred ? 'このあたりから' : '出発',
+              ),
+            ),
+            Marker(
+              markerId: const MarkerId('end'),
+              position: points.last,
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueAzure),
+              infoWindow: InfoWindow(
+                title: isBlurred ? 'このあたりまで' : '到着',
+              ),
+            ),
+          },
+          // 詳細画面はスクロールするので、地図側でスクロールを奪わない。
+          zoomControlsEnabled: false,
+          myLocationButtonEnabled: false,
+          liteModeEnabled: false,
         ),
       ),
     );
   }
-}
 
-class _RoutePainter extends CustomPainter {
-  final List<GeoPoint2D> waypoints;
-  final Color color;
-
-  _RoutePainter({required this.waypoints, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (waypoints.length < 2) return;
-
-    var minLat = waypoints.first.latitude;
-    var maxLat = waypoints.first.latitude;
-    var minLng = waypoints.first.longitude;
-    var maxLng = waypoints.first.longitude;
-    for (final p in waypoints) {
+  /// 点列の外接矩形の中心。カメラの初期位置に使う。
+  LatLng _center(List<LatLng> points) {
+    var minLat = points.first.latitude;
+    var maxLat = points.first.latitude;
+    var minLng = points.first.longitude;
+    var maxLng = points.first.longitude;
+    for (final p in points) {
       if (p.latitude < minLat) minLat = p.latitude;
       if (p.latitude > maxLat) maxLat = p.latitude;
       if (p.longitude < minLng) minLng = p.longitude;
       if (p.longitude > maxLng) maxLng = p.longitude;
     }
-    // 直線的な経路だと幅か高さが 0 になる。ゼロ除算を避ける。
-    final latRange = (maxLat - minLat).abs() < 1e-9 ? 1e-9 : maxLat - minLat;
-    final lngRange = (maxLng - minLng).abs() < 1e-9 ? 1e-9 : maxLng - minLng;
-
-    const padding = 12.0;
-    final w = size.width - padding * 2;
-    final h = size.height - padding * 2;
-
-    Offset toOffset(GeoPoint2D p) => Offset(
-          padding + (p.longitude - minLng) / lngRange * w,
-          // 緯度は北が上なので反転する。
-          padding + (maxLat - p.latitude) / latRange * h,
-        );
-
-    final path = Path()
-      ..moveTo(toOffset(waypoints.first).dx, toOffset(waypoints.first).dy);
-    for (final p in waypoints.skip(1)) {
-      final o = toOffset(p);
-      path.lineTo(o.dx, o.dy);
-    }
-
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-
-    canvas.drawCircle(
-      toOffset(waypoints.first),
-      4,
-      Paint()..color = color,
-    );
-    canvas.drawCircle(
-      toOffset(waypoints.last),
-      4,
-      Paint()..color = color.withValues(alpha: 0.5),
-    );
+    return LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
   }
-
-  @override
-  bool shouldRepaint(_RoutePainter oldDelegate) =>
-      oldDelegate.waypoints != waypoints || oldDelegate.color != color;
 }
