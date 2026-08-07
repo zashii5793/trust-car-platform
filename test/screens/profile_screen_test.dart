@@ -264,8 +264,10 @@ void main() {
       await tester.tap(find.text('プロフィールを編集'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      // Should find the TextFormField for the display name
-      expect(find.byType(TextFormField), findsOneWidget);
+      // 表示名の欄は Key で特定する。シートには市区町村の欄もあるため、
+      // byType(TextFormField) では複数一致する。
+      expect(
+          find.byKey(const Key('profile_display_name_field')), findsOneWidget);
     });
 
     testWidgets('bottom sheet contains 保存 button', (tester) async {
@@ -301,9 +303,35 @@ void main() {
       await tester.tap(find.text('プロフィールを編集'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      final textField =
-          tester.widget<TextFormField>(find.byType(TextFormField));
+      final textField = tester.widget<TextFormField>(
+          find.byKey(const Key('profile_display_name_field')));
       expect(textField.controller?.text, 'テストユーザー');
+    });
+
+    testWidgets('bottom sheet shows the region fields', (tester) async {
+      // 近くの整備工場を探すための居住地。都道府県は選択式、
+      // 市区町村は網羅した一覧を持てないので自由入力。
+      await tester.pumpWidget(_buildScreen(
+        appUser: AppUser(
+          id: 'uid1',
+          email: 'test@example.com',
+          displayName: 'テストユーザー',
+          prefecture: '東京都',
+          city: '世田谷区',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+      ));
+      await tester.pump();
+
+      await tester.tap(find.text('プロフィールを編集'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(
+          find.byKey(const Key('profile_prefecture_dropdown')), findsOneWidget);
+      final cityField = tester
+          .widget<TextFormField>(find.byKey(const Key('profile_city_field')));
+      expect(cityField.controller?.text, '世田谷区');
     });
 
     testWidgets('bottom sheet shows photo picker area', (tester) async {

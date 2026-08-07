@@ -497,121 +497,126 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
       ),
       child: Form(
         key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('プロフィールを編集', style: theme.textTheme.titleLarge),
-            AppSpacing.verticalLg,
-            Center(
-              child: GestureDetector(
-                onTap: _isSaving ? null : _pickPhoto,
-                child: Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 44,
-                      backgroundColor: theme.colorScheme.primary,
-                      backgroundImage: _pickedImageBytes != null
-                          ? MemoryImage(_pickedImageBytes!)
-                          : (widget.currentPhotoUrl != null &&
-                                  widget.currentPhotoUrl!.isNotEmpty
-                              ? NetworkImage(widget.currentPhotoUrl!)
-                                  as ImageProvider
-                              : null),
-                      child: (_pickedImageBytes == null &&
-                              (widget.currentPhotoUrl == null ||
-                                  widget.currentPhotoUrl!.isEmpty))
-                          ? const Icon(Icons.person,
-                              size: 44, color: Colors.white)
-                          : null,
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: CircleAvatar(
-                        radius: 14,
+        // 居住地の欄を足して縦に伸びたため、小さい画面やキーボード表示時に
+        // はみ出す。スクロールできるようにしておく。
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('プロフィールを編集', style: theme.textTheme.titleLarge),
+              AppSpacing.verticalLg,
+              Center(
+                child: GestureDetector(
+                  onTap: _isSaving ? null : _pickPhoto,
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 44,
                         backgroundColor: theme.colorScheme.primary,
-                        child: const Icon(Icons.camera_alt,
-                            size: 16, color: Colors.white),
+                        backgroundImage: _pickedImageBytes != null
+                            ? MemoryImage(_pickedImageBytes!)
+                            : (widget.currentPhotoUrl != null &&
+                                    widget.currentPhotoUrl!.isNotEmpty
+                                ? NetworkImage(widget.currentPhotoUrl!)
+                                    as ImageProvider
+                                : null),
+                        child: (_pickedImageBytes == null &&
+                                (widget.currentPhotoUrl == null ||
+                                    widget.currentPhotoUrl!.isEmpty))
+                            ? const Icon(Icons.person,
+                                size: 44, color: Colors.white)
+                            : null,
                       ),
-                    ),
-                  ],
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: CircleAvatar(
+                          radius: 14,
+                          backgroundColor: theme.colorScheme.primary,
+                          child: const Icon(Icons.camera_alt,
+                              size: 16, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            AppSpacing.verticalLg,
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '表示名',
-                border: OutlineInputBorder(),
+              AppSpacing.verticalLg,
+              TextFormField(
+                key: const Key('profile_display_name_field'),
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: '表示名',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? '表示名を入力してください' : null,
+                textInputAction: TextInputAction.done,
               ),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? '表示名を入力してください' : null,
-              textInputAction: TextInputAction.done,
-            ),
-            AppSpacing.verticalLg,
+              AppSpacing.verticalLg,
 
-            // お住まいの地域。近くの整備工場を探すために使う。
-            //
-            // 都道府県は47件で確定しているので選択式。市区町村は約1,700件
-            // あり網羅した一覧を保守できないので自由入力にする。
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text('お住まいの地域（任意）', style: theme.textTheme.labelLarge),
-            ),
-            AppSpacing.verticalXxs,
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '近くの整備工場を探すときに使います',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: AppColors.textSecondary),
+              // お住まいの地域。近くの整備工場を探すために使う。
+              //
+              // 都道府県は47件で確定しているので選択式。市区町村は約1,700件
+              // あり網羅した一覧を保守できないので自由入力にする。
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('お住まいの地域（任意）', style: theme.textTheme.labelLarge),
               ),
-            ),
-            AppSpacing.verticalSm,
-            DropdownButtonFormField<String>(
-              key: const Key('profile_prefecture_dropdown'),
-              initialValue: _prefecture,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: '都道府県',
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                const DropdownMenuItem<String>(
-                  value: null,
-                  child: Text('未設定'),
+              AppSpacing.verticalXxs,
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '近くの整備工場を探すときに使います',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: AppColors.textSecondary),
                 ),
-                for (final p in kJapanPrefectures)
-                  DropdownMenuItem<String>(value: p, child: Text(p)),
-              ],
-              onChanged:
-                  _isSaving ? null : (v) => setState(() => _prefecture = v),
-            ),
-            AppSpacing.verticalSm,
-            TextFormField(
-              key: const Key('profile_city_field'),
-              controller: _cityController,
-              decoration: const InputDecoration(
-                labelText: '市区町村',
-                hintText: '例: 世田谷区 / 横浜市青葉区',
-                border: OutlineInputBorder(),
               ),
-              textInputAction: TextInputAction.done,
-            ),
-            AppSpacing.verticalLg,
-            ElevatedButton(
-              onPressed: _isSaving ? null : _save,
-              child: _isSaving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('保存'),
-            ),
-          ],
+              AppSpacing.verticalSm,
+              DropdownButtonFormField<String>(
+                key: const Key('profile_prefecture_dropdown'),
+                initialValue: _prefecture,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: '都道府県',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  const DropdownMenuItem<String>(
+                    value: null,
+                    child: Text('未設定'),
+                  ),
+                  for (final p in kJapanPrefectures)
+                    DropdownMenuItem<String>(value: p, child: Text(p)),
+                ],
+                onChanged:
+                    _isSaving ? null : (v) => setState(() => _prefecture = v),
+              ),
+              AppSpacing.verticalSm,
+              TextFormField(
+                key: const Key('profile_city_field'),
+                controller: _cityController,
+                decoration: const InputDecoration(
+                  labelText: '市区町村',
+                  hintText: '例: 世田谷区 / 横浜市青葉区',
+                  border: OutlineInputBorder(),
+                ),
+                textInputAction: TextInputAction.done,
+              ),
+              AppSpacing.verticalLg,
+              ElevatedButton(
+                onPressed: _isSaving ? null : _save,
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('保存'),
+              ),
+            ],
+          ),
         ),
       ),
     );
