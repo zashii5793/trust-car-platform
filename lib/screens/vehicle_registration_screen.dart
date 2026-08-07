@@ -19,6 +19,7 @@ import '../widgets/common/loading_indicator.dart';
 import '../widgets/vehicle/vehicle_selector_fields.dart';
 import '../core/utils/thousands_separator_input_formatter.dart';
 import '../core/utils/license_plate.dart';
+import '../core/constants/vehicle_colors.dart';
 import 'package:uuid/uuid.dart';
 import 'document_scanner_screen.dart';
 import 'vehicle_certificate_result_screen.dart';
@@ -410,6 +411,54 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         }
       },
       failure: (_) {},
+    );
+  }
+
+  /// 車体色の候補シート。選んでも手入力欄に入るだけなので、
+  /// 選択後に自由に書き換えられる。
+  void _showColorPicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Text(
+                  '車体色を選ぶ',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              const Text(
+                '一覧に無い色はそのまま入力欄に書けます',
+                style: TextStyle(fontSize: 12),
+              ),
+              AppSpacing.verticalSm,
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: [
+                      for (final color in kCommonVehicleColors)
+                        ActionChip(
+                          label: Text(color),
+                          onPressed: () {
+                            _colorController.text = color;
+                            Navigator.pop(sheetContext);
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -972,11 +1021,20 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           Row(
             children: [
               Expanded(
+                // 候補から選べるが、一覧に無い色は手入力できる。
+                // 実車の色はメーカー固有名が無数にあり網羅できないため、
+                // メーカー・車種・グレードと同じく候補は入力補助に留める。
                 child: AppTextField(
                   controller: _colorController,
                   labelText: '車体色',
                   hintText: '例: パールホワイト',
                   prefixIcon: const Icon(Icons.palette),
+                  suffixIcon: IconButton(
+                    key: const Key('color_picker_button'),
+                    icon: const Icon(Icons.arrow_drop_down),
+                    tooltip: '候補から選ぶ',
+                    onPressed: _showColorPicker,
+                  ),
                 ),
               ),
               AppSpacing.horizontalSm,
