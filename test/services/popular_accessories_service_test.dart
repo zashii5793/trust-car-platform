@@ -926,8 +926,7 @@ void main() {
 
       test('limit は取得件数を正確に制限する（60件中20件）', () async {
         await seedMany(60);
-        final result =
-            await service.getComments('sc-1', limit: 20);
+        final result = await service.getComments('sc-1', limit: 20);
         expect(result.valueOrNull!, hasLength(20));
       });
 
@@ -967,19 +966,16 @@ void main() {
         final page = (await service.getComments('sc-1',
                 sort: CommentSort.mostLiked, limit: 5))
             .valueOrNull!;
-        expect(page.map((c) => c.likeCount).toList(),
-            [59, 58, 57, 56, 55]);
+        expect(page.map((c) => c.likeCount).toList(), [59, 58, 57, 56, 55]);
       });
 
       test('パフォーマンス: 150件でも全件取得できる', () async {
         await seedMany(150);
-        final result =
-            await service.getComments('sc-1', limit: 150);
+        final result = await service.getComments('sc-1', limit: 150);
         expect(result.valueOrNull!, hasLength(150));
       });
 
-      test('非表示コメントが範囲内にあるとページの可視件数は減る（既知の相互作用）',
-          () async {
+      test('非表示コメントが範囲内にあるとページの可視件数は減る（既知の相互作用）', () async {
         // limit は Firestore クエリ側、非表示除外は取得後の Dart 側で行われる。
         // よって先頭 limit 件に非表示が混ざると、返る可視件数は limit を下回る。
         await seedMany(20); // c000..c019 可視
@@ -1064,16 +1060,13 @@ void main() {
             reporterId: 'u1',
             reason: ReportReason.spam);
 
-        final doc = await firestore
-            .collection('comment_reports')
-            .doc('${id}_u1')
-            .get();
+        final doc =
+            await firestore.collection('comment_reports').doc('${id}_u1').get();
         expect(doc.exists, isTrue);
         expect(doc.data()!['reporterId'], 'u1');
       });
 
-      test('クライアントは comment.reportCount を書き換えない（サーバー集計に委譲）',
-          () async {
+      test('クライアントは comment.reportCount を書き換えない（サーバー集計に委譲）', () async {
         final id = await seedComment();
         await service.reportComment(
             showcaseId: 'sc-1',
