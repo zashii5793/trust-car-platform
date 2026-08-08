@@ -83,6 +83,28 @@ class PopularAccessoriesService {
     }
   }
 
+  /// Fetches a single showcase by id. Used to resolve a notification's
+  /// `showcaseId` into the [AccessoryShowcase] that [ShowcaseDetailScreen]
+  /// requires (deep-linking from the social notification feed).
+  Future<Result<AccessoryShowcase, AppError>> getShowcaseById(
+      String showcaseId) async {
+    if (showcaseId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('showcaseId must not be empty'));
+    }
+    try {
+      final doc =
+          await _firestore.collection(_collection).doc(showcaseId).get();
+      if (!doc.exists) {
+        return const Result.failure(
+            AppError.notFound('showcase not found'));
+      }
+      return Result.success(AccessoryShowcase.fromFirestore(doc));
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
   /// Returns popularity-ranked accessory trends for [category].
   ///
   /// Items are grouped by (itemName, brand) and ranked by showcase count.

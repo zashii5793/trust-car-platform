@@ -44,6 +44,31 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
+    // getShowcaseById（通知ディープリンク用: ID→投稿の取得）
+    // -------------------------------------------------------------------------
+    group('getShowcaseById', () {
+      test('存在するIDで投稿を取得できる', () async {
+        await seedShowcase(showcase(id: 'sc-1', itemName: 'Vantrue N2 Pro'));
+        final result = await service.getShowcaseById('sc-1');
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull!.id, 'sc-1');
+        expect(result.valueOrNull!.itemName, 'Vantrue N2 Pro');
+      });
+
+      group('Edge Cases', () {
+        test('存在しないIDは notFound', () async {
+          final result = await service.getShowcaseById('missing');
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空IDは validation エラー', () async {
+          final result = await service.getShowcaseById('   ');
+          expect(result.isFailure, isTrue);
+        });
+      });
+    });
+
+    // -------------------------------------------------------------------------
     // submitShowcase
     // -------------------------------------------------------------------------
     group('submitShowcase', () {

@@ -222,6 +222,39 @@ void main() {
       expect(map['isRead'], true);
     });
 
+    test('showcaseId roundtrips through toMap/fromMap (ディープリンク用)', () {
+      final notification = SocialNotification(
+        id: 'notif1',
+        userId: 'user1',
+        actorId: 'user2',
+        type: NotificationType.comment,
+        showcaseId: 'sc-42',
+        commentId: 'comment1',
+        createdAt: DateTime(2024, 1, 1),
+      );
+
+      final map = notification.toMap();
+      expect(map['showcaseId'], 'sc-42');
+
+      final restored = SocialNotification.fromMap('notif1', map);
+      expect(restored.showcaseId, 'sc-42');
+      expect(restored.commentId, 'comment1');
+      expect(restored.postId, isNull);
+    });
+
+    test('showcaseId は指定なしなら null で toMap にも含めない', () {
+      final notification = SocialNotification(
+        id: 'notif1',
+        userId: 'user1',
+        actorId: 'user2',
+        type: NotificationType.like,
+        postId: 'post1',
+        createdAt: DateTime(2024, 1, 1),
+      );
+      expect(notification.showcaseId, isNull);
+      expect(notification.toMap().containsKey('showcaseId'), isFalse);
+    });
+
     test('copyWith creates modified copy', () {
       final notification = SocialNotification(
         id: 'notif1',
