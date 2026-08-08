@@ -840,12 +840,38 @@ void main() {
         expect(ids, contains('ok'));
         expect(ids, isNot(contains('hidden')));
       });
+
+      test('isHidden=true のコメントは（reportCount によらず）非表示', () async {
+        // サーバー(onCommentReportCreated)が立てる権威的フラグ。
+        await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc('mod')
+            .set({
+          'showcaseId': 'sc-1',
+          'userId': 'u',
+          'content': 'mod',
+          'createdAt': Timestamp.fromDate(DateTime(2026, 1, 5)),
+          'likeCount': 0,
+          'reportCount': 0,
+          'isHidden': true,
+        });
+        await seedComment('visible', 0, DateTime(2026, 1, 6));
+
+        final result = await service.getComments('sc-1');
+        final ids = result.valueOrNull!.map((c) => c.id).toList();
+        expect(ids, contains('visible'));
+        expect(ids, isNot(contains('mod')));
+      });
     });
 
     // -------------------------------------------------------------------------
-    // reportComment: reportCount 集計
+    // reportComment: 通報ドキュメント作成（集計は Cloud Function に移行）
+    // クライアントは comment_reports を作るだけで、comment.reportCount は
+    // 直接いじらない（サーバーの onCommentReportCreated が集計する）。
     // -------------------------------------------------------------------------
-    group('reportComment reportCount', () {
+    group('reportComment', () {
       Future<String> seedComment() async {
         final ref = await firestore
             .collection('accessory_showcases')
@@ -862,6 +888,14 @@ void main() {
         return ref.id;
       }
 
+      Future<int> reportDocCount(String commentId) async {
+        final s = await firestore
+            .collection('comment_reports')
+            .where('commentId', isEqualTo: commentId)
+            .get();
+        return s.docs.length;
+      }
+
       Future<int> reportCountOf(String id) async {
         final s = await firestore
             .collection('accessory_showcases')
@@ -872,7 +906,7 @@ void main() {
         return (s.data()!['reportCount'] as int?) ?? 0;
       }
 
-      test('別ユーザーからの通報で reportCount が増える', () async {
+      test('別ユーザーからの通報で通報ドキュメントが1件ずつ作られる', () async {
         final id = await seedComment();
         await service.reportComment(
             showcaseId: 'sc-1',
@@ -885,10 +919,39 @@ void main() {
             reporterId: 'u2',
             reason: ReportReason.spam);
 
-        expect(await reportCountOf(id), 2);
+        expect(await reportDocCount(id), 2);
       });
 
-      test('同一ユーザーの再通報では reportCount は増えない', () async {
+      test('通報レコードは決定論的ID {commentId}_{reporterId} で作られる', () async {
+        final id = await seedComment();
+        await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: id,
+            reporterId: 'u1',
+            reason: ReportReason.spam);
+
+        final doc = await firestore
+            .collection('comment_reports')
+            .doc('${id}_u1')
+            .get();
+        expect(doc.exists, isTrue);
+        expect(doc.data()!['reporterId'], 'u1');
+      });
+
+      test('クライアントは comment.reportCount を書き換えない（サーバー集計に委譲）',
+          () async {
+        final id = await seedComment();
+        await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: id,
+            reporterId: 'u1',
+            reason: ReportReason.spam);
+
+        // reportCount はクライアントからは 0 のまま（Cloud Function が集計する）。
+        expect(await reportCountOf(id), 0);
+      });
+
+      test('同一ユーザーの再通報では通報ドキュメントは1件のまま', () async {
         final id = await seedComment();
         await service.reportComment(
             showcaseId: 'sc-1',
@@ -901,7 +964,7 @@ void main() {
             reporterId: 'u1',
             reason: ReportReason.harassment);
 
-        expect(await reportCountOf(id), 1);
+        expect(await reportDocCount(id), 1);
       });
     });
 
