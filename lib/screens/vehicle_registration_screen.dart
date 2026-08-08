@@ -17,6 +17,8 @@ import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/vehicle/vehicle_selector_fields.dart';
+import '../core/utils/thousands_separator_input_formatter.dart';
+import '../core/utils/license_plate.dart';
 import 'package:uuid/uuid.dart';
 import 'document_scanner_screen.dart';
 import 'vehicle_certificate_result_screen.dart';
@@ -230,6 +232,36 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     // (maker/model/year) are queried — OCR personal data never leaves
     // the device except as fields of the user's own vehicle document.
     await _suggestSpecsFromCommunity();
+
+    // One-tap path: the user chose "このまま登録" and OCR captured the required
+    // fields. Register immediately so they reach the 車検 reminder with no extra
+    // taps. Falls back to the manual form if maker/model could not be matched
+    // against the catalog.
+    if (data.quickRegister) {
+      await _attemptQuickRegister();
+    }
+  }
+
+  /// Register directly from OCR data, skipping the manual wizard.
+  ///
+  /// Mileage is not on the certificate, so it shows 0 (the user is told it can
+  /// be updated later) and grade is left unset — neither is required for the
+  /// 車検 reminder, which is the onboarding wedge.
+  Future<void> _attemptQuickRegister() async {
+    // Reached after awaiting OCR matching and the community spec lookup, so the
+    // screen may already be gone. _registerVehicle touches context immediately.
+    if (!mounted) return;
+    if (_selectedMaker == null || _selectedModel == null) {
+      // Catalog match failed — let the user finish in the form.
+      showErrorSnackBar(context, '車種を確認して登録してください');
+      return;
+    }
+    // Not strictly required — Vehicle falls back to 0 — but it keeps the form
+    // consistent if the user returns to it after a failed save.
+    if (_mileageController.text.trim().isEmpty) {
+      _mileageController.text = '0';
+    }
+    await _registerVehicle(quick: true);
   }
 
   /// After OCR matches maker/model/year, look up community spec data and
@@ -385,24 +417,30 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   // 登録処理（ロジック変更なし、フォームバリデーションを手動チェックに変更）
   // ---------------------------------------------------------------------------
 
-  Future<void> _registerVehicle() async {
-    // ステップ1は既に検証済みだが念のため確認
-    if (_selectedMaker == null ||
+  Future<void> _registerVehicle({bool quick = false}) async {
+    // ステップ1は既に検証済みだが念のため確認。
+    // quick（OCRワンタップ登録）では grade / 走行距離 は任意（車検リマインダーには不要）。
+    final missingCore = _selectedMaker == null ||
         _selectedModel == null ||
-        _selectedGrade == null ||
-        _yearController.text.isEmpty ||
-        _mileageController.text.isEmpty) {
+        _yearController.text.isEmpty;
+    final missingDetail =
+        _selectedGrade == null || _mileageController.text.isEmpty;
+    if (missingCore || (!quick && missingDetail)) {
       showErrorSnackBar(context, '基本情報が不足しています。最初のステップに戻って確認してください');
       return;
     }
 
     setState(() => _isLoading = true);
 
+    // Normalised once: stored in this form, and compared in this form.
+    // See core/utils/license_plate.dart for why.
+    final plate = normalizeLicensePlate(_licensePlateController.text);
+
     try {
-      if (_licensePlateController.text.isNotEmpty) {
+      if (plate.isNotEmpty) {
         final exists =
             await Provider.of<VehicleProvider>(context, listen: false)
-                .isLicensePlateExists(_licensePlateController.text);
+                .isLicensePlateExists(plate);
         if (!mounted) return;
         if (exists) {
           setState(() => _isLoading = false);
@@ -443,13 +481,11 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         model: _selectedModel?.name ?? '',
         year: int.tryParse(_yearController.text) ?? DateTime.now().year,
         grade: _selectedGrade?.name ?? '',
-        mileage: int.tryParse(_mileageController.text) ?? 0,
+        mileage: int.tryParse(stripThousands(_mileageController.text)) ?? 0,
         imageUrl: imageUrl,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        licensePlate: _licensePlateController.text.isEmpty
-            ? null
-            : _licensePlateController.text,
+        licensePlate: plate.isEmpty ? null : plate,
         vinNumber: _vinNumberController.text.isEmpty
             ? null
             : _vinNumberController.text,
@@ -461,7 +497,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         color: _colorController.text.isEmpty ? null : _colorController.text,
         engineDisplacement: _engineDisplacementController.text.isEmpty
             ? null
-            : int.tryParse(_engineDisplacementController.text),
+            : int.tryParse(stripThousands(_engineDisplacementController.text)),
         fuelType: _selectedFuelType,
         purchaseDate: _purchaseDate,
       );
@@ -778,15 +814,15 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               ),
             AppSpacing.verticalMd,
 
-            AppTextField.number(
+            AppTextField.numberGrouped(
               controller: _mileageController,
               labelText: '走行距離 *',
-              hintText: '例: 24500',
+              hintText: '例: 24,500',
               prefixIcon: const Icon(Icons.speed),
               suffixText: 'km',
               validator: (value) {
                 if (value == null || value.isEmpty) return '走行距離を入力してください';
-                final mileage = int.tryParse(value);
+                final mileage = int.tryParse(stripThousands(value));
                 if (mileage == null || mileage < 0) return '正しい走行距離を入力してください';
                 if (mileage > 2000000) return '走行距離が大きすぎます（200万km以下）';
                 return null;
@@ -945,10 +981,10 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               ),
               AppSpacing.horizontalSm,
               Expanded(
-                child: AppTextField.number(
+                child: AppTextField.numberGrouped(
                   controller: _engineDisplacementController,
                   labelText: '排気量',
-                  hintText: '例: 1800',
+                  hintText: '例: 1,800',
                   prefixIcon: const Icon(Icons.local_gas_station),
                   suffixText: 'cc',
                 ),

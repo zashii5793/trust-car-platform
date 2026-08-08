@@ -223,7 +223,16 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  /// Premium gate for PDF export.
+  ///
+  /// This dialog used to offer only 「閉じる」 while telling the user to
+  /// upgrade — a dead end. The purchase flow already existed
+  /// (UserSubscriptionProvider.purchasePremium); this dialog simply never
+  /// called it, unlike the identical dialog on the home screen.
   void _showUpgradeDialog(BuildContext context) {
+    final subscriptionProvider = context.read<UserSubscriptionProvider>();
+    final uid = context.read<AuthProvider>().appUser?.id ?? '';
+
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -236,6 +245,28 @@ class ProfileScreen extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('閉じる'),
+          ),
+          FilledButton(
+            key: const Key('profile_upgrade_purchase_button'),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              if (uid.isEmpty) return;
+              final result =
+                  await subscriptionProvider.purchasePremium(userId: uid);
+              if (!context.mounted) return;
+              result.when(
+                success: (_) => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('プレミアムプランへの登録が完了しました'),
+                    backgroundColor: Colors.green,
+                  ),
+                ),
+                failure: (err) => ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(err.userMessage)),
+                ),
+              );
+            },
+            child: const Text('プレミアムに登録する'),
           ),
         ],
       ),

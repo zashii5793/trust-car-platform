@@ -42,51 +42,80 @@ jobs:
 
       # ── 品質チェック ────────────────────────────────────────────────────────
 
+      # NOTE: every step below runs with `set +e`. This job only *reports* on
+      # quality — a red analyze/test result is data for the report, never a
+      # reason to fail the workflow itself. A failing report job produces a
+      # GitHub notification that gets triaged as a bug, which is exactly the
+      # noise loop this workflow used to create (8/8 runs failed, Jun–Aug).
       - name: Run static analysis
         id: analyze
         run: |
-          flutter analyze 2>&1 | tee analyze_output.txt
-          ISSUE_COUNT=$(grep -c "^  " analyze_output.txt || echo "0")
-          echo "issue_count=$ISSUE_COUNT" >> $GITHUB_OUTPUT
-          if flutter analyze > /dev/null 2>&1; then
-            echo "status=clean" >> $GITHUB_OUTPUT
+          set +e
+          flutter analyze > analyze_output.txt 2>&1
+          ANALYZE_EXIT=$?
+          cat analyze_output.txt
+          ISSUE_COUNT=$(grep -c "^  " analyze_output.txt)
+          # grep -c prints 0 and exits 1 when nothing matches; take only the
+          # first line so a stray token never reaches $GITHUB_OUTPUT.
+          ISSUE_COUNT=$(printf '%s' "${ISSUE_COUNT:-0}" | head -1 | tr -cd '0-9')
+          echo "issue_count=${ISSUE_COUNT:-0}" >> "$GITHUB_OUTPUT"
+          if [ "$ANALYZE_EXIT" -eq 0 ]; then
+            echo "status=clean" >> "$GITHUB_OUTPUT"
           else
-            echo "status=issues" >> $GITHUB_OUTPUT
+            echo "status=issues" >> "$GITHUB_OUTPUT"
           fi
+          exit 0
 
       - name: Run tests
         id: tests
         run: |
-          flutter test --exclude-tags emulator 2>&1 | tee test_output.txt
-          PASS=$(grep -oP '\+\K[0-9]+(?=:)' test_output.txt | tail -1 || echo "0")
-          FAIL=$(grep -oP '-\K[0-9]+(?=:)' test_output.txt | tail -1 || echo "0")
-          echo "passed=$PASS" >> $GITHUB_OUTPUT
-          echo "failed=$FAIL" >> $GITHUB_OUTPUT
-          if [ "$FAIL" = "0" ]; then
-            echo "status=green" >> $GITHUB_OUTPUT
-          else
-            echo "status=red" >> $GITHUB_OUTPUT
+          set +e
+          flutter test --exclude-tags emulator > test_output.txt 2>&1
+          TEST_EXIT=$?
+          cat test_output.txt
+          # Last "+N: " counter = passed, last " -N:" counter = failed.
+          PASS=$(grep -oE '\+[0-9]+' test_output.txt | tail -1 | tr -cd '0-9')
+          FAIL=$(grep -oE ' -[0-9]+:' test_output.txt | tail -1 | tr -cd '0-9')
+          PASS="${PASS:-0}"
+          FAIL="${FAIL:-0}"
+          # A non-zero exit with no parsed failure count means the suite never
+          # got to report (compile error, crash) — surface it as red, not green.
+          if [ "$TEST_EXIT" -ne 0 ] && [ "$FAIL" = "0" ]; then
+            FAIL="?"
           fi
+          echo "passed=$PASS" >> "$GITHUB_OUTPUT"
+          echo "failed=$FAIL" >> "$GITHUB_OUTPUT"
+          if [ "$TEST_EXIT" -eq 0 ]; then
+            echo "status=green" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=red" >> "$GITHUB_OUTPUT"
+          fi
+          exit 0
 
       # ── Git 活動ログ ────────────────────────────────────────────────────────
 
       - name: Collect git activity
         id: git
         run: |
-          WEEK_COMMITS=$(git log --oneline --since="7 days ago" | wc -l | tr -d ' ')
-          RECENT=$(git log --oneline --since="7 days ago" --format="- %s" | head -10)
-          echo "commits=$WEEK_COMMITS" >> $GITHUB_OUTPUT
+          set +e
+          WEEK_COMMITS=$(git log --oneline --since="7 days ago" | wc -l | tr -cd '0-9')
+          # Strip characters that would break the heredoc delimiter or the JS
+          # template literal the report is built from.
+          RECENT=$(git log --since="7 days ago" --format="- %s" | head -10 | tr -d '`\\$')
+          echo "commits=${WEEK_COMMITS:-0}" >> "$GITHUB_OUTPUT"
           {
-            echo 'recent_commits<<EOF'
+            echo 'recent_commits<<PMREPORT_EOF'
             echo "$RECENT"
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
+            echo 'PMREPORT_EOF'
+          } >> "$GITHUB_OUTPUT"
+          exit 0
 
       # ── 人間タスクの残件チェック ─────────────────────────────────────────────
 
       - name: Check human tasks
         id: human_tasks
         run: |
+          set +e
           # google-services.json が仮ファイルかどうか確認
           if [ -f android/app/google-services.json ]; then
             PROJECT_ID=$(python3 -c "import json; d=json.load(open('android/app/google-services.json')); print(d['project_info']['project_id'])" 2>/dev/null || echo "unknown")
@@ -108,8 +137,8 @@ jobs:
 
           # HUMAN_TASKS.md の未チェック項目数
           if [ -f docs/HUMAN_TASKS.md ]; then
-            OPEN=$(grep -c "^- \[ \]" docs/HUMAN_TASKS.md || echo "0")
-            DONE=$(grep -c "^- \[x\]" docs/HUMAN_TASKS.md || echo "0")
+            OPEN=$(grep -c "^- \[ \]" docs/HUMAN_TASKS.md 2>/dev/null) || OPEN=0
+            DONE=$(grep -c "^- \[x\]" docs/HUMAN_TASKS.md 2>/dev/null) || DONE=0
             echo "open_tasks=$OPEN" >> $GITHUB_OUTPUT
             echo "done_tasks=$DONE" >> $GITHUB_OUTPUT
           else
@@ -121,6 +150,21 @@ jobs:
 
       - name: Create PM Report Issue
         uses: actions/github-script@v7
+        # Step outputs are passed through env, never interpolated into the
+        # script body: a commit subject containing a backtick or ${ would
+        # otherwise be substituted into the JS source and break the step.
+        env:
+          TEST_STATUS: ${{ steps.tests.outputs.status }}
+          TEST_PASSED: ${{ steps.tests.outputs.passed }}
+          TEST_FAILED: ${{ steps.tests.outputs.failed }}
+          ANALYZE_STATUS: ${{ steps.analyze.outputs.status }}
+          ANALYZE_ISSUES: ${{ steps.analyze.outputs.issue_count }}
+          WEEK_COMMITS: ${{ steps.git.outputs.commits }}
+          RECENT_COMMITS: ${{ steps.git.outputs.recent_commits }}
+          GSERVICES: ${{ steps.human_tasks.outputs.gservices }}
+          GSERVICES_IOS: ${{ steps.human_tasks.outputs.gservice_ios }}
+          OPEN_TASKS: ${{ steps.human_tasks.outputs.open_tasks }}
+          DONE_TASKS: ${{ steps.human_tasks.outputs.done_tasks }}
         with:
           script: |
             const today = new Date().toLocaleDateString('ja-JP', {
@@ -128,25 +172,29 @@ jobs:
               year: 'numeric', month: '2-digit', day: '2-digit'
             });
 
-            const testStatus = '${{ steps.tests.outputs.status }}' === 'green' ? '✅' : '🔴';
-            const analyzeStatus = '${{ steps.analyze.outputs.status }}' === 'clean' ? '✅' : '⚠️';
-            const passed = '${{ steps.tests.outputs.passed }}';
-            const failed = '${{ steps.tests.outputs.failed }}';
-            const analyzeIssues = '${{ steps.analyze.outputs.issue_count }}';
-            const weekCommits = '${{ steps.git.outputs.commits }}';
-            const recentCommits = `${{ steps.git.outputs.recent_commits }}`;
+            const testStatus = process.env.TEST_STATUS === 'green' ? '✅' : '🔴';
+            const analyzeStatus = process.env.ANALYZE_STATUS === 'clean' ? '✅' : '⚠️';
+            const passed = process.env.TEST_PASSED || '0';
+            const failed = process.env.TEST_FAILED || '0';
+            const analyzeIssues = process.env.ANALYZE_ISSUES || '0';
+            const weekCommits = process.env.WEEK_COMMITS || '0';
+            const recentCommits = process.env.RECENT_COMMITS || '';
 
             // 人間タスク状況
-            const gservices = '${{ steps.human_tasks.outputs.gservices }}';
-            const gservicesIos = '${{ steps.human_tasks.outputs.gservice_ios }}';
-            const openTasks = '${{ steps.human_tasks.outputs.open_tasks }}';
-            const doneTasks = '${{ steps.human_tasks.outputs.done_tasks }}';
+            const gservices = process.env.GSERVICES || 'missing';
+            const gservicesIos = process.env.GSERVICES_IOS || 'missing';
+            const openTasks = process.env.OPEN_TASKS || '0';
+            const doneTasks = process.env.DONE_TASKS || '0';
 
             const gservicesLabel = gservices === 'missing' ? '❌ 未配置' :
                                    gservices === 'placeholder' ? '⚠️ 仮ファイル（本番版に要更新）' : '✅ 配置済み';
             const gservicesIosLabel = gservicesIos === 'missing' ? '❌ 未配置' : '✅ 配置済み';
 
-            const body = `## 📊 週次PM レポート — ${today}
+            // NOTE: this literal is indented to sit inside the YAML block
+            // scalar; the 12-space prefix is stripped below. Without that,
+            // every line reads as a 4-space-indented markdown code block and
+            // the whole report renders as one grey box.
+            const bodyRaw = `## 📊 週次PM レポート — ${today}
 
             > 自動生成レポートです。毎週月曜 9:00 JST に更新されます。
 
@@ -188,6 +236,22 @@ jobs:
             ---
 
             *生成: GitHub Actions \`pm_report.yml\` | プロジェクト: trust-car-platform*`;
+
+            const body = bodyRaw.replace(/^ {12}/gm, '');
+
+            // ラベルを冪等作成（既存は 422 → 無視）
+            for (const labelName of ['pm-report', 'weekly']) {
+              try {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: labelName,
+                  color: 'ededed',
+                });
+              } catch (e) {
+                if (e.status !== 422) throw e;
+              }
+            }
 
             await github.rest.issues.create({
               owner: context.repo.owner,

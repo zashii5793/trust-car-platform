@@ -172,7 +172,14 @@ class SocialNotification {
   final String? actorDisplayName;
   final String? actorPhotoUrl;
   final NotificationType type;
+
+  /// SNS post this notification points at (PostService notifications).
   final String? postId;
+
+  /// Accessory showcase this notification points at (PopularAccessoriesService
+  /// notifications). Kept distinct from [postId] because the two feeds resolve
+  /// to different detail screens when deep-linking.
+  final String? showcaseId;
   final String? commentId;
   final String? previewText;
   final bool isRead;
@@ -186,6 +193,7 @@ class SocialNotification {
     this.actorPhotoUrl,
     required this.type,
     this.postId,
+    this.showcaseId,
     this.commentId,
     this.previewText,
     this.isRead = false,
@@ -194,18 +202,29 @@ class SocialNotification {
 
   factory SocialNotification.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
+    return SocialNotification.fromMap(doc.id, data);
+  }
+
+  /// Builds a notification from a raw Firestore map. `createdAt` may be a
+  /// [Timestamp] (from Firestore) or a [DateTime] (from tests / toMap).
+  factory SocialNotification.fromMap(String id, Map<String, dynamic> data) {
+    final rawCreatedAt = data['createdAt'];
+    final createdAt = rawCreatedAt is Timestamp
+        ? rawCreatedAt.toDate()
+        : (rawCreatedAt is DateTime ? rawCreatedAt : DateTime.now());
     return SocialNotification(
-      id: doc.id,
+      id: id,
       userId: data['userId'] ?? '',
       actorId: data['actorId'] ?? '',
       actorDisplayName: data['actorDisplayName'],
       actorPhotoUrl: data['actorPhotoUrl'],
       type: NotificationType.fromString(data['type']) ?? NotificationType.like,
       postId: data['postId'],
+      showcaseId: data['showcaseId'],
       commentId: data['commentId'],
       previewText: data['previewText'],
       isRead: data['isRead'] ?? false,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: createdAt,
     );
   }
 
@@ -217,6 +236,7 @@ class SocialNotification {
       'actorPhotoUrl': actorPhotoUrl,
       'type': type.name,
       if (postId != null) 'postId': postId,
+      if (showcaseId != null) 'showcaseId': showcaseId,
       if (commentId != null) 'commentId': commentId,
       if (previewText != null) 'previewText': previewText,
       'isRead': isRead,
@@ -232,6 +252,7 @@ class SocialNotification {
     String? actorPhotoUrl,
     NotificationType? type,
     String? postId,
+    String? showcaseId,
     String? commentId,
     String? previewText,
     bool? isRead,
@@ -245,6 +266,7 @@ class SocialNotification {
       actorPhotoUrl: actorPhotoUrl ?? this.actorPhotoUrl,
       type: type ?? this.type,
       postId: postId ?? this.postId,
+      showcaseId: showcaseId ?? this.showcaseId,
       commentId: commentId ?? this.commentId,
       previewText: previewText ?? this.previewText,
       isRead: isRead ?? this.isRead,

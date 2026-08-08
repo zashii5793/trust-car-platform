@@ -73,6 +73,169 @@
 
 **全体ステータス**: Phase 1〜3 を `claude/hopeful-maxwell-k021i2` / PR #61 に集約。
 Phase 3 は Step 0（土台）+ Step 1a（Vehicle）まで実装。MaintenanceRecord/Post 配線とマージは合意・確認待ち。
+最終更新: 2026-08-05
+
+---
+
+## 滞留PR一括トリアージ ＋ CI恒久修正（2026-08-05）
+
+**ブランチ**: `claude/rustcar-pr-triage-ci-rumd73` / **PR**: #109
+**前提**: 個人向けSNS路線 → **B2B（社用車管理）への振り直し**（反応がなければ凍結判断）
+
+### 決定1: CI — ワークフロー停止ではなく恒久修正
+
+`pm_report.yml` は **2026-06-15 の初回から 8/8 全実行が失敗**しており、一度も成功していなかった。
+
+| バグ | 内容 |
+|------|------|
+| 1（main反映済み） | `grep -c` は0件時に「0」を出力しつつ **exit 1**。`$(... \|\| echo "0")` が2行になり `$GITHUB_OUTPUT` が `Invalid format '0'` で落ちる |
+| 2（#109で修正） | `FAIL=$(echo "$FAIL_LINE" \| grep -oE '[0-9]+')` が**テスト全緑時に exit 1** → `bash -e` でステップ失敗。つまり**テストが通ると落ちる** |
+
+- 全 `run` ステップを `set +e` ＋明示的な終了コード判定に統一
+  （品質レポートは「報告」が役目。赤い結果はデータであってワークフローを失敗させる理由にしない）
+- `flutter analyze` / `flutter test` の2回実行をやめ、終了コードを直接使用
+- `github-script` への `${{ }}` 直接展開を廃止し `env:` 経由へ（バッククォート入りコミット件名でJSが壊れる）
+- 本文の12スペースインデントを除去（**レポート全体がコードブロック化していた**）
+
+### 決定2: CI — 毎日の失敗通知の発生源を遮断
+
+`ci.yml` が `claude/**` への push を対象にしており、**65本**の滞留ブランチが
+push の度にフルCI（macos-15 の iOS ビルド含む）を起動していた。これが失敗通知と
+Actions ストレージ超過の発生源。
+
+- push トリガーを **`main` のみ**に限定（**PRイベントでのゲートは維持**）
+- `concurrency` + `cancel-in-progress` で重複run停止
+- APK/iOS 成果物のアップロードを **main 限定**・retention 7→3日
+
+> **main 自体は 2026-03 以降ずっと緑**だった（直近30run: 21成功/9失敗、失敗は全て2〜3月）。
+> 赤かったのは滞留ブランチであって main ではない。
+
+### 決定3: 滞留PR38件 → 9件に整理
+
+判定根拠は `docs/OPEN_PR_TRIAGE_2026-08-05.md`。
+
+| 判定 | 件数 | PR |
+|------|------|----|
+| 🔴 クローズ | **30** | #26 #27 #34 #45 #46 #48 #50 #53 #54 #56 #57 #58 #60 #69 #70 #71 #72 #73 #79 #85 #86 #89 #91 #93 #94 #95 #96 #97 #106 #107 |
+| 🟢 マージ対象 | 3 | #76（車両共有権限＝社用車管理の土台）→ #75（工場裏書き）→ #108（横断UX/Web） |
+| 🟡 B2B転用で保留 | 5 | #35(OCR登録) #90(車両台帳PDF) #88(Webデプロイ) #61(大量データ移行) #98(UI統一集約) |
+
+- クローズ理由は各PRにコメント済み。**ブランチは削除していない**ため再オープンで復帰可能
+- Issue #29/#30 のUI統一は11本が相互競合していたため **#98 に集約**
+- B2Cの受け皿ではなく、main の既存 `fleet_*`（`lib/models/fleet_member.dart`、
+  `lib/providers/fleet_provider.dart`、`lib/screens/fleet/`、`lib/services/fleet_service.dart` ほか）が
+  B2B振り直しの土台になる
+
+### 決定4: 滞留ブランチは削除しない（棚卸しのみ）
+
+`origin/claude/*` は 66本（オープンPR保持 9 / それ以外 57）。実測の結果:
+
+- **main にマージ済みのブランチは 0本**。squash merge のため main のコミットは
+  `feat: ... (#74)` に潰されており、元ブランチは main の祖先にならない。
+  つまり `git branch -d` は全て拒否され、削除するなら `-D`（強制）になる
+- **訂正**: 「ブランチ整理で Actions ストレージを回収」は機構として誤り。
+  ref はストレージをほぼ消費しない。占めているのは**アーティファクト**
+
+実測ストレージ: main 1 run あたり `android-apk-debug` 109.7MB + `ios-build-debug` 85.3MB
+= **約195MB**。これが従来 `claude/**` push 毎にも生成されていた（CI run 総数 742）。
+**#109 で「main限定＋retention 3日」に変更済み**のため今後の生成は停止。
+既存分は7日で自動失効（最新分は 2026-08-11 期限）し、追加操作なしで解放される。
+
+→ 30本のクローズ済みPRに「ブランチは削除しません」とコメント済みでもあるため、**削除は見送り**。
+
+### 次のアクション候補（3件）
+
+1. **#109 をマージ** → CIノイズ源を止めたうえで `#76 → #75 → #108` の順にマージ
+2. **#35 の OCR登録を B2B前提で切り出し再実装**（車検証OCRによる社用車の一括登録）
+3. **pm_report を `workflow_dispatch` で手動実行**し、初めて緑になることを実測で確認
+
+---
+
+## 夜間エージェント実行ログ（2026-08-01）
+
+**ブランチ**: `claude/night-20260801`
+**テスト**: 3509件 全パス（+4件）/ `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **Issue #41 Phase 3 実装（非提携店向け需要通知カード）**
+   - `_DemandNotificationCard` StatefulWidget を `shop_owner_screen.dart` に追加
+   - `!shop.isPartner` の店舗オーナー画面に、需要件数（`ShopDemandService.getDemandCountForShop`）を表示
+   - count > 0 のときのみ表示・count == 0 なら `SizedBox.shrink()`
+   - 「登録」ボタン → `ShopPlanScreen` へ遷移
+   - TDD 4件追加（RED→GREEN確認済み）
+   - `shop_owner_screen_performance_card_test.dart` に `_StubShopDemandService` 登録を追加
+     （非提携店テストで `sl.get<ShopDemandService>()` が未登録エラーになるのを修正）
+
+### 次のアクション候補（3件）
+
+1. **PR を main ブランチへマージ**（`claude/night-20260801` — CI GREEN 確認後）
+2. **Issue #41 Phase 4**: 非提携店オンボーディング画面（`ShopPlanScreen` のフリープラン → パートナー申込フロー）
+3. **蓄積 PR のレビュー・マージ**: 29件超の draft PR を最優先順でレビュー（#74 → #75 の依存順に注意）
+最終更新: 2026-07-31
+
+---
+
+## 夜間エージェント実行ログ（2026-07-31）
+
+**ブランチ**: `claude/night-20260731`
+**PR**: #104 https://github.com/zashii5793/trust-car-platform/pull/104
+**テスト**: 3509件 全パス（+4） / `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **Issue #41 Phase 2 — フリーミアム問い合わせゲート（InquiryScreen）**
+   - `InquiryScreen._submit()` に `!widget.shop.isPartner` ゲートを追加
+   - 非提携店 → `ShopDemandService.recordDemand()` → 需要受付ダイアログ
+   - 提携店 → 従来の月次上限 + 通常問い合わせ送信フロー
+   - テスト: `MockShopDemandService`、`sl.override` パターン、新4テスト追加
+
+2. **AccessoryShowcaseScreen — プルトゥリフレッシュ**
+   - `_TrendList` に `RefreshIndicator` を追加（`onRefresh: _load`）
+
+### 調査済み（変更なし）
+
+- `pm_report.yml` 修正 → PR #103 に実装済み（未マージ）
+- `sampleImageUrl` テスト → `vehicle_spec_service_test.dart:327-409` 実装済み
+- `ShopComparisonScreen` → `home_screen.dart:539` で接続済み
+- FleetMember 総務担当 → `FleetRole.manager` 実装済み
+
+### 次のアクション候補（3件）
+
+1. **PR #103 マージ** — `pm_report.yml` 週次 CI が 6 週以上失敗中
+2. **PR #104 マージ** — Issue #41 Phase 2 フリーミアムゲート
+3. **非提携店向けオンボーディング画面** — `getDemandsForShop()` を使った「N件の問い合わせがありました」表示
+
+---
+
+最終更新: 2026-07-11
+
+---
+
+## 夜間エージェント実行ログ（2026-07-11）
+
+**ブランチ**: `claude/night-20260711`
+**PR**: #78 https://github.com/zashii5793/trust-car-platform/pull/78
+**テスト**: 3461件 全パス / `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **stalled CI 修正**: `claude/auto-improve-fleet-urgency-dedup` の cherry-pick + `dart format` 適用
+2. **Issue #63 実装（priority: high）**: `RecommendationService` + `MaintenanceScheduleService` 連携
+   - EV・水素車へのオイル交換推奨を除外する燃料タイプ別フィルタリング
+   - `reason` フィールドに「次回目安: Xkm（あとYkm）」を追加
+   - TDDテスト13件追加
+   - PR #78 作成済み（CI確認中）
+
+### 次のアクション候補（3件）
+
+1. Issue #63 UI配線 — `HomeScreen` の提案セクションで `reason` を表示
+2. Issue #39 UI配線 — 店舗ダッシュボードに月次ROIを接続
+3. Issue #41 着手 — GoogleMap連動の集客エンジン（#39 UI完了後推奨）
+
+---
+
+最終更新: 2026-06-19
 
 ---
 

@@ -644,4 +644,172 @@ void main() {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // getUserPosts — ページネーション統合テスト
+  // ---------------------------------------------------------------------------
+  group('PostService.getUserPosts — ページネーション', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    // 投稿を 5件追加（降順ソート用に timestamp をずらす）
+    Future<void> seedPosts(FakeFirebaseFirestore fs,
+        {String userId = 'pager-user',
+        String visibility = 'public',
+        int count = 5}) async {
+      for (int i = 0; i < count; i++) {
+        final doc = Map<String, dynamic>.from(
+          postDoc(userId: userId, visibility: visibility, content: 'post-$i'),
+        );
+        doc['createdAt'] = Timestamp.fromDate(
+            DateTime(2024, 1, i + 1)); // oldest=Jan1, newest=Jan5
+        await fs.collection('posts').add(doc);
+      }
+    }
+
+    setUp(() async {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+      await seedPosts(fakeFirestore);
+    });
+
+    test('limit=2 → 2件のみ返す', () async {
+      final result = await service.getUserPosts(
+        userId: 'pager-user',
+        viewerId: 'viewer',
+        limit: 2,
+      );
+
+      result.when(
+        success: (posts) => expect(posts.length, 2),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('limit がデフォルト値 (20) 以下なら全件取得', () async {
+      final result = await service.getUserPosts(
+        userId: 'pager-user',
+        viewerId: 'viewer',
+        limit: 20,
+      );
+
+      result.when(
+        success: (posts) => expect(posts.length, 5),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('startAfter で次のページを取得できる', () async {
+      final firstPageSnap = await fakeFirestore
+          .collection('posts')
+          .where('userId', isEqualTo: 'pager-user')
+          .where('visibility', isEqualTo: 'public')
+          .orderBy('createdAt', descending: true)
+          .limit(2)
+          .get();
+      final lastDoc = firstPageSnap.docs.last;
+
+      final secondResult = await service.getUserPosts(
+        userId: 'pager-user',
+        viewerId: 'viewer',
+        limit: 10,
+        startAfter: lastDoc,
+      );
+
+      secondResult.when(
+        success: (posts) => expect(posts.length, 3),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('フォロワーフィルタ + limit の組み合わせ', () async {
+      final followersDoc = Map<String, dynamic>.from(
+        postDoc(userId: 'pager-user', visibility: 'followers'),
+      );
+      followersDoc['createdAt'] =
+          Timestamp.fromDate(DateTime(2024, 2, 1)); // 最新
+      await fakeFirestore.collection('posts').add(followersDoc);
+
+      final result = await service.getUserPosts(
+        userId: 'pager-user',
+        viewerId: 'follower',
+        isViewerFollowing: true,
+        limit: 3,
+      );
+
+      result.when(
+        success: (posts) => expect(posts.length, 3),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('フォロワーフィルタ + startAfter でページネーション', () async {
+      final followersDoc = Map<String, dynamic>.from(
+        postDoc(userId: 'pager-user', visibility: 'followers'),
+      );
+      followersDoc['createdAt'] = Timestamp.fromDate(DateTime(2024, 2, 1));
+      await fakeFirestore.collection('posts').add(followersDoc);
+
+      final firstPageSnap = await fakeFirestore
+          .collection('posts')
+          .where('userId', isEqualTo: 'pager-user')
+          .where('visibility', whereIn: ['public', 'followers'])
+          .orderBy('createdAt', descending: true)
+          .limit(2)
+          .get();
+      final lastDoc = firstPageSnap.docs.last;
+
+      final secondResult = await service.getUserPosts(
+        userId: 'pager-user',
+        viewerId: 'follower',
+        isViewerFollowing: true,
+        limit: 10,
+        startAfter: lastDoc,
+      );
+
+      secondResult.when(
+        success: (posts) => expect(posts.length, 4),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    group('Edge Cases', () {
+      test('startAfter に最後のドキュメントを渡すと空リストを返す', () async {
+        final lastPageSnap = await fakeFirestore
+            .collection('posts')
+            .where('userId', isEqualTo: 'pager-user')
+            .where('visibility', isEqualTo: 'public')
+            .orderBy('createdAt', descending: true)
+            .limit(10)
+            .get();
+        final lastDoc = lastPageSnap.docs.last; // 全件の末尾
+
+        final result = await service.getUserPosts(
+          userId: 'pager-user',
+          viewerId: 'viewer',
+          limit: 10,
+          startAfter: lastDoc,
+        );
+
+        result.when(
+          success: (posts) => expect(posts, isEmpty),
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+
+      test('startAfter=null → 最初のページを取得', () async {
+        final result = await service.getUserPosts(
+          userId: 'pager-user',
+          viewerId: 'viewer',
+          limit: 3,
+          startAfter: null,
+        );
+
+        result.when(
+          success: (posts) => expect(posts.length, 3),
+          failure: (e) => fail('Expected success, got: $e'),
+        );
+      });
+    });
+  });
 }

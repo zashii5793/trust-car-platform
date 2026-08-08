@@ -1,7 +1,9 @@
 # 人間が実施すべきタスク一覧
 
-**最終更新**: 2026-06-13  
+**最終更新**: 2026-06-30  
 **前提**: AIが実装・テスト・コードプッシュまで完了済み。以下は **AIでは代替できない** 操作のみ。
+**出荷目標**: 2026年8月ソフトローンチ（逆算計画は `docs/LAUNCH_PLAN.md`）。
+**進捗メモ**: Apple Developer Program は**申請済み（承認待ち）** — 承認後に下記 P1-5（iOS証明書）着手可。
 
 ---
 
@@ -12,10 +14,11 @@
 **なぜ必要**: 以下のルールが追加済みで未デプロイ：
 - 前セッション: `fleet_members`, `accessory_showcases`, `car_purchase_inquiries`, `safety_tips`, `shop_chains`
 - 今セッション: `community_maintenance_trends`（読み取り=認証済み、書き込み=AdminSDKのみ）
-- C2C凍結セッション（2026-06-18）: `accessory_showcases/{id}/comments` サブコレクション
+- C2C凍結セッション（2026-06-18〜）: `accessory_showcases/{id}/comments` サブコレクション
   （読み取り=認証済み、作成/削除=投稿者本人のみ、編集=投稿者本人のみ、
   いいね=`likeCount` ±1 のみ誰でも可、`comments/{id}/likes/{uid}` は本人のみ作成/削除）。
-  **未デプロイだと showcase コメントの投稿・いいねが全て弾かれる**。
+  さらに `comment_reports/{reportId}`（コメント通報＝作成は本人のみ・読取/更新/削除はサーバー専用）。
+  **未デプロイだと showcase コメントの投稿・いいね・通報が全て弾かれる**。
 本番反映しないと全ユーザーの書き込みがルールで弾かれる。また、`safety_tips`コレクションの複合インデックス（`isActive + publishedAt`, `isActive + category + publishedAt`）も追加済み。
 - 事業性評価セッション（2026-06-19）: `inquiries` の複合インデックス `shopId + createdAt`（ASC）を追加済み。
   **未デプロイだと工場ダッシュボードの月次レポート（ROI可視化 #39）と月次件数チェックがクエリエラーになる**。
@@ -125,10 +128,11 @@ Firebase iOS SDK の整合（CocoaPods）を必ず CI ビルドで確認する�
 ### 5. iOS: Apple Developer Account でのApp ID・証明書設定
 
 **なぜ必要**: TestFlight配布・App Store申請に必要。AIではApple Developer Consoleを操作できない。
+**状態**: Apple Developer Program は**申請済み（承認待ち）**。承認後に本タスク着手可。
 
 **手順**:
 1. [Apple Developer Console](https://developer.apple.com/account/) → Certificates, Identifiers & Profiles
-2. App ID 登録: `com.trustcar.platform`（`Bundle ID` を `ios/Runner.xcodeproj` と一致させること）
+2. App ID 登録: **`jp.trustcar.app`**（実プロジェクトの Bundle ID。Android `applicationId` / iOS `PRODUCT_BUNDLE_IDENTIFIER` と一致済み）
 3. Distribution Certificate の作成（期限切れ確認）
 4. Provisioning Profile の作成（App Store Distribution用）
 5. Xcode → Signing & Capabilities → Team 設定

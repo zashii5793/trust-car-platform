@@ -3,6 +3,8 @@ import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/accessory_showcase.dart';
 import '../models/showcase_comment.dart';
+import '../models/comment_report.dart';
+import '../models/follow.dart' show NotificationType;
 
 /// Aggregates community accessory showcase posts to surface trending car
 /// accessories (dash cams, seat covers, etc.) per category.
@@ -76,6 +78,27 @@ class PopularAccessoriesService {
           .get();
       final list = snap.docs.map(AccessoryShowcase.fromFirestore).toList();
       return Result.success(list);
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
+  /// Fetches a single showcase by id. Used to resolve a notification's
+  /// `showcaseId` into the [AccessoryShowcase] that [ShowcaseDetailScreen]
+  /// requires (deep-linking from the social notification feed).
+  Future<Result<AccessoryShowcase, AppError>> getShowcaseById(
+      String showcaseId) async {
+    if (showcaseId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('showcaseId must not be empty'));
+    }
+    try {
+      final doc =
+          await _firestore.collection(_collection).doc(showcaseId).get();
+      if (!doc.exists) {
+        return const Result.failure(AppError.notFound('showcase not found'));
+      }
+      return Result.success(AccessoryShowcase.fromFirestore(doc));
     } catch (e) {
       return Result.failure(AppError.unknown(e.toString(), originalError: e));
     }
@@ -161,24 +184,100 @@ class PopularAccessoriesService {
         createdAt: DateTime.now(),
       );
       final doc = await _commentsRef(showcaseId).add(comment.toMap());
+
+      // Notify the showcase owner that someone commented (best-effort).
+      try {
+        final showcaseSnap =
+            await _firestore.collection(_collection).doc(showcaseId).get();
+        final ownerId = showcaseSnap.data()?['userId'] as String? ?? '';
+        await _notify(
+          recipientId: ownerId,
+          actorId: userId,
+          actorDisplayName: userDisplayName,
+          type: NotificationType.comment,
+          showcaseId: showcaseId,
+          commentId: doc.id,
+          previewText: content.trim(),
+        );
+      } catch (_) {
+        // Notification failures must never fail the comment.
+      }
+
       return Result.success(comment.copyWith(id: doc.id));
     } catch (e) {
       return Result.failure(AppError.unknown(e.toString(), originalError: e));
     }
   }
 
-  /// Returns comments for [showcaseId], oldest first (conversation order).
+  /// Writes a social notification (best-effort). No-op if the recipient is the
+  /// actor or unknown. Mirrors the `social_notifications` schema used by
+  /// PostService/FollowService so showcase activity surfaces in the same feed.
+  Future<void> _notify({
+    required String recipientId,
+    required String actorId,
+    String? actorDisplayName,
+    required NotificationType type,
+    required String showcaseId,
+    String? commentId,
+    String? previewText,
+  }) async {
+    if (recipientId.isEmpty || recipientId == actorId) return;
+    try {
+      await _firestore.collection('social_notifications').add({
+        'userId': recipientId,
+        'actorId': actorId,
+        if (actorDisplayName != null) 'actorDisplayName': actorDisplayName,
+        'type': type.name,
+        'showcaseId': showcaseId,
+        if (commentId != null) 'commentId': commentId,
+        if (previewText != null) 'previewText': previewText,
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Best-effort; notification failures are non-fatal.
+    }
+  }
+
+  /// Returns comments for [showcaseId].
+  ///
+  /// [sort] controls ordering (oldest/newest/most-liked) and [limit] caps the
+  /// number fetched (for pagination — increase to load more). Comments with
+  /// [kReportHideThreshold] or more reports are hidden (lightweight, client-side
+  /// moderation; robust enforcement would move to Cloud Functions).
   Future<Result<List<ShowcaseComment>, AppError>> getComments(
-      String showcaseId) async {
+    String showcaseId, {
+    CommentSort sort = CommentSort.oldest,
+    int? limit,
+  }) async {
     if (showcaseId.trim().isEmpty) {
       return const Result.failure(
           AppError.validation('showcaseId must not be empty'));
     }
     try {
-      final snap = await _commentsRef(showcaseId)
-          .orderBy('createdAt', descending: false)
-          .get();
-      final list = snap.docs.map(ShowcaseComment.fromFirestore).toList();
+      Query<Map<String, dynamic>> query = _commentsRef(showcaseId);
+      switch (sort) {
+        case CommentSort.oldest:
+          query = query.orderBy('createdAt');
+          break;
+        case CommentSort.newest:
+          query = query.orderBy('createdAt', descending: true);
+          break;
+        case CommentSort.mostLiked:
+          query = query.orderBy('likeCount', descending: true);
+          break;
+      }
+      if (limit != null && limit > 0) {
+        query = query.limit(limit);
+      }
+      final snap = await query.get();
+      final list = snap.docs
+          .map(ShowcaseComment.fromFirestore)
+          // Hide moderated comments. `isHidden` is the authoritative flag set
+          // server-side by onCommentReportCreated; the reportCount check is a
+          // fallback for comments moderated before the flag existed.
+          .where((c) => !c.isHidden && c.reportCount < kReportHideThreshold)
+          .toList();
       return Result.success(list);
     } catch (e) {
       return Result.failure(AppError.unknown(e.toString(), originalError: e));
@@ -287,11 +386,14 @@ class PopularAccessoriesService {
     try {
       final commentRef = _commentsRef(showcaseId).doc(commentId);
       final likeRef = _likeRef(showcaseId, commentId, userId);
+      var newlyLiked = false;
+      var commentAuthorId = '';
       await _firestore.runTransaction((tx) async {
         final commentSnap = await tx.get(commentRef);
         if (!commentSnap.exists) {
           throw _NotFound();
         }
+        commentAuthorId = commentSnap.data()?['userId'] as String? ?? '';
         final likeSnap = await tx.get(likeRef);
         if (likeSnap.exists) return; // already liked — no-op
         final current = (commentSnap.data()?['likeCount'] as int?) ?? 0;
@@ -301,7 +403,18 @@ class PopularAccessoriesService {
           'createdAt': Timestamp.fromDate(DateTime.now()),
         });
         tx.update(commentRef, {'likeCount': current + 1});
+        newlyLiked = true;
       });
+      if (newlyLiked) {
+        // Notify the comment author of the like (best-effort).
+        await _notify(
+          recipientId: commentAuthorId,
+          actorId: userId,
+          type: NotificationType.like,
+          showcaseId: showcaseId,
+          commentId: commentId,
+        );
+      }
       return const Result.success(null);
     } on _NotFound {
       return const Result.failure(
@@ -365,6 +478,52 @@ class PopularAccessoriesService {
     }
   }
 
+  static const _reportsCollection = 'comment_reports';
+
+  /// Reports a comment for moderation. One report per user per comment
+  /// (idempotent via a deterministic id: re-reporting overwrites the report and
+  /// never double-counts).
+  ///
+  /// Clients only ever WRITE the `comment_reports/{commentId}_{reporterId}`
+  /// document — they can no longer touch the comment's `reportCount`/`isHidden`.
+  /// The `onCommentReportCreated` Cloud Function re-counts the reports
+  /// server-side and, once the total reaches [kReportHideThreshold], sets
+  /// `isHidden` on the comment (which [getComments] filters out). This closes
+  /// the abuse vector where a client could forge the counter directly (#37).
+  Future<Result<void, AppError>> reportComment({
+    required String showcaseId,
+    required String commentId,
+    required String reporterId,
+    required ReportReason reason,
+  }) async {
+    if (showcaseId.trim().isEmpty ||
+        commentId.trim().isEmpty ||
+        reporterId.trim().isEmpty) {
+      return const Result.failure(AppError.validation(
+          'showcaseId, commentId, reporterId are required'));
+    }
+    try {
+      // Deterministic id => one report per (comment, reporter). Overwriting an
+      // existing report is harmless; the Cloud Function counts distinct docs.
+      final reportId = '${commentId}_$reporterId';
+      final report = CommentReport(
+        id: reportId,
+        showcaseId: showcaseId,
+        commentId: commentId,
+        reporterId: reporterId,
+        reason: reason,
+        createdAt: DateTime.now(),
+      );
+      await _firestore
+          .collection(_reportsCollection)
+          .doc(reportId)
+          .set(report.toMap());
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
   List<AccessoryTrend> _aggregate(List<AccessoryShowcase> showcases) {
     // Key: "itemName||brand||category"
     final counts = <String, int>{};
@@ -408,3 +567,12 @@ class PopularAccessoriesService {
 /// Internal sentinel used to surface "comment not found" out of a Firestore
 /// transaction as a typed [AppError.notFound].
 class _NotFound implements Exception {}
+
+/// Number of distinct reports at which a comment is hidden from [getComments].
+/// Enforced server-side by the `onCommentReportCreated` Cloud Function, which
+/// sets `isHidden` once this many distinct reports exist. Must stay in sync with
+/// `REPORT_HIDE_THRESHOLD` in functions/src/moderateComments.ts.
+const int kReportHideThreshold = 3;
+
+/// Ordering options for [PopularAccessoriesService.getComments].
+enum CommentSort { oldest, newest, mostLiked }

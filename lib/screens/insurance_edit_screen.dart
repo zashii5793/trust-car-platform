@@ -34,6 +34,10 @@ class _InsuranceEditScreenState extends State<InsuranceEditScreen> {
   final _passengerCtrl = TextEditingController();
   final _vehAmountCtrl = TextEditingController();
   final _deductibleCtrl = TextEditingController();
+  // 代理店。VoluntaryInsurance にフィールドはあったが入力欄が無く、
+  // 既存値を素通しするだけだったため永久に空のままだった。
+  final _agentNameCtrl = TextEditingController();
+  final _agentPhoneCtrl = TextEditingController();
   final _premiumCtrl = TextEditingController();
 
   // --- choice/state ---
@@ -80,6 +84,8 @@ class _InsuranceEditScreenState extends State<InsuranceEditScreen> {
       _passengerCtrl.text = v.passengerInjuryAmount ?? '';
       _vehAmountCtrl.text = v.vehicleInsuranceAmount?.toString() ?? '';
       _deductibleCtrl.text = v.vehicleInsuranceDeductible ?? '';
+      _agentNameCtrl.text = v.agentName ?? '';
+      _agentPhoneCtrl.text = v.agentPhone ?? '';
       _premiumCtrl.text = v.annualPremium?.toString() ?? '';
       _contractType = v.contractType ?? InsuranceContractType.nonFleet;
       _usagePurpose = _orNull(v.usagePurpose, _usageOptions);
@@ -114,6 +120,8 @@ class _InsuranceEditScreenState extends State<InsuranceEditScreen> {
       _passengerCtrl,
       _vehAmountCtrl,
       _deductibleCtrl,
+      _agentNameCtrl,
+      _agentPhoneCtrl,
       _premiumCtrl,
     ]) {
       c.dispose();
@@ -170,8 +178,8 @@ class _InsuranceEditScreenState extends State<InsuranceEditScreen> {
       expiryDate: _expiryDate,
       // Carry forward legacy fields not surfaced in this form.
       coverageType: existing?.coverageType,
-      agentName: existing?.agentName,
-      agentPhone: existing?.agentPhone,
+      agentName: _text(_agentNameCtrl),
+      agentPhone: _text(_agentPhoneCtrl),
       contractStartDate: _startDate,
       annualPremium: _int(_premiumCtrl),
       paymentMethod: _paymentMethod,
@@ -335,6 +343,11 @@ class _InsuranceEditScreenState extends State<InsuranceEditScreen> {
                 keyboard: TextInputType.number),
             _textField(_deductibleCtrl, '免責金額（自己負担）', hint: '例: 5-10万円'),
           ],
+          AppSpacing.verticalMd,
+          _sectionHeader('代理店'),
+          _textField(_agentNameCtrl, '代理店名', hint: '例: ○○保険サービス'),
+          _textField(_agentPhoneCtrl, '代理店電話番号',
+              hint: '例: 03-1234-5678', keyboard: TextInputType.phone),
           AppSpacing.verticalMd,
           _sectionHeader('運転者条件'),
           _dropdown(

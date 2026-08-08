@@ -3,6 +3,7 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../models/accessory_showcase.dart';
 import '../../models/showcase_comment.dart';
+import '../../models/comment_report.dart';
 import '../../services/popular_accessories_service.dart';
 
 /// Detail view for a single accessory showcase post with its comment thread.
@@ -30,8 +31,13 @@ class ShowcaseDetailScreen extends StatefulWidget {
 class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
   final _inputController = TextEditingController();
 
+  static const _pageSize = 20;
+
   List<ShowcaseComment> _comments = [];
   Set<String> _likedIds = {};
+  CommentSort _sort = CommentSort.oldest;
+  int _limit = _pageSize;
+  bool _hasMore = false;
   bool _isLoading = true;
   bool _isSending = false;
   String? _errorMessage;
@@ -39,6 +45,20 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _loadComments();
+  }
+
+  void _changeSort(CommentSort sort) {
+    if (sort == _sort) return;
+    setState(() {
+      _sort = sort;
+      _limit = _pageSize;
+    });
+    _loadComments();
+  }
+
+  void _loadMore() {
+    setState(() => _limit += _pageSize);
     _loadComments();
   }
 
@@ -53,7 +73,11 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
-    final result = await widget.service.getComments(widget.showcase.id);
+    final result = await widget.service.getComments(
+      widget.showcase.id,
+      sort: _sort,
+      limit: _limit,
+    );
     if (!mounted) return;
     await result.when(
       success: (list) async {
@@ -71,6 +95,7 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
         setState(() {
           _comments = list;
           _likedIds = liked;
+          _hasMore = list.length >= _limit;
           _isLoading = false;
         });
       },
@@ -224,6 +249,50 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
     );
   }
 
+  Future<void> _reportComment(ShowcaseComment comment) async {
+    if (widget.currentUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('通報するにはログインが必要です')),
+      );
+      return;
+    }
+
+    final reason = await showDialog<ReportReason>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('このコメントを通報'),
+        children: [
+          for (final r in ReportReason.values)
+            SimpleDialogOption(
+              key: Key('report_reason_${r.name}'),
+              onPressed: () => Navigator.pop(dialogContext, r),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                child: Text(r.label),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (reason == null) return;
+
+    final result = await widget.service.reportComment(
+      showcaseId: widget.showcase.id,
+      commentId: comment.id,
+      reporterId: widget.currentUserId,
+      reason: reason,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (_) => ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('通報を受け付けました。ご協力ありがとうございます。')),
+      ),
+      failure: (e) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final showcase = widget.showcase;
@@ -238,11 +307,39 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
                 _ShowcaseHeader(showcase: showcase),
                 const SizedBox(height: AppSpacing.md),
                 const Divider(),
-                Text(
-                  _isLoading ? 'コメント' : 'コメント (${_comments.length})',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _isLoading ? 'コメント' : 'コメント (${_comments.length})',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    PopupMenuButton<CommentSort>(
+                      key: const Key('comment_sort_menu'),
+                      initialValue: _sort,
+                      onSelected: _changeSort,
+                      icon: const Icon(Icons.sort, size: 20),
+                      tooltip: '並び替え',
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: CommentSort.oldest,
+                          child: Text('古い順'),
+                        ),
+                        PopupMenuItem(
+                          value: CommentSort.newest,
+                          child: Text('新しい順'),
+                        ),
+                        PopupMenuItem(
+                          value: CommentSort.mostLiked,
+                          child: Text('いいね順'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 if (_isLoading)
@@ -278,7 +375,7 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
                       ),
                     ),
                   )
-                else
+                else ...[
                   ..._comments.map(
                     (c) => _CommentTile(
                       comment: c,
@@ -287,8 +384,18 @@ class _ShowcaseDetailScreenState extends State<ShowcaseDetailScreen> {
                       onDelete: () => _deleteComment(c),
                       onEdit: () => _editComment(c),
                       onToggleLike: () => _toggleLike(c),
+                      onReport: () => _reportComment(c),
                     ),
                   ),
+                  if (_hasMore)
+                    Center(
+                      child: TextButton(
+                        key: const Key('load_more_comments'),
+                        onPressed: _loadMore,
+                        child: const Text('もっと見る'),
+                      ),
+                    ),
+                ],
               ],
             ),
           ),
@@ -357,6 +464,7 @@ class _CommentTile extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onEdit;
   final VoidCallback onToggleLike;
+  final VoidCallback onReport;
 
   const _CommentTile({
     required this.comment,
@@ -365,6 +473,7 @@ class _CommentTile extends StatelessWidget {
     required this.onDelete,
     required this.onEdit,
     required this.onToggleLike,
+    required this.onReport,
   });
 
   @override
@@ -449,7 +558,14 @@ class _CommentTile extends StatelessWidget {
               color: AppColors.textTertiary,
               onPressed: onDelete,
             ),
-          ],
+          ] else
+            IconButton(
+              key: Key('report_comment_${comment.id}'),
+              icon: const Icon(Icons.flag_outlined, size: 18),
+              color: AppColors.textTertiary,
+              tooltip: '通報',
+              onPressed: onReport,
+            ),
         ],
       ),
     );

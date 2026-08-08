@@ -1,10 +1,21 @@
 name: CI
 
+# Triggers deliberately exclude `claude/**` pushes. With 65 agent branches
+# alive, every push ran the full matrix (incl. the macos-15 iOS build) and
+# every red run mailed a notification that got filed as a task — the daily
+# "CI失敗" loop. A branch's code is still gated: the PR event covers it once,
+# instead of once per push.
 on:
   push:
-    branches: [main, develop, 'claude/**']
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
+  workflow_dispatch:
+
+# Superseded runs on the same ref are pointless spend; cancel them.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   analyze-and-test:
@@ -25,16 +36,55 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      # dart format はファイルを書き換えるので、失敗時の git diff が
+      # 「期待される整形結果」そのものになる。これを出さないと、
+      # ローカルに Dart が無い環境からは何が違うのか分からず、
+      # 推測で直しては CI を回す消耗戦になる。
       - name: Check formatting
-        run: dart format --set-exit-if-changed lib test
+        run: |
+          set +e
+          dart format --set-exit-if-changed lib test
+          STATUS=$?
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::group::dart format が期待する差分"
+            git --no-pager diff -- lib test
+            echo "::endgroup::"
+            {
+              echo "## ❌ dart format の差分"
+              echo '```diff'
+              git --no-pager diff -- lib test
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $STATUS
 
       - name: Analyze code
         run: flutter analyze --fatal-infos
 
       # Unit tests do not need the Firebase emulators — run them first so
       # the required gate is fast and independent of emulator availability.
+      # flutter test streams results in completion order, so a failure that
+      # happens early is buried thousands of lines above the summary. The API
+      # only serves the tail of a job log, which made "N passed, 1 failed"
+      # undiagnosable without re-running locally. Re-print the failures at the
+      # end (and in the job summary) so the tail always answers "which test?".
       - name: Run unit tests with coverage
-        run: flutter test --coverage --exclude-tags emulator
+        run: |
+          set +e
+          flutter test --coverage --exclude-tags emulator 2>&1 | tee /tmp/test.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::group::失敗したテスト"
+            grep -E "❌|\[E\]|Failed to load|Test failed" /tmp/test.log | head -50
+            echo "::endgroup::"
+            {
+              echo "## ❌ 失敗したテスト"
+              echo '```'
+              grep -E "❌|\[E\]|Failed to load|Test failed" /tmp/test.log | head -50
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $STATUS
 
       # --- Emulator-backed integration tests (best effort) -----------------
       # Everything below is continue-on-error: emulator download/startup can
@@ -187,18 +237,31 @@ jobs:
         if: always()
         run: find . -name "*.apk" -type f 2>/dev/null | head -20 || echo "No APK found"
 
+      # Build verification runs on every PR, but the binary is only kept for
+      # main — per-PR APK/iOS artifacts are what pushed Actions storage over
+      # quota. Re-run with workflow_dispatch if a PR binary is needed.
       - name: Upload APK artifact
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: android-apk-debug
           path: build/app/outputs/flutter-apk/app-debug.apk
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: warn
 
   build-ios:
     name: Build iOS
     runs-on: macos-15
     needs: analyze-and-test
+    # macOS ランナーは分数が 10 倍で課金される。実測で 1 回あたり 57〜205 課金分
+    # かかっており、private リポジトリ（Free = 月2,000分）なら iOS ビルド
+    # 10〜15 回で月の枠を使い切る。
+    # そのため PR では既定で走らせず、main への push / 手動実行 /
+    # `ios` ラベル付きの PR に限定する。
+    # iOS 固有の破壊を PR 段階で見たいときは PR に `ios` ラベルを付ける。
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'ios')
 
     steps:
       - name: Checkout repository
@@ -278,9 +341,10 @@ jobs:
           fi
 
       - name: Upload iOS artifact
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: ios-build-debug
           path: build/ios/iphoneos/
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: warn

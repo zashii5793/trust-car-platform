@@ -49,11 +49,19 @@ class RevenueCatService {
   static const _entitlementStandard = 'btob_standard';
   static const _entitlementPremium = 'btob_premium';
   static const _entitlementEnterprise = 'btob_enterprise';
+  static const _entitlementBtocPremium = 'btoc_premium';
 
   // Product IDs (must match App Store / Google Play listings)
   static const _productStandard = 'trustcar_btob_standard_monthly';
   static const _productPremium = 'trustcar_btob_premium_monthly';
   static const _productEnterprise = 'trustcar_btob_enterprise_monthly';
+  static const _productBtocPremium = 'trustcar_btoc_premium_monthly';
+
+  /// B2C premium product ID for RevenueCat dashboard reference.
+  static String get btocPremiumProductId => _productBtocPremium;
+
+  /// B2C premium entitlement ID for RevenueCat dashboard reference.
+  static String get btocPremiumEntitlementId => _entitlementBtocPremium;
 
   final InitializeExecutor _initializeExecutor;
   final PurchaseExecutor _purchaseExecutor;
@@ -165,6 +173,29 @@ class RevenueCatService {
       return Result.success(result);
     } catch (e) {
       return Result.failure(AppError.server('Restore purchases failed: $e'));
+    }
+  }
+
+  /// Starts the B2C individual premium purchase flow.
+  Future<Result<PurchaseResult, AppError>> purchaseUserPremium({
+    required String userId,
+  }) async {
+    if (userId.isEmpty) {
+      return const Result.failure(
+        AppError.validation('userId must not be empty', field: 'userId'),
+      );
+    }
+    try {
+      final purchaseResult =
+          await _purchaseExecutor(_productBtocPremium, userId);
+      if (!purchaseResult.isSuccess) {
+        return const Result.failure(
+          AppError.server('Purchase was not completed'),
+        );
+      }
+      return Result.success(purchaseResult);
+    } catch (e) {
+      return Result.failure(AppError.server('Purchase failed: $e'));
     }
   }
 

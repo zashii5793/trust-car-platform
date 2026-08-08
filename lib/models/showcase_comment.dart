@@ -16,6 +16,13 @@ class ShowcaseComment {
   final bool isEdited;
   final DateTime? updatedAt;
   final int likeCount;
+  final int reportCount;
+
+  /// Server-side moderation flag. Set by the `onCommentReportCreated` Cloud
+  /// Function once the comment accrues [kReportHideThreshold] distinct reports.
+  /// Clients cannot write this field (firestore.rules); [getComments] filters
+  /// hidden comments out.
+  final bool isHidden;
 
   const ShowcaseComment({
     required this.id,
@@ -28,6 +35,8 @@ class ShowcaseComment {
     this.isEdited = false,
     this.updatedAt,
     this.likeCount = 0,
+    this.reportCount = 0,
+    this.isHidden = false,
   });
 
   factory ShowcaseComment.fromFirestore(DocumentSnapshot doc) {
@@ -43,6 +52,8 @@ class ShowcaseComment {
       isEdited: data['isEdited'] ?? false,
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
       likeCount: data['likeCount'] ?? 0,
+      reportCount: data['reportCount'] ?? 0,
+      isHidden: data['isHidden'] ?? false,
     );
   }
 
@@ -57,6 +68,8 @@ class ShowcaseComment {
       'isEdited': isEdited,
       if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
       'likeCount': likeCount,
+      'reportCount': reportCount,
+      'isHidden': isHidden,
     };
   }
 
@@ -66,6 +79,8 @@ class ShowcaseComment {
     bool? isEdited,
     DateTime? updatedAt,
     int? likeCount,
+    int? reportCount,
+    bool? isHidden,
   }) {
     return ShowcaseComment(
       id: id ?? this.id,
@@ -78,6 +93,8 @@ class ShowcaseComment {
       isEdited: isEdited ?? this.isEdited,
       updatedAt: updatedAt ?? this.updatedAt,
       likeCount: likeCount ?? this.likeCount,
+      reportCount: reportCount ?? this.reportCount,
+      isHidden: isHidden ?? this.isHidden,
     );
   }
 
