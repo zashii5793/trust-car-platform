@@ -867,6 +867,115 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
+    // getComments: 大量データ / ページング / パフォーマンス
+    // 「もっと見る」は limit を pageSize ずつ増やして先頭から取り直す方式。
+    // 大量コメント時の並び順の安定性・件数制御・非表示との相互作用を検証する。
+    // -------------------------------------------------------------------------
+    group('getComments 大量データ/ページング', () {
+      final base = DateTime(2026, 1, 1);
+
+      // Seeds [count] visible comments c000..c(count-1), createdAt 昇順、
+      // likeCount は i（末尾ほど多い）。
+      Future<void> seedMany(int count) async {
+        final batch = firestore.batch();
+        for (var i = 0; i < count; i++) {
+          final id = 'c${i.toString().padLeft(3, '0')}';
+          batch.set(
+            firestore
+                .collection('accessory_showcases')
+                .doc('sc-1')
+                .collection('comments')
+                .doc(id),
+            {
+              'showcaseId': 'sc-1',
+              'userId': 'u',
+              'content': id,
+              'createdAt': Timestamp.fromDate(base.add(Duration(minutes: i))),
+              'likeCount': i,
+              'reportCount': 0,
+            },
+          );
+        }
+        await batch.commit();
+      }
+
+      test('limit は取得件数を正確に制限する（60件中20件）', () async {
+        await seedMany(60);
+        final result =
+            await service.getComments('sc-1', limit: 20);
+        expect(result.valueOrNull!, hasLength(20));
+      });
+
+      test('oldest: limit ページの先頭は最古から連続する', () async {
+        await seedMany(60);
+        final page =
+            (await service.getComments('sc-1', limit: 20)).valueOrNull!;
+        // 先頭 20 件は c000..c019（createdAt 昇順）。
+        expect(page.first.id, 'c000');
+        expect(page.last.id, 'c019');
+      });
+
+      test('もっと見る相当: limit 漸増で件数が累積する', () async {
+        await seedMany(60);
+        final page1 =
+            (await service.getComments('sc-1', limit: 20)).valueOrNull!;
+        final page2 =
+            (await service.getComments('sc-1', limit: 40)).valueOrNull!;
+        expect(page1, hasLength(20));
+        expect(page2, hasLength(40));
+        // 先頭は取り直しても安定（同じ順序で拡張される）。
+        expect(page2.take(20).map((c) => c.id).toList(),
+            page1.map((c) => c.id).toList());
+      });
+
+      test('newest: 大量データでも最新が先頭', () async {
+        await seedMany(60);
+        final page = (await service.getComments('sc-1',
+                sort: CommentSort.newest, limit: 20))
+            .valueOrNull!;
+        expect(page.first.id, 'c059');
+        expect(page.last.id, 'c040');
+      });
+
+      test('mostLiked: いいね降順で上位 limit 件を返す', () async {
+        await seedMany(60);
+        final page = (await service.getComments('sc-1',
+                sort: CommentSort.mostLiked, limit: 5))
+            .valueOrNull!;
+        expect(page.map((c) => c.likeCount).toList(),
+            [59, 58, 57, 56, 55]);
+      });
+
+      test('パフォーマンス: 150件でも全件取得できる', () async {
+        await seedMany(150);
+        final result =
+            await service.getComments('sc-1', limit: 150);
+        expect(result.valueOrNull!, hasLength(150));
+      });
+
+      test('非表示コメントが範囲内にあるとページの可視件数は減る（既知の相互作用）',
+          () async {
+        // limit は Firestore クエリ側、非表示除外は取得後の Dart 側で行われる。
+        // よって先頭 limit 件に非表示が混ざると、返る可視件数は limit を下回る。
+        await seedMany(20); // c000..c019 可視
+        // 範囲内(先頭20件)に非表示を3件差し込む。
+        for (final i in [2, 5, 9]) {
+          final id = 'c${i.toString().padLeft(3, '0')}';
+          await firestore
+              .collection('accessory_showcases')
+              .doc('sc-1')
+              .collection('comments')
+              .doc(id)
+              .update({'isHidden': true});
+        }
+        final page =
+            (await service.getComments('sc-1', limit: 20)).valueOrNull!;
+        expect(page, hasLength(17));
+        expect(page.every((c) => !c.isHidden), isTrue);
+      });
+    });
+
+    // -------------------------------------------------------------------------
     // reportComment: 通報ドキュメント作成（集計は Cloud Function に移行）
     // クライアントは comment_reports を作るだけで、comment.reportCount は
     // 直接いじらない（サーバーの onCommentReportCreated が集計する）。
