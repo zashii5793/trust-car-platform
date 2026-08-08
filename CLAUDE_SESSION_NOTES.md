@@ -12,8 +12,15 @@
   チェックアウトしていた（`document_migrator.dart` 不在・Item1編集が誤土台に乗る事象）。リモート
   `origin/claude/hopeful-maxwell-k021i2`(00f7de9) に全成果が無傷で存在することを確認し、`git checkout -B` で
   正しい土台へ再整列してから Step 1 を再適用（`reset --hard`/`push --force` は不使用）。
-- **注意（別対応が必要）**: main が #48〜#116 まで大きく前進しており、PR #61 は旧main基点のため
-  将来リベース/コンフリクト解消が必要になる見込み（ローンチ判断とあわせて要相談）。
+- **最新main取り込み完了**: merge方式（force-push不使用）で9ファイルの競合を解消。全テスト3625件パス。
+  PR #61 は `dirty`→`unstable`（マージ可能・CI待ち）に改善。
+- **B2B再スコープ（トリアージ指示に対応）**: 想定を個人1〜2台→**法人10〜100台/テナント**に変更。
+  `scripts/seed_load_test.js` をマルチテナント（複数フリート、`shopId==ownerId==uid`）化し既定を
+  5法人×40台=200車両/整備1万件=計11,700件に（`--fleets`/`--vehicles-per-fleet` で拡張、10法人×100台=5.3万件も可）。
+  RUNBOOK §12 の負荷検証項目にテナント分離・フリート規模を追加。SCHEMA_MIGRATION_STRATEGY §6 に
+  B2B規模でのLazy優位性とbackfillコスト目安（1テナント<$0.05）を追記。
+- **未了（オーナー判断）**: (a) Phase1デプロイ=人間タスク（オーナー権限） (b) mainへのマージ=保留解除の合図待ち
+  (c) §7のLazy Migration設計合意（実マイグレーションStep2着手の前提）。
 
 ---
 

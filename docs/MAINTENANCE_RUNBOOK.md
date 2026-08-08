@@ -485,22 +485,28 @@ firebase emulators:start --only firestore
 # 2. 投入予定を確認（書き込みなし）
 node scripts/seed_load_test.js --dry-run
 
-# 3. Emulator に大量データを投入（既定: posts 1000 / vehicles 100 /
-#    maintenance_records 3000 / inquiries 500 = 計 4600 ドキュメント）
+# 3. Emulator に大量データを投入（既定はB2Bフリート想定:
+#    5法人 × 40台 = 200車両 / 車両あたり整備50件 = 10,000件 /
+#    inquiries 500 / posts 1000 = 計 11,700 ドキュメント）
 node scripts/seed_load_test.js --emulator
 
-# 規模を変える例
-node scripts/seed_load_test.js --emulator --posts 5000 --inquiries 2000
+# 大規模フリート例（10法人 × 100台 = 1,000車両 / 整備50,000件）
+node scripts/seed_load_test.js --emulator --fleets 10 --vehicles-per-fleet 100
 ```
 
 > ⚠️ `seed_load_test.js` は本番誤投入を防ぐため、`--emulator` なしでは中断する。
 > 投入データは `loadtest_` プレフィックスのIDで作成され、検証後に一括削除しやすい。
+> **想定はB2B（社用車管理）**: 個人1〜2台ではなく法人10〜100台/テナントのマルチテナント
+> （`shopId==ownerId==uid`）でテナント分離とフリート規模の負荷を検証する。
 
 ### 確認項目（目標値は §冒頭のパフォーマンス目標に準拠）
 - [ ] フィード（`posts`）の初回ロードが limit 件で打ち切られ、`< 1秒` で表示される
 - [ ] スクロールでカーソル（`startAfter`）による次ページ取得が機能する
+- [ ] **フリート車両一覧**（法人あたり最大100台）が limit＋カーソルで軽快に表示される
+- [ ] **1車両50件規模の整備履歴**が `getMaintenanceRecordsForVehicle` の limit＋`startAfter` でページングされる
 - [ ] 工場ダッシュボードの問い合わせ一覧（`inquiries`）が `shopId + createdAt` インデックスで
       高速に引ける（インデックス未デプロイだとここでエラー → §LAUNCH_READINESS 参照）
+- [ ] テナント分離: あるフリートのクエリに他フリートの車両/整備/問い合わせが混入しない
 - [ ] Firestore Emulator UI（`localhost:4000`）で読み取り件数が「1ページ分のみ」であること
 
 ### 自動テスト（境界値）

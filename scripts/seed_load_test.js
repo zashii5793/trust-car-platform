@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 /**
- * 大量データ負荷検証用シードスクリプト
+ * 大量データ負荷検証用シードスクリプト（B2B / 社用車フリート想定）
  *
- * ページネーション・インデックス・一覧画面のパフォーマンスを「大量データ」で
- * 検証するためのダミーデータを Firestore に投入する。
+ * ページネーション・インデックス・一覧画面・テナント分離のパフォーマンスを
+ * 「法人フリート規模の大量データ」で検証するためのダミーデータを投入する。
+ * 想定は個人（1〜2台）ではなく **法人10〜100台/テナント** のマルチテナント。
  *
- * 既定の規模:
- *   - posts:        1000 件（公開フィード）
- *   - vehicles:      100 台（1フリート相当）
- *   - maintenance_records: 100 台 × 各 30 件 = 3000 件
- *   - inquiries:     500 件（1店舗あたりの問い合わせ集中）
+ * 既定の規模（B2B）:
+ *   - fleets:               5 法人テナント（shopId==ownerId==uid）
+ *   - vehicles:             5 × 40 = 200 台（1フリート40台＝10〜100の中央値）
+ *   - maintenance_records:  200 台 × 各 50 件 = 10,000 件
+ *   - inquiries:            5 × 100 = 500 件（フリートごとの問い合わせ）
+ *   - posts:                1000 件（公開フィード）
  *
  * 安全装置:
  *   - 既定は emulator 専用。--emulator なしで本番に書き込むには明示的に
@@ -22,7 +24,8 @@
  *   node scripts/seed_load_test.js --dry-run
  *   firebase emulators:start --only firestore   # 別ターミナル
  *   node scripts/seed_load_test.js --emulator
- *   node scripts/seed_load_test.js --emulator --posts 5000 --vehicles 200
+ *   # 大規模フリート（100台×10法人=1000台, 履歴50件=50,000件）:
+ *   node scripts/seed_load_test.js --emulator --fleets 10 --vehicles-per-fleet 100
  *
  * ⚠️ 本番投入は原則禁止。検証後は必ずクリーンアップすること。
  *
@@ -46,11 +49,17 @@ function numArg(name, fallback) {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+// B2B（社用車管理）前提の既定値。1テナント＝1法人フリート。
+//   fleets            : 法人テナント数
+//   vehiclesPerFleet  : 1フリートあたりの車両台数（10〜100台想定の中央値）
+//   recordsPerVehicle : 1車両あたりの整備履歴（法人は稼働が高く履歴が厚い）
+//   inquiriesPerFleet : 1フリートが受け取る問い合わせ件数
 const COUNT = {
   posts: numArg('--posts', 1000),
-  vehicles: numArg('--vehicles', 100),
-  recordsPerVehicle: numArg('--records-per-vehicle', 30),
-  inquiries: numArg('--inquiries', 500),
+  fleets: numArg('--fleets', 5),
+  vehiclesPerFleet: numArg('--vehicles-per-fleet', 40),
+  recordsPerVehicle: numArg('--records-per-vehicle', 50),
+  inquiriesPerFleet: numArg('--inquiries-per-fleet', 100),
 };
 
 // --- 安全装置: 本番誤投入を防ぐ ---
@@ -88,10 +97,12 @@ const db = admin.firestore();
 const { Timestamp } = admin.firestore;
 const BATCH_LIMIT = 450; // Firestore のバッチ上限 500 に対し安全マージン
 
-const FLEET_OWNER = 'loadtest_owner';
-const TARGET_SHOP = 'loadtest_shop_1';
 const MAKERS = ['toyota', 'honda', 'nissan', 'mazda', 'subaru'];
 const STATUSES = ['pending', 'inProgress', 'answered', 'closed'];
+
+// マルチテナント: 1フリート＝1法人。所有者IDとショップIDは同一（shopId==ownerId==uid）で、
+// firestore.rules のテナント分離モデルに一致させる。
+const fleetOwnerId = (f) => `loadtest_fleet_${f}`;
 
 /** date を i 分（または i 日）ずらして単調に並べる基準日 */
 const BASE = new Date('2024-01-01T00:00:00Z');
@@ -122,40 +133,24 @@ function buildPosts(n) {
   return docs;
 }
 
-function buildVehicles(n) {
+// フリート横断で車両を生成。各車両はどのフリート(法人)に属するかを保持する。
+function buildVehicles(fleets, perFleet) {
   const docs = [];
-  for (let i = 0; i < n; i++) {
-    docs.push({
-      id: `loadtest_vehicle_${i}`,
-      data: {
-        userId: FLEET_OWNER,
-        makerId: MAKERS[i % MAKERS.length],
-        modelName: `Model-${i % 20}`,
-        year: 2015 + (i % 10),
-        licensePlate: `品川 ${100 + i} あ ${1000 + i}`,
-        mileage: 10000 + i * 137,
-        createdAt: Timestamp.fromDate(new Date(BASE.getTime() + i * 86400000)),
-      },
-    });
-  }
-  return docs;
-}
-
-function buildMaintenanceRecords(vehicleCount, perVehicle) {
-  const docs = [];
-  for (let v = 0; v < vehicleCount; v++) {
-    for (let r = 0; r < perVehicle; r++) {
-      const idx = v * perVehicle + r;
+  for (let f = 0; f < fleets; f++) {
+    for (let k = 0; k < perFleet; k++) {
+      const i = f * perFleet + k;
       docs.push({
-        id: `loadtest_record_${idx}`,
+        id: `loadtest_vehicle_${i}`,
+        _fleet: f, // 内部用（Firestoreには書かない）
         data: {
-          vehicleId: `loadtest_vehicle_${v}`,
-          userId: FLEET_OWNER,
-          type: 'oilChange',
-          title: `整備 #${r}`,
-          cost: 5000 + r * 100,
-          date: Timestamp.fromDate(new Date(BASE.getTime() + r * 86400000)),
-          createdAt: Timestamp.fromDate(BASE),
+          userId: fleetOwnerId(f),
+          companyId: fleetOwnerId(f), // 社用車：法人に紐づく
+          makerId: MAKERS[i % MAKERS.length],
+          modelName: `Model-${i % 20}`,
+          year: 2015 + (i % 10),
+          licensePlate: `品川 ${100 + (i % 900)} あ ${1000 + (i % 8999)}`,
+          mileage: 10000 + i * 137,
+          createdAt: Timestamp.fromDate(new Date(BASE.getTime() + i * 86400000)),
         },
       });
     }
@@ -163,19 +158,48 @@ function buildMaintenanceRecords(vehicleCount, perVehicle) {
   return docs;
 }
 
-function buildInquiries(n) {
+// 各車両にフリート所有者の整備履歴をぶら下げる（車両ごとに perVehicle 件）。
+function buildMaintenanceRecords(vehicles, perVehicle) {
   const docs = [];
-  for (let i = 0; i < n; i++) {
-    docs.push({
-      id: `loadtest_inquiry_${i}`,
-      data: {
-        userId: `loadtest_user_${i % 50}`,
-        shopId: TARGET_SHOP,
-        subject: `見積もり依頼 #${i}`,
-        status: STATUSES[i % STATUSES.length],
-        createdAt: Timestamp.fromDate(new Date(BASE.getTime() + i * 3600000)),
-      },
-    });
+  let idx = 0;
+  for (const v of vehicles) {
+    for (let r = 0; r < perVehicle; r++) {
+      docs.push({
+        id: `loadtest_record_${idx}`,
+        data: {
+          vehicleId: v.id,
+          userId: v.data.userId,
+          type: 'oilChange',
+          title: `整備 #${r}`,
+          cost: 5000 + r * 100,
+          date: Timestamp.fromDate(new Date(BASE.getTime() + r * 86400000)),
+          createdAt: Timestamp.fromDate(BASE),
+        },
+      });
+      idx++;
+    }
+  }
+  return docs;
+}
+
+// 各フリート(法人ショップ)が受け取る問い合わせを生成。shopId でテナント分離を検証できる。
+function buildInquiries(fleets, perFleet) {
+  const docs = [];
+  let idx = 0;
+  for (let f = 0; f < fleets; f++) {
+    for (let k = 0; k < perFleet; k++) {
+      docs.push({
+        id: `loadtest_inquiry_${idx}`,
+        data: {
+          userId: `loadtest_user_${idx % 200}`,
+          shopId: fleetOwnerId(f),
+          subject: `見積もり依頼 #${idx}`,
+          status: STATUSES[idx % STATUSES.length],
+          createdAt: Timestamp.fromDate(new Date(BASE.getTime() + idx * 3600000)),
+        },
+      });
+      idx++;
+    }
   }
   return docs;
 }
@@ -197,21 +221,27 @@ async function writeChunked(collection, docs) {
 }
 
 async function main() {
+  const vehicles = buildVehicles(COUNT.fleets, COUNT.vehiclesPerFleet);
   const plan = {
     posts: buildPosts(COUNT.posts),
-    vehicles: buildVehicles(COUNT.vehicles),
+    vehicles,
     maintenance_records: buildMaintenanceRecords(
-      COUNT.vehicles,
+      vehicles,
       COUNT.recordsPerVehicle
     ),
-    inquiries: buildInquiries(COUNT.inquiries),
+    inquiries: buildInquiries(COUNT.fleets, COUNT.inquiriesPerFleet),
   };
 
   const total = Object.values(plan).reduce((s, d) => s + d.length, 0);
 
-  console.log('=== Load Test Seed ===');
+  console.log('=== Load Test Seed (B2B フリート想定) ===');
   console.log(`dry-run  : ${isDryRun}`);
   console.log(`emulator : ${useEmulator}`);
+  console.log(
+    `構成      : ${COUNT.fleets} 法人フリート × ${COUNT.vehiclesPerFleet} 台` +
+      ` = ${COUNT.fleets * COUNT.vehiclesPerFleet} 車両 / ` +
+      `車両あたり整備 ${COUNT.recordsPerVehicle} 件`
+  );
   console.log('--- 投入予定件数 ---');
   for (const [col, docs] of Object.entries(plan)) {
     console.log(`  ${col}: ${docs.length}`);
