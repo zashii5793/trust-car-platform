@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../core/migration/document_migrator.dart';
+
 /// メンテナンスタイプ（Phase 1.5 拡張版）
 enum MaintenanceType {
   // 修理・整備
@@ -373,8 +375,17 @@ class MaintenanceRecord {
   });
 
   // Firestoreからデータを取得
+  /// Current schema version for persisted `maintenance_records` documents.
+  /// See `docs/SCHEMA_MIGRATION_STRATEGY.md`.
+  static const int schemaVersion = 1;
+
+  static const DocumentMigrator _migrator = DocumentMigrator(
+    <int, MigrationStep>{},
+    currentVersion: schemaVersion,
+  );
+
   factory MaintenanceRecord.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    final data = _migrator.migrate(doc.data() as Map<String, dynamic>);
     return MaintenanceRecord(
       id: doc.id,
       vehicleId: data['vehicleId'] ?? '',
@@ -511,6 +522,7 @@ class MaintenanceRecord {
       if (tireTreadDepth != null) 'tireTreadDepth': tireTreadDepth,
       // 工場連携 (only written when non-null)
       if (inquiryId != null) 'inquiryId': inquiryId,
+      DocumentMigrator.versionField: schemaVersion,
     };
   }
 

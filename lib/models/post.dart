@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../core/migration/document_migrator.dart';
+
 /// Post category types
 enum PostCategory {
   general, // 一般
@@ -212,8 +214,17 @@ class Post {
     required this.updatedAt,
   });
 
+  /// Current schema version for persisted `posts` documents.
+  /// See `docs/SCHEMA_MIGRATION_STRATEGY.md`.
+  static const int schemaVersion = 1;
+
+  static const DocumentMigrator _migrator = DocumentMigrator(
+    <int, MigrationStep>{},
+    currentVersion: schemaVersion,
+  );
+
   factory Post.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final data = _migrator.migrate(doc.data() as Map<String, dynamic>? ?? {});
     return Post(
       id: doc.id,
       userId: data['userId'] ?? '',
@@ -262,6 +273,7 @@ class Post {
       'isEdited': isEdited,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      DocumentMigrator.versionField: schemaVersion,
     };
   }
 

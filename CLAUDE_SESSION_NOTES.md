@@ -4,6 +4,19 @@
 
 ---
 
+## 追記: Phase 3 Step 1 完了（3モデル配線）＋ 環境リセットからの復旧
+
+- **Phase 3 Step 1 完了**: `Vehicle` に続き `MaintenanceRecord` / `Post` にも `schemaVersion` + `DocumentMigrator`
+  を配線（currentVersion=1・空ステップで挙動不変、`fromFirestore`でmigrate・`toMap`でstamp）。各モデルに toMap stamp テスト追加。
+- **環境リセット対応**: セッション途中でコンテナが再初期化され、ローカルが誤って新main（#116, b0d8fa0）を
+  チェックアウトしていた（`document_migrator.dart` 不在・Item1編集が誤土台に乗る事象）。リモート
+  `origin/claude/hopeful-maxwell-k021i2`(00f7de9) に全成果が無傷で存在することを確認し、`git checkout -B` で
+  正しい土台へ再整列してから Step 1 を再適用（`reset --hard`/`push --force` は不使用）。
+- **注意（別対応が必要）**: main が #48〜#116 まで大きく前進しており、PR #61 は旧main基点のため
+  将来リベース/コンフリクト解消が必要になる見込み（ローンチ判断とあわせて要相談）。
+
+---
+
 ## 進捗ログ（2026-06-27）: ローンチ前データ運用の強化（3フェーズ計画）
 
 ブランチ `claude/hopeful-maxwell-k021i2`。

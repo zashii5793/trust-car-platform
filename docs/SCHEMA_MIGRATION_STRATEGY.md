@@ -1,7 +1,8 @@
 # スキーマ進化・データマイグレーション戦略（設計案 / 合意待ち）
 
-**ステータス**: 🟡 提案（Agree レベル）。**Step 0（土台）は実装済み**＝ `lib/core/migration/document_migrator.dart`
-＋テスト10件。モデルへの配線（Step 1 以降）は §7 の合意後に着手。
+**ステータス**: 🟡 提案（Agree レベル）。**Step 0（土台）+ Step 1（高頻度3モデル配線）まで実装済み**
+＝ `lib/core/migration/document_migrator.dart`（テスト10件）＋ `Vehicle` / `MaintenanceRecord` / `Post` に
+`schemaVersion`＋migrator を配線（currentVersion=1 で挙動不変）。実マイグレーション（Step 2）は §7 合意後。
 **対象**: バージョンアップ時に Firestore のドキュメント構造を安全に進化させる仕組み
 **背景**: 現状、全 32 モデルに `schemaVersion` が無く、フィールドの追加・改名・型変更を伴う
 アップデートで「旧バージョンのアプリが書いた古いドキュメント」を新アプリが読むと、
@@ -117,8 +118,8 @@ class Vehicle {
 ## 4. 段階的ロールアウト計画（合意後）
 
 1. **Step 0（土台）** ✅ **実装済み**: `DocumentMigrator` + テスト10件を追加。挙動を変えない（モデル未配線）。
-2. **Step 1（高頻度モデル先行）**: 変更が多い `Vehicle` / `MaintenanceRecord` / `Post` に
-   `schemaVersion` と `fromFirestore` の経路を導入（変換は空＝現状維持）。
+2. **Step 1（高頻度モデル先行）** ✅ **実装済み**: `Vehicle` / `MaintenanceRecord` / `Post` に
+   `schemaVersion` と `fromFirestore` の migrate 経路・`toMap` の stamp を導入（変換は空＝現状維持）。
 3. **Step 2（実マイグレーション初適用）**: 次にスキーマ変更が必要になった時、
    そのモデルに `1→2` の変換関数を1つ追加してパターンを確立。
 4. **Step 3（横展開）**: 残りモデルへ順次適用。新規モデルは最初から `schemaVersion` を持つ規約に。

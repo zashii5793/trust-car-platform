@@ -215,6 +215,8 @@ void main() {
       expect(map['likeCount'], 10);
       expect(map['commentCount'], 5);
       expect(map['hashtags'], ['ドライブ']);
+      // マイグレーション基盤: 書き込み時に schemaVersion がスタンプされる
+      expect(map['schemaVersion'], Post.schemaVersion);
     });
 
     test('copyWith creates modified copy', () {
