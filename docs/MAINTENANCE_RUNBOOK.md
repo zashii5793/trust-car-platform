@@ -464,3 +464,61 @@ firebase deploy --only firestore:indexes
 - `analyze-and-test` 配下の `build-ios` / `build-android` が `firebase_*` 変更の回帰を検出する。
 - Firestore/Storage のルール変更は `Storage & Firestore Rules Tests` ジョブで検証される
   （`test/rules/`）。
+
+---
+
+## 12. 大量データ負荷検証（ページネーション・インデックス）
+
+ローンチ後にデータが増えても一覧画面が破綻しないことを、Emulator 上で大量データを
+投入して確認する手順。
+
+### 前提
+- `firebase-admin@12`（v14 以降は namespaced API が削除されており seed スクリプトが動かない）
+- Java 21+（Firestore Emulator 要件）
+
+### 手順
+
+```bash
+# 1. Emulator 起動（別ターミナル）
+firebase emulators:start --only firestore
+
+# 2. 投入予定を確認（書き込みなし）
+node scripts/seed_load_test.js --dry-run
+
+# 3. Emulator に大量データを投入（既定はB2Bフリート想定:
+#    5法人 × 40台 = 200車両 / 車両あたり整備50件 = 10,000件 /
+#    inquiries 500 / posts 1000 = 計 11,700 ドキュメント）
+node scripts/seed_load_test.js --emulator
+
+# 大規模フリート例（10法人 × 100台 = 1,000車両 / 整備50,000件）
+node scripts/seed_load_test.js --emulator --fleets 10 --vehicles-per-fleet 100
+```
+
+> ⚠️ `seed_load_test.js` は本番誤投入を防ぐため、`--emulator` なしでは中断する。
+> 投入データは `loadtest_` プレフィックスのIDで作成され、検証後に一括削除しやすい。
+> **想定はB2B（社用車管理）**: 個人1〜2台ではなく法人10〜100台/テナントのマルチテナント
+> （`shopId==ownerId==uid`）でテナント分離とフリート規模の負荷を検証する。
+
+### 確認項目（目標値は §冒頭のパフォーマンス目標に準拠）
+- [ ] フィード（`posts`）の初回ロードが limit 件で打ち切られ、`< 1秒` で表示される
+- [ ] スクロールでカーソル（`startAfter`）による次ページ取得が機能する
+- [ ] **フリート車両一覧**（法人あたり最大100台）が limit＋カーソルで軽快に表示される
+- [ ] **1車両50件規模の整備履歴**が `getMaintenanceRecordsForVehicle` の limit＋`startAfter` でページングされる
+- [ ] 工場ダッシュボードの問い合わせ一覧（`inquiries`）が `shopId + createdAt` インデックスで
+      高速に引ける（インデックス未デプロイだとここでエラー → §LAUNCH_READINESS 参照）
+- [ ] テナント分離: あるフリートのクエリに他フリートの車両/整備/問い合わせが混入しない
+- [ ] Firestore Emulator UI（`localhost:4000`）で読み取り件数が「1ページ分のみ」であること
+
+### 自動テスト（境界値）
+ページネーションの境界は単体テストでも保証している（`flutter test`）:
+- `test/services/post_service_test.dart` — `getFeed` の limit 打ち切り・startAfter 受理・空・limit 未満
+- `test/services/firebase_service_test.dart` — `getMaintenanceRecordsForVehicle` の limit 打ち切り・
+  startAfter 受理・空・他車両分離
+- 真のカーソル継続（前ページと重複しない次ページ）は `fake_cloud_firestore` が `startAfterDocument` を
+  完全サポートしないため、Emulator 統合テスト（`post_service_integration_test.dart`）で検証する。
+
+### 既知の制約（follow-up）
+- Service 層は `List<Model>` を返すため、UI 側がカーソル（最後の `DocumentSnapshot`）を
+  受け取れない。真のカーソルページングを UI まで通すには、ページ結果に「次カーソル」を含める
+  API 変更が必要（別 Issue）。`getFeed` / `getMaintenanceRecordsForVehicle` は `startAfter` を
+  受け取れるが、UI への配線はこの API 変更とセットで行う。

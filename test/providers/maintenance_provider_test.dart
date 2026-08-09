@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
@@ -88,6 +89,7 @@ class MockFirebaseService implements FirebaseService {
       getMaintenanceRecordsForVehicle(
     String vehicleId, {
     int limit = 20,
+    DocumentSnapshot? startAfter,
   }) async =>
           const Result.success([]);
 

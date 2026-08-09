@@ -151,6 +151,44 @@ void main() {
       expect(posts?.length, greaterThanOrEqualTo(2));
     });
 
+    test('Read: getFeed paginates with startAfter cursor (大量データ)', () async {
+      // Arrange: 25 件の公開投稿を createdAt 昇順で作成
+      final base = DateTime(2024, 1, 1);
+      for (var i = 0; i < 25; i++) {
+        await firestore.collection('posts').add({
+          ...TestDataGenerator.postData(userId: testUserId),
+          'visibility': 'public',
+          'createdAt': Timestamp.fromDate(base.add(Duration(minutes: i))),
+        });
+      }
+
+      // Page 1: 最新10件
+      final page1 = await postService.getFeed(limit: 10);
+      expect(page1.isSuccess, true);
+      expect(page1.valueOrNull?.length, 10);
+
+      // 1ページ目末尾の DocumentSnapshot をカーソルに使う
+      final cursorSnap = await firestore
+          .collection('posts')
+          .where('visibility', isEqualTo: 'public')
+          .orderBy('createdAt', descending: true)
+          .limit(10)
+          .get();
+      final cursor = cursorSnap.docs.last;
+
+      // Page 2: startAfter で次の10件、1ページ目と重複しない
+      final page2 = await postService.getFeed(limit: 10, startAfter: cursor);
+      expect(page2.isSuccess, true);
+      final page2Posts = page2.valueOrNull!;
+      expect(page2Posts.length, 10);
+
+      final page1Ids = page1.valueOrNull!.map((p) => p.id).toSet();
+      expect(
+        page2Posts.map((p) => p.id).toSet().intersection(page1Ids),
+        isEmpty,
+      );
+    });
+
     test('Read: getUserPosts retrieves posts for a specific user', () async {
       // Arrange
       await firestore.collection('posts').add(

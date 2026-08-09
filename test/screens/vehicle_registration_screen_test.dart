@@ -41,6 +41,7 @@
 
 import 'dart:typed_data';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -174,7 +175,7 @@ class _StubFirebaseService implements FirebaseService {
   @override
   Future<Result<List<MaintenanceRecord>, AppError>>
       getMaintenanceRecordsForVehicle(String vehicleId,
-              {int limit = 20}) async =>
+              {int limit = 20, DocumentSnapshot? startAfter}) async =>
           const Result.success([]);
 
   @override

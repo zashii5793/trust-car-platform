@@ -22,6 +22,7 @@ import 'package:trust_car_platform/screens/vehicle_detail_screen.dart';
 import 'package:trust_car_platform/services/invoice_ocr_service.dart';
 import 'package:trust_car_platform/services/pdf_export_service.dart';
 import 'package:trust_car_platform/services/recommendation_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:trust_car_platform/models/drive_log.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
@@ -139,7 +140,7 @@ class MockFirebaseService implements FirebaseService {
   @override
   Future<Result<List<MaintenanceRecord>, AppError>>
       getMaintenanceRecordsForVehicle(String vehicleId,
-              {int limit = 20}) async =>
+              {int limit = 20, DocumentSnapshot? startAfter}) async =>
           const Result.success([]);
 
   @override

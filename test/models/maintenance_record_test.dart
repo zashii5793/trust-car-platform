@@ -133,6 +133,22 @@ void main() {
     });
 
     group('toMap', () {
+      test('toMap に schemaVersion が含まれる（マイグレーション基盤）', () {
+        final now = DateTime.now();
+        final record = MaintenanceRecord(
+          id: 'r1',
+          vehicleId: 'v1',
+          userId: 'u1',
+          type: MaintenanceType.oilChange,
+          title: 't',
+          cost: 1000,
+          date: now,
+          createdAt: now,
+        );
+        expect(
+            record.toMap()['schemaVersion'], MaintenanceRecord.schemaVersion);
+      });
+
       test('MaintenanceRecordをMapに変換できる', () {
         final now = DateTime.now();
         final record = MaintenanceRecord(
