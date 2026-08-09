@@ -106,6 +106,8 @@ class ShopProvider with ChangeNotifier {
       success: (shops) {
         _shops = shops;
         _error = null;
+        // 居住地が分かっていれば、読み込みのたびに地域優先へ並べ替える。
+        _applyRegionPriority();
       },
       failure: (err) {
         _error = err;
@@ -117,6 +119,60 @@ class ShopProvider with ChangeNotifier {
     _shopDistancesKm = {};
     _isLoading = false;
     notifyListeners();
+  }
+
+  // --- 地域優先の並べ替え ---
+
+  /// 利用者の居住地。設定されていると読み込み後に地域優先で並べ替える。
+  String? _homePrefecture;
+  String? _homeCity;
+
+  /// プロフィールの居住地を設定する。
+  ///
+  /// 工場は「住んでいる市区町村の近く」で探すのが自然な順序。都道府県は
+  /// 粒度が大きすぎる（東京都だけで工場は無数にある）ため、
+  /// 市区町村一致 → 都道府県一致 → その他 の順に並べる。
+  void setHomeRegion({String? prefecture, String? city}) {
+    _homePrefecture = prefecture;
+    _homeCity = city;
+    _applyRegionPriority();
+    notifyListeners();
+  }
+
+  /// 市区町村一致 → 都道府県一致 → その他 の安定ソート。
+  ///
+  /// 同順位内では評価の高い順（loadShops の取得順）を保つため、
+  /// グループ分けで実装する（comparator だと安定性が保証されない）。
+  void _applyRegionPriority() {
+    if (_homePrefecture == null && _homeCity == null) return;
+    if (_shops.isEmpty) return;
+
+    final sameCity = <Shop>[];
+    final samePrefecture = <Shop>[];
+    final others = <Shop>[];
+    for (final shop in _shops) {
+      if (_homeCity != null &&
+          shop.city != null &&
+          shop.city == _homeCity &&
+          (shop.prefecture == null || shop.prefecture == _homePrefecture)) {
+        sameCity.add(shop);
+      } else if (_homePrefecture != null &&
+          shop.prefecture == _homePrefecture) {
+        samePrefecture.add(shop);
+      } else {
+        others.add(shop);
+      }
+    }
+    _shops = [...sameCity, ...samePrefecture, ...others];
+  }
+
+  /// 地域優先グループのラベル（一覧の見出し用）。null = グループ外。
+  String? regionGroupLabel(Shop shop) {
+    if (_homeCity != null && shop.city == _homeCity) return _homeCity;
+    if (_homePrefecture != null && shop.prefecture == _homePrefecture) {
+      return _homePrefecture;
+    }
+    return null;
   }
 
   // --- 距離ソート（近い順） ---

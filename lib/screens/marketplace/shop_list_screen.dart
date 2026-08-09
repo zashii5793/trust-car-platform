@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../../models/shop.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/constants/colors.dart';
@@ -111,6 +112,18 @@ class _ShopListScreenState extends State<ShopListScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<ShopProvider>();
+      // プロフィールの居住地を渡すと、市区町村一致 → 都道府県一致 →
+      // その他 の順で並ぶ。工場は近所で探すものなので地域が先。
+      // AuthProvider がツリーに無い場合（単体テスト等）は従来の並び。
+      try {
+        final appUser = context.read<AuthProvider>().appUser;
+        provider.setHomeRegion(
+          prefecture: appUser?.prefecture,
+          city: appUser?.city,
+        );
+      } on ProviderNotFoundException {
+        // 地域優先なしで続行する。
+      }
       provider.loadShops();
       if (widget.maintenanceContext != null) {
         _searchController.text = widget.maintenanceContext!;

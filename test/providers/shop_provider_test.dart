@@ -214,6 +214,7 @@ Shop _makeShop({
   bool isVerified = false,
   double? rating,
   String? prefecture,
+  String? city,
 }) =>
     Shop(
       id: id,
@@ -223,6 +224,7 @@ Shop _makeShop({
       isVerified: isVerified,
       rating: rating,
       prefecture: prefecture,
+      city: city,
       createdAt: DateTime(2024, 1, 1),
       updatedAt: DateTime(2024, 1, 1),
     );
@@ -384,6 +386,76 @@ void main() {
     // -----------------------------------------------------------------------
     // loadFeaturedShops
     // -----------------------------------------------------------------------
+
+    group('setHomeRegion（地域優先の並べ替え）', () {
+      // 工場は住んでいる市区町村の近くで探す。都道府県では粒度が
+      // 大きすぎるため、市区町村一致 → 都道府県一致 → その他 の順。
+      test('市区町村一致 → 都道府県一致 → その他 の順に並ぶ', () async {
+        mockShopService.shopsResult = Result.success([
+          _makeShop(id: 'far', prefecture: '大阪府', city: '吹田市'),
+          _makeShop(id: 'pref', prefecture: '東京都', city: '練馬区'),
+          _makeShop(id: 'city', prefecture: '東京都', city: '世田谷区'),
+        ]);
+        provider.setHomeRegion(prefecture: '東京都', city: '世田谷区');
+
+        await provider.loadShops();
+
+        expect(
+          provider.shops.map((s) => s.id).toList(),
+          ['city', 'pref', 'far'],
+        );
+      });
+
+      test('同グループ内では取得順（評価順）を保つ', () async {
+        mockShopService.shopsResult = Result.success([
+          _makeShop(id: 'a', prefecture: '東京都', city: '世田谷区'),
+          _makeShop(id: 'b', prefecture: '東京都', city: '世田谷区'),
+        ]);
+        provider.setHomeRegion(prefecture: '東京都', city: '世田谷区');
+
+        await provider.loadShops();
+
+        expect(provider.shops.map((s) => s.id).toList(), ['a', 'b']);
+      });
+
+      group('Edge Cases', () {
+        test('居住地未設定なら並びを変えない', () async {
+          mockShopService.shopsResult = Result.success([
+            _makeShop(id: 'x', prefecture: '大阪府'),
+            _makeShop(id: 'y', prefecture: '東京都'),
+          ]);
+
+          await provider.loadShops();
+
+          expect(provider.shops.map((s) => s.id).toList(), ['x', 'y']);
+        });
+
+        test('同名の市区町村は都道府県も一致したときだけ最優先にする', () async {
+          // 「府中市」は東京都と広島県の両方にある。市名だけで一致させると
+          // 別の県の工場が最上位に来る。
+          mockShopService.shopsResult = Result.success([
+            _makeShop(id: 'hiroshima', prefecture: '広島県', city: '府中市'),
+            _makeShop(id: 'tokyo', prefecture: '東京都', city: '府中市'),
+          ]);
+          provider.setHomeRegion(prefecture: '東京都', city: '府中市');
+
+          await provider.loadShops();
+
+          expect(provider.shops.first.id, 'tokyo');
+        });
+
+        test('city が null の店舗でも落ちない', () async {
+          mockShopService.shopsResult = Result.success([
+            _makeShop(id: 'nocity', prefecture: '東京都'),
+          ]);
+          provider.setHomeRegion(prefecture: '東京都', city: '世田谷区');
+
+          await provider.loadShops();
+
+          expect(provider.shops.length, 1);
+        });
+      });
+    });
 
     group('loadFeaturedShops', () {
       test('populates featuredShops on success', () async {
