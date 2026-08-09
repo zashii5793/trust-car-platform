@@ -57,3 +57,22 @@ npm run seed-personas:emulator    # エミュレータを起動→投入→終�
 
 > ⚠️ `--emulator` を付けずに実行すると Application Default Credentials で **本番** に
 > 書き込みます。本番投入は人手承認のうえ、`demo_*` を含むサンプルの扱いを整理してから行ってください。
+
+## 車両マスタ（メーカー/車種）のインポート
+
+`data/vehicle_masters.csv`（10メーカー / 88車種）を、`VehicleMasterService` が読む
+ネスト構造 `vehicle_masters/{makers|models}/items/{id}` へ投入します。
+
+```bash
+cd scripts
+npm run import-vehicle-master:dry-run     # 投入予定を確認
+npm run import-vehicle-master:emulator    # エミュレータへ投入
+```
+
+- グレードは CSV では共通グレード（`modelId` 無し）のため未投入。アプリの
+  `VehicleMasterData.getCommonGrades` フォールバックに委ねます（非回帰）。
+- **本番でクエリを成立させるには複合インデックスが必要**です。`firestore.indexes.json`
+  に追加済みなので `firebase deploy --only firestore:indexes`（人手）で反映してください。
+  未反映時はクエリが失敗し静的フォールバックに落ちます（アプリは動作継続）。
+- `vehicle_masters` は Firestore ルールで `write:false`（Admin 専用）。本番投入は
+  サービスアカウント（`GOOGLE_APPLICATION_CREDENTIALS`）+ 人手承認が前提です。
