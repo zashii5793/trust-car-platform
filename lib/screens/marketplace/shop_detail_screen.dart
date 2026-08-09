@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../core/di/service_locator.dart';
+import '../../core/maps_config.dart';
 import '../../models/shop.dart';
 import '../../models/shop_case_study.dart';
 import '../../providers/shop_provider.dart';
@@ -8,6 +10,7 @@ import '../../core/constants/spacing.dart';
 import '../../services/shop_service.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'inquiry_screen.dart';
+import 'shop_map_screen.dart';
 
 /// 工場詳細画面
 ///
@@ -599,7 +602,65 @@ class _AddressSection extends StatelessWidget {
             ),
           ],
         ),
+        // Map preview shown only when a Maps API key is configured and the shop
+        // has coordinates. Tapping opens the full map. Without a key this is
+        // omitted and only the address text is shown (no behavior change).
+        if (MapsConfig.isConfigured && shop.location != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _ShopLocationMap(shop: shop),
+        ],
       ],
+    );
+  }
+}
+
+/// Compact, non-interactive map preview of a single shop's location.
+/// Tapping opens [ShopMapScreen] for the full interactive map.
+class _ShopLocationMap extends StatelessWidget {
+  final Shop shop;
+
+  const _ShopLocationMap({required this.shop});
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = shop.location!;
+    final target = LatLng(loc.latitude, loc.longitude);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        height: 160,
+        child: Stack(
+          children: [
+            GoogleMap(
+              initialCameraPosition: CameraPosition(target: target, zoom: 15),
+              markers: {
+                Marker(markerId: MarkerId(shop.id), position: target),
+              },
+              liteModeEnabled: true, // Android: static image (cheaper).
+              zoomControlsEnabled: false,
+              myLocationButtonEnabled: false,
+              zoomGesturesEnabled: false,
+              scrollGesturesEnabled: false,
+              rotateGesturesEnabled: false,
+              tiltGesturesEnabled: false,
+            ),
+            // Tap overlay: opens the full interactive map for this shop.
+            Positioned.fill(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ShopMapScreen(shops: [shop]),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
