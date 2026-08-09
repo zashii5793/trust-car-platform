@@ -26,7 +26,7 @@ APIキー等のシークレットはコードに直書きせず、環境変数�
 | `FIREBASE_FUNCTIONS_URL` | AIチャットの Cloud Functions ベースURL | `lib/services/ai_chat_service.dart` |
 | `REVENUE_CAT_API_KEY_IOS` | RevenueCat 公開SDKキー（iOS） | `lib/services/revenue_cat_service.dart` |
 | `REVENUE_CAT_API_KEY_ANDROID` | RevenueCat 公開SDKキー（Android） | `lib/services/revenue_cat_service.dart` |
-| `MAPS_API_KEY` | Google Maps（予定・Issue #41 / #43） | 未実装 |
+| `MAPS_API_KEY` | Google Maps（近隣工場の地図・Issue #43） | `lib/core/maps_config.dart` |
 
 > ⚠️ 実キーは絶対にコミットしないでください。`.env` は `.gitignore` 済み、`.env.example` のみ追跡対象です。
 
@@ -76,3 +76,28 @@ npm run import-vehicle-master:emulator    # エミュレータへ投入
   未反映時はクエリが失敗し静的フォールバックに落ちます（アプリは動作継続）。
 - `vehicle_masters` は Firestore ルールで `write:false`（Admin 専用）。本番投入は
   サービスアカウント（`GOOGLE_APPLICATION_CREDENTIALS`）+ 人手承認が前提です。
+
+## Google Maps（近隣工場の地図・Issue #43）
+
+工場一覧の AppBar「地図で見る」から、近隣工場を地図＋ピンで表示します（提携=青 / 注目=橙 / その他=赤、現在地=緑）。
+**API キーは絶対にコミットしない**でください（`.env` / `gradle.properties` / Info.plist はいずれも gitignore 済み）。
+キー未設定時は地図導線を出さず、従来の距離順リストにフォールバックします。
+
+キーの供給（プラットフォーム別・すべて同じ発行キーを使用可）:
+
+| プラットフォーム | 供給方法 |
+|---|---|
+| Dart（導線の表示判定） | `--dart-define=MAPS_API_KEY=AIza...` |
+| Android | `-PMAPS_API_KEY=AIza...`（または `android/gradle.properties` / 環境変数 `MAPS_API_KEY`）→ Manifest の `com.google.android.geo.API_KEY` に注入 |
+| iOS | `ios/Runner/Info.plist` に `MapsApiKey` を追加（`AppDelegate` が読む）。Xcode の Build Settings/xcconfig からの注入を推奨 |
+| Web | `web/index.html` の Maps JS `<script>`（コメント参照）をビルド時にキー付きで有効化 |
+
+例（Android デバッグ実行）:
+
+```bash
+flutter run \
+  --dart-define=MAPS_API_KEY=AIza... \
+  -PMAPS_API_KEY=AIza...
+```
+
+> 前提: Google Cloud で Maps SDK (Android/iOS) / Maps JavaScript API を有効化し、キー制限（パッケージ名+SHA-1 / Bundle ID / HTTPリファラ）と予算アラートを設定してください（#117 P2-17）。

@@ -33,6 +33,19 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <!--
+    Google Maps (Issue #43) — Web.
+    google_maps_flutter_web needs the Maps JavaScript API loaded before the map
+    renders. The key must be a literal here (a static file cannot read
+    --dart-define), so DO NOT commit a real key. At web build/deploy time,
+    inject the script below with your key (e.g. sed-replace a placeholder), then
+    also pass --dart-define=MAPS_API_KEY=... so the in-app map entry appears:
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_MAPS_API_KEY"></script>
+
+    Without it the app still works; the map entry point is hidden and the
+    distance-sorted list is used instead.
+  -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

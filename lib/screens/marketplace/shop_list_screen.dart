@@ -6,7 +6,9 @@ import '../../providers/shop_provider.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/constants/colors.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../../core/maps_config.dart';
 import 'shop_detail_screen.dart';
+import 'shop_map_screen.dart';
 import '../shop/shop_comparison_screen.dart';
 
 /// BtoBマーケットプレイス 工場一覧画面
@@ -136,6 +138,26 @@ class _ShopListScreenState extends State<ShopListScreen> {
                           ? '問い合わせ先の工場を選択'
                           : 'マーケットプレイス'),
                   actions: [
+                    // Map view of nearby shops with partner pins (Issue #43).
+                    // Only shown when a Maps API key is configured at build time;
+                    // otherwise the distance-sorted list is the sole view.
+                    if (MapsConfig.isConfigured &&
+                        !widget.selectMode &&
+                        !widget.compareMode)
+                      IconButton(
+                        key: const Key('shop_map_button'),
+                        icon: const Icon(Icons.map_outlined),
+                        tooltip: '地図で見る',
+                        onPressed: provider.shops.isEmpty
+                            ? null
+                            : () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        ShopMapScreen(shops: provider.shops),
+                                  ),
+                                ),
+                      ),
                     IconButton(
                       key: const Key('sort_by_distance_button'),
                       icon: _isLocating
