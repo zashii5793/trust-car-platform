@@ -122,8 +122,26 @@ void main() {
   });
 
   // ==========================================================================
+  // Group 3-0: グレードのフォールバック廃止（車種と噛み合わない候補を出さない）
+  // ==========================================================================
+  group('getGradesForModel のフォールバック', () {
+    test('カタログにグレードが無い車種では空を返す', () async {
+      // 以前は全車種共通の S / G / X / Z へフォールバックしており、
+      // ホンダ・シビックにトヨタ系のグレード名が出ていた。
+      // 間違った候補を出すより、出さずに自由入力へ委ねる。
+      final service = VehicleMasterService();
+      final result = await service.getGradesForModel('model_not_in_catalog');
+
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull, isEmpty);
+    });
+  });
+
+  // ==========================================================================
   // Group 3: VehicleMasterData.getCommonGrades
   // ==========================================================================
+  // ⚠️ この関数はグレード候補の提示には使われなくなった（上のグループ参照）。
+  // 関数自体の振る舞いを固定するテストとして残す。
   group('VehicleMasterData.getCommonGrades', () {
     test('共通グレードが存在する', () {
       final grades = VehicleMasterData.getCommonGrades('model-xyz');
