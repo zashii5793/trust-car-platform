@@ -19,8 +19,9 @@ import '../widgets/common/loading_indicator.dart';
 import '../widgets/vehicle/vehicle_selector_fields.dart';
 import '../core/utils/thousands_separator_input_formatter.dart';
 import '../core/utils/license_plate.dart';
-import '../core/constants/vehicle_colors.dart';
+import '../widgets/vehicle/color_picker_sheet.dart';
 import '../widgets/vehicle/equipment_section.dart';
+import '../widgets/vehicle/year_picker_sheet.dart';
 import 'package:uuid/uuid.dart';
 import 'document_scanner_screen.dart';
 import 'vehicle_certificate_result_screen.dart';
@@ -418,52 +419,28 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     );
   }
 
-  /// 車体色の候補シート。選んでも手入力欄に入るだけなので、
-  /// 選択後に自由に書き換えられる。
-  void _showColorPicker() {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Text(
-                  '車体色を選ぶ',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              const Text(
-                '一覧に無い色はそのまま入力欄に書けます',
-                style: TextStyle(fontSize: 12),
-              ),
-              AppSpacing.verticalSm,
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.sm,
-                    children: [
-                      for (final color in kCommonVehicleColors)
-                        ActionChip(
-                          label: Text(color),
-                          onPressed: () {
-                            _colorController.text = color;
-                            Navigator.pop(sheetContext);
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+  /// 年式の選択シート。有限に列挙できる値なので自由入力は無し。
+  /// OCR は _yearController.text へ直接書き込むため controller は残す。
+  Future<void> _pickYear() async {
+    final year = await showYearPickerSheet(
+      context,
+      selected: int.tryParse(_yearController.text),
     );
+    if (year != null) {
+      _yearController.text = year.toString();
+    }
+  }
+
+  /// 車体色の選択シート。候補を先に出し、無ければシート内でそのまま
+  /// 手入力できる（メーカー固有色は網羅できないため）。
+  Future<void> _pickColor() async {
+    final color = await showColorPickerSheet(
+      context,
+      current: _colorController.text.isEmpty ? null : _colorController.text,
+    );
+    if (color != null) {
+      setState(() => _colorController.text = color);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -822,11 +799,16 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             Row(
               children: [
                 Expanded(
-                  child: AppTextField.number(
+                  // 選択式（タップでシート）。controller は OCR 自動入力が
+                  // 書き込むため残す。
+                  child: AppTextField(
                     controller: _yearController,
                     labelText: '年式 *',
                     hintText: '例: 2023',
+                    readOnly: true,
+                    onTap: _pickYear,
                     prefixIcon: const Icon(Icons.calendar_today),
+                    suffixIcon: const Icon(Icons.arrow_drop_down),
                     validator: (value) {
                       if (value == null || value.isEmpty) return '年式を入力';
                       final year = int.tryParse(value);
@@ -1033,19 +1015,19 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           Row(
             children: [
               Expanded(
-                // 候補から選べるが、一覧に無い色は手入力できる。
-                // 実車の色はメーカー固有名が無数にあり網羅できないため、
-                // メーカー・車種・グレードと同じく候補は入力補助に留める。
+                // タップで候補シートを開く。一覧に無い色はシート下部で
+                // そのまま手入力できる（メーカー固有色は網羅できないため、
+                // メーカー・車種・グレードと同じく候補は入力補助に留める）。
                 child: AppTextField(
                   controller: _colorController,
                   labelText: '車体色',
                   hintText: '例: パールホワイト',
+                  readOnly: true,
+                  onTap: _pickColor,
                   prefixIcon: const Icon(Icons.palette),
-                  suffixIcon: IconButton(
-                    key: const Key('color_picker_button'),
-                    icon: const Icon(Icons.arrow_drop_down),
-                    tooltip: '候補から選ぶ',
-                    onPressed: _showColorPicker,
+                  suffixIcon: const Icon(
+                    Icons.arrow_drop_down,
+                    key: Key('color_picker_button'),
                   ),
                 ),
               ),

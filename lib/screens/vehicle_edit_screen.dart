@@ -13,7 +13,9 @@ import '../core/constants/spacing.dart';
 import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
+import '../widgets/vehicle/color_picker_sheet.dart';
 import '../widgets/vehicle/vehicle_selector_fields.dart';
+import '../widgets/vehicle/year_picker_sheet.dart';
 import '../services/vehicle_master_service.dart';
 import '../services/fleet_service.dart';
 import '../services/vehicle_spec_service.dart';
@@ -464,6 +466,30 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     }
   }
 
+  /// 年式の選択シート。有限に列挙できる値なので自由入力は無し。
+  /// controller への代入で変更検知リスナー（_onFieldChanged）が発火する。
+  Future<void> _pickYear() async {
+    final year = await showYearPickerSheet(
+      context,
+      selected: int.tryParse(_yearController.text),
+    );
+    if (year != null) {
+      _yearController.text = year.toString();
+    }
+  }
+
+  /// 車体色の選択シート。候補を先に出し、無ければシート内でそのまま
+  /// 手入力できる（メーカー固有色は網羅できないため）。
+  Future<void> _pickColor() async {
+    final color = await showColorPickerSheet(
+      context,
+      current: _colorController.text.isEmpty ? null : _colorController.text,
+    );
+    if (color != null) {
+      _colorController.text = color;
+    }
+  }
+
   Future<void> _updateVehicle() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -872,11 +898,16 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: AppTextField.number(
+                        // 選択式（タップでシート）。controller は既存値の
+                        // 表示と保存パスで使うため残す。
+                        child: AppTextField(
                           controller: _yearController,
                           labelText: '年式 *',
                           hintText: '例: 2023',
+                          readOnly: true,
+                          onTap: _pickYear,
                           prefixIcon: const Icon(Icons.calendar_today),
+                          suffixIcon: const Icon(Icons.arrow_drop_down),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return '年式を入力';
@@ -1175,11 +1206,16 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                     Row(
                       children: [
                         Expanded(
+                          // タップで候補シートを開く。一覧に無い色はシート
+                          // 下部でそのまま手入力できる。
                           child: AppTextField(
                             controller: _colorController,
                             labelText: '車体色',
-                            hintText: '例: ホワイトパールクリスタルシャイン',
+                            hintText: '例: パールホワイト',
+                            readOnly: true,
+                            onTap: _pickColor,
                             prefixIcon: const Icon(Icons.palette),
+                            suffixIcon: const Icon(Icons.arrow_drop_down),
                           ),
                         ),
                         AppSpacing.horizontalSm,

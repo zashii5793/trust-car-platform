@@ -15,7 +15,8 @@
 //    10.  Tapping '次へ' with empty fields shows '走行距離を入力してください'
 //    11.  Title unchanged (step still 0) when validation fails
 //    12.  Mileage input: negative sign is filtered (digits only)
-//    13.  Year validation: year < 1900 → error
+//    13.  Year field: tap opens picker sheet, selecting a year fills field
+//         (year is readOnly — free text input is no longer possible)
 //   Step 2 — 車検・保険:
 //    14.  AppBar title '車検・保険の情報' after navigating
 //    15.  '戻る' button appears
@@ -32,7 +33,7 @@
 //   Back navigation:
 //    25.  Back arrow in AppBar (step > 0) goes to previous wizard step
 //   Discard dialog:
-//    26.  Entering year makes state dirty → dialog appears on back press
+//    26.  Entering mileage makes state dirty → dialog appears on back press
 //    27.  '続ける' dismisses dialog, wizard stays
 //    28.  '中断する' pops the screen
 //   Registration:
@@ -46,6 +47,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:trust_car_platform/screens/vehicle_registration_screen.dart';
+import 'package:trust_car_platform/widgets/vehicle/year_picker_sheet.dart';
 import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/services/vehicle_master_service.dart';
@@ -283,8 +285,16 @@ Future<void> _fillStep1AndAdvance(WidgetTester tester) async {
   await tester.tap(find.text('S').first);
   await tester.pumpAndSettle(const Duration(seconds: 10));
 
-  // Enter year and mileage (TextFormField[0]=year, TextFormField[1]=mileage)
-  await tester.enterText(find.byType(TextFormField).at(0), '2023');
+  // Select year via the picker sheet (the year field is readOnly — enterText
+  // does not work on it). The current year is always near the top of the
+  // sheet (list starts at 今年+1), so no scrolling is needed.
+  await tester.ensureVisible(find.text('年式 *'));
+  await tester.tap(find.text('年式 *'));
+  await tester.pumpAndSettle(const Duration(seconds: 10));
+  await tester.tap(find.text(formatYearWithWareki(DateTime.now().year)));
+  await tester.pumpAndSettle(const Duration(seconds: 10));
+
+  // Enter mileage (TextFormField[0]=year(readOnly), TextFormField[1]=mileage)
   await tester.enterText(find.byType(TextFormField).at(1), '15000');
   await tester.pump();
 
@@ -467,15 +477,32 @@ void main() {
       expect(find.text('正しい走行距離を入力してください'), findsNothing);
     });
 
-    testWidgets('13. Year < 1900 shows error', (tester) async {
+    testWidgets('13. Year field tap opens picker sheet and fills selection',
+        (tester) async {
+      // The year field is readOnly (picker-only), so the old
+      // 「enterText '1800' → 正しい年式」test can no longer run — free text
+      // cannot reach the field at all. Instead verify the picker flow.
+      await tester.binding.setSurfaceSize(const Size(800, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.enterText(find.byType(TextFormField).at(0), '1800');
-      await tester.tap(find.text('次へ'));
+      await tester.ensureVisible(find.text('年式 *'));
+      await tester.tap(find.text('年式 *'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('正しい年式'), findsOneWidget);
+      // Sheet opened with its title and 和暦-annotated entries
+      expect(find.text('年式を選択'), findsOneWidget);
+
+      final year = DateTime.now().year;
+      await tester.tap(find.text(formatYearWithWareki(year)));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // Sheet closed, field filled with the western year only
+      expect(find.text('年式を選択'), findsNothing);
+      final yearField =
+          tester.widget<TextFormField>(find.byType(TextFormField).at(0));
+      expect(yearField.controller?.text, '$year');
     });
   });
 
@@ -582,13 +609,14 @@ void main() {
 
   // =========================================================================
   group('VehicleRegistrationScreen — Discard dialog', () {
-    testWidgets('26. Entering year makes state dirty → back triggers dialog',
+    testWidgets('26. Entering mileage makes state dirty → back triggers dialog',
         (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      // Make dirty by entering year
-      await tester.enterText(find.byType(TextFormField).at(0), '2023');
+      // Make dirty by entering mileage (year is readOnly — enterText no
+      // longer reaches it, so the mileage field is the dirty trigger here)
+      await tester.enterText(find.byType(TextFormField).at(1), '15000');
       await tester.pump();
 
       // Trigger system back
@@ -604,7 +632,7 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      await tester.enterText(find.byType(TextFormField).at(0), '2023');
+      await tester.enterText(find.byType(TextFormField).at(1), '15000');
       await tester.pump();
 
       final NavigatorState navigator = tester.state(find.byType(Navigator));
@@ -646,8 +674,8 @@ void main() {
       navigator.pushNamed('/register');
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      // Make dirty
-      await tester.enterText(find.byType(TextFormField).at(0), '2023');
+      // Make dirty (mileage — the year field is readOnly)
+      await tester.enterText(find.byType(TextFormField).at(1), '15000');
       await tester.pump();
 
       // System back
