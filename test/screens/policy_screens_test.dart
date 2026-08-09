@@ -74,8 +74,31 @@ void main() {
       expect(find.textContaining('アカウント管理'), findsAtLeastNWidgets(1));
       expect(find.textContaining('禁止事項'), findsAtLeastNWidgets(1));
       expect(find.textContaining('投稿コンテンツ'), findsAtLeastNWidgets(1));
-      expect(find.textContaining('免責事項'), findsAtLeastNWidgets(1));
+      expect(find.textContaining('保証の否認および免責'), findsAtLeastNWidgets(1));
       expect(find.textContaining('準拠法'), findsAtLeastNWidgets(1));
+    });
+
+    testWidgets('法務レビューで追加した条項が含まれる', (tester) async {
+      // 未成年者・有料プラン・位置情報・AI は、実装済みの機能に対して
+      // 条文が無い（または実態と食い違う）状態だったため追加・修正した。
+      // 条番号の振り直しで消えることがないよう固定する。
+      await tester.pumpWidget(_wrapWithMaterial(const TermsOfServiceScreen()));
+      await tester.pump();
+
+      expect(find.textContaining('未成年者の利用'), findsAtLeastNWidgets(1));
+      expect(find.textContaining('有料プラン・自動更新・解約'), findsAtLeastNWidgets(1));
+      expect(find.textContaining('位置情報の利用'), findsAtLeastNWidgets(1));
+      expect(find.textContaining('AIによる提案・生成内容'), findsAtLeastNWidgets(1));
+    });
+
+    testWidgets('全部免責の文言が残っていない', (tester) async {
+      // 「一切の責任を負いません」は消費者契約法8条1項により無効となる
+      // 可能性が高い。復活させないための番人。
+      await tester.pumpWidget(_wrapWithMaterial(const TermsOfServiceScreen()));
+      await tester.pump();
+
+      expect(find.textContaining('一切の責任を負いません'), findsNothing);
+      expect(find.textContaining('故意または重大な過失'), findsAtLeastNWidgets(1));
     });
 
     testWidgets('is scrollable', (tester) async {
