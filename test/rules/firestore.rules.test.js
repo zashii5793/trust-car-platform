@@ -209,15 +209,31 @@ describe('accessory_showcases/{id}/comments — likeCount update（いいね）'
   });
 });
 
-describe('accessory_showcases/{id}/comments — reportCount update（通報集計）', () => {
-  test('誰でも reportCount を +1 できる（通報）', async () => {
+describe('accessory_showcases/{id}/comments — モデレーションフィールドはクライアント書込不可', () => {
+  // 通報集計は Cloud Function（onCommentReportCreated, サービスアカウント）が
+  // reportCount / isHidden を書く。クライアントからの直接書き換えは全て拒否。
+  test('クライアントは reportCount を書き換えられない（+1 も不可）', async () => {
     await seedComment({ userId: OWNER_UID });
-    await assertSucceeds(
+    await assertFails(
       updateDoc(doc(dbFor(OTHER_UID), commentPath), { reportCount: 1 }),
     );
   });
 
-  test('reportCount を -1（減算）はできない', async () => {
+  test('投稿者本人でも reportCount を書き換えられない', async () => {
+    await seedComment({ userId: OWNER_UID });
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER_UID), commentPath), { reportCount: 1 }),
+    );
+  });
+
+  test('クライアントは isHidden を立てられない', async () => {
+    await seedComment({ userId: OWNER_UID });
+    await assertFails(
+      updateDoc(doc(dbFor(OTHER_UID), commentPath), { isHidden: true }),
+    );
+  });
+
+  test('投稿者は自分のコメントの isHidden を解除できない（モデレーション回避不可）', async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), commentPath), {
         showcaseId: SHOWCASE_ID,
@@ -225,18 +241,22 @@ describe('accessory_showcases/{id}/comments — reportCount update（通報集�
         content: 'x',
         isEdited: false,
         likeCount: 0,
-        reportCount: 2,
+        reportCount: 3,
+        isHidden: true,
       });
     });
     await assertFails(
-      updateDoc(doc(dbFor(OTHER_UID), commentPath), { reportCount: 1 }),
+      updateDoc(doc(dbFor(OWNER_UID), commentPath), { isHidden: false }),
     );
   });
 
-  test('+1 を超える reportCount 変更は拒否される', async () => {
+  test('投稿者が編集に紛れて reportCount を変えると拒否される', async () => {
     await seedComment({ userId: OWNER_UID });
     await assertFails(
-      updateDoc(doc(dbFor(OTHER_UID), commentPath), { reportCount: 5 }),
+      updateDoc(doc(dbFor(OWNER_UID), commentPath), {
+        content: '編集後',
+        reportCount: 3,
+      }),
     );
   });
 });

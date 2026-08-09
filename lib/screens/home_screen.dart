@@ -24,7 +24,9 @@ import 'profile/settings_screen.dart';
 import 'settings/privacy_policy_screen.dart';
 import 'settings/terms_of_service_screen.dart';
 import 'notifications/notification_list_screen.dart';
+import 'notifications/social_notification_screen.dart';
 import '../core/di/service_locator.dart';
+import '../services/follow_service.dart';
 import '../services/mileage_notification_service.dart';
 import 'marketplace/marketplace_screen.dart';
 import 'marketplace/shop_list_screen.dart';
@@ -158,6 +160,36 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       );
+    }
+
+    // SNS（みんなの投稿）タブにソーシャル通知ベルを表示。未読数をバッジ表示し、
+    // タップでソーシャル通知一覧（いいね・コメント）へ遷移する。
+    if (_currentIndex == 2) {
+      final uid = context.read<AuthProvider>().firebaseUser?.uid ?? '';
+      if (uid.isNotEmpty) {
+        actions.add(
+          StreamBuilder<int>(
+            stream: sl.get<FollowService>().watchUnreadNotificationCount(uid),
+            builder: (context, snapshot) {
+              final count = snapshot.data ?? 0;
+              return IconButton(
+                tooltip: '通知',
+                icon: Badge(
+                  isLabelVisible: count > 0,
+                  label: Text(count > 99 ? '99+' : '$count'),
+                  child: const Icon(Icons.notifications_outlined),
+                ),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => SocialNotificationScreen(userId: uid),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      }
     }
 
     // 通知タブのみ「すべて既読」ボタンを表示
