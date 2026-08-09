@@ -186,6 +186,7 @@ class _DriveLogDetailScreenState extends State<DriveLogDetailScreen> {
             )
           else
             TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
               key: const Key('drive_log_save_button'),
               onPressed: _save,
               child: const Text('保存'),
