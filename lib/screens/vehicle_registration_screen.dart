@@ -535,6 +535,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         year: int.tryParse(_yearController.text) ?? DateTime.now().year,
         grade: _selectedGrade?.name ?? '',
         mileage: int.tryParse(stripThousands(_mileageController.text)) ?? 0,
+        // いま入力した距離が「最新」。これを刻まないと、登録直後に
+        // 「走行距離を更新してください（最終更新: 未設定）」が出る。
+        mileageUpdatedAt: DateTime.now(),
         imageUrl: imageUrl,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),

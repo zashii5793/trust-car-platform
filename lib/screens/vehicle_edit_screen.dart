@@ -524,6 +524,12 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         year: int.parse(_yearController.text),
         grade: _selectedGrade?.name ?? widget.vehicle.grade,
         mileage: int.parse(_mileageController.text),
+        // 距離を書き換えたときだけ「最終更新」を刻む。触っていないのに
+        // 更新日時だけ進むと、リマインダーの根拠が嘘になる。
+        mileageUpdatedAt:
+            _mileageController.text != widget.vehicle.mileage.toString()
+                ? DateTime.now()
+                : widget.vehicle.mileageUpdatedAt,
         imageUrl: imageUrl,
         createdAt: widget.vehicle.createdAt,
         updatedAt: DateTime.now(),
