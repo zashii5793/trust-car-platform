@@ -42,14 +42,12 @@ class _ShopMapScreenState extends State<ShopMapScreen> {
     }
     final located = _locatedShops;
     if (located.isEmpty) return _fallback;
-    final avgLat = located
-            .map((s) => s.location!.latitude)
-            .reduce((a, b) => a + b) /
-        located.length;
-    final avgLng = located
-            .map((s) => s.location!.longitude)
-            .reduce((a, b) => a + b) /
-        located.length;
+    final avgLat =
+        located.map((s) => s.location!.latitude).reduce((a, b) => a + b) /
+            located.length;
+    final avgLng =
+        located.map((s) => s.location!.longitude).reduce((a, b) => a + b) /
+            located.length;
     return LatLng(avgLat, avgLng);
   }
 
