@@ -176,6 +176,11 @@ class _AccessoryShowcaseScreenState extends State<AccessoryShowcaseScreen>
       appBar: AppBar(
         title: const Text('みんなのアクセサリー'),
         bottom: TabBar(
+          // AppBar は青背景・白文字。TabBar に色を指定しないと
+          // Material 3 の既定（暗色）になり青地に黒文字で読めない。
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
           controller: _tabController,
           isScrollable: true,
           tabs: _categories.map((cat) {

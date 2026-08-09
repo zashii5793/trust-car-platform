@@ -36,8 +36,27 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      # dart format はファイルを書き換えるので、失敗時の git diff が
+      # 「期待される整形結果」そのものになる。これを出さないと、
+      # ローカルに Dart が無い環境からは何が違うのか分からず、
+      # 推測で直しては CI を回す消耗戦になる。
       - name: Check formatting
-        run: dart format --set-exit-if-changed lib test
+        run: |
+          set +e
+          dart format --set-exit-if-changed lib test
+          STATUS=$?
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::group::dart format が期待する差分"
+            git --no-pager diff -- lib test
+            echo "::endgroup::"
+            {
+              echo "## ❌ dart format の差分"
+              echo '```diff'
+              git --no-pager diff -- lib test
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $STATUS
 
       - name: Analyze code
         run: flutter analyze --fatal-infos
