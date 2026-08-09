@@ -5,6 +5,53 @@
 
 ---
 
+## ⚠️ STEP 0: いまはまだログインできません（最初にこれだけ）
+
+Web版（https://zashii5793.github.io/trust-car-platform/）は**本番 Firebase に
+接続**しています。本番にはまだテストデータもテストアカウントも投入されて
+いないため、下のログイン一覧を入力しても**必ず失敗します**。
+
+投入には Firebase の管理者権限（サービスアカウントキー）が必要で、
+AIセッションからは実行できません。**以下を一度だけ実行してください**（5分）。
+
+### 0-1. サービスアカウントキーを取得
+
+1. https://console.firebase.google.com → プロジェクト **trust-car-platform**
+2. ⚙️（プロジェクトの設定）→ **サービス アカウント** タブ
+3. **新しい秘密鍵の生成** → JSONがダウンロードされる
+4. そのファイルを安全な場所に置く（**リポジトリ内に置かないこと**）
+
+### 0-2. 投入コマンド（コピペで順番に）
+
+```bash
+cd trust-car-platform/scripts
+npm install                                       # 初回のみ
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/ダウンロードした鍵.json
+
+node seed_personas.js --with-auth   # ペルソナ9名（Authユーザー含む）★ログインはこれで可能になる
+node seed_fleet_year.js             # 法人100台+1年分（1,043件）
+node seed_full_experience.js        # 投稿・コメント・出品・工場ほか（153件）
+node seed_shops.js                  # 整備工場の基本データ
+node seed_safety_tips.js            # 安全運転情報
+node seed_community_trends.js       # コミュニティトレンド
+```
+
+`--with-auth` が Auth ユーザー9名（persona.a〜i / password123）を本番に
+作成します。これを付けないとログインできません。
+
+### 0-3. 確認が終わったら（重要）
+
+パスワードが共通の password123 のため、公開Webから誰でもログインできる
+状態になります。**確認が終わったら必ず削除してください**:
+
+```bash
+node seed_personas.js --delete-auth          # Authユーザー9名を削除
+node seed_full_experience.js --delete        # フル体験データを削除
+node seed_fleet_year.js --delete             # 法人100台+履歴を削除
+```
+
+---
+
 ## 1. ログイン一覧（ペルソナ A〜I）
 
 パスワードは全員共通で **`password123`** です。
@@ -21,11 +68,10 @@
 | H | persona.h@example.com | 旧車オーナー | レストア投稿・イベント告知、ビート用パーツ出品、旧車ミーティングのドライブログ |
 | I | persona.i@example.com | 中古車購入検討者 | 車両未保有の状態、購入相談の質問投稿、購入問い合わせ |
 
-> ⚠️ **Auth ユーザーが作成されるのは emulator モードのみ**です
-> （`seed_personas.js --emulator` が Auth エミュレータに9名を作成します）。
-> 本番環境にデータを流す場合は、Firebase コンソールで上記メールの Auth ユーザーを
-> **別途手動作成し、uid をシードデータの uid（`user-a` / `president-uid` / `user-c` /
-> `persona-d-user` 〜 `persona-i-user`）に合わせる**必要があります。
+> Auth ユーザーの作成: emulator では `--emulator` で自動作成、
+> **本番では `--with-auth` を付けたときのみ**作成されます（STEP 0 参照）。
+> Firebase コンソールからの手動作成では uid を指定できないため、
+> シードデータと紐づきません。必ずスクリプト経由で作成してください。
 
 ---
 
