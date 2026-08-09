@@ -41,6 +41,7 @@ import 'screens/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/onboarding_screen.dart';
 import 'core/theme/app_theme.dart';
+import 'core/app_scroll_behavior.dart';
 import 'providers/ai_chat_provider.dart';
 import 'providers/theme_provider.dart';
 import 'services/ai_chat_service.dart';
@@ -211,6 +212,8 @@ class MyApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeProvider.themeMode,
+          // Enable drag-to-scroll with mouse/trackpad on web & desktop.
+          scrollBehavior: const AppScrollBehavior(),
           home: const AuthWrapper(),
           debugShowCheckedModeBanner: false,
         ),
