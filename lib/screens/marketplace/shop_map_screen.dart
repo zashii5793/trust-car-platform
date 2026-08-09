@@ -91,7 +91,7 @@ class _ShopMapScreenState extends State<ShopMapScreen> {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => ShopDetailScreen(shop: shop),
+                builder: (_) => ShopDetailScreen(shopId: shop.id),
               ),
             ),
           ),
