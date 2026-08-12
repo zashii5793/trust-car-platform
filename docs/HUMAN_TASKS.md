@@ -1,9 +1,35 @@
 # 人間が実施すべきタスク一覧
 
-**最終更新**: 2026-06-30  
+**最終更新**: 2026-08-12  
 **前提**: AIが実装・テスト・コードプッシュまで完了済み。以下は **AIでは代替できない** 操作のみ。
 **出荷目標**: 2026年8月ソフトローンチ（逆算計画は `docs/LAUNCH_PLAN.md`）。
 **進捗メモ**: Apple Developer Program は**申請済み（承認待ち）** — 承認後に下記 P1-5（iOS証明書）着手可。
+
+---
+
+## 🗓 今週末の実施プラン（2026-08-15/16 想定・上から順に）
+
+> 各タスクの詳細手順は本文の該当番号を参照。**A と B は同じ作業セッションで連続実施**すること
+> （新ルールはコメント通報の集計をサーバー専用に切り替えるため、Functions が未デプロイだと
+> 通報カウントが恒久に 0 のままになる）。
+
+| 順 | タスク | 目安 | 詳細 |
+|---|--------|------|------|
+| **A** | Firestore ルール＋インデックスのデプロイ | 15分 | P0-1 |
+| **B** | Cloud Functions のデプロイ（最低 `onCommentReportCreated`） | 30分 | P0-1.5 |
+| **C** | シードデータ投入（安全運転情報・トレンド・工場・**車両マスタCSV**） | 40分 | P1-10/11/12/13 |
+| **D** | Firebase Console 設定（Auth 有効化・Remote Config・バックアップ） | 45分 | P0-2 / P2 / P1-9 |
+| **E** | APIキー整備（**Google Maps**・RevenueCat・`.env` 整備） | 1〜2時間 | P2-17 / P1-7 |
+
+**準備物**: Firebase プロジェクトオーナー権限の Google アカウント / `firebase login` 済みの端末 /
+Firebase サービスアカウント JSON（Console → プロジェクト設定 → サービスアカウント → 新しい秘密鍵）。
+
+```bash
+# 全体の事前準備（1回だけ）
+git checkout main && git pull
+firebase login
+export GOOGLE_APPLICATION_CREDENTIALS=path/to/serviceAccount.json  # C で使用
+```
 
 ---
 
@@ -22,6 +48,14 @@
 本番反映しないと全ユーザーの書き込みがルールで弾かれる。また、`safety_tips`コレクションの複合インデックス（`isActive + publishedAt`, `isActive + category + publishedAt`）も追加済み。
 - 事業性評価セッション（2026-06-19）: `inquiries` の複合インデックス `shopId + createdAt`（ASC）を追加済み。
   **未デプロイだと工場ダッシュボードの月次レポート（ROI可視化 #39）と月次件数チェックがクエリエラーになる**。
+- **2026-07〜08 追加分（未デプロイ）**:
+  - コメントモデレーション強化（#122）: コメントの `reportCount`/`isHidden` を**サーバー専用**に変更
+    （クライアントの `reportCount +1` 許可を削除、著者編集は `content/isEdited/updatedAt` のみ）。
+    **⚠️ Cloud Functions `onCommentReportCreated`（下記 P0-1.5）とセットで反映すること**。
+  - `vehicle_sharing_permissions`（#76）: ルール＋複合インデックス×2
+  - `account_deletions`（#100 App Store審査対応・アカウント削除）: ルール
+  - `shop_inquiry_demands`（#78 需要蓄積）: ルール＋複合インデックス
+  - `items`（コレクショングループ）: 複合インデックス×2
 
 > ✅ **デプロイ前検証**: `cd test/rules && npm install && npm test` で Firestore/Storage の
 > ルールを Emulator 検証できる（CI の "Storage & Firestore Rules Tests" でも自動実行）。
@@ -50,6 +84,51 @@ firebase deploy --only firestore:rules,firestore:indexes
 
 ---
 
+### 1.5. Cloud Functions のデプロイ【新規・P0-1とセット】
+
+**なぜ必要**: `functions/` に4つの関数が実装済みだが**一度もデプロイされていない**。
+特に `onCommentReportCreated`（#122）は、コメント通報のサーバー集計・自動非表示の本体。
+P0-1 の新ルールはクライアントからの `reportCount` 書込を禁止するため、
+**この関数が無いと通報カウントが恒久に 0 のまま**（自動非表示が機能しない）。
+
+| 関数 | 用途 | 必要なシークレット |
+|------|------|-------------------|
+| `onCommentReportCreated` | 通報のサーバー集計・自動非表示（#122） | **不要** ✅ |
+| `onRevenueCatWebhook` | サブスク課金状態の同期 | `REVENUECAT_WEBHOOK_SECRET` |
+| `askCarAi` | AIチャット（APIキーをサーバー側に隔離） | `ANTHROPIC_API_KEY` |
+| `onNewsletterSend` | ニュースレター配信 | `SENDGRID_API_KEY`＋`npm i @sendgrid/mail` |
+
+#### 今週末の最小手順（シークレット不要の1本だけ先行デプロイ）
+
+```bash
+cd functions
+npm install
+npm test            # jest 53件（エミュレータ不要）が緑であること
+cd ..
+firebase deploy --only functions:onCommentReportCreated
+```
+
+#### 全関数デプロイ（シークレットが揃ってから）
+
+```bash
+firebase functions:secrets:set ANTHROPIC_API_KEY
+firebase functions:secrets:set REVENUECAT_WEBHOOK_SECRET
+firebase functions:secrets:set SENDGRID_API_KEY
+cd functions && npm install @sendgrid/mail && cd ..
+firebase deploy --only functions
+```
+
+**確認方法**:
+1. Firebase Console → Functions に `onCommentReportCreated`（asia-northeast1）が表示される
+2. 動作確認: アプリ（またはConsole）でコメントを3ユーザーから通報 →
+   コメントドキュメントに `reportCount: 3, isHidden: true` が付き、一覧から消える
+3. `firebase functions:log --only onCommentReportCreated` でエラーが無いこと
+
+**所要時間**: 30分（初回。IAM API 有効化の待ちが入ることがある）  
+**前提条件**: `firebase login` 済み・オーナー権限・Blaze プラン（Cloud Functions は従量課金プラン必須）
+
+---
+
 ### 2. Firebase Authentication の本番有効化
 
 **なぜ必要**: メールリンク認証・Google Sign-In を本番で有効にするにはFirebase Consoleの操作が必要。
@@ -59,6 +138,8 @@ firebase deploy --only firestore:rules,firestore:indexes
 2. 以下を「有効」に設定:
    - **メール / パスワード**: 有効 ✅
    - **Google**: 有効 → SHA-1 フィンガープリントを追加（Androidの場合）
+   - **Apple**: 有効（#100 で Sign in with Apple 実装済み。Apple Developer 承認後に
+     Services ID / キーを設定 — P1-5 とセットで実施）
 3. 承認済みドメインに本番ドメインを追加（Webの場合）
 
 **所要時間**: 15分  
@@ -177,8 +258,13 @@ storeFile=../../release.keystore
 1. [RevenueCat Dashboard](https://app.revenuecat.com/) でアカウント作成
 2. アプリを登録（iOS・Android）
 3. Public APIキーをコピー
-4. `.env` ファイルまたは GitHub Secrets に `REVENUE_CAT_API_KEY_IOS` / `REVENUE_CAT_API_KEY_ANDROID` として登録
+4. キーの注入（#118 で環境変数化済み・`.env.example` 参照）:
+   - ローカル開発: `cp .env.example .env` して `REVENUE_CAT_API_KEY_IOS` / `REVENUE_CAT_API_KEY_ANDROID` を記入
+   - CI/リリース: GitHub Secrets に登録し `--dart-define` で注入
 5. App Store Connect / Google Play Console でサブスクリプション商品を作成
+6. Webhook 連携: RevenueCat Dashboard → Webhooks に
+   `https://asia-northeast1-trust-car-platform.cloudfunctions.net/onRevenueCatWebhook` を登録し、
+   Authorization ヘッダに `REVENUECAT_WEBHOOK_SECRET`（P0-1.5 で設定した値）を指定
 
 **所要時間**: 2〜3時間（商品作成含む）  
 **前提条件**: App Store Connect / Google Play Console のアカウント
@@ -297,6 +383,30 @@ node scripts/seed_shops.js              # 本番登録
 
 ---
 
+### 13. 車両マスタCSVのインポート【新規 #124】
+
+**なぜ必要**: 車両登録画面のメーカー/車種/グレード候補は `vehicle_masters` コレクションを参照する。
+空のままだとカタログ選択が機能せず、全ユーザーが自由入力に落ちる。
+
+**インポータ実装済み**: `scripts/import_vehicle_master.js`（入力: `data/vehicle_masters.csv`）
+
+**手順**:
+```bash
+npm install firebase-admin   # 済みならスキップ
+node scripts/import_vehicle_master.js --dry-run    # 件数・階層の確認
+node scripts/import_vehicle_master.js --emulator   # Emulatorで動作確認（任意）
+
+export GOOGLE_APPLICATION_CREDENTIALS=path/to/serviceAccount.json
+node scripts/import_vehicle_master.js              # 本番投入
+```
+
+**確認方法**: アプリの車両登録画面でメーカー→車種→グレードのプルダウンが埋まること。
+
+**所要時間**: 10分  
+**前提条件**: Firebase サービスアカウントJSON（P1-10 と同じ）
+
+---
+
 ## P2 — ローンチ後でも可（バックログ）
 
 ### 12. App Store Connect でのアプリ審査申請
@@ -358,9 +468,13 @@ node scripts/seed_shops.js              # 本番登録
 
 ---
 
-### 17. Google Maps Platform APIキーの発行・設定（#41 近隣検索の地図表示の前提）
+### 17. Google Maps Platform APIキーの発行・設定（#43 地図表示は実装済み・キー待ち）
 
-**なぜ必要**: 近隣検索のGoogleMap連動（提携/非提携の網羅表示, Issue #41 / 評価書 §7.7）には Maps SDK のAPIキーとネイティブ設定が必須。コード実装の前提となる人手タスク。
+**なぜ必要**: 近隣工場の地図表示＋提携ピン（Issue #43）は **#125 で実装済み・マージ済み**。
+残るブロッカーはAPIキーのみ（**未設定だとアプリ側の地図導線は自動で非表示**になるフェイルセーフ実装）。
+キーの注入方法は `.env.example` と README「Google Maps」に記載:
+Dart は `--dart-define=MAPS_API_KEY=...`、Android は `AndroidManifest.xml` の
+`manifestPlaceholders`、iOS は `Info.plist`（MapsApiKey）、Web は `web/index.html`。
 
 **手順**:
 1. Google Cloud Console → 該当プロジェクト → APIとサービス → 認証情報 → APIキー発行
@@ -388,19 +502,25 @@ node scripts/seed_shops.js              # 本番登録
 
 ## チェックリスト（ローンチ前の確認）
 
-- [ ] P0-1: Firestore ルールデプロイ
-- [ ] P0-2: Firebase Authentication 有効化
+**今週末（2026-08-15/16）**:
+- [ ] A/P0-1: Firestore ルール＋インデックスデプロイ（#122 コメントモデレーション含む）
+- [ ] B/P0-1.5: Cloud Functions デプロイ（最低 `onCommentReportCreated`）
+- [ ] C/P1-10: SafetyTip 初期シードデータ登録（`node scripts/seed_safety_tips.js`）
+- [ ] C/P1-11: コミュニティトレンド初期シードデータ登録（`node scripts/seed_community_trends.js`）
+- [ ] C/P1-12: 整備工場シードデータ登録（`node scripts/seed_shops.js`）
+- [ ] C/P1-13: 車両マスタCSVインポート（`node scripts/import_vehicle_master.js`）
+- [ ] D/P0-2: Firebase Authentication 有効化（メール・Google／Apple は承認後）
+- [ ] D/P2: Remote Config `c2c_parts_marketplace` パラメータ作成
+- [ ] D/P1-9: Firestore バックアップ設定
+- [ ] E/P2-17: Google Maps Platform APIキー発行・設定（#125 実装済み・キー待ち）
+- [ ] E/P1-7: RevenueCat API キー設定（`.env` / GitHub Secrets）
+
+**以降（ローンチ前）**:
 - [ ] P0-3: google-services.json / GoogleService-Info.plist 配置
 - [ ] P1-4: FCM サーバーキー設定
-- [ ] P1-5: iOS App ID・証明書設定
+- [ ] P1-5: iOS App ID・証明書設定（Apple Developer 承認待ち）
 - [ ] P1-6: Android キーストア生成
-- [ ] P1-7: RevenueCat API キー設定
 - [ ] P1-8: 実機テスト（iOS・Android）
-- [ ] P1-9: Firestore バックアップ設定
-- [ ] P1-10: SafetyTip 初期シードデータ登録（`node scripts/seed_safety_tips.js`）
-- [ ] P1-11: コミュニティトレンド初期シードデータ登録（`node scripts/seed_community_trends.js`）
-- [ ] P0-1（再掲）: `inquiries: shopId + createdAt` 複合インデックスのデプロイ（#39 月次レポートの前提）
-- [ ] P2-17: Google Maps Platform APIキー発行・設定（#41 近隣検索の地図表示の前提）
 
 ---
 
