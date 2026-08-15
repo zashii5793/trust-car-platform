@@ -10,6 +10,7 @@ import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'drive_log_detail_screen.dart';
 import 'drive_recording_screen.dart';
+import 'manual_drive_log_screen.dart';
 
 /// ドライブログ一覧画面
 ///
@@ -74,11 +75,28 @@ class _DriveLogScreenState extends State<DriveLogScreen> {
         .then((_) => _load()); // refresh list after returning
   }
 
+  void _openManualEntry() {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute<bool>(
+            builder: (_) => const ManualDriveLogScreen(),
+          ),
+        )
+        .then((_) => _load()); // refresh list after returning
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ドライブログ'),
+        actions: [
+          IconButton(
+            tooltip: '手動で記録',
+            icon: const Icon(Icons.edit_note),
+            onPressed: _openManualEntry,
+          ),
+        ],
       ),
       floatingActionButton: Consumer<DriveRecordingProvider>(
         builder: (_, recordingProvider, __) => FloatingActionButton.extended(

@@ -35,6 +35,29 @@
     },
 
     // =========================================================
+    // vehicle_masters/{makers|models}/items（車両マスタ・import_vehicle_master.js で投入）
+    // =========================================================
+    // メーカー一覧: isActive + displayOrder（VehicleMasterService.getMakers）
+    {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "displayOrder", "order": "ASCENDING" }
+      ]
+    },
+    // 車種一覧: makerId + isActive + displayOrder（VehicleMasterService.getModelsForMaker）
+    {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "makerId", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "displayOrder", "order": "ASCENDING" }
+      ]
+    },
+
+    // =========================================================
     // shops
     // =========================================================
     // 全店舗: isActive + 広告優先 + 評価順

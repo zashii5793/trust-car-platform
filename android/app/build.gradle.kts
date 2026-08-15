@@ -33,8 +33,17 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        // Google Maps API key injected from CI environment variable (Issue #41)
-        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = System.getenv("GOOGLE_MAPS_API_KEY") ?: ""
+
+        // Google Maps API key (Issue #43). Supplied via a Gradle property
+        // (-PMAPS_API_KEY=... or gradle.properties) or the MAPS_API_KEY /
+        // GOOGLE_MAPS_API_KEY env vars. Defaults to empty so builds succeed
+        // without a key; the in-app map is gated on MapsConfig.isConfigured
+        // and falls back to the distance list.
+        manifestPlaceholders["MAPS_API_KEY"] =
+            (project.findProperty("MAPS_API_KEY") as String?)
+                ?: System.getenv("MAPS_API_KEY")
+                ?: System.getenv("GOOGLE_MAPS_API_KEY")
+                ?: ""
     }
 
     buildTypes {

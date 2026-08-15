@@ -7,6 +7,7 @@ import '../../providers/shop_provider.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/constants/colors.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../../core/maps_config.dart';
 import 'shop_detail_screen.dart';
 import 'nearby_shops_map_screen.dart';
 import '../shop/shop_comparison_screen.dart';
@@ -62,7 +63,10 @@ class _ShopListScreenState extends State<ShopListScreen> {
   /// 地図に切り替えられるか。
   ///
   /// 比較・選択モードでは一覧から選ぶのが目的なので地図は出さない。
-  bool get _canShowMap => !widget.selectMode && !widget.compareMode;
+  // Map entry points are hidden when no Maps API key was supplied at build
+  // time (MapsConfig); the distance-sorted list remains the sole view.
+  bool get _canShowMap =>
+      MapsConfig.isConfigured && !widget.selectMode && !widget.compareMode;
   final Set<String> _selectedIds = {};
 
   /// 現在地を取得して近い順にソートする。
