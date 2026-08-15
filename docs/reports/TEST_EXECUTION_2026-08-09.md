@@ -1,13 +1,12 @@
-# テスト実行レポート（ドラフト） — 2026-08-09
+# テスト実行レポート — 2026-08-09（確定: 2026-08-15）
 
 **作成**: QAテストセッション（Claude）
 **対象**: ペルソナテスト・総合テスト・運用テストの設計・実装
-**ステータス**: ドラフト（CI実行待ち）
+**ステータス**: 確定版（CI実測値反映済み・PR #120 として main へマージ済み）
 
-> ⚠️ **重要**: 本セッションの実行環境には Flutter SDK が無いため、
-> `flutter test` は**実行していない**。本レポートに「パス」の記載は無く、
-> 追加テストの検証は CI（`flutter test --exclude-tags emulator`）で行われる。
-> 整形のみ `dart format --language-version=3.0` を実行済み。
+> 本セッションの実行環境には Flutter SDK が無いため、検証は CI
+> （`flutter test --exclude-tags emulator`）で行った。**最終結果:
+> 3,845件全パス**（コミット fe39455、2026-08-15）。詳細は §3。
 
 ---
 
@@ -15,12 +14,13 @@
 
 ### 1.1 画面 × テスト有無（テストが無い画面のみ抜粋）
 
-lib/screens/ 全56ファイルと test/ を突き合わせた結果。以下の12画面には
-**画面（Widget）テストが1件も無い**。
+lib/screens/ 全56ファイルと test/ を突き合わせた結果、当初は12画面に
+**画面（Widget）テストが1件も無かった**。うち優先度・高だった
+`drive_log_detail_screen` は確定までに解消済み（§2.3）。**残り11画面**。
 
 | 画面 | 画面テスト | 周辺のテスト | 優先度・備考 |
 |------|-----------|-------------|-------------|
-| `drive/drive_log_detail_screen.dart` | ❌ なし | `test/utils/route_privacy_test.dart`（25件） | **高**（今週追加機能）。ぼかしロジックはutilで検証済みだが、画面の表示分岐は未検証 |
+| `drive/drive_log_detail_screen.dart` | ✅ **解消**（21件追加） | `test/utils/route_privacy_test.dart`（25件） | `test/screens/drive_log_detail_screen_test.dart` を追加（§2.3） |
 | `accessories/accessory_showcase_screen.dart` | ❌ なし | `showcase_detail_screen_test.dart` はあり | 中 |
 | `ai_chat/ai_chat_screen.dart` | ❌ なし | provider / service テストあり | 中 |
 | `document_scanner_screen.dart` | ❌ なし | OCRサービステストあり | 低（カメラ依存 → 手動テスト項目へ） |
@@ -40,9 +40,9 @@ lib/screens/ 全56ファイルと test/ を突き合わせた結果。以下の1
 
 | 機能 | 既存テスト | 今回の対応 |
 |------|-----------|-----------|
-| オプション装備（equipment_section） | モデル: `test/models/vehicle_equipment_test.dart`（28件）。**`EquipmentSection` ウィジェット自体と編集画面統合は未テスト** | Firestore保存→読み戻し→退役後の保全ジャーニーを追加（persona_journey） |
+| オプション装備（equipment_section） | モデル: `test/models/vehicle_equipment_test.dart`（28件） | Firestore保存→読み戻し→退役後の保全ジャーニーを追加（persona_journey）。**確定までにウィジェットテスト18件も追加**（§2.3） |
 | 整備明細（maintenance_detail_breakdown） | ウィジェット: `test/widgets/maintenance_detail_breakdown_test.dart`（13件）、モデル: `phase5_models_test.dart` | Firestore**往復**（parts/partsCost/taxAmount）と4年分時系列を追加（persona_journey） |
-| ドライブログ詳細（drive_log_detail_screen） | util: `route_privacy_test.dart`（25件）のみ。**画面テストなし** | isPublic切替×ぼかしの結合ジャーニーを追加（persona_journey）。画面テストは未着手（残課題） |
+| ドライブログ詳細（drive_log_detail_screen） | util: `route_privacy_test.dart`（25件）のみ | isPublic切替×ぼかしの結合ジャーニーを追加（persona_journey）。**確定までに画面テスト21件も追加**（§2.3） |
 | 工場の提携/未提携出し分け | ✅ `shop_detail_screen_test.dart` で3件カバー済み | 重複回避のため追加なし |
 | 通知既読トグル | ✅ UI: `notification_list_screen_test.dart`、provider: `notification_provider_test.dart`（Fakeストア使用）。**実装クラス `SharedPrefsNotificationStateStore` は未テスト** | 実装ストアの永続化・再起動・500件上限テストを追加（operational） |
 | 居住地選択 | ✅ `profile_screen_test.dart`（region fields）でカバー済み | 重複回避のため追加なし |
@@ -72,18 +72,34 @@ lib/screens/ 全56ファイルと test/ を突き合わせた結果。以下の1
 | 退会フロー相当 — 現仕様の固定 | 3+2 | `account_deletions/{uid}` に status=pending マーカーが記録されること。**マーカー記録後も vehicles/整備記録/ドライブログはクライアントから即時削除されない**（サーバー側 purge が30日以内に実施＝プライバシーポリシー記載と整合）。requires-recent-login 相当のロールバックでマーカーのみ消えデータ無傷。マーカー二重書き込みは上書き |
 | ライセンスプレート正規化での重複検出 | 5+3 | 全角IME入力（`品川　３００　あ　１２－３４`）と半角登録済み（`品川 300 あ 12-34`）が同一車両と判定されること。スペース詰め・長音記号ハイフン（`品川300あ12ー34`）も同一。`excludeVehicleId` で自車両編集は除外。ユーザー単位チェック（他ユーザーの同一ナンバーは非重複）。空文字・プレート未登録の安全性 |
 
-**追加テスト合計: 54件**（すべて FakeFirebaseFirestore / SharedPreferences
-モックで動作。emulator タグなし → `--exclude-tags emulator` の対象内）
+### 2.3 確定までに追加した Widget テスト（2026-08-15・39件）
+
+§1.1 で優先度・高とした2対象を、確定前に解消した。
+
+| ファイル | 件数 | 守る仕様 |
+|---------|------|---------|
+| `test/screens/drive_log_detail_screen_test.dart` | 21 | 日記の保存（`updateDriveLog` への引数捕捉）・公開切替で `isPublic` が渡ること・公開プレビューの住所丸め・経路0点/全点ぼかし消失時の表示分岐・waypoints取得失敗でも編集継続可・未ログイン時の保存拒否 |
+| `test/widgets/equipment_section_test.dart` | 18 | スイッチON→メーカー/型番欄の出現・候補シート選択と自由入力の両立・FilterChip複数選択・読点区切り自由記述・OFF→再ONでの値復元 |
+
+**追加テスト合計: 93件**（統合54件 + Widget39件。すべて
+FakeFirebaseFirestore / SharedPreferences モックで動作。emulator タグなし →
+`--exclude-tags emulator` の対象内）
 
 ---
 
-## 3. 実行結果
+## 3. 実行結果（CI実測・確定）
 
 | 項目 | 結果 |
 |------|------|
-| `flutter test`（新規2ファイル） | **未実行**（本環境に Flutter SDK なし。CIで検証される） |
-| `flutter analyze lib/` | **未実行**（同上。ただし lib/ は変更していない） |
-| `dart format --language-version=3.0`（新規2ファイル） | ✅ 実行済み・整形済み |
+| `flutter test --exclude-tags emulator`（CI: Analyze & Test） | ✅ **3,845件全パス**（コミット fe39455・2026-08-15） |
+| `flutter analyze lib/` | ✅ CIでクリーン |
+| Build Flutter Web / Storage & Firestore Rules Tests | ✅ 成功 |
+| `dart format --language-version=3.0`（追加ファイル） | ✅ 整形済み |
+
+補足: 確定直前のCIで1件だけ失敗があった。`persona_scenarios_test.dart` の
+「安全情報が空なら空リストを返す」が、実機指摘対応で導入した**同梱デフォルト
+フォールバック**（Firestore空でも安全運転情報を表示する）と矛盾していたため、
+テスト側を新仕様（空でも `kDefaultSafetyTips` を返す）に追随させて全緑化した。
 
 ---
 
@@ -104,8 +120,8 @@ lib/ は変更禁止のため、テスト実装中に見つかった課題を記
    （`maxMonthlyInquiries` のみ inquiry_screen の UI 層でチェック）。
    operational_test で境界仕様（29/30/31日）を先に固定したので、
    実装時はこのテストの仕様に合わせること。
-3. **`drive_log_detail_screen` / `EquipmentSection` の画面・ウィジェット
-   テスト未着手**（§1.2参照）。次スプリントでの追加を推奨。
+3. ~~`drive_log_detail_screen` / `EquipmentSection` の画面・ウィジェット
+   テスト未着手~~ → **解消済み**（§2.3・39件追加、CIパス確認済み）。
 4. **`DriveLogService.deleteDriveLog` が waypoint / like を逐次削除**
    （batch/チャンクなし）。大規模ログで部分削除が起き得る。
 
@@ -145,7 +161,9 @@ CI・Fakeでは検証不能。リリース前に実機でのチェックを要�
 
 ## 6. 次のアクション候補
 
-1. CI で新規54件のパスを確認し、本レポートを確定版に更新する
-2. `drive_log_detail_screen` / `EquipmentSection` の Widget テストを追加する
-   （§1.1 優先度・高）
-3. §4-1 の DI リファクタ Issue（`claude-task`）を起票する
+1. 残る優先度・中の未テスト11画面（`retired_vehicles` / `safety_tip` /
+   `shop_comparison` など）の Widget テストを Issue 化して順次追加する
+2. §4-1 の DI リファクタ（`FirebaseService` / `AuthService`）Issue
+   （`claude-task`）を起票する
+3. §5 の手動テスト項目（カメラ/課金/FCM/GPS）をリリース前チェックリスト
+   として実機で消化する
