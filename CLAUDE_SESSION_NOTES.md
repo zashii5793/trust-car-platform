@@ -1,6 +1,49 @@
 # Claude Session Notes
 
-最終更新: 2026-08-07
+最終更新: 2026-08-15
+
+---
+
+## 自律継続モード（2026-08-15・ユーザー外出中）
+
+**ブランチ**: `claude/rustcar-pr-triage-ci-rumd73` / **PR**: #120
+
+### PRトリアージ（マージ権限はユーザーの事前承認に基づく）
+
+- **#111（ドライブログ手動入力）**: ローカル test-merge で衝突なしを確認 → ready化 → squashマージ完了
+- **#106**: クローズ済み（内容は #120 へ移送済み）
+- **#120 へ origin/main を取り込み**: コンフリクト2件を手動解決
+
+### 決定: Google Maps APIキーは MAPS_API_KEY に一本化
+
+#41系（GOOGLE_MAPS_API_KEY 環境変数直読み）と #43系（MAPS_API_KEY Gradleプロパティ
++ env + `MapsConfig.isConfigured` ゲート）が併存し、AndroidManifest に
+`com.google.android.geo.API_KEY` の meta-data が2つ入る状態だった。
+
+- **採用**: #43系。`build.gradle.kts` は `MAPS_API_KEY` プロパティ→ env
+  `MAPS_API_KEY` → env `GOOGLE_MAPS_API_KEY`（後方互換）→ 空 の順でフォールバック
+- Web は従来どおり CI が `GOOGLE_MAPS_API_KEY_WEB` を `web/index.html` に注入（変更なし）
+
+### 決定: 工場地図は NearbyShopsMapScreen（埋め込みトグル）に一本化
+
+main側 #125 の `ShopMapScreen`（別ルートpush・142行）と #120 の
+`NearbyShopsMapScreen`（埋め込みトグル・BottomSheet詳細・審査済バッジ・308行）が
+重複。実機フィードバック起点の後者を採用し `shop_map_screen.dart` は削除。
+main側の良い点だった **`MapsConfig.isConfigured` ゲートは `_canShowMap` に統合**
+（キー未設定ビルドでは地図導線を出さず距離順リストのみ）。テストはどちらの
+地図ボタンKeyにも依存していないことを確認済み。
+
+### CI修正
+
+- `pubspec.yaml`: 自動マージで `google_maps_flutter` が重複（^2.9.0 / ^2.10.0）
+  → pub get がパースで即死し Analyze/Web build 全滅 → ^2.10.0 に一本化
+
+### テスト追加（エージェント作・計39件）
+
+- `test/screens/drive_log_detail_screen_test.dart`（21件）: 日記保存/公開切替/
+  経路ぼかし表示/住所丸め/未ログイン・取得失敗系
+- `test/widgets/equipment_section_test.dart`（18件): 装備スイッチ→メーカー・型番欄/
+  候補シート+自由入力/FilterChip/OFF→ON値復元の仕様固定
 
 ---
 
