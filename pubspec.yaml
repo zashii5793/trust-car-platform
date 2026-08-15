@@ -42,9 +42,10 @@ dependencies:
   firebase_performance: ^0.11.1+4
   # GPS / Location (Drive recording)
   geolocator: ^13.0.2
-  # Maps: nearby shops map + partner pins (Issue #43). Requires MAPS_API_KEY at
-  # build time; the UI degrades to the distance list when the key is absent.
-  google_maps_flutter: ^2.9.0
+  # Maps: nearby shops map + partner pins (Issues #41/#43). Requires
+  # MAPS_API_KEY at build time; the UI degrades to the distance list when the
+  # key is absent.
+  google_maps_flutter: ^2.10.0
   # Phase 7: BtoB Subscription (RevenueCat)
   purchases_flutter: ^8.0.0
   url_launcher: ^6.3.0
@@ -53,8 +54,6 @@ dependencies:
   # AI Chat: Anthropic API
   http: ^1.2.0
   firebase_remote_config: ^6.5.1
-  # Issue #41 Phase 1: 近隣工場地図表示（GoogleMap連動・色分けピン）
-  google_maps_flutter: ^2.10.0
 
 dev_dependencies:
   flutter_test:
