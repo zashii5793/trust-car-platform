@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
+import 'drive_log_detail_screen.dart';
 import 'drive_recording_screen.dart';
 import 'manual_drive_log_screen.dart';
 
@@ -321,6 +322,21 @@ class _DriveLogCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    // 一覧しか無く、記録した後にできることが何も無かった。
+    // カードから詳細（日記・写真・共有）へ入れるようにする。
+    return GestureDetector(
+      key: Key('drive_log_card_${log.id}'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => DriveLogDetailScreen(driveLog: log),
+        ),
+      ),
+      child: _buildCard(context, theme, isDark),
+    );
+  }
+
+  Widget _buildCard(BuildContext context, ThemeData theme, bool isDark) {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(

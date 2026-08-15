@@ -683,7 +683,17 @@ class VehicleMasterData {
     ],
   };
 
-  /// Common grades that apply to most models
+  /// 汎用グレード名。
+  ///
+  /// ⚠️ **グレード候補の提示には使わないこと。**
+  ///
+  /// ここに並ぶ S / G / X / Z はトヨタ系の呼称で、ホンダにもマツダにも
+  /// 当てはまらない。以前 `getGradesForModel` がカタログ未整備時にこれへ
+  /// フォールバックしており、シビックに「S・G・X・Z」が出るなど、
+  /// 車種と噛み合わない候補を全車種に見せていた。
+  ///
+  /// カタログにグレードが無い場合は空を返し、自由入力に委ねる方針に
+  /// 変更済み（`VehicleMasterService.getGradesForModel` を参照）。
   static const List<Map<String, dynamic>> commonGrades = [
     {'id': 'grade_s', 'name': 'S', 'displayOrder': 1},
     {'id': 'grade_g', 'name': 'G', 'displayOrder': 2},
@@ -715,7 +725,10 @@ class VehicleMasterData {
         .toList();
   }
 
-  /// Get common grades as VehicleGrade list
+  /// 汎用グレードを [VehicleGrade] にして返す。
+  ///
+  /// ⚠️ 車種に紐づかない汎用名なので、**グレード候補の提示に使わないこと**。
+  /// 詳細は [commonGrades] のコメントを参照。
   static List<VehicleGrade> getCommonGrades(String modelId) {
     return commonGrades
         .map((data) => VehicleGrade.fromMap({

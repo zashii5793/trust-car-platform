@@ -31,6 +31,15 @@
 
   <title>trust_car_platform</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Google Maps JavaScript API.
+       __GOOGLE_MAPS_API_KEY__ は CI が GOOGLE_MAPS_API_KEY_WEB の値へ
+       置換する（.github/workflows/web_preview.yml 参照）。キーを
+       リポジトリへ直接置かないための仕組み。
+       置換されなかった場合、地図だけが出ず他の機能は動く。 -->
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=__GOOGLE_MAPS_API_KEY__&loading=async"
+    defer></script>
 </head>
 <body>
   <!--

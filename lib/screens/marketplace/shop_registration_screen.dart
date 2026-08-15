@@ -155,6 +155,7 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
                 )
               else
                 TextButton(
+                  style: TextButton.styleFrom(foregroundColor: Colors.white),
                   onPressed: _submit,
                   child: const Text('保存'),
                 ),

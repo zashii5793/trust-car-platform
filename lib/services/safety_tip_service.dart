@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/error/app_error.dart';
+import '../data/default_safety_tips.dart';
 import '../core/result/result.dart';
 import '../models/safety_tip.dart';
 
@@ -79,10 +80,31 @@ class SafetyTipService {
       }
 
       final snap = await query.orderBy('publishedAt', descending: true).get();
-      return Result.success(snap.docs.map(SafetyTip.fromFirestore).toList());
+      if (snap.docs.isNotEmpty) {
+        return Result.success(snap.docs.map(SafetyTip.fromFirestore).toList());
+      }
+      // Firestore が空なら同梱コンテンツへフォールバックする。
+      //
+      // 安全運転情報はシードスクリプトを実行しないと1件も入らず、
+      // その運用作業が済むまで全ユーザーに空画面が見えていた。
+      // 編集コンテンツはアプリに同梱できるので、空画面を構造的に
+      // なくす。該当データが1件でもあれば従来どおりそちらを使う
+      // （フィルタ単位で判定するので、どのカテゴリのタブも空にならない）。
+      return Result.success(_defaultTips(category: category, source: source));
     } catch (e) {
       return Result.failure(AppError.unknown(e.toString(), originalError: e));
     }
+  }
+
+  /// 同梱コンテンツをフィルタして返す。
+  List<SafetyTip> _defaultTips({
+    SafetyTipCategory? category,
+    SafetyTipSource? source,
+  }) {
+    return kDefaultSafetyTips
+        .where((t) => category == null || t.category == category)
+        .where((t) => source == null || t.source == source)
+        .toList();
   }
 
   /// Returns a single tip by [id].
@@ -90,6 +112,11 @@ class SafetyTipService {
     try {
       final doc = await _firestore.collection(_collection).doc(id).get();
       if (!doc.exists) {
+        // 一覧が同梱コンテンツへフォールバックした場合、詳細もそこから
+        // 引けないと「一覧には出るのに開けない」になる。
+        for (final tip in kDefaultSafetyTips) {
+          if (tip.id == id) return Result.success(tip);
+        }
         return Result.failure(AppError.notFound('SafetyTip not found: $id'));
       }
       return Result.success(SafetyTip.fromFirestore(doc));

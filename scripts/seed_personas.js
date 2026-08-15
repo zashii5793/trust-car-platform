@@ -13,6 +13,8 @@
  * Options:
  *   --dry-run    Firestore/Auth に書かず、登録予定データを標準出力に表示する
  *   --emulator   Firebase Emulator (Firestore localhost:8080 / Auth localhost:9099)
+ *   --with-auth  本番でも Auth ユーザーを作成する（Web版でログインする場合に必要。
+ *                パスワードは password123 のため、確認後は必ず削除すること）
  *                に接続する
  *
  * Requirements:
@@ -606,11 +608,23 @@ function logGroup(title, entries, labelFn) {
 }
 
 async function seedAuthUsers() {
-  if (!useEmulator) {
+  // 本番 Auth への作成は既定でスキップする。ただし Web 版（本番接続）で
+  // ログインして動作確認するには本番側に Auth ユーザーが必要なので、
+  // 明示フラグ --with-auth を付けた場合のみ本番にも作成する。
+  const withAuth = process.argv.includes('--with-auth');
+  if (!useEmulator && !withAuth) {
     console.log(
       '[SKIP] Auth ユーザー作成は --emulator 時のみ実行します（本番 Auth を汚さないため）。',
     );
+    console.log(
+      '       Web版でログインする場合は --with-auth を付けてください。');
     return;
+  }
+  if (!useEmulator && withAuth) {
+    console.log(
+      '[WARN] 本番 Auth にテストユーザー9名を作成します（パスワードは ' +
+        'password123）。公開されている Web からログイン可能になるため、' +
+        '確認が終わったら必ず削除してください。');
   }
   const auth = admin.auth();
   let created = 0;
@@ -651,7 +665,36 @@ async function seedAuthUsers() {
   console.log('');
 }
 
+/// 作成した Auth ユーザー9名を削除する（--delete-auth）。
+///
+/// パスワードが password123 の共通値なので、本番で確認が終わったら
+/// アカウントを残さないこと。Firestore 側のシードデータは公開情報のみで
+/// あり、残っても不正ログインの足がかりにはならないが、Auth は別。
+async function deleteAuthUsers() {
+  const auth = admin.auth();
+  let deleted = 0;
+  for (const u of personaUsers) {
+    try {
+      await auth.deleteUser(u.uid);
+      deleted++;
+      console.log(`[AUTH] deleted ${u.email} (uid=${u.uid})`);
+    } catch (err) {
+      if (err && err.code === 'auth/user-not-found') {
+        console.log(`[AUTH] skip（存在しない）: ${u.uid}`);
+      } else {
+        console.warn(`[AUTH][WARN] 削除失敗 ${u.uid}: ${err.message}`);
+      }
+    }
+  }
+  console.log(`[AUTH] 削除 ${deleted} 件 / 全 ${personaUsers.length} 件`);
+}
+
 async function main() {
+  // 初期化はモジュール先頭で済んでいる（emulator/本番の分岐込み）。
+  if (process.argv.includes('--delete-auth')) {
+    await deleteAuthUsers();
+    return;
+  }
   console.log('=== Persona Seed Script ===');
   console.log(`dry-run  : ${isDryRun}`);
   console.log(`emulator : ${useEmulator}`);

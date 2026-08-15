@@ -7,6 +7,7 @@ import '../../models/vehicle.dart';
 import '../../providers/part_recommendation_provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../widgets/common/ai_disclaimer.dart';
 import '../../services/post_service.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
@@ -51,8 +52,10 @@ class _PartRecommendationScreenState extends State<PartRecommendationScreen> {
                 const Text('パーツ提案'),
                 Text(
                   widget.vehicle.displayName,
+                  // AppBar は AppColors.primary（青）。white70 だと
+                  // コントラスト比が 4.5:1 を下回り読みづらい。
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white70,
+                        color: Colors.white,
                       ),
                 ),
               ],
@@ -600,28 +603,7 @@ class _PartDetailSheet extends StatelessWidget {
               ],
 
               // 免責注記
-              Container(
-                padding: AppSpacing.paddingCard,
-                decoration: BoxDecoration(
-                  color: AppColors.infoBackground,
-                  borderRadius: AppSpacing.borderRadiusMd,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.info, color: AppColors.info, size: 16),
-                    AppSpacing.horizontalXs,
-                    Expanded(
-                      child: Text(
-                        'この情報はAIによる参考提案です。取付前に必ずお近くの専門店へご相談ください。',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.info,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              const AiDisclaimer(subject: 'このパーツ提案'),
 
               AppSpacing.verticalXl,
 

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/shop.dart';
 import '../../models/shop_case_study.dart';
 import '../../providers/shop_provider.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/constants/colors.dart';
 import '../../services/shop_service.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'inquiry_screen.dart';
@@ -55,6 +57,8 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
           );
         }
 
+        final theme = Theme.of(context);
+
         return Scaffold(
           appBar: AppBar(
             title: Text(shop.name),
@@ -79,6 +83,13 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
                     children: [
                       _ShopHeader(shop: shop),
                       AppSpacing.verticalMd,
+                      // 提携店と、地図から拾っただけの参考情報を分ける。
+                      // 同じ見た目で並べると、審査済みの工場と未確認の
+                      // 工場が区別できない。
+                      if (!shop.isPartner) ...[
+                        const _NonPartnerNotice(),
+                        AppSpacing.verticalMd,
+                      ],
                       if (shop.services.isNotEmpty) _ServiceChips(shop: shop),
                       AppSpacing.verticalMd,
                       _BusinessHoursExpansion(shop: shop),
@@ -88,7 +99,11 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
                       if (shop.displayAddress.isNotEmpty)
                         _AddressSection(shop: shop),
                       AppSpacing.verticalMd,
-                      _CaseStudiesSection(shopId: shop.id),
+                      // 実績は提携店が登録するものなので、未提携店では
+                      // 常に空になる。空セクションを出さない。
+                      if (shop.isPartner) ...[
+                        _CaseStudiesSection(shopId: shop.id),
+                      ],
                       AppSpacing.verticalXl,
                     ],
                   ),
@@ -99,20 +114,98 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
           bottomNavigationBar: SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
-              child: FilledButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => InquiryScreen(shop: shop),
-                  ),
-                ),
-                icon: const Icon(Icons.mail_outline),
-                label: const Text('この工場に問い合わせる'),
-              ),
+              // アプリ内で問い合わせを受けられるのは提携店だけ。
+              // 未提携店にボタンを出すと、送っても誰も見ない問い合わせに
+              // なる。代わりに電話番号があればそれを案内する。
+              child: shop.isPartner
+                  ? FilledButton.icon(
+                      key: const Key('shop_inquiry_button'),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => InquiryScreen(shop: shop),
+                        ),
+                      ),
+                      icon: const Icon(Icons.mail_outline),
+                      label: const Text('この工場に問い合わせる'),
+                    )
+                  : Column(
+                      key: const Key('shop_non_partner_cta'),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          shop.phone != null
+                              ? 'この工場はアプリ未提携です。お電話でお問い合わせください。'
+                              : 'この工場はアプリ未提携のため、アプリからは問い合わせできません。',
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: AppColors.textSecondary),
+                          textAlign: TextAlign.center,
+                        ),
+                        if (shop.phone != null) ...[
+                          AppSpacing.verticalXs,
+                          OutlinedButton.icon(
+                            key: const Key('shop_call_button'),
+                            onPressed: () => _call(context, shop.phone!),
+                            icon: const Icon(Icons.phone_outlined),
+                            label: Text(shop.phone!),
+                          ),
+                        ],
+                      ],
+                    ),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// 電話をかける。端末が対応していない場合は黙って失敗させず理由を出す。
+Future<void> _call(BuildContext context, String phone) async {
+  final uri = Uri.parse('tel:${phone.replaceAll(RegExp(r'[^0-9+]'), '')}');
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri);
+  } else if (context.mounted) {
+    showErrorSnackBar(context, 'この端末から電話をかけられません');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 未提携の注記
+// ---------------------------------------------------------------------------
+
+/// 地図から拾っただけの工場であることを示す。
+///
+/// 提携店は審査を経ており、整備記録の裏書きや問い合わせの応答が期待できる。
+/// 未提携店はその保証が無い。同じ画面で並べる以上、どちらなのかは
+/// 明示しないと利用者が判断を誤る。
+class _NonPartnerNotice extends StatelessWidget {
+  const _NonPartnerNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      key: const Key('shop_non_partner_notice'),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.1),
+        borderRadius: AppSpacing.borderRadiusSm,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, size: 16, color: AppColors.warning),
+          AppSpacing.horizontalXs,
+          Expanded(
+            child: Text(
+              'アプリ未提携の工場です。掲載内容は地図データに基づく参考情報で、'
+              '当サービスが確認したものではありません。',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -490,7 +490,10 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // 請求書スキャンボタン
-                  _buildOcrScanButton(theme),
+                  if (InvoiceOcrService.isSupported)
+                    _buildOcrScanButton(theme)
+                  else
+                    _buildOcrUnsupportedNote(theme, '請求書'),
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 250),
                     child: _ocrAppliedFields.isEmpty
@@ -844,6 +847,32 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   }
 
   /// 請求書スキャンボタン
+  /// Web では ML Kit が動かないため、ボタン自体を出さずに理由を示す。
+  /// 押せるのに必ず失敗するボタンより、押せない理由が書いてあるほうがよい。
+  Widget _buildOcrUnsupportedNote(ThemeData theme, String what) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.08),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, size: 20, color: AppColors.info),
+          AppSpacing.horizontalMd,
+          Expanded(
+            child: Text(
+              'Web版では$what の読み取りに対応していません。'
+              '下のフォームから入力してください。',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildOcrScanButton(ThemeData theme) {
     return Container(
       decoration: BoxDecoration(

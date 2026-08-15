@@ -9,6 +9,23 @@
 
 ## P0 — リリースブロッカー（今週中）
 
+### 0. Google Maps API キーの設定（Issue #41 Phase 1 対応）
+
+**なぜ必要**: `google_maps_flutter` を追加しました。APIキーがないと地図がエラー表示になります。
+
+**手順**:
+1. [Google Cloud Console](https://console.cloud.google.com/) → API とサービス → 認証情報 → APIキー作成
+2. Maps SDK for Android / Maps SDK for iOS を有効化
+3. GitHub リポジトリ → Settings → Secrets and variables → Actions に `GOOGLE_MAPS_API_KEY` を追加
+4. ローカル開発: `android/local.properties` に `GOOGLE_MAPS_API_KEY=<実キー>` を追記（`.gitignore` 対象）
+   iOS: `ios/Runner/AppDelegate.swift` の `TODO` 行に実キーを設定（本番ビルド時のみ）
+
+**注意**: APIキーなしでも `flutter analyze`・`flutter test` は全件パスします。地図タイルは表示されません。
+
+**所要時間**: 15分
+
+---
+
 ### 1. Firestoreセキュリティルールのデプロイ
 
 **なぜ必要**: 以下のルールが追加済みで未デプロイ：

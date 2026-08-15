@@ -19,6 +19,9 @@ import '../widgets/common/loading_indicator.dart';
 import '../widgets/vehicle/vehicle_selector_fields.dart';
 import '../core/utils/thousands_separator_input_formatter.dart';
 import '../core/utils/license_plate.dart';
+import '../widgets/vehicle/color_picker_sheet.dart';
+import '../widgets/vehicle/equipment_section.dart';
+import '../widgets/vehicle/year_picker_sheet.dart';
 import 'package:uuid/uuid.dart';
 import 'document_scanner_screen.dart';
 import 'vehicle_certificate_result_screen.dart';
@@ -35,6 +38,9 @@ class VehicleRegistrationScreen extends StatefulWidget {
 class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   // ウィザード管理
   int _currentStep = 0;
+
+  // オプション・装備（ナビ / ドラレコ / ETC ほか）。空のままなら保存されない。
+  VehicleEquipment _equipment = const VehicleEquipment();
   final PageController _pageController = PageController();
   final _formKeyStep1 = GlobalKey<FormState>();
 
@@ -413,6 +419,30 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     );
   }
 
+  /// 年式の選択シート。有限に列挙できる値なので自由入力は無し。
+  /// OCR は _yearController.text へ直接書き込むため controller は残す。
+  Future<void> _pickYear() async {
+    final year = await showYearPickerSheet(
+      context,
+      selected: int.tryParse(_yearController.text),
+    );
+    if (year != null) {
+      _yearController.text = year.toString();
+    }
+  }
+
+  /// 車体色の選択シート。候補を先に出し、無ければシート内でそのまま
+  /// 手入力できる（メーカー固有色は網羅できないため）。
+  Future<void> _pickColor() async {
+    final color = await showColorPickerSheet(
+      context,
+      current: _colorController.text.isEmpty ? null : _colorController.text,
+    );
+    if (color != null) {
+      setState(() => _colorController.text = color);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // 登録処理（ロジック変更なし、フォームバリデーションを手動チェックに変更）
   // ---------------------------------------------------------------------------
@@ -482,6 +512,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         year: int.tryParse(_yearController.text) ?? DateTime.now().year,
         grade: _selectedGrade?.name ?? '',
         mileage: int.tryParse(stripThousands(_mileageController.text)) ?? 0,
+        // いま入力した距離が「最新」。これを刻まないと、登録直後に
+        // 「走行距離を更新してください（最終更新: 未設定）」が出る。
+        mileageUpdatedAt: DateTime.now(),
         imageUrl: imageUrl,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -500,6 +533,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             : int.tryParse(stripThousands(_engineDisplacementController.text)),
         fuelType: _selectedFuelType,
         purchaseDate: _purchaseDate,
+        // 未入力なら null。toMap 側でも空は書き戻さない。
+        equipment: _equipment.hasAnyValue ? _equipment : null,
       );
 
       if (!mounted) return;
@@ -653,7 +688,10 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // OCR スキャンボタン（メインCTA）
-            _buildOcrScanButton(theme),
+            if (VehicleCertificateOcrService.isSupported)
+              _buildOcrScanButton(theme)
+            else
+              _buildOcrUnsupportedNote(theme, '車検証'),
             AppSpacing.verticalMd,
 
             // 写真選択（コンパクト）
@@ -761,11 +799,16 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             Row(
               children: [
                 Expanded(
-                  child: AppTextField.number(
+                  // 選択式（タップでシート）。controller は OCR 自動入力が
+                  // 書き込むため残す。
+                  child: AppTextField(
                     controller: _yearController,
                     labelText: '年式 *',
                     hintText: '例: 2023',
+                    readOnly: true,
+                    onTap: _pickYear,
                     prefixIcon: const Icon(Icons.calendar_today),
+                    suffixIcon: const Icon(Icons.arrow_drop_down),
                     validator: (value) {
                       if (value == null || value.isEmpty) return '年式を入力';
                       final year = int.tryParse(value);
@@ -972,11 +1015,20 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           Row(
             children: [
               Expanded(
+                // タップで候補シートを開く。一覧に無い色はシート下部で
+                // そのまま手入力できる（メーカー固有色は網羅できないため、
+                // メーカー・車種・グレードと同じく候補は入力補助に留める）。
                 child: AppTextField(
                   controller: _colorController,
                   labelText: '車体色',
                   hintText: '例: パールホワイト',
+                  readOnly: true,
+                  onTap: _pickColor,
                   prefixIcon: const Icon(Icons.palette),
+                  suffixIcon: const Icon(
+                    Icons.arrow_drop_down,
+                    key: Key('color_picker_button'),
+                  ),
                 ),
               ),
               AppSpacing.horizontalSm,
@@ -1035,6 +1087,14 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               lastDate: DateTime.now(),
               onSelected: (d) => setState(() => _purchaseDate = d),
             ),
+          ),
+          AppSpacing.verticalLg,
+
+          _buildSectionHeader(theme, 'オプション・装備', Icons.settings_suggest),
+          AppSpacing.verticalSm,
+          EquipmentSection(
+            value: _equipment,
+            onChanged: (equipment) => setState(() => _equipment = equipment),
           ),
           AppSpacing.verticalLg,
         ],
@@ -1238,6 +1298,32 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           }).toList(),
         ),
       ],
+    );
+  }
+
+  /// Web では ML Kit が動かないため、ボタン自体を出さずに理由を示す。
+  /// 押せるのに必ず失敗するボタンより、押せない理由が書いてあるほうがよい。
+  Widget _buildOcrUnsupportedNote(ThemeData theme, String what) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.08),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, size: 20, color: AppColors.info),
+          AppSpacing.horizontalMd,
+          Expanded(
+            child: Text(
+              'Web版では$what の読み取りに対応していません。'
+              '下のフォームから入力してください。',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -199,6 +199,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: const Text('設定'),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
             onPressed: _isLoading ? null : _saveSettings,
             child: _isLoading
                 ? const SizedBox(

@@ -1,8 +1,134 @@
 # Claude Session Notes
 
-最終更新: 2026-08-05
+最終更新: 2026-08-15
 
 ---
+
+## 自律継続モード（2026-08-15・ユーザー外出中）
+
+**ブランチ**: `claude/rustcar-pr-triage-ci-rumd73` / **PR**: #120
+
+### PRトリアージ（マージ権限はユーザーの事前承認に基づく）
+
+- **#111（ドライブログ手動入力）**: ローカル test-merge で衝突なしを確認 → ready化 → squashマージ完了
+- **#106**: クローズ済み（内容は #120 へ移送済み）
+- **#120 へ origin/main を取り込み**: コンフリクト2件を手動解決
+
+### 決定: Google Maps APIキーは MAPS_API_KEY に一本化
+
+#41系（GOOGLE_MAPS_API_KEY 環境変数直読み）と #43系（MAPS_API_KEY Gradleプロパティ
++ env + `MapsConfig.isConfigured` ゲート）が併存し、AndroidManifest に
+`com.google.android.geo.API_KEY` の meta-data が2つ入る状態だった。
+
+- **採用**: #43系。`build.gradle.kts` は `MAPS_API_KEY` プロパティ→ env
+  `MAPS_API_KEY` → env `GOOGLE_MAPS_API_KEY`（後方互換）→ 空 の順でフォールバック
+- Web は従来どおり CI が `GOOGLE_MAPS_API_KEY_WEB` を `web/index.html` に注入（変更なし）
+
+### 決定: 工場地図は NearbyShopsMapScreen（埋め込みトグル）に一本化
+
+main側 #125 の `ShopMapScreen`（別ルートpush・142行）と #120 の
+`NearbyShopsMapScreen`（埋め込みトグル・BottomSheet詳細・審査済バッジ・308行）が
+重複。実機フィードバック起点の後者を採用し `shop_map_screen.dart` は削除。
+main側の良い点だった **`MapsConfig.isConfigured` ゲートは `_canShowMap` に統合**
+（キー未設定ビルドでは地図導線を出さず距離順リストのみ）。テストはどちらの
+地図ボタンKeyにも依存していないことを確認済み。
+
+### CI修正
+
+- `pubspec.yaml`: 自動マージで `google_maps_flutter` が重複（^2.9.0 / ^2.10.0）
+  → pub get がパースで即死し Analyze/Web build 全滅 → ^2.10.0 に一本化
+
+### テスト追加（エージェント作・計39件）
+
+- `test/screens/drive_log_detail_screen_test.dart`（21件）: 日記保存/公開切替/
+  経路ぼかし表示/住所丸め/未ログイン・取得失敗系
+- `test/widgets/equipment_section_test.dart`（18件): 装備スイッチ→メーカー・型番欄/
+  候補シート+自由入力/FilterChip/OFF→ON値復元の仕様固定
+
+---
+
+## 実機確認の指摘対応（2026-08-07）
+
+**ブランチ**: `claude/rustcar-pr-triage-ci-rumd73` / **PR**: #120
+
+### 決定1: カタログは常に「入力補助」であってゲートにしない
+
+メーカー・車種・グレードに続き、**車体色・装備メーカー・都道府県/市区町村**にも
+同じ方針を適用した。判断基準を明文化する。
+
+| 対象 | 網羅できるか | 扱い |
+|------|-------------|------|
+| 都道府県 | できる（47件で確定） | 選択式のみ |
+| 市区町村 | できない（約1,700件・合併あり） | 自由入力 |
+| 車体色 | できない（メーカー固有名が無数） | 候補18色 ＋ 自由入力 |
+| ナビ/ドラレコのメーカー | できない（OEM多数） | 候補 ＋ 自由入力 |
+
+**保守できない一覧を持つと、必ず「登録できないユーザー」が出る。**
+
+### 決定2: オプション・装備は有無ではなくメーカー＋型番で持つ
+
+`Vehicle` は68項目すべてがUIに出ていた一方、装備の項目は**1つも無かった**。
+他の未実装項目と違い「繋がっていない」ではなく「作られていない」。
+
+「付いている / 付いていない」だけでは、買い替え相談も売却査定も整備依頼も成立しない。
+ナビ・ドラレコ・ETC はメーカーと型番を持たせた。
+
+`VehicleFeature` の enum 名は Firestore に保存される。**変更・削除禁止**（追加は安全）。
+
+### 決定3: 公開ドライブログは経路の両端をぼかす
+
+経路は自宅から始まって自宅で終わることが多く、そのまま公開すると
+**住所を書いていなくても自宅が特定できる**。共有機能の前提として先に実装した。
+
+- 始点・終点から半径500m以内の点を落とす（往復でも両端それぞれ判定）
+- 残りが1点なら「そこに居た」が残るので空にする
+- 住所は市区町村まで。政令市の区は残さず**最初の一致**で切る
+  （貪欲だと「京都市中京区寺町通」のように町名を拾う。粗いぶんには害が無い）
+- 非公開時は何もぼかさない（自分の記録から自宅が消えたら使えない）
+- **公開する前に見え方を確認できるプレビュー**を付けた
+
+### 決定4: Web非対応の機能は「押せない理由」を出す
+
+`google_mlkit_text_recognition` は Web 非対応。`TextRecognizer` をコンストラクタで
+生成していたため、Web では生成時点で例外になり原因不明のエラーだけが出ていた。
+遅延生成 ＋ `isSupported` 判定に変え、押せば必ず失敗するボタンは出さない。
+
+### 副次的に直したもの
+
+- `GeoPoint2D.distanceTo` の sin/cos/sqrt/atan2 が自前のテイラー展開だった
+  （「dart:math の import 問題を避けるため」とあったが、dart:math はコアライブラリ）。
+  ぼかし処理がこの距離計算に依存するため `dart:math` に置換
+- 通知の既読はスワイプでしかできず、未読表示は7pxのドットのみ。押せるトグルへ
+- プロフィール編集シートがスクロールできず、欄を足すとはみ出す状態だった
+
+### PR #106 の扱い
+
+`claude/night-20260802` は9コミット遅れ＋コンフリクトで `dirty`。指定ブランチ以外へは
+push できないため、**内容をこのブランチにチェリーピック**した（`google_maps_flutter` 追加、
+`shop_map_utils`、`nearby_shops_map_screen`、テスト16件）。
+`shop_list_screen` の埋め込み表示との衝突は、AppBar が無い場合に本文先頭へ
+地図切替を出す形で解決。
+
+これでドライブログの経路も Google Map で描けるようになった。
+
+### 開発環境
+
+`dart format` が CI と食い違って5回失敗した件の再発防止として、
+**Dart SDK をこの実行環境に導入**した。`--language-version=3.0` を付けると
+CI（Flutter 3.38 同梱の dart_style）と完全に一致する。
+付けないと言語バージョンが解決できず tall style になり、324ファイルが差分扱いになる。
+
+```bash
+dart format --language-version=3.0 --output=none --set-exit-if-changed lib test
+```
+
+### 人手が必要（未実施）
+
+- `firebase deploy --only firestore:rules,firestore:indexes`
+- `node scripts/seed_shops.js` / `node scripts/seed_safety_tips.js`
+  — 未実行のため整備工場・安全運転の画面が空
+- `maintenance_comments` の Firestore ルール定義（現在0件 → コメントが黙って拒否される）
+- グレードカタログの `parent_id` が全16件で未設定 → 88車種すべてで候補0件
 
 ## 滞留PR一括トリアージ ＋ CI恒久修正（2026-08-05）
 

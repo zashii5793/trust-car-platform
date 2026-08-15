@@ -41,6 +41,7 @@ class SocialNotificationScreen extends StatelessWidget {
         title: const Text('通知'),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
             onPressed: () => followService.markAllNotificationsAsRead(userId),
             child: const Text('すべて既読'),
           ),

@@ -94,7 +94,10 @@ class _StubAuthService implements AuthService {
       const Result.success(null);
   @override
   Future<Result<void, AppError>> updateUserProfile(
-          {String? displayName, String? photoUrl}) async =>
+          {String? displayName,
+          String? photoUrl,
+          String? prefecture,
+          String? city}) async =>
       const Result.success(null);
   @override
   dynamic noSuchMethod(Invocation invocation) => null;

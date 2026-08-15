@@ -239,6 +239,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                   final canSubmit =
                       value.text.trim().isNotEmpty && !_isUploadingImages;
                   return TextButton(
+                    style: TextButton.styleFrom(foregroundColor: Colors.white),
                     onPressed: canSubmit ? _submit : null,
                     child: const Text('投稿'),
                   );

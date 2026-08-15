@@ -12,6 +12,7 @@ import '../models/app_notification.dart';
 import '../models/fleet_plan.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
+import '../widgets/common/ai_disclaimer.dart';
 import '../core/utils/inspection_urgency.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/common/offline_banner.dart';
@@ -1586,12 +1587,12 @@ class _DashboardSummaryCard extends StatelessWidget {
           Row(
             children: [
               const Icon(Icons.dashboard_outlined,
-                  size: AppSpacing.iconSm, color: Colors.white70),
+                  size: AppSpacing.iconSm, color: Colors.white),
               AppSpacing.horizontalXs,
               Text(
                 'ダッシュボード',
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: Colors.white70,
+                  color: Colors.white,
                   letterSpacing: 0.5,
                 ),
               ),
@@ -1617,7 +1618,7 @@ class _DashboardSummaryCard extends StatelessWidget {
                 label: '要対応',
                 iconColor: expiredCount > 0
                     ? AppColors.error.withValues(alpha: 0.9)
-                    : Colors.white54,
+                    : Colors.white.withValues(alpha: 0.85),
               ),
               _buildDivider(),
               _buildStatItem(
@@ -1625,7 +1626,9 @@ class _DashboardSummaryCard extends StatelessWidget {
                 icon: Icons.warning_amber_outlined,
                 value: '$warnCount',
                 label: '注意',
-                iconColor: warnCount > 0 ? AppColors.warning : Colors.white54,
+                iconColor: warnCount > 0
+                    ? AppColors.warning
+                    : Colors.white.withValues(alpha: 0.85),
               ),
             ],
           ),
@@ -1695,7 +1698,7 @@ class _DashboardSummaryCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.business, size: 14, color: Colors.white70),
+                  const Icon(Icons.business, size: 14, color: Colors.white),
                   AppSpacing.horizontalXs,
                   Expanded(
                     child: Text(
@@ -1755,7 +1758,7 @@ class _DashboardSummaryCard extends StatelessWidget {
       case InspectionUrgency.normal:
       case InspectionUrgency.none:
         background = Colors.white.withValues(alpha: 0.12);
-        iconColor = Colors.white70;
+        iconColor = Colors.white;
         icon = Icons.verified_outlined;
         fontWeight = FontWeight.normal;
         keySuffix = 'normal';
@@ -2288,13 +2291,9 @@ class _SuggestionDetailSheet extends StatelessWidget {
             // お決めください」から変更。判断を委ねる意図だったが、こちらが情報を
             // 与えて相手に決めさせる構図になっており、上から目線に読める。
             // 主語をサービス側に置き、「参考情報である」という事実だけを伝える。
-            Text(
-              'この内容は参考情報です。実際の状態は認証工場での点検をご確認ください。',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.outline,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
+            // AIの出力に添える注記は AiDisclaimer に一本化する。
+            // 画面ごとに書き分けると必ず抜けと表記ゆれが出る。
+            const AiDisclaimer(subject: 'この提案'),
 
             const SizedBox(height: AppSpacing.lg),
 

@@ -199,6 +199,9 @@ Shop _fullShop({
     ServiceCategory.maintenance,
     ServiceCategory.inspection,
   ],
+  // 既定は提携店。詳細画面はアプリ内の導線から開く前提なので、
+  // 通常ケースは提携店になる。未提携は個別のテストで指定する。
+  ShopSubscriptionStatus subscriptionStatus = ShopSubscriptionStatus.active,
 }) {
   final now = DateTime.now();
   return Shop(
@@ -220,6 +223,7 @@ Shop _fullShop({
     },
     rating: rating,
     reviewCount: 42,
+    subscriptionStatus: subscriptionStatus,
     createdAt: now,
     updatedAt: now,
   );
@@ -296,6 +300,45 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('03-9876-5432'), findsOneWidget);
+    });
+
+    testWidgets('提携店では問い合わせボタンが表示される', (tester) async {
+      mockShop.shopResult = Result.success(_fullShop());
+
+      await tester.pumpWidget(_buildApp(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('shop_inquiry_button')), findsOneWidget);
+      expect(find.byKey(const Key('shop_non_partner_notice')), findsNothing);
+    });
+
+    testWidgets('未提携店では参考情報である旨を表示し、問い合わせボタンを出さない', (tester) async {
+      // 送っても誰も見ない問い合わせを作らない。
+      mockShop.shopResult = Result.success(
+        _fullShop(subscriptionStatus: ShopSubscriptionStatus.free),
+      );
+
+      await tester.pumpWidget(_buildApp(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('shop_non_partner_notice')), findsOneWidget);
+      expect(find.byKey(const Key('shop_inquiry_button')), findsNothing);
+      expect(find.byKey(const Key('shop_call_button')), findsOneWidget);
+    });
+
+    testWidgets('未提携店で電話番号が無ければ電話ボタンも出さない', (tester) async {
+      mockShop.shopResult = Result.success(
+        _fullShop(
+          phone: null,
+          subscriptionStatus: ShopSubscriptionStatus.free,
+        ),
+      );
+
+      await tester.pumpWidget(_buildApp(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('shop_call_button')), findsNothing);
+      expect(find.textContaining('アプリからは問い合わせできません'), findsOneWidget);
     });
 
     testWidgets('住所が表示される', (tester) async {

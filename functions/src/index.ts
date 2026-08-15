@@ -13,6 +13,7 @@
 
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { handleWebhook } from "./webhook";
@@ -25,6 +26,11 @@ import {
 import type { ShopSubscriptionUpdate } from "./types";
 export { onNewsletterSend } from "./sendNewsletter";
 export { askCarAi } from "./askCarAi";
+import {
+  handleScheduledPurge,
+  isDue,
+  type DeletionMarker,
+} from "./purgeDeletedAccounts";
 
 admin.initializeApp();
 
@@ -143,3 +149,88 @@ export const onCommentReportCreated = onDocumentCreated(
     }
   }
 );
+
+/**
+ * Scheduled Cloud Function — deleted-account purge.
+ *
+ * The client writes an account_deletions/{uid} marker on account deletion,
+ * and the privacy policy promises the data is removed 30 days later. This
+ * job executes that promise daily. Until it was added, the marker was
+ * written but nothing ever deleted the data.
+ */
+export const purgeDeletedAccounts = onSchedule(
+  { schedule: "every day 03:17", timeZone: "Asia/Tokyo",
+    region: "asia-northeast1" },
+  async () => {
+    const db = admin.firestore();
+    const bucket = admin.storage().bucket();
+    const now = Date.now();
+
+    const result = await handleScheduledPurge({
+      listDueMarkers: async () => {
+        const snap = await db
+          .collection("account_deletions")
+          .where("status", "==", "pending")
+          .get();
+        return snap.docs
+          .filter((d) => isDue(d.data() as DeletionMarker, now))
+          .map((d) => d.id);
+      },
+      deleteByUserId: async (collection, uid) => {
+        const deleted: string[] = [];
+        // 400 per batch: Firestore rejects batches above 500 writes.
+        for (;;) {
+          const snap = await db
+            .collection(collection)
+            .where("userId", "==", uid)
+            .limit(400)
+            .get();
+          if (snap.empty) break;
+          const batch = db.batch();
+          for (const doc of snap.docs) {
+            batch.delete(doc.ref);
+            deleted.push(doc.id);
+          }
+          await batch.commit();
+        }
+        return deleted;
+      },
+      deleteWaypointsFor: async (driveLogIds) => {
+        for (const driveLogId of driveLogIds) {
+          for (;;) {
+            const snap = await db
+              .collection("drive_waypoints")
+              .where("driveLogId", "==", driveLogId)
+              .limit(400)
+              .get();
+            if (snap.empty) break;
+            const batch = db.batch();
+            snap.docs.forEach((doc) => batch.delete(doc.ref));
+            await batch.commit();
+          }
+        }
+      },
+      deleteUserDoc: async (uid) => {
+        await db.collection("users").doc(uid).delete();
+      },
+      deleteStoragePrefix: async (prefix) => {
+        await bucket.deleteFiles({ prefix });
+      },
+      markCompleted: async (uid) => {
+        await db.collection("account_deletions").doc(uid).update({
+          status: "completed",
+          purgedAt: admin.firestore.Timestamp.now(),
+        });
+      },
+    });
+
+    console.log(
+      `Account purge: ${result.purgedUids.length} purged, ` +
+        `${result.failedUids.length} failed` +
+        (result.failedUids.length > 0
+          ? ` (${result.failedUids.join(", ")})`
+          : "")
+    );
+  }
+);
+

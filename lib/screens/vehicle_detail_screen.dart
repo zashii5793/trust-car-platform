@@ -17,7 +17,9 @@ import '../widgets/common/app_card.dart';
 import '../widgets/common/loading_indicator.dart';
 import 'add_maintenance_screen.dart';
 import '../widgets/maintenance/maintenance_ai_comment.dart';
+import '../widgets/maintenance/maintenance_detail_breakdown.dart';
 import 'export/export_dialog.dart';
+import 'marketplace/shop_list_screen.dart';
 import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
 import 'insurance_edit_screen.dart';
@@ -173,6 +175,18 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
+  }
+
+  /// 整備記録に残っている直近の店舗名。無ければ null。
+  ///
+  /// 「いつもの店に相談」の宛先に使う。記録は日付降順で保持されている。
+  String? _latestShopName() {
+    final provider = context.read<MaintenanceProvider>();
+    for (final record in provider.records) {
+      final name = record.shopName;
+      if (name != null && name.trim().isNotEmpty) return name.trim();
+    }
+    return null;
   }
 
   Future<void> _showMileageUpdateDialog() async {
@@ -426,6 +440,17 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                               ),
                             ),
                           ),
+                          // 期限が迫っている・切れているときは「知らせる」
+                          // だけでなく、その場で動ける導線を出す。
+                          // 期限を知っても次の行き先が無ければ放置される。
+                          if (_vehicle.isInspectionExpired ||
+                              _vehicle.isInspectionDueSoon)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 88, top: 6),
+                              child: _InspectionActionButtons(
+                                latestShopName: _latestShopName(),
+                              ),
+                            ),
                         ],
                         if (_vehicle.insuranceExpiryDate != null)
                           _InfoRow(
@@ -455,6 +480,11 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                   if (_vehicle.leaseInfo != null &&
                       _vehicle.leaseInfo!.hasAnyValue)
                     _LeaseInfoSection(leaseInfo: _vehicle.leaseInfo!),
+
+                  // オプション・装備セクション
+                  if (_vehicle.equipment != null &&
+                      _vehicle.equipment!.hasAnyValue)
+                    _EquipmentInfoSection(equipment: _vehicle.equipment!),
 
                   // 点検スケジュールセクション
                   _MaintenanceScheduleSection(vehicle: _vehicle),
@@ -814,6 +844,84 @@ class _LeaseInfoSection extends StatelessWidget {
                   label: 'メンテパック',
                   value: leaseInfo.maintenancePackDetails!,
                 ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── オプション・装備セクション ──────────────────────────────────────────────
+
+class _EquipmentInfoSection extends StatelessWidget {
+  final VehicleEquipment equipment;
+  const _EquipmentInfoSection({required this.equipment});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      key: const Key('vehicle_equipment_section'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        Padding(
+          padding: AppSpacing.paddingScreen,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.settings_suggest,
+                      size: 16, color: AppColors.textSecondary),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    'オプション・装備',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              AppSpacing.verticalXs,
+              if (equipment.navigation.hasAnyValue)
+                _InfoRow(
+                  icon: Icons.navigation,
+                  label: 'カーナビ',
+                  value: equipment.navigation.displayLabel,
+                ),
+              if (equipment.driveRecorder.hasAnyValue)
+                _InfoRow(
+                  icon: Icons.videocam,
+                  label: 'ドラレコ',
+                  value: equipment.driveRecorder.displayLabel,
+                ),
+              if (equipment.etc.hasAnyValue)
+                _InfoRow(
+                  icon: Icons.toll,
+                  label: 'ETC',
+                  value: equipment.etc.displayLabel,
+                ),
+              if (equipment.features.isNotEmpty ||
+                  equipment.others.isNotEmpty) ...[
+                AppSpacing.verticalXs,
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xxs,
+                  children: [
+                    for (final f in equipment.features)
+                      Chip(
+                        label: Text(f.label),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    for (final o in equipment.others)
+                      Chip(
+                        label: Text(o),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -2327,6 +2435,11 @@ class _MaintenanceDetailSheet extends StatelessWidget {
                     ),
                   ],
 
+                  // 明細（部品 / 金額内訳 / 次回交換 / 点検結果 / タイヤ）。
+                  // 請求書OCRが読み取った項目は保存されていたが、これまで
+                  // 表示する画面が無く誰も見られなかった。
+                  MaintenanceDetailBreakdown(record: record),
+
                   AppSpacing.verticalLg,
 
                   // Edit button
@@ -3186,4 +3299,62 @@ class _CommunityInsightRow extends StatelessWidget {
     }
     return cost.toStringAsFixed(0);
   }
+}
+
+// ---------------------------------------------------------------------------
+// 車検アクション導線
+// ---------------------------------------------------------------------------
+
+/// 車検の期限が迫っている・切れているときに出す行動ボタン。
+///
+/// 期限の警告だけでは「で、どうすれば」で止まる。その場から
+/// 工場検索へ進めるようにし、過去に使った店があればその名前で
+/// 検索済みの状態で開く（記録の shopName は文字列でしか持っておらず
+/// shopId が無いため、名前検索で繋ぐ）。
+class _InspectionActionButtons extends StatelessWidget {
+  final String? latestShopName;
+
+  const _InspectionActionButtons({required this.latestShopName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xxs,
+      children: [
+        OutlinedButton.icon(
+          key: const Key('inspection_find_shop_btn'),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ShopListScreen()),
+          ),
+          icon: const Icon(Icons.search, size: 15),
+          label: const Text('整備工場を探す'),
+          style: _style(AppColors.warning),
+        ),
+        if (latestShopName != null)
+          OutlinedButton.icon(
+            key: const Key('inspection_contact_last_shop_btn'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    ShopListScreen(maintenanceContext: latestShopName),
+              ),
+            ),
+            icon: const Icon(Icons.history, size: 15),
+            label: Text('$latestShopNameに相談'),
+            style: _style(AppColors.info),
+          ),
+      ],
+    );
+  }
+
+  ButtonStyle _style(Color color) => OutlinedButton.styleFrom(
+        foregroundColor: color,
+        side: BorderSide(color: color),
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        textStyle: const TextStyle(fontSize: 12),
+      );
 }

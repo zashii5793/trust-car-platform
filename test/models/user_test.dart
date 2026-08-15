@@ -164,4 +164,51 @@ void main() {
       });
     });
   });
+
+  group('居住地（prefecture / city）', () {
+    AppUser make({String? prefecture, String? city}) => AppUser(
+          id: 'u1',
+          email: 'a@example.com',
+          prefecture: prefecture,
+          city: city,
+          createdAt: DateTime(2026, 1, 1),
+          updatedAt: DateTime(2026, 1, 1),
+        );
+
+    test('regionLabel joins prefecture and city', () {
+      expect(make(prefecture: '東京都', city: '世田谷区').regionLabel, '東京都世田谷区');
+    });
+
+    test('is persisted in toMap', () {
+      final map = make(prefecture: '大阪府', city: '吹田市').toMap();
+      expect(map['prefecture'], '大阪府');
+      expect(map['city'], '吹田市');
+    });
+
+    test('copyWith replaces the region', () {
+      final updated = make(prefecture: '東京都').copyWith(prefecture: '北海道');
+      expect(updated.prefecture, '北海道');
+    });
+
+    group('Edge Cases', () {
+      test('regionLabel is null when nothing is set', () {
+        expect(make().regionLabel, isNull);
+      });
+
+      test('regionLabel uses whichever half is set', () {
+        expect(make(prefecture: '沖縄県').regionLabel, '沖縄県');
+        expect(make(city: '那覇市').regionLabel, '那覇市');
+      });
+
+      test('blank values are treated as unset', () {
+        expect(make(prefecture: '  ', city: '').regionLabel, isNull);
+      });
+
+      test('unset region keys are omitted from the map', () {
+        // null を書き戻すと既存の値を消してしまう。
+        expect(make().toMap().containsKey('prefecture'), isFalse);
+        expect(make().toMap().containsKey('city'), isFalse);
+      });
+    });
+  });
 }

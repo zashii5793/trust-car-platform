@@ -169,6 +169,18 @@ class MockNotificationProvider extends ChangeNotifier
     }
   }
 
+  String? lastMarkedUnreadId;
+
+  @override
+  Future<void> markAsUnread(String notificationId) async {
+    lastMarkedUnreadId = notificationId;
+    final idx = _notifications.indexWhere((n) => n.id == notificationId);
+    if (idx != -1) {
+      _notifications[idx] = _notifications[idx].copyWith(isRead: false);
+      notifyListeners();
+    }
+  }
+
   @override
   Future<void> markAllAsRead() async {
     markAllReadCallCount++;
@@ -332,6 +344,41 @@ void main() {
       await tester.pump();
 
       expect(find.text('車検リマインダー'), findsOneWidget);
+    });
+
+    testWidgets('未読バッジをタップすると既読になる', (tester) async {
+      // 既読にする手段がスワイプしか無く「機能が無い」と見えていた。
+      // 押せるバッジであることをここで固定する。
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', isRead: false),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.text('未読'), findsOneWidget);
+      await tester.tap(find.text('未読'));
+      await tester.pump();
+
+      expect(provider.lastMarkedReadId, 'n1');
+      expect(find.text('既読'), findsOneWidget);
+    });
+
+    testWidgets('既読バッジをタップすると未読に戻せる', (tester) async {
+      // カードのタップでも既読になるため、戻す手段が無いと誤操作が
+      // 取り返せない。
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', isRead: true),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.tap(find.text('既読'));
+      await tester.pump();
+
+      expect(provider.lastMarkedUnreadId, 'n1');
+      expect(find.text('未読'), findsOneWidget);
     });
 
     testWidgets('通知をタップすると markAsRead が呼ばれる', (tester) async {
