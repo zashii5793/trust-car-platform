@@ -55,6 +55,30 @@ class VehicleMasterService {
     }
   }
 
+  /// Records a user-entered custom maker/model that was not in the catalog so
+  /// operations can later review it and promote popular entries to the master.
+  /// Callers use this fire-and-forget; it never blocks vehicle registration.
+  Future<Result<void, AppError>> recordCustomEntrySuggestion({
+    required String userId,
+    required String type, // 'maker' or 'model'
+    required String value,
+    String? makerName,
+  }) async {
+    try {
+      await _firestore.collection('vehicle_master_suggestions').add({
+        'userId': userId,
+        'type': type,
+        'value': value,
+        if (makerName != null) 'makerName': makerName,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.unknown('候補の記録に失敗しました'));
+    }
+  }
+
   /// Get vehicle models for a specific maker
   Future<Result<List<VehicleModel>, AppError>> getModelsForMaker(
       String makerId) async {

@@ -668,6 +668,21 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ==================== 車両マスタ追加候補 ====================
+    // vehicle_master_suggestions/{suggestionId}
+    // Users record custom maker/model entries they typed that were not in the
+    // catalog. Ops reviews these (server/admin) to promote popular ones to the
+    // master. Clients may only create their own suggestion; reads and edits are
+    // server-only.
+    match /vehicle_master_suggestions/{suggestionId} {
+      allow read: if false;
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
     // ==================== 中古車購入問い合わせ ====================
     // car_purchase_inquiries/{inquiryId}
     // Created by buyers; readable by the buyer and the target shop.
