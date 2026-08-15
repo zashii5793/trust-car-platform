@@ -145,6 +145,21 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
+    // マイカータブにドライブログ導線を表示。従来はプロフィール奥の「アカウント」
+    // にあり発見しづらかったため、テーマの近い車両タブ上部へ移動。
+    if (_currentIndex == 0) {
+      actions.add(
+        IconButton(
+          icon: const Icon(Icons.route_outlined),
+          tooltip: 'ドライブログ',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const DriveLogScreen()),
+          ),
+        ),
+      );
+    }
+
     // マーケットプレイスタブにオーナー掲載ボタンを表示
     if (_currentIndex == 1) {
       actions.add(
@@ -164,6 +179,20 @@ class _HomeScreenState extends State<HomeScreen> {
     // SNS（みんなの投稿）タブにソーシャル通知ベルを表示。未読数をバッジ表示し、
     // タップでソーシャル通知一覧（いいね・コメント）へ遷移する。
     if (_currentIndex == 2) {
+      // みんなのアクセサリ（口コミ・コメント）はコミュニティ機能なので、
+      // プロフィール奥ではなく「みんなの投稿」タブ上部から辿れるようにする。
+      actions.add(
+        IconButton(
+          icon: const Icon(Icons.reviews_outlined),
+          tooltip: 'みんなのアクセサリ',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const AccessoryShowcaseScreen(),
+            ),
+          ),
+        ),
+      );
       final uid = context.read<AuthProvider>().firebaseUser?.uid ?? '';
       if (uid.isNotEmpty) {
         actions.add(
@@ -535,26 +564,6 @@ class _ProfileTab extends StatelessWidget {
 
           AppSpacing.verticalSm,
 
-          // ---- コミュニティセクション ----
-          _buildMenuSection(
-            context,
-            title: 'コミュニティ',
-            items: [
-              _MenuItemData(
-                icon: Icons.forum_outlined,
-                label: 'みんなのアクセサリー（口コミ・コメント）',
-                color: AppColors.secondary,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const AccessoryShowcaseScreen()),
-                ),
-              ),
-            ],
-          ),
-
-          AppSpacing.verticalSm,
-
           // ---- アカウントセクション ----
           _buildMenuSection(
             context,
@@ -567,15 +576,6 @@ class _ProfileTab extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                ),
-              ),
-              _MenuItemData(
-                icon: Icons.directions_car_outlined,
-                label: 'ドライブログ',
-                color: AppColors.accentDrive,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const DriveLogScreen()),
                 ),
               ),
               _MenuItemData(
