@@ -9,15 +9,30 @@ import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../core/utils/license_plate.dart';
+import '../core/utils/auth_scoped_stream.dart';
 
 /// Firebaseサービス
 ///
 /// すべてのメソッドは[Result]を返し、
 /// エラーハンドリングを一貫して行える
 class FirebaseService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
+
+  /// Resolved on first use — touching FirebaseStorage.instance in the
+  /// constructor crashes tests that never exercise storage (see ShopService).
+  FirebaseStorage? _storageOverride;
+  FirebaseStorage get _storage =>
+      _storageOverride ??= FirebaseStorage.instance;
+
+  /// Dependencies default to the singleton instances; tests inject fakes.
+  FirebaseService({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+    FirebaseStorage? storage,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance,
+        _storageOverride = storage;
 
   // 現在のユーザーID取得
   String? get currentUserId => _auth.currentUser?.uid;
@@ -51,19 +66,25 @@ class FirebaseService {
   }
 
   /// ユーザーの車両一覧を取得（Stream版は後方互換性のため維持）
+  /// Re-subscribes whenever the signed-in user changes.
+  ///
+  /// Screens start listening from initState, which on web runs before Firebase
+  /// Auth has restored its session. Returning a one-shot empty stream there
+  /// left the list permanently empty even after login succeeded, because the
+  /// subscription never re-evaluated (and the provider's retry only fires on
+  /// error, not on a legitimately empty result).
   Stream<List<Vehicle>> getUserVehicles() {
-    if (currentUserId == null) {
-      return Stream.value([]);
-    }
-
-    return _firestore
-        .collection(FirestoreCollections.vehicles)
-        .where('userId', isEqualTo: currentUserId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) => Vehicle.fromFirestore(doc)).toList();
-    });
+    return authScopedStream<List<Vehicle>>(
+      authChanges: _auth.authStateChanges(),
+      signedOutValue: const <Vehicle>[],
+      onSignedIn: (user) => _firestore
+          .collection(FirestoreCollections.vehicles)
+          .where('userId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((snapshot) =>
+              snapshot.docs.map((doc) => Vehicle.fromFirestore(doc)).toList()),
+    );
   }
 
   /// 特定の車両を取得

@@ -4,6 +4,7 @@ import '../models/invoice.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
+import '../core/utils/auth_scoped_stream.dart';
 
 /// 請求書サービス
 ///
@@ -61,18 +62,19 @@ class InvoiceService {
   }
 
   /// ユーザーの請求書一覧を取得（Stream）
+  /// Re-subscribes whenever the signed-in user changes — see
+  /// FirebaseService.getUserVehicles for why a one-shot empty stream is wrong.
   Stream<List<Invoice>> getUserInvoices() {
-    if (currentUserId == null) {
-      return Stream.value([]);
-    }
-
-    return _invoicesCollection
-        .where('userId', isEqualTo: currentUserId)
-        .orderBy('issueDate', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) => Invoice.fromFirestore(doc)).toList();
-    });
+    return authScopedStream<List<Invoice>>(
+      authChanges: _auth.authStateChanges(),
+      signedOutValue: const <Invoice>[],
+      onSignedIn: (user) => _invoicesCollection
+          .where('userId', isEqualTo: user.uid)
+          .orderBy('issueDate', descending: true)
+          .snapshots()
+          .map((snapshot) =>
+              snapshot.docs.map((doc) => Invoice.fromFirestore(doc)).toList()),
+    );
   }
 
   /// 車両の請求書一覧を取得

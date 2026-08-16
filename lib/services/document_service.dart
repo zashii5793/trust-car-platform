@@ -6,6 +6,7 @@ import '../models/document.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
+import '../core/utils/auth_scoped_stream.dart';
 
 /// 書類管理サービス
 ///
@@ -14,7 +15,11 @@ import '../core/result/result.dart';
 class DocumentService {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
-  final FirebaseStorage _storage;
+
+  /// Resolved on first use so tests that never upload need no storage mock.
+  FirebaseStorage? _storageOverride;
+  FirebaseStorage get _storage =>
+      _storageOverride ??= FirebaseStorage.instance;
 
   DocumentService({
     FirebaseFirestore? firestore,
@@ -22,7 +27,7 @@ class DocumentService {
     FirebaseStorage? storage,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
         _auth = auth ?? FirebaseAuth.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+        _storageOverride = storage;
 
   // 現在のユーザーID取得
   String? get currentUserId => _auth.currentUser?.uid;
@@ -139,23 +144,27 @@ class DocumentService {
   }
 
   /// ユーザーの書類一覧を取得（Stream）
+  /// Re-subscribes whenever the signed-in user changes — see
+  /// FirebaseService.getUserVehicles for why a one-shot empty stream is wrong.
   Stream<List<Document>> getUserDocuments({bool includeArchived = false}) {
-    if (currentUserId == null) {
-      return Stream.value([]);
-    }
+    return authScopedStream<List<Document>>(
+      authChanges: _auth.authStateChanges(),
+      signedOutValue: const <Document>[],
+      onSignedIn: (user) {
+        var query = _documentsCollection.where('userId', isEqualTo: user.uid);
 
-    var query = _documentsCollection.where('userId', isEqualTo: currentUserId);
+        if (!includeArchived) {
+          query = query.where('isArchived', isEqualTo: false);
+        }
 
-    if (!includeArchived) {
-      query = query.where('isArchived', isEqualTo: false);
-    }
-
-    return query
-        .orderBy('uploadedAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) => Document.fromFirestore(doc)).toList();
-    });
+        return query
+            .orderBy('uploadedAt', descending: true)
+            .snapshots()
+            .map((snapshot) => snapshot.docs
+                .map((doc) => Document.fromFirestore(doc))
+                .toList());
+      },
+    );
   }
 
   /// 車両に紐付く書類一覧を取得
