@@ -133,7 +133,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('TrustCar'), findsOneWidget);
-      expect(find.text('信頼を設計する、新時代のカーライフ'), findsOneWidget);
+      expect(find.text('クルマを安心・安全に、楽しく管理'), findsOneWidget);
     });
 
     testWidgets('displays car icon', (tester) async {

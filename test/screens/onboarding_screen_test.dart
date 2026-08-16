@@ -49,7 +49,7 @@ void main() {
       await tester.pumpWidget(_buildOnboardingApp());
       await tester.pump();
 
-      expect(find.textContaining('クルマのことを'), findsOneWidget);
+      expect(find.textContaining('クルマを安心・安全に'), findsOneWidget);
     });
 
     testWidgets('スキップボタンが全ページに表示される', (tester) async {

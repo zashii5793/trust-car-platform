@@ -48,7 +48,7 @@ class _OnboardingPage {
 const _pages = [
   _OnboardingPage(
     icon: Icons.directions_car,
-    title: 'クルマのことを、\nもう考えなくていい世界へ',
+    title: 'クルマを安心・安全に、\n楽しく管理',
     subtitle: '整備・点検・車検のすべてを、このアプリ一つで。',
   ),
   _OnboardingPage(
