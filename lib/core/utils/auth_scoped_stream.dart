@@ -14,8 +14,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 /// complete. That would leave the previous user's data flowing after sign-out.
 /// This helper cancels the previous inner subscription on every auth change,
 /// which is the `switchMap` behaviour without pulling in rxdart.
+/// [currentUser] must be read lazily at subscribe time (pass a closure over
+/// `FirebaseAuth.currentUser`). `authStateChanges()` does not reliably replay
+/// its latest value to a late subscriber on web, so a screen that subscribes
+/// after login completed would otherwise wait forever for an event that
+/// already fired.
 Stream<T> authScopedStream<T>({
   required Stream<User?> authChanges,
+  required User? Function() currentUser,
   required Stream<T> Function(User user) onSignedIn,
   required T signedOutValue,
 }) {
@@ -29,21 +35,28 @@ Stream<T> authScopedStream<T>({
     await sub?.cancel();
   }
 
+  void switchTo(User? user) {
+    if (controller.isClosed) return;
+
+    if (user == null) {
+      controller.add(signedOutValue);
+      return;
+    }
+
+    innerSub = onSignedIn(user).listen(
+      controller.add,
+      onError: controller.addError,
+    );
+  }
+
   controller = StreamController<T>(
     onListen: () {
+      // Seed from the current session before waiting for any auth event.
+      switchTo(currentUser());
+
       authSub = authChanges.listen((user) async {
         await cancelInner();
-        if (controller.isClosed) return;
-
-        if (user == null) {
-          controller.add(signedOutValue);
-          return;
-        }
-
-        innerSub = onSignedIn(user).listen(
-          controller.add,
-          onError: controller.addError,
-        );
+        switchTo(user);
       }, onError: controller.addError);
     },
     onCancel: () async {

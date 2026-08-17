@@ -67,6 +67,7 @@ class InvoiceService {
   Stream<List<Invoice>> getUserInvoices() {
     return authScopedStream<List<Invoice>>(
       authChanges: _auth.authStateChanges(),
+      currentUser: () => _auth.currentUser,
       signedOutValue: const <Invoice>[],
       onSignedIn: (user) => _invoicesCollection
           .where('userId', isEqualTo: user.uid)

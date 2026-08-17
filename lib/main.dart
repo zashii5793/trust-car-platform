@@ -90,8 +90,6 @@ void main() async {
   // `--dart-define=USE_EMULATOR=true` to force the emulator on any platform —
   // this is how the seeded persona data is exercised from a web build.
   if (useEmulatorSuite) {
-    debugPrint(
-        '[TrustCar] Firebase Emulator に接続します (host=${Uri.base.host}, flag=$kUseEmulator)');
     await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
     // useFirestoreEmulator already rewrites `settings` (host, sslEnabled and
     // persistence). Assigning a fresh Settings afterwards clobbered that

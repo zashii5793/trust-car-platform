@@ -76,6 +76,7 @@ class FirebaseService {
   Stream<List<Vehicle>> getUserVehicles() {
     return authScopedStream<List<Vehicle>>(
       authChanges: _auth.authStateChanges(),
+      currentUser: () => _auth.currentUser,
       signedOutValue: const <Vehicle>[],
       onSignedIn: (user) => _firestore
           .collection(FirestoreCollections.vehicles)

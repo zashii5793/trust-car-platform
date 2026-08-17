@@ -8,10 +8,14 @@
 // ここでは「購読開始時は未ログイン → 後からログイン」という順序で、
 // ログイン後にデータが流れてくることを検証する。
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trust_car_platform/core/utils/auth_scoped_stream.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/services/document_service.dart';
@@ -131,6 +135,66 @@ void main() {
 
       expect(emissions.last, hasLength(1),
           reason: 'ログイン完了後は請求書が流れてくるべき');
+
+      await sub.cancel();
+    });
+  });
+
+  group('authStateChanges が過去のログインを再送しない場合', () {
+    // Web の FlutterFire では、ログイン完了後に購読を始めた subscriber へ
+    // 直前の認証イベントが流れてこないことがある。画面は initState から
+    // 購読するため、この順序（ログイン完了 → 購読開始）が実機で起きる。
+    // イベントを一切流さない authChanges で、その状況を再現する。
+    test('購読開始時点のログイン状態からデータが流れる', () async {
+      final firestore = FakeFirebaseFirestore();
+      await _seedVehicle(firestore);
+
+      final user = MockUser(uid: _uid);
+      final silentAuthChanges = StreamController<User?>();
+      addTearDown(silentAuthChanges.close);
+
+      final vehicles = <List<Vehicle>>[];
+      final sub = authScopedStream<List<Vehicle>>(
+        authChanges: silentAuthChanges.stream,
+        currentUser: () => user,
+        signedOutValue: const <Vehicle>[],
+        onSignedIn: (u) => firestore
+            .collection('vehicles')
+            .where('userId', isEqualTo: u.uid)
+            .orderBy('createdAt', descending: true)
+            .snapshots()
+            .map((s) => s.docs.map(Vehicle.fromFirestore).toList()),
+      ).listen(vehicles.add);
+
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      expect(
+        vehicles.last.map((v) => v.model).toList(),
+        ['Roadster'],
+        reason: '認証イベントが来なくても購読時点のセッションで読み込むべき',
+      );
+
+      await sub.cancel();
+    });
+
+    test('購読開始時点が未ログインなら空を流す', () async {
+      final firestore = FakeFirebaseFirestore();
+      await _seedVehicle(firestore);
+
+      final silentAuthChanges = StreamController<User?>();
+      addTearDown(silentAuthChanges.close);
+
+      final vehicles = <List<Vehicle>>[];
+      final sub = authScopedStream<List<Vehicle>>(
+        authChanges: silentAuthChanges.stream,
+        currentUser: () => null,
+        signedOutValue: const <Vehicle>[],
+        onSignedIn: (u) => const Stream<List<Vehicle>>.empty(),
+      ).listen(vehicles.add);
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(vehicles.last, isEmpty);
 
       await sub.cancel();
     });

@@ -149,6 +149,7 @@ class DocumentService {
   Stream<List<Document>> getUserDocuments({bool includeArchived = false}) {
     return authScopedStream<List<Document>>(
       authChanges: _auth.authStateChanges(),
+      currentUser: () => _auth.currentUser,
       signedOutValue: const <Document>[],
       onSignedIn: (user) {
         var query = _documentsCollection.where('userId', isEqualTo: user.uid);
