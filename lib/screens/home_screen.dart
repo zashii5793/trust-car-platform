@@ -73,13 +73,18 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     final vehicleProvider =
         Provider.of<VehicleProvider>(context, listen: false);
-    final notificationProvider =
-        Provider.of<NotificationProvider>(context, listen: false);
+    if (vehicleProvider.vehicles.isEmpty) return;
 
-    if (vehicleProvider.vehicles.isNotEmpty) {
-      notificationProvider
+    // This runs while VehicleProvider is still dispatching to its listeners.
+    // Touching another provider here mutates the widget tree mid-dispatch,
+    // which left _VehicleTab's `context.watch` subscription unrebuilt — the
+    // list stayed on the empty-state until some other setState happened to
+    // rebuild it. Deferring to the next frame lets the dispatch finish first.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Provider.of<NotificationProvider>(context, listen: false)
           .generateNotificationsForVehicles(vehicleProvider.vehicles);
-    }
+    });
   }
 
   @override
