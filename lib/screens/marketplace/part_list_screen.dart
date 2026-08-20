@@ -305,27 +305,29 @@ class _CategoryFilterRow extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(
                 horizontal: 4, vertical: AppSpacing.xs),
-            child: ChoiceChip(
+            child: Center(
+                child: ChoiceChip(
               label: const Text('すべて'),
               selected: selected == null,
               onSelected: (_) => onChanged(null),
               visualDensity: VisualDensity.compact,
               labelStyle: const TextStyle(fontSize: 12),
-            ),
+            )),
           ),
           // 各カテゴリ
           ..._displayCategories.map((category) {
             return Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: 4, vertical: AppSpacing.xs),
-              child: ChoiceChip(
+              child: Center(
+                  child: ChoiceChip(
                 label: Text(category.displayName),
                 selected: category == selected,
                 onSelected: (_) =>
                     onChanged(category == selected ? null : category),
                 visualDensity: VisualDensity.compact,
                 labelStyle: const TextStyle(fontSize: 12),
-              ),
+              )),
             );
           }),
         ],

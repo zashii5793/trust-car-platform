@@ -139,7 +139,8 @@ class _MaintenanceSearchScreenState extends State<MaintenanceSearchScreen> {
                 final selected = _selectedTypes.contains(type);
                 return Padding(
                   padding: const EdgeInsets.only(right: AppSpacing.xs),
-                  child: FilterChip(
+                  child: Center(
+                      child: FilterChip(
                     label: Text(type.displayName),
                     selected: selected,
                     visualDensity: VisualDensity.compact,
@@ -152,7 +153,7 @@ class _MaintenanceSearchScreenState extends State<MaintenanceSearchScreen> {
                         }
                       });
                     },
-                  ),
+                  )),
                 );
               }).toList(),
             ),

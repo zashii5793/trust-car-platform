@@ -92,8 +92,7 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
                     return AppEmptyState(
                       icon: Icons.filter_list_off,
                       title: 'この絞り込みには投稿がありません',
-                      description:
-                          '「$names」の投稿がまだありません。\n他のカテゴリも探してみましょう。',
+                      description: '「$names」の投稿がまだありません。\n他のカテゴリも探してみましょう。',
                       buttonLabel: 'すべて表示',
                       onButtonPressed: () => provider.clearCategories(),
                     );
@@ -261,7 +260,8 @@ class _ModelChip extends StatelessWidget {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
+      child: Center(
+          child: ChoiceChip(
         avatar: Icon(icon,
             size: 13, color: selected ? Colors.white : AppColors.accentDrive),
         label: Text(label),
@@ -274,7 +274,7 @@ class _ModelChip extends StatelessWidget {
         selectedColor: AppColors.accentDrive,
         backgroundColor: AppColors.accentDrive.withValues(alpha: 0.08),
         padding: const EdgeInsets.symmetric(horizontal: 4),
-      ),
+      )),
     );
   }
 }

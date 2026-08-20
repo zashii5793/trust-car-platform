@@ -459,7 +459,8 @@ class _CategoryChipRow extends StatelessWidget {
         itemBuilder: (context, index) {
           final cat = PostCategory.values[index];
           final isSelected = cat == selected;
-          return ChoiceChip(
+          return Center(
+              child: ChoiceChip(
             label: Text(
               cat.displayName,
               style: TextStyle(
@@ -472,7 +473,7 @@ class _CategoryChipRow extends StatelessWidget {
             selectedColor: theme.colorScheme.primary,
             backgroundColor: theme.colorScheme.surfaceContainerHighest,
             padding: const EdgeInsets.symmetric(horizontal: 4),
-          );
+          ));
         },
       ),
     );

@@ -172,27 +172,29 @@ class _CategoryFilterBar extends StatelessWidget {
             // "すべて" chip
             return Padding(
               padding: const EdgeInsets.only(right: AppSpacing.xs),
-              child: FilterChip(
+              child: Center(
+                  child: FilterChip(
                 label: const Text('すべて'),
                 selected: provider.selectedCategory == null,
                 onSelected: (_) {
                   provider.selectCategory(null);
                   provider.loadRecommendations(vehicle);
                 },
-              ),
+              )),
             );
           }
           final category = availableCategories[index - 1];
           return Padding(
             padding: const EdgeInsets.only(right: AppSpacing.xs),
-            child: FilterChip(
+            child: Center(
+                child: FilterChip(
               label: Text(category.displayName),
               selected: provider.selectedCategory == category,
               onSelected: (_) {
                 provider.selectCategory(category);
                 provider.loadRecommendations(vehicle, category: category);
               },
-            ),
+            )),
           );
         },
       ),
@@ -821,10 +823,10 @@ class _OwnerExamplesSectionState extends State<_OwnerExamplesSection> {
       return;
     }
     final result = await sl.get<PostService>().getFeed(
-          categories: const {PostCategory.customization},
-          modelName: widget.vehicle.model,
-          limit: 5,
-        );
+      categories: const {PostCategory.customization},
+      modelName: widget.vehicle.model,
+      limit: 5,
+    );
     if (!mounted) return;
     setState(() {
       _posts = result.valueOrNull ?? const [];

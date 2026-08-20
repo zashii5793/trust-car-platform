@@ -75,6 +75,31 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     return formatter.format(number);
   }
 
+  /// Explains why a records-dependent action is not available yet, and offers
+  /// the one step that makes it available.
+  ///
+  /// Greying the icon out was the whole message before: the user could not tell
+  /// "not available yet" from "broken", and nothing on screen said what to do.
+  void _showNeedsRecordsMessage(BuildContext context, String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$featureは、整備記録が1件以上あると使えます'),
+        action: SnackBarAction(
+          label: '記録を追加',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AddMaintenanceScreen(
+                vehicleId: _vehicle.id,
+                currentVehicleMileage: _vehicle.mileage,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showPdfUpgradeDialog(BuildContext context) {
     showDialog<void>(
       context: context,
@@ -277,46 +302,55 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
           title: Text('${_vehicle.maker} ${_vehicle.model}'),
           actions: [
             // 整備履歴検索ボタン
+            //
+            // A disabled icon renders faded with no explanation, so a feature
+            // that is merely unavailable looks broken. Keep it tappable and
+            // say why, with the action that unlocks it.
             Consumer<MaintenanceProvider>(
               builder: (context, provider, child) {
+                final empty = provider.records.isEmpty;
                 return IconButton(
                   icon: const Icon(Icons.search),
-                  tooltip: '整備履歴を検索',
-                  onPressed: provider.records.isEmpty
-                      ? null
-                      : () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const MaintenanceSearchScreen(),
-                            ),
-                          );
-                        },
+                  tooltip: empty ? '整備記録を追加すると使えます' : '整備履歴を検索',
+                  onPressed: () {
+                    if (empty) {
+                      _showNeedsRecordsMessage(context, '整備履歴の検索');
+                      return;
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MaintenanceSearchScreen(),
+                      ),
+                    );
+                  },
                 );
               },
             ),
             // PDF出力ボタン（プレミアム機能）
             Consumer<MaintenanceProvider>(
               builder: (context, provider, child) {
+                final empty = provider.records.isEmpty;
                 return IconButton(
                   icon: const Icon(Icons.picture_as_pdf),
-                  tooltip: 'PDFで出力',
-                  onPressed: provider.records.isEmpty
-                      ? null
-                      : () {
-                          final canExport = context
-                              .read<UserSubscriptionProvider>()
-                              .canExportPdf;
-                          if (!canExport) {
-                            _showPdfUpgradeDialog(context);
-                            return;
-                          }
-                          showExportDialog(
-                            context: context,
-                            vehicle: _vehicle,
-                            records: provider.records,
-                          );
-                        },
+                  tooltip: empty ? '整備記録を追加すると使えます' : 'PDFで出力',
+                  onPressed: () {
+                    if (empty) {
+                      _showNeedsRecordsMessage(context, 'PDF出力');
+                      return;
+                    }
+                    final canExport =
+                        context.read<UserSubscriptionProvider>().canExportPdf;
+                    if (!canExport) {
+                      _showPdfUpgradeDialog(context);
+                      return;
+                    }
+                    showExportDialog(
+                      context: context,
+                      vehicle: _vehicle,
+                      records: provider.records,
+                    );
+                  },
                 );
               },
             ),
@@ -1103,8 +1137,8 @@ class _VehicleImageState extends State<_VehicleImage> {
                     width: active ? 18 : 6,
                     height: 6,
                     decoration: BoxDecoration(
-                      color: Colors.white
-                          .withValues(alpha: active ? 0.95 : 0.5),
+                      color:
+                          Colors.white.withValues(alpha: active ? 0.95 : 0.5),
                       borderRadius: BorderRadius.circular(3),
                     ),
                   );
@@ -1115,8 +1149,7 @@ class _VehicleImageState extends State<_VehicleImage> {
               top: 12,
               right: 12,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(10),
@@ -1599,8 +1632,7 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
             // the state that needs a next step most: the user cannot tell a
             // broken screen from an empty one. Reconnecting the stream is
             // always safe to offer — worst case the same error comes back.
-            buttonLabel:
-                maintenanceProvider.isRetryable ? '再試行' : 'もう一度読み込む',
+            buttonLabel: maintenanceProvider.isRetryable ? '再試行' : 'もう一度読み込む',
             onButtonPressed: () => maintenanceProvider
                 .listenToMaintenanceRecords(widget.vehicle.id),
           );
