@@ -164,6 +164,7 @@ Post _makePost({
   int likeCount = 3,
   int commentCount = 1,
   List<String> hashtags = const [],
+  List<PostMedia> media = const [],
 }) {
   final now = DateTime.now();
   return Post(
@@ -175,6 +176,7 @@ Post _makePost({
     likeCount: likeCount,
     commentCount: commentCount,
     hashtags: hashtags,
+    media: media,
     createdAt: now,
     updatedAt: now,
   );
@@ -525,6 +527,69 @@ void main() {
         expect(find.text('ドライブ記事'), findsOneWidget);
         expect(find.text('質問です'), findsOneWidget);
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 投稿画像の見え方
+  //
+  // 1枚しかない投稿まで小さな正方形で出していたため、カードの中で写真が
+  // 埋もれて「画像を出せないアプリ」に見えていた。
+  // -------------------------------------------------------------------------
+
+  group('SnsFeedScreen — 投稿画像', () {
+    late MockPostService mockService;
+
+    setUp(() {
+      mockService = MockPostService();
+    });
+
+    PostMedia media(String url) => PostMedia(url: url, type: 'image');
+
+    testWidgets('画像がない投稿では画像領域が出ない', (tester) async {
+      mockService.feedResult = Result.success([_makePost(id: 'p-no-image')]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.byKey(const Key('post_media_p-no-image')), findsNothing);
+    });
+
+    testWidgets('画像1枚の投稿は幅いっぱいで表示される', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-one', media: [media('https://example.com/a.jpg')]),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      final finder = find.byKey(const Key('post_media_p-one'));
+      expect(finder, findsOneWidget);
+
+      // 横スクロールのリストではなく、1枚を大きく見せる
+      expect(
+        find.descendant(of: finder, matching: find.byType(ListView)),
+        findsNothing,
+      );
+    });
+
+    testWidgets('画像が複数ある投稿は横に並ぶ', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-many', media: [
+          media('https://example.com/a.jpg'),
+          media('https://example.com/b.jpg'),
+        ]),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      final finder = find.byKey(const Key('post_media_p-many'));
+      expect(finder, findsOneWidget);
+      expect(
+        find.descendant(of: finder, matching: find.byType(Image)),
+        findsNWidgets(2),
+      );
     });
   });
 }
