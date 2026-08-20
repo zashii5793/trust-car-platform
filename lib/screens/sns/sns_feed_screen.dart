@@ -487,7 +487,8 @@ class _PostCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: _PostContent(post: post),
                     ),
-                    if (post.media.isNotEmpty) _PostMediaRow(media: post.media),
+                    if (post.media.isNotEmpty)
+                      _PostMediaRow(media: post.media, postId: post.id),
                     _PostFooter(post: post),
                   ],
                 ),
@@ -727,12 +728,46 @@ class _VisibilityBadge extends StatelessWidget {
 
 class _PostMediaRow extends StatelessWidget {
   final List<PostMedia> media;
+  final String postId;
 
-  const _PostMediaRow({required this.media});
+  const _PostMediaRow({required this.media, required this.postId});
+
+  Widget _image(String url, {double? width, double? height}) {
+    return Image.network(
+      url,
+      width: width,
+      height: height,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
+        width: width,
+        height: height,
+        color: AppColors.backgroundLight,
+        child: const Icon(Icons.broken_image_outlined,
+            color: AppColors.textTertiary),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    // 1枚だけの投稿を小さな正方形で出すと、カードの中で写真が埋もれて
+    // 「画像を扱えないアプリ」に見えてしまう。1枚なら幅いっぱいに見せる。
+    if (media.length == 1) {
+      return Padding(
+        key: Key('post_media_$postId'),
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: _image(media.first.url, width: double.infinity),
+          ),
+        ),
+      );
+    }
+
     return SizedBox(
+      key: Key('post_media_$postId'),
       height: 160,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
@@ -742,19 +777,7 @@ class _PostMediaRow extends StatelessWidget {
         itemBuilder: (context, index) {
           return ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: Image.network(
-              media[index].url,
-              width: 160,
-              height: 160,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 160,
-                height: 160,
-                color: AppColors.backgroundLight,
-                child: const Icon(Icons.broken_image_outlined,
-                    color: AppColors.textTertiary),
-              ),
-            ),
+            child: _image(media[index].url, width: 160, height: 160),
           );
         },
       ),

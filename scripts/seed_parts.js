@@ -88,26 +88,34 @@ const CATALOG = [
   { category: 'other', names: ['汎用ステー金具セット', '配線コネクタキット'], price: [800, 9800] },
 ];
 
-/** ペルソナが実際に持っている車種（scripts/seed_personas.js と同じ綴り）。 */
+/**
+ * ペルソナが実際に持っている車種。
+ *
+ * **ID の綴りは実装に合わせる。** `PartRecommendationService` は
+ * `_getMakerId` / `_getModelId` で車両を
+ *   maker → 小文字（'Toyota' → 'toyota'）
+ *   model → '<maker>_<model>' の小文字（'Prius' → 'toyota_prius'）
+ * に変換してから照合する。表示名（'Toyota' / 'Prius'）で書くと 1 件も当たらない。
+ */
 const OWNED = [
-  { makerId: 'Toyota', modelId: 'Alphard', yearFrom: 2018, yearTo: 2024 },
-  { makerId: 'Toyota', modelId: 'Prius', yearFrom: 2012, yearTo: 2023 },
-  { makerId: 'Toyota', modelId: 'Hiace', yearFrom: 2019, yearTo: 2024 },
-  { makerId: 'Nissan', modelId: 'Note', yearFrom: 2020, yearTo: 2024 },
-  { makerId: 'Nissan', modelId: 'Serena', yearFrom: 2016, yearTo: 2024 },
-  { makerId: 'Nissan', modelId: 'Leaf', yearFrom: 2018, yearTo: 2024 },
-  { makerId: 'Honda', modelId: 'Fit', yearFrom: 2017, yearTo: 2023 },
-  { makerId: 'Honda', modelId: 'N-BOX', yearFrom: 2017, yearTo: 2024 },
-  { makerId: 'Honda', modelId: 'Beat', yearFrom: 1991, yearTo: 1996 },
-  { makerId: 'Mazda', modelId: 'Roadster', yearFrom: 2015, yearTo: 2024 },
+  { makerId: 'toyota', modelId: 'toyota_alphard', label: 'トヨタ アルファード', yearFrom: 2018, yearTo: 2024 },
+  { makerId: 'toyota', modelId: 'toyota_prius', label: 'トヨタ プリウス', yearFrom: 2012, yearTo: 2023 },
+  { makerId: 'toyota', modelId: 'toyota_hiace', label: 'トヨタ ハイエース', yearFrom: 2019, yearTo: 2024 },
+  { makerId: 'nissan', modelId: 'nissan_note', label: '日産 ノート', yearFrom: 2020, yearTo: 2024 },
+  { makerId: 'nissan', modelId: 'nissan_serena', label: '日産 セレナ', yearFrom: 2016, yearTo: 2024 },
+  { makerId: 'nissan', modelId: 'nissan_leaf', label: '日産 リーフ', yearFrom: 2018, yearTo: 2024 },
+  { makerId: 'honda', modelId: 'honda_fit', label: 'ホンダ フィット', yearFrom: 2017, yearTo: 2023 },
+  { makerId: 'honda', modelId: 'honda_n_box', label: 'ホンダ N-BOX', yearFrom: 2017, yearTo: 2024 },
+  { makerId: 'honda', modelId: 'honda_beat', label: 'ホンダ ビート', yearFrom: 1991, yearTo: 1996 },
+  { makerId: 'mazda', modelId: 'mazda_roadster', label: 'マツダ ロードスター', yearFrom: 2015, yearTo: 2024 },
 ];
 
 /** 誰も持っていない車種。**車種フィルターが効いていれば、これは出ない。** */
 const NOT_OWNED = [
-  { makerId: 'Subaru', modelId: 'Impreza', yearFrom: 2016, yearTo: 2023 },
-  { makerId: 'Suzuki', modelId: 'Jimny', yearFrom: 2018, yearTo: 2024 },
-  { makerId: 'Mitsubishi', modelId: 'Delica', yearFrom: 2019, yearTo: 2024 },
-  { makerId: 'Daihatsu', modelId: 'Tanto', yearFrom: 2019, yearTo: 2024 },
+  { makerId: 'subaru', modelId: 'subaru_impreza', label: 'スバル インプレッサ', yearFrom: 2016, yearTo: 2023 },
+  { makerId: 'suzuki', modelId: 'suzuki_jimny', label: 'スズキ ジムニー', yearFrom: 2018, yearTo: 2024 },
+  { makerId: 'mitsubishi', modelId: 'mitsubishi_delica', label: '三菱 デリカ', yearFrom: 2019, yearTo: 2024 },
+  { makerId: 'daihatsu', modelId: 'daihatsu_tanto', label: 'ダイハツ タント', yearFrom: 2019, yearTo: 2024 },
 ];
 
 const COMPAT = ['perfect', 'compatible', 'conditional'];
@@ -165,7 +173,7 @@ function build(count) {
       shopId: SHOPS[i % SHOPS.length],
       name: `${brand} ${name}${grade}`.trim(),
       description:
-        `${spec.makerId} ${spec.modelId}（${spec.yearFrom}〜${spec.yearTo}年式）向けの` +
+        `${spec.label}（${spec.yearFrom}〜${spec.yearTo}年式）向けの` +
         `${name}です。動作確認用の架空データで、実在の商品ではありません。`,
       category: cat.category,
       imageUrls: [],
@@ -189,7 +197,7 @@ function build(count) {
       ],
       brand,
       partNumber: `DEMO-${cat.category.toUpperCase().slice(0, 4)}-${String(i + 1).padStart(4, '0')}`,
-      tags: [cat.category, spec.makerId, spec.modelId],
+      tags: [cat.category, spec.makerId, spec.modelId, spec.label],
       // 5 件に 1 件は評価なし（★の空表示も確認できるように）
       rating: i % 5 === 0 ? null : Number((3.2 + (i % 9) * 0.2).toFixed(1)),
       reviewCount: i % 5 === 0 ? 0 : (i % 47) + 1,

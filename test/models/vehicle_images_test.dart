@@ -62,7 +62,10 @@ void main() {
     test('imageUrls と imageUrl が両方あれば imageUrls を優先する', () async {
       final snap = await _doc({
         'imageUrl': 'https://example.com/old.jpg',
-        'imageUrls': ['https://example.com/new1.jpg', 'https://example.com/new2.jpg'],
+        'imageUrls': [
+          'https://example.com/new1.jpg',
+          'https://example.com/new2.jpg'
+        ],
       });
       final vehicle = Vehicle.fromFirestore(snap);
 
@@ -80,7 +83,10 @@ void main() {
         year: 2019,
         grade: 'S',
         mileage: 22000,
-        imageUrls: const ['https://example.com/1.jpg', 'https://example.com/2.jpg'],
+        imageUrls: const [
+          'https://example.com/1.jpg',
+          'https://example.com/2.jpg'
+        ],
         createdAt: DateTime(2026, 1, 1),
         updatedAt: DateTime(2026, 1, 1),
       );

@@ -195,6 +195,43 @@ void main() {
 
         expect(provider.error, isNotNull);
       });
+
+      // ログイン直後、最初のスナップショットが届くまで vehicles は空のまま。
+      // isLoading を立てておかないと、ホームが「まず愛車を登録しよう」の
+      // オンボーディングを数秒出してしまう（実機で確認済み）。
+      test('購読を始めた直後は読み込み中になる', () {
+        provider.listenToVehicles();
+
+        expect(provider.isLoading, isTrue);
+      });
+
+      test('最初のデータが届いたら読み込み中が解除される', () async {
+        provider.listenToVehicles();
+
+        mockFirebaseService.emitVehicles([_createTestVehicle()]);
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        expect(provider.isLoading, isFalse);
+      });
+
+      test('車両が0件でも読み込み中は解除される', () async {
+        provider.listenToVehicles();
+
+        mockFirebaseService.emitVehicles([]);
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        expect(provider.isLoading, isFalse);
+        expect(provider.vehicles, isEmpty);
+      });
+
+      test('エラーでも読み込み中は解除される', () async {
+        provider.listenToVehicles();
+
+        mockFirebaseService.emitVehiclesError(Exception('Network error'));
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        expect(provider.isLoading, isFalse);
+      });
     });
 
     group('selectVehicle', () {
