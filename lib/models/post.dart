@@ -21,6 +21,23 @@ enum PostSortBy {
   }
 }
 
+/// One page of feed posts plus an opaque cursor for the next page.
+///
+/// The cursor wraps a Firestore document snapshot so callers (providers, UI)
+/// can page without importing Firestore types or knowing the sort fields.
+/// Passing it back is what keeps "load more" from re-fetching page one.
+class PostPage {
+  final List<Post> posts;
+  final Object? cursor;
+
+  const PostPage({required this.posts, this.cursor});
+
+  static const PostPage empty = PostPage(posts: []);
+
+  bool get isEmpty => posts.isEmpty;
+  int get length => posts.length;
+}
+
 /// Post category types
 enum PostCategory {
   general, // 一般

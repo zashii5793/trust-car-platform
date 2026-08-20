@@ -178,17 +178,20 @@ class PostService {
   /// category filter. Multiple categories go through a single `whereIn`, which
   /// Firestore treats like an equality filter, so the existing composite
   /// indexes still apply.
-  Future<Result<List<Post>, AppError>> getFeed({
+  /// Returns one page plus a cursor. Pass the previous page's
+  /// [PostPage.cursor] back as [startAfter] to continue — without it every
+  /// "load more" re-fetched page one and the same posts piled up in the feed.
+  Future<Result<PostPage, AppError>> getFeed({
     int limit = 20,
-    DocumentSnapshot? startAfter,
+    Object? startAfter,
     Set<PostCategory> categories = const {},
     PostSortBy sortBy = PostSortBy.newest,
     String? makerId,
     String? modelName,
   }) async {
     try {
-      Query<Map<String, dynamic>> query = _postsRef
-          .where('visibility', isEqualTo: PostVisibility.public.storageName);
+      Query<Map<String, dynamic>> query = _postsRef.where('visibility',
+          isEqualTo: PostVisibility.public.storageName);
 
       if (categories.isNotEmpty) {
         query = query.where(
@@ -216,14 +219,19 @@ class PostService {
               .orderBy('createdAt', descending: true);
       }
 
-      if (startAfter != null) {
+      // カーソルは前ページ最後のドキュメント。並び替えを切り替えたときは
+      // 呼び出し側がカーソルを捨てて先頭から読み直す。
+      if (startAfter is DocumentSnapshot) {
         query = query.startAfterDocument(startAfter);
       }
 
       final snapshot = await query.limit(limit).get();
       final posts =
           snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
-      return Result.success(posts);
+      return Result.success(PostPage(
+        posts: posts,
+        cursor: snapshot.docs.isEmpty ? null : snapshot.docs.last,
+      ));
     } catch (e) {
       return Result.failure(AppError.unknown(
         'フィードの取得に失敗しました',

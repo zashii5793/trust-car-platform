@@ -71,7 +71,8 @@ class PlanScreen extends StatelessWidget {
   }
 
   /// 比較表の行。値は UserPlanLimits から取り出すので定義とずれない。
-  static List<_PlanRow> _buildRows(UserPlanLimits free, UserPlanLimits premium) {
+  static List<_PlanRow> _buildRows(
+      UserPlanLimits free, UserPlanLimits premium) {
     String count(int v, String unit) =>
         v >= UserPlanLimits.unlimited ? '無制限' : '$v$unit';
 
@@ -168,8 +169,7 @@ class _CurrentPlanCard extends StatelessWidget {
                   Text(
                     '現在のプラン',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                   Text(
@@ -257,8 +257,7 @@ class _ComparisonTable extends StatelessWidget {
                   children: [
                     Expanded(
                       flex: 4,
-                      child: Text(row.label,
-                          style: theme.textTheme.bodyMedium),
+                      child: Text(row.label, style: theme.textTheme.bodyMedium),
                     ),
                     Expanded(
                       flex: 3,

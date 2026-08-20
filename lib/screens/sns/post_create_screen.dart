@@ -450,31 +450,31 @@ class _CategoryChipRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return SizedBox(
-      height: 40,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: PostCategory.values.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final cat = PostCategory.values[index];
+    // Sized from content: a fixed 40 clipped the chips, pushing labels low.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: PostCategory.values.map((cat) {
           final isSelected = cat == selected;
-          return Center(
-              child: ChoiceChip(
-            label: Text(
-              cat.displayName,
-              style: TextStyle(
-                fontSize: 12,
-                color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(
+                cat.displayName,
+                style: TextStyle(
+                  fontSize: 12,
+                  color:
+                      isSelected ? Colors.white : theme.colorScheme.onSurface,
+                ),
               ),
+              selected: isSelected,
+              onSelected: (_) => onSelected(cat),
+              selectedColor: theme.colorScheme.primary,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
             ),
-            selected: isSelected,
-            onSelected: (_) => onSelected(cat),
-            selectedColor: theme.colorScheme.primary,
-            backgroundColor: theme.colorScheme.surfaceContainerHighest,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-          ));
-        },
+          );
+        }).toList(),
       ),
     );
   }

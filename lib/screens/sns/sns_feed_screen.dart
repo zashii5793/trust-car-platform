@@ -208,11 +208,12 @@ class _VehicleModelFilterBar extends StatelessWidget {
         final modelNames =
             vehicles.map((v) => '${v.maker} ${v.model}').toSet().toList();
 
-        return SizedBox(
-          height: 40,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        // Sized from content: a fixed 40 minus padding squeezed the chips,
+        // so their labels sat low instead of centred.
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Row(
             children: [
               if (postProvider.selectedModelName != null)
                 _ModelChip(
@@ -260,8 +261,7 @@ class _ModelChip extends StatelessWidget {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: Center(
-          child: ChoiceChip(
+      child: ChoiceChip(
         avatar: Icon(icon,
             size: 13, color: selected ? Colors.white : AppColors.accentDrive),
         label: Text(label),
@@ -274,7 +274,7 @@ class _ModelChip extends StatelessWidget {
         selectedColor: AppColors.accentDrive,
         backgroundColor: AppColors.accentDrive.withValues(alpha: 0.08),
         padding: const EdgeInsets.symmetric(horizontal: 4),
-      )),
+      ),
     );
   }
 }
@@ -285,11 +285,11 @@ class _CategoryFilterBar extends StatelessWidget {
     return Consumer<PostProvider>(
       builder: (context, provider, child) {
         // カテゴリは複数選べる。何も選ばれていない状態が「すべて」。
-        return SizedBox(
-          height: 48,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        // Same reason as the model filter row above.
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
             children: [
               _CategoryChip(
                 key: const Key('sns_category_all'),

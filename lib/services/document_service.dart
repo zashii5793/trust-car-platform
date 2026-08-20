@@ -18,8 +18,7 @@ class DocumentService {
 
   /// Resolved on first use so tests that never upload need no storage mock.
   FirebaseStorage? _storageOverride;
-  FirebaseStorage get _storage =>
-      _storageOverride ??= FirebaseStorage.instance;
+  FirebaseStorage get _storage => _storageOverride ??= FirebaseStorage.instance;
 
   DocumentService({
     FirebaseFirestore? firestore,
@@ -158,10 +157,8 @@ class DocumentService {
           query = query.where('isArchived', isEqualTo: false);
         }
 
-        return query
-            .orderBy('uploadedAt', descending: true)
-            .snapshots()
-            .map((snapshot) => snapshot.docs
+        return query.orderBy('uploadedAt', descending: true).snapshots().map(
+            (snapshot) => snapshot.docs
                 .map((doc) => Document.fromFirestore(doc))
                 .toList());
       },

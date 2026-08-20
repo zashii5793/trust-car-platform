@@ -27,7 +27,7 @@ class MockPostService implements PostService {
   PostVisibility? lastVisibility;
 
   @override
-  Future<Result<List<Post>, AppError>> getFeed({
+  Future<Result<PostPage, AppError>> getFeed({
     int limit = 20,
     dynamic startAfter,
     Set<PostCategory> categories = const {},
@@ -35,7 +35,7 @@ class MockPostService implements PostService {
     String? makerId,
     String? modelName,
   }) async =>
-      const Result.success([]);
+      const Result.success(PostPage.empty);
 
   @override
   Future<Result<Post, AppError>> createPost({

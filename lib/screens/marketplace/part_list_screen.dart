@@ -295,39 +295,39 @@ class _CategoryFilterRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 42,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+    // A fixed row height minus padding gave each chip 26px to live in, but a
+    // compact ChoiceChip needs 40 — so every label was squeezed and sat low.
+    // Sizing the row from its content removes the magic number entirely.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      child: Row(
         children: [
           // 「すべて」チップ
           Padding(
             padding: const EdgeInsets.symmetric(
                 horizontal: 4, vertical: AppSpacing.xs),
-            child: Center(
-                child: ChoiceChip(
+            child: ChoiceChip(
               label: const Text('すべて'),
               selected: selected == null,
               onSelected: (_) => onChanged(null),
               visualDensity: VisualDensity.compact,
               labelStyle: const TextStyle(fontSize: 12),
-            )),
+            ),
           ),
           // 各カテゴリ
           ..._displayCategories.map((category) {
             return Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: 4, vertical: AppSpacing.xs),
-              child: Center(
-                  child: ChoiceChip(
+              child: ChoiceChip(
                 label: Text(category.displayName),
                 selected: category == selected,
                 onSelected: (_) =>
                     onChanged(category == selected ? null : category),
                 visualDensity: VisualDensity.compact,
                 labelStyle: const TextStyle(fontSize: 12),
-              )),
+              ),
             );
           }),
         ],

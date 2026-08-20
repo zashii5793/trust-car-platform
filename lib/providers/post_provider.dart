@@ -19,8 +19,12 @@ class PostProvider with ChangeNotifier {
 
   // ── フィード状態 ──────────────────────────────────────────────────────────
   List<Post> _feedPosts = [];
+
   /// 選択中のカテゴリ。空 = すべて。複数選択できる。
   Set<PostCategory> _selectedCategories = {};
+
+  /// 次ページの読み出し位置。フィルタや並び替えを変えたら捨てる。
+  Object? _feedCursor;
   PostSortBy _sortBy = PostSortBy.newest;
   String? _selectedModelName; // same-model filter
   bool _isLoading = false;
@@ -86,6 +90,8 @@ class PostProvider with ChangeNotifier {
     _hasMore = true;
     notifyListeners();
 
+    _feedCursor = null;
+
     final result = await _postService.getFeed(
       limit: Pagination.defaultPageSize,
       categories: _selectedCategories,
@@ -94,9 +100,10 @@ class PostProvider with ChangeNotifier {
     );
 
     result.when(
-      success: (posts) {
-        _feedPosts = posts;
-        _hasMore = posts.length >= Pagination.defaultPageSize;
+      success: (page) {
+        _feedPosts = page.posts;
+        _feedCursor = page.cursor;
+        _hasMore = page.length >= Pagination.defaultPageSize;
       },
       failure: (err) {
         _error = err;
@@ -116,15 +123,23 @@ class PostProvider with ChangeNotifier {
 
     final result = await _postService.getFeed(
       limit: Pagination.defaultPageSize,
+      startAfter: _feedCursor,
       categories: _selectedCategories,
       sortBy: _sortBy,
       modelName: _selectedModelName,
     );
 
     result.when(
-      success: (posts) {
-        _feedPosts = [..._feedPosts, ...posts];
-        _hasMore = posts.length >= Pagination.defaultPageSize;
+      success: (page) {
+        // 念のため id で重複を落とす。カーソルが失われた場合でも
+        // 同じ投稿が二重に並ばないようにする。
+        final existing = _feedPosts.map((p) => p.id).toSet();
+        _feedPosts = [
+          ..._feedPosts,
+          ...page.posts.where((p) => !existing.contains(p.id)),
+        ];
+        _feedCursor = page.cursor ?? _feedCursor;
+        _hasMore = page.length >= Pagination.defaultPageSize;
       },
       failure: (err) {
         _error = err;
@@ -435,6 +450,7 @@ class PostProvider with ChangeNotifier {
   void clear() {
     _feedPosts = [];
     _selectedCategories = {};
+    _feedCursor = null;
     _selectedModelName = null;
     _isLoading = false;
     _isLoadingMore = false;

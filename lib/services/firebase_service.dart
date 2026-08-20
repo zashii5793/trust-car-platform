@@ -22,8 +22,7 @@ class FirebaseService {
   /// Resolved on first use — touching FirebaseStorage.instance in the
   /// constructor crashes tests that never exercise storage (see ShopService).
   FirebaseStorage? _storageOverride;
-  FirebaseStorage get _storage =>
-      _storageOverride ??= FirebaseStorage.instance;
+  FirebaseStorage get _storage => _storageOverride ??= FirebaseStorage.instance;
 
   /// Dependencies default to the singleton instances; tests inject fakes.
   FirebaseService({

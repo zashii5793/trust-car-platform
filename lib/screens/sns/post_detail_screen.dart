@@ -254,10 +254,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       }
 
                       return Column(
-                        children: provider.comments
-                            .asMap()
-                            .entries
-                            .map((entry) {
+                        children:
+                            provider.comments.asMap().entries.map((entry) {
                           final comment = entry.value;
                           final key = _commentTileKeys.putIfAbsent(
                             comment.id,
@@ -774,188 +772,189 @@ class _CommentTileState extends State<_CommentTile> {
         ),
       ),
       child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ---- メインコメント行 ----
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // アバター
-              CircleAvatar(
-                radius: 16,
-                backgroundColor:
-                    theme.colorScheme.primary.withValues(alpha: 0.15),
-                backgroundImage: widget.comment.userPhotoUrl != null
-                    ? NetworkImage(widget.comment.userPhotoUrl!)
-                    : null,
-                child: widget.comment.userPhotoUrl == null
-                    ? Text(
-                        (widget.comment.userDisplayName?.isNotEmpty ?? false)
-                            ? widget.comment.userDisplayName![0].toUpperCase()
-                            : '?',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )
-                    : null,
-              ),
-              AppSpacing.horizontalSm,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 名前 + 時刻
-                    Row(
-                      children: [
-                        Text(
-                          widget.comment.userDisplayName ?? 'ユーザー',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ---- メインコメント行 ----
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // アバター
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor:
+                      theme.colorScheme.primary.withValues(alpha: 0.15),
+                  backgroundImage: widget.comment.userPhotoUrl != null
+                      ? NetworkImage(widget.comment.userPhotoUrl!)
+                      : null,
+                  child: widget.comment.userPhotoUrl == null
+                      ? Text(
+                          (widget.comment.userDisplayName?.isNotEmpty ?? false)
+                              ? widget.comment.userDisplayName![0].toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.bold,
                           ),
-                        ),
-                        AppSpacing.horizontalXs,
-                        Text(
-                          _formatTime(widget.comment.createdAt),
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: tertiary, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                    AppSpacing.verticalXxs,
-                    // 本文（画像だけのコメントもあるので空なら描かない）
-                    if (widget.comment.content.isNotEmpty)
-                      Text(
-                        widget.comment.content,
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    // 添付画像
-                    if (widget.comment.hasImages) ...[
-                      AppSpacing.verticalXs,
-                      _CommentImages(comment: widget.comment),
-                    ],
-                    AppSpacing.verticalXxs,
-                    // アクション行
-                    Row(
-                      children: [
-                        // 返信ボタン
-                        GestureDetector(
-                          onTap: () => widget.onReply(widget.comment),
-                          child: Text(
-                            '返信',
+                        )
+                      : null,
+                ),
+                AppSpacing.horizontalSm,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 名前 + 時刻
+                      Row(
+                        children: [
+                          Text(
+                            widget.comment.userDisplayName ?? 'ユーザー',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
-                        // 自分のコメントなら削除ボタン
-                        Consumer2<PostProvider, AuthProvider>(
-                          builder:
-                              (context, postProvider, authProvider, child) {
-                            final userId = authProvider.firebaseUser?.uid ?? '';
-                            if (widget.comment.userId != userId ||
-                                userId.isEmpty) {
-                              return const SizedBox.shrink();
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.only(left: 12),
-                              child: GestureDetector(
-                                onTap: () async {
-                                  await postProvider.deleteComment(
-                                    commentId: widget.comment.id,
-                                    userId: userId,
-                                    postId: widget.postId,
-                                  );
-                                  if (!mounted) return;
-                                },
-                                child: Text(
-                                  '削除',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: AppColors.error,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                        // 返信数バッジ（タップで展開/畳む）
-                        if (widget.comment.replyCount > 0) ...[
-                          AppSpacing.horizontalSm,
-                          GestureDetector(
-                            onTap: _isLoadingReplies ? null : _toggleReplies,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (_isLoadingReplies)
-                                  SizedBox(
-                                    width: 10,
-                                    height: 10,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 1.5,
-                                      color: theme.colorScheme.primary,
-                                    ),
-                                  )
-                                else
-                                  Icon(
-                                    _isExpanded
-                                        ? Icons.expand_less
-                                        : Icons.expand_more,
-                                    size: 14,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                const SizedBox(width: 2),
-                                Text(
-                                  '返信${widget.comment.replyCount}件',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
+                          AppSpacing.horizontalXs,
+                          Text(
+                            _formatTime(widget.comment.createdAt),
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: tertiary, fontSize: 11),
                           ),
                         ],
+                      ),
+                      AppSpacing.verticalXxs,
+                      // 本文（画像だけのコメントもあるので空なら描かない）
+                      if (widget.comment.content.isNotEmpty)
+                        Text(
+                          widget.comment.content,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      // 添付画像
+                      if (widget.comment.hasImages) ...[
+                        AppSpacing.verticalXs,
+                        _CommentImages(comment: widget.comment),
                       ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // ---- インライン返信一覧 ----
-        // 左端の縦線で「この親コメントへの返信」であることを示す。
-        if (_isExpanded)
-          Padding(
-            padding: const EdgeInsets.only(left: 24),
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  left: BorderSide(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.25),
-                    width: 2,
+                      AppSpacing.verticalXxs,
+                      // アクション行
+                      Row(
+                        children: [
+                          // 返信ボタン
+                          GestureDetector(
+                            onTap: () => widget.onReply(widget.comment),
+                            child: Text(
+                              '返信',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          // 自分のコメントなら削除ボタン
+                          Consumer2<PostProvider, AuthProvider>(
+                            builder:
+                                (context, postProvider, authProvider, child) {
+                              final userId =
+                                  authProvider.firebaseUser?.uid ?? '';
+                              if (widget.comment.userId != userId ||
+                                  userId.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(left: 12),
+                                child: GestureDetector(
+                                  onTap: () async {
+                                    await postProvider.deleteComment(
+                                      commentId: widget.comment.id,
+                                      userId: userId,
+                                      postId: widget.postId,
+                                    );
+                                    if (!mounted) return;
+                                  },
+                                  child: Text(
+                                    '削除',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: AppColors.error,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          // 返信数バッジ（タップで展開/畳む）
+                          if (widget.comment.replyCount > 0) ...[
+                            AppSpacing.horizontalSm,
+                            GestureDetector(
+                              onTap: _isLoadingReplies ? null : _toggleReplies,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_isLoadingReplies)
+                                    SizedBox(
+                                      width: 10,
+                                      height: 10,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 1.5,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    )
+                                  else
+                                    Icon(
+                                      _isExpanded
+                                          ? Icons.expand_less
+                                          : Icons.expand_more,
+                                      size: 14,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    '返信${widget.comment.replyCount}件',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.primary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              child: Column(
-                children: _replies
-                    .map((reply) => _ReplyTile(
-                          reply: reply,
-                          postId: widget.postId,
-                          isDark: widget.isDark,
-                          formatTime: _formatTime,
-                        ))
-                    .toList(),
-              ),
+              ],
             ),
           ),
-      ],
+
+          // ---- インライン返信一覧 ----
+          // 左端の縦線で「この親コメントへの返信」であることを示す。
+          if (_isExpanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 24),
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    left: BorderSide(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.25),
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: Column(
+                  children: _replies
+                      .map((reply) => _ReplyTile(
+                            reply: reply,
+                            postId: widget.postId,
+                            isDark: widget.isDark,
+                            formatTime: _formatTime,
+                          ))
+                      .toList(),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1232,61 +1231,62 @@ class _CommentInputBar extends StatelessWidget {
                     color: theme.colorScheme.primary,
                   ),
                 ),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                minLines: 1,
-                maxLines: 4,
-                textInputAction: TextInputAction.newline,
-                decoration: InputDecoration(
-                  hintText: 'コメントを入力...',
-                  hintStyle: TextStyle(
-                    color: isDark
-                        ? AppColors.darkTextTertiary
-                        : AppColors.textTertiary,
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    minLines: 1,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.newline,
+                    decoration: InputDecoration(
+                      hintText: 'コメントを入力...',
+                      hintStyle: TextStyle(
+                        color: isDark
+                            ? AppColors.darkTextTertiary
+                            : AppColors.textTertiary,
+                      ),
+                      filled: true,
+                      fillColor: isDark
+                          ? AppColors.darkCard
+                          : AppColors.backgroundLight,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      isDense: true,
+                    ),
                   ),
-                  filled: true,
-                  fillColor:
-                      isDark ? AppColors.darkCard : AppColors.backgroundLight,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  isDense: true,
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Consumer<PostProvider>(
-              builder: (context, provider, child) {
-                return IconButton(
-                  onPressed: provider.isSubmittingComment ? null : onSubmit,
-                  icon: provider.isSubmittingComment
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: theme.colorScheme.primary,
-                          ),
-                        )
-                      : Icon(
-                          Icons.send_rounded,
-                          color: theme.colorScheme.primary,
-                        ),
-                  style: IconButton.styleFrom(
-                    backgroundColor:
-                        theme.colorScheme.primary.withValues(alpha: 0.1),
-                    shape: const CircleBorder(),
-                  ),
-                );
-              },
-            ),
+                const SizedBox(width: 8),
+                Consumer<PostProvider>(
+                  builder: (context, provider, child) {
+                    return IconButton(
+                      onPressed: provider.isSubmittingComment ? null : onSubmit,
+                      icon: provider.isSubmittingComment
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: theme.colorScheme.primary,
+                              ),
+                            )
+                          : Icon(
+                              Icons.send_rounded,
+                              color: theme.colorScheme.primary,
+                            ),
+                      style: IconButton.styleFrom(
+                        backgroundColor:
+                            theme.colorScheme.primary.withValues(alpha: 0.1),
+                        shape: const CircleBorder(),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ],

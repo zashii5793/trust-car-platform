@@ -27,8 +27,7 @@ class PlanBadge extends StatelessWidget {
   static const Color _freeBackground = AppColors.backgroundWhite;
   static const Color _foreground = AppColors.textPrimary;
 
-  Color get backgroundColor =>
-      isPremium ? _premiumBackground : _freeBackground;
+  Color get backgroundColor => isPremium ? _premiumBackground : _freeBackground;
 
   Color get foregroundColor => _foreground;
 

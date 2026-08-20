@@ -792,7 +792,7 @@ void main() {
       final result = await service.getFeed();
 
       result.when(
-        success: (posts) => expect(posts.length, 4),
+        success: (page) => expect(page.length, 4),
         failure: (e) => fail('Expected success, got: $e'),
       );
     });
@@ -803,9 +803,9 @@ void main() {
       );
 
       result.when(
-        success: (posts) {
-          expect(posts.length, 1);
-          expect(posts.first.content, '質問の投稿');
+        success: (page) {
+          expect(page.length, 1);
+          expect(page.posts.first.content, '質問の投稿');
         },
         failure: (e) => fail('Expected success, got: $e'),
       );
@@ -817,10 +817,10 @@ void main() {
       );
 
       result.when(
-        success: (posts) {
-          expect(posts.length, 2);
+        success: (page) {
+          expect(page.length, 2);
           expect(
-            posts.map((p) => p.content),
+            page.posts.map((p) => p.content),
             containsAll(['質問の投稿', 'ドライブの投稿']),
           );
         },
@@ -832,9 +832,9 @@ void main() {
       final result = await service.getFeed();
 
       result.when(
-        success: (posts) {
-          expect(posts.first.content, 'ドライブの投稿'); // 1/5
-          expect(posts.last.content, '質問の投稿'); // 1/1
+        success: (page) {
+          expect(page.posts.first.content, 'ドライブの投稿'); // 1/5
+          expect(page.posts.last.content, '質問の投稿'); // 1/1
         },
         failure: (e) => fail('Expected success, got: $e'),
       );
@@ -844,12 +844,12 @@ void main() {
       final result = await service.getFeed(sortBy: PostSortBy.mostCommented);
 
       result.when(
-        success: (posts) {
+        success: (page) {
           expect(
-            posts.map((p) => p.commentCount).toList(),
+            page.posts.map((p) => p.commentCount).toList(),
             [12, 5, 1, 0],
           );
-          expect(posts.first.content, '質問の投稿');
+          expect(page.posts.first.content, '質問の投稿');
         },
         failure: (e) => fail('Expected success, got: $e'),
       );
@@ -862,12 +862,102 @@ void main() {
       );
 
       result.when(
-        success: (posts) {
-          expect(posts.map((p) => p.content).toList(),
+        success: (page) {
+          expect(page.posts.map((p) => p.content).toList(),
               ['整備の投稿', 'ドライブの投稿']);
         },
         failure: (e) => fail('Expected success, got: $e'),
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // PostService.getFeed — ページネーション
+  //
+  // 続きを読み込むときに位置を指定できないと、同じ先頭ページを取り直して
+  // フィードに同じ投稿が二重に並ぶ。
+  // ---------------------------------------------------------------------------
+
+  group('PostService.getFeed — ページネーション', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    setUp(() async {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+
+      // 新しい順に post-0（最新）… post-4（最古）
+      for (var i = 0; i < 5; i++) {
+        await fakeFirestore.collection('posts').add({
+          ...postDoc(userId: 'author-uid', visibility: 'public'),
+          'content': 'post-$i',
+          'commentCount': 10 - i,
+          'createdAt': Timestamp.fromDate(DateTime(2026, 1, 10 - i)),
+          'updatedAt': Timestamp.fromDate(DateTime(2026, 1, 10 - i)),
+        });
+      }
+    });
+
+    Future<PostPage> feed(
+        {int limit = 2, Object? after, PostSortBy? sortBy}) async {
+      final result = await service.getFeed(
+        limit: limit,
+        startAfter: after,
+        sortBy: sortBy ?? PostSortBy.newest,
+      );
+      return result.when(
+        success: (page) => page,
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    }
+
+    test('カーソルなしなら先頭ページを返す', () async {
+      final page = await feed();
+
+      expect(page.posts.map((p) => p.content).toList(), ['post-0', 'post-1']);
+    });
+
+    test('先頭ページはカーソルを返す', () async {
+      final page = await feed();
+
+      expect(page.cursor, isNotNull);
+    });
+
+    test('カーソルで次のページに進める', () async {
+      final first = await feed();
+      final second = await feed(after: first.cursor);
+
+      expect(second.posts.map((p) => p.content).toList(), ['post-2', 'post-3']);
+    });
+
+    test('ページ同士が重複しない', () async {
+      final first = await feed();
+      final second = await feed(after: first.cursor);
+
+      final ids = {
+        ...first.posts.map((p) => p.content),
+        ...second.posts.map((p) => p.content),
+      };
+      expect(ids.length, first.length + second.length);
+    });
+
+    test('最後まで読むと空が返る', () async {
+      final page = await feed(limit: 5);
+      expect(page.length, 5);
+
+      final next = await feed(limit: 5, after: page.cursor);
+      expect(next.posts, isEmpty);
+      expect(next.cursor, isNull);
+    });
+
+    test('コメントが多い順でもページを継続できる', () async {
+      final first = await feed(sortBy: PostSortBy.mostCommented);
+      final second =
+          await feed(after: first.cursor, sortBy: PostSortBy.mostCommented);
+
+      expect(first.posts.map((p) => p.content).toList(), ['post-0', 'post-1']);
+      expect(
+          second.posts.map((p) => p.content).toList(), ['post-2', 'post-3']);
     });
   });
 }

@@ -13,7 +13,19 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 
 class MockPostService implements PostService {
   // Configurable results
-  Result<List<Post>, AppError> feedResult = const Result.success([]);
+  // テストは List<Post> で結果を組み立てる。getFeed は PostPage を返すので
+  // ここで包み直す（カーソルの有無まで各テストに書かせない）。
+  Result<PostPage, AppError> _feedPageResult =
+      const Result.success(PostPage.empty);
+
+  set feedResult(Result<List<Post>, AppError> value) {
+    _feedPageResult = value.when(
+      success: (posts) => Result.success(
+        PostPage(posts: posts, cursor: posts.isEmpty ? null : 'cursor'),
+      ),
+      failure: Result<PostPage, AppError>.failure,
+    );
+  }
   Result<Post, AppError>? createResult;
   Result<void, AppError> likeResult = const Result.success(null);
   Result<void, AppError> unlikeResult = const Result.success(null);
@@ -27,11 +39,12 @@ class MockPostService implements PostService {
   int unlikeCallCount = 0;
   int deleteCallCount = 0;
   Set<PostCategory> lastCategories = const {};
+  Object? lastStartAfter;
   PostSortBy lastSortBy = PostSortBy.newest;
   String? lastContent;
 
   @override
-  Future<Result<List<Post>, AppError>> getFeed({
+  Future<Result<PostPage, AppError>> getFeed({
     int limit = 20,
     Set<PostCategory> categories = const {},
     PostSortBy sortBy = PostSortBy.newest,
@@ -42,7 +55,8 @@ class MockPostService implements PostService {
     getFeedCallCount++;
     lastCategories = categories;
     lastSortBy = sortBy;
-    return feedResult;
+    lastStartAfter = startAfter;
+    return _feedPageResult;
   }
 
   @override
@@ -314,6 +328,59 @@ void main() {
       });
     });
 
+
+    // ── ページネーション（続きの読み込み） ────────────────────────────────────
+    //
+    // カーソルを渡さないと毎回同じ先頭ページを取り直し、フィードに同じ投稿が
+    // 二重に並ぶ。
+
+    group('loadMoreFeed — カーソル', () {
+      test('初回読み込みではカーソルを渡さない', () async {
+        mockService.feedResult = Result.success([_makePost(id: 'p1')]);
+
+        await provider.loadFeed();
+
+        expect(mockService.lastStartAfter, isNull);
+      });
+
+      test('続きの読み込みでは前ページのカーソルを渡す', () async {
+        mockService.feedResult = Result.success(
+          List.generate(20, (i) => _makePost(id: 'p$i')),
+        );
+        await provider.loadFeed();
+
+        await provider.loadMoreFeed();
+
+        expect(mockService.lastStartAfter, isNotNull);
+      });
+
+      test('同じ投稿が返っても重複して並ばない', () async {
+        final firstPage = List.generate(20, (i) => _makePost(id: 'p$i'));
+        mockService.feedResult = Result.success(firstPage);
+        await provider.loadFeed();
+
+        // サービスが同じページを返しても、フィードは増えない
+        await provider.loadMoreFeed();
+
+        expect(provider.feedPosts.length, 20);
+        expect(
+          provider.feedPosts.map((p) => p.id).toSet().length,
+          provider.feedPosts.length,
+        );
+      });
+
+      test('フィルタを変えるとカーソルは捨てられる', () async {
+        mockService.feedResult = Result.success(
+          List.generate(20, (i) => _makePost(id: 'p$i')),
+        );
+        await provider.loadFeed();
+        await provider.loadMoreFeed();
+
+        await provider.toggleCategory(PostCategory.drive);
+
+        expect(mockService.lastStartAfter, isNull);
+      });
+    });
     // ── refreshFeed ───────────────────────────────────────────────────────────
 
     group('refreshFeed', () {

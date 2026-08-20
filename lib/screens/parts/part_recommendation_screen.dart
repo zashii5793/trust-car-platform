@@ -157,46 +157,44 @@ class _CategoryFilterBar extends StatelessWidget {
     // Show only categories that have results (or all if no results yet)
     final availableCategories = PartCategory.values;
 
-    return Container(
-      height: 48,
+    // Sized from content. A fixed 48 minus 8+8 padding left each chip 32px,
+    // but a FilterChip needs more than that, so every label sat low.
+    return ColoredBox(
       color: Theme.of(context).colorScheme.surface,
-      child: ListView.builder(
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.xs,
         ),
-        itemCount: availableCategories.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            // "すべて" chip
-            return Padding(
+        child: Row(
+          children: [
+            Padding(
               padding: const EdgeInsets.only(right: AppSpacing.xs),
-              child: Center(
-                  child: FilterChip(
+              child: FilterChip(
                 label: const Text('すべて'),
                 selected: provider.selectedCategory == null,
                 onSelected: (_) {
                   provider.selectCategory(null);
                   provider.loadRecommendations(vehicle);
                 },
-              )),
-            );
-          }
-          final category = availableCategories[index - 1];
-          return Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.xs),
-            child: Center(
+              ),
+            ),
+            ...availableCategories.map(
+              (category) => Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.xs),
                 child: FilterChip(
-              label: Text(category.displayName),
-              selected: provider.selectedCategory == category,
-              onSelected: (_) {
-                provider.selectCategory(category);
-                provider.loadRecommendations(vehicle, category: category);
-              },
-            )),
-          );
-        },
+                  label: Text(category.displayName),
+                  selected: provider.selectedCategory == category,
+                  onSelected: (_) {
+                    provider.selectCategory(category);
+                    provider.loadRecommendations(vehicle, category: category);
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -829,7 +827,7 @@ class _OwnerExamplesSectionState extends State<_OwnerExamplesSection> {
     );
     if (!mounted) return;
     setState(() {
-      _posts = result.valueOrNull ?? const [];
+      _posts = result.valueOrNull?.posts ?? const [];
       _loaded = true;
     });
   }

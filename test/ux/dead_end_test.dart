@@ -39,8 +39,7 @@ void main() {
         'AppEmptyState の定義そのもの。呼び出し側ではない',
     'lib/screens/notifications/notification_list_screen.dart':
         '通知は自分で作るものではないので、次の一手が無い',
-    'lib/screens/notifications/social_notification_screen.dart':
-        '同上',
+    'lib/screens/notifications/social_notification_screen.dart': '同上',
     'lib/screens/sns/post_detail_screen.dart':
         'コメント欄は下に常設。空表示にボタンを足すと入力欄と二重になる',
     'lib/screens/newsletter/newsletter_list_screen.dart':

@@ -876,7 +876,6 @@ class Vehicle {
   int get hashCode => id.hashCode;
 }
 
-
 /// Firestore の車両ドキュメントから画像URLの一覧を取り出す。
 ///
 /// 新形式（imageUrls 配列）を優先し、無ければ旧形式（imageUrl 単数）を

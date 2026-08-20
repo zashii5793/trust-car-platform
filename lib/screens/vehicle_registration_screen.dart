@@ -1764,8 +1764,8 @@ class _PhotoThumb extends StatelessWidget {
                 ),
                 child: Text(
                   '表紙',
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: Colors.white),
+                  style:
+                      theme.textTheme.labelSmall?.copyWith(color: Colors.white),
                 ),
               ),
             ),
@@ -1825,8 +1825,7 @@ class _AddPhotoTile extends StatelessWidget {
             Icon(Icons.add_photo_alternate_outlined,
                 size: AppSpacing.iconLg, color: fg),
             const SizedBox(height: 4),
-            Text(label,
-                style: theme.textTheme.bodySmall?.copyWith(color: fg)),
+            Text(label, style: theme.textTheme.bodySmall?.copyWith(color: fg)),
           ],
         ),
       ),

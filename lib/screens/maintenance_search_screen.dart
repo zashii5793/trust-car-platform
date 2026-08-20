@@ -129,18 +129,18 @@ class _MaintenanceSearchScreenState extends State<MaintenanceSearchScreen> {
           ),
 
           // ---- タイプフィルタチップ ----
-          SizedBox(
-            height: 48,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+          // Sized from content: a fixed 48 minus 8+8 padding left each chip
+          // 32px, but a compact FilterChip needs 40, so labels sat low.
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+            child: Row(
               children: _quickFilterTypes.map((type) {
                 final selected = _selectedTypes.contains(type);
                 return Padding(
                   padding: const EdgeInsets.only(right: AppSpacing.xs),
-                  child: Center(
-                      child: FilterChip(
+                  child: FilterChip(
                     label: Text(type.displayName),
                     selected: selected,
                     visualDensity: VisualDensity.compact,
@@ -153,7 +153,7 @@ class _MaintenanceSearchScreenState extends State<MaintenanceSearchScreen> {
                         }
                       });
                     },
-                  )),
+                  ),
                 );
               }).toList(),
             ),

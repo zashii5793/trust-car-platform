@@ -23,7 +23,19 @@ import 'package:trust_car_platform/widgets/common/loading_indicator.dart';
 // ---------------------------------------------------------------------------
 
 class MockPostService implements PostService {
-  Result<List<Post>, AppError> feedResult = const Result.success([]);
+  // テストは List<Post> で結果を組み立てる。getFeed は PostPage を返すので
+  // ここで包み直す（カーソルの有無まで各テストに書かせない）。
+  Result<PostPage, AppError> _feedPageResult =
+      const Result.success(PostPage.empty);
+
+  set feedResult(Result<List<Post>, AppError> value) {
+    _feedPageResult = value.when(
+      success: (posts) => Result.success(
+        PostPage(posts: posts, cursor: posts.isEmpty ? null : 'cursor'),
+      ),
+      failure: Result<PostPage, AppError>.failure,
+    );
+  }
   Result<Post, AppError>? createResult;
   Result<void, AppError> likeResult = const Result.success(null);
   Result<void, AppError> unlikeResult = const Result.success(null);
@@ -35,7 +47,7 @@ class MockPostService implements PostService {
   PostSortBy lastSortBy = PostSortBy.newest;
 
   @override
-  Future<Result<List<Post>, AppError>> getFeed({
+  Future<Result<PostPage, AppError>> getFeed({
     int limit = 20,
     dynamic startAfter,
     Set<PostCategory> categories = const {},
@@ -46,7 +58,7 @@ class MockPostService implements PostService {
     getFeedCallCount++;
     lastCategories = categories;
     lastSortBy = sortBy;
-    return feedResult;
+    return _feedPageResult;
   }
 
   @override
