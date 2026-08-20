@@ -180,6 +180,9 @@ class _FleetMemberScreenState extends State<FleetMemberScreen> {
       ),
       floatingActionButton: _isOwner
           ? FloatingActionButton.extended(
+            // テーマの CircleBorder が extended にも効き、ラベルが円の外へ
+            // はみ出して読めなくなるため個別に指定する。
+            shape: const StadiumBorder(),
               key: const Key('add_member_fab'),
               onPressed: _addMember,
               icon: const Icon(Icons.person_add_outlined),

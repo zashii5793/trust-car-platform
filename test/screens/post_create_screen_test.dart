@@ -30,7 +30,8 @@ class MockPostService implements PostService {
   Future<Result<List<Post>, AppError>> getFeed({
     int limit = 20,
     dynamic startAfter,
-    PostCategory? category,
+    Set<PostCategory> categories = const {},
+    PostSortBy sortBy = PostSortBy.newest,
     String? makerId,
     String? modelName,
   }) async =>

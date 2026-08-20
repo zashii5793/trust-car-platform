@@ -31,18 +31,21 @@ class MockPostService implements PostService {
   bool isPostLikedResult = false;
 
   int getFeedCallCount = 0;
-  PostCategory? lastCategory;
+  Set<PostCategory> lastCategories = const {};
+  PostSortBy lastSortBy = PostSortBy.newest;
 
   @override
   Future<Result<List<Post>, AppError>> getFeed({
     int limit = 20,
     dynamic startAfter,
-    PostCategory? category,
+    Set<PostCategory> categories = const {},
+    PostSortBy sortBy = PostSortBy.newest,
     String? makerId,
     String? modelName,
   }) async {
     getFeedCallCount++;
-    lastCategory = category;
+    lastCategories = categories;
+    lastSortBy = sortBy;
     return feedResult;
   }
 
@@ -330,7 +333,82 @@ void main() {
       await tester.pump();
 
       expect(mockService.getFeedCallCount, greaterThan(initialCount));
-      expect(mockService.lastCategory, PostCategory.maintenance);
+      expect(mockService.lastCategories, {PostCategory.maintenance});
+    });
+
+    testWidgets('カテゴリチップを複数タップすると両方で絞り込まれる', (tester) async {
+      mockService.feedResult = const Result.success([]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pump();
+
+      await tester.tap(find.byKey(
+          Key('sns_category_${PostCategory.maintenance.name}')));
+      await tester.pump();
+      await tester
+          .tap(find.byKey(Key('sns_category_${PostCategory.drive.name}')));
+      await tester.pump();
+
+      expect(
+        mockService.lastCategories,
+        {PostCategory.maintenance, PostCategory.drive},
+      );
+    });
+
+    testWidgets('選択済みのカテゴリチップを再タップすると解除される', (tester) async {
+      mockService.feedResult = const Result.success([]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pump();
+
+      final chip =
+          find.byKey(Key('sns_category_${PostCategory.drive.name}'));
+      await tester.tap(chip);
+      await tester.pump();
+      await tester.tap(chip);
+      await tester.pump();
+
+      expect(mockService.lastCategories, isEmpty);
+    });
+
+    testWidgets('「すべて」チップでカテゴリ選択が解除される', (tester) async {
+      mockService.feedResult = const Result.success([]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pump();
+
+      await tester
+          .tap(find.byKey(Key('sns_category_${PostCategory.drive.name}')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('sns_category_all')));
+      await tester.pump();
+
+      expect(mockService.lastCategories, isEmpty);
+    });
+
+    testWidgets('並び替えボタンから「コメントが多い順」に変更できる', (tester) async {
+      mockService.feedResult = const Result.success([]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('sns_sort_button')));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.byKey(
+          Key('sns_sort_option_${PostSortBy.mostCommented.name}')));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(mockService.lastSortBy, PostSortBy.mostCommented);
+    });
+
+    testWidgets('並び替えボタンに現在の並び順が表示される', (tester) async {
+      mockService.feedResult = const Result.success([]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pump();
+
+      expect(find.text(PostSortBy.newest.displayName), findsOneWidget);
     });
 
     testWidgets('FABをタップすると投稿作成画面に遷移する', (tester) async {

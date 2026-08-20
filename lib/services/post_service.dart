@@ -172,22 +172,29 @@ class PostService {
     }
   }
 
-  /// Get posts feed (public posts, paginated)
+  /// Get posts feed (public posts, paginated).
+  ///
+  /// [categories] narrows the feed to the given categories — empty means no
+  /// category filter. Multiple categories go through a single `whereIn`, which
+  /// Firestore treats like an equality filter, so the existing composite
+  /// indexes still apply.
   Future<Result<List<Post>, AppError>> getFeed({
     int limit = 20,
     DocumentSnapshot? startAfter,
-    PostCategory? category,
+    Set<PostCategory> categories = const {},
+    PostSortBy sortBy = PostSortBy.newest,
     String? makerId,
     String? modelName,
   }) async {
     try {
       Query<Map<String, dynamic>> query = _postsRef
-          .where('visibility', isEqualTo: PostVisibility.public.storageName)
-          .orderBy('createdAt', descending: true)
-          .limit(limit);
+          .where('visibility', isEqualTo: PostVisibility.public.storageName);
 
-      if (category != null) {
-        query = query.where('category', isEqualTo: category.name);
+      if (categories.isNotEmpty) {
+        query = query.where(
+          'category',
+          whereIn: categories.map((c) => c.name).toList(),
+        );
       }
 
       if (makerId != null) {
@@ -198,11 +205,22 @@ class PostService {
         query = query.where('vehicleTag.modelName', isEqualTo: modelName);
       }
 
+      // 並び順。コメント数が同じ投稿は新しい順に落ち着かせる（順序が
+      // 揺れるとページングでも取りこぼしが出る）。
+      switch (sortBy) {
+        case PostSortBy.newest:
+          query = query.orderBy('createdAt', descending: true);
+        case PostSortBy.mostCommented:
+          query = query
+              .orderBy('commentCount', descending: true)
+              .orderBy('createdAt', descending: true);
+      }
+
       if (startAfter != null) {
         query = query.startAfterDocument(startAfter);
       }
 
-      final snapshot = await query.get();
+      final snapshot = await query.limit(limit).get();
       final posts =
           snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
       return Result.success(posts);
@@ -406,6 +424,7 @@ class PostService {
     String? userDisplayName,
     String? userPhotoUrl,
     required String content,
+    List<String> imageUrls = const [],
     String? parentCommentId,
     String? postAuthorId,
   }) async {
@@ -419,6 +438,9 @@ class PostService {
         userDisplayName: userDisplayName,
         userPhotoUrl: userPhotoUrl,
         content: content,
+        // 上限を超えた分は切り捨てる。UI 側でも枚数を止めているが、
+        // ここでも押さえておかないと壊れたクライアントが投げ放題になる。
+        imageUrls: imageUrls.take(Comment.maxImages).toList(),
         parentCommentId: parentCommentId,
         createdAt: now,
         updatedAt: now,
@@ -474,14 +496,15 @@ class PostService {
     bool topLevelOnly = true,
   }) async {
     try {
+      // トップレベルの絞り込みは取得後に行う。
+      // where('parentCommentId', isNull: true) は「フィールドが存在して
+      // 値が null」にしかマッチせず、キー自体が無いドキュメントを落とす。
+      // 以前の Comment.toMap() はそのキーを省略していたため、既存データには
+      // 両方の形が混在している。クライアント側で判定すれば両方拾える。
       Query<Map<String, dynamic>> query = _commentsRef
           .where('postId', isEqualTo: postId)
           .orderBy('createdAt', descending: false)
           .limit(limit);
-
-      if (topLevelOnly) {
-        query = query.where('parentCommentId', isNull: true);
-      }
 
       if (startAfter != null) {
         query = query.startAfterDocument(startAfter);
@@ -490,7 +513,12 @@ class PostService {
       final snapshot = await query.get();
       final comments =
           snapshot.docs.map((doc) => Comment.fromFirestore(doc)).toList();
-      return Result.success(comments);
+      if (!topLevelOnly) {
+        return Result.success(comments);
+      }
+      return Result.success(
+        comments.where((c) => c.parentCommentId == null).toList(),
+      );
     } catch (e) {
       return Result.failure(AppError.unknown(
         'コメントの取得に失敗しました',

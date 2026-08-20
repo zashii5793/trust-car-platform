@@ -112,6 +112,7 @@ class FirebaseService {
       // 関連する整備記録を取得して削除
       final records = await _firestore
           .collection(FirestoreCollections.maintenanceRecords)
+          .where('userId', isEqualTo: currentUserId)
           .where('vehicleId', isEqualTo: vehicleId)
           .get();
 
@@ -193,8 +194,12 @@ class FirebaseService {
   /// 車両の履歴一覧を取得（Stream版は後方互換性のため維持）
   Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(
       String vehicleId) {
+    // userId を条件に含めないと Firestore のルール
+    // (resource.data.userId == request.auth.uid) をクエリが保証できず、
+    // 一覧そのものが PERMISSION_DENIED で弾かれる。
     return _firestore
         .collection(FirestoreCollections.maintenanceRecords)
+        .where('userId', isEqualTo: currentUserId)
         .where('vehicleId', isEqualTo: vehicleId)
         .orderBy('date', descending: true)
         .snapshots()
@@ -214,6 +219,7 @@ class FirebaseService {
     try {
       final snapshot = await _firestore
           .collection(FirestoreCollections.maintenanceRecords)
+          .where('userId', isEqualTo: currentUserId)
           .where('vehicleId', isEqualTo: vehicleId)
           .orderBy('date', descending: true)
           .limit(limit)
@@ -263,6 +269,7 @@ class FirebaseService {
 
         final snapshot = await _firestore
             .collection(FirestoreCollections.maintenanceRecords)
+            .where('userId', isEqualTo: currentUserId)
             .where('vehicleId', whereIn: batchIds)
             .orderBy('date', descending: true)
             .get();

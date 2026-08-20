@@ -100,6 +100,9 @@ class _DriveLogScreenState extends State<DriveLogScreen> {
       ),
       floatingActionButton: Consumer<DriveRecordingProvider>(
         builder: (_, recordingProvider, __) => FloatingActionButton.extended(
+          // テーマの CircleBorder が extended にも効き、ラベルが円の外へ
+          // はみ出して読めなくなるため個別に指定する。
+          shape: const StadiumBorder(),
           onPressed: _startRecording,
           backgroundColor: recordingProvider.isRecording
               ? Colors.redAccent
@@ -129,10 +132,16 @@ class _DriveLogScreenState extends State<DriveLogScreen> {
           }
 
           if (provider.logs.isEmpty) {
-            return const AppEmptyState(
+            // The FAB and the app-bar action both start a recording, but an
+            // empty screen reads as a dead end unless the next step is on it.
+            // Manual entry is the reliable path today: background recording
+            // stops when the app leaves the foreground (docs/HUMAN_TASKS P2-12).
+            return AppEmptyState(
               icon: Icons.directions_car_outlined,
               title: 'ドライブログがありません',
-              description: 'ドライブを記録してみましょう',
+              description: '「記録開始」でGPS記録を始めるか、\n走った分を手で入力できます',
+              buttonLabel: '手動で記録する',
+              onButtonPressed: _openManualEntry,
             );
           }
 

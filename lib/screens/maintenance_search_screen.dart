@@ -191,10 +191,18 @@ class _MaintenanceSearchScreenState extends State<MaintenanceSearchScreen> {
           // ---- 結果リスト ----
           Expanded(
             child: results.isEmpty
-                ? const AppEmptyState(
+                // "Change your filters" is advice, not an action: the user still
+                // has to find and undo each one. Clearing them is one tap.
+                ? AppEmptyState(
                     icon: Icons.search_off,
                     title: '該当する整備記録がありません',
-                    description: 'キーワードやフィルタを変更してみてください',
+                    description: 'キーワードや種類の絞り込みを外すと、'
+                        'すべての整備記録が表示されます',
+                    buttonLabel: '絞り込みをクリア',
+                    onButtonPressed: () {
+                      _keywordController.clear();
+                      setState(_selectedTypes.clear);
+                    },
                   )
                 : ListView.builder(
                     padding: AppSpacing.paddingScreen,

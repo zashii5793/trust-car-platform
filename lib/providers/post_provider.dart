@@ -19,7 +19,9 @@ class PostProvider with ChangeNotifier {
 
   // ── フィード状態 ──────────────────────────────────────────────────────────
   List<Post> _feedPosts = [];
-  PostCategory? _selectedCategory;
+  /// 選択中のカテゴリ。空 = すべて。複数選択できる。
+  Set<PostCategory> _selectedCategories = {};
+  PostSortBy _sortBy = PostSortBy.newest;
   String? _selectedModelName; // same-model filter
   bool _isLoading = false;
   bool _isLoadingMore = false;
@@ -44,7 +46,11 @@ class PostProvider with ChangeNotifier {
 
   // ── Getters ───────────────────────────────────────────────────────────────
   List<Post> get feedPosts => _feedPosts;
-  PostCategory? get selectedCategory => _selectedCategory;
+  Set<PostCategory> get selectedCategories =>
+      Set.unmodifiable(_selectedCategories);
+  bool isCategorySelected(PostCategory category) =>
+      _selectedCategories.contains(category);
+  PostSortBy get sortBy => _sortBy;
   String? get selectedModelName => _selectedModelName;
   bool get isLoading => _isLoading;
   bool get isLoadingMore => _isLoadingMore;
@@ -67,20 +73,23 @@ class PostProvider with ChangeNotifier {
   // ── フィード読み込み ───────────────────────────────────────────────────────
 
   Future<void> loadFeed({
-    PostCategory? category,
+    Set<PostCategory>? categories,
     String? modelName,
+    PostSortBy? sortBy,
   }) async {
     _isLoading = true;
     _error = null;
-    _selectedCategory = category;
+    _selectedCategories = {...?categories};
     _selectedModelName = modelName;
+    _sortBy = sortBy ?? _sortBy;
     _feedPosts = [];
     _hasMore = true;
     notifyListeners();
 
     final result = await _postService.getFeed(
       limit: Pagination.defaultPageSize,
-      category: category,
+      categories: _selectedCategories,
+      sortBy: _sortBy,
       modelName: modelName,
     );
 
@@ -107,7 +116,8 @@ class PostProvider with ChangeNotifier {
 
     final result = await _postService.getFeed(
       limit: Pagination.defaultPageSize,
-      category: _selectedCategory,
+      categories: _selectedCategories,
+      sortBy: _sortBy,
       modelName: _selectedModelName,
     );
 
@@ -125,14 +135,35 @@ class PostProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> refreshFeed() =>
-      loadFeed(category: _selectedCategory, modelName: _selectedModelName);
+  Future<void> refreshFeed() => loadFeed(
+        categories: _selectedCategories,
+        modelName: _selectedModelName,
+      );
 
-  // ── カテゴリフィルタ ───────────────────────────────────────────────────────
+  // ── カテゴリフィルタ（複数選択） ─────────────────────────────────────────────
 
-  Future<void> selectCategory(PostCategory? category) async {
-    if (_selectedCategory == category) return;
-    await loadFeed(category: category, modelName: _selectedModelName);
+  /// カテゴリを選択/解除する。選択が空になったら「すべて」と同じ扱い。
+  Future<void> toggleCategory(PostCategory category) async {
+    final next = {..._selectedCategories};
+    if (!next.remove(category)) next.add(category);
+    await loadFeed(categories: next, modelName: _selectedModelName);
+  }
+
+  /// カテゴリ選択をすべて解除する（＝すべて表示）。
+  Future<void> clearCategories() async {
+    if (_selectedCategories.isEmpty) return;
+    await loadFeed(categories: const {}, modelName: _selectedModelName);
+  }
+
+  // ── 並び替え ──────────────────────────────────────────────────────────────
+
+  Future<void> setSortBy(PostSortBy sortBy) async {
+    if (_sortBy == sortBy) return;
+    await loadFeed(
+      categories: _selectedCategories,
+      modelName: _selectedModelName,
+      sortBy: sortBy,
+    );
   }
 
   // ── 同車種フィルタ ────────────────────────────────────────────────────────
@@ -140,7 +171,7 @@ class PostProvider with ChangeNotifier {
   /// Filter feed by vehicle model name (maker + model).
   Future<void> filterByVehicleModel(String? modelName) async {
     if (_selectedModelName == modelName) return;
-    await loadFeed(category: _selectedCategory, modelName: modelName);
+    await loadFeed(categories: _selectedCategories, modelName: modelName);
   }
 
   // ── 投稿作成 ───────────────────────────────────────────────────────────────
@@ -316,11 +347,13 @@ class PostProvider with ChangeNotifier {
     required String postId,
     required String userId,
     required String content,
+    List<String> imageUrls = const [],
     String? userDisplayName,
     String? userPhotoUrl,
     String? parentCommentId,
   }) async {
-    if (content.trim().isEmpty) return false;
+    // 画像だけのコメントも許す（「この部分です」と写真だけ貼るケース）。
+    if (content.trim().isEmpty && imageUrls.isEmpty) return false;
 
     _isSubmittingComment = true;
     _commentError = null;
@@ -334,6 +367,7 @@ class PostProvider with ChangeNotifier {
       userDisplayName: userDisplayName,
       userPhotoUrl: userPhotoUrl,
       content: content.trim(),
+      imageUrls: imageUrls,
       parentCommentId: parentCommentId,
       postAuthorId: post?.userId,
     );
@@ -400,7 +434,7 @@ class PostProvider with ChangeNotifier {
 
   void clear() {
     _feedPosts = [];
-    _selectedCategory = null;
+    _selectedCategories = {};
     _selectedModelName = null;
     _isLoading = false;
     _isLoadingMore = false;

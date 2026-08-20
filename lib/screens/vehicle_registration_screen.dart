@@ -67,7 +67,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   FuelType? _selectedFuelType;
   DateTime? _purchaseDate;
 
-  Uint8List? _imageBytes;
+  /// 車両写真。好きな角度を複数残せるよう最大 [_maxPhotos] 枚まで持つ。
+  final List<Uint8List> _imageBytesList = [];
+  static const int _maxPhotos = 5;
   bool _sharePhotoConsent = false;
   bool _isLoading = false;
   bool _isOcrProcessing = false;
@@ -338,17 +340,44 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      final bytes = await pickedFile.readAsBytes();
-      // Reset consent when a new photo is picked so the user explicitly
-      // re-evaluates whether the new image is safe to share.
-      setState(() {
-        _imageBytes = bytes;
-        _sharePhotoConsent = false;
-      });
+    final remaining = _maxPhotos - _imageBytesList.length;
+    if (remaining <= 0) {
+      showErrorSnackBar(context, '写真は$_maxPhotos枚までです');
+      return;
     }
+
+    final picker = ImagePicker();
+    final picked = await picker.pickMultiImage();
+    if (picked.isEmpty) return;
+
+    // 上限を超える分は黙って捨てず、何枚追加できたかを伝える。
+    final accepted = picked.take(remaining).toList();
+    final bytesList = <Uint8List>[];
+    for (final file in accepted) {
+      bytesList.add(await file.readAsBytes());
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _imageBytesList.addAll(bytesList);
+      // 新しい写真を足したら共有同意は取り直す。追加した1枚に
+      // ナンバーが写っている、という取りこぼしを防ぐため。
+      _sharePhotoConsent = false;
+    });
+
+    if (picked.length > remaining) {
+      showErrorSnackBar(
+        context,
+        '$_maxPhotos枚までのため、${accepted.length}枚を追加しました',
+      );
+    }
+  }
+
+  void _removeImageAt(int index) {
+    setState(() {
+      _imageBytesList.removeAt(index);
+      if (_imageBytesList.isEmpty) _sharePhotoConsent = false;
+    });
   }
 
   Future<void> _selectDate({
@@ -485,13 +514,13 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         return;
       }
 
-      String? imageUrl;
-      if (_imageBytes != null) {
+      final imageUrls = <String>[];
+      for (final bytes in _imageBytesList) {
         final uuid = const Uuid().v4();
         // Path includes the owner uid so Storage rules can enforce
         // write access per user.
         final uploadResult = await _firebaseService.uploadImageBytes(
-          _imageBytes!,
+          bytes,
           'vehicles/$currentUserId/$uuid.jpg',
         );
         if (uploadResult.isFailure) {
@@ -501,7 +530,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           }
           return;
         }
-        imageUrl = uploadResult.valueOrNull;
+        final url = uploadResult.valueOrNull;
+        if (url != null) imageUrls.add(url);
       }
 
       final vehicle = Vehicle(
@@ -515,7 +545,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         // いま入力した距離が「最新」。これを刻まないと、登録直後に
         // 「走行距離を更新してください（最終更新: 未設定）」が出る。
         mileageUpdatedAt: DateTime.now(),
-        imageUrl: imageUrl,
+        imageUrls: imageUrls,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         licensePlate: plate.isEmpty ? null : plate,
@@ -605,7 +635,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       _yearController.text.isNotEmpty ||
       _mileageController.text.isNotEmpty ||
       _licensePlateController.text.isNotEmpty ||
-      _imageBytes != null;
+      _imageBytesList.isNotEmpty;
 
   Future<bool> _confirmDiscard(BuildContext context) async {
     final result = await showDialog<bool>(
@@ -694,56 +724,48 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               _buildOcrUnsupportedNote(theme, '車検証'),
             AppSpacing.verticalMd,
 
-            // 写真選択（コンパクト）
-            GestureDetector(
-              onTap: _pickImage,
-              child: Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  color:
-                      isDark ? AppColors.darkCard : AppColors.backgroundLight,
-                  borderRadius: AppSpacing.borderRadiusMd,
-                  border: Border.all(
-                    color:
-                        isDark ? AppColors.darkTextTertiary : AppColors.border,
-                  ),
-                ),
-                child: _imageBytes != null
-                    ? ClipRRect(
-                        borderRadius: AppSpacing.borderRadiusMd,
-                        child: Image.memory(
-                          _imageBytes!,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                        ),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.add_photo_alternate_outlined,
-                            size: AppSpacing.iconLg,
-                            color: isDark
-                                ? AppColors.darkTextTertiary
-                                : AppColors.textTertiary,
-                          ),
-                          AppSpacing.horizontalSm,
-                          Text(
-                            '車両の写真を追加（任意）',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: isDark
-                                  ? AppColors.darkTextTertiary
-                                  : AppColors.textTertiary,
-                            ),
-                          ),
-                        ],
-                      ),
+            // 写真選択。外装・内装・エンジンルームなど複数の角度を残せるよう
+            // 横並びのサムネイルにしている。最後のマスが追加ボタン。
+            SizedBox(
+              height: 104,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _imageBytesList.length +
+                    (_imageBytesList.length < _maxPhotos ? 1 : 0),
+                separatorBuilder: (_, __) => AppSpacing.horizontalSm,
+                itemBuilder: (context, index) {
+                  if (index >= _imageBytesList.length) {
+                    return _AddPhotoTile(
+                      isDark: isDark,
+                      onTap: _pickImage,
+                      label: _imageBytesList.isEmpty
+                          ? '写真を追加'
+                          : 'あと${_maxPhotos - _imageBytesList.length}枚',
+                    );
+                  }
+                  return _PhotoThumb(
+                    bytes: _imageBytesList[index],
+                    isCover: index == 0,
+                    onRemove: () => _removeImageAt(index),
+                  );
+                },
               ),
             ),
+            if (_imageBytesList.isNotEmpty) ...[
+              AppSpacing.verticalXxs,
+              Text(
+                '最大$_maxPhotos枚。1枚目が一覧のサムネイルになります。',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: isDark
+                      ? AppColors.darkTextTertiary
+                      : AppColors.textTertiary,
+                ),
+              ),
+            ],
             // Show photo-consent checkbox only when a photo has been selected.
             // Asking before save (checkbox) is better UX than a post-save dialog:
             // the user sees the choice while still in context of "I'm uploading."
-            if (_imageBytes != null) ...[
+            if (_imageBytesList.isNotEmpty) ...[
               AppSpacing.verticalXs,
               CheckboxListTile(
                 key: const Key('photo_consent_checkbox'),
@@ -1698,6 +1720,115 @@ class _GradeSpecPreview extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// 選択済み写真のサムネイル。1枚目には「表紙」バッジを出して、
+/// どれが一覧に出る写真なのかを分かるようにしている。
+class _PhotoThumb extends StatelessWidget {
+  final Uint8List bytes;
+  final bool isCover;
+  final VoidCallback onRemove;
+
+  const _PhotoThumb({
+    required this.bytes,
+    required this.isCover,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SizedBox(
+      width: 104,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: AppSpacing.borderRadiusMd,
+              child: Image.memory(bytes, fit: BoxFit.cover),
+            ),
+          ),
+          if (isCover)
+            Positioned(
+              left: 4,
+              bottom: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '表紙',
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: Colors.white),
+                ),
+              ),
+            ),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: InkWell(
+              onTap: onRemove,
+              customBorder: const CircleBorder(),
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close, size: 14, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 写真を追加するマス。残り枚数を出して上限を意識させる。
+class _AddPhotoTile extends StatelessWidget {
+  final bool isDark;
+  final VoidCallback onTap;
+  final String label;
+
+  const _AddPhotoTile({
+    required this.isDark,
+    required this.onTap,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fg = isDark ? AppColors.darkTextTertiary : AppColors.textTertiary;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 104,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkCard : AppColors.backgroundLight,
+          borderRadius: AppSpacing.borderRadiusMd,
+          border: Border.all(
+            color: isDark ? AppColors.darkTextTertiary : AppColors.border,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_photo_alternate_outlined,
+                size: AppSpacing.iconLg, color: fg),
+            const SizedBox(height: 4),
+            Text(label,
+                style: theme.textTheme.bodySmall?.copyWith(color: fg)),
+          ],
+        ),
       ),
     );
   }

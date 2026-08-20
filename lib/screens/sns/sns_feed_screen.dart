@@ -56,6 +56,7 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
         children: [
           _CategoryFilterBar(),
           _VehicleModelFilterBar(),
+          const _SortBar(),
           Expanded(
             child: Consumer<PostProvider>(
               builder: (context, provider, child) {
@@ -84,14 +85,17 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
                     );
                   }
                   // Category filter active but no results
-                  if (provider.selectedCategory != null) {
+                  if (provider.selectedCategories.isNotEmpty) {
+                    final names = provider.selectedCategories
+                        .map((c) => c.displayName)
+                        .join('・');
                     return AppEmptyState(
                       icon: Icons.filter_list_off,
                       title: 'この絞り込みには投稿がありません',
                       description:
-                          '「${provider.selectedCategory!.displayName}」カテゴリの投稿がまだありません。\n他のカテゴリも探してみましょう。',
+                          '「$names」の投稿がまだありません。\n他のカテゴリも探してみましょう。',
                       buttonLabel: 'すべて表示',
-                      onButtonPressed: () => provider.selectCategory(null),
+                      onButtonPressed: () => provider.clearCategories(),
                     );
                   }
                   // No posts at all
@@ -280,6 +284,7 @@ class _CategoryFilterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<PostProvider>(
       builder: (context, provider, child) {
+        // カテゴリは複数選べる。何も選ばれていない状態が「すべて」。
         return SizedBox(
           height: 48,
           child: ListView(
@@ -287,17 +292,99 @@ class _CategoryFilterBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             children: [
               _CategoryChip(
+                key: const Key('sns_category_all'),
                 label: 'すべて',
                 icon: Icons.all_inclusive,
-                selected: provider.selectedCategory == null,
-                onTap: () => provider.selectCategory(null),
+                selected: provider.selectedCategories.isEmpty,
+                onTap: () => provider.clearCategories(),
               ),
               ...PostCategory.values.map(
                 (cat) => _CategoryChip(
+                  key: Key('sns_category_${cat.name}'),
                   label: cat.displayName,
                   icon: _categoryIcon(cat),
-                  selected: provider.selectedCategory == cat,
-                  onTap: () => provider.selectCategory(cat),
+                  selected: provider.isCategorySelected(cat),
+                  onTap: () => provider.toggleCategory(cat),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 並び替えバー
+// ---------------------------------------------------------------------------
+
+class _SortBar extends StatelessWidget {
+  const _SortBar();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Consumer<PostProvider>(
+      builder: (context, provider, child) {
+        final selectedCount = provider.selectedCategories.length;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
+          child: Row(
+            children: [
+              if (selectedCount > 0)
+                Text(
+                  '$selectedCount件のカテゴリで絞り込み中',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: AppColors.textTertiary),
+                ),
+              const Spacer(),
+              TextButton.icon(
+                key: const Key('sns_sort_button'),
+                icon: const Icon(Icons.swap_vert, size: 18),
+                label: Text(provider.sortBy.displayName),
+                onPressed: () => _showSortSheet(context, provider),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSortSheet(BuildContext context, PostProvider provider) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  '並び替え',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+              ...PostSortBy.values.map(
+                (sort) => ListTile(
+                  key: Key('sns_sort_option_${sort.name}'),
+                  leading: Icon(
+                    sort == PostSortBy.newest
+                        ? Icons.schedule
+                        : Icons.forum_outlined,
+                  ),
+                  title: Text(sort.displayName),
+                  trailing: provider.sortBy == sort
+                      ? const Icon(Icons.check, color: AppColors.primary)
+                      : null,
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    provider.setSortBy(sort);
+                  },
                 ),
               ),
             ],
@@ -315,6 +402,7 @@ class _CategoryChip extends StatelessWidget {
   final IconData? icon;
 
   const _CategoryChip({
+    super.key,
     required this.label,
     required this.selected,
     required this.onTap,

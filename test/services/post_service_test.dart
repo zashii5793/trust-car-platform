@@ -728,4 +728,146 @@ void main() {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // PostService.getFeed — 複数カテゴリ絞り込みと並び替え
+  //
+  // カテゴリは1つしか選べず、並び順も新着固定だった。
+  // 複数カテゴリの同時選択と「コメントが多い順」を足す。
+  // ---------------------------------------------------------------------------
+
+  group('PostService.getFeed — 複数カテゴリと並び替え', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    Map<String, dynamic> feedDoc({
+      required String category,
+      required int commentCount,
+      required DateTime createdAt,
+      required String content,
+    }) {
+      final doc = postDoc(userId: 'author-uid', visibility: 'public');
+      return {
+        ...doc,
+        'content': content,
+        'category': category,
+        'commentCount': commentCount,
+        'createdAt': Timestamp.fromDate(createdAt),
+        'updatedAt': Timestamp.fromDate(createdAt),
+      };
+    }
+
+    setUp(() async {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+
+      final posts = fakeFirestore.collection('posts');
+      await posts.add(feedDoc(
+        category: 'maintenance',
+        commentCount: 5,
+        createdAt: DateTime(2026, 1, 3),
+        content: '整備の投稿',
+      ));
+      await posts.add(feedDoc(
+        category: 'question',
+        commentCount: 12,
+        createdAt: DateTime(2026, 1, 1),
+        content: '質問の投稿',
+      ));
+      await posts.add(feedDoc(
+        category: 'drive',
+        commentCount: 1,
+        createdAt: DateTime(2026, 1, 5),
+        content: 'ドライブの投稿',
+      ));
+      await posts.add(feedDoc(
+        category: 'general',
+        commentCount: 0,
+        createdAt: DateTime(2026, 1, 2),
+        content: '一般の投稿',
+      ));
+    });
+
+    test('カテゴリ未指定なら全カテゴリが返る', () async {
+      final result = await service.getFeed();
+
+      result.when(
+        success: (posts) => expect(posts.length, 4),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('カテゴリを1つ指定するとそのカテゴリだけ返る', () async {
+      final result = await service.getFeed(
+        categories: const {PostCategory.question},
+      );
+
+      result.when(
+        success: (posts) {
+          expect(posts.length, 1);
+          expect(posts.first.content, '質問の投稿');
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('カテゴリを複数指定すると指定したカテゴリがまとめて返る', () async {
+      final result = await service.getFeed(
+        categories: const {PostCategory.question, PostCategory.drive},
+      );
+
+      result.when(
+        success: (posts) {
+          expect(posts.length, 2);
+          expect(
+            posts.map((p) => p.content),
+            containsAll(['質問の投稿', 'ドライブの投稿']),
+          );
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('既定は新しい順', () async {
+      final result = await service.getFeed();
+
+      result.when(
+        success: (posts) {
+          expect(posts.first.content, 'ドライブの投稿'); // 1/5
+          expect(posts.last.content, '質問の投稿'); // 1/1
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('コメントが多い順に並べ替えられる', () async {
+      final result = await service.getFeed(sortBy: PostSortBy.mostCommented);
+
+      result.when(
+        success: (posts) {
+          expect(
+            posts.map((p) => p.commentCount).toList(),
+            [12, 5, 1, 0],
+          );
+          expect(posts.first.content, '質問の投稿');
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('並び替えとカテゴリ絞り込みを同時に使える', () async {
+      final result = await service.getFeed(
+        categories: const {PostCategory.maintenance, PostCategory.drive},
+        sortBy: PostSortBy.mostCommented,
+      );
+
+      result.when(
+        success: (posts) {
+          expect(posts.map((p) => p.content).toList(),
+              ['整備の投稿', 'ドライブの投稿']);
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+  });
 }

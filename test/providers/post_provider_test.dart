@@ -26,19 +26,22 @@ class MockPostService implements PostService {
   int likeCallCount = 0;
   int unlikeCallCount = 0;
   int deleteCallCount = 0;
-  PostCategory? lastCategory;
+  Set<PostCategory> lastCategories = const {};
+  PostSortBy lastSortBy = PostSortBy.newest;
   String? lastContent;
 
   @override
   Future<Result<List<Post>, AppError>> getFeed({
     int limit = 20,
-    PostCategory? category,
+    Set<PostCategory> categories = const {},
+    PostSortBy sortBy = PostSortBy.newest,
     dynamic startAfter,
     String? makerId,
     String? modelName,
   }) async {
     getFeedCallCount++;
-    lastCategory = category;
+    lastCategories = categories;
+    lastSortBy = sortBy;
     return feedResult;
   }
 
@@ -180,10 +183,10 @@ void main() {
       });
 
       test('カテゴリを指定するとサービスに渡される', () async {
-        await provider.loadFeed(category: PostCategory.maintenance);
+        await provider.loadFeed(categories: {PostCategory.maintenance});
 
-        expect(mockService.lastCategory, PostCategory.maintenance);
-        expect(provider.selectedCategory, PostCategory.maintenance);
+        expect(mockService.lastCategories, {PostCategory.maintenance});
+        expect(provider.selectedCategories, {PostCategory.maintenance});
       });
 
       test('20件以上あるとhasMoreがtrueになる', () async {
@@ -218,32 +221,96 @@ void main() {
       });
     });
 
-    // ── selectCategory ────────────────────────────────────────────────────────
+    // ── toggleCategory（複数選択） ─────────────────────────────────────────────
 
-    group('selectCategory', () {
-      test('カテゴリが変わるとloadFeedが呼ばれる', () async {
-        await provider.selectCategory(PostCategory.drive);
+    group('toggleCategory', () {
+      test('カテゴリを選ぶとloadFeedが呼ばれる', () async {
+        await provider.toggleCategory(PostCategory.drive);
 
-        expect(provider.selectedCategory, PostCategory.drive);
+        expect(provider.selectedCategories, {PostCategory.drive});
         expect(mockService.getFeedCallCount, 1);
-        expect(mockService.lastCategory, PostCategory.drive);
+        expect(mockService.lastCategories, {PostCategory.drive});
       });
 
-      test('同じカテゴリを選んでも再読み込みしない', () async {
-        await provider.selectCategory(PostCategory.drive);
+      test('複数のカテゴリを同時に選べる', () async {
+        await provider.toggleCategory(PostCategory.drive);
+        await provider.toggleCategory(PostCategory.question);
+
+        expect(
+          provider.selectedCategories,
+          {PostCategory.drive, PostCategory.question},
+        );
+        expect(
+          mockService.lastCategories,
+          {PostCategory.drive, PostCategory.question},
+        );
+      });
+
+      test('同じカテゴリをもう一度選ぶと解除される', () async {
+        await provider.toggleCategory(PostCategory.drive);
+        await provider.toggleCategory(PostCategory.drive);
+
+        expect(provider.selectedCategories, isEmpty);
+        expect(mockService.lastCategories, isEmpty);
+      });
+
+      test('選択中かどうかを判定できる', () async {
+        await provider.toggleCategory(PostCategory.drive);
+
+        expect(provider.isCategorySelected(PostCategory.drive), isTrue);
+        expect(provider.isCategorySelected(PostCategory.question), isFalse);
+      });
+
+      test('clearCategories ですべて解除される', () async {
+        await provider.toggleCategory(PostCategory.drive);
+        await provider.toggleCategory(PostCategory.question);
+
+        await provider.clearCategories();
+
+        expect(provider.selectedCategories, isEmpty);
+        expect(mockService.lastCategories, isEmpty);
+      });
+
+      test('選択が空の状態で clearCategories を呼んでも再読み込みしない', () async {
         final countBefore = mockService.getFeedCallCount;
 
-        await provider.selectCategory(PostCategory.drive);
+        await provider.clearCategories();
+
+        expect(mockService.getFeedCallCount, countBefore);
+      });
+    });
+
+    // ── 並び替え ──────────────────────────────────────────────────────────────
+
+    group('setSortBy', () {
+      test('既定は新しい順', () {
+        expect(provider.sortBy, PostSortBy.newest);
+      });
+
+      test('コメントが多い順に切り替えると再読み込みされる', () async {
+        await provider.setSortBy(PostSortBy.mostCommented);
+
+        expect(provider.sortBy, PostSortBy.mostCommented);
+        expect(mockService.lastSortBy, PostSortBy.mostCommented);
+        expect(mockService.getFeedCallCount, 1);
+      });
+
+      test('同じ並び順を選んでも再読み込みしない', () async {
+        await provider.setSortBy(PostSortBy.mostCommented);
+        final countBefore = mockService.getFeedCallCount;
+
+        await provider.setSortBy(PostSortBy.mostCommented);
 
         expect(mockService.getFeedCallCount, countBefore);
       });
 
-      test('nullを指定するとすべてのカテゴリになる', () async {
-        await provider.selectCategory(PostCategory.drive);
-        await provider.selectCategory(null);
+      test('並び替えはカテゴリ選択を保ったまま適用される', () async {
+        await provider.toggleCategory(PostCategory.drive);
+        await provider.setSortBy(PostSortBy.mostCommented);
 
-        expect(provider.selectedCategory, isNull);
-        expect(mockService.lastCategory, isNull);
+        expect(provider.selectedCategories, {PostCategory.drive});
+        expect(mockService.lastCategories, {PostCategory.drive});
+        expect(mockService.lastSortBy, PostSortBy.mostCommented);
       });
     });
 
@@ -251,13 +318,13 @@ void main() {
 
     group('refreshFeed', () {
       test('現在のカテゴリを維持してリフレッシュする', () async {
-        await provider.loadFeed(category: PostCategory.maintenance);
+        await provider.loadFeed(categories: {PostCategory.maintenance});
         mockService.getFeedCallCount = 0;
 
         await provider.refreshFeed();
 
         expect(mockService.getFeedCallCount, 1);
-        expect(mockService.lastCategory, PostCategory.maintenance);
+        expect(mockService.lastCategories, {PostCategory.maintenance});
       });
     });
 
@@ -443,13 +510,13 @@ void main() {
     group('clear', () {
       test('clearですべての状態がリセットされる', () async {
         mockService.feedResult = Result.success([_makePost(id: 'p1')]);
-        await provider.loadFeed(category: PostCategory.drive);
+        await provider.loadFeed(categories: {PostCategory.drive});
         await provider.toggleLike('p1', 'user1');
 
         provider.clear();
 
         expect(provider.feedPosts, isEmpty);
-        expect(provider.selectedCategory, isNull);
+        expect(provider.selectedCategories, isEmpty);
         expect(provider.hasMore, true);
         expect(provider.error, isNull);
         expect(provider.isLiked('p1'), false);
@@ -494,11 +561,12 @@ void main() {
 
       test('複数のカテゴリフィルタを連続して切り替えられる', () async {
         for (final cat in PostCategory.values) {
-          await provider.selectCategory(cat);
-          expect(provider.selectedCategory, cat);
+          await provider.toggleCategory(cat);
+          expect(provider.isCategorySelected(cat), isTrue);
+          await provider.toggleCategory(cat);
+          expect(provider.isCategorySelected(cat), isFalse);
         }
-        await provider.selectCategory(null);
-        expect(provider.selectedCategory, isNull);
+        expect(provider.selectedCategories, isEmpty);
       });
 
       test('同一投稿に複数回いいね・解除してもカウントが整合する', () async {

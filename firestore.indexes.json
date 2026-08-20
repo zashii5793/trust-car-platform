@@ -24,6 +24,18 @@
         { "fieldPath": "date", "order": "DESCENDING" }
       ]
     },
+    // 車両の整備履歴一覧。firestore.rules が
+    // resource.data.userId == request.auth.uid を要求するため、クエリ側にも
+    // userId 条件が必要（無いと一覧が PERMISSION_DENIED で弾かれる）。
+    {
+      "collectionGroup": "maintenance_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
     {
       "collectionGroup": "maintenance_records",
       "queryScope": "COLLECTION",
@@ -317,6 +329,51 @@
         { "fieldPath": "visibility", "order": "ASCENDING" },
         { "fieldPath": "category", "order": "ASCENDING" },
         { "fieldPath": "vehicleTag.modelName", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // 並び替え「コメントが多い順」。カテゴリの複数選択は whereIn なので、
+    // 等価フィルタと同じ扱いになり category ありの組と共用できる。
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "commentCount", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // 「コメントが多い順」+ カテゴリ絞り込み
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "commentCount", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // 「コメントが多い順」+ 同車種フィルタ
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "vehicleTag.modelName", "order": "ASCENDING" },
+        { "fieldPath": "commentCount", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // 「コメントが多い順」+ カテゴリ + 同車種
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "vehicleTag.modelName", "order": "ASCENDING" },
+        { "fieldPath": "commentCount", "order": "DESCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },

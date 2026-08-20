@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart' hide FirebaseService;
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'core/di/injection.dart';
@@ -97,6 +98,9 @@ void main() async {
     // query then failed the `request.auth != null` rule and screens rendered
     // as if the account had no data. Do not add a settings assignment here.
     FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
+    // 画像アップロードも Emulator に向ける。これが無いと、Auth と Firestore は
+    // ローカルなのに画像だけ本番バケットへ飛び、確認中に本番を汚してしまう。
+    await FirebaseStorage.instance.useStorageEmulator('localhost', 9199);
   } else {
     // Production: enable offline persistence with 100MB cache
     FirebaseFirestore.instance.settings = const Settings(

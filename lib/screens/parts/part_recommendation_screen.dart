@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/part_listing.dart';
+import '../marketplace/part_list_screen.dart';
 import '../../models/post.dart';
 import '../../models/vehicle.dart';
 import '../../providers/part_recommendation_provider.dart';
@@ -96,12 +97,29 @@ class _PartRecommendationScreenState extends State<PartRecommendationScreen> {
     final items = provider.filteredRecommendations;
 
     if (items.isEmpty) {
+      // With a category selected the user can widen the search here; with
+      // none selected there is genuinely nothing to recommend yet, so send
+      // them to the marketplace instead of leaving the screen closed.
+      final filtered = provider.selectedCategory != null;
       return AppEmptyState(
         icon: Icons.search_off,
-        title: provider.selectedCategory != null
+        title: filtered
             ? '${provider.selectedCategory!.displayName}の提案はありません'
             : '現在ご利用いただける提案はありません',
-        description: 'マーケットプレイスにパーツ情報が登録されると\nここに提案が表示されます',
+        description: filtered
+            ? '絞り込みを外すと、この車に合う提案がすべて表示されます'
+            : 'マーケットプレイスにパーツが登録されると、ここに提案が出ます',
+        buttonLabel: filtered ? '絞り込みをクリア' : 'マーケットプレイスを見る',
+        onButtonPressed: () {
+          if (filtered) {
+            provider.selectCategory(null);
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PartListScreen()),
+          );
+        },
       );
     }
 
@@ -803,7 +821,7 @@ class _OwnerExamplesSectionState extends State<_OwnerExamplesSection> {
       return;
     }
     final result = await sl.get<PostService>().getFeed(
-          category: PostCategory.customization,
+          categories: const {PostCategory.customization},
           modelName: widget.vehicle.model,
           limit: 5,
         );

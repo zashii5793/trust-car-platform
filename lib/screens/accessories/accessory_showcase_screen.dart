@@ -189,6 +189,9 @@ class _AccessoryShowcaseScreenState extends State<AccessoryShowcaseScreen>
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
+        // テーマの CircleBorder が extended にも効き、ラベルが円の外へ
+        // はみ出して読めなくなるため個別に指定する。
+        shape: const StadiumBorder(),
         key: const Key('submit_showcase_fab'),
         onPressed: _openSubmitSheet,
         icon: const Icon(Icons.add_outlined),
