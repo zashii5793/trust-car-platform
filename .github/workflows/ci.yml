@@ -334,7 +334,14 @@ jobs:
           BUILD_STATUS=${PIPESTATUS[0]}
           if [ $BUILD_STATUS -ne 0 ]; then
             echo "::error::=== XCODE ERRORS ==="
-            grep -E "error:|fatal error:|BUILD FAILED" /tmp/ios_build.log | grep -v "^note:" | tail -50 | while IFS= read -r line; do
+            # Xcode does not always say "error:". The failures that actually
+            # stopped a build on 2026-08-21 were
+            #   Command PhaseScriptExecution failed with a nonzero exit code
+            #   Can't load Kernel binary: Invalid kernel binary format version
+            # Neither contains "error:", so the cause never reached the log and
+            # the build looked like it failed for no reason. Match those too.
+            grep -E "error:|fatal error:|BUILD FAILED|Command [A-Za-z]+ failed|Can't load Kernel binary|Encountered error|linker command failed|Undefined symbol" \
+              /tmp/ios_build.log | grep -v "^note:" | tail -50 | while IFS= read -r line; do
               echo "::error::$line"
             done
             exit $BUILD_STATUS
