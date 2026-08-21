@@ -246,6 +246,7 @@ Comment _makeComment({
   String? userDisplayName = 'コメント投稿者',
   String content = 'テストコメント',
   List<String> imageUrls = const [],
+  int replyCount = 0,
 }) {
   final now = DateTime(2025, 6, 1, 13, 0);
   return Comment(
@@ -255,6 +256,7 @@ Comment _makeComment({
     userDisplayName: userDisplayName,
     content: content,
     imageUrls: imageUrls,
+    replyCount: replyCount,
     createdAt: now,
     updatedAt: now,
   );
@@ -623,6 +625,45 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.byKey(const Key('comment_attach_button')), findsOneWidget);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // コメント件数の表示
+  //
+  // 詳細ヘッダーがトップレベルのコメントしか数えず、フィードのバッジ（返信込み）
+  // と数が食い違っていた。
+  // -------------------------------------------------------------------------
+
+  group('PostDetailScreen — コメント件数', () {
+    testWidgets('返信を含めた件数が表示される', (tester) async {
+      final svc = _FakePostService()
+        ..commentsToReturn = [
+          _makeComment(id: 'c1', content: 'A', replyCount: 2),
+          _makeComment(id: 'c2', content: 'B', replyCount: 1),
+          _makeComment(id: 'c3', content: 'C'),
+        ];
+      await tester.pumpWidget(
+        _buildScreen(_makePost(commentCount: 6), postService: svc),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // トップレベル3 + 返信3 = 6
+      expect(find.text('6'), findsOneWidget);
+    });
+
+    testWidgets('返信がなければトップレベルの件数になる', (tester) async {
+      final svc = _FakePostService()
+        ..commentsToReturn = [
+          _makeComment(id: 'c1', content: 'A'),
+          _makeComment(id: 'c2', content: 'B'),
+        ];
+      await tester.pumpWidget(
+        _buildScreen(_makePost(commentCount: 2), postService: svc),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('2'), findsOneWidget);
     });
   });
 }

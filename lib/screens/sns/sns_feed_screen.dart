@@ -8,6 +8,7 @@ import '../../models/post.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../../widgets/image_viewer.dart';
 import 'post_create_screen.dart';
 import 'post_detail_screen.dart';
 
@@ -82,6 +83,17 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
                       buttonLabel: 'すべて表示',
                       onButtonPressed: () =>
                           provider.filterByVehicleModel(null),
+                    );
+                  }
+                  // Hashtag filter active but no results
+                  if (provider.selectedHashtag != null) {
+                    return AppEmptyState(
+                      icon: Icons.tag,
+                      title: 'このタグの投稿がまだありません',
+                      description:
+                          '「#${provider.selectedHashtag}」の投稿がまだありません。\n最初の投稿をしてみましょう！',
+                      buttonLabel: 'すべて表示',
+                      onButtonPressed: () => provider.clearHashtag(),
                     );
                   }
                   // Category filter active but no results
@@ -330,10 +342,23 @@ class _SortBar extends StatelessWidget {
       builder: (context, provider, child) {
         final selectedCount = provider.selectedCategories.length;
 
+        final hashtag = provider.selectedHashtag;
+
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
           child: Row(
             children: [
+              if (hashtag != null)
+                InputChip(
+                  key: const Key('sns_hashtag_active'),
+                  label: Text('#$hashtag'),
+                  deleteIcon: const Icon(Icons.close, size: 16),
+                  deleteButtonTooltipMessage: 'タグの絞り込みを解除',
+                  onDeleted: () => provider.clearHashtag(),
+                  visualDensity: VisualDensity.compact,
+                ),
+              if (hashtag != null && selectedCount > 0)
+                const SizedBox(width: 8),
               if (selectedCount > 0)
                 Text(
                   '$selectedCount件のカテゴリで絞り込み中',
@@ -640,16 +665,10 @@ class _PostContent extends StatelessWidget {
             runSpacing: 4,
             children: post.hashtags.map((tag) {
               return InkWell(
+                key: Key('post_hashtag_${post.id}_$tag'),
                 borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('#$tag のハッシュタグ検索は近日公開予定です'),
-                      duration: const Duration(seconds: 2),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
+                onTap: () =>
+                    context.read<PostProvider>().selectHashtag(tag),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm,
@@ -752,15 +771,20 @@ class _PostMediaRow extends StatelessWidget {
   Widget build(BuildContext context) {
     // 1枚だけの投稿を小さな正方形で出すと、カードの中で写真が埋もれて
     // 「画像を扱えないアプリ」に見えてしまう。1枚なら幅いっぱいに見せる。
+    final urls = media.map((m) => m.url).toList();
+
     if (media.length == 1) {
       return Padding(
         key: Key('post_media_$postId'),
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: _image(media.first.url, width: double.infinity),
+        child: GestureDetector(
+          onTap: () => showImageViewer(context, imageUrls: urls),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: _image(media.first.url, width: double.infinity),
+            ),
           ),
         ),
       );
@@ -775,9 +799,16 @@ class _PostMediaRow extends StatelessWidget {
         itemCount: media.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: _image(media[index].url, width: 160, height: 160),
+          return GestureDetector(
+            onTap: () => showImageViewer(
+              context,
+              imageUrls: urls,
+              initialIndex: index,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: _image(media[index].url, width: 160, height: 160),
+            ),
           );
         },
       ),

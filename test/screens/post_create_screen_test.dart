@@ -32,6 +32,7 @@ class MockPostService implements PostService {
     dynamic startAfter,
     Set<PostCategory> categories = const {},
     PostSortBy sortBy = PostSortBy.newest,
+    String? hashtag,
     String? makerId,
     String? modelName,
   }) async =>

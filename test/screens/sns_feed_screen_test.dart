@@ -45,6 +45,7 @@ class MockPostService implements PostService {
   int getFeedCallCount = 0;
   Set<PostCategory> lastCategories = const {};
   PostSortBy lastSortBy = PostSortBy.newest;
+  String? lastHashtag;
 
   @override
   Future<Result<PostPage, AppError>> getFeed({
@@ -52,12 +53,14 @@ class MockPostService implements PostService {
     dynamic startAfter,
     Set<PostCategory> categories = const {},
     PostSortBy sortBy = PostSortBy.newest,
+    String? hashtag,
     String? makerId,
     String? modelName,
   }) async {
     getFeedCallCount++;
     lastCategories = categories;
     lastSortBy = sortBy;
+    lastHashtag = hashtag;
     return _feedPageResult;
   }
 
@@ -590,6 +593,98 @@ void main() {
         find.descendant(of: finder, matching: find.byType(Image)),
         findsNWidgets(2),
       );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // ハッシュタグの絞り込み
+  //
+  // タグは表示されるだけで、押しても「近日公開予定です」と出るだけだった。
+  // -------------------------------------------------------------------------
+
+  group('SnsFeedScreen — ハッシュタグ', () {
+    late MockPostService mockService;
+
+    setUp(() {
+      mockService = MockPostService();
+    });
+
+    testWidgets('タグをタップするとそのタグで絞り込まれる', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-tag', hashtags: const ['点検']),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.byKey(const Key('post_hashtag_p-tag_点検')));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(mockService.lastHashtag, '点検');
+    });
+
+    testWidgets('絞り込み中はタグのチップが出る', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-tag', hashtags: const ['点検']),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await tester.tap(find.byKey(const Key('post_hashtag_p-tag_点検')));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.byKey(const Key('sns_hashtag_active')), findsOneWidget);
+    });
+
+    testWidgets('チップの × で絞り込みを解除できる', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-tag', hashtags: const ['点検']),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await tester.tap(find.byKey(const Key('post_hashtag_p-tag_点検')));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.descendant(
+        of: find.byKey(const Key('sns_hashtag_active')),
+        matching: find.byIcon(Icons.close),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(mockService.lastHashtag, isNull);
+      expect(find.byKey(const Key('sns_hashtag_active')), findsNothing);
+    });
+
+    testWidgets('同じタグをもう一度押すと解除される', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-tag', hashtags: const ['点検']),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      final chip = find.byKey(const Key('post_hashtag_p-tag_点検'));
+      await tester.tap(chip);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await tester.tap(chip);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(mockService.lastHashtag, isNull);
+    });
+
+    testWidgets('タグ絞り込みで0件のときは専用の空表示になる', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-tag', hashtags: const ['点検']),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      mockService.feedResult = const Result.success([]);
+      await tester.tap(find.byKey(const Key('post_hashtag_p-tag_点検')));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.text('このタグの投稿がまだありません'), findsOneWidget);
     });
   });
 }

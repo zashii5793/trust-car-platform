@@ -14,6 +14,7 @@ import '../../core/di/service_locator.dart';
 import '../../services/firebase_service.dart';
 import '../../services/post_service.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../../widgets/image_viewer.dart';
 
 /// 投稿詳細画面
 ///
@@ -466,13 +467,22 @@ class _PostDetailBody extends StatelessWidget {
               child: Wrap(
                 spacing: 6,
                 runSpacing: 2,
+                // タップでフィードをそのタグに絞り込む。詳細から同じ話題へ
+                // 辿れないと、投稿を1件読んで終わってしまう。
                 children: post.hashtags
-                    .map((tag) => Text(
-                          '#$tag',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w500,
+                    .map((tag) => InkWell(
+                          key: Key('detail_hashtag_$tag'),
+                          onTap: () {
+                            context.read<PostProvider>().selectHashtag(tag);
+                            Navigator.of(context).maybePop();
+                          },
+                          child: Text(
+                            '#$tag',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ))
                     .toList(),
@@ -523,10 +533,19 @@ class _PostDetailBody extends StatelessWidget {
                 Icon(Icons.chat_bubble_outline, size: 18, color: tertiary),
                 AppSpacing.horizontalXs,
                 Consumer<PostProvider>(
-                  builder: (context, provider, _) => Text(
-                    '${provider.comments.isNotEmpty ? provider.comments.length : post.commentCount}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: tertiary),
-                  ),
+                  builder: (context, provider, _) {
+                    // フィードのバッジは返信込みの総数。ここでトップレベル
+                    // だけを数えると、同じ投稿なのに件数が食い違う。
+                    final loaded = provider.comments.fold<int>(
+                      provider.comments.length,
+                      (sum, c) => sum + c.replyCount,
+                    );
+                    return Text(
+                      '${provider.comments.isNotEmpty ? loaded : post.commentCount}',
+                      style:
+                          theme.textTheme.bodySmall?.copyWith(color: tertiary),
+                    );
+                  },
                 ),
               ],
             ),
@@ -549,8 +568,13 @@ class _MediaGallery extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final urls = media.map((m) => m.url).toList();
+
     if (media.length == 1) {
-      return _buildNetworkImage(media[0].url, double.infinity, 240);
+      return GestureDetector(
+        onTap: () => showImageViewer(context, imageUrls: urls),
+        child: _buildNetworkImage(media[0].url, double.infinity, 240),
+      );
     }
 
     return GridView.count(
@@ -562,8 +586,18 @@ class _MediaGallery extends StatelessWidget {
       padding: EdgeInsets.zero,
       children: media
           .take(4)
-          .map((m) =>
-              _buildNetworkImage(m.url, double.infinity, double.infinity))
+          .toList()
+          .asMap()
+          .entries
+          .map((entry) => GestureDetector(
+                onTap: () => showImageViewer(
+                  context,
+                  imageUrls: urls,
+                  initialIndex: entry.key,
+                ),
+                child: _buildNetworkImage(
+                    entry.value.url, double.infinity, double.infinity),
+              ))
           .toList(),
     );
   }
@@ -980,7 +1014,13 @@ class _CommentImages extends StatelessWidget {
         itemCount: comment.imageUrls.length,
         separatorBuilder: (_, __) => const SizedBox(width: 6),
         itemBuilder: (context, index) {
-          return ClipRRect(
+          return GestureDetector(
+            onTap: () => showImageViewer(
+              context,
+              imageUrls: comment.imageUrls,
+              initialIndex: index,
+            ),
+            child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Image.network(
               comment.imageUrls[index],
@@ -997,6 +1037,7 @@ class _CommentImages extends StatelessWidget {
                 ),
               ),
             ),
+          ),
           );
         },
       ),
