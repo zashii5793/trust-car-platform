@@ -187,15 +187,54 @@ Google Maps JavaScript API warning: InvalidKey
 
 ---
 
-### 8. google-services.json / GoogleService-Info.plist の配置 `[新端末ビルド時]`
+### 8. GoogleService-Info.plist が別アプリのもの `[実測: iOS が起動しません]`
 
-`.gitignore` 対象のため、新しいマシンでビルドする際に再配置が必要です。
+> **2026-08-21 に格上げ。** この項目は「新端末ビルド時に再配置が必要」と書いていましたが、
+> **実態は「置いてあるファイルが別アプリのもの」**でした。**P0 相当です。**
+
+**iOS シミュレータでアプリが起動しません。** 白画面のまま、UI が一度も描かれません。
+
+```
+Unhandled Exception: [core/duplicate-app] A Firebase App named "[DEFAULT]" already exists
+  #2  main (package:trust_car_platform/main.dart:84:3)
+```
+
+`main()` の 1 行目で例外が出て、そこで止まっています。
+
+**原因**: 設定が 2 か所で食い違っています。
+
+| | `ios/Runner/GoogleService-Info.plist` | `lib/firebase_options.dart` |
+|---|---|---|
+| Bundle ID | **`com.example.trustCarPlatform`** | `jp.trustcar.app` |
+| API Key | `AIzaSyBt0hMKqo…` | `AIzaSyDZQ4UK6I…` |
+
+**実際の Bundle ID は `jp.trustcar.app`**（`ios/Runner.xcodeproj/project.pbxproj`）。
+plist は **Flutter のテンプレート既定のまま**で、取り直されていません。
+
+`firebase_core 4.9.0` は iOS でネイティブ側が先に plist から既定アプリを作ります。
+そのあと Dart が別の設定で初期化しようとして衝突します。
+
+**なぜ気づかれなかったか**
+
+```
+ CI            iOS を「ビルド」はするが「起動」はしない → 通る
+ テスト3,988件  Firebase を差し替えたテストなので通る
+ 実機テスト      P1-9 が未実施
+```
+
+**ビルドが通ることは、起動することの保証ではありません。**
+
+**手順**:
 
 1. Firebase Console → プロジェクト設定 → マイアプリ
-2. **Android**: `google-services.json` → `android/app/` に配置
-3. **iOS**: `GoogleService-Info.plist` → `ios/Runner/` に配置
+2. **iOS アプリが `jp.trustcar.app` で登録されているか確認**
+   （`com.example.trustCarPlatform` で登録されている可能性が高い。無ければ追加）
+3. `GoogleService-Info.plist` をダウンロードし `ios/Runner/` に配置
+4. **Android**: `google-services.json` → `android/app/` に配置（同じ確認をすること）
+5. 確認: `flutter run` で最初の画面が出るか。**ビルドが通るだけでは足りません**
 
-**所要時間**: 5分
+**所要時間**: 15分（Console でのアプリ登録が要る場合は 30 分）
+**前提条件**: Firebase Console のオーナー権限
 
 ---
 
@@ -391,7 +430,7 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 - [ ] P1-5: iOS App ID・証明書・Sign in with Apple Capability
 - [ ] P1-6: FCM / APNs 認証キー
 - [ ] P1-7: RevenueCat の Public SDK キー設定と商品作成
-- [ ] P1-8: google-services.json / GoogleService-Info.plist の配置
+- [ ] **P1-8: GoogleService-Info.plist が別アプリのもの（iOS が起動しません・P0相当）**
 - [ ] P1-9: **実機テスト（特にOCRの実画像精度は完全に未検証）**
 - [ ] P1-10: Firestore バックアップ設定
 - [ ] P1-11: 本番データ投入（工場・安全情報・トレンド）＋ `demo_*` 店舗の扱いを決定
