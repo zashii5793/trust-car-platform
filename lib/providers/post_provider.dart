@@ -25,6 +25,9 @@ class PostProvider with ChangeNotifier {
 
   /// 次ページの読み出し位置。フィルタや並び替えを変えたら捨てる。
   Object? _feedCursor;
+
+  /// 絞り込み中のハッシュタグ（# なし）。null = 絞り込みなし。
+  String? _selectedHashtag;
   PostSortBy _sortBy = PostSortBy.newest;
   String? _selectedModelName; // same-model filter
   bool _isLoading = false;
@@ -55,6 +58,7 @@ class PostProvider with ChangeNotifier {
   bool isCategorySelected(PostCategory category) =>
       _selectedCategories.contains(category);
   PostSortBy get sortBy => _sortBy;
+  String? get selectedHashtag => _selectedHashtag;
   String? get selectedModelName => _selectedModelName;
   bool get isLoading => _isLoading;
   bool get isLoadingMore => _isLoadingMore;
@@ -80,11 +84,13 @@ class PostProvider with ChangeNotifier {
     Set<PostCategory>? categories,
     String? modelName,
     PostSortBy? sortBy,
+    String? hashtag,
   }) async {
     _isLoading = true;
     _error = null;
     _selectedCategories = {...?categories};
     _selectedModelName = modelName;
+    _selectedHashtag = hashtag;
     _sortBy = sortBy ?? _sortBy;
     _feedPosts = [];
     _hasMore = true;
@@ -96,6 +102,7 @@ class PostProvider with ChangeNotifier {
       limit: Pagination.defaultPageSize,
       categories: _selectedCategories,
       sortBy: _sortBy,
+      hashtag: _selectedHashtag,
       modelName: modelName,
     );
 
@@ -126,6 +133,7 @@ class PostProvider with ChangeNotifier {
       startAfter: _feedCursor,
       categories: _selectedCategories,
       sortBy: _sortBy,
+      hashtag: _selectedHashtag,
       modelName: _selectedModelName,
     );
 
@@ -153,6 +161,7 @@ class PostProvider with ChangeNotifier {
   Future<void> refreshFeed() => loadFeed(
         categories: _selectedCategories,
         modelName: _selectedModelName,
+        hashtag: _selectedHashtag,
       );
 
   // ── カテゴリフィルタ（複数選択） ─────────────────────────────────────────────
@@ -161,13 +170,44 @@ class PostProvider with ChangeNotifier {
   Future<void> toggleCategory(PostCategory category) async {
     final next = {..._selectedCategories};
     if (!next.remove(category)) next.add(category);
-    await loadFeed(categories: next, modelName: _selectedModelName);
+    await loadFeed(
+      categories: next,
+      modelName: _selectedModelName,
+      hashtag: _selectedHashtag,
+    );
   }
 
   /// カテゴリ選択をすべて解除する（＝すべて表示）。
   Future<void> clearCategories() async {
     if (_selectedCategories.isEmpty) return;
-    await loadFeed(categories: const {}, modelName: _selectedModelName);
+    await loadFeed(
+      categories: const {},
+      modelName: _selectedModelName,
+      hashtag: _selectedHashtag,
+    );
+  }
+
+  // ── ハッシュタグ絞り込み ────────────────────────────────────────────────────
+
+  /// タグで絞り込む。同じタグを渡すと解除する（チップの押し直し）。
+  Future<void> selectHashtag(String? hashtag) async {
+    final tag = (hashtag == null || hashtag.isEmpty)
+        ? null
+        : (hashtag.startsWith('#') ? hashtag.substring(1) : hashtag);
+    final next = _selectedHashtag == tag ? null : tag;
+    await loadFeed(
+      categories: _selectedCategories,
+      modelName: _selectedModelName,
+      hashtag: next,
+    );
+  }
+
+  Future<void> clearHashtag() async {
+    if (_selectedHashtag == null) return;
+    await loadFeed(
+      categories: _selectedCategories,
+      modelName: _selectedModelName,
+    );
   }
 
   // ── 並び替え ──────────────────────────────────────────────────────────────
@@ -177,6 +217,7 @@ class PostProvider with ChangeNotifier {
     await loadFeed(
       categories: _selectedCategories,
       modelName: _selectedModelName,
+      hashtag: _selectedHashtag,
       sortBy: sortBy,
     );
   }
@@ -186,7 +227,11 @@ class PostProvider with ChangeNotifier {
   /// Filter feed by vehicle model name (maker + model).
   Future<void> filterByVehicleModel(String? modelName) async {
     if (_selectedModelName == modelName) return;
-    await loadFeed(categories: _selectedCategories, modelName: modelName);
+    await loadFeed(
+      categories: _selectedCategories,
+      modelName: modelName,
+      hashtag: _selectedHashtag,
+    );
   }
 
   // ── 投稿作成 ───────────────────────────────────────────────────────────────
@@ -450,6 +495,7 @@ class PostProvider with ChangeNotifier {
   void clear() {
     _feedPosts = [];
     _selectedCategories = {};
+    _selectedHashtag = null;
     _feedCursor = null;
     _selectedModelName = null;
     _isLoading = false;

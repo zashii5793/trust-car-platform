@@ -40,6 +40,7 @@ class MockPostService implements PostService {
   int deleteCallCount = 0;
   Set<PostCategory> lastCategories = const {};
   Object? lastStartAfter;
+  String? lastHashtag;
   PostSortBy lastSortBy = PostSortBy.newest;
   String? lastContent;
 
@@ -49,12 +50,14 @@ class MockPostService implements PostService {
     Set<PostCategory> categories = const {},
     PostSortBy sortBy = PostSortBy.newest,
     dynamic startAfter,
+    String? hashtag,
     String? makerId,
     String? modelName,
   }) async {
     getFeedCallCount++;
     lastCategories = categories;
     lastSortBy = sortBy;
+    lastHashtag = hashtag;
     lastStartAfter = startAfter;
     return _feedPageResult;
   }
@@ -379,6 +382,59 @@ void main() {
         await provider.toggleCategory(PostCategory.drive);
 
         expect(mockService.lastStartAfter, isNull);
+      });
+    });
+
+    // ── ハッシュタグ絞り込み ──────────────────────────────────────────────────
+
+    group('selectHashtag', () {
+      test('タグを選ぶとサービスに渡される', () async {
+        await provider.selectHashtag('点検');
+
+        expect(provider.selectedHashtag, '点検');
+        expect(mockService.lastHashtag, '点検');
+      });
+
+      test('# 付きで渡しても # は落ちる', () async {
+        await provider.selectHashtag('#点検');
+
+        expect(provider.selectedHashtag, '点検');
+        expect(mockService.lastHashtag, '点検');
+      });
+
+      test('同じタグをもう一度選ぶと解除される', () async {
+        await provider.selectHashtag('点検');
+        await provider.selectHashtag('点検');
+
+        expect(provider.selectedHashtag, isNull);
+        expect(mockService.lastHashtag, isNull);
+      });
+
+      test('clearHashtag で解除される', () async {
+        await provider.selectHashtag('点検');
+
+        await provider.clearHashtag();
+
+        expect(provider.selectedHashtag, isNull);
+      });
+
+      test('タグ絞り込みはカテゴリ選択を保つ', () async {
+        await provider.toggleCategory(PostCategory.question);
+
+        await provider.selectHashtag('点検');
+
+        expect(provider.selectedCategories, {PostCategory.question});
+        expect(mockService.lastCategories, {PostCategory.question});
+        expect(mockService.lastHashtag, '点検');
+      });
+
+      test('カテゴリを変えてもタグ絞り込みは残る', () async {
+        await provider.selectHashtag('点検');
+
+        await provider.toggleCategory(PostCategory.question);
+
+        expect(provider.selectedHashtag, '点検');
+        expect(mockService.lastHashtag, '点検');
       });
     });
     // ── refreshFeed ───────────────────────────────────────────────────────────

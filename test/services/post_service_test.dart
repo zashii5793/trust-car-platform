@@ -960,4 +960,69 @@ void main() {
           second.posts.map((p) => p.content).toList(), ['post-2', 'post-3']);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // PostService.getFeed — ハッシュタグ絞り込み
+  //
+  // 投稿のタグは表示されるだけで押せず、同じ話題を辿る動線が無かった。
+  // ---------------------------------------------------------------------------
+
+  group('PostService.getFeed — ハッシュタグ', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    setUp(() async {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+
+      Future<void> add(String content, List<String> tags, int day) async {
+        await fakeFirestore.collection('posts').add({
+          ...postDoc(userId: 'author-uid', visibility: 'public'),
+          'content': content,
+          'hashtags': tags,
+          'createdAt': Timestamp.fromDate(DateTime(2026, 1, day)),
+        });
+      }
+
+      await add('12ヶ月点検の話', ['点検', '初心者'], 3);
+      await add('車検の話', ['車検'], 2);
+      await add('点検その2', ['点検'], 1);
+    });
+
+    Future<List<Post>> feed({String? hashtag}) async {
+      final result = await service.getFeed(hashtag: hashtag);
+      return result.when(
+        success: (page) => page.posts,
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    }
+
+    test('タグ指定なしなら全件返る', () async {
+      expect((await feed()).length, 3);
+    });
+
+    test('指定したタグの投稿だけ返る', () async {
+      final posts = await feed(hashtag: '点検');
+
+      expect(posts.length, 2);
+      expect(
+        posts.map((p) => p.content),
+        containsAll(['12ヶ月点検の話', '点検その2']),
+      );
+    });
+
+    test('タグ絞り込みでも新しい順', () async {
+      final posts = await feed(hashtag: '点検');
+
+      expect(posts.first.content, '12ヶ月点検の話');
+    });
+
+    test('該当のないタグでは空が返る', () async {
+      expect(await feed(hashtag: '存在しないタグ'), isEmpty);
+    });
+
+    test('# を付けて渡しても引ける', () async {
+      expect((await feed(hashtag: '#点検')).length, 2);
+    });
+  });
 }

@@ -186,12 +186,19 @@ class PostService {
     Object? startAfter,
     Set<PostCategory> categories = const {},
     PostSortBy sortBy = PostSortBy.newest,
+    String? hashtag,
     String? makerId,
     String? modelName,
   }) async {
     try {
       Query<Map<String, dynamic>> query = _postsRef.where('visibility',
           isEqualTo: PostVisibility.public.storageName);
+
+      if (hashtag != null && hashtag.isNotEmpty) {
+        // UI からは '#点検' の形で渡ってくることがある。保存側は # なし。
+        final tag = hashtag.startsWith('#') ? hashtag.substring(1) : hashtag;
+        query = query.where('hashtags', arrayContains: tag);
+      }
 
       if (categories.isNotEmpty) {
         query = query.where(
