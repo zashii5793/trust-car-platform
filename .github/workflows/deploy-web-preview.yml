@@ -1,0 +1,41 @@
+name: Web Preview Deploy
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build_and_deploy:
+    # Only run for nightly agent branches
+    if: startsWith(github.head_ref, 'claude/')
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.0'
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build Flutter Web
+        run: flutter build web --release --base-href /
+
+      - name: Deploy to Firebase Hosting Preview Channel
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: trust-car-platform
+          channelId: night-preview
+          expires: 7d
