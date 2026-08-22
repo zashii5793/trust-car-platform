@@ -12,11 +12,21 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
 
+/// PDFエクスポートの種類
+enum ExportType {
+  /// 整備履歴レポート（従来機能）
+  maintenanceReport,
+
+  /// 愛車カルテ（車両情報＋整備履歴の完全記録）
+  vehicleKarte,
+}
+
 /// PDF出力ダイアログを表示
 Future<void> showExportDialog({
   required BuildContext context,
   required Vehicle vehicle,
   required List<MaintenanceRecord> records,
+  ExportType exportType = ExportType.maintenanceReport,
 }) async {
   showModalBottomSheet(
     context: context,
@@ -26,6 +36,7 @@ Future<void> showExportDialog({
     builder: (context) => _ExportDialog(
       vehicle: vehicle,
       records: records,
+      exportType: exportType,
     ),
   );
 }
@@ -33,10 +44,12 @@ Future<void> showExportDialog({
 class _ExportDialog extends StatefulWidget {
   final Vehicle vehicle;
   final List<MaintenanceRecord> records;
+  final ExportType exportType;
 
   const _ExportDialog({
     required this.vehicle,
     required this.records,
+    this.exportType = ExportType.maintenanceReport,
   });
 
   @override
@@ -58,10 +71,15 @@ class _ExportDialogState extends State<_ExportDialog> {
   Future<void> _generatePdf() async {
     setState(() => _isLoading = true);
 
-    final result = await _pdfService.generateMaintenanceReport(
-      vehicle: widget.vehicle,
-      records: widget.records,
-    );
+    final result = widget.exportType == ExportType.vehicleKarte
+        ? await _pdfService.generateVehicleKarte(
+            vehicle: widget.vehicle,
+            records: widget.records,
+          )
+        : await _pdfService.generateMaintenanceReport(
+            vehicle: widget.vehicle,
+            records: widget.records,
+          );
 
     if (!mounted) return;
     result.when(
@@ -127,7 +145,12 @@ class _ExportDialogState extends State<_ExportDialog> {
 
   String _getFileName() {
     final date = DateTime.now();
-    return 'maintenance_report_${widget.vehicle.maker}_${widget.vehicle.model}_${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}.pdf';
+    final dateSuffix =
+        '${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}';
+    final prefix = widget.exportType == ExportType.vehicleKarte
+        ? 'vehicle_karte'
+        : 'maintenance_report';
+    return '${prefix}_${widget.vehicle.maker}_${widget.vehicle.model}_$dateSuffix.pdf';
   }
 
   @override
@@ -156,7 +179,9 @@ class _ExportDialogState extends State<_ExportDialog> {
 
             // タイトル
             Text(
-              'メンテナンス履歴をエクスポート',
+              widget.exportType == ExportType.vehicleKarte
+                  ? '愛車カルテをエクスポート'
+                  : 'メンテナンス履歴をエクスポート',
               style: theme.textTheme.headlineLarge,
               textAlign: TextAlign.center,
             ),
