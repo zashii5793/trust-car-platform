@@ -209,6 +209,28 @@ class FirebaseService {
     });
   }
 
+  /// Whether the user has logged any maintenance at all.
+  ///
+  /// Used by the getting-started checklist, which only needs "has anything
+  /// been recorded", so this reads a single document instead of a list.
+  /// Signed out counts as "nothing yet" rather than an error — the checklist
+  /// should not show a failure state for a state that is simply empty.
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async {
+    final uid = currentUserId;
+    if (uid == null) return const Result.success(false);
+
+    try {
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.maintenanceRecords)
+          .where('userId', isEqualTo: uid)
+          .limit(1)
+          .get();
+      return Result.success(snapshot.docs.isNotEmpty);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
   /// 車両の履歴一覧を取得（Future版、通知生成用）
   Future<Result<List<MaintenanceRecord>, AppError>>
       getMaintenanceRecordsForVehicle(
