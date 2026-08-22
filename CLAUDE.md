@@ -125,6 +125,7 @@ type: `feat` / `fix` / `test` / `docs` / `refactor` / `perf` / `ci`
 | `docs` | ドキュメントのみ |
 | `claude-task` | AIセッションで対応するタスク |
 | `priority: high` | 今週中に対応必須 |
+| `ios` | **iOS ビルドを CI で検証する。** macOS ランナーは課金が10倍なので、`build-ios` は main への push / 手動 / このラベル付き PR でしか走らない。**iOS に触る PR とストア申請前の PR には必ず付ける** |
 | `pm-report` | 週次PMレポート（自動生成） |
 
 ### Issue作成テンプレート

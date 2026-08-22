@@ -224,17 +224,44 @@ plist は **Flutter のテンプレート既定のまま**で、取り直され�
 
 **ビルドが通ることは、起動することの保証ではありません。**
 
+### 取り直すだけでは直りません（2026-08-21 実測）
+
+`firebase apps:sdkconfig` で Console から取得し直しても、**同じ
+`com.example.trustCarPlatform` が返ります。** ローカルのファイルが古いのではなく、
+**Firebase に登録されている iOS アプリそのものの Bundle ID が間違っています。**
+
+```
+ firebase apps:list IOS
+ → trust_car_platform (ios)  1:31421119456:ios:4320af5d1401f02c80c985  （1件のみ）
+ → その BUNDLE_ID が com.example.trustCarPlatform
+```
+
+`firebase_options.dart` 側にも食い違いがあります。
+
+```
+ apiKey   web / android / ios / macos が **全部同じ鍵**（AIzaSyDZQ4UK6I…）
+ 実際の iOS アプリの鍵                    AIzaSyBt0hMKqo…（別物）
+ iosBundleId                             jp.trustcar.app（登録と不一致）
+```
+
+**Firebase の iOS アプリは、あとから Bundle ID を変更できません。**
+`jp.trustcar.app` の iOS アプリを**新規に登録**する必要があります。
+
 **手順**:
 
-1. Firebase Console → プロジェクト設定 → マイアプリ
-2. **iOS アプリが `jp.trustcar.app` で登録されているか確認**
-   （`com.example.trustCarPlatform` で登録されている可能性が高い。無ければ追加）
+1. Firebase Console → プロジェクト設定 → マイアプリ → **アプリを追加 → iOS**
+2. バンドルIDに **`jp.trustcar.app`** を入れて登録
 3. `GoogleService-Info.plist` をダウンロードし `ios/Runner/` に配置
-4. **Android**: `google-services.json` → `android/app/` に配置（同じ確認をすること）
-5. 確認: `flutter run` で最初の画面が出るか。**ビルドが通るだけでは足りません**
+4. `flutterfire configure` で `firebase_options.dart` を作り直す
+   （**いまの値は iOS の鍵が Web のものになっています**）
+5. **Android も同じ確認をする。** `google-services.json` の `package_name` が
+   `jp.trustcar.app` かどうか
+6. 確認: `flutter run` で最初の画面が出るか。**ビルドが通るだけでは足りません**
 
-**所要時間**: 15分（Console でのアプリ登録が要る場合は 30 分）
+**所要時間**: 30分
 **前提条件**: Firebase Console のオーナー権限
+**注意**: 旧アプリ（`com.example.*`）は消さずに残すこと。消すと、そこに紐づく
+既存データや設定の参照が切れる可能性があります。使わなくなるだけです。
 
 ---
 
