@@ -13,17 +13,14 @@ import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/widgets/plan_badge.dart';
 
 /// WCAG 2.1 の相対輝度。
+///
+/// `Color.red` / `.green` / `.blue` は非推奨（`--fatal-infos` の CI で落ちる）。
+/// 後継の `.r` / `.g` / `.b` は 0.0〜1.0 なので、255 を掛け直さずそのまま使う。
 double _relativeLuminance(Color c) {
-  double channel(int value) {
-    final v = value / 255.0;
-    return v <= 0.03928
-        ? v / 12.92
-        : math.pow((v + 0.055) / 1.055, 2.4) as double;
-  }
+  double channel(double v) =>
+      v <= 0.03928 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4) as double;
 
-  return 0.2126 * channel(c.red) +
-      0.7152 * channel(c.green) +
-      0.0722 * channel(c.blue);
+  return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
 }
 
 /// WCAG 2.1 のコントラスト比（1.0〜21.0）。
