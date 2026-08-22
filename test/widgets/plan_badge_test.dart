@@ -16,7 +16,9 @@ import 'package:trust_car_platform/widgets/plan_badge.dart';
 double _relativeLuminance(Color c) {
   double channel(int value) {
     final v = value / 255.0;
-    return v <= 0.03928 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4) as double;
+    return v <= 0.03928
+        ? v / 12.92
+        : math.pow((v + 0.055) / 1.055, 2.4) as double;
   }
 
   return 0.2126 * channel(c.red) +

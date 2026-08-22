@@ -863,8 +863,8 @@ void main() {
 
       result.when(
         success: (page) {
-          expect(page.posts.map((p) => p.content).toList(),
-              ['整備の投稿', 'ドライブの投稿']);
+          expect(
+              page.posts.map((p) => p.content).toList(), ['整備の投稿', 'ドライブの投稿']);
         },
         failure: (e) => fail('Expected success, got: $e'),
       );
@@ -956,8 +956,7 @@ void main() {
           await feed(after: first.cursor, sortBy: PostSortBy.mostCommented);
 
       expect(first.posts.map((p) => p.content).toList(), ['post-0', 'post-1']);
-      expect(
-          second.posts.map((p) => p.content).toList(), ['post-2', 'post-3']);
+      expect(second.posts.map((p) => p.content).toList(), ['post-2', 'post-3']);
     });
   });
 

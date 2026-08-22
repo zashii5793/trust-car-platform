@@ -137,8 +137,7 @@ void main() {
         home: Scaffold(
           body: Builder(
             builder: (context) => ElevatedButton(
-              onPressed: () =>
-                  showImageViewer(context, imageUrls: const []),
+              onPressed: () => showImageViewer(context, imageUrls: const []),
               child: const Text('開く'),
             ),
           ),

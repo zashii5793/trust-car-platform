@@ -667,8 +667,7 @@ class _PostContent extends StatelessWidget {
               return InkWell(
                 key: Key('post_hashtag_${post.id}_$tag'),
                 borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                onTap: () =>
-                    context.read<PostProvider>().selectHashtag(tag),
+                onTap: () => context.read<PostProvider>().selectHashtag(tag),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm,

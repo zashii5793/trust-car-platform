@@ -36,6 +36,7 @@ class MockPostService implements PostService {
       failure: Result<PostPage, AppError>.failure,
     );
   }
+
   Result<Post, AppError>? createResult;
   Result<void, AppError> likeResult = const Result.success(null);
   Result<void, AppError> unlikeResult = const Result.success(null);
@@ -188,6 +189,10 @@ Post _makePost({
 /// Minimal FirebaseService stub — VehicleProvider only reads its in-memory
 /// state in these tests, so no method is actually invoked.
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
@@ -359,8 +364,8 @@ void main() {
       await tester.pumpWidget(_buildApp(mockService));
       await tester.pump();
 
-      await tester.tap(find.byKey(
-          Key('sns_category_${PostCategory.maintenance.name}')));
+      await tester.tap(
+          find.byKey(Key('sns_category_${PostCategory.maintenance.name}')));
       await tester.pump();
       await tester
           .tap(find.byKey(Key('sns_category_${PostCategory.drive.name}')));
@@ -378,8 +383,7 @@ void main() {
       await tester.pumpWidget(_buildApp(mockService));
       await tester.pump();
 
-      final chip =
-          find.byKey(Key('sns_category_${PostCategory.drive.name}'));
+      final chip = find.byKey(Key('sns_category_${PostCategory.drive.name}'));
       await tester.tap(chip);
       await tester.pump();
       await tester.tap(chip);
@@ -412,8 +416,8 @@ void main() {
       await tester.tap(find.byKey(const Key('sns_sort_button')));
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      await tester.tap(find.byKey(
-          Key('sns_sort_option_${PostSortBy.mostCommented.name}')));
+      await tester.tap(
+          find.byKey(Key('sns_sort_option_${PostSortBy.mostCommented.name}')));
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       expect(mockService.lastSortBy, PostSortBy.mostCommented);

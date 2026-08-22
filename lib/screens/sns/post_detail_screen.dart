@@ -1021,23 +1021,23 @@ class _CommentImages extends StatelessWidget {
               initialIndex: index,
             ),
             child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.network(
-              comment.imageUrls[index],
-              width: 96,
-              height: 96,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                comment.imageUrls[index],
                 width: 96,
                 height: 96,
-                color: AppColors.backgroundLight,
-                child: const Icon(
-                  Icons.broken_image_outlined,
-                  color: AppColors.textTertiary,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 96,
+                  height: 96,
+                  color: AppColors.backgroundLight,
+                  child: const Icon(
+                    Icons.broken_image_outlined,
+                    color: AppColors.textTertiary,
+                  ),
                 ),
               ),
             ),
-          ),
           );
         },
       ),

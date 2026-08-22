@@ -26,6 +26,7 @@ class MockPostService implements PostService {
       failure: Result<PostPage, AppError>.failure,
     );
   }
+
   Result<Post, AppError>? createResult;
   Result<void, AppError> likeResult = const Result.success(null);
   Result<void, AppError> unlikeResult = const Result.success(null);
@@ -330,7 +331,6 @@ void main() {
         expect(mockService.lastSortBy, PostSortBy.mostCommented);
       });
     });
-
 
     // ── ページネーション（続きの読み込み） ────────────────────────────────────
     //

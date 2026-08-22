@@ -74,8 +74,7 @@ void main() {
     final row = fixedHeight
         ? SizedBox(
             height: 42,
-            child: ListView(
-                scrollDirection: Axis.horizontal, children: chips),
+            child: ListView(scrollDirection: Axis.horizontal, children: chips),
           )
         : SingleChildScrollView(
             scrollDirection: Axis.horizontal,

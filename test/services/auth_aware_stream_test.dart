@@ -110,8 +110,7 @@ void main() {
       await auth.signInWithCustomToken('token');
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
-      expect(emissions.last, hasLength(1),
-          reason: 'ログイン完了後は書類が流れてくるべき');
+      expect(emissions.last, hasLength(1), reason: 'ログイン完了後は書類が流れてくるべき');
 
       await sub.cancel();
     });
@@ -133,8 +132,7 @@ void main() {
       await auth.signInWithCustomToken('token');
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
-      expect(emissions.last, hasLength(1),
-          reason: 'ログイン完了後は請求書が流れてくるべき');
+      expect(emissions.last, hasLength(1), reason: 'ログイン完了後は請求書が流れてくるべき');
 
       await sub.cancel();
     });
@@ -205,7 +203,8 @@ void main() {
       final firestore = FakeFirebaseFirestore();
       await _seedVehicle(firestore);
 
-      final auth = MockFirebaseAuth(signedIn: true, mockUser: MockUser(uid: _uid));
+      final auth =
+          MockFirebaseAuth(signedIn: true, mockUser: MockUser(uid: _uid));
       final service = FirebaseService(firestore: firestore, auth: auth);
 
       final emissions = <List<Vehicle>>[];

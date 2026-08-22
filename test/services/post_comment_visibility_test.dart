@@ -26,7 +26,8 @@ Future<void> _addComment(
   required int minutesAgo,
   Object? parentCommentId = #absent, // #absent = フィールド自体を書かない
 }) async {
-  final createdAt = DateTime(2026, 8, 18).subtract(Duration(minutes: minutesAgo));
+  final createdAt =
+      DateTime(2026, 8, 18).subtract(Duration(minutes: minutesAgo));
   await fs.collection('comments').doc(id).set({
     'postId': _postId,
     'userId': 'user-a',
@@ -61,8 +62,8 @@ void main() {
 
       result.when(
         success: (comments) {
-          expect(comments.map((c) => c.content).toList(),
-              ['最初のコメント', '2番目のコメント'],
+          expect(
+              comments.map((c) => c.content).toList(), ['最初のコメント', '2番目のコメント'],
               reason: 'フィールドを省略して保存されたコメントが読めるべき');
         },
         failure: (e) => fail('Expected success, got: $e'),
