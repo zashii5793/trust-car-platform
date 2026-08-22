@@ -72,6 +72,10 @@ UserSubscriptionProvider _premiumSubscription() => UserSubscriptionProvider()
   );
 
 class MockFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   final StreamController<List<MaintenanceRecord>> _recordsController =
       StreamController<List<MaintenanceRecord>>.broadcast();
 

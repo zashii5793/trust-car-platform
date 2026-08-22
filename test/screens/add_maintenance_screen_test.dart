@@ -30,6 +30,10 @@ import 'package:trust_car_platform/core/di/injection.dart';
 
 class _MockFirebaseService implements FirebaseService {
   @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
+  @override
   String? get currentUserId => 'test-user-id';
 
   @override

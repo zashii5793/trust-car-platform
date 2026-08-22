@@ -47,6 +47,10 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 
 class _StubFirebaseService implements FirebaseService {
   @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
+  @override
   String? get currentUserId => 'uid-test';
 
   @override
