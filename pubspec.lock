@@ -822,18 +822,18 @@ packages:
     dependency: transitive
     description:
       name: google_mlkit_commons
-      sha256: "7e9a6d6e66b44aa8cfe944bda9bc3346c52486dd890ca49e5bc98845cda40d7f"
+      sha256: c7fc384bdb66c3b83e24e3a41818e61d7a378d900f65f5e775344fbca95a0917
       url: "https://pub.dev"
     source: hosted
-    version: "0.9.0"
+    version: "0.12.0"
   google_mlkit_text_recognition:
     dependency: "direct main"
     description:
       name: google_mlkit_text_recognition
-      sha256: e7609cec8de3022680a36ead8a8bafa9fd2360ea018a728feaad12dcb0e3c177
+      sha256: "8324fdc2628ebeb63568ad06437b984b716d938d87e4ce63ab24dfd3eeebf08a"
       url: "https://pub.dev"
     source: hosted
-    version: "0.14.0"
+    version: "0.16.0"
   google_sign_in:
     dependency: "direct main"
     description:
@@ -1067,10 +1067,10 @@ packages:
     dependency: transitive
     description:
       name: matcher
-      sha256: dc0b7dc7651697ea4ff3e69ef44b0407ea32c487a39fff6a4004fa585e901861
+      sha256: "31bd099b47c10cd1aeb55146a2d46ce0277630ecef3f7dae54ad7873f36696cd"
       url: "https://pub.dev"
     source: hosted
-    version: "0.12.19"
+    version: "0.12.20"
   material_color_utilities:
     dependency: transitive
     description:
@@ -1083,10 +1083,10 @@ packages:
     dependency: transitive
     description:
       name: meta
-      sha256: "1741988757a65eb6b36abe716829688cf01910bbf91c34354ff7ec1c3de2b349"
+      sha256: "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9"
       url: "https://pub.dev"
     source: hosted
-    version: "1.18.0"
+    version: "1.19.0"
   mime:
     dependency: transitive
     description:
@@ -1439,6 +1439,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.0"
+  sign_in_with_apple:
+    dependency: transitive
+    description:
+      name: sign_in_with_apple
+      sha256: e84a62e17b7e463abf0a64ce826c2cd1f0b72dff07b7b275e32d5302d76fb4c5
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.1.4"
+  sign_in_with_apple_platform_interface:
+    dependency: transitive
+    description:
+      name: sign_in_with_apple_platform_interface
+      sha256: c2ef2ce6273fce0c61acd7e9ff5be7181e33d7aa2b66508b39418b786cca2119
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.0"
+  sign_in_with_apple_web:
+    dependency: transitive
+    description:
+      name: sign_in_with_apple_web
+      sha256: "2f7c38368f49e3f2043bca4b46a4a61aaae568c140a79aa0675dc59ad0ca49bc"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.1"
   sky_engine:
     dependency: transitive
     description: flutter
@@ -1560,10 +1584,10 @@ packages:
     dependency: transitive
     description:
       name: test_api
-      sha256: "949a932224383300f01be9221c39180316445ecb8e7547f70a41a35bf421fb9e"
+      sha256: "2a122cbe059f8b610d3a5415f42e255b6c17b1f21eee1d960f31080237fb4f11"
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.11"
+    version: "0.7.12"
   timezone:
     dependency: "direct main"
     description:
@@ -1656,10 +1680,10 @@ packages:
     dependency: transitive
     description:
       name: vector_math
-      sha256: d530bd74fea330e6e364cda7a85019c434070188383e1cd8d9777ee586914c5b
+      sha256: f36f9f3be64c6198714492bb455c11056e33e2f85d9a0b676a48301e44fdcf47
       url: "https://pub.dev"
     source: hosted
-    version: "2.2.0"
+    version: "2.4.2"
   vm_service:
     dependency: transitive
     description:
