@@ -72,6 +72,10 @@ UserSubscriptionProvider _premiumSubscription() => UserSubscriptionProvider()
   );
 
 class MockFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   final StreamController<List<MaintenanceRecord>> _recordsController =
       StreamController<List<MaintenanceRecord>>.broadcast();
 
@@ -639,19 +643,29 @@ void main() {
     });
 
     group('Edge Cases', () {
-      testWidgets('記録0件のときPDFボタンは無効（ゲート以前にタップ不可）', (tester) async {
+      testWidgets('記録0件のときPDFボタンは、押せて理由が出る', (tester) async {
         maintenanceProvider.listenToMaintenanceRecords('v1');
         await _pumpScreen(tester, maintenanceProvider);
         mockFirebase.emitRecords([]);
         await tester.pumpAndSettle(const Duration(seconds: 10));
 
+        // Disabling the button was the whole message before: a feature that is
+        // merely unavailable looked broken, and nothing said what to do.
         final pdfButton = tester.widget<IconButton>(
           find.ancestor(
             of: find.byIcon(Icons.picture_as_pdf),
             matching: find.byType(IconButton),
           ),
         );
-        expect(pdfButton.onPressed, isNull);
+        expect(pdfButton.onPressed, isNotNull);
+
+        await tester.tap(find.byIcon(Icons.picture_as_pdf));
+        await tester.pump();
+
+        expect(find.textContaining('整備記録が1件以上あると使えます'), findsOneWidget);
+        expect(find.text('記録を追加'), findsOneWidget);
+        // The premium gate must not fire before there is anything to export.
+        expect(find.text('プレミアムプランが必要です'), findsNothing);
       });
     });
   });

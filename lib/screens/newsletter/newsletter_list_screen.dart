@@ -144,6 +144,9 @@ class _NewsletterListScreenState extends State<NewsletterListScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('ニュースレター管理')),
       floatingActionButton: FloatingActionButton.extended(
+        // テーマの CircleBorder が extended にも効き、ラベルが円の外へ
+        // はみ出して読めなくなるため個別に指定する。
+        shape: const StadiumBorder(),
         onPressed: () async {
           await Navigator.push(
             context,

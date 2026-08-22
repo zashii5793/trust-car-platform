@@ -106,4 +106,62 @@ void main() {
       expect(map['userId'], 'user1');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // 画像付きコメント
+  //
+  // コメントは本文だけで、「タイヤのこの部分です」のような説明が言葉に頼りきり
+  // だった。投稿と同じように写真を添えられるようにする。
+  // ---------------------------------------------------------------------------
+
+  group('Comment — 画像添付', () {
+    Comment makeComment({List<String> imageUrls = const []}) => Comment(
+          id: 'c1',
+          postId: 'p1',
+          userId: 'u1',
+          content: '画像付きコメント',
+          imageUrls: imageUrls,
+          createdAt: DateTime(2026, 1, 1),
+          updatedAt: DateTime(2026, 1, 1),
+        );
+
+    test('既定では画像なし', () {
+      expect(makeComment().imageUrls, isEmpty);
+      expect(makeComment().hasImages, isFalse);
+    });
+
+    test('画像URLを保持できる', () {
+      final c = makeComment(imageUrls: ['https://example.com/a.jpg']);
+
+      expect(c.imageUrls, ['https://example.com/a.jpg']);
+      expect(c.hasImages, isTrue);
+    });
+
+    test('toMap に画像URLが含まれる', () {
+      final map = makeComment(
+        imageUrls: ['https://example.com/a.jpg', 'https://example.com/b.jpg'],
+      ).toMap();
+
+      expect(map['imageUrls'], [
+        'https://example.com/a.jpg',
+        'https://example.com/b.jpg',
+      ]);
+    });
+
+    test('画像がなくても toMap にキーは入る（空配列）', () {
+      expect(makeComment().toMap()['imageUrls'], isEmpty);
+    });
+
+    test('copyWith で画像を差し替えられる', () {
+      final c = makeComment(imageUrls: ['https://example.com/a.jpg']);
+      final updated = c.copyWith(imageUrls: ['https://example.com/b.jpg']);
+
+      expect(updated.imageUrls, ['https://example.com/b.jpg']);
+      expect(c.imageUrls, ['https://example.com/a.jpg']);
+    });
+
+    test('画像枚数の上限が定義されている', () {
+      expect(Comment.maxImages, greaterThan(0));
+    });
+  });
 }

@@ -21,6 +21,10 @@ import 'package:trust_car_platform/services/firebase_service.dart';
 
 class _StubFirebaseService implements FirebaseService {
   @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
+  @override
   String? get currentUserId => null;
 
   @override

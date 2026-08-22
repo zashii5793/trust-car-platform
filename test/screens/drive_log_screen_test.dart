@@ -206,13 +206,16 @@ void main() {
       expect(find.text('ドライブログがありません'), findsOneWidget);
     });
 
-    testWidgets('空状態の説明文を表示する', (tester) async {
+    testWidgets('空状態から記録に進める（行き止まりにしない）', (tester) async {
       service.logsResult = const Result.success([]);
 
       await tester.pumpWidget(_buildUnderTest(driveLogService: service));
       await tester.pump();
 
-      expect(find.text('ドライブを記録してみましょう'), findsOneWidget);
+      // The description used to be the whole empty state. Advice alone is a
+      // dead end: what matters is that a next step is on the screen.
+      expect(find.textContaining('手で入力できます'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, '手動で記録する'), findsOneWidget);
     });
   });
 

@@ -273,6 +273,19 @@ class PartListing {
       }
     }
 
+    // Declaring fitment and matching none of it means this part does not fit.
+    //
+    // This used to fall through to [defaultCompatibility], which is normally
+    // `compatible` — so a Subaru-only part came back as compatible for a
+    // Prius. PartRecommendationService only skips `incompatible`, so nothing
+    // was ever skipped and the vehicle filter did nothing at all.
+    //
+    // Not declaring fitment is different: universal goods (oil, wipers) carry
+    // no spec list, and for those the stated default is the honest answer.
+    if (compatibleVehicles.isNotEmpty) {
+      return CompatibilityLevel.incompatible;
+    }
+
     return defaultCompatibility;
   }
 

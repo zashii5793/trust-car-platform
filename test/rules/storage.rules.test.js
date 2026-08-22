@@ -198,3 +198,84 @@ describe('デフォルト拒否', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// comment_images/{userId}/{ts}/{fileName}
+//
+// コメントに写真を添えられるようにしたため、投稿画像と同じ所有者スコープで
+// 保存する。公開投稿へのコメントに付くので読み取りは認証ユーザー全体。
+// ---------------------------------------------------------------------------
+
+describe('comment_images/{userId}/{ts}/{fileName} — コメント添付画像', () => {
+  const ownerPath = `comment_images/${OWNER_UID}/1700000000000/a.jpg`;
+
+  describe('write（アップロード）', () => {
+    test('所有者は自分のパスに画像を書き込める', async () => {
+      await assertSucceeds(
+        uploadBytes(ref(storageFor(OWNER_UID), ownerPath), PNG_BYTES, PNG_META),
+      );
+    });
+
+    test('他ユーザーは所有者のパスに書き込めない', async () => {
+      await assertFails(
+        uploadBytes(ref(storageFor(OTHER_UID), ownerPath), PNG_BYTES, PNG_META),
+      );
+    });
+
+    test('未認証ユーザーは書き込めない', async () => {
+      await assertFails(
+        uploadBytes(ref(unauthStorage(), ownerPath), PNG_BYTES, PNG_META),
+      );
+    });
+
+    test('非画像コンテンツは書き込めない（isImageFile）', async () => {
+      await assertFails(
+        uploadBytes(
+          ref(storageFor(OWNER_UID), `comment_images/${OWNER_UID}/1700000000000/a.txt`),
+          new Uint8Array([0x68, 0x69]),
+          { contentType: 'text/plain' },
+        ),
+      );
+    });
+
+    test('5MB以上の画像は書き込めない（isValidFileSize）', async () => {
+      const big = new Uint8Array(5 * 1024 * 1024 + 1);
+      big.set(PNG_BYTES, 0);
+      await assertFails(
+        uploadBytes(ref(storageFor(OWNER_UID), ownerPath), big, PNG_META),
+      );
+    });
+  });
+
+  describe('read（閲覧）', () => {
+    beforeEach(async () => {
+      await seed(ownerPath);
+    });
+
+    test('投稿者本人は閲覧できる', async () => {
+      await assertSucceeds(getDownloadURL(ref(storageFor(OWNER_UID), ownerPath)));
+    });
+
+    test('他の認証済みユーザーも閲覧できる（公開コメントのため）', async () => {
+      await assertSucceeds(getDownloadURL(ref(storageFor(OTHER_UID), ownerPath)));
+    });
+
+    test('未認証ユーザーは閲覧できない', async () => {
+      await assertFails(getDownloadURL(ref(unauthStorage(), ownerPath)));
+    });
+  });
+
+  describe('delete（削除）', () => {
+    beforeEach(async () => {
+      await seed(ownerPath);
+    });
+
+    test('所有者は削除できる', async () => {
+      await assertSucceeds(deleteObject(ref(storageFor(OWNER_UID), ownerPath)));
+    });
+
+    test('他ユーザーは削除できない', async () => {
+      await assertFails(deleteObject(ref(storageFor(OTHER_UID), ownerPath)));
+    });
+  });
+});

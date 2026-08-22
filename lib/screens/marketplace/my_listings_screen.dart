@@ -150,6 +150,9 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
       appBar: AppBar(title: const Text('マイ出品')),
       body: _buildBody(),
       floatingActionButton: FloatingActionButton.extended(
+        // テーマの CircleBorder が extended にも効き、ラベルが円の外へ
+        // はみ出して読めなくなるため個別に指定する。
+        shape: const StadiumBorder(),
         onPressed: _openCreateListing,
         icon: const Icon(Icons.add),
         label: const Text('出品する'),

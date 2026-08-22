@@ -182,6 +182,10 @@ class MockDriveLogService implements DriveLogService {
 /// 写真アップロード導線でしか使われないため、呼ばれない前提のスタブ。
 class _StubFirebaseService implements FirebaseService {
   @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 

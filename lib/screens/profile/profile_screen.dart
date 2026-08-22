@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/config/app_config.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
@@ -19,9 +18,12 @@ import '../../providers/vehicle_provider.dart';
 import '../../services/firebase_service.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../../widgets/plan_badge.dart';
 import '../export/export_dialog.dart';
 import '../marketplace/my_listings_screen.dart';
 import 'settings_screen.dart';
+import '../settings/help_screen.dart';
+import '../settings/plan_screen.dart';
 
 /// プロフィール画面
 class ProfileScreen extends StatelessWidget {
@@ -158,6 +160,24 @@ class ProfileScreen extends StatelessWidget {
                 ],
 
                 _MenuSection(
+                  title: 'プラン',
+                  items: [
+                    _MenuItem(
+                      icon: Icons.workspace_premium_outlined,
+                      label: isPremium ? 'プラン（プレミアム）' : 'プラン（フリー）',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => const PlanScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                AppSpacing.verticalMd,
+
+                _MenuSection(
                   title: 'データ',
                   items: [
                     _MenuItem(
@@ -178,17 +198,12 @@ class ProfileScreen extends StatelessWidget {
                     _MenuItem(
                       icon: Icons.help_outline,
                       label: 'ヘルプ',
-                      onTap: () async {
-                        final uri = Uri.parse(
-                          'https://zashii5793.github.io/trust-car-platform/',
-                        );
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri,
-                              mode: LaunchMode.externalApplication);
-                        } else if (context.mounted) {
-                          showErrorSnackBar(context, 'ブラウザを開けませんでした');
-                        }
-                      },
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => const HelpScreen(),
+                        ),
+                      ),
                     ),
                     _MenuItem(
                       icon: Icons.info_outline,
@@ -682,22 +697,16 @@ class _ProfileHeader extends StatelessWidget {
         ),
         AppSpacing.verticalSm,
 
-        // プランバッジ
-        Chip(
-          avatar: Icon(
-            isPremium ? Icons.star : Icons.star_border,
-            size: 16,
-            color: isPremium ? Colors.white : theme.colorScheme.onSurface,
+        // プランバッジ。プラン内容を確認・変更できる場所がここしか無いので、
+        // 表示だけで終わらせずタップでプラン画面へ入れるようにしている。
+        // 配色は PlanBadge 側で固定している（青ヘッダーの上でテーマ既定色に
+        // 任せると背景と文字がどちらも白になり読めなくなる）。
+        PlanBadge(
+          isPremium: isPremium,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(builder: (_) => const PlanScreen()),
           ),
-          label: Text(
-            isPremium ? 'プレミアム' : 'フリープラン',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: isPremium ? Colors.white : null,
-            ),
-          ),
-          backgroundColor: isPremium ? AppColors.primary : null,
-          side: isPremium ? BorderSide.none : null,
-          visualDensity: VisualDensity.compact,
         ),
       ],
     );

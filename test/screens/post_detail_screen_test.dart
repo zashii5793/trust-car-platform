@@ -110,6 +110,7 @@ class _FakePostService implements PostService {
   bool addCommentShouldSucceed = true;
   bool deletePostShouldSucceed = true;
   int addCommentCallCount = 0;
+  List<String> lastCommentImageUrls = const [];
   int likeToggleCallCount = 0;
 
   @override
@@ -131,10 +132,12 @@ class _FakePostService implements PostService {
     String? userDisplayName,
     String? userPhotoUrl,
     required String content,
+    List<String> imageUrls = const [],
     String? parentCommentId,
     String? postAuthorId,
   }) async {
     addCommentCallCount++;
+    lastCommentImageUrls = imageUrls;
     if (addCommentShouldSucceed) {
       final now = DateTime.now();
       return Result.success(Comment(
@@ -242,6 +245,8 @@ Comment _makeComment({
   String userId = 'commenter-uid',
   String? userDisplayName = 'コメント投稿者',
   String content = 'テストコメント',
+  List<String> imageUrls = const [],
+  int replyCount = 0,
 }) {
   final now = DateTime(2025, 6, 1, 13, 0);
   return Comment(
@@ -250,6 +255,8 @@ Comment _makeComment({
     userId: userId,
     userDisplayName: userDisplayName,
     content: content,
+    imageUrls: imageUrls,
+    replyCount: replyCount,
     createdAt: now,
     updatedAt: now,
   );
@@ -491,6 +498,172 @@ void main() {
       expect(find.text('コメントA'), findsOneWidget);
       expect(find.text('コメントB'), findsOneWidget);
       expect(find.text('コメントC'), findsOneWidget);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // コメントの見分けやすさ
+  //
+  // 実機ではコメントが同じ白背景で並び、罫線も薄くて境目が読み取れなかった。
+  // 1件ごとに背景を交互に変える（ゼブラ）ことで塊として区切る。
+  // -------------------------------------------------------------------------
+
+  group('PostDetailScreen — コメントのゼブラ表示', () {
+    Color? tileColor(WidgetTester tester, String commentId) {
+      final container = tester.widget<Container>(
+        find.byKey(Key('comment_tile_$commentId')),
+      );
+      final decoration = container.decoration;
+      if (decoration is BoxDecoration) return decoration.color;
+      return container.color;
+    }
+
+    Future<void> pumpThreeComments(WidgetTester tester) async {
+      final svc = _FakePostService()
+        ..commentsToReturn = [
+          _makeComment(id: 'c1', content: 'コメントA'),
+          _makeComment(id: 'c2', content: 'コメントB'),
+          _makeComment(id: 'c3', content: 'コメントC'),
+        ];
+      await tester.pumpWidget(_buildScreen(_makePost(), postService: svc));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+    }
+
+    testWidgets('コメントごとに背景色を持つ', (tester) async {
+      await pumpThreeComments(tester);
+
+      for (final id in ['c1', 'c2', 'c3']) {
+        expect(
+          find.byKey(Key('comment_tile_$id')),
+          findsOneWidget,
+          reason: 'コメント $id のタイルが見つからない',
+        );
+        expect(tileColor(tester, id), isNotNull);
+      }
+    });
+
+    testWidgets('隣り合うコメントの背景色が異なる', (tester) async {
+      await pumpThreeComments(tester);
+
+      expect(tileColor(tester, 'c1'), isNot(tileColor(tester, 'c2')));
+      expect(tileColor(tester, 'c2'), isNot(tileColor(tester, 'c3')));
+    });
+
+    testWidgets('1つ飛ばしの背景色は揃う（交互になっている）', (tester) async {
+      await pumpThreeComments(tester);
+
+      expect(tileColor(tester, 'c1'), tileColor(tester, 'c3'));
+    });
+
+    testWidgets('コメントが1件でも背景色が付く', (tester) async {
+      final svc = _FakePostService()
+        ..commentsToReturn = [_makeComment(id: 'only', content: '単独コメント')];
+      await tester.pumpWidget(_buildScreen(_makePost(), postService: svc));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(tileColor(tester, 'only'), isNotNull);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // コメントの画像添付
+  //
+  // 「タイヤのこの部分です」のような説明が言葉頼りだったため、
+  // コメントにも写真を添えられるようにする。
+  // -------------------------------------------------------------------------
+
+  group('PostDetailScreen — コメントの画像', () {
+    testWidgets('画像付きコメントにはサムネイルが表示される', (tester) async {
+      final svc = _FakePostService()
+        ..commentsToReturn = [
+          _makeComment(
+            id: 'c-img',
+            content: 'ここが気になります',
+            imageUrls: const ['https://example.com/a.jpg'],
+          ),
+        ];
+      await tester.pumpWidget(_buildScreen(_makePost(), postService: svc));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('comment_images_c-img')), findsOneWidget);
+    });
+
+    testWidgets('画像なしのコメントにはサムネイル領域が出ない', (tester) async {
+      final svc = _FakePostService()
+        ..commentsToReturn = [_makeComment(id: 'c-plain', content: '文字だけ')];
+      await tester.pumpWidget(_buildScreen(_makePost(), postService: svc));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('comment_images_c-plain')), findsNothing);
+    });
+
+    testWidgets('2枚の画像がどちらも表示される', (tester) async {
+      final svc = _FakePostService()
+        ..commentsToReturn = [
+          _makeComment(
+            id: 'c-two',
+            imageUrls: const [
+              'https://example.com/a.jpg',
+              'https://example.com/b.jpg',
+            ],
+          ),
+        ];
+      await tester.pumpWidget(_buildScreen(_makePost(), postService: svc));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      final images = find.descendant(
+        of: find.byKey(const Key('comment_images_c-two')),
+        matching: find.byType(Image),
+      );
+      expect(images, findsNWidgets(2));
+    });
+
+    testWidgets('コメント入力欄に画像添付ボタンがある', (tester) async {
+      await tester.pumpWidget(
+        _buildScreen(_makePost(), loggedInUid: 'viewer-uid'),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('comment_attach_button')), findsOneWidget);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // コメント件数の表示
+  //
+  // 詳細ヘッダーがトップレベルのコメントしか数えず、フィードのバッジ（返信込み）
+  // と数が食い違っていた。
+  // -------------------------------------------------------------------------
+
+  group('PostDetailScreen — コメント件数', () {
+    testWidgets('返信を含めた件数が表示される', (tester) async {
+      final svc = _FakePostService()
+        ..commentsToReturn = [
+          _makeComment(id: 'c1', content: 'A', replyCount: 2),
+          _makeComment(id: 'c2', content: 'B', replyCount: 1),
+          _makeComment(id: 'c3', content: 'C'),
+        ];
+      await tester.pumpWidget(
+        _buildScreen(_makePost(commentCount: 6), postService: svc),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // トップレベル3 + 返信3 = 6
+      expect(find.text('6'), findsOneWidget);
+    });
+
+    testWidgets('返信がなければトップレベルの件数になる', (tester) async {
+      final svc = _FakePostService()
+        ..commentsToReturn = [
+          _makeComment(id: 'c1', content: 'A'),
+          _makeComment(id: 'c2', content: 'B'),
+        ];
+      await tester.pumpWidget(
+        _buildScreen(_makePost(commentCount: 2), postService: svc),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('2'), findsOneWidget);
     });
   });
 }

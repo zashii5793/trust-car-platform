@@ -1,6 +1,62 @@
 # Claude Session Notes
 
-最終更新: 2026-08-15
+最終更新: 2026-08-20
+
+---
+
+## ペルソナデータ実機テスト＋SNS強化（2026-08-20）
+
+**ブランチ**: `claude/guest-mode-and-web-emulator`
+
+### 実機確認で見つけた本番バグ2件（Firestore ルール）
+
+| 症状 | 原因 | 対応 |
+|---|---|---|
+| フリート管理が「車両データの取得に失敗しました」 | `fleet_service` は `vehicles.where('companyId', ==, uid)` で引くのに、ルールの read が `userId` しか見ておらず list が丸ごと拒否 | vehicles の read に `companyId == uid` 条項を追加 |
+| 問い合わせが「回答済み」なのにチャットが空 | messages の read が `senderId`/`receiverId` 判定。`receiverId` は `lib/` に存在せず、list クエリも静的検証できない | `isInquiryParticipant(inquiryId)` を新設し、親 inquiry の当事者で判定 |
+
+いずれも `test/rules/firestore.rules.test.js` に RED を作ってから修正（rules テスト計79件）。
+`RULES_TEST_PROJECT_ID` を追加し、ローカルのシードを消さずにルールテストを回せるようにした。
+
+### フリートオーナーの担当者アサイン
+
+`fleet_service.assignVehicle()` は他ユーザー名義の車両にも書き込む。vehicles の update に
+「フリートオーナーは `assigneeId` / `assigneeName` / `updatedAt` のみ」を追加（`companyId`
+書き換えと削除は不可）。
+
+### SNS（みんなの投稿）の強化
+
+- **カテゴリの複数選択**: `PostProvider` を `Set<PostCategory>` + `toggleCategory` /
+  `clearCategories` に。クエリは `whereIn`（等価フィルタ扱いなので既存インデックスと共用）
+- **並び替え**: `PostSortBy { newest, mostCommented }`。コメント数が同じときは新しい順で安定化。
+  `firestore.indexes.json` に commentCount 用の複合インデックス4件を追加（**本番デプロイは未実施**）
+- **ページングの重複バグ修正**: `loadMoreFeed` がカーソルを渡しておらず毎回先頭ページを
+  取り直していた。`getFeed` は `PostPage`（posts + 不透明カーソル）を返す形に変更
+- **コメントのゼブラ表示**: 1件ごとに背景を塗り分け、返信は親の背景を継承 + 左に縦線
+- **コメントの画像添付**: `Comment.imageUrls`（最大2枚）、`comment_images/{uid}/{ts}/` の
+  Storage ルール、入力バーの添付ボタン、コメント/返信のサムネイル表示
+- **投稿画像のレイアウト**: 1枚なら幅いっぱい（16:9）、複数なら横スクロール
+
+### プロフィールのプランバッジ
+
+青いヘッダーの上で白背景に白文字となり読めなかった。`lib/widgets/plan_badge.dart` に切り出し、
+背景・文字・アイコン色を明示（フリー=白/濃色、プレミアム=アンバー/濃色）。
+コントラスト比 4.5:1 以上をテストで固定。
+
+### シードデータ
+
+- `seed_rich_history.js`: 車両ドキュメントの実距離を正として履歴を逆算するよう修正
+  （45,000km の Hiace に 89,522km の記録が並んでいた）。年間走行距離も実距離から算出
+- `seed_personas.js`: プリウスのバッテリー交換記録 40,000km → 26,500km
+- `seed_media.js`（新規）: PNG をその場で生成して Storage に置き、投稿7件・コメント3件に
+  画像を紐づける。ダウンロードトークン付き URL を発行（`?alt=media` だけでは
+  `allow read: if isAuthenticated()` に 403 で弾かれる）
+
+### 未対応・申し送り
+
+- Firestore インデックスとルールの**本番デプロイは未実施**（`firebase deploy` は要承認）
+- Web 版で `image_picker` による投稿画像添付の実機確認は未了（モバイル実機での確認が必要）
+- ログイン直後、データ到着まで数秒「まず愛車を登録しよう」の空表示が出る（Web debug で A=約10秒）
 
 ---
 

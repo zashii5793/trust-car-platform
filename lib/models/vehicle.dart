@@ -471,7 +471,13 @@ class Vehicle {
   final String grade;
   final int mileage;
   final DateTime? mileageUpdatedAt; // Last updated date of mileage
+  /// 一覧やカードで使う代表画像。[imageUrls] の先頭と同じものを指す。
+  /// 旧バージョンのアプリ・既存ドキュメントとの互換のために残している。
   final String? imageUrl;
+
+  /// 車両の写真。好きな角度の写真を複数残せるようにするためのフィールド。
+  /// 既存データは imageUrl しか持たないため、読み取り時に引き上げる。
+  final List<String> imageUrls;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -534,6 +540,7 @@ class Vehicle {
     required this.mileage,
     this.mileageUpdatedAt,
     this.imageUrl,
+    this.imageUrls = const [],
     required this.createdAt,
     required this.updatedAt,
     // Phase 1.5 追加
@@ -628,7 +635,8 @@ class Vehicle {
       grade: data['grade'] ?? '',
       mileage: data['mileage'] ?? 0,
       mileageUpdatedAt: _parseTimestampNullable(data['mileageUpdatedAt']),
-      imageUrl: data['imageUrl'],
+      imageUrl: _pickImageUrls(data).firstOrNull,
+      imageUrls: _pickImageUrls(data),
       createdAt: _parseTimestamp(data['createdAt']),
       updatedAt: _parseTimestamp(data['updatedAt']),
       // Phase 1.5 追加フィールド
@@ -703,7 +711,10 @@ class Vehicle {
       'mileageUpdatedAt': mileageUpdatedAt != null
           ? Timestamp.fromDate(mileageUpdatedAt!)
           : null,
-      'imageUrl': imageUrl,
+      // 先頭を imageUrl にも書いておく。まだ更新していない端末や
+      // imageUrl だけを見る既存コードでも1枚目が表示できる。
+      'imageUrl': imageUrls.isNotEmpty ? imageUrls.first : imageUrl,
+      'imageUrls': imageUrls,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
       // Phase 1.5 追加フィールド
@@ -758,6 +769,7 @@ class Vehicle {
     int? mileage,
     DateTime? mileageUpdatedAt,
     String? imageUrl,
+    List<String>? imageUrls,
     DateTime? createdAt,
     DateTime? updatedAt,
     // Phase 1.5 追加
@@ -801,6 +813,7 @@ class Vehicle {
       mileage: mileage ?? this.mileage,
       mileageUpdatedAt: mileageUpdatedAt ?? this.mileageUpdatedAt,
       imageUrl: imageUrl ?? this.imageUrl,
+      imageUrls: imageUrls ?? this.imageUrls,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       // Phase 1.5 追加
@@ -861,4 +874,20 @@ class Vehicle {
 
   @override
   int get hashCode => id.hashCode;
+}
+
+/// Firestore の車両ドキュメントから画像URLの一覧を取り出す。
+///
+/// 新形式（imageUrls 配列）を優先し、無ければ旧形式（imageUrl 単数）を
+/// 1件のリストとして扱う。空文字・空白だけの値は保存事故なので取り除く。
+List<String> _pickImageUrls(Map<String, dynamic> data) {
+  final raw = data['imageUrls'];
+  if (raw is List && raw.isNotEmpty) {
+    return raw
+        .map((e) => e?.toString().trim() ?? '')
+        .where((e) => e.isNotEmpty)
+        .toList();
+  }
+  final single = data['imageUrl']?.toString().trim() ?? '';
+  return single.isEmpty ? const [] : [single];
 }

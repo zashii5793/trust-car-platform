@@ -89,3 +89,7 @@ docs/REPORT_AI_DEV_STATUS.md
 
 # Golden test failure artifacts (auto-generated diff output)
 test/golden/failures/
+
+# Firebase Emulator のエクスポートデータ（ローカル検証用）
+.emulator-data/
+firestore-debug.log

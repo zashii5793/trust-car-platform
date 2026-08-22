@@ -432,7 +432,7 @@ function maint({ id, vehicleId, userId, type, title, cost, date, mileage }) {
     maint({ id: 'mnt-d-oil-4', vehicleId: 'veh-d-prius', userId: 'persona-d-user', type: 'oilChange', title: 'オイル交換', cost: 4300, date: tsPlus(base, 540), mileage: 25000 }),
     maint({ id: 'mnt-d-tire-1', vehicleId: 'veh-d-prius', userId: 'persona-d-user', type: 'tireChange', title: 'タイヤ交換', cost: 32000, date: tsPlus(base, 365), mileage: 18000 }),
     maint({ id: 'mnt-d-tire-2', vehicleId: 'veh-d-prius', userId: 'persona-d-user', type: 'tireChange', title: 'タイヤ交換', cost: 34000, date: tsPlus(base, 730), mileage: 28000 }),
-    maint({ id: 'mnt-d-batt-1', vehicleId: 'veh-d-prius', userId: 'persona-d-user', type: 'batteryChange', title: 'バッテリー交換', cost: 15000, date: tsPlus(base, 1200), mileage: 40000 }),
+    maint({ id: 'mnt-d-batt-1', vehicleId: 'veh-d-prius', userId: 'persona-d-user', type: 'batteryChange', title: 'バッテリー交換', cost: 15000, date: tsPlus(base, 1200), mileage: 26500 }),
   );
 }
 

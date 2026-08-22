@@ -3,6 +3,8 @@
 // Verifies keyword / type / date-range / cost-range filtering and sorting
 // of in-memory maintenance records (pure Dart logic, no Firebase).
 
+import 'package:trust_car_platform/core/result/result.dart';
+import 'package:trust_car_platform/core/error/app_error.dart';
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
@@ -14,6 +16,10 @@ import 'package:trust_car_platform/models/maintenance_record.dart';
 // ---------------------------------------------------------------------------
 
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   final StreamController<List<MaintenanceRecord>> _controller =
       StreamController<List<MaintenanceRecord>>.broadcast();
 

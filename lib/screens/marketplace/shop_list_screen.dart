@@ -255,10 +255,18 @@ class _ShopListScreenState extends State<ShopListScreen> {
     }
 
     if (provider.shops.isEmpty) {
+      // "Change your search" leaves the user to undo each filter by hand.
+      // The refresh action in the app bar already does it in one call.
       return AppEmptyState(
         icon: Icons.store_outlined,
         title: '整備工場・業者が見つかりません',
-        description: '検索条件を変えるか、\nしばらく経ってから再度お試しください',
+        description: '絞り込みを外すと、登録されている工場がすべて表示されます',
+        buttonLabel: '条件をクリアして再読み込み',
+        onButtonPressed: () {
+          _searchController.clear();
+          provider.clearFilters();
+          provider.loadShops();
+        },
       );
     }
 
