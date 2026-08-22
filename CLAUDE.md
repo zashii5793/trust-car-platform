@@ -164,10 +164,42 @@ gh pr create --title "feat: <機能名>" --body "Closes #<番号>" --base main
 
 ## 品質チェック（Phase完了時）
 
+**CI と同じコマンドを打つこと。** 手元だけ通っても意味がない。
+
 - [ ] `flutter test --exclude-tags emulator` 全件パス
-- [ ] `flutter analyze lib/` クリーン
+- [ ] `flutter analyze --fatal-infos` クリーン（**`lib/` だけでは足りない**）
+- [ ] `dart format --set-exit-if-changed lib test` が通る
 - [ ] Provider内で直接 `new` していない
 - [ ] `CLAUDE_SESSION_NOTES.md` に進捗記録
+
+### なぜ `lib/` だけでは足りないか
+
+CI は `test` も含めて `--fatal-infos` で解析する。2026-08-22 に、
+**`lib/` だけ見ていたために CI が3回続けて止まった。**
+
+```
+ 1回目  dart format 未適用
+ 2回目  PostPage の導入が途中／Color.red の非推奨
+ 3回目  テストは新メソッドを @override しているのに、本体に無い
+```
+
+**3件とも「test が先行して、lib が追いついていない」形。**
+`lib/` だけを見ると、この向きの破損は原理的に見つからない。
+
+### 未コミットの作業をまとめて取り込むとき
+
+他のセッションの作業中コードをコミットする場合は、**その場で上の4つを通す。**
+通っていないものを取り込むと、**取り込んだ側の責任で直すことになる。**
+
+### バージョンを揃える
+
+`dart format` の出力は Dart の版で変わる。手元と CI が違うと、
+**手元で整形すると CI で落ちる**（2026-08-22 実測: 359ファイルが差分になった）。
+
+```
+ CI       Flutter 3.38.0（.github/workflows/ci.yml）
+ 開発機    ここに合わせること
+```
 
 ## コンテキスト参照先
 
