@@ -1,5 +1,7 @@
 // MaintenanceSearchScreen Widget Tests
 
+import 'package:trust_car_platform/core/result/result.dart';
+import 'package:trust_car_platform/core/error/app_error.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +16,10 @@ import 'package:trust_car_platform/models/maintenance_record.dart';
 // ---------------------------------------------------------------------------
 
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   final StreamController<List<MaintenanceRecord>> _controller =
       StreamController<List<MaintenanceRecord>>.broadcast();
 

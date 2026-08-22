@@ -146,6 +146,10 @@ Post _makePost({String content = 'テスト投稿'}) {
 /// state in these tests, so no method is actually invoked.
 class _StubFirebaseService implements FirebaseService {
   @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 

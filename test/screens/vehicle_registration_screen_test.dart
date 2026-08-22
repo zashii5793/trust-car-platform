@@ -111,6 +111,10 @@ class _StubMasterService implements VehicleMasterService {
 // ===========================================================================
 
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   bool addVehicleShouldFail = false;
 
   @override

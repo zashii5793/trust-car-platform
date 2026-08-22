@@ -9,6 +9,10 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 
 // Mock FirebaseService for testing
 class MockFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   final StreamController<List<MaintenanceRecord>> _recordsController =
       StreamController<List<MaintenanceRecord>>.broadcast();
 
