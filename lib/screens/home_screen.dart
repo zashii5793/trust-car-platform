@@ -44,6 +44,9 @@ import '../widgets/vehicle/mileage_reminder_banner.dart';
 import '../widgets/vehicle/mileage_update_dialog.dart';
 import '../widgets/getting_started_card.dart';
 import '../services/firebase_service.dart';
+import '../services/feedback_service.dart';
+import 'settings/feedback_screen.dart';
+import 'settings/help_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -767,6 +770,35 @@ class _ProfileTab extends StatelessWidget {
             context,
             title: 'サポート・法的情報',
             items: [
+              // ここが利用者の見るサポート欄。ヘルプもフィードバックも
+              // ProfileScreen 側にしか無く、そこへは「プロフィールを編集」
+              // からしか行けなかったため、実質たどり着けなかった。
+              _MenuItemData(
+                icon: Icons.help_outline,
+                label: 'ヘルプ',
+                color: AppColors.info,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => HelpScreen(userId: user?.uid),
+                  ),
+                ),
+              ),
+              _MenuItemData(
+                icon: Icons.rate_review_outlined,
+                label: 'ご意見・不具合の報告',
+                color: AppColors.primary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => FeedbackScreen(
+                      service: sl.get<FeedbackService>(),
+                      userId: user?.uid ?? '',
+                      fromScreen: 'profile',
+                    ),
+                  ),
+                ),
+              ),
               _MenuItemData(
                 icon: Icons.health_and_safety_outlined,
                 label: '安全運転情報',
