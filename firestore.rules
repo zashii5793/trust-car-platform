@@ -815,6 +815,19 @@ service cloud.firestore {
       allow read, update: if false;
     }
 
+    // ユーザーからのご意見・不具合報告: 本人が書き込むだけ。
+    // 読めるのは運用側(Admin SDK)のみ。他人の報告が読めてしまうと、
+    // 連絡先メールと不具合内容がそのまま漏れる。
+    match /feedback/{feedbackId} {
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.message is string &&
+        request.resource.data.message.size() > 0 &&
+        request.resource.data.message.size() <= 2000 &&
+        request.resource.data.status == 'open';
+      allow read, update, delete: if false;
+    }
+
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;

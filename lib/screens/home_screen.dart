@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../providers/vehicle_provider.dart';
 import '../providers/maintenance_provider.dart';
@@ -41,6 +42,8 @@ import 'accessories/accessory_showcase_screen.dart';
 import 'safety/safety_tip_screen.dart';
 import '../widgets/vehicle/mileage_reminder_banner.dart';
 import '../widgets/vehicle/mileage_update_dialog.dart';
+import '../widgets/getting_started_card.dart';
+import '../services/firebase_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -354,11 +357,76 @@ class _HomeScreenState extends State<HomeScreen> {
 // 車両タブ（マイカー一覧・ダッシュボード・AI提案）
 // ---------------------------------------------------------------------------
 
-class _VehicleTab extends StatelessWidget {
+class _VehicleTab extends StatefulWidget {
   /// Navigates to the notifications tab where the full AI suggestion list lives.
   final VoidCallback onNavigateToNotifications;
 
   const _VehicleTab({required this.onNavigateToNotifications});
+
+  @override
+  State<_VehicleTab> createState() => _VehicleTabState();
+}
+
+class _VehicleTabState extends State<_VehicleTab> {
+  /// 初回ガイドを閉じたことを覚えておくキー。端末ローカルで十分
+  /// （別端末で出ても困らない性質の案内なので、Firestore には置かない）。
+  static const _gettingStartedDismissedKey = 'getting_started_dismissed';
+
+  /// 「整備の記録が1件でもあるか」。車両ごとではなくアカウント全体で見るため、
+  /// MaintenanceProvider（車両単位）ではなく専用の1件読みを使う。
+  bool _hasMaintenanceRecord = false;
+  bool _gettingStartedDismissed = false;
+
+  /// 読み込みが終わるまでガイドを出さない。未取得を「未達成」として描くと、
+  /// 済んでいるステップが一瞬未達成に見えてちらつく。
+  bool _gettingStartedLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGettingStartedState();
+  }
+
+  Future<void> _loadGettingStartedState() async {
+    bool dismissed = false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      dismissed = prefs.getBool(_gettingStartedDismissedKey) ?? false;
+    } catch (_) {
+      // 端末設定の読み取りに失敗しても、ガイドが出るだけで害はない。
+    }
+
+    var hasRecord = false;
+    if (!dismissed) {
+      final result = await sl.get<FirebaseService>().hasAnyMaintenanceRecord();
+      hasRecord = result.valueOrNull ?? false;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _gettingStartedDismissed = dismissed;
+      _hasMaintenanceRecord = hasRecord;
+      _gettingStartedLoaded = true;
+    });
+  }
+
+  Future<void> _dismissGettingStarted() async {
+    setState(() => _gettingStartedDismissed = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_gettingStartedDismissedKey, true);
+    } catch (_) {
+      // 保存できなくても、この起動中は閉じたままになる。
+    }
+  }
+
+  /// 整備記録の追加から戻ったら数え直す。「1件つけたのに未達成のまま」を防ぐ。
+  Future<void> _refreshMaintenanceState() async {
+    if (_gettingStartedDismissed || _hasMaintenanceRecord) return;
+    final result = await sl.get<FirebaseService>().hasAnyMaintenanceRecord();
+    if (!mounted) return;
+    setState(() => _hasMaintenanceRecord = result.valueOrNull ?? false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -423,13 +491,62 @@ class _VehicleTab extends StatelessWidget {
             final vehicles = vehicleProvider.vehicles;
             final hasVehicleWithoutInspection =
                 vehicles.any((v) => v.inspectionExpiryDate == null);
+            final hasInspectionDate =
+                vehicles.any((v) => v.inspectionExpiryDate != null);
+
+            // 初回の3ステップ。全部済むか、閉じられたら出さない。
+            final showGettingStarted = _gettingStartedLoaded &&
+                !_gettingStartedDismissed &&
+                !(vehicles.isNotEmpty &&
+                    hasInspectionDate &&
+                    _hasMaintenanceRecord);
 
             // Build item list: fixed cards + optional prompt + vehicle rows
             final items = <Widget>[
+              if (showGettingStarted)
+                GettingStartedCard(
+                  hasVehicle: vehicles.isNotEmpty,
+                  hasInspectionDate: hasInspectionDate,
+                  hasMaintenanceRecord: _hasMaintenanceRecord,
+                  onRegisterVehicle: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const VehicleRegistrationScreen(),
+                    ),
+                  ),
+                  onSetInspectionDate: () {
+                    // 満了日が空の車から。全部埋まっていれば先頭の車を開く。
+                    final target = vehicles.firstWhere(
+                      (v) => v.inspectionExpiryDate == null,
+                      orElse: () => vehicles.first,
+                    );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => VehicleEditScreen(vehicle: target),
+                      ),
+                    );
+                  },
+                  onAddMaintenance: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => AddMaintenanceScreen(
+                          vehicleId: vehicles.first.id,
+                          currentVehicleMileage: vehicles.first.mileage,
+                        ),
+                      ),
+                    );
+                    await _refreshMaintenanceState();
+                  },
+                  onDismiss: _dismissGettingStarted,
+                ),
               _DashboardSummaryCard(vehicles: vehicles),
-              if (hasVehicleWithoutInspection)
+              // ガイドを出している間は車検の催促を重ねない。同じことを二か所で
+              // 言われると、どちらも読み飛ばされる。
+              if (hasVehicleWithoutInspection && !showGettingStarted)
                 _InspectionSetupCard(vehicles: vehicles),
-              _AiSuggestionSection(onSeeAll: onNavigateToNotifications),
+              _AiSuggestionSection(onSeeAll: widget.onNavigateToNotifications),
               ...vehicles.map((v) => _VehicleCard(vehicle: v)),
               _RetiredVehiclesLink(),
             ];

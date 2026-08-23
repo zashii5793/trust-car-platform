@@ -22,6 +22,8 @@ import '../../widgets/plan_badge.dart';
 import '../export/export_dialog.dart';
 import '../marketplace/my_listings_screen.dart';
 import 'settings_screen.dart';
+import '../../services/feedback_service.dart';
+import '../settings/feedback_screen.dart';
 import '../settings/help_screen.dart';
 import '../settings/plan_screen.dart';
 
@@ -201,7 +203,22 @@ class ProfileScreen extends StatelessWidget {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute<void>(
-                          builder: (_) => const HelpScreen(),
+                          builder: (_) => HelpScreen(userId: user?.uid),
+                        ),
+                      ),
+                    ),
+                    _MenuItem(
+                      icon: Icons.rate_review_outlined,
+                      label: 'ご意見・不具合の報告',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => FeedbackScreen(
+                            service:
+                                ServiceLocator.instance.get<FeedbackService>(),
+                            userId: user?.uid ?? '',
+                            fromScreen: 'profile',
+                          ),
                         ),
                       ),
                     ),

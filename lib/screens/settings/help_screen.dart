@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+
 import '../../core/constants/spacing.dart';
+import '../../core/di/service_locator.dart';
+import '../../services/feedback_service.dart';
+import 'feedback_screen.dart';
 
 /// ヘルプ画面
 ///
@@ -8,7 +12,11 @@ import '../../core/constants/spacing.dart';
 /// コントリビューション規約）で、利用者の役に立たなかった。
 /// アプリ内に置くことで、オフラインでも読めて外部サイトの整備も不要になる。
 class HelpScreen extends StatelessWidget {
-  const HelpScreen({super.key});
+  const HelpScreen({super.key, this.userId});
+
+  /// 送信元の特定に使う。未ログインなら null のままでよい（フィードバック
+  /// 画面側がログインを促す）。
+  final String? userId;
 
   @override
   Widget build(BuildContext context) {
@@ -47,9 +55,34 @@ class HelpScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '解決しない場合は support@trustcar.jp までご連絡ください。'
-            'ご利用の端末（iPhone / Android）と、困っている画面をお知らせいただけると調査が早くなります。',
+            '解決しない場合は、下のボタンからアプリ内でお知らせください。'
+            'ご利用の端末とアプリのバージョンは自動で添えられるので、'
+            '困っている内容だけ書いていただければ大丈夫です。',
             style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          // メールだけの導線では、細かい気づき（「車検の通知が遅い」など）が
+          // 送られてこない。書く手間が見合わないため。アプリ内から送れるようにする。
+          FilledButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => FeedbackScreen(
+                  service: ServiceLocator.instance.get<FeedbackService>(),
+                  userId: userId ?? '',
+                  fromScreen: 'help',
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.rate_review_outlined),
+            label: const Text('ご意見・不具合を送る'),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'メールでのご連絡も受け付けています: support@trustcar.jp',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
           ),
           const SizedBox(height: 32),
         ],

@@ -972,3 +972,98 @@ describe('comments — 添付画像', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// feedback — アプリ内の「ご意見・不具合の報告」
+//
+// 書き込み専用。他人の報告が読めると、連絡先メールと不具合内容がそのまま漏れる。
+// ---------------------------------------------------------------------------
+
+const feedbackPath = 'feedback/fb_1';
+
+function feedbackDoc(overrides = {}) {
+  return {
+    userId: OWNER_UID,
+    type: 'bug',
+    message: '車検証OCRが読み取れません',
+    appVersion: '1.0.0',
+    platform: 'android',
+    status: 'open',
+    ...overrides,
+  };
+}
+
+async function seedFeedback() {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), feedbackPath), feedbackDoc());
+  });
+}
+
+describe('feedback — create', () => {
+  test('本人は自分の userId で作成できる', async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER_UID), feedbackPath), feedbackDoc()),
+    );
+  });
+
+  test('他人の userId を詐称した作成は拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(OTHER_UID), feedbackPath),
+        feedbackDoc({ userId: OWNER_UID }),
+      ),
+    );
+  });
+
+  test('未認証ユーザーは作成できない', async () => {
+    await assertFails(setDoc(doc(unauthDb(), feedbackPath), feedbackDoc()));
+  });
+
+  test('空の本文は拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OWNER_UID), feedbackPath), feedbackDoc({ message: '' })),
+    );
+  });
+
+  test('2000文字を超える本文は拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(OWNER_UID), feedbackPath),
+        feedbackDoc({ message: 'あ'.repeat(2001) }),
+      ),
+    );
+  });
+
+  test('status を open 以外にして作成することはできない', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(OWNER_UID), feedbackPath),
+        feedbackDoc({ status: 'resolved' }),
+      ),
+    );
+  });
+});
+
+describe('feedback — read / update / delete', () => {
+  test('本人でも自分の報告を読み返せない（運用側専用）', async () => {
+    await seedFeedback();
+    await assertFails(getDoc(doc(dbFor(OWNER_UID), feedbackPath)));
+  });
+
+  test('他人の報告は読めない', async () => {
+    await seedFeedback();
+    await assertFails(getDoc(doc(dbFor(OTHER_UID), feedbackPath)));
+  });
+
+  test('本人でも更新できない', async () => {
+    await seedFeedback();
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER_UID), feedbackPath), { message: '書き換え' }),
+    );
+  });
+
+  test('本人でも削除できない', async () => {
+    await seedFeedback();
+    await assertFails(deleteDoc(doc(dbFor(OWNER_UID), feedbackPath)));
+  });
+});
