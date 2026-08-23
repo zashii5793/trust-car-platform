@@ -41,9 +41,13 @@ class DefaultFirebaseOptions {
     measurementId: 'G-ZFX8W1PF0N',
   );
 
+  // 2026-08-23: applicationId は jp.trustcar.app なのに、ここは
+  // com.example.trust_car_platform 用のアプリを指していた（apiKey も web の
+  // ものが入っていた）。jp.trustcar.app の Android アプリを Firebase に
+  // 新規登録し、その値に差し替えた。
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDZQ4UK6IXiUKNJ3u1Cjup4nIEmiV97O0Q',
-    appId: '1:31421119456:android:cc5714538a154c3f80c985',
+    apiKey: 'AIzaSyDwjPzpdQqXFl4be7oE3n-yzcl6hoLv_Uw',
+    appId: '1:31421119456:android:145b8b79b1d9e7cf80c985',
     messagingSenderId: '31421119456',
     projectId: 'trust-car-platform',
     storageBucket: 'trust-car-platform.firebasestorage.app',

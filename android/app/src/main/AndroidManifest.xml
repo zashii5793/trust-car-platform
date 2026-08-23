@@ -5,7 +5,7 @@
     <!-- Required on Android 13+ for FCM and local reminder notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
-        android:label="trust_car_platform"
+        android:label="TrustCar"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

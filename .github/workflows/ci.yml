@@ -199,6 +199,16 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
 
+      # google-services.json は .gitignore 対象なので CI では書き起こす。
+      # 中身は APK に埋め込まれて配布されるものなので秘密ではない。
+      #
+      # 2026-08-23: ここに書かれていた値は実在しないアプリを指していた。
+      # mobilesdk_app_id が com.example.trust_car_platform 用のもので、
+      # package_name だけ jp.trustcar.app に書き換えられていた。api_key も
+      # web 用だった。gradle の google-services プラグインは package_name しか
+      # 照合しないためビルドは通り、実行時にだけ壊れる。
+      # jp.trustcar.app の Android アプリを Firebase に登録し直し、
+      # その正しい値へ差し替えた（App ID: ...:android:145b8b79b1d9e7cf80c985）。
       - name: Place google-services.json
         run: |
           cat > android/app/google-services.json <<'EOF'
@@ -210,12 +220,18 @@ jobs:
             },
             "client": [{
               "client_info": {
-                "mobilesdk_app_id": "1:31421119456:android:cc5714538a154c3f80c985",
+                "mobilesdk_app_id": "1:31421119456:android:145b8b79b1d9e7cf80c985",
                 "android_client_info": { "package_name": "jp.trustcar.app" }
               },
-              "oauth_client": [],
-              "api_key": [{ "current_key": "AIzaSyDZQ4UK6IXiUKNJ3u1Cjup4nIEmiV97O0Q" }],
-              "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+              "oauth_client": [{
+                "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
+                "client_type": 3
+              }],
+              "api_key": [{ "current_key": "AIzaSyDwjPzpdQqXFl4be7oE3n-yzcl6hoLv_Uw" }],
+              "services": { "appinvite_service": { "other_platform_oauth_client": [{
+                "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
+                "client_type": 3
+              }] } }
             }],
             "configuration_version": "1"
           }
