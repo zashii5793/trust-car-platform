@@ -14,9 +14,12 @@
 
 | レーン | 来週の可否 | 人間の作業量 | 触れる範囲 |
 |---|---|---|---|
-| **A. Web版（GitHub Pages）** | **可能。最短で当日** | **合計 約1.5時間** | OCR・プッシュ通知以外のほぼ全機能 |
-| **B. Android 実機（APK 直配布 / Play 内部テスト）** | 可能（半日〜1日） | 約3〜4時間 | 全機能（OCR・GPS・カメラ含む） |
+| **A. Web版（Firebase Hosting）** | **可能。最短で当日** | **合計 約1時間** | OCR・プッシュ通知以外のほぼ全機能 |
+| **B. Android 実機（APK 直配布）** | **可能。当日** | **約30分** | 全機能（OCR・GPS・カメラ含む） |
 | C. iOS（TestFlight） | **来週は非推奨** | 1〜2日＋審査待ち | 全機能 |
+
+> **2026-08-23 更新**: レーンBの前提だった Firebase のアプリ登録は済ませ、
+> APK のビルドも CI に載せました。当初「3〜4時間」としていた作業は約30分です。
 
 **iOS を外す理由（実測）**:
 Firebase に登録されている iOS アプリの Bundle ID が `com.example.trustCarPlatform` で、
@@ -36,70 +39,105 @@ Firebase の iOS アプリは**あとから Bundle ID を変更できません**
 
 ---
 
-## レーンA：Web版を出す（本命・合計 約1.5時間）
+## レーンA：Web版を出す（本命・人間の作業は約1時間）
 
-公開URL: `https://zashii5793.github.io/trust-car-platform/`
+**2026-08-23 更新: 公開先を GitHub Pages から Firebase Hosting に変えました。**
+人間の作業が2つ減ります。理由は A-1 に書きます。
 
-### A-1. GitHub Pages の公開元を「GitHub Actions」に変える `[実測: 未対応]`
+公開URL: `https://trust-car-platform.web.app`
 
-**これが最大の詰まり**です。CI（Web Preview）はビルドもデプロイも成功していますが、
-**公開されているのはアプリではなく `docs/` の Jekyll サイト**です。
+### A-1. Web版を Firebase Hosting へ公開する `[スクリプト化済み]`
+
+**なぜ GitHub Pages をやめたか（実測）**
+
+Firebase Auth は、許可したドメインからしかログインを受け付けません。
+承認済みドメインを実際に問い合わせたところ、こうでした。
 
 ```
-GET https://api.github.com/repos/zashii5793/trust-car-platform/pages
-  "build_type": "legacy"
-  "source": { "branch": "main", "path": "/docs" }
+GET https://identitytoolkit.googleapis.com/v1/projects?key=<web APIキー>
+
+  "authorizedDomains": [
+    "localhost",
+    "trust-car-platform.firebaseapp.com",
+    "trust-car-platform.web.app"
+  ]
 ```
 
-Pages の設定が「main ブランチの /docs を Jekyll で公開」のままなので、
-push のたびに Jekyll ビルドが Actions のデプロイを上書きしています。
+`zashii5793.github.io` は入っていません。**GitHub Pages に出すと、画面は表示
+されてもログインだけが `auth/unauthorized-domain` で失敗します。**
+
+一方 `trust-car-platform.web.app` は**最初から承認済み**です。Firebase Hosting
+に出せば、Console での追加作業なしにログインできます。あわせて、GitHub Pages の
+公開元を切り替える作業（旧 A-1）も不要になります。
 
 **手順**:
-1. GitHub → リポジトリ `zashii5793/trust-car-platform` → **Settings** → **Pages**
-2. Build and deployment → Source を `Deploy from a branch` から **`GitHub Actions`** に変更
-3. Actions タブ → **Web Preview** → `Run workflow`（ブランチ: `main`）
-4. 2〜3分後に `https://zashii5793.github.io/trust-car-platform/` を開き、
-   ドキュメントサイトではなく**アプリのログイン画面**が出ることを確認
 
-**所要時間**: 5分
-**副作用**: 現在公開中の以下のURLが 404 になります。
-- `https://zashii5793.github.io/trust-car-platform/web/privacy.html`
-- `https://zashii5793.github.io/trust-car-platform/web/terms.html`
+```bash
+cd ~/development/trust_car_platform
+./scripts/deploy_web.sh
+```
 
-規約・プライバシーポリシーは**アプリ内画面としても実装済み**（`lib/screens/settings/`）なので
-テストユーザーの利用には影響しません。ただしストア申請では外部URLが要るため、
-**AI 側で `web/` 配下に同梱し直します**（下記「AI側で並行して進めること」）。
+ビルドから公開まで通しでやります。所要 3〜5分。
+地図も出したい場合だけ、先に `export GOOGLE_MAPS_API_KEY_WEB=<キー>` してください（A-6）。
+
+**確認**:
+- [ ] `https://trust-car-platform.web.app` でログイン画面が出る
+- [ ] 新規登録 → ログインまで通る
+- [ ] `https://trust-car-platform.web.app/privacy.html` と `/terms.html` が開く
+
+**判断が要る点**: 実行するとアプリが誰でも見られる場所に出ます。URLは推測しにくい
+ものの、公開であることに変わりはありません。**自己サインアップを開けたままにするか、
+配布先を絞るかを先に決めてください**（A-4）。
+
+> GitHub Pages を使いたい場合は、Settings → Pages → Source を `GitHub Actions` に
+> 変更したうえで、Firebase Console → Authentication → Settings → 承認済みドメインに
+> `zashii5793.github.io` を追加してください。両方やらないとログインできません。
 
 ---
 
-### A-2. Firebase Authentication の承認済みドメインに github.io を追加 `[要確認]`
+### A-2. docs/ が全世界に公開されている `[実測: 公開中]`
 
-**未対応だとログインできません。** Firebase Auth は許可したドメインからのみ認証を受け付けます。
+**テスト配布とは別件ですが、先に潰しておくべきです。**
 
-**手順**:
-1. Firebase Console → `trust-car-platform` → **Authentication** → **Settings** → **承認済みドメイン**
-2. `zashii5793.github.io` を追加
-3. 同じ画面の **Sign-in method** で **メール/パスワード** が「有効」であることを確認
-4. Google ログインも使わせるなら、Google プロバイダを有効化（Web は SHA-1 不要）
+GitHub Pages の公開元が「main ブランチの `/docs`」のままで、`docs/` 配下の
+Markdown が Jekyll でHTML化され、誰でも読める状態になっています。
 
-**所要時間**: 10分
-**確認方法**: 公開URLで新規登録 → ログインまで通ること。
-通らない場合はブラウザのコンソールに `auth/unauthorized-domain` が出ます。
+```
+https://zashii5793.github.io/trust-car-platform/BUSINESS_VIABILITY_ASSESSMENT.html  → 200
+https://zashii5793.github.io/trust-car-platform/OPERATIONS_COST_ESTIMATE.html       → 200
+https://zashii5793.github.io/trust-car-platform/PERSONA_TEST_REPORT.html            → 200
+https://zashii5793.github.io/trust-car-platform/HUMAN_TASKS.html                    → 200
+```
+
+事業性評価、運用コスト見積、ペルソナテスト結果、朝のブリーフィングまで含まれます。
+
+**対応（どちらか）**:
+
+| 方法 | 内容 | 効き方 |
+|---|---|---|
+| **推奨: Pages を止める** | Settings → Pages → Source を `None` にする | 即座に全部消える |
+| 除外設定を入れる | `docs/_config.yml` を追加済み（Markdown を除外） | **main にマージされた次のビルドから**効く |
+
+`docs/_config.yml` はこのブランチに入れてありますが、**main に入るまで効きません**。
+急ぐなら Pages を止めるのが確実です。Firebase Hosting に移したので、Pages は
+もう使いません。
+
+**所要時間**: 2分
 
 ---
 
 ### A-3. Firestore ルールとインデックスを本番へデプロイ `[要確認]`
 
 **未デプロイの機能は、画面は出るがデータが一切読めません**（ルールで全部弾かれる）。
-`firestore.rules` は現在 823 行、`firestore.indexes.json` も更新が入っています。
-前回デプロイ以降の差分は Console のバージョン履歴でしか判定できません。
+今回 `feedback` コレクションのルールを追加したので、**これをやらないと
+アプリ内のフィードバック送信が失敗します**。
 
 **手順**:
 ```bash
 cd ~/development/trust_car_platform
 git checkout main && git pull
 
-# 1) ルールのローカル検証
+# 1) ルールのローカル検証（Emulator を自動で起動します）
 cd test/rules && npm install && npm test && cd ../..
 
 # 2) 中身の差分を目視（Console のバージョン履歴と突き合わせ）
@@ -115,6 +153,7 @@ firebase deploy --only firestore:rules,firestore:indexes
 **所要時間**: 10分（＋インデックス構築の待ち時間）
 **備考**: この端末の `firebase` CLI はログイン済みです。**AI に代行させることも可能**ですが、
 本番反映なので実行前に必ず声をかけてください。
+**前提**: 上のコマンドは main を見ています。**先に PR #149 をマージしてください。**
 
 ---
 
@@ -165,19 +204,7 @@ URLを不特定多数に出さない運用（個別連絡でのみ配布）に�
 
 ---
 
-### A-6. 問い合わせ先メールアドレスの実在確認 `[コード検証済]`
-
-アプリ内のヘルプ画面に `support@trustcar.jp` が記載されています
-（`lib/screens/settings/help_screen.dart`）。
-
-- [ ] `support@trustcar.jp` が実際に受信できるか確認する
-- [ ] 受信できないなら、実在する連絡先に差し替える（差し替え作業は AI に依頼可）
-
-**所要時間**: 10分
-
----
-
-### A-7. Google Maps の Web用APIキー（任意・後回し可） `[実測: 未設定]`
+### A-6. Google Maps の Web用APIキー（任意・後回し可） `[実測: 未設定]`
 
 未設定でも**アプリは動きます**。地図が出ず、近隣工場が距離順のリスト表示にフォールバックするだけです。
 地図をテスト対象に含めたい場合のみ実施してください。
@@ -185,14 +212,14 @@ URLを不特定多数に出さない運用（個別連絡でのみ配布）に�
 **手順**:
 1. Google Cloud Console → APIとサービス → 認証情報 → APIキー発行
 2. **Maps JavaScript API** を有効化
-3. キーの制限: HTTPリファラー `https://zashii5793.github.io/*`
-4. GitHub → Settings → Secrets and variables → Actions → **`GOOGLE_MAPS_API_KEY_WEB`** を登録
-5. Web Preview を再実行
+3. キーの制限: HTTPリファラー `https://trust-car-platform.web.app/*`
+4. 公開時に渡す: `export GOOGLE_MAPS_API_KEY_WEB=<キー>` してから `./scripts/deploy_web.sh`
 
 **所要時間**: 1時間
 **費用**: 地図表示は月10,000ロードまで無料枠内。念のため Google Cloud で予算アラートを設定。
 
 ---
+
 
 ## レーンB：Android 実機で配る（OCR・GPS・カメラを検証したい場合）
 
@@ -200,92 +227,89 @@ URLを不特定多数に出さない運用（個別連絡でのみ配布）に�
 （`vehicle_certificate_ocr_service.dart` / `invoice_ocr_service.dart` の `isSupported` が Web では false）。
 **この2つは TrustCar の中核機能**なので、評価してもらうならレーンB が要ります。
 
-### B-1. Firebase に `jp.trustcar.app` の Android アプリを新規登録 `[実測: 未対応]`
+### B-1. Firebase の Android アプリ登録 `[対応済み 2026-08-23]`
 
-現在登録されているのは `com.example.trust_car_platform` で、実際のアプリIDと違います。
+**この作業は終わっています。人間の作業はありません。**
+
+登録されていたのは `com.example.trust_car_platform` だけで、実際のアプリID
+`jp.trustcar.app` のアプリは存在していませんでした。`jp.trustcar.app` の
+Android アプリを新規登録し、`google-services.json`・`firebase_options.dart`・
+`ci.yml` の3か所を正しい値に差し替えてあります。
 
 ```
-android/app/build.gradle.kts      applicationId = "jp.trustcar.app"
-android/app/google-services.json  package_name  = "com.example.trust_car_platform"   ← 不一致
+App ID:  1:31421119456:android:145b8b79b1d9e7cf80c985
+API Key: AIzaSyDwjPzpdQqXFl4be7oE3n-yzcl6hoLv_Uw
 ```
 
-**手順**:
-1. Firebase Console → プロジェクト設定 → マイアプリ → **アプリを追加 → Android**
-2. パッケージ名に **`jp.trustcar.app`** を入力して登録
-3. `google-services.json` をダウンロードし、`android/app/` に上書き配置
-4. **旧アプリ（`com.example.*`）は削除しない**。使わなくなるだけ。消すと紐づく設定の参照が切れる可能性あり
+旧 `com.example` のアプリは、紐づく参照が切れないよう残してあります（使われなくなるだけ）。
 
-**所要時間**: 15分
+> **これがなぜ見逃されていたか**: `ci.yml` が `google-services.json` をその場で
+> 書き起こしており、その中身が「com.example のアプリIDに、package_name だけ
+> jp.trustcar.app と書いた」実在しない組み合わせでした。gradle の
+> google-services プラグインは package_name しか照合しないため、
+> **ビルドは通り、実行時にだけ壊れます。**
 
 ---
 
-### B-2. リリース署名用のキーストアを作る `[実測: 未作成]`
+### B-2. APK の作りかた `[スクリプト化済み]`
 
-`android/key.properties` がありません。**この状態でリリースビルドを叩くとビルドが止まります**
-（debug 鍵で黙って署名されないよう、`build.gradle.kts` 側で意図的にエラーにしてあります）。
+**開発機に Android SDK が入っていません**（`flutter doctor` が
+`Unable to locate Android SDK`）。手元でのビルドは、Android Studio を入れて
+SDK を落とすところからになります。**GitHub Actions で作るほうが速いので、
+そちらに寄せました。**
 
 **手順**:
-```bash
-# 1) キーストア生成（1回だけ。紛失するとアプリ更新が永久に不可能）
-keytool -genkey -v -keystore ~/trustcar-release.keystore \
-  -alias trust-car-platform \
-  -keyalg RSA -keysize 2048 -validity 10000
-```
+1. GitHub → Actions → **Test APK** → `Run workflow`
+2. 3〜5分で完了。実行ページ下部の **Artifacts** から `trustcar-test-apk` をダウンロード
+3. zip を展開して出てくる `.apk` を配布（保持期間は14日）
 
-2. `android/key.properties` を作成（`.gitignore` 対象。**コミットしないこと**）
-```properties
-storePassword=<パスワード>
-keyPassword=<パスワード>
-keyAlias=trust-car-platform
-storeFile=/Users/zashii/trustcar-release.keystore
-```
+**所要時間**: 5分（待ち時間込み）
+**前提**: **PR #149 をマージして、ワークフローが main に入っていること。**
+`workflow_dispatch` は既定ブランチにあるワークフローしか一覧に出ません。
 
-3. キーストアとパスワードをパスワードマネージャに保管
-
-**所要時間**: 30分
+**署名について**: 署名用の Secret が未設定の間は **profile ビルド**になります。
+release と同じ AOT コンパイルなので体感速度はほぼ同じで、debug 鍵で署名されるため
+直接インストールできます。**テスト配布はこれで十分です。**
 
 ---
 
-### B-3. SHA-1 を Firebase に登録（Google ログインを使う場合）
+### B-3. リリース署名鍵（Play の内部テストを使う場合のみ） `[任意]`
 
-**手順**:
-```bash
-# デバッグ用
-keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey \
-  -storepass android -keypass android | grep SHA1
-# リリース用
-keytool -list -v -keystore ~/trustcar-release.keystore -alias trust-car-platform | grep SHA1
-```
-Firebase Console → プロジェクト設定 → Android アプリ（`jp.trustcar.app`）→ **フィンガープリントを追加** に両方登録
-→ `google-services.json` を**再ダウンロードして差し替え**
+直接 APK を配るなら不要です。Google Play の内部テストを使う段になったら実行してください
+（Play は debug 鍵の成果物を受け付けません）。
 
-**所要時間**: 15分
-
----
-
-### B-4. ビルドして配る
-
-**選択肢1: APK を直接渡す（推奨・審査なし）**
 ```bash
 cd ~/development/trust_car_platform
-flutter build apk --release
-# 出力: build/app/outputs/flutter-apk/app-release.apk
+./scripts/create_release_keystore.sh
 ```
-Google Drive などに置いてリンクを配る。テストユーザー側は「提供元不明のアプリ」の許可が必要。
-**手順を案内文に必ず書くこと**（Android 端末に不慣れな人はここで詰まります）。
 
-**選択肢2: Play Console の内部テスト（配布は楽だが初回に手間）**
-```bash
-flutter build appbundle --release
-# 出力: build/app/outputs/bundle/release/app-release.aab
-```
-Play Console → アプリを作成 → 内部テスト → AAB アップロード → テスター（メールアドレス）を登録。
-**初回はアプリ登録・データセーフティフォーム・コンテンツレーティングの入力が必要**で、2〜3時間かかります。
-来週だけの話なら**選択肢1で十分**です。
+キーストアの生成、`android/key.properties` の作成、GitHub Secrets への登録、
+SHA-1 の表示までを通しでやります。以後 Test APK ワークフローは署名付きの
+release ビルドに切り替わります。
 
-**所要時間**: 選択肢1なら1時間 / 選択肢2なら3時間
+**重要**: このキーストアを紛失すると、同じ鍵での更新が二度とできなくなります。
+Play を使う場合は初回アップロード時に **Play App Signing** を必ず有効化してください。
+
+**所要時間**: 15分
 
 ---
+
+### B-4. SHA-1 を Firebase に登録（Google ログインを使う場合） `[要確認]`
+
+メール／パスワードでのログインだけなら不要です。
+
+```bash
+# デバッグ鍵（profile ビルドの APK はこの鍵で署名されます）
+keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey \
+  -storepass android -keypass android | grep SHA1
+```
+
+Firebase Console → プロジェクト設定 → `jp.trustcar.app` → **フィンガープリントを追加**
+
+**所要時間**: 10分
+
+---
+
 
 ### B-5. 配る前に自分の実機で1周する `[未実施]`
 
@@ -332,37 +356,54 @@ Play Console → アプリを作成 → 内部テスト → AAB アップロー�
 
 ## 想定スケジュール
 
-| 日 | 作業 | 担当 |
-|---|---|---|
-| 今日 | A-1（Pages切替）、A-2（承認済みドメイン） | 人間 15分 |
-| 今日 | 公開URLでログイン〜愛車登録まで自分で通す | 人間 30分 |
-| 今日〜明日 | A-3（ルール・インデックス本番デプロイ） | 人間（AI代行可） |
-| 明日 | A-4（本番データ棚卸し・ペルソナAuth削除） | 人間 30分 |
-| 明日 | B-1〜B-3（Firebase Androidアプリ登録・キーストア・SHA-1） | 人間 1時間 |
-| 週末 | B-4（APKビルド）、B-5（実機1周・OCR確認） | 人間 2時間 |
-| 週明け | A-5 の方針で案内文とURL/APKを配布 | 人間 |
-| 期間中 | フィードバック回収と一次トリアージ | AI |
+| 日 | 作業 | 担当 | 所要 |
+|---|---|---|---|
+| まず最初 | **PR #149 をマージ**（これが全部の前提） | 人間 | 5分 |
+| 同上 | **GitHub Pages を止める**（docs の公開を切る・A-2） | 人間 | 2分 |
+| 次 | A-3 ルール・インデックスを本番へデプロイ | 人間（AI代行可） | 10分＋待ち |
+| 次 | `./scripts/deploy_web.sh` で Web を公開（A-1） | 人間 | 5分 |
+| 次 | 公開URLでログイン〜愛車登録〜整備記録まで1周 | 人間 | 30分 |
+| 次 | A-4 本番データの棚卸し（ペルソナAuth削除・シード投入） | 人間 | 30分 |
+| 次 | Actions → Test APK を実行して APK を入手（B-2） | 人間 | 5分 |
+| 次 | B-5 実機で1周（**OCRの実画像精度がいちばん重要**） | 人間 | 1時間 |
+| 配布日 | `docs/TESTUSER_GUIDE.md` の前半を送る | 人間 | 15分 |
+| 期間中 | フィードバックのトリアージ | AI | — |
+
+**人間の作業は合計 約2.5時間**（待ち時間を除く）。うち1時間は実機での確認です。
 
 ---
 
-## AI側で並行して進めること（人間の作業ではありません）
+## AI側で対応済み（人間の作業ではありません）
 
-- [x] **`web/privacy.html` / `web/terms.html` を同梱**（2026-08-23）
-      Pages を GitHub Actions に切り替えても規約ページが残るようにした。
-      新URL: `https://zashii5793.github.io/trust-car-platform/privacy.html` / `.../terms.html`
-- [x] **アプリ内フィードバック機能を仕上げて配線**（2026-08-23）
-      `feedback_screen.dart` ほか一式が未コミット・未配線のまま残っていたので、
-      DI 登録（`injection.dart`）とプロフィール画面「サポート」への導線を追加。
-      `firestore.rules` に `feedback` コレクションの規則（本人が書くだけ・誰も読めない）を追加し、
-      ルールテスト10件を追加。全115件パス。
-      **A-3（ルール本番デプロイ）を実施しないと、この機能は本番で動きません。**
-- [ ] テストユーザー向けの案内文とテストシナリオのドラフト作成
-- [ ] `support@trustcar.jp` が使えない場合の連絡先差し替え（A-6 の確認待ち）
-- [ ] 走行記録画面への「アプリを開いたままにしてください」の明記（D-1 で A案を選んだ場合）
-- [ ] 初回ガイド（`lib/widgets/getting_started_card.dart`）の配線。
-      同じく未配線で残っているが、ホーム画面の既存オンボーディング
-      （`_VehicleEmptyOnboarding` / `_InspectionSetupCard`）と役割が重なるため、
-      どう統合するかは要判断。指示があれば進めます。
+すべて PR #149 に入っています。**マージするまでは効きません。**
+
+- [x] **アプリ内フィードバックの配線**
+      `feedback_screen.dart` ほか一式が未コミット・未配線のまま残っていた。
+      DI 登録・プロフィール画面「サポート」・ヘルプ画面末尾からの導線を追加。
+      `firestore.rules` に `feedback` の規則（本人が書くだけ・誰も読めない）と
+      ルールテスト10件。
+- [x] **初回ガイド（はじめの3ステップ）の配線**
+      同じく未配線で残っていた。愛車登録／車検満了日／整備記録1件を1枚のカードで
+      案内する。達成判定は実データから引くので、済んだ項目は消える。表示中は
+      車検の催促カードを重ねない。
+- [x] **走行記録が止まる条件を画面に明記**（D-1 の A案）
+      記録中の画面に「この画面を開いたままにしてください」を出す。
+- [x] **Firebase の Android アプリを `jp.trustcar.app` で新規登録**
+      `google-services.json` / `firebase_options.dart` / `ci.yml` を正しい値に差し替え。
+- [x] **テスト用 APK をビルドする CI ワークフロー**（`.github/workflows/test_apk.yml`）
+      開発機に Android SDK が無いため。署名鍵があれば release、無ければ profile。
+- [x] **Web を Firebase Hosting に出す設定とスクリプト**（`firebase.json` / `scripts/deploy_web.sh`）
+- [x] **リリース署名鍵の作成スクリプト**（`scripts/create_release_keystore.sh`）
+- [x] **規約・プライバシーポリシーを Web ビルドに同梱**
+- [x] **表示名がテンプレートのままだったのを修正**
+      Android のランチャーもブラウザのタブも `trust_car_platform` と出ていた。
+- [x] **`docs/_config.yml` で内部ドキュメントの公開を止める**（main に入って初めて効く・A-2）
+- [x] **テストユーザー向けの案内文**（`docs/TESTUSER_GUIDE.md`）
+
+### 残っている AI 側の宿題
+
+- [ ] `support@trustcar.jp` が受信できない場合の差し替え（A-7 の確認待ち）
+- [ ] フィードバックが溜まりはじめたらトリアージして Issue 化
 
 ---
 

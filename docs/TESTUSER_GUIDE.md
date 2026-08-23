@@ -18,7 +18,7 @@
 #### パソコン・スマホのブラウザで使う場合（かんたん・インストール不要）
 
 1. 次のURLを開いてください
-   `https://zashii5793.github.io/trust-car-platform/`
+   `https://trust-car-platform.web.app`
 2. 「新規登録」からメールアドレスとパスワードを登録してください
 3. そのままお使いいただけます
 
@@ -88,11 +88,12 @@
 
 ### 配布前のチェック
 
-- [ ] Firebase Auth の承認済みドメインに `zashii5793.github.io` を追加済み
+- [ ] `./scripts/deploy_web.sh` で Firebase Hosting へ公開済み（`trust-car-platform.web.app` は承認済みドメインに最初から入っています）
 - [ ] Firestore ルール・インデックスを本番へデプロイ済み（**未デプロイだとフィードバックが送信できません**）
 - [ ] 本番の `shops` から `demo_*` の架空店舗を削除または差し替え済み
 - [ ] 本番の Authentication に `persona.*@example.com` が残っていないことを確認済み
 - [ ] `seed_safety_tips.js` / `seed_community_trends.js` を投入済み（空の画面を減らすため）
+- [ ] GitHub Pages を停止済み（docs/ が全世界に公開されていました）
 - [ ] 公開URLでログイン〜愛車登録〜整備記録まで自分で1周した
 - [ ] Android版を配る場合、自分の実機で車検証OCRを1回試した
 

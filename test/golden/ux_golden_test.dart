@@ -1,3 +1,22 @@
+@Tags(['golden'])
+library;
+
+// ゴールデン画像は「撮った環境」に強く依存する。
+//
+// この画像は手元の macOS / Flutter 3.44.2 で撮ったもので、CI は
+// ubuntu-latest / Flutter 3.38.0 で走る。フォントのラスタライズも
+// ElevatedButton.icon が返すウィジェット構造もバージョンで変わるため、
+// 同じコードでも1ピクセル単位では一致しない。実際、CI ではこのファイルの
+// 全ケースが落ち続けていた。
+//
+// 見え方の確認は「直した本人が手元で目視する」ための道具なので、CI からは
+// 外す（ci.yml の --exclude-tags）。手元では今までどおり走る:
+//
+//   flutter test test/golden/
+//   flutter test --update-goldens test/golden/
+//
+// CI で見え方を守りたくなったら、先に CI と手元の Flutter を揃えること。
+
 // 直した画面の見え方を、画像にして残す。
 //
 // 更新: flutter test --update-goldens test/golden/ux_golden_test.dart

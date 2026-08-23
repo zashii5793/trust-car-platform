@@ -71,7 +71,7 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           set +e
-          flutter test --coverage --exclude-tags emulator 2>&1 | tee /tmp/test.log
+          flutter test --coverage --exclude-tags "emulator || golden" 2>&1 | tee /tmp/test.log
           STATUS=${PIPESTATUS[0]}
           if [ "$STATUS" -ne 0 ]; then
             echo "::group::失敗したテスト"
