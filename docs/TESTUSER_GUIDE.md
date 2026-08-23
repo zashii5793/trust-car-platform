@@ -114,7 +114,17 @@ Play の内部テストを使う段階になったら `scripts/create_release_ke
 ### フィードバックの見かた
 
 `feedback` コレクションに入ります。**セキュリティルール上、クライアントからは誰も読めません。**
-Firebase Console → Firestore → `feedback` で確認してください。
+読めるのは Admin SDK と Firebase Console だけです。
+
+```bash
+cd scripts && npm install                                   # 初回のみ
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/serviceAccount.json
+
+node read_feedback.js                    # 未対応を新しい順
+node read_feedback.js --type bug         # 不具合報告だけ
+node read_feedback.js --since 2026-08-24 # 配布日以降
+node read_feedback.js --all              # 対応済みも含める
+```
 
 | フィールド | 内容 |
 |---|---|
