@@ -70,7 +70,12 @@
     ol { margin: 0; padding-left: 1.3em; }
     ol li { margin-bottom: 12px; }
     .quote {
-      display: inline-block;
+      /* inline-block だと箱ごと次の行へ落ち、リストの番号と本文がずれる
+         （360px 幅で実際にそうなった）。inline + clone なら、文中の語と
+         同じように折り返しつつ、行またぎでも枠が付く。 */
+      display: inline;
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
       background: var(--bg);
       border: 1px solid var(--line);
       border-radius: 6px;
