@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'shop_list_screen.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
@@ -61,10 +63,17 @@ class _MyInquiriesScreenState extends State<MyInquiriesScreen> {
           final inquiries = provider.userInquiries;
 
           if (inquiries.isEmpty) {
-            return const AppEmptyState(
+            // Telling the user where inquiries come from is not the same as
+            // taking them there; this screen had no way out.
+            return AppEmptyState(
               icon: Icons.inbox_outlined,
               title: '問い合わせはありません',
-              description: '工場詳細画面から問い合わせを送れます',
+              description: '整備工場を探して、詳細画面から問い合わせを送れます',
+              buttonLabel: '整備工場を探す',
+              onButtonPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ShopListScreen()),
+              ),
             );
           }
 

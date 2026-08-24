@@ -26,9 +26,16 @@ const {
   setDoc,
   updateDoc,
   deleteDoc,
+  collection,
+  getDocs,
+  query,
+  where,
 } = require('firebase/firestore');
 
-const PROJECT_ID = 'trust-car-platform';
+// 既定は本番と同じ projectId。ローカルの Emulator にシードデータを入れたまま
+// テストしたいときは RULES_TEST_PROJECT_ID で別プロジェクトに逃がす
+// （clearFirestore() が projectId 単位で走るため、シードを壊さずに済む）。
+const PROJECT_ID = process.env.RULES_TEST_PROJECT_ID || 'trust-car-platform';
 const OWNER_UID = 'owner_user_123';
 const OTHER_UID = 'other_user_456';
 
@@ -590,5 +597,473 @@ describe('account_deletions/{uid}', () => {
     await assertFails(
       getDoc(doc(dbFor(OWNER_UID), `account_deletions/${OWNER_UID}`)),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// vehicles — 法人フリート（companyId）
+//
+// フリート管理画面は vehicles を companyId でクエリする。read ルールが userId
+// しか見ていないと list クエリごと拒否され、画面が「車両データの取得に失敗
+// しました」で固まる（実機確認 2026-08-20 で再現）。
+// ---------------------------------------------------------------------------
+
+const FLEET_OWNER_UID = 'fleet_owner_789';
+
+// フリート車両を配置する。companyId は法人オーナーの uid。
+async function seedFleetVehicle(id, { userId, companyId }) {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `vehicles/${id}`), {
+      userId,
+      companyId,
+      maker: 'Nissan',
+      model: 'Serena',
+      year: 2023,
+      mileage: 80000,
+    });
+  });
+}
+
+describe('vehicles — 法人フリートの companyId クエリ', () => {
+  test('法人オーナーは companyId == 自分の uid で車両一覧を取得できる', async () => {
+    await seedFleetVehicle('veh_fleet_1', {
+      userId: FLEET_OWNER_UID,
+      companyId: FLEET_OWNER_UID,
+    });
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(dbFor(FLEET_OWNER_UID), 'vehicles'),
+          where('companyId', '==', FLEET_OWNER_UID),
+        ),
+      ),
+    );
+  });
+
+  test('フリートに参加した他ユーザーの車両も法人オーナーは読める', async () => {
+    await seedFleetVehicle('veh_fleet_2', {
+      userId: OTHER_UID,
+      companyId: FLEET_OWNER_UID,
+    });
+    await assertSucceeds(
+      getDoc(doc(dbFor(FLEET_OWNER_UID), 'vehicles/veh_fleet_2')),
+    );
+  });
+
+  test('他人の companyId ではクエリできない', async () => {
+    await seedFleetVehicle('veh_fleet_3', {
+      userId: FLEET_OWNER_UID,
+      companyId: FLEET_OWNER_UID,
+    });
+    await assertFails(
+      getDocs(
+        query(
+          collection(dbFor(OTHER_UID), 'vehicles'),
+          where('companyId', '==', FLEET_OWNER_UID),
+        ),
+      ),
+    );
+  });
+
+  test('自分の車両（userId == uid）のクエリは従来どおり取得できる', async () => {
+    await seedFleetVehicle('veh_own_1', {
+      userId: OWNER_UID,
+      companyId: null,
+    });
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(dbFor(OWNER_UID), 'vehicles'),
+          where('userId', '==', OWNER_UID),
+        ),
+      ),
+    );
+  });
+
+  test('無条件の全件クエリは拒否される', async () => {
+    await seedFleetVehicle('veh_own_2', {
+      userId: OWNER_UID,
+      companyId: null,
+    });
+    await assertFails(getDocs(collection(dbFor(OWNER_UID), 'vehicles')));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// inquiries/{id}/messages — 会話の閲覧
+//
+// メッセージ単体の senderId / receiverId で判定していると list クエリを静的に
+// 検証できず、チャット画面が常に「メッセージはまだありません」になる。
+// アプリは receiverId を書き込まないため get も通らない（実機確認 2026-08-20）。
+// 判定は親 inquiry の当事者（userId / shopId）で行う。
+// ---------------------------------------------------------------------------
+
+const INQUIRY_ID = 'inq_1';
+const SHOP_UID = 'shop_owner_321';
+const inquiryPath = `inquiries/${INQUIRY_ID}`;
+const messagesPath = `${inquiryPath}/messages`;
+
+// 問い合わせ本体とショップからの返信メッセージを配置する。
+async function seedInquiryThread() {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), inquiryPath), {
+      userId: OWNER_UID,
+      shopId: SHOP_UID,
+      subject: '車検見積もりのお願い',
+      status: 'replied',
+    });
+    // ショップからの返信。アプリは receiverId を書かない。
+    await setDoc(doc(ctx.firestore(), `${messagesPath}/m_1`), {
+      senderId: SHOP_UID,
+      isFromShop: true,
+      isRead: false,
+      content: '概算で8万円前後です。',
+    });
+    await setDoc(doc(ctx.firestore(), `${messagesPath}/m_2`), {
+      senderId: OWNER_UID,
+      isFromShop: false,
+      isRead: true,
+      content: '火曜の午前でお願いできますか？',
+    });
+  });
+}
+
+describe('inquiries/{id}/messages — 会話の閲覧', () => {
+  test('問い合わせ本人はメッセージ一覧を取得できる', async () => {
+    await seedInquiryThread();
+    await assertSucceeds(
+      getDocs(collection(dbFor(OWNER_UID), messagesPath)),
+    );
+  });
+
+  test('宛先ショップはメッセージ一覧を取得できる', async () => {
+    await seedInquiryThread();
+    await assertSucceeds(getDocs(collection(dbFor(SHOP_UID), messagesPath)));
+  });
+
+  test('本人は相手が送ったメッセージ単体も読める', async () => {
+    await seedInquiryThread();
+    await assertSucceeds(
+      getDoc(doc(dbFor(OWNER_UID), `${messagesPath}/m_1`)),
+    );
+  });
+
+  test('無関係のユーザーは取得できない', async () => {
+    await seedInquiryThread();
+    await assertFails(getDocs(collection(dbFor(OTHER_UID), messagesPath)));
+  });
+
+  test('未認証は取得できない', async () => {
+    await seedInquiryThread();
+    await assertFails(getDocs(collection(unauthDb(), messagesPath)));
+  });
+});
+
+describe('inquiries/{id}/messages — 送信・既読', () => {
+  test('当事者は自分が送信者のメッセージを作成できる', async () => {
+    await seedInquiryThread();
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER_UID), `${messagesPath}/m_3`), {
+        senderId: OWNER_UID,
+        isFromShop: false,
+        isRead: false,
+        content: '了解しました',
+      }),
+    );
+  });
+
+  test('当事者でないユーザーは作成できない', async () => {
+    await seedInquiryThread();
+    await assertFails(
+      setDoc(doc(dbFor(OTHER_UID), `${messagesPath}/m_4`), {
+        senderId: OTHER_UID,
+        isFromShop: false,
+        isRead: false,
+        content: '割り込み',
+      }),
+    );
+  });
+
+  test('受信者は既読フラグだけ更新できる', async () => {
+    await seedInquiryThread();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER_UID), `${messagesPath}/m_1`), {
+        isRead: true,
+      }),
+    );
+  });
+
+  test('本文の書き換えは拒否される', async () => {
+    await seedInquiryThread();
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER_UID), `${messagesPath}/m_1`), {
+        content: '改ざん',
+      }),
+    );
+  });
+
+  test('自分が送ったメッセージを既読にすることはできない', async () => {
+    await seedInquiryThread();
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER_UID), `${messagesPath}/m_2`), {
+        isRead: false,
+      }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// vehicles — フリートオーナーによる担当者アサイン
+//
+// fleet_service.assignVehicle() は他ユーザー名義の車両に対しても
+// assigneeId / assigneeName を書き込む。update が所有者限定のままだと、
+// フリートに参加してもらった車両へ担当者を割り当てられない。
+// 逆に何でも書けてしまうと車両を奪える（companyId の書き換え）ため、
+// 許可するキーは担当者まわりに限定する。
+// ---------------------------------------------------------------------------
+
+describe('vehicles — フリートオーナーの担当者アサイン', () => {
+  // 他ユーザー名義でフリートに参加している車両。
+  async function seedJoinedVehicle() {
+    await seedFleetVehicle('veh_assign_1', {
+      userId: OTHER_UID,
+      companyId: FLEET_OWNER_UID,
+    });
+  }
+
+  const assignPath = 'vehicles/veh_assign_1';
+
+  test('フリートオーナーは担当者を割り当てられる', async () => {
+    await seedJoinedVehicle();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(FLEET_OWNER_UID), assignPath), {
+        assigneeId: 'driver_1',
+        assigneeName: 'ドライバー1',
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  test('フリートオーナーは担当者を外せる（null 代入）', async () => {
+    await seedJoinedVehicle();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(FLEET_OWNER_UID), assignPath), {
+        assigneeId: null,
+        assigneeName: null,
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  test('フリートオーナーは companyId を書き換えられない', async () => {
+    await seedJoinedVehicle();
+    await assertFails(
+      updateDoc(doc(dbFor(FLEET_OWNER_UID), assignPath), {
+        companyId: 'another_company',
+      }),
+    );
+  });
+
+  test('フリートオーナーは走行距離など他の項目を書き換えられない', async () => {
+    await seedJoinedVehicle();
+    await assertFails(
+      updateDoc(doc(dbFor(FLEET_OWNER_UID), assignPath), {
+        mileage: 1,
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  test('フリートオーナーは車両を削除できない', async () => {
+    await seedJoinedVehicle();
+    await assertFails(deleteDoc(doc(dbFor(FLEET_OWNER_UID), assignPath)));
+  });
+
+  test('無関係のユーザーは担当者を割り当てられない', async () => {
+    await seedJoinedVehicle();
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER_UID), assignPath), {
+        assigneeId: 'driver_1',
+        assigneeName: 'ドライバー1',
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  test('車両の所有者は従来どおり自由に更新できる', async () => {
+    await seedJoinedVehicle();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OTHER_UID), assignPath), {
+        mileage: 90000,
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  test('車両の所有者は従来どおり削除できる', async () => {
+    await seedJoinedVehicle();
+    await assertSucceeds(deleteDoc(doc(dbFor(OTHER_UID), assignPath)));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// comments — 添付画像の枚数制限
+//
+// コメントに画像を付けられるようにしたので、壊れたクライアントが
+// 何十枚も貼り付けてフィードを埋めないよう、サーバー側でも枚数を止める。
+// ---------------------------------------------------------------------------
+
+describe('comments — 添付画像', () => {
+  const commentPath2 = 'comments/cmt_img_1';
+
+  function commentData(imageUrls) {
+    return {
+      postId: 'post_1',
+      userId: OWNER_UID,
+      content: 'ここが気になります',
+      imageUrls,
+      parentCommentId: null,
+      likeCount: 0,
+      replyCount: 0,
+      isEdited: false,
+    };
+  }
+
+  test('画像なしのコメントは作成できる', async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER_UID), commentPath2), commentData([])),
+    );
+  });
+
+  test('画像2枚までは作成できる', async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(OWNER_UID), commentPath2),
+        commentData(['https://example.com/a.jpg', 'https://example.com/b.jpg']),
+      ),
+    );
+  });
+
+  test('画像3枚以上は拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(OWNER_UID), commentPath2),
+        commentData([
+          'https://example.com/a.jpg',
+          'https://example.com/b.jpg',
+          'https://example.com/c.jpg',
+        ]),
+      ),
+    );
+  });
+
+  test('imageUrls が配列でないコメントは拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(OWNER_UID), commentPath2),
+        commentData('https://example.com/a.jpg'),
+      ),
+    );
+  });
+
+  test('他人の userId を詐称したコメントは拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OTHER_UID), commentPath2), commentData([])),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// feedback — アプリ内の「ご意見・不具合の報告」
+//
+// 書き込み専用。他人の報告が読めると、連絡先メールと不具合内容がそのまま漏れる。
+// ---------------------------------------------------------------------------
+
+const feedbackPath = 'feedback/fb_1';
+
+function feedbackDoc(overrides = {}) {
+  return {
+    userId: OWNER_UID,
+    type: 'bug',
+    message: '車検証OCRが読み取れません',
+    appVersion: '1.0.0',
+    platform: 'android',
+    status: 'open',
+    ...overrides,
+  };
+}
+
+async function seedFeedback() {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), feedbackPath), feedbackDoc());
+  });
+}
+
+describe('feedback — create', () => {
+  test('本人は自分の userId で作成できる', async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER_UID), feedbackPath), feedbackDoc()),
+    );
+  });
+
+  test('他人の userId を詐称した作成は拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(OTHER_UID), feedbackPath),
+        feedbackDoc({ userId: OWNER_UID }),
+      ),
+    );
+  });
+
+  test('未認証ユーザーは作成できない', async () => {
+    await assertFails(setDoc(doc(unauthDb(), feedbackPath), feedbackDoc()));
+  });
+
+  test('空の本文は拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OWNER_UID), feedbackPath), feedbackDoc({ message: '' })),
+    );
+  });
+
+  test('2000文字を超える本文は拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(OWNER_UID), feedbackPath),
+        feedbackDoc({ message: 'あ'.repeat(2001) }),
+      ),
+    );
+  });
+
+  test('status を open 以外にして作成することはできない', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(OWNER_UID), feedbackPath),
+        feedbackDoc({ status: 'resolved' }),
+      ),
+    );
+  });
+});
+
+describe('feedback — read / update / delete', () => {
+  test('本人でも自分の報告を読み返せない（運用側専用）', async () => {
+    await seedFeedback();
+    await assertFails(getDoc(doc(dbFor(OWNER_UID), feedbackPath)));
+  });
+
+  test('他人の報告は読めない', async () => {
+    await seedFeedback();
+    await assertFails(getDoc(doc(dbFor(OTHER_UID), feedbackPath)));
+  });
+
+  test('本人でも更新できない', async () => {
+    await seedFeedback();
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER_UID), feedbackPath), { message: '書き換え' }),
+    );
+  });
+
+  test('本人でも削除できない', async () => {
+    await seedFeedback();
+    await assertFails(deleteDoc(doc(dbFor(OWNER_UID), feedbackPath)));
   });
 });

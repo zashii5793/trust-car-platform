@@ -111,6 +111,10 @@ class _StubMasterService implements VehicleMasterService {
 // ===========================================================================
 
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   bool addVehicleShouldFail = false;
 
   @override
@@ -382,7 +386,9 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pump();
 
-      expect(find.text('車両の写真を追加（任意）'), findsOneWidget);
+      // 1枚固定だった写真欄を、最大5枚のサムネイル一覧に変更した。
+      // 未選択のときは追加マスだけが並ぶ。
+      expect(find.text('写真を追加'), findsOneWidget);
     });
 
     testWidgets('5. 「次へ」button visible', (tester) async {

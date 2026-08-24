@@ -168,7 +168,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 AppSpacing.verticalXxs,
                                 Text(
-                                  '信頼を設計する、新時代のカーライフ',
+                                  'クルマを安心・安全に、楽しく管理',
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: Colors.white.withValues(alpha: 0.85),

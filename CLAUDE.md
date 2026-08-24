@@ -125,6 +125,7 @@ type: `feat` / `fix` / `test` / `docs` / `refactor` / `perf` / `ci`
 | `docs` | ドキュメントのみ |
 | `claude-task` | AIセッションで対応するタスク |
 | `priority: high` | 今週中に対応必須 |
+| `ios` | **iOS ビルドを CI で検証する。** macOS ランナーは課金が10倍なので、`build-ios` は main への push / 手動 / このラベル付き PR でしか走らない。**iOS に触る PR とストア申請前の PR には必ず付ける** |
 | `pm-report` | 週次PMレポート（自動生成） |
 
 ### Issue作成テンプレート
@@ -163,10 +164,81 @@ gh pr create --title "feat: <機能名>" --body "Closes #<番号>" --base main
 
 ## 品質チェック（Phase完了時）
 
-- [ ] `flutter test --exclude-tags emulator` 全件パス
-- [ ] `flutter analyze lib/` クリーン
+**CI と同じコマンドを打つこと。** 手元だけ通っても意味がない。
+
+- [ ] `flutter test --exclude-tags "emulator || golden"` 全件パス
+- [ ] `flutter analyze --fatal-infos` クリーン（**`lib/` だけでは足りない**）
+- [ ] `dart format --set-exit-if-changed lib test` が通る
 - [ ] Provider内で直接 `new` していない
 - [ ] `CLAUDE_SESSION_NOTES.md` に進捗記録
+
+### なぜ `lib/` だけでは足りないか
+
+CI は `test` も含めて `--fatal-infos` で解析する。2026-08-22 に、
+**`lib/` だけ見ていたために CI が3回続けて止まった。**
+
+```
+ 1回目  dart format 未適用
+ 2回目  PostPage の導入が途中／Color.red の非推奨
+ 3回目  テストは新メソッドを @override しているのに、本体に無い
+```
+
+**3件とも「test が先行して、lib が追いついていない」形。**
+`lib/` だけを見ると、この向きの破損は原理的に見つからない。
+
+### 未コミットの作業をまとめて取り込むとき
+
+他のセッションの作業中コードをコミットする場合は、**その場で上の4つを通す。**
+通っていないものを取り込むと、**取り込んだ側の責任で直すことになる。**
+
+### バージョンを揃える
+
+`dart format` の出力は Dart の版で変わる。手元と CI が違うと、
+**手元で整形すると CI で落ちる**（2026-08-22 実測: 359ファイルが差分になった）。
+
+```
+ CI       Flutter 3.38.0（.github/workflows/ci.yml）
+ 開発機    3.44.2（2026-08-23 実測。★揃っていない）
+```
+
+**揃っていないと、整形以外も食い違う。** 2026-08-23 に踏んだ例:
+
+```
+ ElevatedButton.icon が返す型
+   3.38  _ElevatedButtonWithIcon（ElevatedButton のサブクラス）
+   3.44  ElevatedButton
+```
+
+`find.byType` は runtimeType の完全一致でサブクラスに当たらないため、
+`find.widgetWithText(ElevatedButton, '...')` が **手元では通り CI では落ちる**。
+同じ理由でゴールデン画像も一致しない（フォントのラスタライズも版で変わる）。
+
+同種の食い違いを避けるには、テスト側で型の完全一致に頼らないこと。
+
+```dart
+// 弱い: 実装の型が変わると落ちる
+find.widgetWithText(ElevatedButton, 'ラベル')
+
+// 強い: サブクラスでも当たる
+find.ancestor(
+  of: find.text('ラベル'),
+  matching: find.byWidgetPredicate((w) => w is ElevatedButton),
+)
+```
+
+### ゴールデンテストは CI から外してある
+
+`test/golden/` は `@Tags(['golden'])` を付けて CI の対象外にしている。
+画像は撮った環境（OS・Flutter の版・フォント）に依存し、手元 macOS で撮ったものが
+Linux の CI で一致することはない。**見え方は直した本人が手元で目視する**もの、
+という位置づけ。
+
+```bash
+flutter test test/golden/                    # 手元では走る
+flutter test --update-goldens test/golden/   # 撮り直し
+```
+
+CI でも見え方を守りたくなったら、先に CI と開発機の Flutter を揃えること。
 
 ## コンテキスト参照先
 

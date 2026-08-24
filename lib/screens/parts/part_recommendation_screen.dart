@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/part_listing.dart';
+import '../marketplace/part_list_screen.dart';
 import '../../models/post.dart';
 import '../../models/vehicle.dart';
 import '../../providers/part_recommendation_provider.dart';
@@ -96,12 +97,29 @@ class _PartRecommendationScreenState extends State<PartRecommendationScreen> {
     final items = provider.filteredRecommendations;
 
     if (items.isEmpty) {
+      // With a category selected the user can widen the search here; with
+      // none selected there is genuinely nothing to recommend yet, so send
+      // them to the marketplace instead of leaving the screen closed.
+      final filtered = provider.selectedCategory != null;
       return AppEmptyState(
         icon: Icons.search_off,
-        title: provider.selectedCategory != null
+        title: filtered
             ? '${provider.selectedCategory!.displayName}の提案はありません'
             : '現在ご利用いただける提案はありません',
-        description: 'マーケットプレイスにパーツ情報が登録されると\nここに提案が表示されます',
+        description: filtered
+            ? '絞り込みを外すと、この車に合う提案がすべて表示されます'
+            : 'マーケットプレイスにパーツが登録されると、ここに提案が出ます',
+        buttonLabel: filtered ? '絞り込みをクリア' : 'マーケットプレイスを見る',
+        onButtonPressed: () {
+          if (filtered) {
+            provider.selectCategory(null);
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PartListScreen()),
+          );
+        },
       );
     }
 
@@ -139,20 +157,19 @@ class _CategoryFilterBar extends StatelessWidget {
     // Show only categories that have results (or all if no results yet)
     final availableCategories = PartCategory.values;
 
-    return Container(
-      height: 48,
+    // Sized from content. A fixed 48 minus 8+8 padding left each chip 32px,
+    // but a FilterChip needs more than that, so every label sat low.
+    return ColoredBox(
       color: Theme.of(context).colorScheme.surface,
-      child: ListView.builder(
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.xs,
         ),
-        itemCount: availableCategories.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            // "すべて" chip
-            return Padding(
+        child: Row(
+          children: [
+            Padding(
               padding: const EdgeInsets.only(right: AppSpacing.xs),
               child: FilterChip(
                 label: const Text('すべて'),
@@ -162,21 +179,22 @@ class _CategoryFilterBar extends StatelessWidget {
                   provider.loadRecommendations(vehicle);
                 },
               ),
-            );
-          }
-          final category = availableCategories[index - 1];
-          return Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.xs),
-            child: FilterChip(
-              label: Text(category.displayName),
-              selected: provider.selectedCategory == category,
-              onSelected: (_) {
-                provider.selectCategory(category);
-                provider.loadRecommendations(vehicle, category: category);
-              },
             ),
-          );
-        },
+            ...availableCategories.map(
+              (category) => Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.xs),
+                child: FilterChip(
+                  label: Text(category.displayName),
+                  selected: provider.selectedCategory == category,
+                  onSelected: (_) {
+                    provider.selectCategory(category);
+                    provider.loadRecommendations(vehicle, category: category);
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -803,13 +821,13 @@ class _OwnerExamplesSectionState extends State<_OwnerExamplesSection> {
       return;
     }
     final result = await sl.get<PostService>().getFeed(
-          category: PostCategory.customization,
-          modelName: widget.vehicle.model,
-          limit: 5,
-        );
+      categories: const {PostCategory.customization},
+      modelName: widget.vehicle.model,
+      limit: 5,
+    );
     if (!mounted) return;
     setState(() {
-      _posts = result.valueOrNull ?? const [];
+      _posts = result.valueOrNull?.posts ?? const [];
       _loaded = true;
     });
   }

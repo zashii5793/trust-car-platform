@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart' hide FirebaseService;
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'core/di/injection.dart';
@@ -46,6 +48,37 @@ import 'providers/ai_chat_provider.dart';
 import 'providers/theme_provider.dart';
 import 'services/ai_chat_service.dart';
 
+/// Forces the Firebase Emulator connection regardless of platform.
+///
+/// Set with `flutter build web --dart-define=USE_EMULATOR=true` (or the same
+/// flag on `flutter run`) to point a web build at the locally seeded emulator
+/// instead of the production project. Defaults to false, so release builds are
+/// unaffected.
+const bool kUseEmulator = bool.fromEnvironment('USE_EMULATOR');
+
+/// Opts a locally served web build back out of the emulator.
+///
+/// Build with `--dart-define=USE_PRODUCTION=true` when the point of running on
+/// localhost is to exercise the real project.
+const bool kUseProduction = bool.fromEnvironment('USE_PRODUCTION');
+
+/// Whether this run should talk to the Firebase Emulator suite.
+///
+/// Debug builds on native platforms have always used it. Web builds opt in
+/// either explicitly (`USE_EMULATOR`) or implicitly by being served from
+/// localhost — a deployed build (GitHub Pages, App Store) never matches, so
+/// production traffic is unaffected.
+bool get useEmulatorSuite {
+  if (kUseProduction) return false;
+  if (kUseEmulator) return true;
+  if (kDebugMode && !kIsWeb) return true;
+  if (kIsWeb) {
+    final host = Uri.base.host;
+    return host == 'localhost' || host == '127.0.0.1';
+  }
+  return false;
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -53,15 +86,21 @@ void main() async {
   );
 
   // Use Firebase Emulator in debug mode (local development).
-  // Skipped on web so `flutter run -d chrome` targets the production project
-  // instead of requiring a locally running emulator.
-  if (kDebugMode && !kIsWeb) {
+  // Skipped on web by default so `flutter run -d chrome` targets the production
+  // project instead of requiring a locally running emulator. Pass
+  // `--dart-define=USE_EMULATOR=true` to force the emulator on any platform —
+  // this is how the seeded persona data is exercised from a web build.
+  if (useEmulatorSuite) {
     await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
+    // useFirestoreEmulator already rewrites `settings` (host, sslEnabled and
+    // persistence). Assigning a fresh Settings afterwards clobbered that
+    // rewrite, which left the client sending unauthenticated reads — every
+    // query then failed the `request.auth != null` rule and screens rendered
+    // as if the account had no data. Do not add a settings assignment here.
     FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
-    // Disable persistence for emulator (data is ephemeral)
-    FirebaseFirestore.instance.settings = const Settings(
-      persistenceEnabled: false,
-    );
+    // 画像アップロードも Emulator に向ける。これが無いと、Auth と Firestore は
+    // ローカルなのに画像だけ本番バケットへ飛び、確認中に本番を汚してしまう。
+    await FirebaseStorage.instance.useStorageEmulator('localhost', 9199);
   } else {
     // Production: enable offline persistence with 100MB cache
     FirebaseFirestore.instance.settings = const Settings(
@@ -212,6 +251,16 @@ class MyApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeProvider.themeMode,
+          // Date pickers and other Material widgets ship English strings unless
+          // the localization delegates are registered. Every date field in the
+          // app (車検満了日 / 自賠責保険期限 ほか) depends on this.
+          locale: const Locale('ja'),
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('ja'), Locale('en')],
           // Enable drag-to-scroll with mouse/trackpad on web & desktop.
           scrollBehavior: const AppScrollBehavior(),
           home: const AuthWrapper(),

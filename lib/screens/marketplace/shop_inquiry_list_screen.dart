@@ -82,16 +82,23 @@ class _ShopInquiryListScreenState extends State<ShopInquiryListScreen> {
                 final inquiries = provider.shopInquiries;
 
                 if (inquiries.isEmpty) {
+                  // Filtered-empty needs a way back to "all"; unfiltered-empty
+                  // is a genuine no-action state (inquiries arrive from users),
+                  // so only the filtered branch gets a button.
+                  final filtered = _selectedStatus != null;
                   return AppEmptyState(
-                    icon: _selectedStatus != null
-                        ? Icons.filter_list_off
-                        : Icons.mail_outline,
-                    title: _selectedStatus != null
-                        ? '該当する問い合わせがありません'
-                        : '問い合わせはありません',
-                    description: _selectedStatus != null
-                        ? 'フィルターを変更してみてください'
+                    icon: filtered ? Icons.filter_list_off : Icons.mail_outline,
+                    title: filtered ? '該当する問い合わせがありません' : '問い合わせはありません',
+                    description: filtered
+                        ? '絞り込みを外すと、すべての問い合わせが表示されます'
                         : 'ユーザーからの問い合わせがここに表示されます',
+                    // Unfiltered-empty has no authoring action (inquiries
+                    // arrive from users), but reloading is always meaningful:
+                    // it separates "nothing yet" from "did not load".
+                    buttonLabel: filtered ? 'すべて表示' : '再読み込み',
+                    onButtonPressed: () => filtered
+                        ? _applyFilter(null)
+                        : provider.loadShopInquiries(widget.shopId),
                   );
                 }
 

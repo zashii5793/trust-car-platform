@@ -1,424 +1,497 @@
 # 人間が実施すべきタスク一覧
 
-**最終更新**: 2026-06-30  
-**前提**: AIが実装・テスト・コードプッシュまで完了済み。以下は **AIでは代替できない** 操作のみ。
+**最終更新**: 2026-08-17
+**前提**: AIが実装・テスト・コードプッシュまで完了済み。以下は **AIでは代替できない** 操作、および **人間の意思決定が必要な事項** のみ。
 **出荷目標**: 2026年8月ソフトローンチ（逆算計画は `docs/LAUNCH_PLAN.md`）。
-**進捗メモ**: Apple Developer Program は**申請済み（承認待ち）** — 承認後に下記 P1-5（iOS証明書）着手可。
+
+> **来週テストユーザーに触ってもらう分だけを知りたい場合は、
+> `docs/TESTUSER_ROLLOUT_2026-08.md` を先に読んでください。**
+> このドキュメントはストア公開までの全量です。テスト配布に不要な項目も含みます。
+
+## このドキュメントの読み方
+
+各項目に **検証状態** を付けています。
+
+| 表記 | 意味 |
+|---|---|
+| `[コード検証済]` | リポジトリのコードを読んで、未対応であることをAIが確認した |
+| `[実測]` | 実際に動かして確認した |
+| `[要確認]` | Firebase Console / Apple Developer など、AIから見えない領域。人間の確認が必要 |
 
 ---
 
-## P0 — リリースブロッカー（今週中）
+## P0 — リリースブロッカー
 
-### 0. Google Maps API キーの設定（Issue #41 Phase 1 対応）
+### 1. Android リリース署名の設定 `[コード検証済]`
 
-**なぜ必要**: `google_maps_flutter` を追加しました。APIキーがないと地図がエラー表示になります。
+**状態**: **未対応。現在リリースビルドが debug 鍵で署名されています。**
+
+`android/app/build.gradle.kts` に以下が残っています。
+
+```kotlin
+buildTypes {
+    release {
+        // TODO: Add your own signing config for the release build.
+        // Signing with the debug keys for now, so `flutter run --release` works.
+        signingConfig = signingConfigs.getByName("debug")
+    }
+}
+```
+
+**この状態では Google Play にアップロードできません**（debug 署名の AAB は受け付けられない）。ローンチ前に必ず解消が必要です。
 
 **手順**:
-1. [Google Cloud Console](https://console.cloud.google.com/) → API とサービス → 認証情報 → APIキー作成
-2. Maps SDK for Android / Maps SDK for iOS を有効化
-3. GitHub リポジトリ → Settings → Secrets and variables → Actions に `GOOGLE_MAPS_API_KEY` を追加
-4. ローカル開発: `android/local.properties` に `GOOGLE_MAPS_API_KEY=<実キー>` を追記（`.gitignore` 対象）
-   iOS: `ios/Runner/AppDelegate.swift` の `TODO` 行に実キーを設定（本番ビルド時のみ）
 
-**注意**: APIキーなしでも `flutter analyze`・`flutter test` は全件パスします。地図タイルは表示されません。
+```bash
+# 1. キーストア生成（1回だけ・紛失するとアプリ更新が永久に不可能）
+keytool -genkey -v -keystore ~/trustcar-release.keystore \
+  -alias trust-car-platform \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+2. `android/key.properties` を作成（`.gitignore` 対象）:
+```properties
+storePassword=<パスワード>
+keyPassword=<パスワード>
+keyAlias=trust-car-platform
+storeFile=/Users/<ユーザー名>/trustcar-release.keystore
+```
+
+3. `build.gradle.kts` の署名設定変更を AI に依頼（`key.properties` を読み込む `signingConfigs` の追加）
+
+4. 検証: `flutter build appbundle --release` → `jarsigner -verify -verbose build/app/outputs/bundle/release/app-release.aab`
+
+**所要時間**: 30分
+**重要**: キーストアと `key.properties` はパスワードマネージャ等に厳重保管。**Google Play App Signing に登録すれば紛失リスクは緩和できる**ため、初回アップロード時に有効化を推奨。
+
+---
+
+### 2. Firestore セキュリティルール・インデックスのデプロイ `[要確認]`
+
+**なぜ必要**: 未デプロイだと該当機能の読み書きが全てルールで弾かれます。
+
+現在 `firestore.rules` は789行あり、以下を含みます（前回デプロイ以降の追加分は Console のバージョン履歴で要確認）:
+- `fleet_members`, `accessory_showcases`, `car_purchase_inquiries`, `safety_tips`, `shop_chains`
+- `community_maintenance_trends`（読み取り=認証済み、書き込み=AdminSDKのみ）
+- `accessory_showcases/{id}/comments` サブコレクションと `comment_reports/{reportId}`
+- `vehicle_sharing_permissions`（#76）
+
+複合インデックス:
+- `safety_tips`: `isActive + publishedAt`, `isActive + category + publishedAt`
+- `inquiries`: `shopId + createdAt`（工場ダッシュボードの月次レポート #39 の前提）
+
+**デプロイ手順チェックリスト**:
+- [ ] `firebase login`（プロジェクトオーナー権限）
+- [ ] `git pull`（最新の `firestore.rules` / `firestore.indexes.json`）
+- [ ] ローカル検証: `cd test/rules && npm install && npm test`
+- [ ] ドライラン: `firebase deploy --only firestore:rules --dry-run`
+- [ ] 本番反映: `firebase deploy --only firestore:rules,firestore:indexes`
+- [ ] Firebase Console → Firestore → ルール → バージョン履歴で反映時刻を確認
+
+**所要時間**: 5分（インデックス構築は数分〜数十分かかる場合あり）
+
+---
+
+### 3. Google Maps API キーの設定 `[実測: 未設定]`
+
+**状態**: **未設定を実測で確認しました。** ブラウザのコンソールに以下が出ています。
+
+```
+Google Maps JavaScript API warning: InvalidKey
+```
+
+**影響範囲**: 近隣工場の地図表示（#43 / #125）。ただし `MapsConfig.isConfigured` でガードされており、**キーが無い場合は距離順リストにフォールバック**します。アプリがクラッシュすることはありません。
+
+**手順**:
+1. [Google Cloud Console](https://console.cloud.google.com/) → APIとサービス → 認証情報 → APIキー発行
+2. 有効化するAPI（コスト最適化のため段階的に）:
+   - **フェーズ1a**: Maps SDK for Android / Maps SDK for iOS（地図表示）
+   - **フェーズ1b（任意）**: Places API（非提携先の近隣検索。**従量課金が高いため要判断**）
+3. APIキー制限（必須・漏洩対策）:
+   - Android: パッケージ名 `jp.trustcar.app` ＋ SHA-1 で制限
+   - iOS: Bundle ID `jp.trustcar.app` で制限
+   - 各キーで「使用するAPIのみ」に制限
+4. アプリへの設定（ハードコード禁止）:
+   - Android: `android/local.properties` に `MAPS_API_KEY=<実キー>`、または環境変数 `MAPS_API_KEY` / `GOOGLE_MAPS_API_KEY`
+     （`build.gradle.kts` の `manifestPlaceholders` が3経路とも読むよう実装済み）
+   - iOS: `ios/Runner/AppDelegate.swift` で注入
+   - CI: GitHub Secrets に `GOOGLE_MAPS_API_KEY`
+5. Google Cloud で **予算アラート**を設定（無料枠超過の早期検知）
+
+**コスト目安（2026年時点・要最新確認）**:
+- 地図表示（Dynamic Maps, Essentials）: 月10,000ロードまで無料、超過後 約$7/1,000
+- Places 近隣検索（Pro）: 無料枠5,000/月、超過後 約$25〜/1,000
+- → フェーズ1a は無料枠内に収まりやすい。Places は1商圏限定＋キャッシュでコスト管理
+
+**所要時間**: 1〜2時間
+**前提条件**: Google Cloud プロジェクトのオーナー権限・課金有効化
+
+---
+
+### 4. Firebase Authentication の本番設定 `[要確認]`
+
+**手順**:
+1. Firebase Console → Authentication → Sign-in method
+2. 以下を有効化:
+   - **メール / パスワード**（本番にテストユーザーが存在するため、有効化済みの可能性が高い。要確認）
+   - **Google**: SHA-1 フィンガープリントを追加（Android）
+   - **Apple**: iOS のガイドライン4.8対応。`SignInWithAppleButton` は実装済み
+3. 承認済みドメインに本番ドメインを追加（Web版 = `zashii5793.github.io`）
 
 **所要時間**: 15分
 
 ---
 
-### 1. Firestoreセキュリティルールのデプロイ
+## P1 — ローンチ前必須
 
-**なぜ必要**: 以下のルールが追加済みで未デプロイ：
-- 前セッション: `fleet_members`, `accessory_showcases`, `car_purchase_inquiries`, `safety_tips`, `shop_chains`
-- 今セッション: `community_maintenance_trends`（読み取り=認証済み、書き込み=AdminSDKのみ）
-- C2C凍結セッション（2026-06-18〜）: `accessory_showcases/{id}/comments` サブコレクション
-  （読み取り=認証済み、作成/削除=投稿者本人のみ、編集=投稿者本人のみ、
-  いいね=`likeCount` ±1 のみ誰でも可、`comments/{id}/likes/{uid}` は本人のみ作成/削除）。
-  さらに `comment_reports/{reportId}`（コメント通報＝作成は本人のみ・読取/更新/削除はサーバー専用）。
-  **未デプロイだと showcase コメントの投稿・いいね・通報が全て弾かれる**。
-本番反映しないと全ユーザーの書き込みがルールで弾かれる。また、`safety_tips`コレクションの複合インデックス（`isActive + publishedAt`, `isActive + category + publishedAt`）も追加済み。
-- 事業性評価セッション（2026-06-19）: `inquiries` の複合インデックス `shopId + createdAt`（ASC）を追加済み。
-  **未デプロイだと工場ダッシュボードの月次レポート（ROI可視化 #39）と月次件数チェックがクエリエラーになる**。
+### 5. iOS: Apple Developer Account でのApp ID・証明書設定 `[要確認]`
 
-> ✅ **デプロイ前検証**: `cd test/rules && npm install && npm test` で Firestore/Storage の
-> ルールを Emulator 検証できる（CI の "Storage & Firestore Rules Tests" でも自動実行）。
-> デプロイ前にローカルで一度流すと安全。
-
-#### デプロイ手順チェックリスト（ルール）
-- [ ] `firebase login`（プロジェクトオーナー権限）
-- [ ] `git pull`（最新の `firestore.rules` / `firestore.indexes.json` を取得）
-- [ ] **ドライラン**: `firebase deploy --only firestore:rules --dry-run`（差分とコンパイル確認）
-- [ ] `cd test/rules && npm test`（Emulator でルールテストが緑か）
-- [ ] 本番反映: `firebase deploy --only firestore:rules,firestore:indexes`
-- [ ] Firebase Console → Firestore → ルール → バージョン履歴で反映時刻を確認
-
-**手順**:
-```bash
-# プロジェクトルートで実行
-firebase deploy --only firestore:rules,firestore:indexes
-```
-
-**確認方法**:
-- Firebase Console → Firestore → ルール → バージョン履歴で最新デプロイ日時を確認
-- [Firestore Rules Simulator](https://console.firebase.google.com/) でテストリクエストを投げて動作確認
-
-**所要時間**: 5分  
-**前提条件**: `firebase login` 済み・プロジェクトオーナー権限
-
----
-
-### 2. Firebase Authentication の本番有効化
-
-**なぜ必要**: メールリンク認証・Google Sign-In を本番で有効にするにはFirebase Consoleの操作が必要。
-
-**手順**:
-1. Firebase Console → Authentication → Sign-in method
-2. 以下を「有効」に設定:
-   - **メール / パスワード**: 有効 ✅
-   - **Google**: 有効 → SHA-1 フィンガープリントを追加（Androidの場合）
-3. 承認済みドメインに本番ドメインを追加（Webの場合）
-
-**所要時間**: 15分  
-**前提条件**: Firebase Consoleのオーナー権限
-
----
-
-## P2 — 任意（運用効率化）
-
-### C2C凍結フラグの Remote Config パラメータ作成
-
-**なぜ必要**: `FeatureFlag.c2cPartsMarketplace` の再開判断を、**アプリ再リリースなし**で
-運用側から切り替えられるようにする。
-
-**実装済み（コード・依存は完了）**:
-- `firebase_remote_config 6.5.1` を追加（**`firebase_core` は 4.9.0 に固定**して、共有 Firebase iOS SDK
-  ポッドの巻き上げ＝`cloud_firestore` の iOS ビルド破壊を回避）
-- `FirebaseRemoteFlagSource`（`RemoteFlagSource` 実装）＋ `FeatureFlagService` を `injection.dart` に
-  配線済み。起動時に `sync()` で Remote Config を取得し `AppConfig` に反映。未設定・取得失敗時は
-  ローカル既定値（凍結）を維持（フェイルセーフ）
-
-**残りの作業（人間が実施）**:
-1. **Firebase Console → Remote Config** でパラメータ作成:
-   - キー名: `c2c_parts_marketplace` / 型: Boolean / デフォルト: `false`（凍結のまま）
-2. CI の **build-ios / build-android** が緑であることを確認（ネイティブビルド検証）
-3. 動作確認: Remote Config で `true` に変更 → アプリ再起動でマーケットの
-   「パーツ」「マイ出品」タブが復活すること
-
-**注意**: 将来 `firebase_core` を上げる際は、`cloud_firestore` の iOS ネイティブコードと
-Firebase iOS SDK の整合（CocoaPods）を必ず CI ビルドで確認すること。
-
-**所要時間**: 15分  
-**前提条件**: Firebase Console のオーナー権限
-
----
-
-### 3. google-services.json / GoogleService-Info.plist の配置（新端末ビルド時）
-
-**なぜ必要**: `.gitignore` で管理外のため、新しいマシンでビルドする際に再配置が必要。
-
-**手順**:
-1. Firebase Console → プロジェクト設定 → マイアプリ
-2. **Android**: `google-services.json` をダウンロード → `android/app/` に配置
-3. **iOS**: `GoogleService-Info.plist` をダウンロード → `ios/Runner/` に配置
-
-**所要時間**: 5分
-
----
-
-## P1 — ローンチ前必須（2週間以内）
-
-### 4. FCM（Firebase Cloud Messaging）サーバーキーの設定
-
-**なぜ必要**: Push通知（車検アラート）はFCMサーバーキーなしに機能しない。
-
-**手順**:
-1. Firebase Console → プロジェクト設定 → Cloud Messaging → サーバーキー
-2. サーバーキーをコピー
-3. GitHub Secrets に `FCM_SERVER_KEY` として登録
-4. iOS: APNs認証キーを Firebase Console にアップロード（Developer Accountが必要）
-
-**所要時間**: 30分（APNs設定含む）  
-**前提条件**: Apple Developer Account・Firebase Consoleオーナー権限
-
----
-
-### 5. iOS: Apple Developer Account でのApp ID・証明書設定
-
-**なぜ必要**: TestFlight配布・App Store申請に必要。AIではApple Developer Consoleを操作できない。
-**状態**: Apple Developer Program は**申請済み（承認待ち）**。承認後に本タスク着手可。
+**状態**: Apple Developer Program の承認状況を要確認（前回記録では申請済み・承認待ち）。
 
 **手順**:
 1. [Apple Developer Console](https://developer.apple.com/account/) → Certificates, Identifiers & Profiles
-2. App ID 登録: **`jp.trustcar.app`**（実プロジェクトの Bundle ID。Android `applicationId` / iOS `PRODUCT_BUNDLE_IDENTIFIER` と一致済み）
-3. Distribution Certificate の作成（期限切れ確認）
+2. App ID 登録: **`jp.trustcar.app`**（`[コード検証済]` iOS の `PRODUCT_BUNDLE_IDENTIFIER`、Android の `applicationId` ともに一致済み）
+3. Distribution Certificate の作成
 4. Provisioning Profile の作成（App Store Distribution用）
 5. Xcode → Signing & Capabilities → Team 設定
+6. **Sign in with Apple** の Capability を有効化（ガイドライン4.8対応で必須）
 
-**所要時間**: 1〜2時間（初回）  
-**前提条件**: Apple Developer Program（年間$99）への加入
+**所要時間**: 1〜2時間（初回）
+**前提条件**: Apple Developer Program（年間$99）
 
 ---
 
-### 6. Android: キーストアの生成とリリースビルド設定
-
-**なぜ必要**: Google Play Store への申請にはリリース署名が必要。
+### 6. FCM（Push通知）の設定 `[要確認]`
 
 **手順**:
-```bash
-# キーストア生成（1回だけ実施・紛失厳禁）
-keytool -genkey -v -keystore release.keystore \
-  -alias trust-car-platform \
-  -keyalg RSA -keysize 2048 -validity 10000
-```
+1. Firebase Console → プロジェクト設定 → Cloud Messaging
+2. iOS: **APNs認証キー**（.p8）を Firebase Console にアップロード（Apple Developer Account が必要）
+3. Android: 追加設定は基本不要（`google-services.json` に含まれる）
+4. Xcode: Push Notifications / Background Modes（Remote notifications）の Capability を有効化
 
-2. `android/key.properties` に以下を記述（gitignore済み）:
-```properties
-storePassword=<パスワード>
-keyPassword=<パスワード>
-keyAlias=trust-car-platform
-storeFile=../../release.keystore
-```
-
-3. `android/app/build.gradle` のリリースビルド設定確認（AIが設定済みか確認）
-
-**所要時間**: 30分  
-**重要**: `release.keystore` は厳重保管（紛失するとアプリ更新不可）
+**所要時間**: 30分
+**前提条件**: Apple Developer Account・Firebase Console オーナー権限
 
 ---
 
-### 7. RevenueCat のAPIキー設定
+### 7. RevenueCat のAPIキー設定 `[コード検証済: 環境変数注入は実装済み]`
 
-**なぜ必要**: プレミアムプラン・フリートエンタープライズのサブスクリプション課金に必要。
+**状態**: #118 でハードコードを廃止し、`.env` / `--dart-define` 両対応済み。`.env.example` にテンプレートあり。**キーの値そのものは未設定**。
 
 **手順**:
 1. [RevenueCat Dashboard](https://app.revenuecat.com/) でアカウント作成
 2. アプリを登録（iOS・Android）
-3. Public APIキーをコピー
-4. `.env` ファイルまたは GitHub Secrets に `REVENUE_CAT_API_KEY_IOS` / `REVENUE_CAT_API_KEY_ANDROID` として登録
-5. App Store Connect / Google Play Console でサブスクリプション商品を作成
+3. Public SDK キーをコピー（**secret API キーではない**）
+4. 設定（いずれか）:
+   - ローカル: `cp .env.example .env` して `REVENUE_CAT_API_KEY_IOS` / `REVENUE_CAT_API_KEY_ANDROID` を記入
+   - CI/リリース: `flutter build ... --dart-define=REVENUE_CAT_API_KEY_ANDROID=goog_xxx`
+5. App Store Connect / Google Play Console でサブスクリプション商品を作成し、RevenueCat に紐付け
 
-**所要時間**: 2〜3時間（商品作成含む）  
-**前提条件**: App Store Connect / Google Play Console のアカウント
-
----
-
-### 8. 実機テスト（iOS / Android）
-
-**なぜ必要**: エミュレーターでは再現しない問題（カメラ・GPS・ビープ通知・バイオ認証）の確認が必要。
-
-**確認必須項目**:
-- [ ] 車検証OCRカメラが起動する
-- [ ] GPS位置情報で近くの整備工場が距離順に並ぶ
-- [ ] Push通知が届く（FCM設定後）
-- [ ] Google Sign-In が動作する
-- [ ] 画像のアップロード（Firebase Storage）が動作する
-- [ ] 整備記録の入力→保存→一覧表示が動作する
-- [ ] 個人情報（車検証の内容）が適切に暗号化されている
-
-**所要時間**: 半日（2台以上で確認推奨）
+**所要時間**: 2〜3時間（商品作成含む）
 
 ---
 
-### 9. Firestore バックアップ設定
+### 8. GoogleService-Info.plist が別アプリのもの `[実測: iOS が起動しません]`
 
-**なぜ必要**: 本番データの誤削除リスクに備える。AIではFirebase Console操作不可。
+> **2026-08-21 に格上げ。** この項目は「新端末ビルド時に再配置が必要」と書いていましたが、
+> **実態は「置いてあるファイルが別アプリのもの」**でした。**P0 相当です。**
+
+**iOS シミュレータでアプリが起動しません。** 白画面のまま、UI が一度も描かれません。
+
+```
+Unhandled Exception: [core/duplicate-app] A Firebase App named "[DEFAULT]" already exists
+  #2  main (package:trust_car_platform/main.dart:84:3)
+```
+
+`main()` の 1 行目で例外が出て、そこで止まっています。
+
+**原因**: 設定が 2 か所で食い違っています。
+
+| | `ios/Runner/GoogleService-Info.plist` | `lib/firebase_options.dart` |
+|---|---|---|
+| Bundle ID | **`com.example.trustCarPlatform`** | `jp.trustcar.app` |
+| API Key | `AIzaSyBt0hMKqo…` | `AIzaSyDZQ4UK6I…` |
+
+**実際の Bundle ID は `jp.trustcar.app`**（`ios/Runner.xcodeproj/project.pbxproj`）。
+plist は **Flutter のテンプレート既定のまま**で、取り直されていません。
+
+`firebase_core 4.9.0` は iOS でネイティブ側が先に plist から既定アプリを作ります。
+そのあと Dart が別の設定で初期化しようとして衝突します。
+
+**なぜ気づかれなかったか**
+
+```
+ CI            iOS を「ビルド」はするが「起動」はしない → 通る
+ テスト3,988件  Firebase を差し替えたテストなので通る
+ 実機テスト      P1-9 が未実施
+```
+
+**ビルドが通ることは、起動することの保証ではありません。**
+
+### 取り直すだけでは直りません（2026-08-21 実測）
+
+`firebase apps:sdkconfig` で Console から取得し直しても、**同じ
+`com.example.trustCarPlatform` が返ります。** ローカルのファイルが古いのではなく、
+**Firebase に登録されている iOS アプリそのものの Bundle ID が間違っています。**
+
+```
+ firebase apps:list IOS
+ → trust_car_platform (ios)  1:31421119456:ios:4320af5d1401f02c80c985  （1件のみ）
+ → その BUNDLE_ID が com.example.trustCarPlatform
+```
+
+`firebase_options.dart` 側にも食い違いがあります。
+
+```
+ apiKey   web / android / ios / macos が **全部同じ鍵**（AIzaSyDZQ4UK6I…）
+ 実際の iOS アプリの鍵                    AIzaSyBt0hMKqo…（別物）
+ iosBundleId                             jp.trustcar.app（登録と不一致）
+```
+
+**Firebase の iOS アプリは、あとから Bundle ID を変更できません。**
+`jp.trustcar.app` の iOS アプリを**新規に登録**する必要があります。
 
 **手順**:
+
+1. Firebase Console → プロジェクト設定 → マイアプリ → **アプリを追加 → iOS**
+2. バンドルIDに **`jp.trustcar.app`** を入れて登録
+3. `GoogleService-Info.plist` をダウンロードし `ios/Runner/` に配置
+4. `flutterfire configure` で `firebase_options.dart` を作り直す
+   （**いまの値は iOS の鍵が Web のものになっています**）
+5. **Android も同じ確認をする。** `google-services.json` の `package_name` が
+   `jp.trustcar.app` かどうか
+6. 確認: `flutter run` で最初の画面が出るか。**ビルドが通るだけでは足りません**
+
+**所要時間**: 30分
+**前提条件**: Firebase Console のオーナー権限
+**注意**: 旧アプリ（`com.example.*`）は消さずに残すこと。消すと、そこに紐づく
+既存データや設定の参照が切れる可能性があります。使わなくなるだけです。
+
+---
+
+### 9. 実機テスト（iOS / Android） `[未実施]`
+
+エミュレータや Web では再現しない領域の確認です。**特に以下の3つは Web で一切検証できません**。
+
+#### 9-1. OCR（iOS/Android専用機能）
+
+`google_mlkit_text_recognition` は**モバイル専用**で、`flutter test` でも Web でも動きません。現在のOCRテスト（`test/ocr/ocr_accuracy_test.dart`）は**合成テキストに対するパース精度のみ**を検証しており、実画像からの読み取り精度は未検証です。
+
+- [ ] 車検証OCR: 実物の車検証を撮影 → 登録番号・車台番号・型式・満了日が正しく入るか
+- [ ] 車検証OCR: 光の反射・斜め撮影・折れ目でどこまで劣化するか
+- [ ] 請求書OCR: 実際の整備工場の請求書で、合計金額・日付・店舗名・明細が取れるか
+- [ ] 請求書OCR: 手書き補足やレシート型（感熱紙）での挙動
+
+#### 9-2. 位置情報
+
+- [ ] GPS で近隣工場が距離順に並ぶ
+- [ ] 走行記録（ドライブログ）の開始・停止・距離計算
+- [ ] **`[コード検証済]` 走行記録中にアプリをバックグラウンドへ回す** — 下記「意思決定が必要な事項」参照
+
+#### 9-3. その他
+
+- [ ] Push通知が届く（FCM設定後）
+- [ ] Google Sign-In / Sign in with Apple が動作する
+- [ ] 画像アップロード（Firebase Storage）
+- [ ] カメラ・フォトライブラリの権限ダイアログが日本語で適切に表示される
+- [ ] 日付ピッカーが日本語表示になっている（2026-08-17 に `flutter_localizations` を導入済み）
+- [ ] 整備記録の入力→保存→一覧表示
+- [ ] 課金フロー（RevenueCat サンドボックス）
+
+**所要時間**: 1日（iOS・Android 各1台以上）
+
+---
+
+### 10. Firestore バックアップ設定 `[要確認]`
+
 1. Firebase Console → Firestore → バックアップとエクスポート
 2. 自動バックアップを「毎日」に設定
-3. Cloud Storage バケットを指定（`gs://trust-car-backup-2026` 等）
+3. Cloud Storage バケットを指定（例: `gs://trust-car-backup-2026`）
 4. 保持期間: 30日
 
-**所要時間**: 15分  
-**費用**: Cloud Storage のストレージ費用（目安: 月〜$5）
+**所要時間**: 15分
+**費用**: 目安 月〜$5
 
 ---
 
-### 10. 安全運転情報（SafetyTip）の初期シードデータ登録
+### 11. 本番データの初期投入 `[コード検証済: スクリプトは全て実装済み]`
 
-**なぜ必要**: SafetyTipServiceはCloud Functionsまたは管理者のみが書き込み可能。現時点では画面に何も表示されない。
+すべて `scripts/` に実装済みです。実行には Firebase サービスアカウントキーが必要なため、AIからは実行できません。
 
-**シードスクリプト実装済み**: `scripts/seed_safety_tips.js`（6件のサンプルデータ）
-
-**手順**:
 ```bash
-# 1. 依存パッケージのインストール
-cd /path/to/trust-car-platform
-npm install firebase-admin
+cd scripts && npm install                                  # 初回のみ
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/serviceAccount.json
 
-# 2. Emulator で動作確認（オプション）
-firebase emulators:start --only firestore
-node scripts/seed_safety_tips.js --dry-run   # データ確認のみ
-node scripts/seed_safety_tips.js --emulator  # Emulatorに書き込み
-
-# 3. 本番に登録
-export GOOGLE_APPLICATION_CREDENTIALS=path/to/serviceAccount.json
-node scripts/seed_safety_tips.js
-```
-
-**所要時間**: 10分（スクリプト実行のみ）  
-**前提条件**: Firebase サービスアカウントJSON（Firebase Console → プロジェクト設定 → サービスアカウント）
-
----
-
-### 11. コミュニティトレンドの初期シードデータ登録
-
-**なぜ必要**: 主要車種（プリウス・N-BOX・リーフ・フィット・ヴォクシー）のトレンドデータが空だと車両詳細画面の「コミュニティの傾向」セクションに何も表示されない。
-
-**シードスクリプト実装済み**: `scripts/seed_community_trends.js`（5車種 × 5〜6メンテタイプ）
-
-**手順**:
-```bash
-# 1. 依存パッケージのインストール（seed_safety_tips.js と共有）
-npm install firebase-admin
-
-# 2. Emulator で動作確認（オプション）
-node scripts/seed_community_trends.js --dry-run   # データ確認のみ
-node scripts/seed_community_trends.js --emulator  # Emulatorに書き込み
-
-# 3. 本番に登録
-export GOOGLE_APPLICATION_CREDENTIALS=path/to/serviceAccount.json
-node scripts/seed_community_trends.js
-```
-
-**所要時間**: 10分（スクリプト実行のみ）  
-**前提条件**: Firebase サービスアカウントJSON（同上）  
-**注意**: ユーザーが整備記録を登録するたびに自動的にデータが蓄積されるため、シードデータはあくまで初期の「呼び水」として機能する。
-
----
-
-### 12. 整備工場（Shop）の初期シードデータ登録【重要・コア機能③の前提】
-
-**なぜ必要**: 工場連携（一覧→詳細→問い合わせ→スレッド・近い順ソート・店舗比較）はコードが完備しているが、**工場データがほぼゼロだと機能全体が空回り**する。テストユーザーが「工場に問い合わせる」という主要ユースケースを体験できない。
-
-**シードスクリプト実装済み**: `scripts/seed_shops.js`
-- 実在提携候補1件（タカヤモーター）+ テスト用架空サンプル6件（`demo_*`）
-- サンプル6件は全国主要都市にGeoPoint・評価・レビュー数・サービスを設定済みで、**近い順ソート・店舗比較が即動作**する
-
-**手順**:
-```bash
-npm install firebase-admin
-node scripts/seed_shops.js --dry-run    # 登録内容の確認
-node scripts/seed_shops.js --emulator   # Emulatorで動作確認
-
-export GOOGLE_APPLICATION_CREDENTIALS=path/to/serviceAccount.json
-node scripts/seed_shops.js              # 本番登録
+node seed_shops.js              # 整備工場（タカヤモーター + demo_* 6件）
+node seed_safety_tips.js        # 安全運転情報 6件
+node seed_community_trends.js   # コミュニティトレンド 5車種
 ```
 
 **本番投入前の必須確認**:
 - [ ] `demo_*` の架空店舗は**本番リリース前に削除または実店舗データへ差し替え**（実在の事業者ではないため）
-- [ ] タカヤモーターの `phone` / `address` / `location` などTODO項目を正式情報で埋める
-- [ ] `firestore.rules` の `shops` コレクション読み取り権限を確認（認証済みユーザーが一覧を読めること）
+- [ ] タカヤモーターの `phone` / `address` / `location` を正式情報で埋める
 
-**所要時間**: 15分（スクリプト実行）+ 実店舗データ整備は別途
+**ペルソナのデモデータについて**: `seed_personas.js` / `seed_fleet_year.js` / `seed_full_experience.js` は
+**社内確認用**です。`--with-auth` を付けると `persona.a〜i@example.com` / `password123` の Auth ユーザーを
+作成しますが、**パスワードが共通のため、本番に投入すると公開Webから誰でもログインできる状態になります**。
+確認が終わったら必ず削除してください（詳細は `docs/TEST_DATA_GUIDE.md`）。
 
----
+```bash
+node seed_personas.js --delete-auth
+node seed_full_experience.js --delete
+node seed_fleet_year.js --delete
+```
 
-## P2 — ローンチ後でも可（バックログ）
+**ローカル確認だけなら本番投入は不要**です。Emulator に投入すれば同じ画面を確認できます。
 
-### 12. App Store Connect でのアプリ審査申請
-
-**手順**:
-1. App Store Connect → マイApp → 新バージョン追加
-2. スクリーンショット追加（iPhone 6.7" / iPad 12.9"）
-3. プライバシー情報（Privacy Nutrition Label）の入力
-4. 年齢制限の設定
-5. 審査申請（通常3〜5営業日）
-
-**所要時間**: 2〜3時間（スクリーンショット撮影含む）
+**所要時間**: 15分
 
 ---
 
-### 13. Google Play Console でのアプリ申請
+## P2 — 意思決定が必要な事項（AIでは判断できない）
 
-**手順**:
-1. Google Play Console → アプリを作成
-2. APKまたはAABをアップロード
-3. コンテンツレーティングのアンケートに回答
-4. ターゲット国の設定
-5. 審査申請（通常3〜7営業日）
+### 12. 走行記録のバックグラウンド動作 `[コード検証済: 現在は停止する]`
 
-**所要時間**: 2〜3時間
+**現状**: `drive_recording_provider.dart` は `Geolocator.getPositionStream()` で位置を追跡していますが、
+**バックグラウンド実行の設定が入っていません**。
+
+- iOS: `Info.plist` に `UIBackgroundModes`（location）の記述なし
+- Android: `FOREGROUND_SERVICE` / `ACCESS_BACKGROUND_LOCATION` の権限なし
+
+このため、**運転中に画面をロックする、または他アプリに切り替えると記録が止まります**。ドライブログ機能の
+実用性に直結するため、リリース前に方針を決める必要があります。
+
+**選択肢**:
+
+| 方針 | 内容 | コスト |
+|---|---|---|
+| A. 現状のまま出す | 「アプリを開いたまま記録してください」と画面に明記。実装変更なし | なし |
+| B. 前面固定で緩和 | 記録中は画面スリープを抑止（`wakelock`）。ロックし忘れ以外は救える | 小 |
+| C. 正式対応 | iOS: Background Modes、Android: Foreground Service を実装 | 中〜大。**ストア審査で用途説明が必要**（特にiOSの常時位置情報は審査が厳しい） |
+
+**判断のポイント**: Cは App Store の審査で「なぜ常時位置情報が必要か」の説明を求められ、リジェクトリスクが上がります。
+ソフトローンチ時点では A または B で出し、利用実態を見てから C を検討するのが安全です。
+
+---
+
+### 13. Firebase App Check の有効化 `[コード検証済: 未導入]`
+
+**状態**: `firebase_app_check` は依存にも実装にも入っていません。
+
+Bot・不正アクセスから Firestore を保護します。本番運用では推奨ですが、**導入すると全リクエストに
+アテステーションが必要になる**ため、設定漏れがあるとアプリが動かなくなります。ソフトローンチ後、
+ユーザー数が増える前の導入が現実的です。
+
+1. Firebase Console → App Check
+2. Android: Play Integrity 有効化 / iOS: DeviceCheck 有効化
+3. アプリコードに App Check 初期化を追加（**AIに依頼可**）
+4. 一定期間「モニタリングのみ」で運用し、正当なリクエストが弾かれないことを確認してから強制に切り替え
+
+**所要時間**: 1時間 + 監視期間
 
 ---
 
 ### 14. プライバシーポリシー・利用規約の法的レビュー
 
-**なぜ必要**: 車検証・個人情報を扱うため、弁護士による最終確認が推奨される。
+車検証・位置情報・個人情報を扱うため、弁護士による最終確認を推奨します。
 
 - 個人情報保護法の遵守確認（特に車検証のOCRデータ）
-- 位置情報の利用目的の明記
+- 位置情報の利用目的の明記（走行記録を含む）
 - 整備工場への情報提供の同意文言
-- データ削除リクエストへの対応ポリシー
+- データ削除リクエストへの対応ポリシー（`deleteAccount` は実装済み・#120 で purge 対応）
 
 **所要時間**: 弁護士費用次第（目安: 3〜5万円）
 
 ---
 
-### ~~15. 「車検完了」クイックアクション の実装依頼~~
+### 15. C2C凍結フラグの Remote Config パラメータ作成 `[コード検証済: 実装は完了]`
 
-**[実装済み 2026-06-13]**: 車両詳細画面に「車検完了」ボタン（`inspection_complete_btn`）を追加。タップ → 新しい満了日を選択 → `legalInspection24` 整備記録を自動追加。テスト5件済み。
+`FeatureFlag.c2cPartsMarketplace` の再開判断を、**アプリ再リリースなし**で運用側から切り替えられます。
 
----
+**実装済み**: `FirebaseRemoteFlagSource` ＋ `FeatureFlagService` を `injection.dart` に配線済み。
+起動時に `sync()` で取得し `AppConfig` に反映。未設定・取得失敗時はローカル既定値（凍結）を維持。
 
-### 16. Firebase App Check の有効化
+**残作業**:
+1. Firebase Console → Remote Config でパラメータ作成:
+   - キー名: `c2c_parts_marketplace` / 型: Boolean / デフォルト: `false`（凍結のまま）
+2. 動作確認: `true` に変更 → アプリ再起動でマーケットの「パーツ」「マイ出品」タブが復活
 
-**なぜ必要**: Bot・不正アクセスからFirestoreを保護する。本番環境推奨。
-
-**手順**:
-1. Firebase Console → App Check
-2. Android: Play Integrity 有効化
-3. iOS: DeviceCheck 有効化
-4. アプリコードに App Check 初期化を追加（AIに依頼可）
-
-**所要時間**: 1時間
+**注意**: 将来 `firebase_core` を上げる際は、`cloud_firestore` の iOS ネイティブと Firebase iOS SDK の
+整合（CocoaPods）を必ず CI ビルドで確認すること（現在 `firebase_core` は 4.9.0 に固定）。
 
 ---
 
-### 17. Google Maps Platform APIキーの発行・設定（#41 近隣検索の地図表示の前提）
+## P3 — ストア申請（ローンチ直前）
 
-**なぜ必要**: 近隣検索のGoogleMap連動（提携/非提携の網羅表示, Issue #41 / 評価書 §7.7）には Maps SDK のAPIキーとネイティブ設定が必須。コード実装の前提となる人手タスク。
+### 16. App Store Connect でのアプリ審査申請
 
-**手順**:
-1. Google Cloud Console → 該当プロジェクト → APIとサービス → 認証情報 → APIキー発行
-2. 有効化するAPI（フェーズ別・コスト最適化のため最小限から）:
-   - **フェーズ1a**: Maps SDK for Android / Maps SDK for iOS（地図表示＝Dynamic Maps）
-   - **フェーズ1b（任意）**: Places API（非提携先の近隣検索。**従量課金が高いため要判断**）
-3. APIキー制限（必須・漏洩対策）:
-   - Android: パッケージ名＋SHA-1 で制限
-   - iOS: Bundle ID で制限
-   - 各キーで「使用するAPIのみ」に制限
-4. アプリへの設定（ハードコード禁止）:
-   - Android: `--dart-define=MAPS_API_KEY=...` ＋ `AndroidManifest.xml` の `manifestPlaceholders` 経由
-   - iOS: `AppDelegate` で注入
-5. Google Cloud で **予算アラート**を設定（無料枠超過の早期検知）
+1. App Store Connect → マイApp → 新バージョン追加
+2. スクリーンショット追加（iPhone 6.7" / iPad 12.9"）
+3. **プライバシー情報（Privacy Nutrition Label）**の入力 — 位置情報・カメラ・連絡先情報の申告が必要
+4. 年齢制限の設定
+5. **ガイドライン4.8対応の確認**: サードパーティログイン（Google）を提供する場合、Sign in with Apple の提供が必須。実装済み
+6. 審査申請（通常3〜5営業日）
 
-**コスト目安（2026年時点・要最新確認）**:
-- 地図表示（Dynamic Maps, Essentials）: 月10,000ロードまで無料、超過後 約$7/1,000
-- Places 近隣検索（Pro）: 無料枠5,000/月、超過後 高単価（約$25〜/1,000）
-- → **フェーズ1a（地図＋提携ピンのみ）は無料枠内に収まりやすい。Places（1b）は1商圏限定＋キャッシュでコスト管理**
-
-**所要時間**: 1〜2時間  
-**前提条件**: Google Cloud プロジェクトのオーナー権限・課金有効化
+**所要時間**: 2〜3時間
 
 ---
 
-## チェックリスト（ローンチ前の確認）
+### 17. Google Play Console でのアプリ申請
 
-- [ ] P0-1: Firestore ルールデプロイ
-- [ ] P0-2: Firebase Authentication 有効化
-- [ ] P0-3: google-services.json / GoogleService-Info.plist 配置
-- [ ] P1-4: FCM サーバーキー設定
-- [ ] P1-5: iOS App ID・証明書設定
-- [ ] P1-6: Android キーストア生成
-- [ ] P1-7: RevenueCat API キー設定
-- [ ] P1-8: 実機テスト（iOS・Android）
-- [ ] P1-9: Firestore バックアップ設定
-- [ ] P1-10: SafetyTip 初期シードデータ登録（`node scripts/seed_safety_tips.js`）
-- [ ] P1-11: コミュニティトレンド初期シードデータ登録（`node scripts/seed_community_trends.js`）
-- [ ] P0-1（再掲）: `inquiries: shopId + createdAt` 複合インデックスのデプロイ（#39 月次レポートの前提）
-- [ ] P2-17: Google Maps Platform APIキー発行・設定（#41 近隣検索の地図表示の前提）
+1. Google Play Console → アプリを作成
+2. **AAB をアップロード**（P0-1 の署名設定が前提）
+3. データセーフティフォームの入力（位置情報・写真・個人情報の収集を申告）
+4. コンテンツレーティングのアンケート
+5. ターゲット国の設定
+6. 審査申請（通常3〜7営業日）
+
+**所要時間**: 2〜3時間
 
 ---
 
-*本ドキュメントはセッション記録から自動生成されました。AIが実施可能な作業（コード実装・テスト・静的解析）はここに含まれていません。*
+## ローンチ前チェックリスト
+
+**P0（これが揃わないと出せない）**
+- [ ] P0-1: **Android リリース署名の設定**（現在 debug 鍵。Play にアップロード不可）
+- [ ] P0-2: Firestore ルール・インデックスのデプロイ
+- [ ] P0-3: Google Maps API キーの発行・設定（未設定でも動作はする／地図のみ無効）
+- [ ] P0-4: Firebase Authentication の本番設定（メール/Google/Apple）
+
+**P1（ローンチ前必須）**
+- [ ] P1-5: iOS App ID・証明書・Sign in with Apple Capability
+- [ ] P1-6: FCM / APNs 認証キー
+- [ ] P1-7: RevenueCat の Public SDK キー設定と商品作成
+- [ ] **P1-8: GoogleService-Info.plist が別アプリのもの（iOS が起動しません・P0相当）**
+- [ ] P1-9: **実機テスト（特にOCRの実画像精度は完全に未検証）**
+- [ ] P1-10: Firestore バックアップ設定
+- [ ] P1-11: 本番データ投入（工場・安全情報・トレンド）＋ `demo_*` 店舗の扱いを決定
+
+**P2（判断が必要）**
+- [ ] P2-12: 走行記録のバックグラウンド動作方針（A/B/C から選択）
+- [ ] P2-13: App Check の導入時期
+- [ ] P2-14: 利用規約・プライバシーポリシーの法的レビュー
+- [ ] P2-15: Remote Config `c2c_parts_marketplace` の作成
+
+**P3（申請）**
+- [ ] P3-16: App Store 審査申請
+- [ ] P3-17: Google Play 審査申請
+
+---
+
+## 参考: AI側で対応済み・対応可能なもの
+
+以下は人間の作業ではありません。混同しないよう記載します。
+
+| 項目 | 状態 |
+|---|---|
+| 日付ピッカーの日本語化 | 対応済み（2026-08-17、`flutter_localizations` 導入） |
+| ナンバープレートの全角/半角正規化 | 対応済み（`core/utils/license_plate.dart`） |
+| ログイン直後にデータが空になる不具合 | 対応済み（2026-08-17、`core/utils/auth_scoped_stream.dart`） |
+| Web版がEmulatorに繋がらない問題 | 対応済み（2026-08-17、`--dart-define=USE_EMULATOR=true` / localhost 自動判定） |
+| Android の署名設定コード | **人間がキーストアを作成後、AIが `build.gradle.kts` を実装可能** |
+| App Check の初期化コード | 人間が Console で有効化後、AIが実装可能 |
+| 走行記録のバックグラウンド対応 | 方針決定後、AIが実装可能 |
+
+---
+
+*実機・外部コンソールに関する記述は、AIから検証できないため `[要確認]` としています。コードから確認した内容には `[コード検証済]`、実際に動かして確認した内容には `[実測]` を付けています。*

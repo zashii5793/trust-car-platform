@@ -113,6 +113,9 @@ class AppTheme {
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 4,
+        // Applies to the round FAB only. FloatingActionButton.extended must
+        // pass its own StadiumBorder — a shared theme shape would clip the
+        // pill to a circle and spill its label onto the page background.
         shape: CircleBorder(),
       ),
 
@@ -418,6 +421,7 @@ class AppTheme {
         backgroundColor: AppColors.darkPrimary,
         foregroundColor: Colors.white,
         elevation: 4,
+        // Round FAB only — see the light theme note.
         shape: CircleBorder(),
       ),
 

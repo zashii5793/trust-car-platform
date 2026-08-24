@@ -8,12 +8,20 @@ class Comment {
   final String? userDisplayName;
   final String? userPhotoUrl;
   final String content;
+
+  /// 添付画像の URL。本文だけでは伝わりにくい箇所（傷・部品・作業跡）を
+  /// 写真で補えるようにするため。空 = 画像なし。
+  final List<String> imageUrls;
   final String? parentCommentId; // For nested replies
   final int likeCount;
   final int replyCount;
   final bool isEdited;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// 1コメントに添付できる画像の最大枚数。
+  /// コメント欄が写真で埋まると会話が追えなくなるので少なめに抑える。
+  static const int maxImages = 2;
 
   const Comment({
     required this.id,
@@ -22,6 +30,7 @@ class Comment {
     this.userDisplayName,
     this.userPhotoUrl,
     required this.content,
+    this.imageUrls = const [],
     this.parentCommentId,
     this.likeCount = 0,
     this.replyCount = 0,
@@ -39,6 +48,7 @@ class Comment {
       userDisplayName: data['userDisplayName'],
       userPhotoUrl: data['userPhotoUrl'],
       content: data['content'] ?? '',
+      imageUrls: List<String>.from(data['imageUrls'] ?? const <String>[]),
       parentCommentId: data['parentCommentId'],
       likeCount: data['likeCount'] ?? 0,
       replyCount: data['replyCount'] ?? 0,
@@ -55,7 +65,11 @@ class Comment {
       'userDisplayName': userDisplayName,
       'userPhotoUrl': userPhotoUrl,
       'content': content,
-      if (parentCommentId != null) 'parentCommentId': parentCommentId,
+      'imageUrls': imageUrls,
+      // null でもキーを書く。省略すると Firestore の
+      // where('parentCommentId', isNull: true) にマッチせず、
+      // トップレベルコメントが一覧から丸ごと消える。
+      'parentCommentId': parentCommentId,
       'likeCount': likeCount,
       'replyCount': replyCount,
       'isEdited': isEdited,
@@ -71,6 +85,7 @@ class Comment {
     String? userDisplayName,
     String? userPhotoUrl,
     String? content,
+    List<String>? imageUrls,
     String? parentCommentId,
     int? likeCount,
     int? replyCount,
@@ -85,6 +100,7 @@ class Comment {
       userDisplayName: userDisplayName ?? this.userDisplayName,
       userPhotoUrl: userPhotoUrl ?? this.userPhotoUrl,
       content: content ?? this.content,
+      imageUrls: imageUrls ?? this.imageUrls,
       parentCommentId: parentCommentId ?? this.parentCommentId,
       likeCount: likeCount ?? this.likeCount,
       replyCount: replyCount ?? this.replyCount,
@@ -93,6 +109,9 @@ class Comment {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  /// Whether this comment has any attached image.
+  bool get hasImages => imageUrls.isNotEmpty;
 
   /// Check if this is a reply to another comment
   bool get isReply => parentCommentId != null;

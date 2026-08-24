@@ -8,6 +8,7 @@ import '../../models/post.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../../widgets/image_viewer.dart';
 import 'post_create_screen.dart';
 import 'post_detail_screen.dart';
 
@@ -56,6 +57,7 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
         children: [
           _CategoryFilterBar(),
           _VehicleModelFilterBar(),
+          const _SortBar(),
           Expanded(
             child: Consumer<PostProvider>(
               builder: (context, provider, child) {
@@ -83,15 +85,28 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
                           provider.filterByVehicleModel(null),
                     );
                   }
+                  // Hashtag filter active but no results
+                  if (provider.selectedHashtag != null) {
+                    return AppEmptyState(
+                      icon: Icons.tag,
+                      title: 'このタグの投稿がまだありません',
+                      description:
+                          '「#${provider.selectedHashtag}」の投稿がまだありません。\n最初の投稿をしてみましょう！',
+                      buttonLabel: 'すべて表示',
+                      onButtonPressed: () => provider.clearHashtag(),
+                    );
+                  }
                   // Category filter active but no results
-                  if (provider.selectedCategory != null) {
+                  if (provider.selectedCategories.isNotEmpty) {
+                    final names = provider.selectedCategories
+                        .map((c) => c.displayName)
+                        .join('・');
                     return AppEmptyState(
                       icon: Icons.filter_list_off,
                       title: 'この絞り込みには投稿がありません',
-                      description:
-                          '「${provider.selectedCategory!.displayName}」カテゴリの投稿がまだありません。\n他のカテゴリも探してみましょう。',
+                      description: '「$names」の投稿がまだありません。\n他のカテゴリも探してみましょう。',
                       buttonLabel: 'すべて表示',
-                      onButtonPressed: () => provider.selectCategory(null),
+                      onButtonPressed: () => provider.clearCategories(),
                     );
                   }
                   // No posts at all
@@ -205,11 +220,12 @@ class _VehicleModelFilterBar extends StatelessWidget {
         final modelNames =
             vehicles.map((v) => '${v.maker} ${v.model}').toSet().toList();
 
-        return SizedBox(
-          height: 40,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        // Sized from content: a fixed 40 minus padding squeezed the chips,
+        // so their labels sat low instead of centred.
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Row(
             children: [
               if (postProvider.selectedModelName != null)
                 _ModelChip(
@@ -280,24 +296,120 @@ class _CategoryFilterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<PostProvider>(
       builder: (context, provider, child) {
-        return SizedBox(
-          height: 48,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        // カテゴリは複数選べる。何も選ばれていない状態が「すべて」。
+        // Same reason as the model filter row above.
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
             children: [
               _CategoryChip(
+                key: const Key('sns_category_all'),
                 label: 'すべて',
                 icon: Icons.all_inclusive,
-                selected: provider.selectedCategory == null,
-                onTap: () => provider.selectCategory(null),
+                selected: provider.selectedCategories.isEmpty,
+                onTap: () => provider.clearCategories(),
               ),
               ...PostCategory.values.map(
                 (cat) => _CategoryChip(
+                  key: Key('sns_category_${cat.name}'),
                   label: cat.displayName,
                   icon: _categoryIcon(cat),
-                  selected: provider.selectedCategory == cat,
-                  onTap: () => provider.selectCategory(cat),
+                  selected: provider.isCategorySelected(cat),
+                  onTap: () => provider.toggleCategory(cat),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 並び替えバー
+// ---------------------------------------------------------------------------
+
+class _SortBar extends StatelessWidget {
+  const _SortBar();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Consumer<PostProvider>(
+      builder: (context, provider, child) {
+        final selectedCount = provider.selectedCategories.length;
+
+        final hashtag = provider.selectedHashtag;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
+          child: Row(
+            children: [
+              if (hashtag != null)
+                InputChip(
+                  key: const Key('sns_hashtag_active'),
+                  label: Text('#$hashtag'),
+                  deleteIcon: const Icon(Icons.close, size: 16),
+                  deleteButtonTooltipMessage: 'タグの絞り込みを解除',
+                  onDeleted: () => provider.clearHashtag(),
+                  visualDensity: VisualDensity.compact,
+                ),
+              if (hashtag != null && selectedCount > 0)
+                const SizedBox(width: 8),
+              if (selectedCount > 0)
+                Text(
+                  '$selectedCount件のカテゴリで絞り込み中',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: AppColors.textTertiary),
+                ),
+              const Spacer(),
+              TextButton.icon(
+                key: const Key('sns_sort_button'),
+                icon: const Icon(Icons.swap_vert, size: 18),
+                label: Text(provider.sortBy.displayName),
+                onPressed: () => _showSortSheet(context, provider),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSortSheet(BuildContext context, PostProvider provider) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  '並び替え',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+              ...PostSortBy.values.map(
+                (sort) => ListTile(
+                  key: Key('sns_sort_option_${sort.name}'),
+                  leading: Icon(
+                    sort == PostSortBy.newest
+                        ? Icons.schedule
+                        : Icons.forum_outlined,
+                  ),
+                  title: Text(sort.displayName),
+                  trailing: provider.sortBy == sort
+                      ? const Icon(Icons.check, color: AppColors.primary)
+                      : null,
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    provider.setSortBy(sort);
+                  },
                 ),
               ),
             ],
@@ -315,6 +427,7 @@ class _CategoryChip extends StatelessWidget {
   final IconData? icon;
 
   const _CategoryChip({
+    super.key,
     required this.label,
     required this.selected,
     required this.onTap,
@@ -399,7 +512,8 @@ class _PostCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: _PostContent(post: post),
                     ),
-                    if (post.media.isNotEmpty) _PostMediaRow(media: post.media),
+                    if (post.media.isNotEmpty)
+                      _PostMediaRow(media: post.media, postId: post.id),
                     _PostFooter(post: post),
                   ],
                 ),
@@ -551,16 +665,9 @@ class _PostContent extends StatelessWidget {
             runSpacing: 4,
             children: post.hashtags.map((tag) {
               return InkWell(
+                key: Key('post_hashtag_${post.id}_$tag'),
                 borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('#$tag のハッシュタグ検索は近日公開予定です'),
-                      duration: const Duration(seconds: 2),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
+                onTap: () => context.read<PostProvider>().selectHashtag(tag),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm,
@@ -639,12 +746,51 @@ class _VisibilityBadge extends StatelessWidget {
 
 class _PostMediaRow extends StatelessWidget {
   final List<PostMedia> media;
+  final String postId;
 
-  const _PostMediaRow({required this.media});
+  const _PostMediaRow({required this.media, required this.postId});
+
+  Widget _image(String url, {double? width, double? height}) {
+    return Image.network(
+      url,
+      width: width,
+      height: height,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
+        width: width,
+        height: height,
+        color: AppColors.backgroundLight,
+        child: const Icon(Icons.broken_image_outlined,
+            color: AppColors.textTertiary),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    // 1枚だけの投稿を小さな正方形で出すと、カードの中で写真が埋もれて
+    // 「画像を扱えないアプリ」に見えてしまう。1枚なら幅いっぱいに見せる。
+    final urls = media.map((m) => m.url).toList();
+
+    if (media.length == 1) {
+      return Padding(
+        key: Key('post_media_$postId'),
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: GestureDetector(
+          onTap: () => showImageViewer(context, imageUrls: urls),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: _image(media.first.url, width: double.infinity),
+            ),
+          ),
+        ),
+      );
+    }
+
     return SizedBox(
+      key: Key('post_media_$postId'),
       height: 160,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
@@ -652,20 +798,15 @@ class _PostMediaRow extends StatelessWidget {
         itemCount: media.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.network(
-              media[index].url,
-              width: 160,
-              height: 160,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 160,
-                height: 160,
-                color: AppColors.backgroundLight,
-                child: const Icon(Icons.broken_image_outlined,
-                    color: AppColors.textTertiary),
-              ),
+          return GestureDetector(
+            onTap: () => showImageViewer(
+              context,
+              imageUrls: urls,
+              initialIndex: index,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: _image(media[index].url, width: 160, height: 160),
             ),
           );
         },

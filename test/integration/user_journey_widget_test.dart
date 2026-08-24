@@ -64,6 +64,10 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 
 class _StubFirebaseService implements FirebaseService {
   @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
+  @override
   String? get currentUserId => 'uid-test';
 
   @override
@@ -558,7 +562,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('TrustCar'), findsOneWidget);
-      expect(find.text('信頼を設計する、新時代のカーライフ'), findsOneWidget);
+      expect(find.text('クルマを安心・安全に、楽しく管理'), findsOneWidget);
     });
 
     testWidgets('メールアドレス・パスワード・ログインボタンが表示される', (tester) async {

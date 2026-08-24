@@ -38,6 +38,17 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == shopId;
     }
 
+    // Whether the caller is a party to an inquiry (the asking user or the shop).
+    // Judged on the parent inquiry, not on each message: message-level checks
+    // cannot be verified statically for list queries, so the chat screen was
+    // denied every read and rendered as an empty thread.
+    function isInquiryParticipant(inquiryId) {
+      let inquiry = get(/databases/$(database)/documents/inquiries/$(inquiryId)).data;
+      return isAuthenticated()
+        && (request.auth.uid == inquiry.userId
+            || request.auth.uid == inquiry.shopId);
+    }
+
     // ユーザードキュメント
     match /users/{userId} {
       // 自分のデータのみ読み取り可能
@@ -54,14 +65,29 @@ service cloud.firestore {
 
     // 車両データ
     match /vehicles/{vehicleId} {
-      // 自分の車両のみ読み取り可能
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      // 自分の車両、または自分が管理する法人フリートの車両を読み取り可能。
+      // companyId は法人オーナーの uid（fleet_service.dart 参照）。フリート管理
+      // 画面は companyId でクエリするため、userId だけを見ていると list が丸ごと
+      // 拒否され「車両データの取得に失敗しました」になる。
+      allow read: if isAuthenticated()
+        && (resource.data.userId == request.auth.uid
+            || resource.data.get('companyId', '') == request.auth.uid);
 
       // 作成時は自分のユーザーIDを設定していること
       allow create: if isCreatingOwnDocument();
 
-      // 更新・削除は所有者のみ
-      allow update, delete: if isDocumentOwner();
+      // 更新は所有者。加えて、フリートオーナー（companyId == uid）は担当者の
+      // 割り当てだけ行える（fleet_service.assignVehicle）。書けるキーを絞って
+      // いるのは、companyId を書き換えて他人の車両を奪えないようにするため。
+      allow update: if isDocumentOwner()
+        || (isAuthenticated()
+            && resource.data.get('companyId', '') == request.auth.uid
+            && request.resource.data.get('companyId', '') == resource.data.get('companyId', '')
+            && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['assigneeId', 'assigneeName', 'updatedAt']));
+
+      // 削除は所有者のみ（フリートオーナーには許可しない）
+      allow delete: if isDocumentOwner();
     }
 
     // メンテナンス記録
@@ -211,19 +237,19 @@ service cloud.firestore {
 
       // 問い合わせ内のメッセージ
       match /messages/{messageId} {
-        // メッセージは送信者または受信者（inquiryの当事者）のみ閲覧可能
-        allow read: if isAuthenticated() &&
-          (resource.data.senderId == request.auth.uid ||
-           resource.data.receiverId == request.auth.uid);
+        // 閲覧は会話の当事者（問い合わせ元ユーザー / 宛先ショップ）のみ。
+        // 判定は親 inquiry で行う。メッセージ側の senderId / receiverId を見ると
+        // list クエリを静的に検証できず、チャットが常に空になる。
+        allow read: if isInquiryParticipant(inquiryId);
 
-        // メッセージ作成は送信者が自分であること
-        allow create: if isAuthenticated() &&
-          request.resource.data.senderId == request.auth.uid;
+        // 作成は当事者かつ送信者が自分であること
+        allow create: if isInquiryParticipant(inquiryId)
+          && request.resource.data.senderId == request.auth.uid;
 
-        // 更新は既読フラグのみ（受信者のみ）
-        allow update: if isAuthenticated() &&
-          resource.data.receiverId == request.auth.uid &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'readAt']);
+        // 更新は既読フラグのみ。自分が送っていないメッセージ（＝受信したもの）に限る。
+        allow update: if isInquiryParticipant(inquiryId)
+          && resource.data.senderId != request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'readAt']);
 
         // 削除は不可
         allow delete: if false;
@@ -286,14 +312,22 @@ service cloud.firestore {
 
     // コメントデータ
     match /comments/{commentId} {
+      // 添付画像は最大2枚（Comment.maxImages）。UI 側でも止めているが、
+      // 壊れたクライアントがコメント欄を写真で埋められないようここでも縛る。
+      function hasValidCommentImages() {
+        let images = request.resource.data.get('imageUrls', []);
+        return images is list && images.size() <= 2;
+      }
+
       // コメントは認証済みユーザーなら誰でも閲覧可能
       allow read: if isAuthenticated();
 
       // 作成時は自分のユーザーIDを設定していること
-      allow create: if isCreatingOwnDocument();
+      allow create: if isCreatingOwnDocument() && hasValidCommentImages();
 
       // 更新・削除は所有者のみ
-      allow update, delete: if isDocumentOwner();
+      allow update: if isDocumentOwner() && hasValidCommentImages();
+      allow delete: if isDocumentOwner();
     }
 
     // 投稿へのいいね
@@ -779,6 +813,19 @@ service cloud.firestore {
       allow create: if isAuthenticated() && request.auth.uid == uid;
       allow delete: if isAuthenticated() && request.auth.uid == uid;
       allow read, update: if false;
+    }
+
+    // ユーザーからのご意見・不具合報告: 本人が書き込むだけ。
+    // 読めるのは運用側(Admin SDK)のみ。他人の報告が読めてしまうと、
+    // 連絡先メールと不具合内容がそのまま漏れる。
+    match /feedback/{feedbackId} {
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.message is string &&
+        request.resource.data.message.size() > 0 &&
+        request.resource.data.message.size() <= 2000 &&
+        request.resource.data.status == 'open';
+      allow read, update, delete: if false;
     }
 
     // その他のドキュメントはデフォルトで拒否
