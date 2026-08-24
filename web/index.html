@@ -153,57 +153,58 @@
   <script>
     // スプラッシュをいつ消すか。
     //
-    // 素朴に「最初のフレームが出たら消す」ではダメだった（2026-08-24 実測）。
-    // Flutter Web は日本語のフォントを**最初の描画より後に**取りに行くため、
-    // 消した先に □□□ が残る。手元の計測では、フォントの取得が始まるのが
-    // 描画の直後、終わるまでに 1.5〜6.7 秒かかっていた。固定の待ち時間では
-    // 短すぎたり無駄に長すぎたりする。
+    // 3回作り直している。実測で分かったことを順に書く（2026-08-24〜25）。
     //
-    // そこで、フォントの取得そのものを PerformanceObserver で見る。
-    // fonts.gstatic.com への取得が一段落したら消す。
+    // 1. 「最初のフレームが出たら消す」はダメ。Flutter Web は日本語フォントを
+    //    **最初の描画より後に**取りに行くので、消した先が □□□ になる。
+    // 2. 「fonts.gstatic.com への取得を数える」もダメ。Roboto も同じ配布元から
+    //    1.4 秒で届き、それで早合点して消えてしまう。
+    // 3. 「最初のフレームから N 秒待って諦める」もダメ。フォントの到着は
+    //    3.4 秒のときも 9.8 秒のときもあり、決め打ちできない。
     //
-    // 消せなくなる事故を避けるため、逃げ道を3つ持たせてある。
+    // いまの形: fetch を包んで**日本語フォントの取得が始まったこと**を掴み、
+    // その取得が終わるまで待つ。時間ではなく事実で判断する。
+    //
+    // 消えなくなる事故を避ける逃げ道は残してある。
     (function () {
       var splash = document.getElementById('splash');
       if (!splash) return;
 
+      // 待つ相手は日本語のフォントだけ。
+      var JP_FONT_PATTERN = /notosansjp|notosanscjk/i;
+      // 取得が終わってから消すまでの間。届いた文字で描き直すまでに一拍ある。
+      var QUIET_MS = 700;
+      // 最初のフレームの後、これだけ待っても取得が「始まらない」ときは、
+      // 取りに行く必要が無かったと見なす。始まってさえいれば、何秒かかっても
+      // 終わるまで待つ。
+      //
+      // 長い。最初のフレームから取得開始までが**同じビルドでも 0.3 秒の回と
+      // 8.1 秒の回があった**（2026-08-25 実測）。最初のフレームは中身が
+      // 空の段階でも出るため、日本語が実際に描かれるまでの間が読めない。
+      // 短く取ると、遅い回で見切って □□□ が出る（4 秒では実際に出た）。
+      var NO_FONT_MS = 12000;
+      // 何が起きていても、ここで必ず退く。
+      var HARD_MS = 25000;
+
       var removed = false;
       var firstFrame = false;
-      var fontSeen = false;
+      var sawFont = false;      // 日本語フォントの取得が始まった
+      var pending = 0;          // まだ終わっていない本数
       var quietTimer = null;
 
       // 実測用。ブラウザのコンソールで window.__splashTrace を見れば、
-      // 「最初のフレーム」「日本語フォントの到着」「消した時刻」が分かる。
-      // 直すたびにビルドし直して目視する作業を、数字で置き換えるためのもの。
-      var trace = { firstFrame: null, fonts: [], hidden: null, reason: null };
+      // 最初のフレーム・フォント到着・消した時刻と理由が分かる。
+      var trace = { firstFrame: null, fontStarted: null, fonts: [], hidden: null, reason: null };
       window.__splashTrace = trace;
 
-      // 待つ相手は日本語のフォントだけ。Flutter は Roboto も同じ
-      // fonts.gstatic.com から取りに行くが、そちらは 1 秒前後で届いてしまう。
-      // 「フォントが届いた」と早合点して消すと、その先で日本語が □□□ になる
-      // （2026-08-24 実測: Roboto 1.4 秒 / Noto Sans JP 3.2 秒）。
-      var JP_FONT_PATTERN = /notosansjp|notosanscjk/i;
-      // フォントの取得が終わってから消すまでの間。CanvasKit が届いた文字で
-      // 描き直すまでに一拍あるので、その分を見る。短いとフェードの隙間から
-      // 豆腐が見える。
-      var QUIET_MS = 700;
-      // 最初のフレームの後、これだけ待っても日本語フォントが届かなければ、
-      // 取りに行く必要が無かったと見なして消す。
-      //
-      // 長めにしてある。実測（2026-08-24・キャッシュ有り）で
-      //   最初のフレーム 0.9 秒 → 日本語フォント到着 3.4 秒
-      // と 2.5 秒空いた。初回の実ダウンロードは 1.5〜6.7 秒かかっていたので、
-      // 短くすると「待ちきれずに消して、その先が □□□」に戻る。
-      // 待たせすぎても、進捗バーと 6 秒後の案内が出ている分マシと判断した。
-      var NO_FONT_MS = 8000;
-      // 何が起きていても、ここで必ず退く。出ないものを隠し続けるより、
-      // 出ないことが見えたほうがよい。
-      var HARD_MS = 20000;
+      function now() {
+        return Math.round(performance.now());
+      }
 
       function hide(reason) {
         if (removed) return;
         removed = true;
-        trace.hidden = Math.round(performance.now());
+        trace.hidden = now();
         trace.reason = reason || 'unknown';
         splash.classList.add('hidden');
         setTimeout(function () {
@@ -211,32 +212,59 @@
         }, 500);
       }
 
-      function scheduleQuiet(ms) {
+      function scheduleQuiet(ms, reason) {
         if (!firstFrame || removed) return;
         if (quietTimer) clearTimeout(quietTimer);
-        var reason = fontSeen ? 'font-quiet' : 'no-font';
         quietTimer = setTimeout(function () {
+          // 取得が始まっていて、まだ終わっていないなら待つ。
+          if (reason === 'no-font' && (sawFont || pending > 0)) return;
           hide(reason);
         }, ms);
       }
 
-      // (1) 通常経路。最初のフレーム → フォントが届いて静かになったら消す。
-      window.addEventListener('flutter-first-frame', function () {
-        firstFrame = true;
-        trace.firstFrame = Math.round(performance.now());
-        scheduleQuiet(fontSeen ? QUIET_MS : NO_FONT_MS);
-      });
+      function fontSettled() {
+        pending = Math.max(0, pending - 1);
+        trace.fonts.push(now());
+        if (pending === 0) scheduleQuiet(QUIET_MS, 'font-quiet');
+      }
 
+      // (1) fetch を包んで、取得の「開始」を掴む。flutter_bootstrap.js より
+      //     先に入れておく必要があるので、この位置に置いてある。
+      if (typeof window.fetch === 'function') {
+        var originalFetch = window.fetch;
+        window.fetch = function (input) {
+          var url = '';
+          try {
+            url = typeof input === 'string' ? input : (input && input.url) || '';
+          } catch (e) {
+            url = '';
+          }
+          var result = originalFetch.apply(this, arguments);
+          if (JP_FONT_PATTERN.test(url)) {
+            if (!sawFont) trace.fontStarted = now();
+            sawFont = true;
+            pending++;
+            result.then(fontSettled, fontSettled);
+          }
+          return result;
+        };
+      }
+
+      // (2) fetch を通らない経路（XHR など）への保険。
       if (typeof PerformanceObserver === 'function') {
         try {
           var observer = new PerformanceObserver(function (list) {
             var entries = list.getEntries();
             for (var i = 0; i < entries.length; i++) {
               if (!JP_FONT_PATTERN.test(entries[i].name)) continue;
-              fontSeen = true;
-              trace.fonts.push(Math.round(entries[i].responseEnd));
-              // 取得は複数本に分かれて届く。最後の1本から数えて静かになるまで待つ。
-              scheduleQuiet(QUIET_MS);
+              if (!sawFont) {
+                sawFont = true;
+                trace.fontStarted = now();
+              }
+              if (pending === 0) {
+                trace.fonts.push(Math.round(entries[i].responseEnd));
+                scheduleQuiet(QUIET_MS, 'font-quiet');
+              }
             }
           });
           observer.observe({ type: 'resource', buffered: true });
@@ -245,13 +273,21 @@
         }
       }
 
-      // (2) 待たせている自覚を画面に出す。
+      // (3) 最初のフレーム。取得が始まっていなければ NO_FONT_MS で見切る。
+      window.addEventListener('flutter-first-frame', function () {
+        firstFrame = true;
+        trace.firstFrame = now();
+        if (sawFont && pending > 0) return;      // 取得中。終わるのを待つ。
+        scheduleQuiet(sawFont ? QUIET_MS : NO_FONT_MS, sawFont ? 'font-quiet' : 'no-font');
+      });
+
+      // (4) 待たせている自覚を画面に出す。
       setTimeout(function () {
         var slow = document.getElementById('splash-slow');
         if (slow && !removed) slow.style.display = 'block';
       }, 6000);
 
-      // (3) 最後の逃げ道。
+      // (5) 最後の逃げ道。
       setTimeout(function () {
         hide('hard-timeout');
       }, HARD_MS);
