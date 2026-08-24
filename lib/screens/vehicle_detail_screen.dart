@@ -29,6 +29,8 @@ import 'maintenance_search_screen.dart';
 import '../services/firebase_service.dart';
 import '../services/community_trend_service.dart';
 import '../core/timeline/mileage_milestone.dart';
+import '../models/year_in_review.dart';
+import 'year_in_review_screen.dart';
 
 // Data returned by _InspectionCompleteDialog when the user confirms.
 class _InspectionCompletionResult {
@@ -544,6 +546,9 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       );
                     },
                   ),
+
+                  // この1年のふりかえり
+                  _YearInReviewCard(vehicle: _vehicle),
 
                   // 整備記録の査定価値バナー
                   _MaintenanceValueBanner(vehicle: _vehicle),
@@ -3235,6 +3240,100 @@ class _CommunityTrendSection extends StatefulWidget {
 
   @override
   State<_CommunityTrendSection> createState() => _CommunityTrendSectionState();
+}
+
+/// 「この1年のふりかえり」への入口。
+///
+/// docs/HABIT_DESIGN.md 打ち手2。1年で整備記録は数十件溜まるのに、それを
+/// 見返す道が履歴の一覧しかなかった。**溜めることには協力してもらっている
+/// のに、溜まった価値を突き返していない。**
+///
+/// 中身が薄いうちは出さない。1件だけの「ふりかえり」は白ける。
+class _YearInReviewCard extends StatefulWidget {
+  final Vehicle vehicle;
+
+  const _YearInReviewCard({required this.vehicle});
+
+  @override
+  State<_YearInReviewCard> createState() => _YearInReviewCardState();
+}
+
+class _YearInReviewCardState extends State<_YearInReviewCard> {
+  /// 同じ車種の人の年間費用。取れなければ null のまま（比較欄が出ないだけ）。
+  int? _peerAnnualCost;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPeerCost();
+  }
+
+  Future<void> _fetchPeerCost() async {
+    if (!sl.isRegistered<CommunityTrendService>()) return;
+    final result = await sl.get<CommunityTrendService>().getTrendsForVehicle(
+          maker: widget.vehicle.maker,
+          model: widget.vehicle.model,
+        );
+    if (!mounted) return;
+    setState(() => _peerAnnualCost = result.valueOrNull?.estimatedAnnualCost);
+  }
+
+  YearInReview _build(List<MaintenanceRecord> records) {
+    final now = DateTime.now();
+    return YearInReview.from(
+      records: records.where((r) => r.vehicleId == widget.vehicle.id).toList(),
+      from: DateTime(now.year - 1, now.month, now.day),
+      to: now,
+      peerAverageCost: _peerAnnualCost,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<MaintenanceProvider>(
+      builder: (context, provider, _) {
+        final review = _build(provider.records);
+        if (!review.hasEnoughData) return const SizedBox.shrink();
+
+        final theme = Theme.of(context);
+        final fmt = NumberFormat('#,###');
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: ListTile(
+              key: const Key('year_in_review_entry'),
+              leading: const Icon(
+                Icons.insights_outlined,
+                color: AppColors.primary,
+              ),
+              title: const Text('この1年のふりかえり'),
+              subtitle: Text(
+                '${fmt.format(review.totalCost)}円 ・ 整備${review.recordCount}回'
+                '${review.distanceKm != null ? ' ・ ${fmt.format(review.distanceKm)}km' : ''}',
+                style: theme.textTheme.bodySmall,
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => YearInReviewScreen(
+                    review: review,
+                    vehicleName:
+                        '${widget.vehicle.maker} ${widget.vehicle.model}',
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _CommunityTrendSectionState extends State<_CommunityTrendSection> {

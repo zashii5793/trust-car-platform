@@ -240,4 +240,105 @@ void main() {
       });
     });
   });
+
+  // 「あなたのクルマの1年」で、同じ車種の人の年間費用と比べるために使う
+  // （docs/HABIT_DESIGN.md 打ち手2）。**自分の数字だけでは良し悪しが
+  // 分からない。** 比べて初めて見たくなる。
+  //
+  // トレンドは「この整備を中央値で何日ごとに、いくらで」しか持っていないので、
+  // 1年あたりに割り戻して足し合わせる。
+  group('CommunityTrendData.estimatedAnnualCost', () {
+    CommunityTrendInsight insight({
+      required String typeKey,
+      double? cost,
+      double? intervalDays,
+      int sampleCount = 10,
+    }) {
+      return CommunityTrendInsight(
+        typeKey: typeKey,
+        medianCost: cost,
+        medianIntervalDays: intervalDays,
+        sampleCount: sampleCount,
+      );
+    }
+
+    CommunityTrendData data(List<CommunityTrendInsight> insights) {
+      return CommunityTrendData(
+        maker: 'トヨタ',
+        model: 'プリウス',
+        sampleVehicleCount: 42,
+        lastUpdated: DateTime(2026, 8, 1),
+        insights: insights,
+      );
+    }
+
+    test('半年ごとの整備は年2回分として数える', () {
+      final result = data([
+        insight(typeKey: 'oilChange', cost: 5000, intervalDays: 182.5),
+      ]).estimatedAnnualCost;
+
+      expect(result, 10000);
+    });
+
+    test('2年ごとの整備は年半分として数える', () {
+      final result = data([
+        insight(typeKey: 'legalInspection24', cost: 80000, intervalDays: 730),
+      ]).estimatedAnnualCost;
+
+      expect(result, 40000);
+    });
+
+    test('複数の整備を足し合わせる', () {
+      final result = data([
+        insight(typeKey: 'oilChange', cost: 5000, intervalDays: 182.5),
+        insight(typeKey: 'legalInspection24', cost: 80000, intervalDays: 730),
+      ]).estimatedAnnualCost;
+
+      expect(result, 50000);
+    });
+
+    group('Edge Cases', () {
+      test('金額が無い項目は飛ばす', () {
+        final result = data([
+          insight(typeKey: 'oilChange', cost: null, intervalDays: 182.5),
+          insight(typeKey: 'tire', cost: 40000, intervalDays: 365),
+        ]).estimatedAnnualCost;
+
+        expect(result, 40000);
+      });
+
+      test('周期が無い項目は飛ばす（何回分か分からない）', () {
+        final result = data([
+          insight(typeKey: 'oilChange', cost: 5000, intervalDays: null),
+        ]).estimatedAnnualCost;
+
+        expect(result, isNull);
+      });
+
+      test('周期が0以下なら飛ばす（0除算になる）', () {
+        final result = data([
+          insight(typeKey: 'oilChange', cost: 5000, intervalDays: 0),
+        ]).estimatedAnnualCost;
+
+        expect(result, isNull);
+      });
+
+      test('使える項目が1つも無ければ null', () {
+        expect(data([]).estimatedAnnualCost, isNull);
+      });
+
+      test('件数が少なすぎる項目は使わない（1台の実績を平均と呼ばない）', () {
+        final result = data([
+          insight(
+            typeKey: 'oilChange',
+            cost: 5000,
+            intervalDays: 182.5,
+            sampleCount: 1,
+          ),
+        ]).estimatedAnnualCost;
+
+        expect(result, isNull);
+      });
+    });
+  });
 }
