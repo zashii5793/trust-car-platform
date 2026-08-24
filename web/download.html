@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrustCar テスト版のインストール</title>
+  <meta name="robots" content="noindex, nofollow">
+  <!--
+    テスト配布の受け取り口。
+
+    スマホに不慣れな人がいちばん詰まるのは「提供元不明のアプリ」の許可で、
+    ここで止まると配布そのものが失敗する。だから手順を先に、実際に出る文言で書く。
+
+    端末を JS で見て、Android には APK、それ以外にはブラウザ版を出す。
+    JS が動かない場合は両方出る（noscript ではなく既定表示を両方にしてある）。
+
+    外部 CDN もフォントも参照しない。回線が細い場所で開かれる前提。
+  -->
+  <style>
+    :root {
+      --navy: #1A4D8F;
+      --ink: #1A1A1A;
+      --sub: #5A6472;
+      --line: #DDE3EA;
+      --bg: #F4F6F8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0 16px 56px;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+        "Hiragino Kaku Gothic ProN", "Yu Gothic", "Segoe UI", sans-serif;
+      line-height: 1.75;
+      -webkit-text-size-adjust: 100%;
+    }
+    .wrap { max-width: 560px; margin: 0 auto; }
+    header {
+      margin: 0 -16px 24px;
+      padding: 28px 16px 24px;
+      background: var(--navy);
+      color: #fff;
+      text-align: center;
+    }
+    header h1 { margin: 0; font-size: 1.5rem; letter-spacing: .04em; }
+    header p { margin: 6px 0 0; font-size: .9rem; opacity: .85; }
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px 18px;
+      margin-bottom: 16px;
+    }
+    .card h2 { margin: 0 0 4px; font-size: 1.05rem; }
+    .card .lead { margin: 0 0 16px; color: var(--sub); font-size: .88rem; }
+    .btn {
+      display: block;
+      padding: 15px 16px;
+      border-radius: 10px;
+      background: var(--navy);
+      color: #fff;
+      font-weight: 700;
+      font-size: 1rem;
+      text-align: center;
+      text-decoration: none;
+    }
+    .btn.secondary { background: #fff; color: var(--navy); border: 2px solid var(--navy); }
+    .meta { margin: 10px 0 0; font-size: .78rem; color: var(--sub); text-align: center; }
+    ol { margin: 0; padding-left: 1.3em; }
+    ol li { margin-bottom: 12px; }
+    .quote {
+      display: inline-block;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1px 7px;
+      font-size: .86em;
+    }
+    .note {
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: #FFF8E6;
+      border: 1px solid #E8D89B;
+      border-radius: 8px;
+      font-size: .85rem;
+    }
+    footer { margin-top: 28px; font-size: .78rem; color: var(--sub); text-align: center; }
+    footer a { color: var(--sub); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>TrustCar テスト版</h1>
+      <p>ご協力ありがとうございます</p>
+    </header>
+
+    <section class="card" id="android-card">
+      <h2>Android の方</h2>
+      <p class="lead">アプリを入れると、車検証のカメラ読み取りまで試せます。</p>
+      <a class="btn" id="apk-link" href="__APK_FILENAME__" download>アプリをダウンロード</a>
+      <p class="meta" id="apk-meta">__APK_SIZE__ ・ ビルド __APK_BUILD__</p>
+
+      <h2 style="margin-top:22px">入れかた</h2>
+      <p class="lead">Google Play を通さないアプリなので、途中で確認が出ます。</p>
+      <ol>
+        <li>上のボタンでダウンロードし、通知かファイルアプリから開きます。</li>
+        <li><span class="quote">この提供元のアプリは許可されていません</span>
+            と出たら <span class="quote">設定</span> を押し、表示された画面で許可をオンにします。</li>
+        <li>戻って <span class="quote">インストール</span> を押します。</li>
+        <li><span class="quote">スキャンしますか</span> と聞かれたら、どちらでも構いません。</li>
+        <li>ホーム画面の <span class="quote">TrustCar</span> から起動します。</li>
+      </ol>
+      <div class="note">
+        テストが終わったら、通常のアプリと同じ手順で削除できます。
+        手順2でオンにした許可も、あわせて戻しておくと安心です。
+      </div>
+    </section>
+
+    <section class="card" id="web-card">
+      <h2>iPhone・パソコンの方</h2>
+      <p class="lead">
+        インストールは不要です。ブラウザでそのまま使えます。
+        ただし<strong>車検証のカメラ読み取りと通知は、ブラウザ版では動きません</strong>。
+      </p>
+      <a class="btn secondary" href="/">ブラウザ版をひらく</a>
+      <div class="note">
+        開いた直後の数秒間、日本語が □□□ のように表示されることがあります。
+        文字の読み込み中なので、そのままお待ちください。
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>気づいたことの送りかた</h2>
+      <p class="lead" style="margin-bottom:0">
+        アプリの中の <strong>プロフィール → ご意見・不具合の報告</strong> から送れます。
+        端末とアプリのバージョンは自動で付くので、気づいたことだけ書いてください。
+        「なんとなく使いにくい」でも構いません。
+      </p>
+    </section>
+
+    <footer>
+      <a href="/terms.html">利用規約</a> ・ <a href="/privacy.html">プライバシーポリシー</a>
+      <p>このページと配布ファイルは、ご本人のみでのご利用をお願いします。</p>
+    </footer>
+  </div>
+
+  <script>
+    // Android 以外には APK を勧めない。載せてもインストールできず、
+    // 「ダウンロードしたのに開けない」という問い合わせになるだけ。
+    (function () {
+      var ua = navigator.userAgent || '';
+      var isAndroid = /Android/i.test(ua);
+      var isIOS = /iPhone|iPad|iPod/i.test(ua);
+      if (isAndroid) {
+        document.getElementById('web-card').hidden = true;
+      } else if (isIOS) {
+        document.getElementById('android-card').hidden = true;
+      }
+      // デスクトップは両方出したままにする。配る側が中身を確認するため。
+    })();
+  </script>
+</body>
+</html>
