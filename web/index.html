@@ -17,6 +17,14 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
+
+  <!--
+    日本語フォントは fonts.gstatic.com から後追いで届く（下の #splash の説明を
+    参照）。接続だけ先に張っておくと、名前解決と TLS の分は待たなくて済む。
+  -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="車検・整備の記録、点検リマインド、整備工場探しをひとつにまとめるクルマ統合管理アプリ">
 
@@ -40,6 +48,83 @@
   <script
     src="https://maps.googleapis.com/maps/api/js?key=__GOOGLE_MAPS_API_KEY__&loading=async"
     defer></script>
+
+  <!--
+    起動スプラッシュ。
+
+    Flutter Web は (1) アプリが立ち上がるまで真っ白、(2) 立ち上がった直後は
+    日本語のフォントが未着で □□□ になる、という2段階の「壊れて見える」時間が
+    ある。テストユーザーの第一印象がそこなので、その間を覆う。
+
+    スプラッシュ自体はブラウザのシステムフォントで描く。ここで Web フォントを
+    待つと、豆腐を隠すための画面が豆腐になる。外部 CDN も参照しない
+    （届かない回線でスプラッシュまで出ないのでは意味がない）。
+  -->
+  <style>
+    #splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #1A4D8F;
+      color: #FFFFFF;
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+        "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP",
+        "Segoe UI", sans-serif;
+      transition: opacity 0.4s ease;
+    }
+    #splash.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #splash .splash-title {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+    #splash .splash-note {
+      margin-top: 12px;
+      font-size: 14px;
+      opacity: 0.85;
+    }
+    #splash .splash-slow {
+      margin-top: 20px;
+      font-size: 13px;
+      line-height: 1.7;
+      max-width: 20em;
+      text-align: center;
+      opacity: 0.85;
+      display: none;
+    }
+    #splash .splash-bar {
+      margin-top: 24px;
+      width: 160px;
+      height: 3px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.25);
+      overflow: hidden;
+    }
+    #splash .splash-bar::after {
+      content: "";
+      display: block;
+      width: 40%;
+      height: 100%;
+      border-radius: 2px;
+      background: #FFFFFF;
+      animation: splash-slide 1.2s ease-in-out infinite;
+    }
+    @keyframes splash-slide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(300%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #splash .splash-bar::after { animation: none; }
+      #splash { transition: none; }
+    }
+  </style>
 </head>
 <body>
   <!--
@@ -55,6 +140,124 @@
     Without it the app still works; the map entry point is hidden and the
     distance-sorted list is used instead.
   -->
+  <div id="splash">
+    <div class="splash-title">TrustCar</div>
+    <div class="splash-note">読み込んでいます…</div>
+    <div class="splash-slow" id="splash-slow">
+      読み込みに時間がかかっています。<br>
+      通信状況をご確認のうえ、しばらくお待ちください。
+    </div>
+    <div class="splash-bar"></div>
+  </div>
+
+  <script>
+    // スプラッシュをいつ消すか。
+    //
+    // 素朴に「最初のフレームが出たら消す」ではダメだった（2026-08-24 実測）。
+    // Flutter Web は日本語のフォントを**最初の描画より後に**取りに行くため、
+    // 消した先に □□□ が残る。手元の計測では、フォントの取得が始まるのが
+    // 描画の直後、終わるまでに 1.5〜6.7 秒かかっていた。固定の待ち時間では
+    // 短すぎたり無駄に長すぎたりする。
+    //
+    // そこで、フォントの取得そのものを PerformanceObserver で見る。
+    // fonts.gstatic.com への取得が一段落したら消す。
+    //
+    // 消せなくなる事故を避けるため、逃げ道を3つ持たせてある。
+    (function () {
+      var splash = document.getElementById('splash');
+      if (!splash) return;
+
+      var removed = false;
+      var firstFrame = false;
+      var fontSeen = false;
+      var quietTimer = null;
+
+      // 実測用。ブラウザのコンソールで window.__splashTrace を見れば、
+      // 「最初のフレーム」「日本語フォントの到着」「消した時刻」が分かる。
+      // 直すたびにビルドし直して目視する作業を、数字で置き換えるためのもの。
+      var trace = { firstFrame: null, fonts: [], hidden: null, reason: null };
+      window.__splashTrace = trace;
+
+      // 待つ相手は日本語のフォントだけ。Flutter は Roboto も同じ
+      // fonts.gstatic.com から取りに行くが、そちらは 1 秒前後で届いてしまう。
+      // 「フォントが届いた」と早合点して消すと、その先で日本語が □□□ になる
+      // （2026-08-24 実測: Roboto 1.4 秒 / Noto Sans JP 3.2 秒）。
+      var JP_FONT_PATTERN = /notosansjp|notosanscjk/i;
+      // フォントの取得が終わってから消すまでの間。CanvasKit が届いた文字で
+      // 描き直すまでに一拍あるので、その分を見る。短いとフェードの隙間から
+      // 豆腐が見える。
+      var QUIET_MS = 700;
+      // 最初のフレームの後、これだけ待っても日本語フォントが届かなければ、
+      // 取りに行く必要が無かったと見なして消す。
+      //
+      // 長めにしてある。実測（2026-08-24・キャッシュ有り）で
+      //   最初のフレーム 0.9 秒 → 日本語フォント到着 3.4 秒
+      // と 2.5 秒空いた。初回の実ダウンロードは 1.5〜6.7 秒かかっていたので、
+      // 短くすると「待ちきれずに消して、その先が □□□」に戻る。
+      // 待たせすぎても、進捗バーと 6 秒後の案内が出ている分マシと判断した。
+      var NO_FONT_MS = 8000;
+      // 何が起きていても、ここで必ず退く。出ないものを隠し続けるより、
+      // 出ないことが見えたほうがよい。
+      var HARD_MS = 20000;
+
+      function hide(reason) {
+        if (removed) return;
+        removed = true;
+        trace.hidden = Math.round(performance.now());
+        trace.reason = reason || 'unknown';
+        splash.classList.add('hidden');
+        setTimeout(function () {
+          if (splash.parentNode) splash.parentNode.removeChild(splash);
+        }, 500);
+      }
+
+      function scheduleQuiet(ms) {
+        if (!firstFrame || removed) return;
+        if (quietTimer) clearTimeout(quietTimer);
+        var reason = fontSeen ? 'font-quiet' : 'no-font';
+        quietTimer = setTimeout(function () {
+          hide(reason);
+        }, ms);
+      }
+
+      // (1) 通常経路。最初のフレーム → フォントが届いて静かになったら消す。
+      window.addEventListener('flutter-first-frame', function () {
+        firstFrame = true;
+        trace.firstFrame = Math.round(performance.now());
+        scheduleQuiet(fontSeen ? QUIET_MS : NO_FONT_MS);
+      });
+
+      if (typeof PerformanceObserver === 'function') {
+        try {
+          var observer = new PerformanceObserver(function (list) {
+            var entries = list.getEntries();
+            for (var i = 0; i < entries.length; i++) {
+              if (!JP_FONT_PATTERN.test(entries[i].name)) continue;
+              fontSeen = true;
+              trace.fonts.push(Math.round(entries[i].responseEnd));
+              // 取得は複数本に分かれて届く。最後の1本から数えて静かになるまで待つ。
+              scheduleQuiet(QUIET_MS);
+            }
+          });
+          observer.observe({ type: 'resource', buffered: true });
+        } catch (e) {
+          // 対応していないブラウザでは、下の逃げ道だけで動く。
+        }
+      }
+
+      // (2) 待たせている自覚を画面に出す。
+      setTimeout(function () {
+        var slow = document.getElementById('splash-slow');
+        if (slow && !removed) slow.style.display = 'block';
+      }, 6000);
+
+      // (3) 最後の逃げ道。
+      setTimeout(function () {
+        hide('hard-timeout');
+      }, HARD_MS);
+    })();
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

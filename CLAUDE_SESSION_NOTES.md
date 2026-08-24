@@ -1,6 +1,71 @@
 # Claude Session Notes
 
-最終更新: 2026-08-20
+最終更新: 2026-08-24
+
+---
+
+## テスト配布の穴を塞ぐ（2026-08-24）
+
+**ブランチ**: `claude/fix-empty-state-dead-ends`（PR #149）
+
+### 1. どのビルドかを特定できるようにした
+
+テスト配布中はバージョンが `1.0.0` のまま APK も Web も何度も出し直す。
+これまでフィードバックに載るのは `1.0.0` だけで、**「まだ直っていない」と
+言われても、その人がどのビルドを触っているか分からなかった。**
+
+- `AppInfo.buildId` = `String.fromEnvironment('APP_BUILD_ID')`
+- `AppInfo.fullVersion` → `1.0.0 (a1b2c3d)`。識別子が無ければバージョンだけ
+- 表示: `_ProfileTab` 最下部（Key: `app_version_label`）に
+  `バージョン 1.0.0 (a1b2c3d) / web`
+- 記録: `injection.dart` の `FeedbackService(appVersion: AppInfo.fullVersion)`
+- 配線: `scripts/deploy_web.sh`（`git rev-parse --short HEAD`・未コミットなら
+  `-dirty`）/ `test_apk.yml` / `web_preview.yml`（ともに `${GITHUB_SHA::7}`）
+
+整形は純粋関数 `AppInfo.formatVersion(version, buildId)` に出した。
+`buildId` はコンパイル時に固定されるためテストから振れない。
+
+### 2. 起動直後の白画面と □□□ を塞いだ
+
+**実測（Chrome・ローカル配信の release ビルド）**:
+
+```
+ 最初のフレーム        0.9 秒
+ Roboto の到着         1.4 秒
+ 日本語フォントの到着   3.4 秒   ← ここまで □□□
+ 初回の実ダウンロード   1.5〜6.7 秒
+```
+
+**踏んだ落とし穴が2つ**:
+
+1. **first-frame で消すと早すぎる。** 日本語フォントは最初の描画より*後*に
+   取りに行く。実装1回目（first-frame + 0.9 秒）は、消えた先が豆腐だった。
+2. **`fonts.gstatic.com` への取得すべてを数えると、Roboto で早合点する。**
+   Roboto は 1.4 秒で届く。実装2回目はこれで消えて、また豆腐が見えた。
+   待つ相手を `/notosansjp|notosanscjk/i` に限って解決。
+
+最終形（`web/index.html`）:
+
+| 条件 | 動き |
+|---|---|
+| 日本語フォント到着 → 0.7 秒静か | 消す（通常経路） |
+| 最初のフレームから 8 秒フォントが来ない | 消す |
+| 6 秒経過 | 「時間がかかっています」を表示 |
+| 20 秒経過 | 何があっても消す |
+
+`window.__splashTrace` に first-frame・フォント到着・消した時刻と理由を残した。
+**次に触る人が、ビルドし直して目視する代わりに数字で確かめられる。**
+
+### 学び: ブラウザで見ないと分からない
+
+2回とも「テストは通るのに実際は豆腐」だった。HTML の中身を読む検査
+（`test/ux/web_splash_test.dart` 13件）は**書いた条件が入っているか**しか
+見られない。**条件そのものが間違っている**のは、実際に開かないと分からない。
+
+### 数字
+
+- テスト 4,073件 → **4,098件**（+25）全パス
+- `flutter analyze --fatal-infos` クリーン / `dart format` 差分なし
 
 ---
 

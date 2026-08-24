@@ -93,3 +93,6 @@ test/golden/failures/
 # Firebase Emulator のエクスポートデータ（ローカル検証用）
 .emulator-data/
 firestore-debug.log
+
+# Firebase Hosting のデプロイキャッシュ（ローカル生成物）
+.firebase/
