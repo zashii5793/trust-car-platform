@@ -59,6 +59,16 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
 
   // 車検・保険
   DateTime? _inspectionExpiryDate;
+
+  /// 用途区分。車検の周期がここで変わる（自家用乗用は2年、貨物は1年）。
+  ///
+  /// 以前は編集画面にしか無く、**登録直後は全車が「自家用乗用車」扱い**
+  /// だった。トラック・軽トラのユーザーは車検満了日の計算が1年ずれる。
+  /// 既定は車種から当て、画面で変えられる。
+  VehicleUseCategory _useCategory = VehicleUseCategory.privatePassenger;
+
+  /// 利用者が自分で選び直したか。選ばれた後は車種から上書きしない。
+  bool _useCategoryTouchedByUser = false;
   DateTime? _insuranceExpiryDate;
 
   // 詳細情報
@@ -332,7 +342,12 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       success: (models) {
         final matchedModel = VehicleOcrMatcher.findModel(models, ocrModelName);
         if (matchedModel != null) {
-          if (mounted) setState(() => _selectedModel = matchedModel);
+          if (mounted) {
+            setState(() {
+              _selectedModel = matchedModel;
+              _applyUseCategoryFromModel(matchedModel);
+            });
+          }
         }
       },
       failure: (_) {},
@@ -556,6 +571,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             ? null
             : _modelCodeController.text,
         inspectionExpiryDate: _inspectionExpiryDate,
+        useCategory: _useCategory,
         insuranceExpiryDate: _insuranceExpiryDate,
         color: _colorController.text.isEmpty ? null : _colorController.text,
         engineDisplacement: _engineDisplacementController.text.isEmpty
@@ -812,6 +828,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                 setState(() {
                   _selectedModel = model;
                   _selectedGrade = null;
+                  _applyUseCategoryFromModel(model);
                 });
               },
               validator: (value) => value == null ? '車種を選択してください' : null,
@@ -957,6 +974,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               onSelected: (d) => setState(() => _inspectionExpiryDate = d),
             ),
           ),
+          AppSpacing.verticalSm,
+
+          _buildUseCategoryTile(theme),
           AppSpacing.verticalSm,
 
           _buildDatePickerTile(
@@ -1217,6 +1237,88 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  /// 選ばれた車種から用途区分の初期値を当てる。
+  ///
+  /// 利用者が自分で選び直したあとは触らない。ハイエースを選んだ人が
+  /// 「自家用乗用（8ナンバー登録）」に直したのを、車種を選び直すたびに
+  /// 巻き戻されては困る。
+  void _applyUseCategoryFromModel(VehicleModel? model) {
+    if (_useCategoryTouchedByUser) return;
+    _useCategory = VehicleUseCategory.suggestFor(
+      modelId: model?.id,
+      bodyType: model?.bodyType,
+    );
+  }
+
+  /// 用途区分の選択。
+  ///
+  /// 「1ナンバーか4ナンバーか」を聞かれても分からない人がいるので、
+  /// **何が変わるのか（車検の周期）**を添える。
+  Widget _buildUseCategoryTile(ThemeData theme) {
+    final category = _useCategory;
+    final cycle = category.firstInspectionYears == category.inspectionCycleYears
+        ? '車検は${category.inspectionCycleYears}年ごと'
+        : '車検は初回${category.firstInspectionYears}年、以降${category.inspectionCycleYears}年ごと';
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.local_shipping_outlined,
+                    size: AppSpacing.iconMd),
+                AppSpacing.horizontalSm,
+                Text('用途区分', style: theme.textTheme.titleSmall),
+              ],
+            ),
+            AppSpacing.verticalXs,
+            DropdownButtonFormField<VehicleUseCategory>(
+              key: const Key('use_category_dropdown'),
+              initialValue: category,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: VehicleUseCategory.values
+                  .map(
+                    (c) => DropdownMenuItem(
+                      value: c,
+                      child: Text(
+                        c.displayName,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _useCategory = value;
+                  _useCategoryTouchedByUser = true;
+                });
+              },
+            ),
+            AppSpacing.verticalXs,
+            Text(
+              cycle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

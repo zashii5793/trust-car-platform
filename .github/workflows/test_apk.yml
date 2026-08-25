@@ -138,7 +138,12 @@ jobs:
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
 
           set +e
-          flutter build apk --$MODE 2>&1 | tee /tmp/apk_build.log
+          # APP_BUILD_ID: どのビルドを触っているかを、アプリの画面と
+          # フィードバックの両方から読めるようにする。テスト配布中は
+          # バージョンが 1.0.0 のまま出し直すので、これが無いと
+          # 「直っていない」という報告を確かめられない。
+          flutter build apk --$MODE \
+            --dart-define=APP_BUILD_ID=${GITHUB_SHA::7} 2>&1 | tee /tmp/apk_build.log
           STATUS=${PIPESTATUS[0]}
           if [ "$STATUS" -ne 0 ]; then
             echo "::error::=== APK ビルド失敗 ==="

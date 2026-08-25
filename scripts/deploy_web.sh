@@ -48,13 +48,23 @@ echo
 echo "=== 2/3 ビルド ==="
 # Hosting はルート直下に配るので --base-href は既定の / のままでよい
 # （GitHub Pages のときだけ /trust-car-platform/ が要る）。
-flutter build web --release
+#
+# APP_BUILD_ID: どのビルドを触っているかを、アプリの画面（プロフィール最下部）と
+# フィードバックの両方から読めるようにする。テスト配布中はバージョンが 1.0.0 の
+# まま出し直すので、これが無いと「直っていない」という報告を確かめられない。
+BUILD_ID="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+if ! git diff --quiet HEAD 2>/dev/null; then
+  BUILD_ID="$BUILD_ID-dirty"
+  echo "警告: コミットしていない変更があります。ビルド識別子: $BUILD_ID"
+fi
+echo "ビルド識別子: $BUILD_ID"
+flutter build web --release --dart-define="APP_BUILD_ID=$BUILD_ID"
 
 echo
 echo "=== 3/3 公開 ==="
 firebase deploy --only hosting --project trust-car-platform
 
 echo
-echo "公開しました: https://trust-car-platform.web.app"
+echo "公開しました: https://trust-car-platform.web.app（ビルド識別子: $BUILD_ID）"
 echo "規約:         https://trust-car-platform.web.app/terms.html"
 echo "プライバシー: https://trust-car-platform.web.app/privacy.html"

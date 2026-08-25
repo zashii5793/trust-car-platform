@@ -92,7 +92,8 @@ jobs:
         id: build
         run: |
           set +e
-          flutter build web --release --base-href /trust-car-platform/ 2>&1 | tee /tmp/web_build.log
+          flutter build web --release --base-href /trust-car-platform/ \
+            --dart-define=APP_BUILD_ID=${GITHUB_SHA::7} 2>&1 | tee /tmp/web_build.log
           BUILD_STATUS=${PIPESTATUS[0]}
           if [ "$BUILD_STATUS" -ne 0 ]; then
             echo "::error::=== Flutter Web ビルド失敗 ==="

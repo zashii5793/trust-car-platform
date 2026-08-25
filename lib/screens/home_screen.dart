@@ -47,6 +47,7 @@ import '../services/firebase_service.dart';
 import '../services/feedback_service.dart';
 import 'settings/feedback_screen.dart';
 import 'settings/help_screen.dart';
+import '../core/constants/app_info.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -862,6 +863,25 @@ class _ProfileTab extends StatelessWidget {
                   ),
                 ),
                 onTap: () => _confirmSignOut(context),
+              ),
+            ),
+          ),
+
+          AppSpacing.verticalSm,
+
+          // ---- バージョン ----
+          // 「直したはずの不具合が直っていない」と言われたとき、その人が
+          // どのビルドを触っているかが分からないと確かめようがない。
+          // テスト配布中は 1.0.0 のまま何度も出し直すので、ビルド識別子まで
+          // 画面から読めるようにしておく（フィードバックにも同じ値が載る）。
+          Padding(
+            key: const Key('app_version_label'),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Text(
+              'バージョン ${AppInfo.fullVersion} / ${AppInfo.platform}',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
           ),

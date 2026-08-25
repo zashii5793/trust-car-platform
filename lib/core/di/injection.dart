@@ -253,7 +253,7 @@ class Injection {
     locator.registerLazySingleton<FeedbackService>(
       () => FeedbackService(
         firestore: FirebaseFirestore.instance,
-        appVersion: AppInfo.version,
+        appVersion: AppInfo.fullVersion,
         platform: AppInfo.platform,
       ),
     );
