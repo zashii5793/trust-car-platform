@@ -31,6 +31,7 @@ import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
 import 'package:trust_car_platform/models/user.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:trust_car_platform/core/constants/app_info.dart';
 import 'package:trust_car_platform/providers/shop_provider.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
@@ -46,6 +47,10 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 // ---------------------------------------------------------------------------
 
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   @override
   String? get currentUserId => 'uid-test';
 
@@ -162,13 +167,17 @@ class _StubAuthService implements AuthService {
 
   @override
   Future<Result<void, AppError>> updateUserProfile(
-          {String? displayName, String? photoUrl}) async =>
+          {String? displayName,
+          String? photoUrl,
+          String? prefecture,
+          String? city}) async =>
       Result.failure(AppError.unknown('stub'));
 
   @override
   Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
       const Result.success(null);
 
+  @override
   Future<Result<void, AppError>> deleteAccount() async =>
       const Result.success(null);
 
@@ -952,6 +961,50 @@ void main() {
           matching: find.textContaining('車検'),
         ),
         findsWidgets,
+      );
+    });
+  });
+
+  group('HomeScreen — プロフィールタブのバージョン表示', () {
+    // 「直したはずの不具合が直っていない」と言われたとき、その人がどのビルドを
+    // 触っているか分からないと確かめようがない。テスト配布中は 1.0.0 のまま
+    // 何度も出し直すので、画面から読み取れる必要がある。
+    testWidgets('アプリのバージョンが読み取れる', (tester) async {
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.person_outline));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      final versionFinder = find.byKey(const Key('app_version_label'));
+      await tester.scrollUntilVisible(versionFinder, 300);
+
+      expect(versionFinder, findsOneWidget);
+      expect(
+        find.descendant(
+          of: versionFinder,
+          matching: find.textContaining(AppInfo.fullVersion),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('どの環境で動いているか（platform）も添える', (tester) async {
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.person_outline));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      final versionFinder = find.byKey(const Key('app_version_label'));
+      await tester.scrollUntilVisible(versionFinder, 300);
+
+      expect(
+        find.descendant(
+          of: versionFinder,
+          matching: find.textContaining(AppInfo.platform),
+        ),
+        findsOneWidget,
       );
     });
   });

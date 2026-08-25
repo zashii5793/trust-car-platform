@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'shop_list_screen.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
@@ -13,7 +15,14 @@ import 'inquiry_thread_screen.dart';
 /// 各アイテムには件名・工場名・ステータス・未読バッジを表示し、
 /// タップすると InquiryThreadScreen へ遷移する。
 class MyInquiriesScreen extends StatefulWidget {
-  const MyInquiriesScreen({super.key});
+  /// タブとして埋め込むときは true。
+  ///
+  /// この画面は単独でも push されるため AppBar を自前で持っているが、
+  /// HomeScreen のタブに入ると HomeScreen 側の AppBar と二重に表示される。
+  /// 埋め込み時は自前の AppBar を出さない。
+  final bool embedded;
+
+  const MyInquiriesScreen({super.key, this.embedded = false});
 
   @override
   State<MyInquiriesScreen> createState() => _MyInquiriesScreenState();
@@ -44,7 +53,7 @@ class _MyInquiriesScreenState extends State<MyInquiriesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('マイ問い合わせ')),
+      appBar: widget.embedded ? null : AppBar(title: const Text('マイ問い合わせ')),
       body: Consumer<ShopProvider>(
         builder: (context, provider, _) {
           if (provider.isLoadingUserInquiries) {
@@ -54,10 +63,17 @@ class _MyInquiriesScreenState extends State<MyInquiriesScreen> {
           final inquiries = provider.userInquiries;
 
           if (inquiries.isEmpty) {
-            return const AppEmptyState(
+            // Telling the user where inquiries come from is not the same as
+            // taking them there; this screen had no way out.
+            return AppEmptyState(
               icon: Icons.inbox_outlined,
               title: '問い合わせはありません',
-              description: '工場詳細画面から問い合わせを送れます',
+              description: '整備工場を探して、詳細画面から問い合わせを送れます',
+              buttonLabel: '整備工場を探す',
+              onButtonPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ShopListScreen()),
+              ),
             );
           }
 

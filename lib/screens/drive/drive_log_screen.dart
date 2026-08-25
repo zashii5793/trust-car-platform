@@ -8,7 +8,9 @@ import '../../providers/auth_provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
+import 'drive_log_detail_screen.dart';
 import 'drive_recording_screen.dart';
+import 'manual_drive_log_screen.dart';
 
 /// ドライブログ一覧画面
 ///
@@ -73,14 +75,34 @@ class _DriveLogScreenState extends State<DriveLogScreen> {
         .then((_) => _load()); // refresh list after returning
   }
 
+  void _openManualEntry() {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute<bool>(
+            builder: (_) => const ManualDriveLogScreen(),
+          ),
+        )
+        .then((_) => _load()); // refresh list after returning
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ドライブログ'),
+        actions: [
+          IconButton(
+            tooltip: '手動で記録',
+            icon: const Icon(Icons.edit_note),
+            onPressed: _openManualEntry,
+          ),
+        ],
       ),
       floatingActionButton: Consumer<DriveRecordingProvider>(
         builder: (_, recordingProvider, __) => FloatingActionButton.extended(
+          // テーマの CircleBorder が extended にも効き、ラベルが円の外へ
+          // はみ出して読めなくなるため個別に指定する。
+          shape: const StadiumBorder(),
           onPressed: _startRecording,
           backgroundColor: recordingProvider.isRecording
               ? Colors.redAccent
@@ -110,10 +132,16 @@ class _DriveLogScreenState extends State<DriveLogScreen> {
           }
 
           if (provider.logs.isEmpty) {
-            return const AppEmptyState(
+            // The FAB and the app-bar action both start a recording, but an
+            // empty screen reads as a dead end unless the next step is on it.
+            // Manual entry is the reliable path today: background recording
+            // stops when the app leaves the foreground (docs/HUMAN_TASKS P2-12).
+            return AppEmptyState(
               icon: Icons.directions_car_outlined,
               title: 'ドライブログがありません',
-              description: 'ドライブを記録してみましょう',
+              description: '「記録開始」でGPS記録を始めるか、\n走った分を手で入力できます',
+              buttonLabel: '手動で記録する',
+              onButtonPressed: _openManualEntry,
             );
           }
 
@@ -303,6 +331,21 @@ class _DriveLogCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    // 一覧しか無く、記録した後にできることが何も無かった。
+    // カードから詳細（日記・写真・共有）へ入れるようにする。
+    return GestureDetector(
+      key: Key('drive_log_card_${log.id}'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => DriveLogDetailScreen(driveLog: log),
+        ),
+      ),
+      child: _buildCard(context, theme, isDark),
+    );
+  }
+
+  Widget _buildCard(BuildContext context, ThemeData theme, bool isDark) {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(

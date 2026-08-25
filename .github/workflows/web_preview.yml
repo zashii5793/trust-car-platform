@@ -1,0 +1,160 @@
+name: Web Preview
+
+# Flutter Web をビルドして GitHub Pages に公開する。
+# 実機やローカル Flutter 無しで、ブラウザ（PC/スマホ）から動作確認するための導線。
+#
+# 公開URL: https://zashii5793.github.io/trust-car-platform/
+#
+# ⚠️ 事前に一度だけ人手作業が必要:
+#   Settings → Pages → Build and deployment → Source を
+#   「Deploy from a branch」から **「GitHub Actions」** に変更する。
+#   変更前に main へ入れると deploy ジョブが失敗する。
+#   （PR 上では deploy はスキップされ、build のみ走る）
+#
+# Firebase の web 設定は lib/firebase_options.dart の `FirebaseOptions web`
+# を使うため登録不要。
+#
+# 任意のシークレット:
+#   GOOGLE_MAPS_API_KEY_WEB … 地図を表示する場合に必要。未設定でもビルドは
+#     通り、地図だけが出ない。web/index.html のプレースホルダを置換する。
+
+on:
+  workflow_dispatch:
+  # PR では build のみ実行し、Pages へは触らない。web ビルドが通るかを
+  # マージ前に確かめるためのゲート。
+  pull_request:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'web/**'
+      - 'pubspec.yaml'
+      - '.github/workflows/web_preview.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'web/**'
+      - 'pubspec.yaml'
+      - '.github/workflows/web_preview.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Pages は同時デプロイを受け付けない。進行中を殺さないのは、途中で止めると
+# Pages が中途半端な状態で残りうるため。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Flutter Web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      # Google Maps のキーは web/index.html のプレースホルダを CI で置換して
+      # 注入する。リポジトリにキーを置かないため。Secret 未設定でもビルドは
+      # 通し、地図だけが出ない状態にする（他の画面の確認を止めないため）。
+      - name: Inject Google Maps API key
+        env:
+          MAPS_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY_WEB }}
+        run: |
+          if [ -z "$MAPS_KEY" ]; then
+            echo "::warning::GOOGLE_MAPS_API_KEY_WEB が未設定です。地図は表示されません。"
+            exit 0
+          fi
+          # キーは英数字と - _ のみ。sed の区切りと衝突しない。
+          sed -i "s|__GOOGLE_MAPS_API_KEY__|$MAPS_KEY|g" web/index.html
+          if grep -q "__GOOGLE_MAPS_API_KEY__" web/index.html; then
+            echo "::error::プレースホルダの置換に失敗しました"
+            exit 1
+          fi
+          echo "Google Maps のキーを注入しました"
+
+      # lib/ 配下の複数ファイルが dart:io を無条件 import しており、web ターゲット
+      # ではコンパイルが通らない可能性がある。落ちた場合に「原因ファイルはどれか」を
+      # ログに残す（赤いだけで原因が分からない、という状態を避ける）。
+      - name: Build web
+        id: build
+        run: |
+          set +e
+          flutter build web --release --base-href /trust-car-platform/ \
+            --dart-define=APP_BUILD_ID=${GITHUB_SHA::7} 2>&1 | tee /tmp/web_build.log
+          BUILD_STATUS=${PIPESTATUS[0]}
+          if [ "$BUILD_STATUS" -ne 0 ]; then
+            echo "::error::=== Flutter Web ビルド失敗 ==="
+            grep -E "Error:|error:" /tmp/web_build.log | head -40 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            {
+              echo "## ❌ Flutter Web ビルド失敗"
+              echo
+              echo "### dart:io を import している lib/ 配下のファイル"
+              echo '```'
+              grep -rln "import '"'"'dart:io'"'"'" lib/ --include=*.dart || true
+              echo '```'
+              echo "これらを条件付き import（\`if (dart.library.io)\`）か web スタブに"
+              echo "置き換える必要があるかもしれません。"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $BUILD_STATUS
+
+      - name: Report build size
+        run: |
+          {
+            echo "## ✅ Flutter Web ビルド成功"
+            echo
+            echo "| 項目 | 値 |"
+            echo "|------|-----|"
+            echo "| build/web 合計 | $(du -sh build/web | cut -f1) |"
+            echo "| main.dart.js | $(du -h build/web/main.dart.js 2>/dev/null | cut -f1 || echo 'n/a') |"
+            echo
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo "> PR のため Pages へのデプロイはスキップされます（build 検証のみ）。"
+            else
+              echo "公開URL: https://zashii5793.github.io/trust-car-platform/"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build as a plain artifact
+        # Pages の Source 設定に関わらず成果物を取得できるようにしておく。
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-web-build
+          path: build/web
+          retention-days: 3
+          if-no-files-found: warn
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    name: Deploy to GitHub Pages
+    # PR ではデプロイしない（Pages を PR の内容で上書きしないため）。
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

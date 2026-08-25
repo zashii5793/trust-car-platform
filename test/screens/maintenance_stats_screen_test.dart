@@ -25,6 +25,8 @@
 //    15. Single record — average = total cost, 100%
 //    16. Records with no shop name — shop section hidden
 
+import 'package:trust_car_platform/core/result/result.dart';
+import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -39,6 +41,10 @@ import 'package:trust_car_platform/models/maintenance_record.dart';
 // ---------------------------------------------------------------------------
 
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }

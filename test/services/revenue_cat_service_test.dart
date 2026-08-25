@@ -12,12 +12,50 @@
 //   6. planTypeFromEntitlement — entitlement → ShopPlanType mapping
 //   7. Edge cases: empty userId, unknown entitlementId
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/models/shop.dart';
 import 'package:trust_car_platform/services/revenue_cat_service.dart';
 
 void main() {
+  // ---------------------------------------------------------------------------
+  // apiKey — platform-specific env injection (no hard-coded key)
+  // ---------------------------------------------------------------------------
+  group('apiKey', () {
+    const envInput = 'REVENUE_CAT_API_KEY_IOS=appl_ios_test_key\n'
+        'REVENUE_CAT_API_KEY_ANDROID=goog_android_test_key';
+
+    tearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      dotenv.testLoad(fileInput: '');
+    });
+
+    test('returns the iOS key on iOS (via .env fallback)', () {
+      dotenv.testLoad(fileInput: envInput);
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      expect(RevenueCatService.apiKey, 'appl_ios_test_key');
+    });
+
+    test('returns the Android key on Android (via .env fallback)', () {
+      dotenv.testLoad(fileInput: envInput);
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      expect(RevenueCatService.apiKey, 'goog_android_test_key');
+    });
+
+    test('returns empty string when the key is not set', () {
+      dotenv.testLoad(fileInput: '');
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      expect(RevenueCatService.apiKey, '');
+    });
+
+    test('never exposes a hard-coded placeholder key', () {
+      dotenv.testLoad(fileInput: '');
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      expect(RevenueCatService.apiKey, isNot(contains('PLACEHOLDER')));
+    });
+  });
   // ---------------------------------------------------------------------------
   // productIdFor
   // ---------------------------------------------------------------------------
@@ -241,6 +279,54 @@ void main() {
 
       final result = await svc.getActiveEntitlements(userId: 'u1');
       expect(result.isFailure, isTrue);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // purchaseUserPremium (B2C)
+  // ---------------------------------------------------------------------------
+  group('purchaseUserPremium', () {
+    test('returns success with btoc product ID for valid userId', () async {
+      final svc = RevenueCatService(
+        purchaseExecutor: (productId, userId) async =>
+            PurchaseResult(isSuccess: true, productId: productId),
+      );
+
+      final result = await svc.purchaseUserPremium(userId: 'u1');
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull?.productId, 'trustcar_btoc_premium_monthly');
+    });
+
+    test('returns failure when executor throws', () async {
+      final svc = RevenueCatService(
+        purchaseExecutor: (_, __) async => throw Exception('cancelled'),
+      );
+
+      final result = await svc.purchaseUserPremium(userId: 'u1');
+      expect(result.isFailure, isTrue);
+    });
+
+    test('returns failure for empty userId', () async {
+      final svc = RevenueCatService(
+        purchaseExecutor: (_, __) async =>
+            const PurchaseResult(isSuccess: true, productId: 'x'),
+      );
+
+      final result = await svc.purchaseUserPremium(userId: '');
+      expect(result.isFailure, isTrue);
+      expect(result.errorOrNull, isA<ValidationError>());
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // btocPremiumProductId static accessor
+  // ---------------------------------------------------------------------------
+  group('btocPremiumProductId', () {
+    test('returns the B2C premium product ID string', () {
+      expect(
+        RevenueCatService.btocPremiumProductId,
+        'trustcar_btoc_premium_monthly',
+      );
     });
   });
 

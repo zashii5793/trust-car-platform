@@ -33,6 +33,7 @@ import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
 
 import 'package:trust_car_platform/screens/profile/settings_screen.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
+import 'package:trust_car_platform/providers/theme_provider.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/services/push_notification_service.dart';
 import 'package:trust_car_platform/models/user.dart';
@@ -72,7 +73,10 @@ class _StubAuthService implements AuthService {
       const Result.success(null);
   @override
   Future<Result<void, AppError>> updateUserProfile(
-          {String? displayName, String? photoUrl}) async =>
+          {String? displayName,
+          String? photoUrl,
+          String? prefecture,
+          String? city}) async =>
       const Result.success(null);
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -132,8 +136,11 @@ AppUser _makeAppUser({NotificationSettings? notificationSettings}) {
 }
 
 Widget _buildScreen({required _FakeAuthProvider provider}) {
-  return ChangeNotifierProvider<AuthProvider>.value(
-    value: provider,
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider<AuthProvider>.value(value: provider),
+      ChangeNotifierProvider<ThemeProvider>(create: (_) => ThemeProvider()),
+    ],
     child: const MaterialApp(home: SettingsScreen()),
   );
 }

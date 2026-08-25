@@ -64,6 +64,10 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 
 class _StubFirebaseService implements FirebaseService {
   @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
+  @override
   String? get currentUserId => 'uid-test';
 
   @override
@@ -175,13 +179,17 @@ class _StubAuthService implements AuthService {
 
   @override
   Future<Result<void, AppError>> updateUserProfile(
-          {String? displayName, String? photoUrl}) async =>
+          {String? displayName,
+          String? photoUrl,
+          String? prefecture,
+          String? city}) async =>
       Result.failure(AppError.unknown('stub'));
 
   @override
   Future<Result<void, AppError>> sendPasswordResetEmail(String email) async =>
       const Result.success(null);
 
+  @override
   Future<Result<void, AppError>> deleteAccount() async =>
       const Result.success(null);
 
@@ -554,7 +562,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('TrustCar'), findsOneWidget);
-      expect(find.text('信頼を設計する、新時代のカーライフ'), findsOneWidget);
+      expect(find.text('クルマを安心・安全に、楽しく管理'), findsOneWidget);
     });
 
     testWidgets('メールアドレス・パスワード・ログインボタンが表示される', (tester) async {
@@ -1333,7 +1341,7 @@ void main() {
       expect(find.textContaining('入力'), findsWidgets);
     });
 
-    testWidgets('年式に文字を入力すると数値バリデーションエラーが出る', (tester) async {
+    testWidgets('年式フィールドはタップで選択シートが開く（readOnlyのため直接入力不可）', (tester) async {
       await _setSurface(tester);
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
@@ -1341,14 +1349,15 @@ void main() {
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      // 年式フィールドに不正な値を入力
+      // 年式は選択式（readOnly）になったため enterText では検証できない。
+      // タップで年式選択シートが開くことを確認する。
       final yearField = find.widgetWithText(TextFormField, '年式 *');
       if (yearField.evaluate().isNotEmpty) {
-        await tester.enterText(yearField, '無効な値');
-        await tester.tap(find.text('次へ'));
-        await tester.pump();
+        await tester.ensureVisible(yearField);
+        await tester.tap(yearField);
+        await tester.pumpAndSettle(const Duration(seconds: 10));
 
-        expect(find.textContaining('入力'), findsWidgets);
+        expect(find.text('年式を選択'), findsOneWidget);
       }
     });
 

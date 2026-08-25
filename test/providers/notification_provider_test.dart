@@ -11,6 +11,10 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 
 // Mock FirebaseService
 class MockFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   bool getMaintenanceRecordsCalled = false;
   Result<List<MaintenanceRecord>, AppError>? getMaintenanceRecordsResult;
   Result<Map<String, List<MaintenanceRecord>>, AppError>?
@@ -337,6 +341,25 @@ void main() {
         expect(store.read, contains('1'));
       });
 
+      test('markAsUnread が store の read から取り除かれる', () async {
+        // 未読へ戻したのに再起動で既読に戻る、という状態を作らないこと。
+        final store = _FakeNotificationStateStore()..read = {'1'};
+        final p = NotificationProvider(
+          firebaseService: mockFirebaseService,
+          recommendationService: mockRecommendationService,
+          stateStore: store,
+        );
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: '1', isRead: false),
+        ];
+        await regenerate(p);
+        expect(p.notifications.first.isRead, isTrue);
+
+        await p.markAsUnread('1');
+
+        expect(store.read, isNot(contains('1')));
+      });
+
       test('removeNotification が dismissed に永続化される', () async {
         final store = _FakeNotificationStateStore();
         final p = NotificationProvider(
@@ -422,6 +445,53 @@ void main() {
         await provider.markAsRead('non-existent');
 
         expect(provider.notifications.first.isRead, isFalse);
+      });
+    });
+
+    group('markAsUnread', () {
+      test('marks a read notification back to unread', () async {
+        final vehicles = [_createTestVehicle()];
+        mockRecommendationService.mockRecommendations = [
+          _createTestNotification(id: 'n1', isRead: false),
+        ];
+
+        await provider.generateNotificationsForVehicles(vehicles);
+        await provider.markAsRead('n1');
+        expect(provider.unreadCount, equals(0));
+
+        await provider.markAsUnread('n1');
+
+        expect(provider.notifications.first.isRead, isFalse);
+        expect(provider.unreadCount, equals(1));
+      });
+
+      group('Edge Cases', () {
+        test('does nothing when the notification is not found', () async {
+          final vehicles = [_createTestVehicle()];
+          mockRecommendationService.mockRecommendations = [
+            _createTestNotification(id: 'n1', isRead: false),
+          ];
+
+          await provider.generateNotificationsForVehicles(vehicles);
+          await provider.markAsRead('n1');
+
+          await provider.markAsUnread('does-not-exist');
+
+          expect(provider.notifications.first.isRead, isTrue);
+        });
+
+        test('is a no-op on an already-unread notification', () async {
+          final vehicles = [_createTestVehicle()];
+          mockRecommendationService.mockRecommendations = [
+            _createTestNotification(id: 'n1', isRead: false),
+          ];
+
+          await provider.generateNotificationsForVehicles(vehicles);
+          await provider.markAsUnread('n1');
+
+          expect(provider.notifications.first.isRead, isFalse);
+          expect(provider.unreadCount, equals(1));
+        });
       });
     });
 
@@ -686,6 +756,10 @@ void main() {
 // Helper mock for null user case
 class _MockFirebaseServiceNullUser implements FirebaseService {
   @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
+  @override
   String? get currentUserId => null;
 
   @override
@@ -768,6 +842,10 @@ class _MockFirebaseServiceNullUser implements FirebaseService {
 
 // Helper mock for throwing exception case
 class _MockFirebaseServiceThrowing implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   @override
   String? get currentUserId => 'test-user-id';
 

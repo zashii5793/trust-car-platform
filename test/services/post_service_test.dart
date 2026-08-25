@@ -728,4 +728,300 @@ void main() {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // PostService.getFeed — 複数カテゴリ絞り込みと並び替え
+  //
+  // カテゴリは1つしか選べず、並び順も新着固定だった。
+  // 複数カテゴリの同時選択と「コメントが多い順」を足す。
+  // ---------------------------------------------------------------------------
+
+  group('PostService.getFeed — 複数カテゴリと並び替え', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    Map<String, dynamic> feedDoc({
+      required String category,
+      required int commentCount,
+      required DateTime createdAt,
+      required String content,
+    }) {
+      final doc = postDoc(userId: 'author-uid', visibility: 'public');
+      return {
+        ...doc,
+        'content': content,
+        'category': category,
+        'commentCount': commentCount,
+        'createdAt': Timestamp.fromDate(createdAt),
+        'updatedAt': Timestamp.fromDate(createdAt),
+      };
+    }
+
+    setUp(() async {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+
+      final posts = fakeFirestore.collection('posts');
+      await posts.add(feedDoc(
+        category: 'maintenance',
+        commentCount: 5,
+        createdAt: DateTime(2026, 1, 3),
+        content: '整備の投稿',
+      ));
+      await posts.add(feedDoc(
+        category: 'question',
+        commentCount: 12,
+        createdAt: DateTime(2026, 1, 1),
+        content: '質問の投稿',
+      ));
+      await posts.add(feedDoc(
+        category: 'drive',
+        commentCount: 1,
+        createdAt: DateTime(2026, 1, 5),
+        content: 'ドライブの投稿',
+      ));
+      await posts.add(feedDoc(
+        category: 'general',
+        commentCount: 0,
+        createdAt: DateTime(2026, 1, 2),
+        content: '一般の投稿',
+      ));
+    });
+
+    test('カテゴリ未指定なら全カテゴリが返る', () async {
+      final result = await service.getFeed();
+
+      result.when(
+        success: (page) => expect(page.length, 4),
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('カテゴリを1つ指定するとそのカテゴリだけ返る', () async {
+      final result = await service.getFeed(
+        categories: const {PostCategory.question},
+      );
+
+      result.when(
+        success: (page) {
+          expect(page.length, 1);
+          expect(page.posts.first.content, '質問の投稿');
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('カテゴリを複数指定すると指定したカテゴリがまとめて返る', () async {
+      final result = await service.getFeed(
+        categories: const {PostCategory.question, PostCategory.drive},
+      );
+
+      result.when(
+        success: (page) {
+          expect(page.length, 2);
+          expect(
+            page.posts.map((p) => p.content),
+            containsAll(['質問の投稿', 'ドライブの投稿']),
+          );
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('既定は新しい順', () async {
+      final result = await service.getFeed();
+
+      result.when(
+        success: (page) {
+          expect(page.posts.first.content, 'ドライブの投稿'); // 1/5
+          expect(page.posts.last.content, '質問の投稿'); // 1/1
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('コメントが多い順に並べ替えられる', () async {
+      final result = await service.getFeed(sortBy: PostSortBy.mostCommented);
+
+      result.when(
+        success: (page) {
+          expect(
+            page.posts.map((p) => p.commentCount).toList(),
+            [12, 5, 1, 0],
+          );
+          expect(page.posts.first.content, '質問の投稿');
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+
+    test('並び替えとカテゴリ絞り込みを同時に使える', () async {
+      final result = await service.getFeed(
+        categories: const {PostCategory.maintenance, PostCategory.drive},
+        sortBy: PostSortBy.mostCommented,
+      );
+
+      result.when(
+        success: (page) {
+          expect(
+              page.posts.map((p) => p.content).toList(), ['整備の投稿', 'ドライブの投稿']);
+        },
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // PostService.getFeed — ページネーション
+  //
+  // 続きを読み込むときに位置を指定できないと、同じ先頭ページを取り直して
+  // フィードに同じ投稿が二重に並ぶ。
+  // ---------------------------------------------------------------------------
+
+  group('PostService.getFeed — ページネーション', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    setUp(() async {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+
+      // 新しい順に post-0（最新）… post-4（最古）
+      for (var i = 0; i < 5; i++) {
+        await fakeFirestore.collection('posts').add({
+          ...postDoc(userId: 'author-uid', visibility: 'public'),
+          'content': 'post-$i',
+          'commentCount': 10 - i,
+          'createdAt': Timestamp.fromDate(DateTime(2026, 1, 10 - i)),
+          'updatedAt': Timestamp.fromDate(DateTime(2026, 1, 10 - i)),
+        });
+      }
+    });
+
+    Future<PostPage> feed(
+        {int limit = 2, Object? after, PostSortBy? sortBy}) async {
+      final result = await service.getFeed(
+        limit: limit,
+        startAfter: after,
+        sortBy: sortBy ?? PostSortBy.newest,
+      );
+      return result.when(
+        success: (page) => page,
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    }
+
+    test('カーソルなしなら先頭ページを返す', () async {
+      final page = await feed();
+
+      expect(page.posts.map((p) => p.content).toList(), ['post-0', 'post-1']);
+    });
+
+    test('先頭ページはカーソルを返す', () async {
+      final page = await feed();
+
+      expect(page.cursor, isNotNull);
+    });
+
+    test('カーソルで次のページに進める', () async {
+      final first = await feed();
+      final second = await feed(after: first.cursor);
+
+      expect(second.posts.map((p) => p.content).toList(), ['post-2', 'post-3']);
+    });
+
+    test('ページ同士が重複しない', () async {
+      final first = await feed();
+      final second = await feed(after: first.cursor);
+
+      final ids = {
+        ...first.posts.map((p) => p.content),
+        ...second.posts.map((p) => p.content),
+      };
+      expect(ids.length, first.length + second.length);
+    });
+
+    test('最後まで読むと空が返る', () async {
+      final page = await feed(limit: 5);
+      expect(page.length, 5);
+
+      final next = await feed(limit: 5, after: page.cursor);
+      expect(next.posts, isEmpty);
+      expect(next.cursor, isNull);
+    });
+
+    test('コメントが多い順でもページを継続できる', () async {
+      final first = await feed(sortBy: PostSortBy.mostCommented);
+      final second =
+          await feed(after: first.cursor, sortBy: PostSortBy.mostCommented);
+
+      expect(first.posts.map((p) => p.content).toList(), ['post-0', 'post-1']);
+      expect(second.posts.map((p) => p.content).toList(), ['post-2', 'post-3']);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // PostService.getFeed — ハッシュタグ絞り込み
+  //
+  // 投稿のタグは表示されるだけで押せず、同じ話題を辿る動線が無かった。
+  // ---------------------------------------------------------------------------
+
+  group('PostService.getFeed — ハッシュタグ', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    setUp(() async {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+
+      Future<void> add(String content, List<String> tags, int day) async {
+        await fakeFirestore.collection('posts').add({
+          ...postDoc(userId: 'author-uid', visibility: 'public'),
+          'content': content,
+          'hashtags': tags,
+          'createdAt': Timestamp.fromDate(DateTime(2026, 1, day)),
+        });
+      }
+
+      await add('12ヶ月点検の話', ['点検', '初心者'], 3);
+      await add('車検の話', ['車検'], 2);
+      await add('点検その2', ['点検'], 1);
+    });
+
+    Future<List<Post>> feed({String? hashtag}) async {
+      final result = await service.getFeed(hashtag: hashtag);
+      return result.when(
+        success: (page) => page.posts,
+        failure: (e) => fail('Expected success, got: $e'),
+      );
+    }
+
+    test('タグ指定なしなら全件返る', () async {
+      expect((await feed()).length, 3);
+    });
+
+    test('指定したタグの投稿だけ返る', () async {
+      final posts = await feed(hashtag: '点検');
+
+      expect(posts.length, 2);
+      expect(
+        posts.map((p) => p.content),
+        containsAll(['12ヶ月点検の話', '点検その2']),
+      );
+    });
+
+    test('タグ絞り込みでも新しい順', () async {
+      final posts = await feed(hashtag: '点検');
+
+      expect(posts.first.content, '12ヶ月点検の話');
+    });
+
+    test('該当のないタグでは空が返る', () async {
+      expect(await feed(hashtag: '存在しないタグ'), isEmpty);
+    });
+
+    test('# を付けて渡しても引ける', () async {
+      expect((await feed(hashtag: '#点検')).length, 2);
+    });
+  });
 }

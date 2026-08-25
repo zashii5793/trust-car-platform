@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import '../models/vehicle.dart';
+import '../widgets/vehicle/equipment_section.dart';
 import '../models/vehicle_master.dart';
 import '../providers/vehicle_provider.dart';
 import '../services/firebase_service.dart';
@@ -12,7 +13,9 @@ import '../core/constants/spacing.dart';
 import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
+import '../widgets/vehicle/color_picker_sheet.dart';
 import '../widgets/vehicle/vehicle_selector_fields.dart';
+import '../widgets/vehicle/year_picker_sheet.dart';
 import '../services/vehicle_master_service.dart';
 import '../services/fleet_service.dart';
 import '../services/vehicle_spec_service.dart';
@@ -75,6 +78,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   // 用途区分（車検サイクル: 貨物車は毎年）
   VehicleUseCategory? _selectedUseCategory;
 
+  // オプション・装備（ナビ / ドラレコ / ETC ほか）
+  VehicleEquipment _equipment = const VehicleEquipment();
+
   Uint8List? _newImageBytes;
   bool _isLoading = false;
   bool _hasChanges = false;
@@ -128,6 +134,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     );
     _selectedFuelType = v.fuelType;
     _purchaseDate = v.purchaseDate;
+    _equipment = v.equipment ?? const VehicleEquipment();
 
     // 詳細情報が既に設定されている場合は展開
     if (v.licensePlate != null ||
@@ -136,7 +143,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         v.color != null ||
         v.engineDisplacement != null ||
         v.fuelType != null ||
-        v.purchaseDate != null) {
+        v.purchaseDate != null ||
+        (v.equipment?.hasAnyValue ?? false)) {
       _showAdvancedFields = true;
     }
 
@@ -344,6 +352,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
             (v.leaseInfo?.maintenancePackDetails ?? '') ||
         _leaseContractEndDate != v.leaseInfo?.contractEndDate ||
         _purchaseDate != v.purchaseDate ||
+        _equipment != (v.equipment ?? const VehicleEquipment()) ||
         _newImageBytes != null;
 
     if (changed != _hasChanges) {
@@ -457,6 +466,30 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     }
   }
 
+  /// 年式の選択シート。有限に列挙できる値なので自由入力は無し。
+  /// controller への代入で変更検知リスナー（_onFieldChanged）が発火する。
+  Future<void> _pickYear() async {
+    final year = await showYearPickerSheet(
+      context,
+      selected: int.tryParse(_yearController.text),
+    );
+    if (year != null) {
+      _yearController.text = year.toString();
+    }
+  }
+
+  /// 車体色の選択シート。候補を先に出し、無ければシート内でそのまま
+  /// 手入力できる（メーカー固有色は網羅できないため）。
+  Future<void> _pickColor() async {
+    final color = await showColorPickerSheet(
+      context,
+      current: _colorController.text.isEmpty ? null : _colorController.text,
+    );
+    if (color != null) {
+      _colorController.text = color;
+    }
+  }
+
   Future<void> _updateVehicle() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -517,6 +550,12 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         year: int.parse(_yearController.text),
         grade: _selectedGrade?.name ?? widget.vehicle.grade,
         mileage: int.parse(_mileageController.text),
+        // 距離を書き換えたときだけ「最終更新」を刻む。触っていないのに
+        // 更新日時だけ進むと、リマインダーの根拠が嘘になる。
+        mileageUpdatedAt:
+            _mileageController.text != widget.vehicle.mileage.toString()
+                ? DateTime.now()
+                : widget.vehicle.mileageUpdatedAt,
         imageUrl: imageUrl,
         createdAt: widget.vehicle.createdAt,
         updatedAt: DateTime.now(),
@@ -553,6 +592,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
             : int.tryParse(_engineDisplacementController.text),
         fuelType: _selectedFuelType,
         purchaseDate: _purchaseDate,
+        // オプション・装備。未入力なら null（空で既存を潰さない）。
+        equipment: _equipment.hasAnyValue ? _equipment : null,
         // Phase 5: preserve existing values (not editable in this screen)
         firstRegistrationDate: widget.vehicle.firstRegistrationDate,
         driveType: widget.vehicle.driveType,
@@ -857,11 +898,16 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: AppTextField.number(
+                        // 選択式（タップでシート）。controller は既存値の
+                        // 表示と保存パスで使うため残す。
+                        child: AppTextField(
                           controller: _yearController,
                           labelText: '年式 *',
                           hintText: '例: 2023',
+                          readOnly: true,
+                          onTap: _pickYear,
                           prefixIcon: const Icon(Icons.calendar_today),
+                          suffixIcon: const Icon(Icons.arrow_drop_down),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return '年式を入力';
@@ -1160,11 +1206,16 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                     Row(
                       children: [
                         Expanded(
+                          // タップで候補シートを開く。一覧に無い色はシート
+                          // 下部でそのまま手入力できる。
                           child: AppTextField(
                             controller: _colorController,
                             labelText: '車体色',
-                            hintText: '例: ホワイトパールクリスタルシャイン',
+                            hintText: '例: パールホワイト',
+                            readOnly: true,
+                            onTap: _pickColor,
                             prefixIcon: const Icon(Icons.palette),
+                            suffixIcon: const Icon(Icons.arrow_drop_down),
                           ),
                         ),
                         AppSpacing.horizontalSm,
@@ -1183,7 +1234,20 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
 
                     // 燃料タイプ
                     _buildFuelTypeSelector(theme),
-                    AppSpacing.verticalMd,
+                    AppSpacing.verticalLg,
+
+                    // === オプション・装備セクション ===
+                    _buildSectionHeader(
+                        theme, 'オプション・装備', Icons.settings_suggest),
+                    AppSpacing.verticalSm,
+                    EquipmentSection(
+                      value: _equipment,
+                      onChanged: (equipment) {
+                        setState(() => _equipment = equipment);
+                        _onFieldChanged();
+                      },
+                    ),
+                    AppSpacing.verticalLg,
 
                     // 購入日
                     _buildDatePickerTile(

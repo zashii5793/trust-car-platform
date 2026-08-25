@@ -166,6 +166,58 @@ class AuthProvider with ChangeNotifier {
     );
   }
 
+  /// アカウントを削除する。
+  ///
+  /// 成功時 `true`。失敗時 `false` を返し、[errorMessage] にユーザー向け
+  /// メッセージを設定する（再認証が必要な場合は「再度ログインしてください」）。
+  Future<bool> deleteAccount() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    final result = await _authService.deleteAccount();
+
+    _isLoading = false;
+
+    return result.when(
+      success: (_) {
+        notifyListeners();
+        return true;
+      },
+      failure: (error) {
+        _error = error;
+        notifyListeners();
+        return false;
+      },
+    );
+  }
+
+  /// Apple でサインイン
+  Future<bool> signInWithApple() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    final result = await _authService.signInWithApple();
+
+    _isLoading = false;
+
+    return result.when(
+      success: (credential) {
+        if (credential != null) {
+          _analytics?.trackLogin('apple');
+        }
+        notifyListeners();
+        return credential != null;
+      },
+      failure: (error) {
+        _error = error;
+        notifyListeners();
+        return false;
+      },
+    );
+  }
+
   /// パスワードリセットメールを送信
   Future<bool> sendPasswordResetEmail(String email) async {
     _isLoading = true;
@@ -238,6 +290,8 @@ class AuthProvider with ChangeNotifier {
   Future<bool> updateProfile({
     String? displayName,
     String? photoUrl,
+    String? prefecture,
+    String? city,
   }) async {
     _isLoading = true;
     _error = null;
@@ -246,6 +300,8 @@ class AuthProvider with ChangeNotifier {
     final result = await _authService.updateUserProfile(
       displayName: displayName,
       photoUrl: photoUrl,
+      prefecture: prefecture,
+      city: city,
     );
 
     _isLoading = false;

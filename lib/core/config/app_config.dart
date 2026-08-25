@@ -1,5 +1,13 @@
 import 'package:flutter/foundation.dart';
 
+/// Local opt-in for the frozen C2C parts marketplace.
+///
+/// Passing this on the command line is deliberate: it cannot be switched on by
+/// accident, it does not change what any build ships, and no test has to know
+/// about it. Verification needs the screens; users do not have them yet.
+const bool kEnableC2cParts =
+    bool.fromEnvironment('ENABLE_C2C_PARTS', defaultValue: false);
+
 /// アプリケーション設定
 ///
 /// 環境変数、Feature Flags、設定値を一元管理
@@ -33,8 +41,16 @@ class AppConfig {
     FeatureFlag.socialSharing: false,
     FeatureFlag.premiumFeatures: false,
     // C2C parts marketplace (8% commission) is frozen — entry points hidden.
-    // Re-enable here to restore the listing/payout/inquiry flows.
-    FeatureFlag.c2cPartsMarketplace: false,
+    //
+    // Stays false everywhere by default: freezing is a product decision, and
+    // several tests pin it. To exercise the listing/inquiry/recommendation
+    // screens against seeded data (scripts/seed_parts.js), opt in per run:
+    //
+    //   flutter run --dart-define=ENABLE_C2C_PARTS=true
+    //
+    // Production is switched by Firebase Remote Config
+    // (`c2c_parts_marketplace`) — see docs/HUMAN_TASKS.md P2-15.
+    FeatureFlag.c2cPartsMarketplace: kEnableC2cParts,
   };
 
   // 設定値

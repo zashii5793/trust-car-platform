@@ -63,6 +63,10 @@ class MockShopService implements ShopService {
 
 class _StubFirebaseService implements FirebaseService {
   @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
+  @override
   Stream<List<Vehicle>> getUserVehicles() => const Stream.empty();
 
   @override

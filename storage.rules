@@ -50,6 +50,17 @@ service firebase.storage {
       allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
 
+    // コメント添付画像（comment_images/{userId}/{timestamp}/{fileName}）
+    // 公開投稿へのコメントに付くため読み取りは認証ユーザー全体
+    match /comment_images/{userId}/{ts}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && isValidFileSize()
+                   && isImageFile();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
     // プロフィール画像（profile_images/{userId}/{fileName}）
     // SNS上で他ユーザーにも表示されるため読み取りは認証ユーザー全体
     match /profile_images/{userId}/{fileName} {

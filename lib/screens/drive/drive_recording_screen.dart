@@ -175,6 +175,14 @@ class _DriveRecordingScreenState extends State<DriveRecordingScreen> {
 
                                       // ── GPS indicator ─────────────────────────────
                                       const _PulsingGpsIndicator(),
+
+                                      const SizedBox(height: AppSpacing.md),
+
+                                      // 位置の追跡は前面でしか動かない。画面を
+                                      // ロックしたり他アプリに切り替えると記録が
+                                      // 止まるので、黙って距離が伸びなくなる前に
+                                      // ここで伝えておく。
+                                      const _ForegroundOnlyNotice(),
                                     ],
                                   ),
                                 ),
@@ -227,6 +235,52 @@ class _DriveRecordingScreenState extends State<DriveRecordingScreen> {
       return '${km.toStringAsFixed(2)} km';
     }
     return '${(km * 1000).toStringAsFixed(0)} m';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Foreground-only notice
+// ---------------------------------------------------------------------------
+
+/// 記録が前面でしか続かないことの但し書き。
+///
+/// バックグラウンド実行（iOS の Background Modes / Android の Foreground
+/// Service）は入れていない。入れると「常時位置情報が必要な理由」をストア審査で
+/// 問われるため、まずは前面のみで出し、使われ方を見てから判断する。
+/// その代わり、止まる条件をユーザーが事前に知っている必要がある。
+class _ForegroundOnlyNotice extends StatelessWidget {
+  const _ForegroundOnlyNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('drive_recording_foreground_notice'),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: AppSpacing.borderRadiusMd,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.info_outline,
+            size: AppSpacing.iconSm,
+            color: Colors.white,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              '記録中はこの画面を開いたままにしてください。'
+              '画面をロックしたり他のアプリに切り替えると、記録が止まります。',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -1,0 +1,25 @@
+# GitHub Pages（Jekyll）の公開範囲を絞る。
+#
+# 2026-08-23 実測: Pages の公開元が「main ブランチの /docs」のままだったため、
+# docs/ 配下の Markdown が全て公開されていた。事業性評価・運用コスト見積・
+# ペルソナテスト結果・朝のブリーフィングまで、URL を知らなくても
+# 検索で辿れる状態だった。
+#
+#   https://zashii5793.github.io/trust-car-platform/BUSINESS_VIABILITY_ASSESSMENT.html  → 200
+#   https://zashii5793.github.io/trust-car-platform/OPERATIONS_COST_ESTIMATE.html       → 200
+#   https://zashii5793.github.io/trust-car-platform/PERSONA_TEST_REPORT.html            → 200
+#
+# 公開してよいのは規約とプライバシーポリシーだけなので、Markdown は全部除外する。
+# Pages の公開元を「GitHub Actions」へ切り替えれば docs/ 自体が公開されなく
+# なるが、切り替えるまでの間と、戻したときの保険としてここにも入れておく。
+exclude:
+  - "*.md"
+  - "reports"
+  - "night-reports"
+  - "screenshots"
+
+# 規約・プライバシーポリシーは web/ 配下にある。
+# 同じものが Flutter Web のビルドにも同梱してあるので、Pages を GitHub Actions
+# へ切り替えたあとは /privacy.html /terms.html で公開される。
+include:
+  - "web"

@@ -27,14 +27,16 @@ class MockPostService implements PostService {
   PostVisibility? lastVisibility;
 
   @override
-  Future<Result<List<Post>, AppError>> getFeed({
+  Future<Result<PostPage, AppError>> getFeed({
     int limit = 20,
     dynamic startAfter,
-    PostCategory? category,
+    Set<PostCategory> categories = const {},
+    PostSortBy sortBy = PostSortBy.newest,
+    String? hashtag,
     String? makerId,
     String? modelName,
   }) async =>
-      const Result.success([]);
+      const Result.success(PostPage.empty);
 
   @override
   Future<Result<Post, AppError>> createPost({
@@ -143,6 +145,10 @@ Post _makePost({String content = 'テスト投稿'}) {
 /// Minimal FirebaseService stub — VehicleProvider only reads its in-memory
 /// state in these tests, so no method is actually invoked.
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }

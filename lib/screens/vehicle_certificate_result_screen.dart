@@ -198,15 +198,15 @@ class _VehicleCertificateResultScreenState
     IconData icon;
 
     if (score >= 0.7) {
-      color = Colors.green;
+      color = AppColors.success;
       message = '多くの項目を読み取れました';
       icon = Icons.check_circle;
     } else if (score >= 0.4) {
-      color = Colors.orange;
+      color = AppColors.warning;
       message = '一部の項目を読み取れました';
       icon = Icons.info;
     } else {
-      color = Colors.red;
+      color = AppColors.error;
       message = '読み取りが難しい箇所があります';
       icon = Icons.warning;
     }
@@ -253,14 +253,18 @@ class _VehicleCertificateResultScreenState
       {bool isImportant = false}) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: isImportant ? Colors.orange : Colors.grey),
+        Icon(
+          icon,
+          size: 20,
+          color: isImportant ? AppColors.warning : Colors.grey,
+        ),
         const SizedBox(width: 8),
         Text(
           title,
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: isImportant ? Colors.orange[800] : null,
+            color: isImportant ? AppColors.warning : null,
           ),
         ),
         if (isImportant) ...[
@@ -268,14 +272,14 @@ class _VehicleCertificateResultScreenState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.orange[100],
+              color: AppColors.warningBackground,
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Text(
               '重要',
               style: TextStyle(
                 fontSize: 11,
-                color: Colors.orange,
+                color: AppColors.warning,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -322,7 +326,7 @@ class _VehicleCertificateResultScreenState
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           border: Border.all(
-            color: hasDate ? Colors.green : Colors.orange,
+            color: hasDate ? AppColors.success : AppColors.warning,
             width: hasDate ? 1 : 2,
           ),
           borderRadius: BorderRadius.circular(8),
@@ -332,7 +336,7 @@ class _VehicleCertificateResultScreenState
           children: [
             Icon(
               Icons.event,
-              color: hasDate ? Colors.green : Colors.orange,
+              color: hasDate ? AppColors.success : AppColors.warning,
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -354,7 +358,7 @@ class _VehicleCertificateResultScreenState
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: hasDate ? null : Colors.orange,
+                      color: hasDate ? null : AppColors.warning,
                     ),
                   ),
                 ],
@@ -446,27 +450,63 @@ class _VehicleCertificateResultScreenState
         ],
       ),
       child: SafeArea(
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('キャンセル'),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton.icon(
-                onPressed: _validateAndSubmit,
-                icon: const Icon(Icons.check),
-                label: const Text('この内容で登録'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+            // One-tap path: shown only when OCR captured every required field.
+            if (_canQuickRegister) ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _validateAndSubmit(quickRegister: true),
+                  icon: const Icon(Icons.bolt),
+                  label: const Text('このまま登録'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
                 ),
               ),
+              const SizedBox(height: 4),
+              Text(
+                '車検満了日まで読み取れました。走行距離は後で更新できます',
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('キャンセル'),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 2,
+                  child: _canQuickRegister
+                      ? OutlinedButton.icon(
+                          onPressed: () => _validateAndSubmit(),
+                          icon: const Icon(Icons.edit),
+                          label: const Text('この内容で登録'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                        )
+                      : ElevatedButton.icon(
+                          onPressed: () => _validateAndSubmit(),
+                          icon: const Icon(Icons.check),
+                          label: const Text('この内容で登録'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                        ),
+                ),
+              ],
             ),
           ],
         ),
@@ -474,13 +514,21 @@ class _VehicleCertificateResultScreenState
     );
   }
 
-  void _validateAndSubmit() {
+  /// Whether OCR captured every field required to register without the manual
+  /// wizard (maker / model / year / inspection expiry). Drives the one-tap path.
+  bool get _canQuickRegister =>
+      _makerController.text.trim().isNotEmpty &&
+      _modelController.text.trim().isNotEmpty &&
+      int.tryParse(_yearController.text) != null &&
+      _inspectionExpiryDate != null;
+
+  void _validateAndSubmit({bool quickRegister = false}) {
     // バリデーション
     if (_makerController.text.isEmpty && _modelController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('メーカーまたは車種を入力してください'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -504,6 +552,7 @@ class _VehicleCertificateResultScreenState
       engineDisplacement: int.tryParse(_engineDisplacementController.text),
       fuelType: _selectedFuelType,
       color: _colorController.text.isNotEmpty ? _colorController.text : null,
+      quickRegister: quickRegister,
     );
 
     Navigator.of(context).pop(result);
@@ -523,6 +572,10 @@ class VehicleRegistrationData {
   final FuelType? fuelType;
   final String? color;
 
+  /// When true the user chose "このまま登録": OCR captured every required field,
+  /// so the caller should register immediately and skip the manual wizard.
+  final bool quickRegister;
+
   VehicleRegistrationData({
     required this.maker,
     required this.model,
@@ -534,5 +587,6 @@ class VehicleRegistrationData {
     this.engineDisplacement,
     this.fuelType,
     this.color,
+    this.quickRegister = false,
   });
 }

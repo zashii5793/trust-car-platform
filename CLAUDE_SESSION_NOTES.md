@@ -1,5 +1,387 @@
 # Claude Session Notes
 
+最終更新: 2026-08-24
+
+---
+
+## テスト配布の穴を塞ぐ（2026-08-24）
+
+**ブランチ**: `claude/fix-empty-state-dead-ends`（PR #149）
+
+### 1. どのビルドかを特定できるようにした
+
+テスト配布中はバージョンが `1.0.0` のまま APK も Web も何度も出し直す。
+これまでフィードバックに載るのは `1.0.0` だけで、**「まだ直っていない」と
+言われても、その人がどのビルドを触っているか分からなかった。**
+
+- `AppInfo.buildId` = `String.fromEnvironment('APP_BUILD_ID')`
+- `AppInfo.fullVersion` → `1.0.0 (a1b2c3d)`。識別子が無ければバージョンだけ
+- 表示: `_ProfileTab` 最下部（Key: `app_version_label`）に
+  `バージョン 1.0.0 (a1b2c3d) / web`
+- 記録: `injection.dart` の `FeedbackService(appVersion: AppInfo.fullVersion)`
+- 配線: `scripts/deploy_web.sh`（`git rev-parse --short HEAD`・未コミットなら
+  `-dirty`）/ `test_apk.yml` / `web_preview.yml`（ともに `${GITHUB_SHA::7}`）
+
+整形は純粋関数 `AppInfo.formatVersion(version, buildId)` に出した。
+`buildId` はコンパイル時に固定されるためテストから振れない。
+
+### 2. 起動直後の白画面と □□□ を塞いだ
+
+**実測（Chrome・ローカル配信の release ビルド）**:
+
+```
+ 最初のフレーム        0.9 秒
+ Roboto の到着         1.4 秒
+ 日本語フォントの到着   3.4 秒   ← ここまで □□□
+ 初回の実ダウンロード   1.5〜6.7 秒
+```
+
+**踏んだ落とし穴が2つ**:
+
+1. **first-frame で消すと早すぎる。** 日本語フォントは最初の描画より*後*に
+   取りに行く。実装1回目（first-frame + 0.9 秒）は、消えた先が豆腐だった。
+2. **`fonts.gstatic.com` への取得すべてを数えると、Roboto で早合点する。**
+   Roboto は 1.4 秒で届く。実装2回目はこれで消えて、また豆腐が見えた。
+   待つ相手を `/notosansjp|notosanscjk/i` に限って解決。
+
+最終形（`web/index.html`）:
+
+| 条件 | 動き |
+|---|---|
+| 日本語フォント到着 → 0.7 秒静か | 消す（通常経路） |
+| 最初のフレームから 8 秒フォントが来ない | 消す |
+| 6 秒経過 | 「時間がかかっています」を表示 |
+| 20 秒経過 | 何があっても消す |
+
+`window.__splashTrace` に first-frame・フォント到着・消した時刻と理由を残した。
+**次に触る人が、ビルドし直して目視する代わりに数字で確かめられる。**
+
+### 学び: ブラウザで見ないと分からない
+
+2回とも「テストは通るのに実際は豆腐」だった。HTML の中身を読む検査
+（`test/ux/web_splash_test.dart` 13件）は**書いた条件が入っているか**しか
+見られない。**条件そのものが間違っている**のは、実際に開かないと分からない。
+
+### 数字
+
+- テスト 4,073件 → **4,098件**（+25）全パス
+- `flutter analyze --fatal-infos` クリーン / `dart format` 差分なし
+
+---
+
+## ペルソナデータ実機テスト＋SNS強化（2026-08-20）
+
+**ブランチ**: `claude/guest-mode-and-web-emulator`
+
+### 実機確認で見つけた本番バグ2件（Firestore ルール）
+
+| 症状 | 原因 | 対応 |
+|---|---|---|
+| フリート管理が「車両データの取得に失敗しました」 | `fleet_service` は `vehicles.where('companyId', ==, uid)` で引くのに、ルールの read が `userId` しか見ておらず list が丸ごと拒否 | vehicles の read に `companyId == uid` 条項を追加 |
+| 問い合わせが「回答済み」なのにチャットが空 | messages の read が `senderId`/`receiverId` 判定。`receiverId` は `lib/` に存在せず、list クエリも静的検証できない | `isInquiryParticipant(inquiryId)` を新設し、親 inquiry の当事者で判定 |
+
+いずれも `test/rules/firestore.rules.test.js` に RED を作ってから修正（rules テスト計79件）。
+`RULES_TEST_PROJECT_ID` を追加し、ローカルのシードを消さずにルールテストを回せるようにした。
+
+### フリートオーナーの担当者アサイン
+
+`fleet_service.assignVehicle()` は他ユーザー名義の車両にも書き込む。vehicles の update に
+「フリートオーナーは `assigneeId` / `assigneeName` / `updatedAt` のみ」を追加（`companyId`
+書き換えと削除は不可）。
+
+### SNS（みんなの投稿）の強化
+
+- **カテゴリの複数選択**: `PostProvider` を `Set<PostCategory>` + `toggleCategory` /
+  `clearCategories` に。クエリは `whereIn`（等価フィルタ扱いなので既存インデックスと共用）
+- **並び替え**: `PostSortBy { newest, mostCommented }`。コメント数が同じときは新しい順で安定化。
+  `firestore.indexes.json` に commentCount 用の複合インデックス4件を追加（**本番デプロイは未実施**）
+- **ページングの重複バグ修正**: `loadMoreFeed` がカーソルを渡しておらず毎回先頭ページを
+  取り直していた。`getFeed` は `PostPage`（posts + 不透明カーソル）を返す形に変更
+- **コメントのゼブラ表示**: 1件ごとに背景を塗り分け、返信は親の背景を継承 + 左に縦線
+- **コメントの画像添付**: `Comment.imageUrls`（最大2枚）、`comment_images/{uid}/{ts}/` の
+  Storage ルール、入力バーの添付ボタン、コメント/返信のサムネイル表示
+- **投稿画像のレイアウト**: 1枚なら幅いっぱい（16:9）、複数なら横スクロール
+
+### プロフィールのプランバッジ
+
+青いヘッダーの上で白背景に白文字となり読めなかった。`lib/widgets/plan_badge.dart` に切り出し、
+背景・文字・アイコン色を明示（フリー=白/濃色、プレミアム=アンバー/濃色）。
+コントラスト比 4.5:1 以上をテストで固定。
+
+### シードデータ
+
+- `seed_rich_history.js`: 車両ドキュメントの実距離を正として履歴を逆算するよう修正
+  （45,000km の Hiace に 89,522km の記録が並んでいた）。年間走行距離も実距離から算出
+- `seed_personas.js`: プリウスのバッテリー交換記録 40,000km → 26,500km
+- `seed_media.js`（新規）: PNG をその場で生成して Storage に置き、投稿7件・コメント3件に
+  画像を紐づける。ダウンロードトークン付き URL を発行（`?alt=media` だけでは
+  `allow read: if isAuthenticated()` に 403 で弾かれる）
+
+### 未対応・申し送り
+
+- Firestore インデックスとルールの**本番デプロイは未実施**（`firebase deploy` は要承認）
+- Web 版で `image_picker` による投稿画像添付の実機確認は未了（モバイル実機での確認が必要）
+- ログイン直後、データ到着まで数秒「まず愛車を登録しよう」の空表示が出る（Web debug で A=約10秒）
+
+---
+
+## 自律継続モード（2026-08-15・ユーザー外出中）
+
+**ブランチ**: `claude/rustcar-pr-triage-ci-rumd73` / **PR**: #120
+
+### PRトリアージ（マージ権限はユーザーの事前承認に基づく）
+
+- **#111（ドライブログ手動入力）**: ローカル test-merge で衝突なしを確認 → ready化 → squashマージ完了
+- **#106**: クローズ済み（内容は #120 へ移送済み）
+- **#120 へ origin/main を取り込み**: コンフリクト2件を手動解決
+
+### 決定: Google Maps APIキーは MAPS_API_KEY に一本化
+
+#41系（GOOGLE_MAPS_API_KEY 環境変数直読み）と #43系（MAPS_API_KEY Gradleプロパティ
++ env + `MapsConfig.isConfigured` ゲート）が併存し、AndroidManifest に
+`com.google.android.geo.API_KEY` の meta-data が2つ入る状態だった。
+
+- **採用**: #43系。`build.gradle.kts` は `MAPS_API_KEY` プロパティ→ env
+  `MAPS_API_KEY` → env `GOOGLE_MAPS_API_KEY`（後方互換）→ 空 の順でフォールバック
+- Web は従来どおり CI が `GOOGLE_MAPS_API_KEY_WEB` を `web/index.html` に注入（変更なし）
+
+### 決定: 工場地図は NearbyShopsMapScreen（埋め込みトグル）に一本化
+
+main側 #125 の `ShopMapScreen`（別ルートpush・142行）と #120 の
+`NearbyShopsMapScreen`（埋め込みトグル・BottomSheet詳細・審査済バッジ・308行）が
+重複。実機フィードバック起点の後者を採用し `shop_map_screen.dart` は削除。
+main側の良い点だった **`MapsConfig.isConfigured` ゲートは `_canShowMap` に統合**
+（キー未設定ビルドでは地図導線を出さず距離順リストのみ）。テストはどちらの
+地図ボタンKeyにも依存していないことを確認済み。
+
+### CI修正
+
+- `pubspec.yaml`: 自動マージで `google_maps_flutter` が重複（^2.9.0 / ^2.10.0）
+  → pub get がパースで即死し Analyze/Web build 全滅 → ^2.10.0 に一本化
+
+### テスト追加（エージェント作・計39件）
+
+- `test/screens/drive_log_detail_screen_test.dart`（21件）: 日記保存/公開切替/
+  経路ぼかし表示/住所丸め/未ログイン・取得失敗系
+- `test/widgets/equipment_section_test.dart`（18件): 装備スイッチ→メーカー・型番欄/
+  候補シート+自由入力/FilterChip/OFF→ON値復元の仕様固定
+
+---
+
+## 実機確認の指摘対応（2026-08-07）
+
+**ブランチ**: `claude/rustcar-pr-triage-ci-rumd73` / **PR**: #120
+
+### 決定1: カタログは常に「入力補助」であってゲートにしない
+
+メーカー・車種・グレードに続き、**車体色・装備メーカー・都道府県/市区町村**にも
+同じ方針を適用した。判断基準を明文化する。
+
+| 対象 | 網羅できるか | 扱い |
+|------|-------------|------|
+| 都道府県 | できる（47件で確定） | 選択式のみ |
+| 市区町村 | できない（約1,700件・合併あり） | 自由入力 |
+| 車体色 | できない（メーカー固有名が無数） | 候補18色 ＋ 自由入力 |
+| ナビ/ドラレコのメーカー | できない（OEM多数） | 候補 ＋ 自由入力 |
+
+**保守できない一覧を持つと、必ず「登録できないユーザー」が出る。**
+
+### 決定2: オプション・装備は有無ではなくメーカー＋型番で持つ
+
+`Vehicle` は68項目すべてがUIに出ていた一方、装備の項目は**1つも無かった**。
+他の未実装項目と違い「繋がっていない」ではなく「作られていない」。
+
+「付いている / 付いていない」だけでは、買い替え相談も売却査定も整備依頼も成立しない。
+ナビ・ドラレコ・ETC はメーカーと型番を持たせた。
+
+`VehicleFeature` の enum 名は Firestore に保存される。**変更・削除禁止**（追加は安全）。
+
+### 決定3: 公開ドライブログは経路の両端をぼかす
+
+経路は自宅から始まって自宅で終わることが多く、そのまま公開すると
+**住所を書いていなくても自宅が特定できる**。共有機能の前提として先に実装した。
+
+- 始点・終点から半径500m以内の点を落とす（往復でも両端それぞれ判定）
+- 残りが1点なら「そこに居た」が残るので空にする
+- 住所は市区町村まで。政令市の区は残さず**最初の一致**で切る
+  （貪欲だと「京都市中京区寺町通」のように町名を拾う。粗いぶんには害が無い）
+- 非公開時は何もぼかさない（自分の記録から自宅が消えたら使えない）
+- **公開する前に見え方を確認できるプレビュー**を付けた
+
+### 決定4: Web非対応の機能は「押せない理由」を出す
+
+`google_mlkit_text_recognition` は Web 非対応。`TextRecognizer` をコンストラクタで
+生成していたため、Web では生成時点で例外になり原因不明のエラーだけが出ていた。
+遅延生成 ＋ `isSupported` 判定に変え、押せば必ず失敗するボタンは出さない。
+
+### 副次的に直したもの
+
+- `GeoPoint2D.distanceTo` の sin/cos/sqrt/atan2 が自前のテイラー展開だった
+  （「dart:math の import 問題を避けるため」とあったが、dart:math はコアライブラリ）。
+  ぼかし処理がこの距離計算に依存するため `dart:math` に置換
+- 通知の既読はスワイプでしかできず、未読表示は7pxのドットのみ。押せるトグルへ
+- プロフィール編集シートがスクロールできず、欄を足すとはみ出す状態だった
+
+### PR #106 の扱い
+
+`claude/night-20260802` は9コミット遅れ＋コンフリクトで `dirty`。指定ブランチ以外へは
+push できないため、**内容をこのブランチにチェリーピック**した（`google_maps_flutter` 追加、
+`shop_map_utils`、`nearby_shops_map_screen`、テスト16件）。
+`shop_list_screen` の埋め込み表示との衝突は、AppBar が無い場合に本文先頭へ
+地図切替を出す形で解決。
+
+これでドライブログの経路も Google Map で描けるようになった。
+
+### 開発環境
+
+`dart format` が CI と食い違って5回失敗した件の再発防止として、
+**Dart SDK をこの実行環境に導入**した。`--language-version=3.0` を付けると
+CI（Flutter 3.38 同梱の dart_style）と完全に一致する。
+付けないと言語バージョンが解決できず tall style になり、324ファイルが差分扱いになる。
+
+```bash
+dart format --language-version=3.0 --output=none --set-exit-if-changed lib test
+```
+
+### 人手が必要（未実施）
+
+- `firebase deploy --only firestore:rules,firestore:indexes`
+- `node scripts/seed_shops.js` / `node scripts/seed_safety_tips.js`
+  — 未実行のため整備工場・安全運転の画面が空
+- `maintenance_comments` の Firestore ルール定義（現在0件 → コメントが黙って拒否される）
+- グレードカタログの `parent_id` が全16件で未設定 → 88車種すべてで候補0件
+
+## 滞留PR一括トリアージ ＋ CI恒久修正（2026-08-05）
+
+**ブランチ**: `claude/rustcar-pr-triage-ci-rumd73` / **PR**: #109
+**前提**: 個人向けSNS路線 → **B2B（社用車管理）への振り直し**（反応がなければ凍結判断）
+
+### 決定1: CI — ワークフロー停止ではなく恒久修正
+
+`pm_report.yml` は **2026-06-15 の初回から 8/8 全実行が失敗**しており、一度も成功していなかった。
+
+| バグ | 内容 |
+|------|------|
+| 1（main反映済み） | `grep -c` は0件時に「0」を出力しつつ **exit 1**。`$(... \|\| echo "0")` が2行になり `$GITHUB_OUTPUT` が `Invalid format '0'` で落ちる |
+| 2（#109で修正） | `FAIL=$(echo "$FAIL_LINE" \| grep -oE '[0-9]+')` が**テスト全緑時に exit 1** → `bash -e` でステップ失敗。つまり**テストが通ると落ちる** |
+
+- 全 `run` ステップを `set +e` ＋明示的な終了コード判定に統一
+  （品質レポートは「報告」が役目。赤い結果はデータであってワークフローを失敗させる理由にしない）
+- `flutter analyze` / `flutter test` の2回実行をやめ、終了コードを直接使用
+- `github-script` への `${{ }}` 直接展開を廃止し `env:` 経由へ（バッククォート入りコミット件名でJSが壊れる）
+- 本文の12スペースインデントを除去（**レポート全体がコードブロック化していた**）
+
+### 決定2: CI — 毎日の失敗通知の発生源を遮断
+
+`ci.yml` が `claude/**` への push を対象にしており、**65本**の滞留ブランチが
+push の度にフルCI（macos-15 の iOS ビルド含む）を起動していた。これが失敗通知と
+Actions ストレージ超過の発生源。
+
+- push トリガーを **`main` のみ**に限定（**PRイベントでのゲートは維持**）
+- `concurrency` + `cancel-in-progress` で重複run停止
+- APK/iOS 成果物のアップロードを **main 限定**・retention 7→3日
+
+> **main 自体は 2026-03 以降ずっと緑**だった（直近30run: 21成功/9失敗、失敗は全て2〜3月）。
+> 赤かったのは滞留ブランチであって main ではない。
+
+### 決定3: 滞留PR38件 → 9件に整理
+
+判定根拠は `docs/OPEN_PR_TRIAGE_2026-08-05.md`。
+
+| 判定 | 件数 | PR |
+|------|------|----|
+| 🔴 クローズ | **30** | #26 #27 #34 #45 #46 #48 #50 #53 #54 #56 #57 #58 #60 #69 #70 #71 #72 #73 #79 #85 #86 #89 #91 #93 #94 #95 #96 #97 #106 #107 |
+| 🟢 マージ対象 | 3 | #76（車両共有権限＝社用車管理の土台）→ #75（工場裏書き）→ #108（横断UX/Web） |
+| 🟡 B2B転用で保留 | 5 | #35(OCR登録) #90(車両台帳PDF) #88(Webデプロイ) #61(大量データ移行) #98(UI統一集約) |
+
+- クローズ理由は各PRにコメント済み。**ブランチは削除していない**ため再オープンで復帰可能
+- Issue #29/#30 のUI統一は11本が相互競合していたため **#98 に集約**
+- B2Cの受け皿ではなく、main の既存 `fleet_*`（`lib/models/fleet_member.dart`、
+  `lib/providers/fleet_provider.dart`、`lib/screens/fleet/`、`lib/services/fleet_service.dart` ほか）が
+  B2B振り直しの土台になる
+
+### 決定4: 滞留ブランチは削除しない（棚卸しのみ）
+
+`origin/claude/*` は 66本（オープンPR保持 9 / それ以外 57）。実測の結果:
+
+- **main にマージ済みのブランチは 0本**。squash merge のため main のコミットは
+  `feat: ... (#74)` に潰されており、元ブランチは main の祖先にならない。
+  つまり `git branch -d` は全て拒否され、削除するなら `-D`（強制）になる
+- **訂正**: 「ブランチ整理で Actions ストレージを回収」は機構として誤り。
+  ref はストレージをほぼ消費しない。占めているのは**アーティファクト**
+
+実測ストレージ: main 1 run あたり `android-apk-debug` 109.7MB + `ios-build-debug` 85.3MB
+= **約195MB**。これが従来 `claude/**` push 毎にも生成されていた（CI run 総数 742）。
+**#109 で「main限定＋retention 3日」に変更済み**のため今後の生成は停止。
+既存分は7日で自動失効（最新分は 2026-08-11 期限）し、追加操作なしで解放される。
+
+→ 30本のクローズ済みPRに「ブランチは削除しません」とコメント済みでもあるため、**削除は見送り**。
+
+### 次のアクション候補（3件）
+
+1. **#109 をマージ** → CIノイズ源を止めたうえで `#76 → #75 → #108` の順にマージ
+2. **#35 の OCR登録を B2B前提で切り出し再実装**（車検証OCRによる社用車の一括登録）
+3. **pm_report を `workflow_dispatch` で手動実行**し、初めて緑になることを実測で確認
+
+---
+
+## 夜間エージェント実行ログ（2026-08-01）
+
+**ブランチ**: `claude/night-20260801`
+**テスト**: 3509件 全パス（+4件）/ `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **Issue #41 Phase 3 実装（非提携店向け需要通知カード）**
+   - `_DemandNotificationCard` StatefulWidget を `shop_owner_screen.dart` に追加
+   - `!shop.isPartner` の店舗オーナー画面に、需要件数（`ShopDemandService.getDemandCountForShop`）を表示
+   - count > 0 のときのみ表示・count == 0 なら `SizedBox.shrink()`
+   - 「登録」ボタン → `ShopPlanScreen` へ遷移
+   - TDD 4件追加（RED→GREEN確認済み）
+   - `shop_owner_screen_performance_card_test.dart` に `_StubShopDemandService` 登録を追加
+     （非提携店テストで `sl.get<ShopDemandService>()` が未登録エラーになるのを修正）
+
+### 次のアクション候補（3件）
+
+1. **PR を main ブランチへマージ**（`claude/night-20260801` — CI GREEN 確認後）
+2. **Issue #41 Phase 4**: 非提携店オンボーディング画面（`ShopPlanScreen` のフリープラン → パートナー申込フロー）
+3. **蓄積 PR のレビュー・マージ**: 29件超の draft PR を最優先順でレビュー（#74 → #75 の依存順に注意）
+最終更新: 2026-07-31
+
+---
+
+## 夜間エージェント実行ログ（2026-07-31）
+
+**ブランチ**: `claude/night-20260731`
+**PR**: #104 https://github.com/zashii5793/trust-car-platform/pull/104
+**テスト**: 3509件 全パス（+4） / `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **Issue #41 Phase 2 — フリーミアム問い合わせゲート（InquiryScreen）**
+   - `InquiryScreen._submit()` に `!widget.shop.isPartner` ゲートを追加
+   - 非提携店 → `ShopDemandService.recordDemand()` → 需要受付ダイアログ
+   - 提携店 → 従来の月次上限 + 通常問い合わせ送信フロー
+   - テスト: `MockShopDemandService`、`sl.override` パターン、新4テスト追加
+
+2. **AccessoryShowcaseScreen — プルトゥリフレッシュ**
+   - `_TrendList` に `RefreshIndicator` を追加（`onRefresh: _load`）
+
+### 調査済み（変更なし）
+
+- `pm_report.yml` 修正 → PR #103 に実装済み（未マージ）
+- `sampleImageUrl` テスト → `vehicle_spec_service_test.dart:327-409` 実装済み
+- `ShopComparisonScreen` → `home_screen.dart:539` で接続済み
+- FleetMember 総務担当 → `FleetRole.manager` 実装済み
+
+### 次のアクション候補（3件）
+
+1. **PR #103 マージ** — `pm_report.yml` 週次 CI が 6 週以上失敗中
+2. **PR #104 マージ** — Issue #41 Phase 2 フリーミアムゲート
+3. **非提携店向けオンボーディング画面** — `getDemandsForShop()` を使った「N件の問い合わせがありました」表示
+
+---
+
 最終更新: 2026-07-11
 
 ---

@@ -16,8 +16,11 @@ import '../core/constants/spacing.dart';
 import '../widgets/common/app_card.dart';
 import '../widgets/common/loading_indicator.dart';
 import 'add_maintenance_screen.dart';
+import 'drive/drive_log_screen.dart';
 import '../widgets/maintenance/maintenance_ai_comment.dart';
+import '../widgets/maintenance/maintenance_detail_breakdown.dart';
 import 'export/export_dialog.dart';
+import 'marketplace/shop_list_screen.dart';
 import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
 import 'insurance_edit_screen.dart';
@@ -26,6 +29,8 @@ import 'maintenance_search_screen.dart';
 import '../services/firebase_service.dart';
 import '../services/community_trend_service.dart';
 import '../core/timeline/mileage_milestone.dart';
+import '../models/year_in_review.dart';
+import 'year_in_review_screen.dart';
 
 // Data returned by _InspectionCompleteDialog when the user confirms.
 class _InspectionCompletionResult {
@@ -55,11 +60,46 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   void initState() {
     super.initState();
     _vehicle = widget.vehicle;
+    // Own the maintenance subscription for this vehicle so newly added records
+    // (including ones created from this screen) stream into the timeline even
+    // when the navigating screen never started the listener. Without this the
+    // timeline can stay empty right after adding a record.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<MaintenanceProvider>().listenToMaintenanceRecords(
+            _vehicle.id,
+          );
+    });
   }
 
   String _formatNumber(int number) {
     final formatter = NumberFormat('#,###');
     return formatter.format(number);
+  }
+
+  /// Explains why a records-dependent action is not available yet, and offers
+  /// the one step that makes it available.
+  ///
+  /// Greying the icon out was the whole message before: the user could not tell
+  /// "not available yet" from "broken", and nothing on screen said what to do.
+  void _showNeedsRecordsMessage(BuildContext context, String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$featureは、整備記録が1件以上あると使えます'),
+        action: SnackBarAction(
+          label: '記録を追加',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AddMaintenanceScreen(
+                vehicleId: _vehicle.id,
+                currentVehicleMileage: _vehicle.mileage,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showPdfUpgradeDialog(BuildContext context) {
@@ -239,6 +279,18 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     }
   }
 
+  /// 整備記録に残っている直近の店舗名。無ければ null。
+  ///
+  /// 「いつもの店に相談」の宛先に使う。記録は日付降順で保持されている。
+  String? _latestShopName() {
+    final provider = context.read<MaintenanceProvider>();
+    for (final record in provider.records) {
+      final name = record.shopName;
+      if (name != null && name.trim().isNotEmpty) return name.trim();
+    }
+    return null;
+  }
+
   Future<void> _showMileageUpdateDialog() async {
     if (_isProcessing) return;
     final messenger = ScaffoldMessenger.of(context);
@@ -326,42 +378,55 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
           title: Text('${_vehicle.maker} ${_vehicle.model}'),
           actions: [
             // 整備履歴検索ボタン
+            //
+            // A disabled icon renders faded with no explanation, so a feature
+            // that is merely unavailable looks broken. Keep it tappable and
+            // say why, with the action that unlocks it.
             Consumer<MaintenanceProvider>(
               builder: (context, provider, child) {
+                final empty = provider.records.isEmpty;
                 return IconButton(
                   icon: const Icon(Icons.search),
-                  tooltip: '整備履歴を検索',
-                  onPressed: provider.records.isEmpty
-                      ? null
-                      : () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const MaintenanceSearchScreen(),
-                            ),
-                          );
-                        },
+                  tooltip: empty ? '整備記録を追加すると使えます' : '整備履歴を検索',
+                  onPressed: () {
+                    if (empty) {
+                      _showNeedsRecordsMessage(context, '整備履歴の検索');
+                      return;
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MaintenanceSearchScreen(),
+                      ),
+                    );
+                  },
                 );
               },
             ),
             // PDF出力ボタン（プレミアム機能）
             Consumer<MaintenanceProvider>(
               builder: (context, provider, child) {
+                final empty = provider.records.isEmpty;
                 return IconButton(
                   icon: const Icon(Icons.picture_as_pdf),
-                  tooltip: 'PDFで出力',
-                  onPressed: provider.records.isEmpty
-                      ? null
-                      : () {
-                          final canExport = context
-                              .read<UserSubscriptionProvider>()
-                              .canExportPdf;
-                          if (!canExport) {
-                            _showPdfUpgradeDialog(context);
-                            return;
-                          }
-                          _showExportTypeSelector(context, provider.records);
-                        },
+                  // 空のときに押せなくするのではなく、押せて理由を言う
+                  // （main 側の判断。灰色のアイコンは「壊れている」に見える）。
+                  // 出す中身は #90 の種別選択に差し替え、愛車カルテと
+                  // 整備記録のどちらを出すか選ばせる。
+                  tooltip: empty ? '整備記録を追加すると使えます' : 'PDFで出力',
+                  onPressed: () {
+                    if (empty) {
+                      _showNeedsRecordsMessage(context, 'PDF出力');
+                      return;
+                    }
+                    final canExport =
+                        context.read<UserSubscriptionProvider>().canExportPdf;
+                    if (!canExport) {
+                      _showPdfUpgradeDialog(context);
+                      return;
+                    }
+                    _showExportTypeSelector(context, provider.records);
+                  },
                 );
               },
             ),
@@ -384,10 +449,14 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
             ),
           ],
           bottom: TabBar(
-            labelColor: theme.colorScheme.primary,
-            unselectedLabelColor:
-                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-            indicatorColor: theme.colorScheme.primary,
+            // This TabBar sits inside the AppBar, whose background is the
+            // primary navy in light mode. Tinting the labels with
+            // colorScheme.primary painted navy on navy — the tab names were
+            // invisible. Colours here must contrast with the AppBar, not with
+            // the page surface. Matches safety_tip_screen / accessory_showcase.
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            indicatorColor: Colors.white,
             indicatorWeight: 3,
             tabs: const [
               Tab(icon: Icon(Icons.timeline, size: 18), text: 'すべて'),
@@ -406,7 +475,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // 車両画像
-                  _VehicleImage(imageUrl: _vehicle.imageUrl, isDark: isDark),
+                  _VehicleImage(imageUrls: _vehicle.imageUrls, isDark: isDark),
 
                   // 車両基本情報
                   Padding(
@@ -486,6 +555,17 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                               ),
                             ),
                           ),
+                          // 期限が迫っている・切れているときは「知らせる」
+                          // だけでなく、その場で動ける導線を出す。
+                          // 期限を知っても次の行き先が無ければ放置される。
+                          if (_vehicle.isInspectionExpired ||
+                              _vehicle.isInspectionDueSoon)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 88, top: 6),
+                              child: _InspectionActionButtons(
+                                latestShopName: _latestShopName(),
+                              ),
+                            ),
                         ],
                         if (_vehicle.insuranceExpiryDate != null)
                           _InfoRow(
@@ -516,6 +596,11 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       _vehicle.leaseInfo!.hasAnyValue)
                     _LeaseInfoSection(leaseInfo: _vehicle.leaseInfo!),
 
+                  // オプション・装備セクション
+                  if (_vehicle.equipment != null &&
+                      _vehicle.equipment!.hasAnyValue)
+                    _EquipmentInfoSection(equipment: _vehicle.equipment!),
+
                   // 点検スケジュールセクション
                   _MaintenanceScheduleSection(vehicle: _vehicle),
 
@@ -535,6 +620,9 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       );
                     },
                   ),
+
+                  // この1年のふりかえり
+                  _YearInReviewCard(vehicle: _vehicle),
 
                   // 整備記録の査定価値バナー
                   _MaintenanceValueBanner(vehicle: _vehicle),
@@ -597,6 +685,9 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
               builder: (context, child) {
                 if (tabController.index == 2) return const SizedBox.shrink();
                 return FloatingActionButton.extended(
+                  // テーマの CircleBorder が extended にも効き、ラベルが円の外へ
+                  // はみ出して読めなくなるため個別に指定する。
+                  shape: const StadiumBorder(),
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -882,6 +973,84 @@ class _LeaseInfoSection extends StatelessWidget {
   }
 }
 
+// ── オプション・装備セクション ──────────────────────────────────────────────
+
+class _EquipmentInfoSection extends StatelessWidget {
+  final VehicleEquipment equipment;
+  const _EquipmentInfoSection({required this.equipment});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      key: const Key('vehicle_equipment_section'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        Padding(
+          padding: AppSpacing.paddingScreen,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.settings_suggest,
+                      size: 16, color: AppColors.textSecondary),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    'オプション・装備',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              AppSpacing.verticalXs,
+              if (equipment.navigation.hasAnyValue)
+                _InfoRow(
+                  icon: Icons.navigation,
+                  label: 'カーナビ',
+                  value: equipment.navigation.displayLabel,
+                ),
+              if (equipment.driveRecorder.hasAnyValue)
+                _InfoRow(
+                  icon: Icons.videocam,
+                  label: 'ドラレコ',
+                  value: equipment.driveRecorder.displayLabel,
+                ),
+              if (equipment.etc.hasAnyValue)
+                _InfoRow(
+                  icon: Icons.toll,
+                  label: 'ETC',
+                  value: equipment.etc.displayLabel,
+                ),
+              if (equipment.features.isNotEmpty ||
+                  equipment.others.isNotEmpty) ...[
+                AppSpacing.verticalXs,
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xxs,
+                  children: [
+                    for (final f in equipment.features)
+                      Chip(
+                        label: Text(f.label),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    for (final o in equipment.others)
+                      Chip(
+                        label: Text(o),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // ── 点検スケジュールセクション ────────────────────────────────────────────────
 
 class _MaintenanceScheduleSection extends StatelessWidget {
@@ -976,27 +1145,103 @@ class _MaintenanceScheduleSection extends StatelessWidget {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _VehicleImage extends StatelessWidget {
-  final String? imageUrl;
+/// 車両写真。複数枚あるときは横スワイプでめくれるようにし、
+/// 何枚目を見ているかをドットで示す。1枚だけのときは従来通り静止表示。
+class _VehicleImage extends StatefulWidget {
+  final List<String> imageUrls;
   final bool isDark;
 
-  const _VehicleImage({this.imageUrl, required this.isDark});
+  const _VehicleImage({required this.imageUrls, required this.isDark});
+
+  @override
+  State<_VehicleImage> createState() => _VehicleImageState();
+}
+
+class _VehicleImageState extends State<_VehicleImage> {
+  final PageController _controller = PageController();
+  int _index = 0;
+
+  bool get isDark => widget.isDark;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     const height = 220.0;
+    final urls = widget.imageUrls;
     Widget image;
 
-    if (imageUrl != null && imageUrl!.isNotEmpty) {
+    if (urls.isEmpty) {
+      image = _buildPlaceholder(height);
+    } else if (urls.length == 1) {
       image = Image.network(
-        imageUrl!,
+        urls.first,
         height: height,
         width: double.infinity,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _buildPlaceholder(height),
       );
     } else {
-      image = _buildPlaceholder(height);
+      image = SizedBox(
+        height: height,
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: _controller,
+              itemCount: urls.length,
+              onPageChanged: (i) => setState(() => _index = i),
+              itemBuilder: (_, i) => Image.network(
+                urls[i],
+                height: height,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _buildPlaceholder(height),
+              ),
+            ),
+            Positioned(
+              bottom: 12,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(urls.length, (i) {
+                  final active = i == _index;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: active ? 18 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color:
+                          Colors.white.withValues(alpha: active ? 0.95 : 0.5),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  );
+                }),
+              ),
+            ),
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${_index + 1} / ${urls.length}',
+                  style: const TextStyle(color: Colors.white, fontSize: 11),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     // Gradient overlay at the bottom for smooth transition into content
@@ -1110,6 +1355,8 @@ class _StatisticsSection extends StatelessWidget {
       builder: (context, provider, child) {
         final totalCost = provider.getTotalCost();
         final recordCount = provider.records.length;
+        final verifiedCount =
+            provider.records.where((r) => r.isVerified).length;
 
         return Padding(
           padding: AppSpacing.paddingScreen,
@@ -1136,6 +1383,31 @@ class _StatisticsSection extends StatelessWidget {
                   ),
                 ],
               ),
+              if (verifiedCount > 0) ...[
+                AppSpacing.verticalSm,
+                Row(
+                  children: [
+                    Icon(Icons.verified, size: 14, color: AppColors.success),
+                    AppSpacing.horizontalXxs,
+                    Text(
+                      '検証済み',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    AppSpacing.horizontalXxs,
+                    Text(
+                      '$verifiedCount / $recordCount 件',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.success,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               if (recordCount > 0 && onDetailsTap != null) ...[
                 AppSpacing.verticalSm,
                 SizedBox(
@@ -1421,6 +1693,30 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        // A failed read must not look like "you have no records".
+        // MaintenanceProvider already captures stream errors, but this screen
+        // never read them: when the Firestore query failed (a missing
+        // composite index, for example) records stayed empty and the user was
+        // told 「メンテナンス記録がありません」 — so a real error was
+        // indistinguishable from an empty history, and記録を追加しても
+        // 反映されないように見えていた。
+        final error = maintenanceProvider.error;
+        if (error != null && maintenanceProvider.records.isEmpty) {
+          return AppEmptyState(
+            key: const Key('maintenance_load_error'),
+            icon: Icons.cloud_off,
+            title: '記録を読み込めませんでした',
+            description: error.userMessage,
+            // A non-retryable error used to leave no button at all, which is
+            // the state that needs a next step most: the user cannot tell a
+            // broken screen from an empty one. Reconnecting the stream is
+            // always safe to offer — worst case the same error comes back.
+            buttonLabel: maintenanceProvider.isRetryable ? '再試行' : 'もう一度読み込む',
+            onButtonPressed: () => maintenanceProvider
+                .listenToMaintenanceRecords(widget.vehicle.id),
+          );
+        }
+
         // Sort entries newest-first
         final entries = <_TimelineEntry>[
           if (widget.filter != _TimelineFilter.drive)
@@ -1430,27 +1726,31 @@ class _VehicleTimelineState extends State<_VehicleTimeline> {
         ]..sort((a, b) => b.date.compareTo(a.date));
 
         if (entries.isEmpty) {
-          // Maintenance CTA starts the core value loop (record → AI提案).
-          // The drive-only tab has its own recording flow, so no CTA there.
-          final showAddCta = widget.filter != _TimelineFilter.drive;
+          // Every empty state needs a next step on the screen the user is on.
+          // The drive tab used to show none, on the assumption that "the
+          // drive-only tab has its own recording flow" — true of DriveLogScreen,
+          // but there was no way to reach it from here, so the tab dead-ended.
+          final isDrive = widget.filter == _TimelineFilter.drive;
           return AppEmptyState(
             icon: _emptyIcon,
             title: _emptyTitle,
             description: _emptyDescription,
-            buttonLabel: showAddCta ? '整備記録を追加' : null,
-            onButtonPressed: showAddCta
-                ? () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AddMaintenanceScreen(
+            buttonLabel: isDrive ? 'ドライブログを記録' : '整備記録を追加',
+            onButtonPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => isDrive
+                      ? const DriveLogScreen()
+                      : AddMaintenanceScreen(
                           vehicleId: widget.vehicle.id,
                           currentVehicleMileage: widget.vehicle.mileage,
                         ),
-                      ),
-                    );
-                  }
-                : null,
+                ),
+              ).then((_) {
+                if (isDrive && mounted) _loadDriveLogs();
+              });
+            },
           );
         }
 
@@ -1827,6 +2127,28 @@ class _MaintenanceTimelineItem extends StatelessWidget {
                                                 : AppColors.textTertiary,
                                           ),
                                           overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                                // Verification badge (optional)
+                                if (record.isVerified) ...[
+                                  AppSpacing.verticalXxs,
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.verified,
+                                        size: 13,
+                                        color: AppColors.success,
+                                      ),
+                                      AppSpacing.horizontalXxs,
+                                      Text(
+                                        '工場裏書き',
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          color: AppColors.success,
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                     ],
@@ -2315,6 +2637,11 @@ class _MaintenanceDetailSheet extends StatelessWidget {
                       ),
                     ),
                   ],
+
+                  // 明細（部品 / 金額内訳 / 次回交換 / 点検結果 / タイヤ）。
+                  // 請求書OCRが読み取った項目は保存されていたが、これまで
+                  // 表示する画面が無く誰も見られなかった。
+                  MaintenanceDetailBreakdown(record: record),
 
                   AppSpacing.verticalLg,
 
@@ -2989,6 +3316,100 @@ class _CommunityTrendSection extends StatefulWidget {
   State<_CommunityTrendSection> createState() => _CommunityTrendSectionState();
 }
 
+/// 「この1年のふりかえり」への入口。
+///
+/// docs/HABIT_DESIGN.md 打ち手2。1年で整備記録は数十件溜まるのに、それを
+/// 見返す道が履歴の一覧しかなかった。**溜めることには協力してもらっている
+/// のに、溜まった価値を突き返していない。**
+///
+/// 中身が薄いうちは出さない。1件だけの「ふりかえり」は白ける。
+class _YearInReviewCard extends StatefulWidget {
+  final Vehicle vehicle;
+
+  const _YearInReviewCard({required this.vehicle});
+
+  @override
+  State<_YearInReviewCard> createState() => _YearInReviewCardState();
+}
+
+class _YearInReviewCardState extends State<_YearInReviewCard> {
+  /// 同じ車種の人の年間費用。取れなければ null のまま（比較欄が出ないだけ）。
+  int? _peerAnnualCost;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPeerCost();
+  }
+
+  Future<void> _fetchPeerCost() async {
+    if (!sl.isRegistered<CommunityTrendService>()) return;
+    final result = await sl.get<CommunityTrendService>().getTrendsForVehicle(
+          maker: widget.vehicle.maker,
+          model: widget.vehicle.model,
+        );
+    if (!mounted) return;
+    setState(() => _peerAnnualCost = result.valueOrNull?.estimatedAnnualCost);
+  }
+
+  YearInReview _build(List<MaintenanceRecord> records) {
+    final now = DateTime.now();
+    return YearInReview.from(
+      records: records.where((r) => r.vehicleId == widget.vehicle.id).toList(),
+      from: DateTime(now.year - 1, now.month, now.day),
+      to: now,
+      peerAverageCost: _peerAnnualCost,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<MaintenanceProvider>(
+      builder: (context, provider, _) {
+        final review = _build(provider.records);
+        if (!review.hasEnoughData) return const SizedBox.shrink();
+
+        final theme = Theme.of(context);
+        final fmt = NumberFormat('#,###');
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: ListTile(
+              key: const Key('year_in_review_entry'),
+              leading: const Icon(
+                Icons.insights_outlined,
+                color: AppColors.primary,
+              ),
+              title: const Text('この1年のふりかえり'),
+              subtitle: Text(
+                '${fmt.format(review.totalCost)}円 ・ 整備${review.recordCount}回'
+                '${review.distanceKm != null ? ' ・ ${fmt.format(review.distanceKm)}km' : ''}',
+                style: theme.textTheme.bodySmall,
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => YearInReviewScreen(
+                    review: review,
+                    vehicleName:
+                        '${widget.vehicle.maker} ${widget.vehicle.model}',
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _CommunityTrendSectionState extends State<_CommunityTrendSection> {
   CommunityTrendData? _data;
   bool _loaded = false;
@@ -3175,4 +3596,62 @@ class _CommunityInsightRow extends StatelessWidget {
     }
     return cost.toStringAsFixed(0);
   }
+}
+
+// ---------------------------------------------------------------------------
+// 車検アクション導線
+// ---------------------------------------------------------------------------
+
+/// 車検の期限が迫っている・切れているときに出す行動ボタン。
+///
+/// 期限の警告だけでは「で、どうすれば」で止まる。その場から
+/// 工場検索へ進めるようにし、過去に使った店があればその名前で
+/// 検索済みの状態で開く（記録の shopName は文字列でしか持っておらず
+/// shopId が無いため、名前検索で繋ぐ）。
+class _InspectionActionButtons extends StatelessWidget {
+  final String? latestShopName;
+
+  const _InspectionActionButtons({required this.latestShopName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xxs,
+      children: [
+        OutlinedButton.icon(
+          key: const Key('inspection_find_shop_btn'),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ShopListScreen()),
+          ),
+          icon: const Icon(Icons.search, size: 15),
+          label: const Text('整備工場を探す'),
+          style: _style(AppColors.warning),
+        ),
+        if (latestShopName != null)
+          OutlinedButton.icon(
+            key: const Key('inspection_contact_last_shop_btn'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    ShopListScreen(maintenanceContext: latestShopName),
+              ),
+            ),
+            icon: const Icon(Icons.history, size: 15),
+            label: Text('$latestShopNameに相談'),
+            style: _style(AppColors.info),
+          ),
+      ],
+    );
+  }
+
+  ButtonStyle _style(Color color) => OutlinedButton.styleFrom(
+        foregroundColor: color,
+        side: BorderSide(color: color),
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        textStyle: const TextStyle(fontSize: 12),
+      );
 }

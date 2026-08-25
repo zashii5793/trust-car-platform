@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../providers/post_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/post.dart';
@@ -8,8 +11,10 @@ import '../../models/comment.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
+import '../../services/firebase_service.dart';
 import '../../services/post_service.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../../widgets/image_viewer.dart';
 
 /// 投稿詳細画面
 ///
@@ -35,6 +40,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   // コメントタイルのキー管理（返信投稿後に返信リストを再ロードするため）
   final Map<String, GlobalKey<_CommentTileState>> _commentTileKeys = {};
 
+  // コメントに添付する画像（送信時に Storage へアップロードする）
+  final List<Uint8List> _pickedCommentImages = [];
+  bool _isUploadingCommentImages = false;
+
   @override
   void initState() {
     super.initState();
@@ -52,9 +61,73 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     super.dispose();
   }
 
+  Future<void> _pickCommentImages() async {
+    final remaining = Comment.maxImages - _pickedCommentImages.length;
+    if (remaining <= 0) return;
+
+    final picked = await ImagePicker().pickMultiImage(
+      maxWidth: 1080,
+      maxHeight: 1080,
+      imageQuality: 85,
+      limit: remaining,
+    );
+    if (picked.isEmpty) return;
+
+    final bytes = <Uint8List>[];
+    for (final file in picked.take(remaining)) {
+      bytes.add(await file.readAsBytes());
+    }
+    if (!mounted) return;
+    setState(() => _pickedCommentImages.addAll(bytes));
+  }
+
+  void _removeCommentImage(int index) {
+    setState(() => _pickedCommentImages.removeAt(index));
+  }
+
+  /// 添付画像を Storage に上げて URL を返す。1枚も上がらなければ null。
+  Future<List<String>?> _uploadCommentImages(String userId) async {
+    if (_pickedCommentImages.isEmpty) return const [];
+
+    setState(() => _isUploadingCommentImages = true);
+    final firebaseService = ServiceLocator.instance.get<FirebaseService>();
+    final basePath =
+        'comment_images/$userId/${DateTime.now().millisecondsSinceEpoch}';
+
+    final urls = <String>[];
+    var failed = 0;
+    for (var i = 0; i < _pickedCommentImages.length; i++) {
+      final result = await firebaseService.uploadImageBytes(
+        _pickedCommentImages[i],
+        '$basePath/image_$i.jpg',
+      );
+      if (result.isSuccess && result.valueOrNull != null) {
+        urls.add(result.valueOrNull!);
+      } else {
+        failed++;
+      }
+    }
+
+    if (!mounted) return null;
+    setState(() => _isUploadingCommentImages = false);
+
+    if (failed > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$failed枚の画像のアップロードに失敗しました'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      // 全滅したときだけ中断する。1枚でも上がっていれば投稿は通す。
+      if (urls.isEmpty) return null;
+    }
+    return urls;
+  }
+
   Future<void> _submitComment() async {
     final text = _commentController.text.trim();
-    if (text.isEmpty) return;
+    // 画像だけのコメントも許可する（「この部分です」と写真だけ貼るケース）。
+    if (text.isEmpty && _pickedCommentImages.isEmpty) return;
 
     final authProvider = context.read<AuthProvider>();
     final userId = authProvider.firebaseUser?.uid ?? '';
@@ -62,10 +135,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
     final replyTargetId = _replyTarget?.id;
 
+    final imageUrls = await _uploadCommentImages(userId);
+    if (imageUrls == null || !mounted) return;
+
     final success = await context.read<PostProvider>().addComment(
           postId: widget.post.id,
           userId: userId,
           content: text,
+          imageUrls: imageUrls,
           userDisplayName: authProvider.firebaseUser?.displayName,
           userPhotoUrl: authProvider.firebaseUser?.photoURL,
           parentCommentId: replyTargetId,
@@ -73,7 +150,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
     if (success && mounted) {
       _commentController.clear();
-      setState(() => _replyTarget = null);
+      setState(() {
+        _replyTarget = null;
+        _pickedCommentImages.clear();
+      });
       _focusNode.unfocus();
 
       // 返信投稿の場合は対象コメントタイルの返信リストをリセット・再ロード
@@ -175,7 +255,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       }
 
                       return Column(
-                        children: provider.comments.map((comment) {
+                        children:
+                            provider.comments.asMap().entries.map((entry) {
+                          final comment = entry.value;
                           final key = _commentTileKeys.putIfAbsent(
                             comment.id,
                             () => GlobalKey<_CommentTileState>(),
@@ -185,6 +267,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             comment: comment,
                             postId: widget.post.id,
                             isDark: isDark,
+                            // 1件ごとに背景を切り替えて、コメントの塊を区切る
+                            isAlternate: entry.key.isOdd,
                             onReply: (c) {
                               setState(() => _replyTarget = c);
                               _focusNode.requestFocus();
@@ -246,6 +330,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             focusNode: _focusNode,
             onSubmit: _submitComment,
             isDark: isDark,
+            pickedImages: _pickedCommentImages,
+            isUploadingImages: _isUploadingCommentImages,
+            onPickImages: _pickCommentImages,
+            onRemoveImage: _removeCommentImage,
           ),
         ],
       ),
@@ -379,13 +467,22 @@ class _PostDetailBody extends StatelessWidget {
               child: Wrap(
                 spacing: 6,
                 runSpacing: 2,
+                // タップでフィードをそのタグに絞り込む。詳細から同じ話題へ
+                // 辿れないと、投稿を1件読んで終わってしまう。
                 children: post.hashtags
-                    .map((tag) => Text(
-                          '#$tag',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w500,
+                    .map((tag) => InkWell(
+                          key: Key('detail_hashtag_$tag'),
+                          onTap: () {
+                            context.read<PostProvider>().selectHashtag(tag);
+                            Navigator.of(context).maybePop();
+                          },
+                          child: Text(
+                            '#$tag',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ))
                     .toList(),
@@ -436,10 +533,19 @@ class _PostDetailBody extends StatelessWidget {
                 Icon(Icons.chat_bubble_outline, size: 18, color: tertiary),
                 AppSpacing.horizontalXs,
                 Consumer<PostProvider>(
-                  builder: (context, provider, _) => Text(
-                    '${provider.comments.isNotEmpty ? provider.comments.length : post.commentCount}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: tertiary),
-                  ),
+                  builder: (context, provider, _) {
+                    // フィードのバッジは返信込みの総数。ここでトップレベル
+                    // だけを数えると、同じ投稿なのに件数が食い違う。
+                    final loaded = provider.comments.fold<int>(
+                      provider.comments.length,
+                      (sum, c) => sum + c.replyCount,
+                    );
+                    return Text(
+                      '${provider.comments.isNotEmpty ? loaded : post.commentCount}',
+                      style:
+                          theme.textTheme.bodySmall?.copyWith(color: tertiary),
+                    );
+                  },
                 ),
               ],
             ),
@@ -462,8 +568,13 @@ class _MediaGallery extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final urls = media.map((m) => m.url).toList();
+
     if (media.length == 1) {
-      return _buildNetworkImage(media[0].url, double.infinity, 240);
+      return GestureDetector(
+        onTap: () => showImageViewer(context, imageUrls: urls),
+        child: _buildNetworkImage(media[0].url, double.infinity, 240),
+      );
     }
 
     return GridView.count(
@@ -475,8 +586,18 @@ class _MediaGallery extends StatelessWidget {
       padding: EdgeInsets.zero,
       children: media
           .take(4)
-          .map((m) =>
-              _buildNetworkImage(m.url, double.infinity, double.infinity))
+          .toList()
+          .asMap()
+          .entries
+          .map((entry) => GestureDetector(
+                onTap: () => showImageViewer(
+                  context,
+                  imageUrls: urls,
+                  initialIndex: entry.key,
+                ),
+                child: _buildNetworkImage(
+                    entry.value.url, double.infinity, double.infinity),
+              ))
           .toList(),
     );
   }
@@ -578,6 +699,9 @@ class _CommentTile extends StatefulWidget {
   final Comment comment;
   final String postId;
   final bool isDark;
+
+  /// 奇数番目のコメントかどうか。背景の塗り分け（ゼブラ）に使う。
+  final bool isAlternate;
   final void Function(Comment) onReply;
 
   const _CommentTile({
@@ -585,6 +709,7 @@ class _CommentTile extends StatefulWidget {
     required this.comment,
     required this.postId,
     required this.isDark,
+    required this.isAlternate,
     required this.onReply,
   });
 
@@ -662,172 +787,260 @@ class _CommentTileState extends State<_CommentTile> {
     final tertiary =
         widget.isDark ? AppColors.darkTextTertiary : AppColors.textTertiary;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ---- メインコメント行 ----
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // アバター
-              CircleAvatar(
-                radius: 16,
-                backgroundColor:
-                    theme.colorScheme.primary.withValues(alpha: 0.15),
-                backgroundImage: widget.comment.userPhotoUrl != null
-                    ? NetworkImage(widget.comment.userPhotoUrl!)
-                    : null,
-                child: widget.comment.userPhotoUrl == null
-                    ? Text(
-                        (widget.comment.userDisplayName?.isNotEmpty ?? false)
-                            ? widget.comment.userDisplayName![0].toUpperCase()
-                            : '?',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )
-                    : null,
-              ),
-              AppSpacing.horizontalSm,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 名前 + 時刻
-                    Row(
-                      children: [
-                        Text(
-                          widget.comment.userDisplayName ?? 'ユーザー',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        AppSpacing.horizontalXs,
-                        Text(
-                          _formatTime(widget.comment.createdAt),
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: tertiary, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                    AppSpacing.verticalXxs,
-                    // 本文
-                    Text(
-                      widget.comment.content,
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                    AppSpacing.verticalXxs,
-                    // アクション行
-                    Row(
-                      children: [
-                        // 返信ボタン
-                        GestureDetector(
-                          onTap: () => widget.onReply(widget.comment),
-                          child: Text(
-                            '返信',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        // 自分のコメントなら削除ボタン
-                        Consumer2<PostProvider, AuthProvider>(
-                          builder:
-                              (context, postProvider, authProvider, child) {
-                            final userId = authProvider.firebaseUser?.uid ?? '';
-                            if (widget.comment.userId != userId ||
-                                userId.isEmpty) {
-                              return const SizedBox.shrink();
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.only(left: 12),
-                              child: GestureDetector(
-                                onTap: () async {
-                                  await postProvider.deleteComment(
-                                    commentId: widget.comment.id,
-                                    userId: userId,
-                                    postId: widget.postId,
-                                  );
-                                  if (!mounted) return;
-                                },
-                                child: Text(
-                                  '削除',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: AppColors.error,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                        // 返信数バッジ（タップで展開/畳む）
-                        if (widget.comment.replyCount > 0) ...[
-                          AppSpacing.horizontalSm,
-                          GestureDetector(
-                            onTap: _isLoadingReplies ? null : _toggleReplies,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (_isLoadingReplies)
-                                  SizedBox(
-                                    width: 10,
-                                    height: 10,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 1.5,
-                                      color: theme.colorScheme.primary,
-                                    ),
-                                  )
-                                else
-                                  Icon(
-                                    _isExpanded
-                                        ? Icons.expand_less
-                                        : Icons.expand_more,
-                                    size: 14,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                const SizedBox(width: 2),
-                                Text(
-                                  '返信${widget.comment.replyCount}件',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    // コメント同士に境目が無く、複数並ぶと本文と返信が地続きに見えていた。
+    // 細い罫線だけでは実機で判別できなかったため、1件ごとに背景を塗り分ける。
+    // 返信は親タイルの内側に置いて同じ背景を継承させ、左の縦線で階層を示す
+    // （返信だけ別の色にすると、どの親にぶら下がるのか読めなくなる）。
+    final zebra = widget.isAlternate
+        ? theme.colorScheme.onSurface.withValues(alpha: 0.035)
+        : theme.colorScheme.surface;
+
+    return Container(
+      key: Key('comment_tile_${widget.comment.id}'),
+      decoration: BoxDecoration(
+        color: zebra,
+        border: Border(
+          top: BorderSide(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
           ),
         ),
-
-        // ---- インライン返信一覧 ----
-        if (_isExpanded)
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ---- メインコメント行 ----
           Padding(
-            padding: const EdgeInsets.only(left: 24),
-            child: Column(
-              children: _replies
-                  .map((reply) => _ReplyTile(
-                        reply: reply,
-                        postId: widget.postId,
-                        isDark: widget.isDark,
-                        formatTime: _formatTime,
-                      ))
-                  .toList(),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // アバター
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor:
+                      theme.colorScheme.primary.withValues(alpha: 0.15),
+                  backgroundImage: widget.comment.userPhotoUrl != null
+                      ? NetworkImage(widget.comment.userPhotoUrl!)
+                      : null,
+                  child: widget.comment.userPhotoUrl == null
+                      ? Text(
+                          (widget.comment.userDisplayName?.isNotEmpty ?? false)
+                              ? widget.comment.userDisplayName![0].toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
+                ),
+                AppSpacing.horizontalSm,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 名前 + 時刻
+                      Row(
+                        children: [
+                          Text(
+                            widget.comment.userDisplayName ?? 'ユーザー',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          AppSpacing.horizontalXs,
+                          Text(
+                            _formatTime(widget.comment.createdAt),
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: tertiary, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                      AppSpacing.verticalXxs,
+                      // 本文（画像だけのコメントもあるので空なら描かない）
+                      if (widget.comment.content.isNotEmpty)
+                        Text(
+                          widget.comment.content,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      // 添付画像
+                      if (widget.comment.hasImages) ...[
+                        AppSpacing.verticalXs,
+                        _CommentImages(comment: widget.comment),
+                      ],
+                      AppSpacing.verticalXxs,
+                      // アクション行
+                      Row(
+                        children: [
+                          // 返信ボタン
+                          GestureDetector(
+                            onTap: () => widget.onReply(widget.comment),
+                            child: Text(
+                              '返信',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          // 自分のコメントなら削除ボタン
+                          Consumer2<PostProvider, AuthProvider>(
+                            builder:
+                                (context, postProvider, authProvider, child) {
+                              final userId =
+                                  authProvider.firebaseUser?.uid ?? '';
+                              if (widget.comment.userId != userId ||
+                                  userId.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(left: 12),
+                                child: GestureDetector(
+                                  onTap: () async {
+                                    await postProvider.deleteComment(
+                                      commentId: widget.comment.id,
+                                      userId: userId,
+                                      postId: widget.postId,
+                                    );
+                                    if (!mounted) return;
+                                  },
+                                  child: Text(
+                                    '削除',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: AppColors.error,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          // 返信数バッジ（タップで展開/畳む）
+                          if (widget.comment.replyCount > 0) ...[
+                            AppSpacing.horizontalSm,
+                            GestureDetector(
+                              onTap: _isLoadingReplies ? null : _toggleReplies,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_isLoadingReplies)
+                                    SizedBox(
+                                      width: 10,
+                                      height: 10,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 1.5,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    )
+                                  else
+                                    Icon(
+                                      _isExpanded
+                                          ? Icons.expand_less
+                                          : Icons.expand_more,
+                                      size: 14,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    '返信${widget.comment.replyCount}件',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.primary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-      ],
+
+          // ---- インライン返信一覧 ----
+          // 左端の縦線で「この親コメントへの返信」であることを示す。
+          if (_isExpanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 24),
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    left: BorderSide(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.25),
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: Column(
+                  children: _replies
+                      .map((reply) => _ReplyTile(
+                            reply: reply,
+                            postId: widget.postId,
+                            isDark: widget.isDark,
+                            formatTime: _formatTime,
+                          ))
+                      .toList(),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// コメント添付画像
+// ---------------------------------------------------------------------------
+
+class _CommentImages extends StatelessWidget {
+  final Comment comment;
+
+  const _CommentImages({required this.comment});
+
+  @override
+  Widget build(BuildContext context) {
+    // 会話を押し流さないよう、投稿本文の画像より小さく出す。
+    return SizedBox(
+      key: Key('comment_images_${comment.id}'),
+      height: 96,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: comment.imageUrls.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          return GestureDetector(
+            onTap: () => showImageViewer(
+              context,
+              imageUrls: comment.imageUrls,
+              initialIndex: index,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                comment.imageUrls[index],
+                width: 96,
+                height: 96,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 96,
+                  height: 96,
+                  color: AppColors.backgroundLight,
+                  child: const Icon(
+                    Icons.broken_image_outlined,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -904,11 +1117,17 @@ class _ReplyTile extends StatelessWidget {
                   ],
                 ),
                 AppSpacing.verticalXxs,
-                // 本文
-                Text(
-                  reply.content,
-                  style: theme.textTheme.bodySmall?.copyWith(fontSize: 13),
-                ),
+                // 本文（画像だけの返信もある）
+                if (reply.content.isNotEmpty)
+                  Text(
+                    reply.content,
+                    style: theme.textTheme.bodySmall?.copyWith(fontSize: 13),
+                  ),
+                // 添付画像
+                if (reply.hasImages) ...[
+                  AppSpacing.verticalXs,
+                  _CommentImages(comment: reply),
+                ],
                 AppSpacing.verticalXxs,
                 // 自分の返信なら削除リンク
                 Consumer2<PostProvider, AuthProvider>(
@@ -954,12 +1173,20 @@ class _CommentInputBar extends StatelessWidget {
   final FocusNode focusNode;
   final VoidCallback onSubmit;
   final bool isDark;
+  final List<Uint8List> pickedImages;
+  final bool isUploadingImages;
+  final VoidCallback onPickImages;
+  final void Function(int) onRemoveImage;
 
   const _CommentInputBar({
     required this.controller,
     required this.focusNode,
     required this.onSubmit,
     required this.isDark,
+    required this.pickedImages,
+    required this.isUploadingImages,
+    required this.onPickImages,
+    required this.onRemoveImage,
   });
 
   @override
@@ -978,62 +1205,130 @@ class _CommentInputBar extends StatelessWidget {
             ),
           ),
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                minLines: 1,
-                maxLines: 4,
-                textInputAction: TextInputAction.newline,
-                decoration: InputDecoration(
-                  hintText: 'コメントを入力...',
-                  hintStyle: TextStyle(
-                    color: isDark
-                        ? AppColors.darkTextTertiary
-                        : AppColors.textTertiary,
+            // ---- 添付予定の画像 ----
+            if (pickedImages.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SizedBox(
+                  height: 64,
+                  child: ListView.separated(
+                    key: const Key('comment_picked_images'),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: pickedImages.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      return Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(
+                              pickedImages[index],
+                              width: 64,
+                              height: 64,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: GestureDetector(
+                              key: Key('comment_picked_image_remove_$index'),
+                              onTap: () => onRemoveImage(index),
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                padding: const EdgeInsets.all(2),
+                                child: const Icon(
+                                  Icons.close,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
-                  filled: true,
-                  fillColor:
-                      isDark ? AppColors.darkCard : AppColors.backgroundLight,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  isDense: true,
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Consumer<PostProvider>(
-              builder: (context, provider, child) {
-                return IconButton(
-                  onPressed: provider.isSubmittingComment ? null : onSubmit,
-                  icon: provider.isSubmittingComment
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: theme.colorScheme.primary,
-                          ),
-                        )
-                      : Icon(
-                          Icons.send_rounded,
-                          color: theme.colorScheme.primary,
-                        ),
-                  style: IconButton.styleFrom(
-                    backgroundColor:
-                        theme.colorScheme.primary.withValues(alpha: 0.1),
-                    shape: const CircleBorder(),
+            Row(
+              children: [
+                // ---- 画像添付ボタン ----
+                IconButton(
+                  key: const Key('comment_attach_button'),
+                  tooltip: '写真を添付',
+                  onPressed: (isUploadingImages ||
+                          pickedImages.length >= Comment.maxImages)
+                      ? null
+                      : onPickImages,
+                  icon: Icon(
+                    Icons.add_photo_alternate_outlined,
+                    color: theme.colorScheme.primary,
                   ),
-                );
-              },
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    minLines: 1,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.newline,
+                    decoration: InputDecoration(
+                      hintText: 'コメントを入力...',
+                      hintStyle: TextStyle(
+                        color: isDark
+                            ? AppColors.darkTextTertiary
+                            : AppColors.textTertiary,
+                      ),
+                      filled: true,
+                      fillColor: isDark
+                          ? AppColors.darkCard
+                          : AppColors.backgroundLight,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Consumer<PostProvider>(
+                  builder: (context, provider, child) {
+                    return IconButton(
+                      onPressed: provider.isSubmittingComment ? null : onSubmit,
+                      icon: provider.isSubmittingComment
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: theme.colorScheme.primary,
+                              ),
+                            )
+                          : Icon(
+                              Icons.send_rounded,
+                              color: theme.colorScheme.primary,
+                            ),
+                      style: IconButton.styleFrom(
+                        backgroundColor:
+                            theme.colorScheme.primary.withValues(alpha: 0.1),
+                        shape: const CircleBorder(),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ],
         ),

@@ -8,15 +8,30 @@ import '../models/maintenance_record.dart';
 import '../core/constants/firestore_collections.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
+import '../core/utils/license_plate.dart';
+import '../core/utils/auth_scoped_stream.dart';
 
 /// Firebaseサービス
 ///
 /// すべてのメソッドは[Result]を返し、
 /// エラーハンドリングを一貫して行える
 class FirebaseService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
+
+  /// Resolved on first use — touching FirebaseStorage.instance in the
+  /// constructor crashes tests that never exercise storage (see ShopService).
+  FirebaseStorage? _storageOverride;
+  FirebaseStorage get _storage => _storageOverride ??= FirebaseStorage.instance;
+
+  /// Dependencies default to the singleton instances; tests inject fakes.
+  FirebaseService({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+    FirebaseStorage? storage,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance,
+        _storageOverride = storage;
 
   // 現在のユーザーID取得
   String? get currentUserId => _auth.currentUser?.uid;
@@ -50,19 +65,26 @@ class FirebaseService {
   }
 
   /// ユーザーの車両一覧を取得（Stream版は後方互換性のため維持）
+  /// Re-subscribes whenever the signed-in user changes.
+  ///
+  /// Screens start listening from initState, which on web runs before Firebase
+  /// Auth has restored its session. Returning a one-shot empty stream there
+  /// left the list permanently empty even after login succeeded, because the
+  /// subscription never re-evaluated (and the provider's retry only fires on
+  /// error, not on a legitimately empty result).
   Stream<List<Vehicle>> getUserVehicles() {
-    if (currentUserId == null) {
-      return Stream.value([]);
-    }
-
-    return _firestore
-        .collection(FirestoreCollections.vehicles)
-        .where('userId', isEqualTo: currentUserId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) => Vehicle.fromFirestore(doc)).toList();
-    });
+    return authScopedStream<List<Vehicle>>(
+      authChanges: _auth.authStateChanges(),
+      currentUser: () => _auth.currentUser,
+      signedOutValue: const <Vehicle>[],
+      onSignedIn: (user) => _firestore
+          .collection(FirestoreCollections.vehicles)
+          .where('userId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((snapshot) =>
+              snapshot.docs.map((doc) => Vehicle.fromFirestore(doc)).toList()),
+    );
   }
 
   /// 特定の車両を取得
@@ -89,6 +111,7 @@ class FirebaseService {
       // 関連する整備記録を取得して削除
       final records = await _firestore
           .collection(FirestoreCollections.maintenanceRecords)
+          .where('userId', isEqualTo: currentUserId)
           .where('vehicleId', isEqualTo: vehicleId)
           .get();
 
@@ -111,20 +134,28 @@ class FirebaseService {
   Future<Result<bool, AppError>> isLicensePlateExists(String licensePlate,
       {String? excludeVehicleId}) async {
     try {
+      // Compare on the normalised key rather than with an equality query.
+      // Plates arrive full-width from a Japanese IME and half-width from OCR,
+      // so an exact string match let the same car be registered twice —
+      // "品川 300 あ 12-34" and "品川　３００　あ　１２－３４" were different
+      // strings. Existing documents were also stored unnormalised, so a
+      // normalised query would not find them either.
       final query = _firestore
           .collection(FirestoreCollections.vehicles)
-          .where('userId', isEqualTo: currentUserId)
-          .where('licensePlate', isEqualTo: licensePlate);
+          .where('userId', isEqualTo: currentUserId);
 
       final snapshot = await query.get();
+      final target = licensePlateKey(licensePlate);
+      if (target.isEmpty) return const Result.success(false);
 
-      // excludeVehicleIdがある場合は、そのIDを除外してチェック
-      if (excludeVehicleId != null) {
-        final exists = snapshot.docs.any((doc) => doc.id != excludeVehicleId);
-        return Result.success(exists);
-      }
+      final exists = snapshot.docs.any((doc) {
+        if (doc.id == excludeVehicleId) return false;
+        final raw = doc.data()['licensePlate'];
+        if (raw is! String || raw.isEmpty) return false;
+        return licensePlateKey(raw) == target;
+      });
 
-      return Result.success(snapshot.docs.isNotEmpty);
+      return Result.success(exists);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
     }
@@ -162,8 +193,12 @@ class FirebaseService {
   /// 車両の履歴一覧を取得（Stream版は後方互換性のため維持）
   Stream<List<MaintenanceRecord>> getVehicleMaintenanceRecords(
       String vehicleId) {
+    // userId を条件に含めないと Firestore のルール
+    // (resource.data.userId == request.auth.uid) をクエリが保証できず、
+    // 一覧そのものが PERMISSION_DENIED で弾かれる。
     return _firestore
         .collection(FirestoreCollections.maintenanceRecords)
+        .where('userId', isEqualTo: currentUserId)
         .where('vehicleId', isEqualTo: vehicleId)
         .orderBy('date', descending: true)
         .snapshots()
@@ -172,6 +207,28 @@ class FirebaseService {
           .map((doc) => MaintenanceRecord.fromFirestore(doc))
           .toList();
     });
+  }
+
+  /// Whether the user has logged any maintenance at all.
+  ///
+  /// Used by the getting-started checklist, which only needs "has anything
+  /// been recorded", so this reads a single document instead of a list.
+  /// Signed out counts as "nothing yet" rather than an error — the checklist
+  /// should not show a failure state for a state that is simply empty.
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async {
+    final uid = currentUserId;
+    if (uid == null) return const Result.success(false);
+
+    try {
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.maintenanceRecords)
+          .where('userId', isEqualTo: uid)
+          .limit(1)
+          .get();
+      return Result.success(snapshot.docs.isNotEmpty);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
   }
 
   /// 車両の履歴一覧を取得（Future版、通知生成用）
@@ -183,6 +240,7 @@ class FirebaseService {
     try {
       final snapshot = await _firestore
           .collection(FirestoreCollections.maintenanceRecords)
+          .where('userId', isEqualTo: currentUserId)
           .where('vehicleId', isEqualTo: vehicleId)
           .orderBy('date', descending: true)
           .limit(limit)
@@ -232,6 +290,7 @@ class FirebaseService {
 
         final snapshot = await _firestore
             .collection(FirestoreCollections.maintenanceRecords)
+            .where('userId', isEqualTo: currentUserId)
             .where('vehicleId', whereIn: batchIds)
             .orderBy('date', descending: true)
             .get();

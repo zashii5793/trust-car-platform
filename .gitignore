@@ -51,6 +51,8 @@ app.*.map.json
 .env
 .env.*
 *.env
+# Keep the checked-in template (not a real secret)
+!.env.example
 
 # Firebase configuration (contains API keys)
 # lib/firebase_options.dart is auto-generated and may contain sensitive keys
@@ -87,3 +89,10 @@ docs/REPORT_AI_DEV_STATUS.md
 
 # Golden test failure artifacts (auto-generated diff output)
 test/golden/failures/
+
+# Firebase Emulator のエクスポートデータ（ローカル検証用）
+.emulator-data/
+firestore-debug.log
+
+# Firebase Hosting のデプロイキャッシュ（ローカル生成物）
+.firebase/

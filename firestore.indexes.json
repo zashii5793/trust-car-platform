@@ -24,6 +24,18 @@
         { "fieldPath": "date", "order": "DESCENDING" }
       ]
     },
+    // 車両の整備履歴一覧。firestore.rules が
+    // resource.data.userId == request.auth.uid を要求するため、クエリ側にも
+    // userId 条件が必要（無いと一覧が PERMISSION_DENIED で弾かれる）。
+    {
+      "collectionGroup": "maintenance_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
     {
       "collectionGroup": "maintenance_records",
       "queryScope": "COLLECTION",
@@ -31,6 +43,29 @@
         { "fieldPath": "vehicleId", "order": "ASCENDING" },
         { "fieldPath": "type", "order": "ASCENDING" },
         { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+
+    // =========================================================
+    // vehicle_masters/{makers|models}/items（車両マスタ・import_vehicle_master.js で投入）
+    // =========================================================
+    // メーカー一覧: isActive + displayOrder（VehicleMasterService.getMakers）
+    {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "displayOrder", "order": "ASCENDING" }
+      ]
+    },
+    // 車種一覧: makerId + isActive + displayOrder（VehicleMasterService.getModelsForMaker）
+    {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "makerId", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "displayOrder", "order": "ASCENDING" }
       ]
     },
 
@@ -297,6 +332,73 @@
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
+    // 並び替え「コメントが多い順」。カテゴリの複数選択は whereIn なので、
+    // 等価フィルタと同じ扱いになり category ありの組と共用できる。
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "commentCount", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // 「コメントが多い順」+ カテゴリ絞り込み
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "commentCount", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // 「コメントが多い順」+ 同車種フィルタ
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "vehicleTag.modelName", "order": "ASCENDING" },
+        { "fieldPath": "commentCount", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // ハッシュタグ絞り込み + 「コメントが多い順」
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "hashtags", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "commentCount", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // ハッシュタグ + カテゴリ絞り込み
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "hashtags", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // 「コメントが多い順」+ カテゴリ + 同車種
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "vehicleTag.modelName", "order": "ASCENDING" },
+        { "fieldPath": "commentCount", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
 
     // =========================================================
     // comments
@@ -443,6 +545,30 @@
         { "fieldPath": "isActive", "order": "ASCENDING" },
         { "fieldPath": "category", "order": "ASCENDING" },
         { "fieldPath": "publishedAt", "order": "DESCENDING" }
+      ]
+    },
+
+    // =========================================================
+    // vehicle_sharing_permissions
+    // =========================================================
+    // getPermittedShops: 車両オーナーが許可した工場IDリストを取得
+    //   .where('vehicleId', isEqualTo: vehicleId).where('isActive', isEqualTo: true)
+    {
+      "collectionGroup": "vehicle_sharing_permissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" }
+      ]
+    },
+    // getPermittedVehicles: 工場が閲覧許可された車両IDリストを取得
+    //   .where('shopId', isEqualTo: shopId).where('isActive', isEqualTo: true)
+    {
+      "collectionGroup": "vehicle_sharing_permissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" }
       ]
     }
 

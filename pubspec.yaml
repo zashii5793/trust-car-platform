@@ -9,6 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # 日付ピッカーなど Material 標準 UI を日本語表示にするために必要
+  flutter_localizations:
+    sdk: flutter
   cupertino_icons: ^1.0.2
   flutter_dotenv: ^5.1.0
   firebase_core: 4.9.0
@@ -21,6 +24,8 @@ dependencies:
   intl: ^0.20.2
   uuid: ^4.2.2
   google_sign_in: ^6.2.2
+  sign_in_with_apple: ^6.1.0
+  crypto: ^3.0.3
   google_fonts: ^6.2.1
   pdf: ^3.11.1
   printing: ^5.13.3
@@ -40,6 +45,10 @@ dependencies:
   firebase_performance: ^0.11.1+4
   # GPS / Location (Drive recording)
   geolocator: ^13.0.2
+  # Maps: nearby shops map + partner pins (Issues #41/#43). Requires
+  # MAPS_API_KEY at build time; the UI degrades to the distance list when the
+  # key is absent.
+  google_maps_flutter: ^2.10.0
   # Phase 7: BtoB Subscription (RevenueCat)
   purchases_flutter: ^8.0.0
   url_launcher: ^6.3.0
@@ -58,6 +67,8 @@ dev_dependencies:
   mockito: ^5.4.4
   build_runner: ^2.4.8
   fake_cloud_firestore: ^4.0.2
+  # 認証状態の遷移（未ログイン→ログイン）を伴うStreamのテストに使用
+  firebase_auth_mocks: ^0.15.0
 
 flutter:
   uses-material-design: true

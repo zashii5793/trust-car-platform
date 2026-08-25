@@ -66,7 +66,7 @@ class VehicleRetirementService {
 
       return const Result.success(null);
     } catch (e) {
-      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
@@ -106,21 +106,47 @@ class VehicleRetirementService {
 
       return const Result.success(null);
     } catch (e) {
-      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
   /// Returns all retired vehicles (sold/scrapped/etc.) for [userId].
+  ///
+  /// Filters by status in Dart rather than in the query. The previous version
+  /// combined an equality filter on userId with `whereNotIn` on status, which
+  /// needs a composite (userId, status) index — and `vehicles` only has
+  /// (userId, createdAt), so the query failed outright with FAILED_PRECONDITION
+  /// and the screen showed an error. `whereNotIn` also silently drops documents
+  /// that have no `status` field at all, which is every vehicle created before
+  /// the field was introduced.
+  ///
+  /// One user owns a handful of vehicles, so filtering client-side costs
+  /// nothing and removes the index dependency entirely.
   Future<Result<List<Vehicle>, AppError>> getRetiredVehicles(
       String userId) async {
     try {
       final snap = await _firestore
           .collection(_collection)
           .where('userId', isEqualTo: userId)
-          .where('status', whereNotIn: [VehicleStatus.active.name]).get();
-      return Result.success(snap.docs.map(Vehicle.fromFirestore).toList());
+          .get();
+      // 1件のパース失敗で一覧全体を落とさない。
+      //
+      // サーバー側で status を絞っていた頃は退役車両しかパースしなかったが、
+      // インデックス依存を外して userId だけで取得するようにしたため、
+      // 現役車両も含めて全件をパースする。壊れたドキュメントが1件でも
+      // あると画面全体がエラーになるので、そのドキュメントだけ飛ばす。
+      final retired = <Vehicle>[];
+      for (final doc in snap.docs) {
+        try {
+          final vehicle = Vehicle.fromFirestore(doc);
+          if (vehicle.status != VehicleStatus.active) retired.add(vehicle);
+        } catch (_) {
+          continue;
+        }
+      }
+      return Result.success(retired);
     } catch (e) {
-      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
@@ -135,7 +161,7 @@ class VehicleRetirementService {
           .get();
       return Result.success(snap.docs.map(Vehicle.fromFirestore).toList());
     } catch (e) {
-      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+      return Result.failure(mapFirebaseError(e));
     }
   }
 }

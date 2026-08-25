@@ -895,12 +895,14 @@ void main() {
         expect(trends, isEmpty);
       });
 
-      test('安全情報が1件もなくても空リストを返す（初期状態）', () async {
+      test('安全情報が1件もなくても同梱デフォルトを返す（空画面を出さない）', () async {
+        // Firestore 未シードの本番で「安全運転情報がからっぽ」になった実機
+        // 指摘への対応。空のときは kDefaultSafetyTips へフォールバックする。
         final emptyFirestore = FakeFirebaseFirestore();
         final emptyService = SafetyTipService(firestore: emptyFirestore);
         final result = await emptyService.getTips();
         expect(result.isSuccess, isTrue);
-        expect(result.valueOrNull!, isEmpty);
+        expect(result.valueOrNull!, isNotEmpty);
       });
     });
   });

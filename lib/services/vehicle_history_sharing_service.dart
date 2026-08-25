@@ -49,10 +49,23 @@ class VehicleHistorySharingService {
     }
 
     try {
-      await _firestore
-          .collection(_collection)
-          .doc(_docId(vehicleId, shopId))
-          .set({
+      final docRef =
+          _firestore.collection(_collection).doc(_docId(vehicleId, shopId));
+
+      // B2: Check existing ownerId to prevent ownership hijacking.
+      final existing = await docRef.get();
+      if (existing.exists) {
+        final existingOwner =
+            (existing.data() as Map<String, dynamic>)['ownerId'] as String?;
+        if (existingOwner != null && existingOwner != ownerId) {
+          return const Result.failure(
+            AppError.permission(
+                'only the vehicle owner can modify sharing permission'),
+          );
+        }
+      }
+
+      await docRef.set({
         'vehicleId': vehicleId,
         'shopId': shopId,
         'ownerId': ownerId,
@@ -62,7 +75,7 @@ class VehicleHistorySharingService {
       });
       return const Result.success(null);
     } catch (e) {
-      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
@@ -93,7 +106,7 @@ class VehicleHistorySharingService {
       await doc.reference.delete();
       return const Result.success(null);
     } catch (e) {
-      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
@@ -129,7 +142,7 @@ class VehicleHistorySharingService {
 
       return const Result.success(true);
     } catch (e) {
-      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
@@ -156,7 +169,7 @@ class VehicleHistorySharingService {
 
       return Result.success(shopIds);
     } catch (e) {
-      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+      return Result.failure(mapFirebaseError(e));
     }
   }
 
@@ -183,7 +196,7 @@ class VehicleHistorySharingService {
 
       return Result.success(vehicleIds);
     } catch (e) {
-      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+      return Result.failure(mapFirebaseError(e));
     }
   }
 }

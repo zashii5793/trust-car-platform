@@ -20,10 +20,25 @@ import 'package:trust_car_platform/providers/shop_provider.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
+import 'package:trust_car_platform/services/shop_demand_service.dart';
 import 'package:trust_car_platform/models/shop.dart';
 import 'package:trust_car_platform/models/user.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:trust_car_platform/core/di/service_locator.dart';
+import 'package:trust_car_platform/core/di/injection.dart';
+
+// ---------------------------------------------------------------------------
+// Stub ShopDemandService — always returns 0 (demand card stays hidden)
+// ---------------------------------------------------------------------------
+
+class _StubShopDemandService extends ShopDemandService {
+  _StubShopDemandService() : super();
+
+  @override
+  Future<Result<int, AppError>> getDemandCountForShop(String shopId) async =>
+      const Result.success(0);
+}
 
 // ---------------------------------------------------------------------------
 // Stub Services (no-op; never touch Firebase)
@@ -67,7 +82,10 @@ class _StubAuthService implements AuthService {
 
   @override
   Future<Result<void, AppError>> updateUserProfile(
-          {String? displayName, String? photoUrl}) async =>
+          {String? displayName,
+          String? photoUrl,
+          String? prefecture,
+          String? city}) async =>
       const Result.success(null);
 
   @override
@@ -188,6 +206,19 @@ Widget _buildScreen(_FakeShopProvider shopProvider) {
 // ---------------------------------------------------------------------------
 
 void main() {
+  setUpAll(() {
+    final locator = ServiceLocator.instance;
+    if (!locator.isRegistered<ShopDemandService>()) {
+      locator.registerLazySingleton<ShopDemandService>(
+        () => _StubShopDemandService(),
+      );
+    }
+  });
+
+  tearDownAll(() {
+    Injection.reset();
+  });
+
   group('ShopOwnerScreen _PerformanceSummaryCard', () {
     // -----------------------------------------------------------------------
     // 1. 掲載日数 (days since createdAt)
