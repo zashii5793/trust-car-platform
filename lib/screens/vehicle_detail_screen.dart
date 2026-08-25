@@ -121,6 +121,80 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     );
   }
 
+  void _showExportTypeSelector(
+      BuildContext context, List<MaintenanceRecord> records) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                'PDFエクスポートの種類を選択',
+                style: Theme.of(context).textTheme.headlineLarge,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              ListTile(
+                key: const Key('export_karte_option'),
+                leading: const Icon(Icons.book_outlined),
+                title: const Text('愛車カルテ'),
+                subtitle: const Text('車両情報＋整備履歴の完全記録'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  showExportDialog(
+                    context: context,
+                    vehicle: _vehicle,
+                    records: records,
+                    exportType: ExportType.vehicleKarte,
+                  );
+                },
+              ),
+              ListTile(
+                key: const Key('export_report_option'),
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: const Text('整備履歴レポート'),
+                subtitle: const Text('整備記録の一覧と費用サマリー'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  showExportDialog(
+                    context: context,
+                    vehicle: _vehicle,
+                    records: records,
+                    exportType: ExportType.maintenanceReport,
+                  );
+                },
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextButton(
+                onPressed: () => Navigator.pop(sheetContext),
+                child: const Text('キャンセル'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _navigateToEdit() async {
     final result = await Navigator.push<Vehicle>(
       context,
@@ -335,6 +409,10 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                 final empty = provider.records.isEmpty;
                 return IconButton(
                   icon: const Icon(Icons.picture_as_pdf),
+                  // 空のときに押せなくするのではなく、押せて理由を言う
+                  // （main 側の判断。灰色のアイコンは「壊れている」に見える）。
+                  // 出す中身は #90 の種別選択に差し替え、愛車カルテと
+                  // 整備記録のどちらを出すか選ばせる。
                   tooltip: empty ? '整備記録を追加すると使えます' : 'PDFで出力',
                   onPressed: () {
                     if (empty) {
@@ -347,11 +425,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       _showPdfUpgradeDialog(context);
                       return;
                     }
-                    showExportDialog(
-                      context: context,
-                      vehicle: _vehicle,
-                      records: provider.records,
-                    );
+                    _showExportTypeSelector(context, provider.records);
                   },
                 );
               },
