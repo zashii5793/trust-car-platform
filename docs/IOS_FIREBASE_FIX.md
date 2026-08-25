@@ -1,5 +1,21 @@
 # iOS が起動しない件の直し方（2026-08-25）
 
+> **2026-08-25 追記: 登録と差し替えは完了した。** 残っているのは実機/シミュレータ
+> での起動確認だけ（§4）。**ビルドが通っただけでは確かめたことにならない。**
+>
+> ```
+>  新 App ID   1:31421119456:ios:5646ac324f34398880c985
+>  新 API Key  AIzaSyBt0hMKqo9viDFCXvNcDpNWcQ34seKfPEg
+>  Bundle      jp.trustcar.app
+> ```
+>
+> 差し替えた場所: `ios/Runner/GoogleService-Info.plist`（gitignore 対象・手元のみ）/
+> `lib/firebase_options.dart` の ios・macos / `.github/workflows/ci.yml` の
+> フォールバック plist。
+>
+> **apiKey も別物だった。** 旧値 `AIzaSyDZQ4UK6I…` は web の鍵で、iOS の鍵は
+> `AIzaSyBt0hMKqo…`。Android で直したときとまったく同じ形。
+
 **症状**: iOS アプリを起動すると白画面のまま何も出ない。ビルドは通る。
 
 **原因**: Firebase に登録されている iOS アプリの Bundle ID が
@@ -36,7 +52,7 @@ CI は緑のまま通る。Android がまさにこれで、
 
 ---
 
-## 2. 人間の作業（Firebase Console）
+## 2. 人間の作業（Firebase Console）【完了】
 
 **Firebase の iOS アプリは、後から Bundle ID を変更できない。** 新規登録が要る。
 
@@ -60,7 +76,7 @@ CI は緑のまま通る。Android がまさにこれで、
 
 ---
 
-## 3. AI 側の作業（値をもらってから）
+## 3. AI 側の作業（値をもらってから）【完了】
 
 上の 7 で控えた App ID と API キーを渡してもらえれば、こちらで直す。
 

@@ -53,9 +53,14 @@ class DefaultFirebaseOptions {
     storageBucket: 'trust-car-platform.firebasestorage.app',
   );
 
+  // 2026-08-25: Firebase の iOS アプリを jp.trustcar.app で新規登録し直した。
+  // それまでは com.example.trustCarPlatform のアプリID に iosBundleId だけ
+  // jp.trustcar.app と書いた**実在しない組み合わせ**で、iOS は白画面のまま
+  // 起動しなかった。apiKey も web のもの（AIzaSyDZQ4UK6I…）が入っていた。
+  // 2026-08-23 に Android で直したのと同じ形。
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDZQ4UK6IXiUKNJ3u1Cjup4nIEmiV97O0Q',
-    appId: '1:31421119456:ios:4320af5d1401f02c80c985',
+    apiKey: 'AIzaSyBt0hMKqo9viDFCXvNcDpNWcQ34seKfPEg',
+    appId: '1:31421119456:ios:5646ac324f34398880c985',
     messagingSenderId: '31421119456',
     projectId: 'trust-car-platform',
     storageBucket: 'trust-car-platform.firebasestorage.app',
@@ -63,8 +68,8 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyDZQ4UK6IXiUKNJ3u1Cjup4nIEmiV97O0Q',
-    appId: '1:31421119456:ios:4320af5d1401f02c80c985',
+    apiKey: 'AIzaSyBt0hMKqo9viDFCXvNcDpNWcQ34seKfPEg',
+    appId: '1:31421119456:ios:5646ac324f34398880c985',
     messagingSenderId: '31421119456',
     projectId: 'trust-car-platform',
     storageBucket: 'trust-car-platform.firebasestorage.app',
