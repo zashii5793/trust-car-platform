@@ -197,9 +197,13 @@ CI は `test` も含めて `--fatal-infos` で解析する。2026-08-22 に、
 **手元で整形すると CI で落ちる**（2026-08-22 実測: 359ファイルが差分になった）。
 
 ```
- CI       Flutter 3.38.0（.github/workflows/ci.yml）
- 開発機    3.44.2（2026-08-23 実測。★揃っていない）
+ CI       Flutter 3.44.2（.github/workflows/ci.yml。2026-08-25 に 3.38.0 から揃えた）
+ 開発機    3.44.2
 ```
+
+**2026-08-25 に揃えた。** それまでは CI が 3.38.0 で、依存更新のPRが7本
+「version solving failed」で止まっていた（例: intl 0.20.3 は 3.38 系の
+flutter_localizations が 0.20.2 に固定していて、構造的に解決できない）。
 
 **揃っていないと、整形以外も食い違う。** 2026-08-23 に踏んだ例:
 
@@ -238,7 +242,8 @@ flutter test test/golden/                    # 手元では走る
 flutter test --update-goldens test/golden/   # 撮り直し
 ```
 
-CI でも見え方を守りたくなったら、先に CI と開発機の Flutter を揃えること。
+CI でも見え方を守りたくなったら、ゴールデン画像を Linux で撮り直す仕組みが要る
+（Flutter の版は 2026-08-25 に揃えたが、OS とフォントは依然として違う）。
 
 ## コンテキスト参照先
 

@@ -105,6 +105,13 @@ android {
             signingConfig = signingConfigs.getByName(
                 if (hasReleaseKeystore) "release" else "debug"
             )
+            // R8 は使っていないクラスを消す。ML Kit の日本語認識は
+            // proguard-rules.pro で残す指定をしないと、release / profile で
+            // 実行時に落ちる（車検証OCRが動かない）。
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
@@ -115,4 +122,11 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+
+    // ML Kit Japanese text recognition model for 車検証 / invoice OCR.
+    // google_mlkit_text_recognition only bundles the Latin model; non-Latin
+    // scripts must be added explicitly (see the plugin README). Without this,
+    // TextRecognitionScript.japanese fails at runtime and R8 cannot resolve
+    // the Japanese recognizer classes in release builds.
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
 }

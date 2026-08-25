@@ -535,6 +535,36 @@ void main() {
       expect(find.text('車検満了日'), findsOneWidget);
     });
 
+    // 2026-08-25 に足した。
+    //
+    // VehicleUseCategory（自家用乗用 / 貨物 / 軽貨物 / 事業用）は編集画面に
+    // しか無く、**新規登録では選べなかった**。登録直後は全車が「自家用乗用車」
+    // 扱いになり、車検満了日の計算が最大1年ずれる。トラック・軽トラの
+    // ユーザーには致命的。
+    testWidgets('16b. 「用途区分」を選べる', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await _fillStep1AndAdvance(tester);
+
+      expect(find.text('用途区分'), findsOneWidget);
+    });
+
+    testWidgets('16c. 用途区分の既定は自家用乗用車', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await _fillStep1AndAdvance(tester);
+
+      expect(
+        find.textContaining('自家用乗用車'),
+        findsWidgets,
+      );
+    });
+
+    testWidgets('16d. 車検周期の説明が出る（何が変わるか分かるように）', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await _fillStep1AndAdvance(tester);
+
+      expect(find.textContaining('車検'), findsWidgets);
+    });
+
     testWidgets('17. 「自賠責保険期限」tile visible', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await _fillStep1AndAdvance(tester);

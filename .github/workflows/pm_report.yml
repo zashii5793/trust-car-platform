@@ -26,14 +26,14 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0  # 全コミット履歴（週次diff用）
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.0'
+          flutter-version: '3.44.2'
           channel: 'stable'
           cache: true
 
@@ -149,7 +149,7 @@ jobs:
       # ── レポートIssue作成 ────────────────────────────────────────────────────
 
       - name: Create PM Report Issue
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         # Step outputs are passed through env, never interpolated into the
         # script body: a commit subject containing a backtick or ${ would
         # otherwise be substituted into the JS source and break the step.

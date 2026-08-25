@@ -12,6 +12,39 @@ class AppInfo {
 
   static const String version = '1.0.0';
 
+  /// Identifies one build of the same [version].
+  ///
+  /// During a test rollout the version stays at 1.0.0 while the APK and the
+  /// Web build are re-cut many times. Without this, "it still happens" cannot
+  /// be tied to the build the reporter actually ran.
+  ///
+  /// Supplied at build time:
+  ///
+  ///   flutter build apk --dart-define=APP_BUILD_ID=$(git rev-parse --short HEAD)
+  ///
+  /// Empty for `flutter run` and for CI test runs — the app must work without
+  /// it, so every display path falls back to [version] alone.
+  static const String buildId = String.fromEnvironment('APP_BUILD_ID');
+
+  /// What to show on screen and record on feedback: `1.0.0 (a1b2c3d)`.
+  static String get fullVersion => formatVersion(version, buildId);
+
+  /// Longest build id we render. A commit SHA is 7-40 characters; anything
+  /// beyond that is truncated so the label stays on one line.
+  static const int maxBuildIdLength = 40;
+
+  /// Pure formatter so the empty/長すぎる cases are testable — [buildId] itself
+  /// is fixed at compile time and cannot be varied from a test.
+  @visibleForTesting
+  static String formatVersion(String version, String buildId) {
+    final id = buildId.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (id.isEmpty) return version;
+
+    final shown =
+        id.length > maxBuildIdLength ? id.substring(0, maxBuildIdLength) : id;
+    return version.isEmpty ? '($shown)' : '$version ($shown)';
+  }
+
   /// 'web' / 'android' / 'ios' / 'macos' / 'windows' / 'linux' / 'unknown'
   static String get platform {
     if (kIsWeb) return 'web';
