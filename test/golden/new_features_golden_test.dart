@@ -18,13 +18,16 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/models/fuel_record.dart';
+import 'package:trust_car_platform/models/inspection_pipeline.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/year_in_review.dart';
 import 'package:trust_car_platform/screens/fuel/add_fuel_screen.dart';
+import 'package:trust_car_platform/screens/marketplace/shop_invite_manage_screen.dart';
 import 'package:trust_car_platform/screens/settings/shop_invite_screen.dart';
 import 'package:trust_car_platform/screens/year_in_review_screen.dart';
 import 'package:trust_car_platform/services/fuel_service.dart';
 import 'package:trust_car_platform/services/shop_invite_service.dart';
+import 'package:trust_car_platform/widgets/shop/inspection_pipeline_card.dart';
 
 import 'font_loader.dart';
 
@@ -204,6 +207,103 @@ void main() {
       ]);
 
       expect(efficiency, closeTo(12.5, 0.01));
+    });
+  });
+
+  group('店側の画面', () {
+    testWidgets('お客様に配るコード（発行前）', (tester) async {
+      final service = ShopInviteService(firestore: FakeFirebaseFirestore());
+
+      await shoot(
+        tester,
+        ShopInviteManageScreen(
+          service: service,
+          shopId: 'shop_takaya_motor_okayama',
+          shopName: 'タカヤモーター株式会社',
+          shopOwnerId: 'shop-owner-takaya',
+        ),
+        'shop_invite_manage_before',
+      );
+    });
+
+    testWidgets('お客様に配るコード（発行後・顧客3名）', (tester) async {
+      final firestore = FakeFirebaseFirestore();
+      final service = ShopInviteService(firestore: firestore);
+      for (final uid in ['user-a', 'user-c', 'persona-j-user']) {
+        await firestore.collection('shop_customers').doc(uid).set({
+          'shopId': 'shop_takaya_motor_okayama',
+          'shopName': 'タカヤモーター株式会社',
+          'userId': uid,
+          'linkedAt': DateTime(2026, 8, 27),
+        });
+      }
+
+      await tester.binding.setSurfaceSize(_phone);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: goldenTheme(AppTheme.lightTheme),
+          home: ShopInviteManageScreen(
+            service: service,
+            shopId: 'shop_takaya_motor_okayama',
+            shopName: 'タカヤモーター株式会社',
+            shopOwnerId: 'shop-owner-takaya',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('issue_invite_button')));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/shop_invite_manage_issued.png'),
+      );
+    });
+  });
+
+  group('取りこぼしの可視化', () {
+    Widget card(InspectionPipeline pipeline) => Scaffold(
+          backgroundColor: const Color(0xFFF3F4F6),
+          body: Padding(
+            padding: const EdgeInsets.all(16),
+            child: InspectionPipelineCard(
+              pipeline: pipeline,
+              periodLabel: '2026年9月',
+            ),
+          ),
+        );
+
+    testWidgets('数えられるとき', (tester) async {
+      await shoot(
+        tester,
+        card(const InspectionPipeline(
+          dueCount: 48,
+          completedCount: 41,
+          pendingCount: 7,
+          missedCount: 5,
+          unknownExpiryCount: 12,
+        )),
+        'inspection_pipeline',
+        size: const Size(390, 420),
+      );
+    });
+
+    testWidgets('まだ数えられないとき', (tester) async {
+      // **「取りこぼし0台」とは書かない。** 分母が無いのに0と出すと
+      // 経営判断を誤らせる。
+      await shoot(
+        tester,
+        card(const InspectionPipeline(
+          dueCount: 0,
+          completedCount: 0,
+          pendingCount: 0,
+          missedCount: 0,
+          unknownExpiryCount: 23,
+        )),
+        'inspection_pipeline_unknown',
+        size: const Size(390, 420),
+      );
     });
   });
 }
