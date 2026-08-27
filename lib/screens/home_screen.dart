@@ -48,6 +48,8 @@ import '../services/feedback_service.dart';
 import 'settings/feedback_screen.dart';
 import 'settings/help_screen.dart';
 import '../core/constants/app_info.dart';
+import 'settings/shop_invite_screen.dart';
+import '../services/shop_invite_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -774,6 +776,23 @@ class _ProfileTab extends StatelessWidget {
               // ここが利用者の見るサポート欄。ヘルプもフィードバックも
               // ProfileScreen 側にしか無く、そこへは「プロフィールを編集」
               // からしか行けなかったため、実質たどり着けなかった。
+              // 店から渡されたコードを入れる場所。
+              // docs/BUSINESS_MODEL_RETHINK_2026-08-27.md §4 — 既存客が
+              // 自分でアプリを探して自分で店を見つける導線しか無かった。
+              _MenuItemData(
+                icon: Icons.store_outlined,
+                label: 'お店のコードを入れる',
+                color: AppColors.secondary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => ShopInviteScreen(
+                      service: sl.get<ShopInviteService>(),
+                      userId: user?.uid ?? '',
+                    ),
+                  ),
+                ),
+              ),
               _MenuItemData(
                 icon: Icons.help_outline,
                 label: 'ヘルプ',

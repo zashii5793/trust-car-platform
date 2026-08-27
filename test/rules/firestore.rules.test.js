@@ -1067,3 +1067,240 @@ describe('feedback — read / update / delete', () => {
     await assertFails(deleteDoc(doc(dbFor(OWNER_UID), feedbackPath)));
   });
 });
+
+// ---------------------------------------------------------------------------
+// 招待コード / かかりつけ / 給油記録（2026-08-27 追加）
+//
+// ここを緩めると「他店の顧客名簿が読める」「勝手に顧客にされる」という、
+// 気づきにくい壊れ方をする。実際に Emulator へ書いて確かめる。
+// ---------------------------------------------------------------------------
+
+const INVITE_SHOP_OWNER_UID = 'shop_owner_777';
+const INVITE_CUSTOMER_UID = 'customer_888';
+const INVITE_CODE = 'ABC234';
+const invitePath = `shop_invites/${INVITE_CODE}`;
+const INVITE_SHOP_ID = 'shop_777';
+
+const inviteDoc = (overrides = {}) => ({
+  shopId: INVITE_SHOP_ID,
+  shopName: 'タカヤモーター',
+  shopOwnerId: INVITE_SHOP_OWNER_UID,
+  createdAt: new Date(),
+  isActive: true,
+  usedCount: 0,
+  ...overrides,
+});
+
+const linkDoc = (uid, overrides = {}) => ({
+  shopId: INVITE_SHOP_ID,
+  shopName: 'タカヤモーター',
+  userId: uid,
+  linkedAt: new Date(),
+  ...overrides,
+});
+
+const fuelDoc = (uid, overrides = {}) => ({
+  vehicleId: 'v1',
+  userId: uid,
+  date: new Date(),
+  liters: 40,
+  cost: 6800,
+  isFullTank: true,
+  createdAt: new Date(),
+  ...overrides,
+});
+
+async function seedInvite(overrides = {}) {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), invitePath), inviteDoc(overrides));
+    await setDoc(doc(ctx.firestore(), `shops/${INVITE_SHOP_ID}`), {
+      name: 'タカヤモーター',
+      ownerId: INVITE_SHOP_OWNER_UID,
+    });
+  });
+}
+
+describe('shop_invites', () => {
+  test('店主は自分の招待を作れる', async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(INVITE_SHOP_OWNER_UID), invitePath), inviteDoc()),
+    );
+  });
+
+  test('他人の店主IDを詐称した発行は拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(INVITE_CUSTOMER_UID), invitePath), inviteDoc()),
+    );
+  });
+
+  test('使用回数を最初から水増しした発行は拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(INVITE_SHOP_OWNER_UID), invitePath),
+        inviteDoc({ usedCount: 100 }),
+      ),
+    );
+  });
+
+  test('コードを知っていれば読める（引き換えに必要）', async () => {
+    await seedInvite();
+    await assertSucceeds(getDoc(doc(dbFor(INVITE_CUSTOMER_UID), invitePath)));
+  });
+
+  test('未認証では読めない', async () => {
+    await seedInvite();
+    await assertFails(getDoc(doc(unauthDb(), invitePath)));
+  });
+
+  test('引き換えで使用回数だけ増やせる', async () => {
+    await seedInvite();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(INVITE_CUSTOMER_UID), invitePath), { usedCount: 1 }),
+    );
+  });
+
+  test('顧客が招待の中身を書き換えることはできない', async () => {
+    await seedInvite();
+    await assertFails(
+      updateDoc(doc(dbFor(INVITE_CUSTOMER_UID), invitePath), { shopId: 'other_shop' }),
+    );
+  });
+
+  test('顧客が招待を消すことはできない', async () => {
+    await seedInvite();
+    await assertFails(deleteDoc(doc(dbFor(INVITE_CUSTOMER_UID), invitePath)));
+  });
+
+  test('店主は自分の招待を止められる', async () => {
+    await seedInvite();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(INVITE_SHOP_OWNER_UID), invitePath), { isActive: false }),
+    );
+  });
+});
+
+describe('shop_customers（かかりつけ）', () => {
+  const linkPath = `shop_customers/${INVITE_CUSTOMER_UID}`;
+
+  test('本人は自分の紐づけを作れる', async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(INVITE_CUSTOMER_UID), linkPath), linkDoc(INVITE_CUSTOMER_UID)),
+    );
+  });
+
+  test('店が勝手に顧客を作ることはできない', async () => {
+    // ここが通ると、店が名簿を勝手に増やせてしまう。
+    await assertFails(
+      setDoc(doc(dbFor(INVITE_SHOP_OWNER_UID), linkPath), linkDoc(INVITE_CUSTOMER_UID)),
+    );
+  });
+
+  test('他人になりすました紐づけは拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OTHER_UID), linkPath), linkDoc(INVITE_CUSTOMER_UID)),
+    );
+  });
+
+  test('本人は自分の紐づけを読める', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), linkDoc(INVITE_CUSTOMER_UID));
+    });
+    await assertSucceeds(getDoc(doc(dbFor(INVITE_CUSTOMER_UID), linkPath)));
+  });
+
+  test('紐づいた店は自分の顧客を読める', async () => {
+    await seedInvite();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), linkDoc(INVITE_CUSTOMER_UID));
+    });
+    await assertSucceeds(getDoc(doc(dbFor(INVITE_SHOP_OWNER_UID), linkPath)));
+  });
+
+  test('無関係の第三者は読めない', async () => {
+    await seedInvite();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), linkDoc(INVITE_CUSTOMER_UID));
+    });
+    await assertFails(getDoc(doc(dbFor(OTHER_UID), linkPath)));
+  });
+
+  test('本人は自分の紐づけを外せる', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), linkDoc(INVITE_CUSTOMER_UID));
+    });
+    await assertSucceeds(deleteDoc(doc(dbFor(INVITE_CUSTOMER_UID), linkPath)));
+  });
+
+  test('店が顧客の紐づけを外すことはできない', async () => {
+    await seedInvite();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), linkDoc(INVITE_CUSTOMER_UID));
+    });
+    await assertFails(deleteDoc(doc(dbFor(INVITE_SHOP_OWNER_UID), linkPath)));
+  });
+});
+
+describe('fuel_records（給油記録）', () => {
+  const fuelPath = 'fuel_records/f1';
+
+  test('本人は自分の記録を作れる', async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(INVITE_CUSTOMER_UID), fuelPath), fuelDoc(INVITE_CUSTOMER_UID)),
+    );
+  });
+
+  test('他人の userId を詐称した作成は拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OTHER_UID), fuelPath), fuelDoc(INVITE_CUSTOMER_UID)),
+    );
+  });
+
+  test('給油量0は拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(INVITE_CUSTOMER_UID), fuelPath),
+        fuelDoc(INVITE_CUSTOMER_UID, { liters: 0 }),
+      ),
+    );
+  });
+
+  test('あり得ない給油量は拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(INVITE_CUSTOMER_UID), fuelPath),
+        fuelDoc(INVITE_CUSTOMER_UID, { liters: 9999 }),
+      ),
+    );
+  });
+
+  test('負の金額は拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(INVITE_CUSTOMER_UID), fuelPath),
+        fuelDoc(INVITE_CUSTOMER_UID, { cost: -1 }),
+      ),
+    );
+  });
+
+  test('本人は自分の記録を読める', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), fuelPath), fuelDoc(INVITE_CUSTOMER_UID));
+    });
+    await assertSucceeds(getDoc(doc(dbFor(INVITE_CUSTOMER_UID), fuelPath)));
+  });
+
+  test('店にも見せない（燃費や行動が読めてしまう）', async () => {
+    await seedInvite();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), fuelPath), fuelDoc(INVITE_CUSTOMER_UID));
+    });
+    await assertFails(getDoc(doc(dbFor(INVITE_SHOP_OWNER_UID), fuelPath)));
+  });
+
+  test('他人は消せない', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), fuelPath), fuelDoc(INVITE_CUSTOMER_UID));
+    });
+    await assertFails(deleteDoc(doc(dbFor(OTHER_UID), fuelPath)));
+  });
+});
