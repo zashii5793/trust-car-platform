@@ -52,6 +52,68 @@ class MakerBrand {
     Color(0xFF00695C),
   ];
 
+  /// 表示名（和名・英名）から makerId を引くための表。
+  ///
+  /// `Vehicle.maker` は makerId ではなく**和名の文字列**で保存されている
+  /// （`Vehicle` 側に makerId が無い）。保存済みの車両にバッジを出すには
+  /// ここで引き直すしかない。キーは小文字化して突き合わせる。
+  ///
+  /// [_brands] と対になっているので、**メーカーを足すときは両方に足すこと。**
+  /// ずれたらテスト（マスタの全メーカーが和名から引ける）で落ちる。
+  ///
+  /// **キーは必ず小文字で書く。** 引くときに `toLowerCase()` するので、
+  /// 'UDトラックス' のようにラテン文字混じりの和名を大文字のまま置くと
+  /// 一生ヒットしない。
+  static const Map<String, String> _idsByName = {
+    'トヨタ': 'toyota',
+    'toyota': 'toyota',
+    'ホンダ': 'honda',
+    'honda': 'honda',
+    '日産': 'nissan',
+    'nissan': 'nissan',
+    'マツダ': 'mazda',
+    'mazda': 'mazda',
+    'スバル': 'subaru',
+    'subaru': 'subaru',
+    'スズキ': 'suzuki',
+    'suzuki': 'suzuki',
+    'ダイハツ': 'daihatsu',
+    'daihatsu': 'daihatsu',
+    '三菱': 'mitsubishi',
+    'mitsubishi': 'mitsubishi',
+    'レクサス': 'lexus',
+    'lexus': 'lexus',
+    '光岡自動車': 'mitsuoka',
+    '光岡': 'mitsuoka',
+    'mitsuoka': 'mitsuoka',
+    'いすゞ': 'isuzu',
+    'isuzu': 'isuzu',
+    '日野': 'hino',
+    '日野自動車': 'hino',
+    'hino': 'hino',
+    '三菱ふそう': 'fuso',
+    'mitsubishi fuso': 'fuso',
+    'fuso': 'fuso',
+    'udトラックス': 'ud',
+    'ud trucks': 'ud',
+    'ud': 'ud',
+    'その他': 'other',
+    'other': 'other',
+  };
+
+  /// Whether [makerId] is in the catalog (色とマークが決め打ちされている)。
+  static bool isKnown(String makerId) => _brands.containsKey(makerId);
+
+  /// Resolves [name] (和名 or 英名) to a maker id.
+  ///
+  /// カタログに無いメーカーは**名前をそのまま返す**。自由入力を許している
+  /// 以上、ここで null を返すと呼び出し側が毎回分岐する羽目になる。
+  /// 返り値をそのまま [of] に渡せば、同じ名前には毎回同じ色が付く。
+  static String idFromName(String name) {
+    final trimmed = name.trim();
+    return _idsByName[trimmed.toLowerCase()] ?? trimmed;
+  }
+
   /// Looks up the badge for [makerId].
   ///
   /// カタログに無いメーカーでも必ず何かを返す。自由入力を許している以上、
