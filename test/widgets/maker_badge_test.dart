@@ -119,7 +119,8 @@ void main() {
       });
 
       test('空文字でも落ちない', () {
-        expect(MakerBrand.of(MakerBrand.idFromName('')).mark.isNotEmpty, isTrue);
+        expect(
+            MakerBrand.of(MakerBrand.idFromName('')).mark.isNotEmpty, isTrue);
       });
     });
   });

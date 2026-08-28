@@ -1159,8 +1159,8 @@ class _VehicleCard extends StatelessWidget {
                                     Expanded(
                                       child: Text(
                                         '${vehicle.maker} ${vehicle.model}',
-                                        style: theme.textTheme.bodyLarge
-                                            ?.copyWith(
+                                        style:
+                                            theme.textTheme.bodyLarge?.copyWith(
                                           fontWeight: FontWeight.w700,
                                           color: isDark
                                               ? AppColors.darkTextPrimary
