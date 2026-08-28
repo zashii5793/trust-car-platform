@@ -31,6 +31,7 @@ import '../services/community_trend_service.dart';
 import '../core/timeline/mileage_milestone.dart';
 import '../models/year_in_review.dart';
 import 'year_in_review_screen.dart';
+import '../widgets/vehicle/maker_badge.dart';
 
 // Data returned by _InspectionCompleteDialog when the user confirms.
 class _InspectionCompletionResult {
@@ -483,9 +484,19 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '${_vehicle.maker} ${_vehicle.model}',
-                          style: theme.textTheme.displayMedium,
+                        // `Vehicle` は makerId を持たないので名前から引く。
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            MakerBadge.fromName(_vehicle.maker, size: 32),
+                            AppSpacing.horizontalSm,
+                            Expanded(
+                              child: Text(
+                                '${_vehicle.maker} ${_vehicle.model}',
+                                style: theme.textTheme.displayMedium,
+                              ),
+                            ),
+                          ],
                         ),
                         AppSpacing.verticalSm,
                         _InfoRow(

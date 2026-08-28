@@ -48,6 +48,7 @@ import '../services/feedback_service.dart';
 import 'settings/feedback_screen.dart';
 import 'settings/help_screen.dart';
 import '../core/constants/app_info.dart';
+import '../widgets/vehicle/maker_badge.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -1148,14 +1149,27 @@ class _VehicleCard extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  '${vehicle.maker} ${vehicle.model}',
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: isDark
-                                        ? AppColors.darkTextPrimary
-                                        : AppColors.textPrimary,
-                                  ),
+                                // 複数台を持つ人は一覧をメーカーで見分ける。
+                                // `Vehicle` は makerId を持たないので名前から引く。
+                                Row(
+                                  children: [
+                                    MakerBadge.fromName(vehicle.maker,
+                                        size: 18),
+                                    AppSpacing.horizontalXs,
+                                    Expanded(
+                                      child: Text(
+                                        '${vehicle.maker} ${vehicle.model}',
+                                        style: theme.textTheme.bodyLarge
+                                            ?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: isDark
+                                              ? AppColors.darkTextPrimary
+                                              : AppColors.textPrimary,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 AppSpacing.verticalXxs,
                                 Text(
