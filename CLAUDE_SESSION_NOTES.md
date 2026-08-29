@@ -1,6 +1,34 @@
 # Claude Session Notes
 
-最終更新: 2026-08-24
+最終更新: 2026-08-29
+
+---
+
+## 開発進捗レポート（2026-08-29）
+
+**ブランチ**: `claude/dev-progress-report-pdf-95rw0t`
+
+開発遍歴・機能一覧・コンセプト整合性・未実装・バグ・課題を1本の PDF にまとめた
+（`docs/reports/DEV_PROGRESS_REPORT_2026-08-29.pdf` / 15ページ。HTML を同梱してあるので
+`chromium --headless --print-to-pdf` で再生成できる）。
+
+### 調査で出てきた新しい事実
+
+| 重さ | 内容 |
+|---|---|
+| **重大・新規** | **main の `Build iOS` が 8/25 から失敗している。** `cloud_firestore 6.4.1` の `FLTPipelineParser.m` が Firebase iOS SDK と噛み合わず `no visible @interface for 'FIRCollectionSourceStageBridge'`。8/21 レポート時点は success だったので**回帰**。`pubspec.yaml` は `^6.1.2` と上限を開けているため、解決版が動くたび再発しうる |
+| 改善 | **未マージPR が 28本 → 21本。初めて減った。** Flutter を 3.44.2 に揃えたことで dependabot の version solving 失敗が解けたのが主因 |
+| 未解決 | iOS 白画面（Bundle ID 不一致）の修正 PR #155 が4日間オープンのまま。B-2「購入を復元」も B2C 側に無いまま |
+
+### コンセプト照合で見つかったずれ
+
+- **`PartRecommendation` が企画書の形になっていない。** 企画書は `reasons`（複数）/ `cautions` /
+  `confidenceScore` を求めるが、実装は `compatibility` + `compatibilityNote`（1本の文字列）+ `relevanceScore`。
+  **「isBest を持たない」という禁止側は守られているが、「理由を複数出す」肯定側が構造として無い。**
+- **`docs/FEATURE_SPEC.md` が 2026-02-21 から更新されていない。** そこで「未実装 P0」とされている
+  車両マスタ・愛車タイムライン・ホームAI提案は**3つとも実装済み**。この文書を根拠に優先順位を
+  決めると済んだ仕事をやり直す。
+- `TireInfoCard` は自ファイル以外からの参照が0件のまま（削除か組み込みか未判断）。
 
 ---
 
