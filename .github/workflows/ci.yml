@@ -95,7 +95,7 @@ jobs:
           node-version: '20'
 
       - name: Setup Java (for Firestore emulator)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -143,7 +143,7 @@ jobs:
       # Storage Emulator は Java を必要とする。
       # firebase-tools は JDK 21 以上が必須（17 だと起動エラー）。
       - name: Setup Java (for Storage emulator)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -171,7 +171,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '17'
