@@ -4,6 +4,111 @@
 
 ---
 
+## 未マージPR 32本の棚卸し（2026-09-03・その3）
+
+7月に18本だった未マージPRが32本まで増えていたので、全部見て片付けた。
+
+### 何が滞留していたか
+
+**半分は「もう要らないPR」だった。** 内容が別経路で main に入っていたり
+（#156 #155 #106）、直す対象そのものが消えていたり（#142 は文言が既に
+置き換わっていた）、目的が別PRで達成済み（#88）だったりする。
+
+**つまり滞留の主因はレビュー待ちではなく、棚卸しをしていなかったこと。**
+放っておくと「マージできないPR」ではなく「意味を失ったPR」が積もる。
+
+| 分類 | 本数 | 例 |
+|---|---|---|
+| マージ | 13 | #170（OCR満了日）#169（規約）#153（事業docs退避） |
+| クローズ（取り込み済み） | 6 | #156 #155 #106 #142 #88 #144 |
+| クローズ（構造的に無理） | 1 | #164 mockito（Flutter SDK が meta を固定） |
+| クローズ（public に事業情報） | 3 | #148 #119 #114 |
+| Issue に切り出し | 1 | #145 → #172 |
+
+### #160 のマージで main を壊した
+
+**google_mlkit_text_recognition 0.14.0 → 0.17.1 を「CI 全green」と見て
+マージしたら、main の Build iOS が落ちた。**
+
+```
+In snapshot (Podfile.lock):  GoogleMLKit/TextRecognition (= 7.0.0)
+In Podfile:                  ... 0.17.1 depends on (~> 9.0.0)
+```
+
+`ios/Podfile.lock` の固定と、プラグインが要求する版が食い違う。
+
+**なぜ緑に見えたか。** `build-ios` は macOS ランナーが10倍課金なので、
+`ios` ラベル付きの PR か main への push でしか走らない。dependabot の
+PR にラベルは付かないので **skipped のまま「全green」に見える**。
+
+**ネイティブ依存を持つパッケージの更新は、この形だと構造的に PR の CI を
+すり抜ける。** 該当しそうなもの: `google_mlkit_*` `camera` `image_picker`
+`firebase_*` `google_maps_flutter` `flutter_local_notifications`。
+
+さらに、気づいて `ios` ラベルを付けても **CI は走らなかった**。
+`pull_request` の既定トリガ（opened / synchronize / reopened）に
+ラベル操作が入っていないため。#173 で `labeled` を足した。
+
+Podfile.lock は CocoaPods のチェックサムを含み、macOS 無しでは
+再生成できない。#178 で revert し、入れ直しは #177 に残した。
+
+### CI が失敗の理由を捨てていた
+
+失敗サマリが `grep ... | head -50` でマッチ行だけを拾う作りだった。
+`flutter test` は `Failed to load "..."` の **次の行** に本当の理由を
+出すので、**理由は構造的に必ず消える**。
+
+#162（firebase_core 4.14.0）でこれを踏んだ。サマリは `Failed to load`
+18行だけ。生ログを掘って初めて原因が分かった。
+
+```
+fake_cloud_firestore-4.1.1/lib/src/mock_write_batch.dart:22:8:
+  Error: Declared type variables of 'MockWriteBatch.update'
+         doesn't match those on overridden method
+```
+
+**firebase_core ではなく fake_cloud_firestore が原因だった。**
+
+```
+firebase_core 4.14.0 → fcpi ^8.x を要求
+  → cloud_firestore 6.4.1 は fcpi ^7.0.1 固定なので 6.9.0 に上がる
+    → 6.7.1 で WriteBatch.update がジェネリック化
+      → fake_cloud_firestore 4.1.1 の @override が不一致
+```
+
+**制約（`^6.4.0`）は満たすのに、override のシグネチャが合わない。**
+pub には検出できない型の壊れ方。#174 で下限を 4.2.0 に上げて縛り、
+dependabot の Firebase 系をグループ化した。
+
+### flutter_local_notifications は v18 → v22
+
+#161 は analyze が28件のエラー。v20 で `initialize` / `show` / `cancel` /
+`zonedSchedule` の位置引数が全部名前付きになり、v19 で
+`uiLocalNotificationDateInterpretation` が消えていた。
+
+**テスト側も直す必要がある。** `noSuchMethod` フェイクが
+`invocation.positionalArguments[0]` で ID を読んでいて、名前付き化で
+必ず壊れる（`namedArguments[#id]` に置換）。lib だけ直すと RangeError。
+
+#175 で移行。
+
+### 積んだPRは CI が走らない
+
+#170 / #171 は base が別の `claude/` ブランチだったため、**CI が一度も
+走っていなかった**（`ci.yml` の `pull_request` は `branches: [main]`）。
+base を main に付け替えて初めて走り、#171 は dart format の差分で落ちた。
+
+**PR を積むときは、base を main に戻すまで検証されていないと考えること。**
+
+### 次のアクション候補
+
+1. #177 — macOS 上で `pod update` して google_mlkit 0.17.1 を入れ直す
+2. #172 — カタログ外入力の候補記録（#176 で実装が上がっている）
+3. dependabot にネイティブ依存パッケージ用の `ios` ラベル自動付与を入れるか、
+   運用ルールで縛るかを決める
+
+---
+
 ## 車検証OCRの元号バグと、人間タスクの前提の作り直し（2026-09-03・その3）
 
 **ブランチ**: `claude/prep-docs`
