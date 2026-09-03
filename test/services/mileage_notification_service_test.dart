@@ -15,7 +15,7 @@ class _RecordingPlugin implements FlutterLocalNotificationsPlugin {
       return Future<void>.value();
     }
     if (invocation.memberName == #cancel) {
-      cancelledIds.add(invocation.positionalArguments[0] as int);
+      cancelledIds.add(invocation.namedArguments[#id] as int);
       return Future<void>.value();
     }
     if (invocation.memberName == #resolvePlatformSpecificImplementation) {
@@ -44,7 +44,7 @@ void main() {
     test('固定ID 9001 でスケジュールされる（車検レンジと衝突しない）', () async {
       await service.scheduleMonthlyReminder();
 
-      final id = plugin.zonedScheduleCalls.single.positionalArguments[0] as int;
+      final id = plugin.zonedScheduleCalls.single.namedArguments[#id] as int;
       expect(id, 9001);
     });
 
@@ -53,7 +53,7 @@ void main() {
       await service.scheduleMonthlyReminder();
 
       final ids = plugin.zonedScheduleCalls
-          .map((c) => c.positionalArguments[0] as int)
+          .map((c) => c.namedArguments[#id] as int)
           .toSet();
       expect(ids, {9001});
     });

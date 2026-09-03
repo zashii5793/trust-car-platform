@@ -13,6 +13,19 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    # Firebase 系は「制約は通るのにコンパイルが通らない」関係になる。
+    # 2026-09-03 の実例: firebase_core 4.14.0 が cloud_firestore を 6.9.0 に
+    # 引き上げ、そこで WriteBatch.update がジェネリック化された。
+    # fake_cloud_firestore 4.1.1 の制約 (^6.4.0) は満たすので solver は
+    # 据え置いたが、@override のシグネチャが合わず全テストがロード失敗した。
+    # 1本ずつ上げるとこれを踏むので、まとめて解決させる。
+    groups:
+      firebase:
+        patterns:
+          - "firebase_*"
+          - "cloud_firestore*"
+          - "fake_cloud_firestore"
+          - "firebase_auth_mocks"
     ignore:
       # Ignore major version updates for stability
       - dependency-name: "*"
