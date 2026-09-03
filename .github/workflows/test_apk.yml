@@ -36,7 +36,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -142,7 +142,11 @@ jobs:
           # フィードバックの両方から読めるようにする。テスト配布中は
           # バージョンが 1.0.0 のまま出し直すので、これが無いと
           # 「直っていない」という報告を確かめられない。
-          flutter build apk --$MODE \
+          # --split-per-abi: ABI ごとに分けて出す。既定は arm64-v8a /
+          # armeabi-v7a / x86_64 を1つの APK に詰めるため 130MB になり、
+          # スマホで受け取るには重い。実機はほぼ arm64-v8a なので、
+          # それだけ配れば 60MB 前後に収まる。
+          flutter build apk --$MODE --split-per-abi \
             --dart-define=APP_BUILD_ID=${GITHUB_SHA::7} 2>&1 | tee /tmp/apk_build.log
           STATUS=${PIPESTATUS[0]}
           if [ "$STATUS" -ne 0 ]; then
@@ -156,9 +160,24 @@ jobs:
       - name: Rename APK
         run: |
           MODE=${{ steps.build.outputs.mode }}
-          SRC="build/app/outputs/flutter-apk/app-$MODE.apk"
           mkdir -p dist
+
+          # --split-per-abi にすると app-<abi>-<mode>.apk が ABI の数だけ出る。
+          # 配るのは arm64-v8a のみ。armeabi-v7a は 2015 年前後より古い端末、
+          # x86_64 はエミュレータ用で、テスト配布の相手には要らない。
+          # 万一 arm64 が無ければ、黙って別物を配らずここで止める。
+          SRC="build/app/outputs/flutter-apk/app-arm64-v8a-$MODE.apk"
+          if [ ! -f "$SRC" ]; then
+            echo "::error::$SRC がありません。出力されたのは以下です:"
+            ls -la build/app/outputs/flutter-apk/ || true
+            exit 1
+          fi
           cp "$SRC" "dist/TrustCar-$MODE-${GITHUB_SHA::7}.apk"
+
+          # 他の ABI は捨てるが、何を捨てたかはログに残す
+          # （arm64 で動かない端末が出たとき、ここを見れば分かる）。
+          echo "配布するのは arm64-v8a のみ。ビルドされたのは:"
+          ls -la build/app/outputs/flutter-apk/*.apk
           ls -la dist
 
       - name: Report
@@ -171,6 +190,8 @@ jobs:
             echo "| ビルド種別 | ${{ steps.build.outputs.mode }} |"
             echo "| 署名 | ${{ steps.keystore.outputs.signed == 'true' && 'リリース鍵' || 'debug 鍵（直接インストール用）' }} |"
             echo "| コミット | ${GITHUB_SHA::7} |"
+            echo "| ABI | arm64-v8a のみ（--split-per-abi） |"
+            echo "| サイズ | $(du -h dist/*.apk | cut -f1 | tr -d ' ') |"
             echo "| 目印 | ${{ inputs.note }} |"
             echo
             echo "下の Artifacts から zip をダウンロードし、展開した .apk を配布してください。"
