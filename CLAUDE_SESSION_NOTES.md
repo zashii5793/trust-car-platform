@@ -4,6 +4,93 @@
 
 ---
 
+## 車検証OCRの元号バグと、人間タスクの前提の作り直し（2026-09-03・その3）
+
+**ブランチ**: `claude/prep-docs`
+
+### 1. 満了日が30年ずれていた
+
+`vehicle_certificate_ocr_service.dart` の `_extractExpiryDate`。
+
+```dart
+ var match = pattern.firstMatch(currentLine);
+ match ??= pattern.firstMatch(nextLine);     ← 値は次の行からも取る
+ ...
+ if (currentLine.contains('令和')) { ... }    ← なのに元号は今の行で判定
+```
+
+**ML Kit は「有効期間の満了する日」と「令和7年5月20日」を別ブロックで返す。**
+実物の車検証ではこちらが普通。すると `currentLine` に「令和」が無いので
+else に落ちて **1988 + 7 = 1995年**になる。
+
+満了日が30年前になると、**車検の案内は全部「切れている」と出る。**
+
+再現テストを書いて RED を確認してから直した（`test/ocr/era_conversion_test.dart`・11件）。
+**元号の基準年をパターンと対にして持たせる**形にして、どの行から拾っても
+正しくなるようにした。
+
+```dart
+ final eraPatterns = <(RegExp, int)>[
+   (RegExp(r'令和\s*(\d{1,2})...'), 2018),
+   (RegExp(r'平成\s*(\d{1,2})...'), 1988),
+ ];
+ for (final (pattern, eraBase) in eraPatterns) { ... }
+```
+
+同じ構造の不具合が `_extractYear`（初度登録年）にもあり、こちらは**別行だと
+null になっていた**（誤った値にはならないが取れない）。あわせて直した。
+
+### 2. Places API は使っていなかった
+
+`docs/HUMAN_TASKS.md` P0-3 は「Places は従量課金が高いため要判断」「1〜2時間」と
+書いていたが、**Places も Geocoding も Directions も一切使っていない。**
+距離は Haversine のローカル計算で、課金対象は地図の表示だけ。
+
+```
+ ソフトローンチ規模（20人）  月140ロード ≒ 無料枠の 1.4%
+ Android / iOS のネイティブ地図  現行の価格体系では無料
+ Web                            MAPS_API_KEY を渡していないのでロード数0
+```
+
+**判断は不要で、やることは30分の作業だけ**だった。ただし調べる過程で穴が2つ出た。
+
+- **iOS はキーが注入されない**（`AppDelegate.swift` が読む `MapsApiKey` が
+  `Info.plist` に無い）
+- **ドライブログ詳細に `MapsConfig` のガードが無い**（キー無しでも地図を作る）
+
+### 3. Google ログインは、いまのままでは Android で失敗する
+
+`android/app/google-services.json` の `oauth_client` に **`client_type: 1`
+（Android・SHA-1 付き）のエントリが無い。** Web 用しかない。
+
+**SHA-1 を登録して plist を取り直さないと `ApiException: 10` で落ちる。**
+しかも登録すべきは **P0-1 のリリース鍵の SHA-1** で、この開発機には
+Android SDK が無く（`flutter doctor` → `✗ Unable to locate Android SDK`）、
+`./gradlew signingReport` は Java 26 で止まる。**P0-4 は P0-1 に依存する**という
+依存関係が、これまでどこにも書かれていなかった。
+
+### 4. 作った文書
+
+| ファイル | 内容 |
+|---|---|
+| `docs/SETUP_AUTH_CONSOLE.md` | P0-4 の手順。SHA-1 の話と P0-1 依存 |
+| `docs/MAPS_API_COST.md` | P0-3 の試算と、実際に要る作業 |
+| `docs/DEVICE_TEST_CHECKLIST.md` | P1-9 のチェックシート。記入欄つき |
+
+`test/ocr/ocr_accuracy_test.dart` が参照していた `REAL_DATA_VALIDATION_CHECKLIST.md`
+はリポジトリに無かった。3つ目がその代わりになる。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 全件パス
+ test/ocr/                           42件パス（既存の精度テストに影響なし）
+ dart format lib test                差分なし
+```
+
+---
+
 ## 規約の【要記入】を埋め、退会後の削除を実装と揃えた（2026-09-03・その2）
 
 **ブランチ**: `claude/legal-drafts`
@@ -135,6 +222,23 @@ privacy / terms を実装に合わせ、特商法の雛形（`tokushoho.html`）
 ```
 
 Console のバージョン履歴での目視確認だけ人間側に残っている。
+
+### 6. 「Console でしかできない」と書いてあった2件は CLI でできた
+
+`docs/HUMAN_TASKS.md` は P1-10（バックアップ）と P2-15（Remote Config）を
+Console の手作業として書いていたが、**どちらも firebase CLI から設定できた。**
+
+```
+ firebase firestore:backups:schedules:create --recurrence DAILY --retention 30d
+ firebase deploy --only remoteconfig
+```
+
+Remote Config は `remoteconfig.template.json` に置いて `firebase.json` から
+参照する形にした。**Console から直接変えるとリポジトリと食い違う**ので、
+再開判断のときもテンプレートを直して deploy する。
+
+P0-4（Auth の Sign-in method）は Identity Platform の管理APIが要るため、
+現状の CLI では届かない。ここは Console のまま。
 
 ---
 
