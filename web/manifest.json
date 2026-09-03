@@ -1,11 +1,11 @@
 {
-    "name": "trust_car_platform",
-    "short_name": "trust_car_platform",
+    "name": "TrustCar - クルマ統合管理",
+    "short_name": "TrustCar",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFFFFF",
+    "theme_color": "#1565C0",
+    "description": "車検・整備の記録、点検リマインド、整備工場探しをひとつにまとめるクルマ統合管理アプリ",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

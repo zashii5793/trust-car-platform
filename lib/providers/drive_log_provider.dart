@@ -111,6 +111,51 @@ class DriveLogProvider with ChangeNotifier {
     return success;
   }
 
+  /// 手動入力のドライブログを保存し、一覧の先頭に追加する。
+  Future<bool> addManualDriveLog({
+    required String userId,
+    String? vehicleId,
+    required DateTime startTime,
+    DateTime? endTime,
+    String? title,
+    String? description,
+    String? startAddress,
+    String? endAddress,
+    required double distanceKm,
+    int durationSeconds = 0,
+    WeatherCondition? weather,
+    List<String>? tags,
+  }) async {
+    final result = await _service.createManualDriveLog(
+      userId: userId,
+      vehicleId: vehicleId,
+      startTime: startTime,
+      endTime: endTime,
+      title: title,
+      description: description,
+      startAddress: startAddress,
+      endAddress: endAddress,
+      distanceKm: distanceKm,
+      durationSeconds: durationSeconds,
+      weather: weather,
+      tags: tags,
+    );
+
+    var success = false;
+    result.when(
+      success: (log) {
+        _logs = [log, ..._logs];
+        _error = null;
+        success = true;
+      },
+      failure: (err) {
+        _error = err;
+      },
+    );
+    notifyListeners();
+    return success;
+  }
+
   /// 状態をリセットする（ログアウト時など）
   void clear() {
     _logs = [];

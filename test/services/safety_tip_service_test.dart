@@ -160,10 +160,41 @@ void main() {
         expect(result.valueOrNull!.first.title, '雪道の運転');
       });
 
-      test('正常系: ヒントゼロでも空リスト', () async {
+      test('Firestoreが空なら同梱コンテンツにフォールバックする', () async {
+        // シード未実行でも安全運転情報の画面を空にしない。
         final result = await service.getTips();
         expect(result.isSuccess, isTrue);
-        expect(result.valueOrNull!, isEmpty);
+        expect(result.valueOrNull!, isNotEmpty);
+        expect(
+          result.valueOrNull!.map((t) => t.category).toSet(),
+          SafetyTipCategory.values.toSet(),
+          reason: 'どのカテゴリのタブも空にならないこと',
+        );
+      });
+
+      test('フォールバックでもカテゴリフィルタが効く', () async {
+        final result =
+            await service.getTips(category: SafetyTipCategory.childSafety);
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull!, isNotEmpty);
+        for (final tip in result.valueOrNull!) {
+          expect(tip.category, SafetyTipCategory.childSafety);
+        }
+      });
+
+      test('Firestoreに1件でもあれば同梱ではなくそちらを返す', () async {
+        await seedTip(buildTip(title: '実データ'));
+        final result = await service.getTips();
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull!.length, 1);
+        expect(result.valueOrNull!.first.title, '実データ');
+      });
+
+      test('同梱コンテンツの詳細を getById で開ける', () async {
+        // 一覧に出るのに開けない、を防ぐ。
+        final result = await service.getById('tip_seatbelt_all_seats');
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull!.title, 'シートベルトは全席着用');
       });
 
       test('正常系: ソース別フィルタできる', () async {

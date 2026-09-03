@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart' hide FirebaseService;
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'core/di/injection.dart';
@@ -35,13 +37,47 @@ import 'services/shop_report_service.dart';
 import 'services/shop_subscription_service.dart';
 import 'providers/subscription_provider.dart';
 import 'providers/user_subscription_provider.dart';
+import 'services/revenue_cat_service.dart';
 import 'services/user_subscription_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/onboarding_screen.dart';
 import 'core/theme/app_theme.dart';
+import 'core/app_scroll_behavior.dart';
 import 'providers/ai_chat_provider.dart';
+import 'providers/theme_provider.dart';
 import 'services/ai_chat_service.dart';
+
+/// Forces the Firebase Emulator connection regardless of platform.
+///
+/// Set with `flutter build web --dart-define=USE_EMULATOR=true` (or the same
+/// flag on `flutter run`) to point a web build at the locally seeded emulator
+/// instead of the production project. Defaults to false, so release builds are
+/// unaffected.
+const bool kUseEmulator = bool.fromEnvironment('USE_EMULATOR');
+
+/// Opts a locally served web build back out of the emulator.
+///
+/// Build with `--dart-define=USE_PRODUCTION=true` when the point of running on
+/// localhost is to exercise the real project.
+const bool kUseProduction = bool.fromEnvironment('USE_PRODUCTION');
+
+/// Whether this run should talk to the Firebase Emulator suite.
+///
+/// Debug builds on native platforms have always used it. Web builds opt in
+/// either explicitly (`USE_EMULATOR`) or implicitly by being served from
+/// localhost — a deployed build (GitHub Pages, App Store) never matches, so
+/// production traffic is unaffected.
+bool get useEmulatorSuite {
+  if (kUseProduction) return false;
+  if (kUseEmulator) return true;
+  if (kDebugMode && !kIsWeb) return true;
+  if (kIsWeb) {
+    final host = Uri.base.host;
+    return host == 'localhost' || host == '127.0.0.1';
+  }
+  return false;
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,14 +85,22 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Use Firebase Emulator in debug mode (local development)
-  if (kDebugMode) {
+  // Use Firebase Emulator in debug mode (local development).
+  // Skipped on web by default so `flutter run -d chrome` targets the production
+  // project instead of requiring a locally running emulator. Pass
+  // `--dart-define=USE_EMULATOR=true` to force the emulator on any platform —
+  // this is how the seeded persona data is exercised from a web build.
+  if (useEmulatorSuite) {
     await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
+    // useFirestoreEmulator already rewrites `settings` (host, sslEnabled and
+    // persistence). Assigning a fresh Settings afterwards clobbered that
+    // rewrite, which left the client sending unauthenticated reads — every
+    // query then failed the `request.auth != null` rule and screens rendered
+    // as if the account had no data. Do not add a settings assignment here.
     FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
-    // Disable persistence for emulator (data is ephemeral)
-    FirebaseFirestore.instance.settings = const Settings(
-      persistenceEnabled: false,
-    );
+    // 画像アップロードも Emulator に向ける。これが無いと、Auth と Firestore は
+    // ローカルなのに画像だけ本番バケットへ飛び、確認中に本番を汚してしまう。
+    await FirebaseStorage.instance.useStorageEmulator('localhost', 9199);
   } else {
     // Production: enable offline persistence with 100MB cache
     FirebaseFirestore.instance.settings = const Settings(
@@ -73,14 +117,24 @@ void main() async {
   // Set up logging for auth state changes
   _setupAuthLogging();
 
-  // Initialize timezone for scheduled notifications
-  PushNotificationService.initializeTimezone();
+  // Push notifications and scheduled local notifications depend on mobile-only
+  // plugins (firebase_messaging / flutter_local_notifications) that are not
+  // supported on web and throw during initialization. Guarding with kIsWeb
+  // keeps main() from crashing before runApp on web builds.
+  if (!kIsWeb) {
+    // Initialize timezone for scheduled notifications
+    PushNotificationService.initializeTimezone();
 
-  // Initialize push notifications
-  final pushService = sl.get<PushNotificationService>();
-  await pushService.initialize();
+    // Initialize push notifications
+    final pushService = sl.get<PushNotificationService>();
+    await pushService.initialize();
+  }
 
-  runApp(const MyApp());
+  // Load the persisted theme preference before first paint so there is no
+  // flash of the wrong theme.
+  final themeMode = await ThemeProvider.loadSavedMode();
+
+  runApp(MyApp(initialThemeMode: themeMode));
 }
 
 /// Initialize Firebase Crashlytics for crash reporting
@@ -118,12 +172,16 @@ void _setupAuthLogging() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final ThemeMode initialThemeMode;
+
+  const MyApp({super.key, this.initialThemeMode = ThemeMode.system});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(
+            create: (_) => ThemeProvider(initialMode: initialThemeMode)),
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
         ChangeNotifierProvider(
             create: (_) => AuthProvider(
@@ -167,6 +225,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
             create: (_) => UserSubscriptionProvider(
                   service: sl.get<UserSubscriptionService>(),
+                  revenueCatService: sl.get<RevenueCatService>(),
                 )),
         ChangeNotifierProvider(
             create: (_) => PostProvider(
@@ -186,13 +245,27 @@ class MyApp extends StatelessWidget {
                   service: sl.get<AiChatService>(),
                 )),
       ],
-      child: MaterialApp(
-        title: 'クルマ統合管理',
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.system,
-        home: const AuthWrapper(),
-        debugShowCheckedModeBanner: false,
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) => MaterialApp(
+          title: 'クルマ統合管理',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: themeProvider.themeMode,
+          // Date pickers and other Material widgets ship English strings unless
+          // the localization delegates are registered. Every date field in the
+          // app (車検満了日 / 自賠責保険期限 ほか) depends on this.
+          locale: const Locale('ja'),
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('ja'), Locale('en')],
+          // Enable drag-to-scroll with mouse/trackpad on web & desktop.
+          scrollBehavior: const AppScrollBehavior(),
+          home: const AuthWrapper(),
+          debugShowCheckedModeBanner: false,
+        ),
       ),
     );
   }

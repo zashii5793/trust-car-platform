@@ -23,6 +23,14 @@ class AppUser {
   final DateTime? planExpiresAt;
   final AccountType accountType;
   final String? companyName; // 法人アカウントの会社名
+
+  /// 居住地（近くの整備工場を探すために使う）。
+  ///
+  /// 都道府県は47件で確定しているので選択式、市区町村は約1,700件あり
+  /// 網羅を保守できないので自由入力。どちらも任意。
+  final String? prefecture;
+  final String? city;
+
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -36,12 +44,24 @@ class AppUser {
     this.planExpiresAt,
     this.accountType = AccountType.personal,
     this.companyName,
+    this.prefecture,
+    this.city,
     required this.createdAt,
     required this.updatedAt,
   }) : notificationSettings = notificationSettings ?? NotificationSettings();
 
   /// 法人アカウントか
   bool get isBusiness => accountType == AccountType.business;
+
+  /// 「東京都世田谷区」のような表示用の居住地。未設定なら null。
+  String? get regionLabel {
+    final parts = [prefecture, city]
+        .whereType<String>()
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    return parts.isEmpty ? null : parts.join();
+  }
 
   /// Firestore ドキュメントからモデルを生成
   factory AppUser.fromFirestore(DocumentSnapshot doc) {
@@ -58,6 +78,8 @@ class AppUser {
       planExpiresAt: (data['planExpiresAt'] as Timestamp?)?.toDate(),
       accountType: AccountType.fromString(data['accountType']),
       companyName: data['companyName'],
+      prefecture: data['prefecture'],
+      city: data['city'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -80,6 +102,8 @@ class AppUser {
         'planExpiresAt': Timestamp.fromDate(planExpiresAt!),
       'accountType': accountType.name,
       if (companyName != null) 'companyName': companyName,
+      if (prefecture != null) 'prefecture': prefecture,
+      if (city != null) 'city': city,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -96,6 +120,8 @@ class AppUser {
     DateTime? planExpiresAt,
     AccountType? accountType,
     String? companyName,
+    String? prefecture,
+    String? city,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -109,6 +135,8 @@ class AppUser {
       planExpiresAt: planExpiresAt ?? this.planExpiresAt,
       accountType: accountType ?? this.accountType,
       companyName: companyName ?? this.companyName,
+      prefecture: prefecture ?? this.prefecture,
+      city: city ?? this.city,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

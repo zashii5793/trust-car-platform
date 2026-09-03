@@ -83,6 +83,27 @@ class PopularAccessoriesService {
     }
   }
 
+  /// Fetches a single showcase by id. Used to resolve a notification's
+  /// `showcaseId` into the [AccessoryShowcase] that [ShowcaseDetailScreen]
+  /// requires (deep-linking from the social notification feed).
+  Future<Result<AccessoryShowcase, AppError>> getShowcaseById(
+      String showcaseId) async {
+    if (showcaseId.trim().isEmpty) {
+      return const Result.failure(
+          AppError.validation('showcaseId must not be empty'));
+    }
+    try {
+      final doc =
+          await _firestore.collection(_collection).doc(showcaseId).get();
+      if (!doc.exists) {
+        return const Result.failure(AppError.notFound('showcase not found'));
+      }
+      return Result.success(AccessoryShowcase.fromFirestore(doc));
+    } catch (e) {
+      return Result.failure(AppError.unknown(e.toString(), originalError: e));
+    }
+  }
+
   /// Returns popularity-ranked accessory trends for [category].
   ///
   /// Items are grouped by (itemName, brand) and ranked by showcase count.
@@ -252,7 +273,10 @@ class PopularAccessoriesService {
       final snap = await query.get();
       final list = snap.docs
           .map(ShowcaseComment.fromFirestore)
-          .where((c) => c.reportCount < kReportHideThreshold)
+          // Hide moderated comments. `isHidden` is the authoritative flag set
+          // server-side by onCommentReportCreated; the reportCount check is a
+          // fallback for comments moderated before the flag existed.
+          .where((c) => !c.isHidden && c.reportCount < kReportHideThreshold)
           .toList();
       return Result.success(list);
     } catch (e) {
@@ -456,13 +480,16 @@ class PopularAccessoriesService {
 
   static const _reportsCollection = 'comment_reports';
 
-  /// Reports a comment for manual moderation. One report per user per comment
-  /// (idempotent: re-reporting overwrites the report and never double-counts).
+  /// Reports a comment for moderation. One report per user per comment
+  /// (idempotent via a deterministic id: re-reporting overwrites the report and
+  /// never double-counts).
   ///
-  /// On the first report by a given user, the comment's denormalized
-  /// `reportCount` is incremented; once it reaches [kReportHideThreshold] the
-  /// comment is hidden from [getComments]. Report documents themselves are
-  /// write-only for clients (moderation is server-side — see Issue #37).
+  /// Clients only ever WRITE the `comment_reports/{commentId}_{reporterId}`
+  /// document — they can no longer touch the comment's `reportCount`/`isHidden`.
+  /// The `onCommentReportCreated` Cloud Function re-counts the reports
+  /// server-side and, once the total reaches [kReportHideThreshold], sets
+  /// `isHidden` on the comment (which [getComments] filters out). This closes
+  /// the abuse vector where a client could forge the counter directly (#37).
   Future<Result<void, AppError>> reportComment({
     required String showcaseId,
     required String commentId,
@@ -476,7 +503,8 @@ class PopularAccessoriesService {
           'showcaseId, commentId, reporterId are required'));
     }
     try {
-      // Deterministic id => one report per (comment, reporter).
+      // Deterministic id => one report per (comment, reporter). Overwriting an
+      // existing report is harmless; the Cloud Function counts distinct docs.
       final reportId = '${commentId}_$reporterId';
       final report = CommentReport(
         id: reportId,
@@ -486,20 +514,10 @@ class PopularAccessoriesService {
         reason: reason,
         createdAt: DateTime.now(),
       );
-      final reportRef = _firestore.collection(_reportsCollection).doc(reportId);
-      final commentRef = _commentsRef(showcaseId).doc(commentId);
-      await _firestore.runTransaction((tx) async {
-        final existing = await tx.get(reportRef);
-        if (!existing.exists) {
-          // First report by this user — bump the comment's reportCount.
-          final commentSnap = await tx.get(commentRef);
-          if (commentSnap.exists) {
-            final current = (commentSnap.data()?['reportCount'] as int?) ?? 0;
-            tx.update(commentRef, {'reportCount': current + 1});
-          }
-        }
-        tx.set(reportRef, report.toMap());
-      });
+      await _firestore
+          .collection(_reportsCollection)
+          .doc(reportId)
+          .set(report.toMap());
       return const Result.success(null);
     } catch (e) {
       return Result.failure(AppError.unknown(e.toString(), originalError: e));
@@ -551,7 +569,9 @@ class PopularAccessoriesService {
 class _NotFound implements Exception {}
 
 /// Number of distinct reports at which a comment is hidden from [getComments].
-/// Lightweight client-side moderation; robust enforcement would move server-side.
+/// Enforced server-side by the `onCommentReportCreated` Cloud Function, which
+/// sets `isHidden` once this many distinct reports exist. Must stay in sync with
+/// `REPORT_HIDE_THRESHOLD` in functions/src/moderateComments.ts.
 const int kReportHideThreshold = 3;
 
 /// Ordering options for [PopularAccessoriesService.getComments].

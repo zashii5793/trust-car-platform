@@ -172,22 +172,39 @@ class PostService {
     }
   }
 
-  /// Get posts feed (public posts, paginated)
-  Future<Result<List<Post>, AppError>> getFeed({
+  /// Get posts feed (public posts, paginated).
+  ///
+  /// [categories] narrows the feed to the given categories — empty means no
+  /// category filter. Multiple categories go through a single `whereIn`, which
+  /// Firestore treats like an equality filter, so the existing composite
+  /// indexes still apply.
+  /// Returns one page plus a cursor. Pass the previous page's
+  /// [PostPage.cursor] back as [startAfter] to continue — without it every
+  /// "load more" re-fetched page one and the same posts piled up in the feed.
+  Future<Result<PostPage, AppError>> getFeed({
     int limit = 20,
-    DocumentSnapshot? startAfter,
-    PostCategory? category,
+    Object? startAfter,
+    Set<PostCategory> categories = const {},
+    PostSortBy sortBy = PostSortBy.newest,
+    String? hashtag,
     String? makerId,
     String? modelName,
   }) async {
     try {
-      Query<Map<String, dynamic>> query = _postsRef
-          .where('visibility', isEqualTo: PostVisibility.public.storageName)
-          .orderBy('createdAt', descending: true)
-          .limit(limit);
+      Query<Map<String, dynamic>> query = _postsRef.where('visibility',
+          isEqualTo: PostVisibility.public.storageName);
 
-      if (category != null) {
-        query = query.where('category', isEqualTo: category.name);
+      if (hashtag != null && hashtag.isNotEmpty) {
+        // UI からは '#点検' の形で渡ってくることがある。保存側は # なし。
+        final tag = hashtag.startsWith('#') ? hashtag.substring(1) : hashtag;
+        query = query.where('hashtags', arrayContains: tag);
+      }
+
+      if (categories.isNotEmpty) {
+        query = query.where(
+          'category',
+          whereIn: categories.map((c) => c.name).toList(),
+        );
       }
 
       if (makerId != null) {
@@ -198,14 +215,30 @@ class PostService {
         query = query.where('vehicleTag.modelName', isEqualTo: modelName);
       }
 
-      if (startAfter != null) {
+      // 並び順。コメント数が同じ投稿は新しい順に落ち着かせる（順序が
+      // 揺れるとページングでも取りこぼしが出る）。
+      switch (sortBy) {
+        case PostSortBy.newest:
+          query = query.orderBy('createdAt', descending: true);
+        case PostSortBy.mostCommented:
+          query = query
+              .orderBy('commentCount', descending: true)
+              .orderBy('createdAt', descending: true);
+      }
+
+      // カーソルは前ページ最後のドキュメント。並び替えを切り替えたときは
+      // 呼び出し側がカーソルを捨てて先頭から読み直す。
+      if (startAfter is DocumentSnapshot) {
         query = query.startAfterDocument(startAfter);
       }
 
-      final snapshot = await query.get();
+      final snapshot = await query.limit(limit).get();
       final posts =
           snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
-      return Result.success(posts);
+      return Result.success(PostPage(
+        posts: posts,
+        cursor: snapshot.docs.isEmpty ? null : snapshot.docs.last,
+      ));
     } catch (e) {
       return Result.failure(AppError.unknown(
         'フィードの取得に失敗しました',
@@ -406,6 +439,7 @@ class PostService {
     String? userDisplayName,
     String? userPhotoUrl,
     required String content,
+    List<String> imageUrls = const [],
     String? parentCommentId,
     String? postAuthorId,
   }) async {
@@ -419,6 +453,9 @@ class PostService {
         userDisplayName: userDisplayName,
         userPhotoUrl: userPhotoUrl,
         content: content,
+        // 上限を超えた分は切り捨てる。UI 側でも枚数を止めているが、
+        // ここでも押さえておかないと壊れたクライアントが投げ放題になる。
+        imageUrls: imageUrls.take(Comment.maxImages).toList(),
         parentCommentId: parentCommentId,
         createdAt: now,
         updatedAt: now,
@@ -474,14 +511,15 @@ class PostService {
     bool topLevelOnly = true,
   }) async {
     try {
+      // トップレベルの絞り込みは取得後に行う。
+      // where('parentCommentId', isNull: true) は「フィールドが存在して
+      // 値が null」にしかマッチせず、キー自体が無いドキュメントを落とす。
+      // 以前の Comment.toMap() はそのキーを省略していたため、既存データには
+      // 両方の形が混在している。クライアント側で判定すれば両方拾える。
       Query<Map<String, dynamic>> query = _commentsRef
           .where('postId', isEqualTo: postId)
           .orderBy('createdAt', descending: false)
           .limit(limit);
-
-      if (topLevelOnly) {
-        query = query.where('parentCommentId', isNull: true);
-      }
 
       if (startAfter != null) {
         query = query.startAfterDocument(startAfter);
@@ -490,7 +528,12 @@ class PostService {
       final snapshot = await query.get();
       final comments =
           snapshot.docs.map((doc) => Comment.fromFirestore(doc)).toList();
-      return Result.success(comments);
+      if (!topLevelOnly) {
+        return Result.success(comments);
+      }
+      return Result.success(
+        comments.where((c) => c.parentCommentId == null).toList(),
+      );
     } catch (e) {
       return Result.failure(AppError.unknown(
         'コメントの取得に失敗しました',

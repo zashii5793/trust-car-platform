@@ -48,7 +48,7 @@ class _OnboardingPage {
 const _pages = [
   _OnboardingPage(
     icon: Icons.directions_car,
-    title: 'クルマのことを、\nもう考えなくていい世界へ',
+    title: 'クルマを安心・安全に、\n楽しく管理',
     subtitle: '整備・点検・車検のすべてを、このアプリ一つで。',
   ),
   _OnboardingPage(
@@ -93,6 +93,40 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   void _onPageChanged(int page) {
     setState(() => _currentPage = page);
+    // スワイプで動いたときは行き先も現在地に揃える。送っている最中
+    // （_animating）は、途中経過で行き先を巻き戻さないよう触らない。
+    if (!_animating) _targetPage = page;
+  }
+
+  /// 送っている最中の行き先。押した分だけ進めるために持つ。
+  ///
+  /// `_currentPage` は onPageChanged が呼ばれて初めて更新される。それだけを
+  /// 見て次を決めると、**送っている最中に押された分がすべて同じ行き先を指す。**
+  /// 2026-08-25 にブラウザで実測したところ、「次へ」を続けて3回押しても
+  /// 1ページしか進まなかった。
+  int _targetPage = 0;
+  bool _animating = false;
+
+  /// 次のページへ。最後のページでは「次へ」を出さないので、ここには来ない。
+  /// 万一来ても範囲外へ飛ばさないよう上限で止める。
+  void _next() {
+    final base = _animating ? _targetPage : _currentPage;
+    final next = base + 1;
+    if (next >= _pages.length) return;
+
+    _targetPage = next;
+    _animating = true;
+    _controller
+        .animateToPage(
+      next,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    )
+        .whenComplete(() {
+      // 送っている途中でさらに押されていたら、行き先はもう別。ここで
+      // 送り終わったことにすると、次の押下が巻き戻ってしまう。
+      if (mounted && _targetPage == next) _animating = false;
+    });
   }
 
   Future<void> _skip() =>
@@ -164,31 +198,42 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
 
-            // CTA button — only visible on last page.
+            // CTA button.
+            //
+            // 最後のページは「はじめる」、それ以外は「次へ」。
+            //
+            // 以前は最後のページ以外を空きにしていた。**スワイプでしか進めず、
+            // PC のブラウザで開いた人は 2 ページ目以降に辿り着けない。**
+            // 2026-08-25 に実際にブラウザで触って分かった。テスト配布の本命が
+            // Web 版である以上、指で払う操作を前提にはできない。
+            //
             // AnimatedSwitcher removes the non-active child from the tree,
             // so find.text('はじめる') returns nothing on earlier pages.
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
-              child: isLastPage
-                  ? Padding(
-                      key: const ValueKey('cta_button'),
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.lg,
-                        AppSpacing.md,
-                        AppSpacing.lg,
-                        AppSpacing.lg,
-                      ),
-                      child: AppButton(
+              child: Padding(
+                key: ValueKey(isLastPage ? 'cta_button' : 'next_button'),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                ),
+                child: isLastPage
+                    ? AppButton(
                         label: 'はじめる',
                         onPressed: _start,
                         isFullWidth: true,
                         size: AppButtonSize.large,
+                      )
+                    : AppButton(
+                        label: '次へ',
+                        onPressed: _next,
+                        isFullWidth: true,
+                        size: AppButtonSize.large,
+                        variant: AppButtonVariant.secondary,
                       ),
-                    )
-                  : const SizedBox(
-                      key: ValueKey('cta_spacer'),
-                      height: 56 + AppSpacing.lg * 2,
-                    ),
+              ),
             ),
           ],
         ),

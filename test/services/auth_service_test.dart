@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/result/result.dart';
+import 'package:trust_car_platform/services/auth_service.dart';
 
 void main() {
   group('AuthService Result Pattern Tests', () {
@@ -63,6 +64,17 @@ void main() {
         expect(authError.type, AuthErrorType.tooManyRequests);
         expect(authError.isRetryable, true);
         expect(authError.userMessage, contains('しばらく待って'));
+      });
+
+      test('mapFirebaseError maps requires-recent-login to sessionExpired', () {
+        // アカウント削除で直近ログインが古い場合の再認証シグナル
+        final error = mapFirebaseError(Exception(
+            '[firebase_auth/requires-recent-login] Please reauthenticate'));
+
+        expect(error, isA<AuthError>());
+        final authError = error as AuthError;
+        expect(authError.type, AuthErrorType.sessionExpired);
+        expect(authError.userMessage, contains('再度ログイン'));
       });
 
       test('mapFirebaseError maps network error', () {
@@ -224,6 +236,78 @@ void main() {
         );
 
         expect(error.userMessage, 'サーバーに接続できません');
+      });
+    });
+  });
+
+  group('Sign in with Apple helpers', () {
+    group('generateNonce', () {
+      test('デフォルトの長さは32', () {
+        expect(AuthService.generateNonce().length, 32);
+      });
+
+      test('指定した長さの nonce を生成する', () {
+        expect(AuthService.generateNonce(16).length, 16);
+        expect(AuthService.generateNonce(64).length, 64);
+      });
+
+      test('許可された文字集合のみで構成される', () {
+        const allowed =
+            '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._';
+        final nonce = AuthService.generateNonce(200);
+        for (final ch in nonce.split('')) {
+          expect(allowed.contains(ch), isTrue, reason: '不正な文字: $ch');
+        }
+      });
+
+      test('呼び出しごとに異なる値を生成する（ランダム性）', () {
+        final a = AuthService.generateNonce();
+        final b = AuthService.generateNonce();
+        expect(a, isNot(equals(b)));
+      });
+
+      group('Edge Cases', () {
+        test('長さ0は空文字を返す', () {
+          expect(AuthService.generateNonce(0), '');
+        });
+      });
+    });
+
+    group('sha256OfString', () {
+      test('同じ入力は常に同じハッシュ（決定的）', () {
+        expect(
+          AuthService.sha256OfString('trust-car'),
+          AuthService.sha256OfString('trust-car'),
+        );
+      });
+
+      test('既知のベクトル: "abc" の SHA-256', () {
+        expect(
+          AuthService.sha256OfString('abc'),
+          'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+        );
+      });
+
+      test('出力は64桁の16進文字列', () {
+        final hash = AuthService.sha256OfString('any-nonce-value');
+        expect(hash.length, 64);
+        expect(RegExp(r'^[0-9a-f]{64}$').hasMatch(hash), isTrue);
+      });
+
+      test('異なる入力は異なるハッシュ', () {
+        expect(
+          AuthService.sha256OfString('a'),
+          isNot(equals(AuthService.sha256OfString('b'))),
+        );
+      });
+
+      group('Edge Cases', () {
+        test('空文字のハッシュ（既知ベクトル）', () {
+          expect(
+            AuthService.sha256OfString(''),
+            'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+          );
+        });
       });
     });
   });

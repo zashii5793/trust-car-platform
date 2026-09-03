@@ -17,6 +17,11 @@ import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/vehicle/vehicle_selector_fields.dart';
+import '../core/utils/thousands_separator_input_formatter.dart';
+import '../core/utils/license_plate.dart';
+import '../widgets/vehicle/color_picker_sheet.dart';
+import '../widgets/vehicle/equipment_section.dart';
+import '../widgets/vehicle/year_picker_sheet.dart';
 import 'package:uuid/uuid.dart';
 import 'document_scanner_screen.dart';
 import 'vehicle_certificate_result_screen.dart';
@@ -33,6 +38,9 @@ class VehicleRegistrationScreen extends StatefulWidget {
 class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   // ウィザード管理
   int _currentStep = 0;
+
+  // オプション・装備（ナビ / ドラレコ / ETC ほか）。空のままなら保存されない。
+  VehicleEquipment _equipment = const VehicleEquipment();
   final PageController _pageController = PageController();
   final _formKeyStep1 = GlobalKey<FormState>();
 
@@ -51,6 +59,16 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
 
   // 車検・保険
   DateTime? _inspectionExpiryDate;
+
+  /// 用途区分。車検の周期がここで変わる（自家用乗用は2年、貨物は1年）。
+  ///
+  /// 以前は編集画面にしか無く、**登録直後は全車が「自家用乗用車」扱い**
+  /// だった。トラック・軽トラのユーザーは車検満了日の計算が1年ずれる。
+  /// 既定は車種から当て、画面で変えられる。
+  VehicleUseCategory _useCategory = VehicleUseCategory.privatePassenger;
+
+  /// 利用者が自分で選び直したか。選ばれた後は車種から上書きしない。
+  bool _useCategoryTouchedByUser = false;
   DateTime? _insuranceExpiryDate;
 
   // 詳細情報
@@ -59,7 +77,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   FuelType? _selectedFuelType;
   DateTime? _purchaseDate;
 
-  Uint8List? _imageBytes;
+  /// 車両写真。好きな角度を複数残せるよう最大 [_maxPhotos] 枚まで持つ。
+  final List<Uint8List> _imageBytesList = [];
+  static const int _maxPhotos = 5;
   bool _sharePhotoConsent = false;
   bool _isLoading = false;
   bool _isOcrProcessing = false;
@@ -230,6 +250,36 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     // (maker/model/year) are queried — OCR personal data never leaves
     // the device except as fields of the user's own vehicle document.
     await _suggestSpecsFromCommunity();
+
+    // One-tap path: the user chose "このまま登録" and OCR captured the required
+    // fields. Register immediately so they reach the 車検 reminder with no extra
+    // taps. Falls back to the manual form if maker/model could not be matched
+    // against the catalog.
+    if (data.quickRegister) {
+      await _attemptQuickRegister();
+    }
+  }
+
+  /// Register directly from OCR data, skipping the manual wizard.
+  ///
+  /// Mileage is not on the certificate, so it shows 0 (the user is told it can
+  /// be updated later) and grade is left unset — neither is required for the
+  /// 車検 reminder, which is the onboarding wedge.
+  Future<void> _attemptQuickRegister() async {
+    // Reached after awaiting OCR matching and the community spec lookup, so the
+    // screen may already be gone. _registerVehicle touches context immediately.
+    if (!mounted) return;
+    if (_selectedMaker == null || _selectedModel == null) {
+      // Catalog match failed — let the user finish in the form.
+      showErrorSnackBar(context, '車種を確認して登録してください');
+      return;
+    }
+    // Not strictly required — Vehicle falls back to 0 — but it keeps the form
+    // consistent if the user returns to it after a failed save.
+    if (_mileageController.text.trim().isEmpty) {
+      _mileageController.text = '0';
+    }
+    await _registerVehicle(quick: true);
   }
 
   /// After OCR matches maker/model/year, look up community spec data and
@@ -292,7 +342,12 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       success: (models) {
         final matchedModel = VehicleOcrMatcher.findModel(models, ocrModelName);
         if (matchedModel != null) {
-          if (mounted) setState(() => _selectedModel = matchedModel);
+          if (mounted) {
+            setState(() {
+              _selectedModel = matchedModel;
+              _applyUseCategoryFromModel(matchedModel);
+            });
+          }
         }
       },
       failure: (_) {},
@@ -300,17 +355,44 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      final bytes = await pickedFile.readAsBytes();
-      // Reset consent when a new photo is picked so the user explicitly
-      // re-evaluates whether the new image is safe to share.
-      setState(() {
-        _imageBytes = bytes;
-        _sharePhotoConsent = false;
-      });
+    final remaining = _maxPhotos - _imageBytesList.length;
+    if (remaining <= 0) {
+      showErrorSnackBar(context, '写真は$_maxPhotos枚までです');
+      return;
     }
+
+    final picker = ImagePicker();
+    final picked = await picker.pickMultiImage();
+    if (picked.isEmpty) return;
+
+    // 上限を超える分は黙って捨てず、何枚追加できたかを伝える。
+    final accepted = picked.take(remaining).toList();
+    final bytesList = <Uint8List>[];
+    for (final file in accepted) {
+      bytesList.add(await file.readAsBytes());
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _imageBytesList.addAll(bytesList);
+      // 新しい写真を足したら共有同意は取り直す。追加した1枚に
+      // ナンバーが写っている、という取りこぼしを防ぐため。
+      _sharePhotoConsent = false;
+    });
+
+    if (picked.length > remaining) {
+      showErrorSnackBar(
+        context,
+        '$_maxPhotos枚までのため、${accepted.length}枚を追加しました',
+      );
+    }
+  }
+
+  void _removeImageAt(int index) {
+    setState(() {
+      _imageBytesList.removeAt(index);
+      if (_imageBytesList.isEmpty) _sharePhotoConsent = false;
+    });
   }
 
   Future<void> _selectDate({
@@ -381,28 +463,58 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     );
   }
 
+  /// 年式の選択シート。有限に列挙できる値なので自由入力は無し。
+  /// OCR は _yearController.text へ直接書き込むため controller は残す。
+  Future<void> _pickYear() async {
+    final year = await showYearPickerSheet(
+      context,
+      selected: int.tryParse(_yearController.text),
+    );
+    if (year != null) {
+      _yearController.text = year.toString();
+    }
+  }
+
+  /// 車体色の選択シート。候補を先に出し、無ければシート内でそのまま
+  /// 手入力できる（メーカー固有色は網羅できないため）。
+  Future<void> _pickColor() async {
+    final color = await showColorPickerSheet(
+      context,
+      current: _colorController.text.isEmpty ? null : _colorController.text,
+    );
+    if (color != null) {
+      setState(() => _colorController.text = color);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // 登録処理（ロジック変更なし、フォームバリデーションを手動チェックに変更）
   // ---------------------------------------------------------------------------
 
-  Future<void> _registerVehicle() async {
-    // ステップ1は既に検証済みだが念のため確認
-    if (_selectedMaker == null ||
+  Future<void> _registerVehicle({bool quick = false}) async {
+    // ステップ1は既に検証済みだが念のため確認。
+    // quick（OCRワンタップ登録）では grade / 走行距離 は任意（車検リマインダーには不要）。
+    final missingCore = _selectedMaker == null ||
         _selectedModel == null ||
-        _selectedGrade == null ||
-        _yearController.text.isEmpty ||
-        _mileageController.text.isEmpty) {
+        _yearController.text.isEmpty;
+    final missingDetail =
+        _selectedGrade == null || _mileageController.text.isEmpty;
+    if (missingCore || (!quick && missingDetail)) {
       showErrorSnackBar(context, '基本情報が不足しています。最初のステップに戻って確認してください');
       return;
     }
 
     setState(() => _isLoading = true);
 
+    // Normalised once: stored in this form, and compared in this form.
+    // See core/utils/license_plate.dart for why.
+    final plate = normalizeLicensePlate(_licensePlateController.text);
+
     try {
-      if (_licensePlateController.text.isNotEmpty) {
+      if (plate.isNotEmpty) {
         final exists =
             await Provider.of<VehicleProvider>(context, listen: false)
-                .isLicensePlateExists(_licensePlateController.text);
+                .isLicensePlateExists(plate);
         if (!mounted) return;
         if (exists) {
           setState(() => _isLoading = false);
@@ -417,13 +529,13 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         return;
       }
 
-      String? imageUrl;
-      if (_imageBytes != null) {
+      final imageUrls = <String>[];
+      for (final bytes in _imageBytesList) {
         final uuid = const Uuid().v4();
         // Path includes the owner uid so Storage rules can enforce
         // write access per user.
         final uploadResult = await _firebaseService.uploadImageBytes(
-          _imageBytes!,
+          bytes,
           'vehicles/$currentUserId/$uuid.jpg',
         );
         if (uploadResult.isFailure) {
@@ -433,7 +545,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           }
           return;
         }
-        imageUrl = uploadResult.valueOrNull;
+        final url = uploadResult.valueOrNull;
+        if (url != null) imageUrls.add(url);
       }
 
       final vehicle = Vehicle(
@@ -443,13 +556,14 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         model: _selectedModel?.name ?? '',
         year: int.tryParse(_yearController.text) ?? DateTime.now().year,
         grade: _selectedGrade?.name ?? '',
-        mileage: int.tryParse(_mileageController.text) ?? 0,
-        imageUrl: imageUrl,
+        mileage: int.tryParse(stripThousands(_mileageController.text)) ?? 0,
+        // いま入力した距離が「最新」。これを刻まないと、登録直後に
+        // 「走行距離を更新してください（最終更新: 未設定）」が出る。
+        mileageUpdatedAt: DateTime.now(),
+        imageUrls: imageUrls,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        licensePlate: _licensePlateController.text.isEmpty
-            ? null
-            : _licensePlateController.text,
+        licensePlate: plate.isEmpty ? null : plate,
         vinNumber: _vinNumberController.text.isEmpty
             ? null
             : _vinNumberController.text,
@@ -457,13 +571,16 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             ? null
             : _modelCodeController.text,
         inspectionExpiryDate: _inspectionExpiryDate,
+        useCategory: _useCategory,
         insuranceExpiryDate: _insuranceExpiryDate,
         color: _colorController.text.isEmpty ? null : _colorController.text,
         engineDisplacement: _engineDisplacementController.text.isEmpty
             ? null
-            : int.tryParse(_engineDisplacementController.text),
+            : int.tryParse(stripThousands(_engineDisplacementController.text)),
         fuelType: _selectedFuelType,
         purchaseDate: _purchaseDate,
+        // 未入力なら null。toMap 側でも空は書き戻さない。
+        equipment: _equipment.hasAnyValue ? _equipment : null,
       );
 
       if (!mounted) return;
@@ -534,7 +651,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       _yearController.text.isNotEmpty ||
       _mileageController.text.isNotEmpty ||
       _licensePlateController.text.isNotEmpty ||
-      _imageBytes != null;
+      _imageBytesList.isNotEmpty;
 
   Future<bool> _confirmDiscard(BuildContext context) async {
     final result = await showDialog<bool>(
@@ -617,59 +734,54 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // OCR スキャンボタン（メインCTA）
-            _buildOcrScanButton(theme),
+            if (VehicleCertificateOcrService.isSupported)
+              _buildOcrScanButton(theme)
+            else
+              _buildOcrUnsupportedNote(theme, '車検証'),
             AppSpacing.verticalMd,
 
-            // 写真選択（コンパクト）
-            GestureDetector(
-              onTap: _pickImage,
-              child: Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  color:
-                      isDark ? AppColors.darkCard : AppColors.backgroundLight,
-                  borderRadius: AppSpacing.borderRadiusMd,
-                  border: Border.all(
-                    color:
-                        isDark ? AppColors.darkTextTertiary : AppColors.border,
-                  ),
-                ),
-                child: _imageBytes != null
-                    ? ClipRRect(
-                        borderRadius: AppSpacing.borderRadiusMd,
-                        child: Image.memory(
-                          _imageBytes!,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                        ),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.add_photo_alternate_outlined,
-                            size: AppSpacing.iconLg,
-                            color: isDark
-                                ? AppColors.darkTextTertiary
-                                : AppColors.textTertiary,
-                          ),
-                          AppSpacing.horizontalSm,
-                          Text(
-                            '車両の写真を追加（任意）',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: isDark
-                                  ? AppColors.darkTextTertiary
-                                  : AppColors.textTertiary,
-                            ),
-                          ),
-                        ],
-                      ),
+            // 写真選択。外装・内装・エンジンルームなど複数の角度を残せるよう
+            // 横並びのサムネイルにしている。最後のマスが追加ボタン。
+            SizedBox(
+              height: 104,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _imageBytesList.length +
+                    (_imageBytesList.length < _maxPhotos ? 1 : 0),
+                separatorBuilder: (_, __) => AppSpacing.horizontalSm,
+                itemBuilder: (context, index) {
+                  if (index >= _imageBytesList.length) {
+                    return _AddPhotoTile(
+                      isDark: isDark,
+                      onTap: _pickImage,
+                      label: _imageBytesList.isEmpty
+                          ? '写真を追加'
+                          : 'あと${_maxPhotos - _imageBytesList.length}枚',
+                    );
+                  }
+                  return _PhotoThumb(
+                    bytes: _imageBytesList[index],
+                    isCover: index == 0,
+                    onRemove: () => _removeImageAt(index),
+                  );
+                },
               ),
             ),
+            if (_imageBytesList.isNotEmpty) ...[
+              AppSpacing.verticalXxs,
+              Text(
+                '最大$_maxPhotos枚。1枚目が一覧のサムネイルになります。',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: isDark
+                      ? AppColors.darkTextTertiary
+                      : AppColors.textTertiary,
+                ),
+              ),
+            ],
             // Show photo-consent checkbox only when a photo has been selected.
             // Asking before save (checkbox) is better UX than a post-save dialog:
             // the user sees the choice while still in context of "I'm uploading."
-            if (_imageBytes != null) ...[
+            if (_imageBytesList.isNotEmpty) ...[
               AppSpacing.verticalXs,
               CheckboxListTile(
                 key: const Key('photo_consent_checkbox'),
@@ -716,6 +828,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                 setState(() {
                   _selectedModel = model;
                   _selectedGrade = null;
+                  _applyUseCategoryFromModel(model);
                 });
               },
               validator: (value) => value == null ? '車種を選択してください' : null,
@@ -725,11 +838,16 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             Row(
               children: [
                 Expanded(
-                  child: AppTextField.number(
+                  // 選択式（タップでシート）。controller は OCR 自動入力が
+                  // 書き込むため残す。
+                  child: AppTextField(
                     controller: _yearController,
                     labelText: '年式 *',
                     hintText: '例: 2023',
+                    readOnly: true,
+                    onTap: _pickYear,
                     prefixIcon: const Icon(Icons.calendar_today),
+                    suffixIcon: const Icon(Icons.arrow_drop_down),
                     validator: (value) {
                       if (value == null || value.isEmpty) return '年式を入力';
                       final year = int.tryParse(value);
@@ -778,15 +896,15 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               ),
             AppSpacing.verticalMd,
 
-            AppTextField.number(
+            AppTextField.numberGrouped(
               controller: _mileageController,
               labelText: '走行距離 *',
-              hintText: '例: 24500',
+              hintText: '例: 24,500',
               prefixIcon: const Icon(Icons.speed),
               suffixText: 'km',
               validator: (value) {
                 if (value == null || value.isEmpty) return '走行距離を入力してください';
-                final mileage = int.tryParse(value);
+                final mileage = int.tryParse(stripThousands(value));
                 if (mileage == null || mileage < 0) return '正しい走行距離を入力してください';
                 if (mileage > 2000000) return '走行距離が大きすぎます（200万km以下）';
                 return null;
@@ -856,6 +974,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               onSelected: (d) => setState(() => _inspectionExpiryDate = d),
             ),
           ),
+          AppSpacing.verticalSm,
+
+          _buildUseCategoryTile(theme),
           AppSpacing.verticalSm,
 
           _buildDatePickerTile(
@@ -936,19 +1057,28 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           Row(
             children: [
               Expanded(
+                // タップで候補シートを開く。一覧に無い色はシート下部で
+                // そのまま手入力できる（メーカー固有色は網羅できないため、
+                // メーカー・車種・グレードと同じく候補は入力補助に留める）。
                 child: AppTextField(
                   controller: _colorController,
                   labelText: '車体色',
                   hintText: '例: パールホワイト',
+                  readOnly: true,
+                  onTap: _pickColor,
                   prefixIcon: const Icon(Icons.palette),
+                  suffixIcon: const Icon(
+                    Icons.arrow_drop_down,
+                    key: Key('color_picker_button'),
+                  ),
                 ),
               ),
               AppSpacing.horizontalSm,
               Expanded(
-                child: AppTextField.number(
+                child: AppTextField.numberGrouped(
                   controller: _engineDisplacementController,
                   labelText: '排気量',
-                  hintText: '例: 1800',
+                  hintText: '例: 1,800',
                   prefixIcon: const Icon(Icons.local_gas_station),
                   suffixText: 'cc',
                 ),
@@ -999,6 +1129,14 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               lastDate: DateTime.now(),
               onSelected: (d) => setState(() => _purchaseDate = d),
             ),
+          ),
+          AppSpacing.verticalLg,
+
+          _buildSectionHeader(theme, 'オプション・装備', Icons.settings_suggest),
+          AppSpacing.verticalSm,
+          EquipmentSection(
+            value: _equipment,
+            onChanged: (equipment) => setState(() => _equipment = equipment),
           ),
           AppSpacing.verticalLg,
         ],
@@ -1102,6 +1240,88 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     );
   }
 
+  /// 選ばれた車種から用途区分の初期値を当てる。
+  ///
+  /// 利用者が自分で選び直したあとは触らない。ハイエースを選んだ人が
+  /// 「自家用乗用（8ナンバー登録）」に直したのを、車種を選び直すたびに
+  /// 巻き戻されては困る。
+  void _applyUseCategoryFromModel(VehicleModel? model) {
+    if (_useCategoryTouchedByUser) return;
+    _useCategory = VehicleUseCategory.suggestFor(
+      modelId: model?.id,
+      bodyType: model?.bodyType,
+    );
+  }
+
+  /// 用途区分の選択。
+  ///
+  /// 「1ナンバーか4ナンバーか」を聞かれても分からない人がいるので、
+  /// **何が変わるのか（車検の周期）**を添える。
+  Widget _buildUseCategoryTile(ThemeData theme) {
+    final category = _useCategory;
+    final cycle = category.firstInspectionYears == category.inspectionCycleYears
+        ? '車検は${category.inspectionCycleYears}年ごと'
+        : '車検は初回${category.firstInspectionYears}年、以降${category.inspectionCycleYears}年ごと';
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.local_shipping_outlined,
+                    size: AppSpacing.iconMd),
+                AppSpacing.horizontalSm,
+                Text('用途区分', style: theme.textTheme.titleSmall),
+              ],
+            ),
+            AppSpacing.verticalXs,
+            DropdownButtonFormField<VehicleUseCategory>(
+              key: const Key('use_category_dropdown'),
+              initialValue: category,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: VehicleUseCategory.values
+                  .map(
+                    (c) => DropdownMenuItem(
+                      value: c,
+                      child: Text(
+                        c.displayName,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _useCategory = value;
+                  _useCategoryTouchedByUser = true;
+                });
+              },
+            ),
+            AppSpacing.verticalXs,
+            Text(
+              cycle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDatePickerTile({
     required BuildContext context,
     required String title,
@@ -1202,6 +1422,32 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           }).toList(),
         ),
       ],
+    );
+  }
+
+  /// Web では ML Kit が動かないため、ボタン自体を出さずに理由を示す。
+  /// 押せるのに必ず失敗するボタンより、押せない理由が書いてあるほうがよい。
+  Widget _buildOcrUnsupportedNote(ThemeData theme, String what) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.08),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, size: 20, color: AppColors.info),
+          AppSpacing.horizontalMd,
+          Expanded(
+            child: Text(
+              'Web版では$what の読み取りに対応していません。'
+              '下のフォームから入力してください。',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1576,6 +1822,114 @@ class _GradeSpecPreview extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// 選択済み写真のサムネイル。1枚目には「表紙」バッジを出して、
+/// どれが一覧に出る写真なのかを分かるようにしている。
+class _PhotoThumb extends StatelessWidget {
+  final Uint8List bytes;
+  final bool isCover;
+  final VoidCallback onRemove;
+
+  const _PhotoThumb({
+    required this.bytes,
+    required this.isCover,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SizedBox(
+      width: 104,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: AppSpacing.borderRadiusMd,
+              child: Image.memory(bytes, fit: BoxFit.cover),
+            ),
+          ),
+          if (isCover)
+            Positioned(
+              left: 4,
+              bottom: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '表紙',
+                  style:
+                      theme.textTheme.labelSmall?.copyWith(color: Colors.white),
+                ),
+              ),
+            ),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: InkWell(
+              onTap: onRemove,
+              customBorder: const CircleBorder(),
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close, size: 14, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 写真を追加するマス。残り枚数を出して上限を意識させる。
+class _AddPhotoTile extends StatelessWidget {
+  final bool isDark;
+  final VoidCallback onTap;
+  final String label;
+
+  const _AddPhotoTile({
+    required this.isDark,
+    required this.onTap,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fg = isDark ? AppColors.darkTextTertiary : AppColors.textTertiary;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 104,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkCard : AppColors.backgroundLight,
+          borderRadius: AppSpacing.borderRadiusMd,
+          border: Border.all(
+            color: isDark ? AppColors.darkTextTertiary : AppColors.border,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_photo_alternate_outlined,
+                size: AppSpacing.iconLg, color: fg),
+            const SizedBox(height: 4),
+            Text(label, style: theme.textTheme.bodySmall?.copyWith(color: fg)),
+          ],
+        ),
       ),
     );
   }

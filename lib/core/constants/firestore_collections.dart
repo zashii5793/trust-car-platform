@@ -20,6 +20,7 @@ class FirestoreCollections {
   static const String inquiries = 'inquiries';
   static const String messages = 'messages';
   static const String notifications = 'notifications';
+  static const String feedback = 'feedback';
   static const String postLikes = 'post_likes';
   static const String commentLikes = 'comment_likes';
   static const String driveLogLikes = 'drive_log_likes';
@@ -30,4 +31,8 @@ class FirestoreCollections {
   static const String vehiclePreferences = 'vehicle_preferences';
   static const String vehicleGradeSpecs = 'vehicle_grade_specs';
   static const String shopInquiryDemands = 'shop_inquiry_demands';
+
+  /// アカウント削除要求（サーバー側の連鎖purge用）。作成は本人のみ、
+  /// 読み取り・更新はサーバー専用。
+  static const String accountDeletions = 'account_deletions';
 }

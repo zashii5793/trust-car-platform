@@ -17,22 +17,283 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
+
+  <!--
+    日本語フォントは fonts.gstatic.com から後追いで届く（下の #splash の説明を
+    参照）。接続だけ先に張っておくと、名前解決と TLS の分は待たなくて済む。
+  -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="車検・整備の記録、点検リマインド、整備工場探しをひとつにまとめるクルマ統合管理アプリ">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="trust_car_platform">
+  <meta name="apple-mobile-web-app-title" content="TrustCar">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>trust_car_platform</title>
+  <title>TrustCar - クルマ統合管理</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Google Maps JavaScript API.
+       __GOOGLE_MAPS_API_KEY__ は CI が GOOGLE_MAPS_API_KEY_WEB の値へ
+       置換する（.github/workflows/web_preview.yml 参照）。キーを
+       リポジトリへ直接置かないための仕組み。
+       置換されなかった場合、地図だけが出ず他の機能は動く。 -->
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=__GOOGLE_MAPS_API_KEY__&loading=async"
+    defer></script>
+
+  <!--
+    起動スプラッシュ。
+
+    Flutter Web は (1) アプリが立ち上がるまで真っ白、(2) 立ち上がった直後は
+    日本語のフォントが未着で □□□ になる、という2段階の「壊れて見える」時間が
+    ある。テストユーザーの第一印象がそこなので、その間を覆う。
+
+    スプラッシュ自体はブラウザのシステムフォントで描く。ここで Web フォントを
+    待つと、豆腐を隠すための画面が豆腐になる。外部 CDN も参照しない
+    （届かない回線でスプラッシュまで出ないのでは意味がない）。
+  -->
+  <style>
+    #splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #1A4D8F;
+      color: #FFFFFF;
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+        "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP",
+        "Segoe UI", sans-serif;
+      transition: opacity 0.4s ease;
+    }
+    #splash.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #splash .splash-title {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+    #splash .splash-note {
+      margin-top: 12px;
+      font-size: 14px;
+      opacity: 0.85;
+    }
+    #splash .splash-slow {
+      margin-top: 20px;
+      font-size: 13px;
+      line-height: 1.7;
+      max-width: 20em;
+      text-align: center;
+      opacity: 0.85;
+      display: none;
+    }
+    #splash .splash-bar {
+      margin-top: 24px;
+      width: 160px;
+      height: 3px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.25);
+      overflow: hidden;
+    }
+    #splash .splash-bar::after {
+      content: "";
+      display: block;
+      width: 40%;
+      height: 100%;
+      border-radius: 2px;
+      background: #FFFFFF;
+      animation: splash-slide 1.2s ease-in-out infinite;
+    }
+    @keyframes splash-slide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(300%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #splash .splash-bar::after { animation: none; }
+      #splash { transition: none; }
+    }
+  </style>
 </head>
 <body>
+  <!--
+    Google Maps (Issue #43) — Web.
+    google_maps_flutter_web needs the Maps JavaScript API loaded before the map
+    renders. The key must be a literal here (a static file cannot read
+    --dart-define), so DO NOT commit a real key. At web build/deploy time,
+    inject the script below with your key (e.g. sed-replace a placeholder), then
+    also pass --dart-define=MAPS_API_KEY=... so the in-app map entry appears:
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_MAPS_API_KEY"></script>
+
+    Without it the app still works; the map entry point is hidden and the
+    distance-sorted list is used instead.
+  -->
+  <div id="splash">
+    <div class="splash-title">TrustCar</div>
+    <div class="splash-note">読み込んでいます…</div>
+    <div class="splash-slow" id="splash-slow">
+      読み込みに時間がかかっています。<br>
+      通信状況をご確認のうえ、しばらくお待ちください。
+    </div>
+    <div class="splash-bar"></div>
+  </div>
+
+  <script>
+    // スプラッシュをいつ消すか。
+    //
+    // 3回作り直している。実測で分かったことを順に書く（2026-08-24〜25）。
+    //
+    // 1. 「最初のフレームが出たら消す」はダメ。Flutter Web は日本語フォントを
+    //    **最初の描画より後に**取りに行くので、消した先が □□□ になる。
+    // 2. 「fonts.gstatic.com への取得を数える」もダメ。Roboto も同じ配布元から
+    //    1.4 秒で届き、それで早合点して消えてしまう。
+    // 3. 「最初のフレームから N 秒待って諦める」もダメ。フォントの到着は
+    //    3.4 秒のときも 9.8 秒のときもあり、決め打ちできない。
+    //
+    // いまの形: fetch を包んで**日本語フォントの取得が始まったこと**を掴み、
+    // その取得が終わるまで待つ。時間ではなく事実で判断する。
+    //
+    // 消えなくなる事故を避ける逃げ道は残してある。
+    (function () {
+      var splash = document.getElementById('splash');
+      if (!splash) return;
+
+      // 待つ相手は日本語のフォントだけ。
+      var JP_FONT_PATTERN = /notosansjp|notosanscjk/i;
+      // 取得が終わってから消すまでの間。届いた文字で描き直すまでに一拍ある。
+      var QUIET_MS = 700;
+      // 最初のフレームの後、これだけ待っても取得が「始まらない」ときは、
+      // 取りに行く必要が無かったと見なす。始まってさえいれば、何秒かかっても
+      // 終わるまで待つ。
+      //
+      // 長い。最初のフレームから取得開始までが**同じビルドでも 0.3 秒の回と
+      // 8.1 秒の回があった**（2026-08-25 実測）。最初のフレームは中身が
+      // 空の段階でも出るため、日本語が実際に描かれるまでの間が読めない。
+      // 短く取ると、遅い回で見切って □□□ が出る（4 秒では実際に出た）。
+      var NO_FONT_MS = 12000;
+      // 何が起きていても、ここで必ず退く。
+      var HARD_MS = 25000;
+
+      var removed = false;
+      var firstFrame = false;
+      var sawFont = false;      // 日本語フォントの取得が始まった
+      var pending = 0;          // まだ終わっていない本数
+      var quietTimer = null;
+
+      // 実測用。ブラウザのコンソールで window.__splashTrace を見れば、
+      // 最初のフレーム・フォント到着・消した時刻と理由が分かる。
+      var trace = { firstFrame: null, fontStarted: null, fonts: [], hidden: null, reason: null };
+      window.__splashTrace = trace;
+
+      function now() {
+        return Math.round(performance.now());
+      }
+
+      function hide(reason) {
+        if (removed) return;
+        removed = true;
+        trace.hidden = now();
+        trace.reason = reason || 'unknown';
+        splash.classList.add('hidden');
+        setTimeout(function () {
+          if (splash.parentNode) splash.parentNode.removeChild(splash);
+        }, 500);
+      }
+
+      function scheduleQuiet(ms, reason) {
+        if (!firstFrame || removed) return;
+        if (quietTimer) clearTimeout(quietTimer);
+        quietTimer = setTimeout(function () {
+          // 取得が始まっていて、まだ終わっていないなら待つ。
+          if (reason === 'no-font' && (sawFont || pending > 0)) return;
+          hide(reason);
+        }, ms);
+      }
+
+      function fontSettled() {
+        pending = Math.max(0, pending - 1);
+        trace.fonts.push(now());
+        if (pending === 0) scheduleQuiet(QUIET_MS, 'font-quiet');
+      }
+
+      // (1) fetch を包んで、取得の「開始」を掴む。flutter_bootstrap.js より
+      //     先に入れておく必要があるので、この位置に置いてある。
+      if (typeof window.fetch === 'function') {
+        var originalFetch = window.fetch;
+        window.fetch = function (input) {
+          var url = '';
+          try {
+            url = typeof input === 'string' ? input : (input && input.url) || '';
+          } catch (e) {
+            url = '';
+          }
+          var result = originalFetch.apply(this, arguments);
+          if (JP_FONT_PATTERN.test(url)) {
+            if (!sawFont) trace.fontStarted = now();
+            sawFont = true;
+            pending++;
+            result.then(fontSettled, fontSettled);
+          }
+          return result;
+        };
+      }
+
+      // (2) fetch を通らない経路（XHR など）への保険。
+      if (typeof PerformanceObserver === 'function') {
+        try {
+          var observer = new PerformanceObserver(function (list) {
+            var entries = list.getEntries();
+            for (var i = 0; i < entries.length; i++) {
+              if (!JP_FONT_PATTERN.test(entries[i].name)) continue;
+              if (!sawFont) {
+                sawFont = true;
+                trace.fontStarted = now();
+              }
+              if (pending === 0) {
+                trace.fonts.push(Math.round(entries[i].responseEnd));
+                scheduleQuiet(QUIET_MS, 'font-quiet');
+              }
+            }
+          });
+          observer.observe({ type: 'resource', buffered: true });
+        } catch (e) {
+          // 対応していないブラウザでは、下の逃げ道だけで動く。
+        }
+      }
+
+      // (3) 最初のフレーム。取得が始まっていなければ NO_FONT_MS で見切る。
+      window.addEventListener('flutter-first-frame', function () {
+        firstFrame = true;
+        trace.firstFrame = now();
+        if (sawFont && pending > 0) return;      // 取得中。終わるのを待つ。
+        scheduleQuiet(sawFont ? QUIET_MS : NO_FONT_MS, sawFont ? 'font-quiet' : 'no-font');
+      });
+
+      // (4) 待たせている自覚を画面に出す。
+      setTimeout(function () {
+        var slow = document.getElementById('splash-slow');
+        if (slow && !removed) slow.style.display = 'block';
+      }, 6000);
+
+      // (5) 最後の逃げ道。
+      setTimeout(function () {
+        hide('hard-timeout');
+      }, HARD_MS);
+    })();
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

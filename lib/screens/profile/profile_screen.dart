@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/config/app_config.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/constants/japan_prefectures.dart';
 import '../../core/di/service_locator.dart';
 import '../../models/maintenance_record.dart';
 import '../../models/vehicle.dart';
@@ -18,9 +18,14 @@ import '../../providers/vehicle_provider.dart';
 import '../../services/firebase_service.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../../widgets/plan_badge.dart';
 import '../export/export_dialog.dart';
 import '../marketplace/my_listings_screen.dart';
 import 'settings_screen.dart';
+import '../../services/feedback_service.dart';
+import '../settings/feedback_screen.dart';
+import '../settings/help_screen.dart';
+import '../settings/plan_screen.dart';
 
 /// プロフィール画面
 class ProfileScreen extends StatelessWidget {
@@ -98,8 +103,25 @@ class ProfileScreen extends StatelessWidget {
                         authProvider,
                         appUser?.displayName ?? user?.displayName ?? 'ユーザー',
                         user?.photoURL,
+                        currentPrefecture: appUser?.prefecture,
+                        currentCity: appUser?.city,
                       ),
                     ),
+                    // `appUser?.x != null` では appUser 自体は昇格しないので、
+                    // 変数そのものを null チェックする。
+                    if (appUser != null && appUser.regionLabel != null)
+                      _MenuItem(
+                        icon: Icons.place_outlined,
+                        label: 'お住まいの地域: ${appUser.regionLabel}',
+                        onTap: () => _showProfileEditSheet(
+                          context,
+                          authProvider,
+                          appUser.displayName ?? user?.displayName ?? 'ユーザー',
+                          user?.photoURL,
+                          currentPrefecture: appUser.prefecture,
+                          currentCity: appUser.city,
+                        ),
+                      ),
                     _MenuItem(
                       icon: Icons.notifications_outlined,
                       label: '通知設定',
@@ -140,6 +162,24 @@ class ProfileScreen extends StatelessWidget {
                 ],
 
                 _MenuSection(
+                  title: 'プラン',
+                  items: [
+                    _MenuItem(
+                      icon: Icons.workspace_premium_outlined,
+                      label: isPremium ? 'プラン（プレミアム）' : 'プラン（フリー）',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => const PlanScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                AppSpacing.verticalMd,
+
+                _MenuSection(
                   title: 'データ',
                   items: [
                     _MenuItem(
@@ -160,17 +200,27 @@ class ProfileScreen extends StatelessWidget {
                     _MenuItem(
                       icon: Icons.help_outline,
                       label: 'ヘルプ',
-                      onTap: () async {
-                        final uri = Uri.parse(
-                          'https://zashii5793.github.io/trust-car-platform/',
-                        );
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri,
-                              mode: LaunchMode.externalApplication);
-                        } else if (context.mounted) {
-                          showErrorSnackBar(context, 'ブラウザを開けませんでした');
-                        }
-                      },
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => HelpScreen(userId: user?.uid),
+                        ),
+                      ),
+                    ),
+                    _MenuItem(
+                      icon: Icons.rate_review_outlined,
+                      label: 'ご意見・不具合の報告',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => FeedbackScreen(
+                            service:
+                                ServiceLocator.instance.get<FeedbackService>(),
+                            userId: user?.uid ?? '',
+                            fromScreen: 'profile',
+                          ),
+                        ),
+                      ),
                     ),
                     _MenuItem(
                       icon: Icons.info_outline,
@@ -223,7 +273,16 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  /// Premium gate for PDF export.
+  ///
+  /// This dialog used to offer only 「閉じる」 while telling the user to
+  /// upgrade — a dead end. The purchase flow already existed
+  /// (UserSubscriptionProvider.purchasePremium); this dialog simply never
+  /// called it, unlike the identical dialog on the home screen.
   void _showUpgradeDialog(BuildContext context) {
+    final subscriptionProvider = context.read<UserSubscriptionProvider>();
+    final uid = context.read<AuthProvider>().appUser?.id ?? '';
+
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -236,6 +295,28 @@ class ProfileScreen extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('閉じる'),
+          ),
+          FilledButton(
+            key: const Key('profile_upgrade_purchase_button'),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              if (uid.isEmpty) return;
+              final result =
+                  await subscriptionProvider.purchasePremium(userId: uid);
+              if (!context.mounted) return;
+              result.when(
+                success: (_) => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('プレミアムプランへの登録が完了しました'),
+                    backgroundColor: Colors.green,
+                  ),
+                ),
+                failure: (err) => ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(err.userMessage)),
+                ),
+              );
+            },
+            child: const Text('プレミアムに登録する'),
           ),
         ],
       ),
@@ -270,8 +351,10 @@ class ProfileScreen extends StatelessWidget {
     BuildContext context,
     AuthProvider authProvider,
     String currentName,
-    String? currentPhotoUrl,
-  ) {
+    String? currentPhotoUrl, {
+    String? currentPrefecture,
+    String? currentCity,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -282,6 +365,8 @@ class ProfileScreen extends StatelessWidget {
         authProvider: authProvider,
         currentName: currentName,
         currentPhotoUrl: currentPhotoUrl,
+        currentPrefecture: currentPrefecture,
+        currentCity: currentCity,
       ),
     );
   }
@@ -334,11 +419,15 @@ class _ProfileEditSheet extends StatefulWidget {
   final AuthProvider authProvider;
   final String currentName;
   final String? currentPhotoUrl;
+  final String? currentPrefecture;
+  final String? currentCity;
 
   const _ProfileEditSheet({
     required this.authProvider,
     required this.currentName,
     this.currentPhotoUrl,
+    this.currentPrefecture,
+    this.currentCity,
   });
 
   @override
@@ -348,6 +437,8 @@ class _ProfileEditSheet extends StatefulWidget {
 class _ProfileEditSheetState extends State<_ProfileEditSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
+  late final TextEditingController _cityController;
+  String? _prefecture;
   bool _isSaving = false;
   Uint8List? _pickedImageBytes;
 
@@ -355,11 +446,18 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.currentName);
+    _cityController = TextEditingController(text: widget.currentCity ?? '');
+    // 保存済みの値が一覧に無い場合（旧データなど）は未選択に倒す。
+    // DropdownButtonFormField は一覧に無い値を渡すと例外になる。
+    _prefecture = kJapanPrefectures.contains(widget.currentPrefecture)
+        ? widget.currentPrefecture
+        : null;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _cityController.dispose();
     super.dispose();
   }
 
@@ -401,6 +499,9 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
     final success = await widget.authProvider.updateProfile(
       displayName: _nameController.text.trim(),
       photoUrl: newPhotoUrl,
+      // 空文字を渡すとクリアされる。選択を外したら消せるようにする。
+      prefecture: _prefecture ?? '',
+      city: _cityController.text.trim(),
     );
 
     if (!mounted) return;
@@ -428,71 +529,126 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
       ),
       child: Form(
         key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('プロフィールを編集', style: theme.textTheme.titleLarge),
-            AppSpacing.verticalLg,
-            Center(
-              child: GestureDetector(
-                onTap: _isSaving ? null : _pickPhoto,
-                child: Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 44,
-                      backgroundColor: theme.colorScheme.primary,
-                      backgroundImage: _pickedImageBytes != null
-                          ? MemoryImage(_pickedImageBytes!)
-                          : (widget.currentPhotoUrl != null &&
-                                  widget.currentPhotoUrl!.isNotEmpty
-                              ? NetworkImage(widget.currentPhotoUrl!)
-                                  as ImageProvider
-                              : null),
-                      child: (_pickedImageBytes == null &&
-                              (widget.currentPhotoUrl == null ||
-                                  widget.currentPhotoUrl!.isEmpty))
-                          ? const Icon(Icons.person,
-                              size: 44, color: Colors.white)
-                          : null,
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: CircleAvatar(
-                        radius: 14,
+        // 居住地の欄を足して縦に伸びたため、小さい画面やキーボード表示時に
+        // はみ出す。スクロールできるようにしておく。
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('プロフィールを編集', style: theme.textTheme.titleLarge),
+              AppSpacing.verticalLg,
+              Center(
+                child: GestureDetector(
+                  onTap: _isSaving ? null : _pickPhoto,
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 44,
                         backgroundColor: theme.colorScheme.primary,
-                        child: const Icon(Icons.camera_alt,
-                            size: 16, color: Colors.white),
+                        backgroundImage: _pickedImageBytes != null
+                            ? MemoryImage(_pickedImageBytes!)
+                            : (widget.currentPhotoUrl != null &&
+                                    widget.currentPhotoUrl!.isNotEmpty
+                                ? NetworkImage(widget.currentPhotoUrl!)
+                                    as ImageProvider
+                                : null),
+                        child: (_pickedImageBytes == null &&
+                                (widget.currentPhotoUrl == null ||
+                                    widget.currentPhotoUrl!.isEmpty))
+                            ? const Icon(Icons.person,
+                                size: 44, color: Colors.white)
+                            : null,
                       ),
-                    ),
-                  ],
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: CircleAvatar(
+                          radius: 14,
+                          backgroundColor: theme.colorScheme.primary,
+                          child: const Icon(Icons.camera_alt,
+                              size: 16, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            AppSpacing.verticalLg,
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '表示名',
-                border: OutlineInputBorder(),
+              AppSpacing.verticalLg,
+              TextFormField(
+                key: const Key('profile_display_name_field'),
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: '表示名',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? '表示名を入力してください' : null,
+                textInputAction: TextInputAction.done,
               ),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? '表示名を入力してください' : null,
-              textInputAction: TextInputAction.done,
-            ),
-            AppSpacing.verticalLg,
-            ElevatedButton(
-              onPressed: _isSaving ? null : _save,
-              child: _isSaving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('保存'),
-            ),
-          ],
+              AppSpacing.verticalLg,
+
+              // お住まいの地域。近くの整備工場を探すために使う。
+              //
+              // 都道府県は47件で確定しているので選択式。市区町村は約1,700件
+              // あり網羅した一覧を保守できないので自由入力にする。
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('お住まいの地域（任意）', style: theme.textTheme.labelLarge),
+              ),
+              AppSpacing.verticalXxs,
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '近くの整備工場を探すときに使います',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: AppColors.textSecondary),
+                ),
+              ),
+              AppSpacing.verticalSm,
+              DropdownButtonFormField<String>(
+                key: const Key('profile_prefecture_dropdown'),
+                initialValue: _prefecture,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: '都道府県',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  const DropdownMenuItem<String>(
+                    value: null,
+                    child: Text('未設定'),
+                  ),
+                  for (final p in kJapanPrefectures)
+                    DropdownMenuItem<String>(value: p, child: Text(p)),
+                ],
+                onChanged:
+                    _isSaving ? null : (v) => setState(() => _prefecture = v),
+              ),
+              AppSpacing.verticalSm,
+              TextFormField(
+                key: const Key('profile_city_field'),
+                controller: _cityController,
+                decoration: const InputDecoration(
+                  labelText: '市区町村',
+                  hintText: '例: 世田谷区 / 横浜市青葉区',
+                  border: OutlineInputBorder(),
+                ),
+                textInputAction: TextInputAction.done,
+              ),
+              AppSpacing.verticalLg,
+              ElevatedButton(
+                onPressed: _isSaving ? null : _save,
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('保存'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -558,22 +714,16 @@ class _ProfileHeader extends StatelessWidget {
         ),
         AppSpacing.verticalSm,
 
-        // プランバッジ
-        Chip(
-          avatar: Icon(
-            isPremium ? Icons.star : Icons.star_border,
-            size: 16,
-            color: isPremium ? Colors.white : theme.colorScheme.onSurface,
+        // プランバッジ。プラン内容を確認・変更できる場所がここしか無いので、
+        // 表示だけで終わらせずタップでプラン画面へ入れるようにしている。
+        // 配色は PlanBadge 側で固定している（青ヘッダーの上でテーマ既定色に
+        // 任せると背景と文字がどちらも白になり読めなくなる）。
+        PlanBadge(
+          isPremium: isPremium,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(builder: (_) => const PlanScreen()),
           ),
-          label: Text(
-            isPremium ? 'プレミアム' : 'フリープラン',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: isPremium ? Colors.white : null,
-            ),
-          ),
-          backgroundColor: isPremium ? AppColors.primary : null,
-          side: isPremium ? BorderSide.none : null,
-          visualDensity: VisualDensity.compact,
         ),
       ],
     );

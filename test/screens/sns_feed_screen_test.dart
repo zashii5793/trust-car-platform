@@ -23,7 +23,20 @@ import 'package:trust_car_platform/widgets/common/loading_indicator.dart';
 // ---------------------------------------------------------------------------
 
 class MockPostService implements PostService {
-  Result<List<Post>, AppError> feedResult = const Result.success([]);
+  // テストは List<Post> で結果を組み立てる。getFeed は PostPage を返すので
+  // ここで包み直す（カーソルの有無まで各テストに書かせない）。
+  Result<PostPage, AppError> _feedPageResult =
+      const Result.success(PostPage.empty);
+
+  set feedResult(Result<List<Post>, AppError> value) {
+    _feedPageResult = value.when(
+      success: (posts) => Result.success(
+        PostPage(posts: posts, cursor: posts.isEmpty ? null : 'cursor'),
+      ),
+      failure: Result<PostPage, AppError>.failure,
+    );
+  }
+
   Result<Post, AppError>? createResult;
   Result<void, AppError> likeResult = const Result.success(null);
   Result<void, AppError> unlikeResult = const Result.success(null);
@@ -31,19 +44,25 @@ class MockPostService implements PostService {
   bool isPostLikedResult = false;
 
   int getFeedCallCount = 0;
-  PostCategory? lastCategory;
+  Set<PostCategory> lastCategories = const {};
+  PostSortBy lastSortBy = PostSortBy.newest;
+  String? lastHashtag;
 
   @override
-  Future<Result<List<Post>, AppError>> getFeed({
+  Future<Result<PostPage, AppError>> getFeed({
     int limit = 20,
     dynamic startAfter,
-    PostCategory? category,
+    Set<PostCategory> categories = const {},
+    PostSortBy sortBy = PostSortBy.newest,
+    String? hashtag,
     String? makerId,
     String? modelName,
   }) async {
     getFeedCallCount++;
-    lastCategory = category;
-    return feedResult;
+    lastCategories = categories;
+    lastSortBy = sortBy;
+    lastHashtag = hashtag;
+    return _feedPageResult;
   }
 
   @override
@@ -149,6 +168,7 @@ Post _makePost({
   int likeCount = 3,
   int commentCount = 1,
   List<String> hashtags = const [],
+  List<PostMedia> media = const [],
 }) {
   final now = DateTime.now();
   return Post(
@@ -160,6 +180,7 @@ Post _makePost({
     likeCount: likeCount,
     commentCount: commentCount,
     hashtags: hashtags,
+    media: media,
     createdAt: now,
     updatedAt: now,
   );
@@ -168,6 +189,10 @@ Post _makePost({
 /// Minimal FirebaseService stub — VehicleProvider only reads its in-memory
 /// state in these tests, so no method is actually invoked.
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
@@ -330,7 +355,81 @@ void main() {
       await tester.pump();
 
       expect(mockService.getFeedCallCount, greaterThan(initialCount));
-      expect(mockService.lastCategory, PostCategory.maintenance);
+      expect(mockService.lastCategories, {PostCategory.maintenance});
+    });
+
+    testWidgets('カテゴリチップを複数タップすると両方で絞り込まれる', (tester) async {
+      mockService.feedResult = const Result.success([]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pump();
+
+      await tester.tap(
+          find.byKey(Key('sns_category_${PostCategory.maintenance.name}')));
+      await tester.pump();
+      await tester
+          .tap(find.byKey(Key('sns_category_${PostCategory.drive.name}')));
+      await tester.pump();
+
+      expect(
+        mockService.lastCategories,
+        {PostCategory.maintenance, PostCategory.drive},
+      );
+    });
+
+    testWidgets('選択済みのカテゴリチップを再タップすると解除される', (tester) async {
+      mockService.feedResult = const Result.success([]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pump();
+
+      final chip = find.byKey(Key('sns_category_${PostCategory.drive.name}'));
+      await tester.tap(chip);
+      await tester.pump();
+      await tester.tap(chip);
+      await tester.pump();
+
+      expect(mockService.lastCategories, isEmpty);
+    });
+
+    testWidgets('「すべて」チップでカテゴリ選択が解除される', (tester) async {
+      mockService.feedResult = const Result.success([]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pump();
+
+      await tester
+          .tap(find.byKey(Key('sns_category_${PostCategory.drive.name}')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('sns_category_all')));
+      await tester.pump();
+
+      expect(mockService.lastCategories, isEmpty);
+    });
+
+    testWidgets('並び替えボタンから「コメントが多い順」に変更できる', (tester) async {
+      mockService.feedResult = const Result.success([]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('sns_sort_button')));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(
+          find.byKey(Key('sns_sort_option_${PostSortBy.mostCommented.name}')));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(mockService.lastSortBy, PostSortBy.mostCommented);
+    });
+
+    testWidgets('並び替えボタンに現在の並び順が表示される', (tester) async {
+      mockService.feedResult = const Result.success([]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pump();
+
+      expect(find.text(PostSortBy.newest.displayName), findsOneWidget);
     });
 
     testWidgets('FABをタップすると投稿作成画面に遷移する', (tester) async {
@@ -435,6 +534,161 @@ void main() {
         expect(find.text('ドライブ記事'), findsOneWidget);
         expect(find.text('質問です'), findsOneWidget);
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 投稿画像の見え方
+  //
+  // 1枚しかない投稿まで小さな正方形で出していたため、カードの中で写真が
+  // 埋もれて「画像を出せないアプリ」に見えていた。
+  // -------------------------------------------------------------------------
+
+  group('SnsFeedScreen — 投稿画像', () {
+    late MockPostService mockService;
+
+    setUp(() {
+      mockService = MockPostService();
+    });
+
+    PostMedia media(String url) => PostMedia(url: url, type: 'image');
+
+    testWidgets('画像がない投稿では画像領域が出ない', (tester) async {
+      mockService.feedResult = Result.success([_makePost(id: 'p-no-image')]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.byKey(const Key('post_media_p-no-image')), findsNothing);
+    });
+
+    testWidgets('画像1枚の投稿は幅いっぱいで表示される', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-one', media: [media('https://example.com/a.jpg')]),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      final finder = find.byKey(const Key('post_media_p-one'));
+      expect(finder, findsOneWidget);
+
+      // 横スクロールのリストではなく、1枚を大きく見せる
+      expect(
+        find.descendant(of: finder, matching: find.byType(ListView)),
+        findsNothing,
+      );
+    });
+
+    testWidgets('画像が複数ある投稿は横に並ぶ', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-many', media: [
+          media('https://example.com/a.jpg'),
+          media('https://example.com/b.jpg'),
+        ]),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      final finder = find.byKey(const Key('post_media_p-many'));
+      expect(finder, findsOneWidget);
+      expect(
+        find.descendant(of: finder, matching: find.byType(Image)),
+        findsNWidgets(2),
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // ハッシュタグの絞り込み
+  //
+  // タグは表示されるだけで、押しても「近日公開予定です」と出るだけだった。
+  // -------------------------------------------------------------------------
+
+  group('SnsFeedScreen — ハッシュタグ', () {
+    late MockPostService mockService;
+
+    setUp(() {
+      mockService = MockPostService();
+    });
+
+    testWidgets('タグをタップするとそのタグで絞り込まれる', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-tag', hashtags: const ['点検']),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.byKey(const Key('post_hashtag_p-tag_点検')));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(mockService.lastHashtag, '点検');
+    });
+
+    testWidgets('絞り込み中はタグのチップが出る', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-tag', hashtags: const ['点検']),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await tester.tap(find.byKey(const Key('post_hashtag_p-tag_点検')));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.byKey(const Key('sns_hashtag_active')), findsOneWidget);
+    });
+
+    testWidgets('チップの × で絞り込みを解除できる', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-tag', hashtags: const ['点検']),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await tester.tap(find.byKey(const Key('post_hashtag_p-tag_点検')));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      await tester.tap(find.descendant(
+        of: find.byKey(const Key('sns_hashtag_active')),
+        matching: find.byIcon(Icons.close),
+      ));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(mockService.lastHashtag, isNull);
+      expect(find.byKey(const Key('sns_hashtag_active')), findsNothing);
+    });
+
+    testWidgets('同じタグをもう一度押すと解除される', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-tag', hashtags: const ['点検']),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      final chip = find.byKey(const Key('post_hashtag_p-tag_点検'));
+      await tester.tap(chip);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await tester.tap(chip);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(mockService.lastHashtag, isNull);
+    });
+
+    testWidgets('タグ絞り込みで0件のときは専用の空表示になる', (tester) async {
+      mockService.feedResult = Result.success([
+        _makePost(id: 'p-tag', hashtags: const ['点検']),
+      ]);
+
+      await tester.pumpWidget(_buildApp(mockService));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      mockService.feedResult = const Result.success([]);
+      await tester.tap(find.byKey(const Key('post_hashtag_p-tag_点検')));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      expect(find.text('このタグの投稿がまだありません'), findsOneWidget);
     });
   });
 }

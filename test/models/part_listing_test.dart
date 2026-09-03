@@ -219,14 +219,18 @@ void main() {
       expect(compatibility, CompatibilityLevel.conditional);
     });
 
-    test('getCompatibilityFor returns default for different maker', () {
+    test('getCompatibilityFor returns incompatible for a different maker', () {
+      // This used to return the part's default (compatible), which made the
+      // vehicle filter do nothing: PartRecommendationService only skips
+      // `incompatible`, so a Toyota-only part still surfaced on a Honda.
+      // Declaring fitment and matching none of it means the part does not fit.
       final compatibility = testListing.getCompatibilityFor(
         makerId: 'honda',
         modelId: 'honda_fit',
         year: 2020,
       );
 
-      expect(compatibility, CompatibilityLevel.compatible); // default
+      expect(compatibility, CompatibilityLevel.incompatible);
     });
 
     test('equality works correctly', () {

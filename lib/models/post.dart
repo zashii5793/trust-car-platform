@@ -1,5 +1,43 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Feed ordering.
+///
+/// The feed used to be newest-only. Threads that draw discussion sink out of
+/// sight within a day, so readers also need a way to surface the busy ones.
+enum PostSortBy {
+  /// Newest first (createdAt descending).
+  newest,
+
+  /// Most discussed first (commentCount descending, newest as tie-breaker).
+  mostCommented;
+
+  String get displayName {
+    switch (this) {
+      case PostSortBy.newest:
+        return '新しい順';
+      case PostSortBy.mostCommented:
+        return 'コメントが多い順';
+    }
+  }
+}
+
+/// One page of feed posts plus an opaque cursor for the next page.
+///
+/// The cursor wraps a Firestore document snapshot so callers (providers, UI)
+/// can page without importing Firestore types or knowing the sort fields.
+/// Passing it back is what keeps "load more" from re-fetching page one.
+class PostPage {
+  final List<Post> posts;
+  final Object? cursor;
+
+  const PostPage({required this.posts, this.cursor});
+
+  static const PostPage empty = PostPage(posts: []);
+
+  bool get isEmpty => posts.isEmpty;
+  int get length => posts.length;
+}
+
 /// Post category types
 enum PostCategory {
   general, // 一般

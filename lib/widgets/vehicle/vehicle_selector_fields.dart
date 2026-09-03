@@ -4,6 +4,7 @@ import '../../services/vehicle_master_service.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import 'maker_badge.dart';
 
 /// Searchable dropdown for selecting vehicle maker
 class MakerSelectorField extends StatefulWidget {
@@ -12,12 +13,21 @@ class MakerSelectorField extends StatefulWidget {
   final String? Function(VehicleMaker?)? validator;
   final bool enabled;
 
+  /// Allow entering a maker that is not in the catalog.
+  ///
+  /// The catalog is master data we cannot keep exhaustive — it currently holds
+  /// 10 makers and no imported brands at all — so a car that is not listed must
+  /// still be registrable. Defaults to true; the catalog is an input aid, not
+  /// a gate.
+  final bool allowCustom;
+
   const MakerSelectorField({
     super.key,
     this.selectedMaker,
     required this.onChanged,
     this.validator,
     this.enabled = true,
+    this.allowCustom = true,
   });
 
   @override
@@ -94,12 +104,22 @@ class _MakerSelectorFieldState extends State<MakerSelectorField> {
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.business,
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.textSecondary,
-                    ),
+                    // 選ぶまでは汎用アイコン、選んだらそのメーカーのバッジ。
+                    // 一覧（ボトムシート）にはバッジが出るのに、閉じた途端に
+                    // 灰色のビルのアイコンに戻っていた。
+                    if (widget.selectedMaker != null)
+                      MakerBadge(
+                        makerId: widget.selectedMaker!.id,
+                        makerName: widget.selectedMaker!.name,
+                        size: 28,
+                      )
+                    else
+                      Icon(
+                        Icons.business,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.textSecondary,
+                      ),
                     AppSpacing.horizontalMd,
                     Expanded(
                       child: Text(
@@ -147,6 +167,7 @@ class _MakerSelectorFieldState extends State<MakerSelectorField> {
       builder: (context) => _MakerPickerSheet(
         makers: _makers,
         selectedMaker: widget.selectedMaker,
+        allowCustom: widget.allowCustom,
         onSelected: (maker) {
           widget.onChanged(maker);
           state.didChange(maker);
@@ -194,11 +215,13 @@ class _MakerPickerSheet extends StatefulWidget {
   final List<VehicleMaker> makers;
   final VehicleMaker? selectedMaker;
   final ValueChanged<VehicleMaker> onSelected;
+  final bool allowCustom;
 
   const _MakerPickerSheet({
     required this.makers,
     this.selectedMaker,
     required this.onSelected,
+    this.allowCustom = true,
   });
 
   @override
@@ -207,7 +230,9 @@ class _MakerPickerSheet extends StatefulWidget {
 
 class _MakerPickerSheetState extends State<_MakerPickerSheet> {
   final _searchController = TextEditingController();
+  final _customController = TextEditingController();
   List<VehicleMaker> _filteredMakers = [];
+  bool _showCustomInput = false;
 
   @override
   void initState() {
@@ -218,7 +243,32 @@ class _MakerPickerSheetState extends State<_MakerPickerSheet> {
   @override
   void dispose() {
     _searchController.dispose();
+    _customController.dispose();
     super.dispose();
+  }
+
+  /// Open the free-text field, seeded with whatever the user searched for.
+  /// Someone who typed "BMW" and got no hits should not have to type it twice.
+  void _openCustomInput() {
+    setState(() {
+      _showCustomInput = !_showCustomInput;
+      if (_showCustomInput && _customController.text.isEmpty) {
+        _customController.text = _searchController.text.trim();
+      }
+    });
+  }
+
+  void _submitCustom() {
+    final name = _customController.text.trim();
+    if (name.isEmpty) return;
+    widget.onSelected(
+      VehicleMaker(
+        id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
+        name: name,
+        nameEn: '',
+        country: 'other',
+      ),
+    );
   }
 
   void _filterMakers(String query) {
@@ -284,26 +334,65 @@ class _MakerPickerSheetState extends State<_MakerPickerSheet> {
                 ],
               ),
             ),
+            if (_showCustomInput)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _customController,
+                        decoration: InputDecoration(
+                          hintText: 'メーカー名を入力（例: BMW）',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 16),
+                        ),
+                        autofocus: true,
+                        onSubmitted: (_) => _submitCustom(),
+                      ),
+                    ),
+                    AppSpacing.horizontalSm,
+                    ElevatedButton(
+                      onPressed: _submitCustom,
+                      child: const Text('決定'),
+                    ),
+                  ],
+                ),
+              ),
+            AppSpacing.verticalSm,
             Expanded(
               child: ListView.builder(
                 controller: scrollController,
-                itemCount: _filteredMakers.length,
+                itemCount:
+                    _filteredMakers.length + (widget.allowCustom ? 1 : 0),
                 itemBuilder: (context, index) {
+                  // The custom row sits at the top when the search found
+                  // nothing — that is exactly when the user needs it.
+                  if (widget.allowCustom && index == _filteredMakers.length) {
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.grey[200],
+                        child: const Icon(Icons.edit, color: Colors.black54),
+                      ),
+                      title: const Text('一覧にないメーカーを入力'),
+                      subtitle: const Text('輸入車・商用車など'),
+                      onTap: _openCustomInput,
+                    );
+                  }
+
                   final maker = _filteredMakers[index];
                   final isSelected = widget.selectedMaker?.id == maker.id;
 
                   return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: isSelected
-                          ? theme.colorScheme.primary
-                          : Colors.grey[200],
-                      child: Text(
-                        maker.name.substring(0, 1),
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black87,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    // 灰色の丸に和名の1文字目、では見分けが付かず安っぽい。
+                    // 実ロゴは商標なので使えないため、色とマークで代用する。
+                    leading: MakerBadge(
+                      makerId: maker.id,
+                      makerName: maker.name,
+                      isSelected: isSelected,
                     ),
                     title: Text(maker.name),
                     subtitle: Text(maker.nameEn),
@@ -330,6 +419,11 @@ class ModelSelectorField extends StatefulWidget {
   final String? Function(VehicleModel?)? validator;
   final bool enabled;
 
+  /// Allow entering a model that is not in the catalog. See
+  /// [MakerSelectorField.allowCustom] — the catalog holds 88 models, all
+  /// domestic, so anything else must still be registrable.
+  final bool allowCustom;
+
   const ModelSelectorField({
     super.key,
     this.makerId,
@@ -337,6 +431,7 @@ class ModelSelectorField extends StatefulWidget {
     required this.onChanged,
     this.validator,
     this.enabled = true,
+    this.allowCustom = true,
   });
 
   @override
@@ -495,6 +590,8 @@ class _ModelSelectorFieldState extends State<ModelSelectorField> {
       builder: (context) => _ModelPickerSheet(
         models: _models,
         selectedModel: widget.selectedModel,
+        allowCustom: widget.allowCustom,
+        makerId: widget.makerId,
         onSelected: (model) {
           widget.onChanged(model);
           state.didChange(model);
@@ -543,10 +640,15 @@ class _ModelPickerSheet extends StatefulWidget {
   final VehicleModel? selectedModel;
   final ValueChanged<VehicleModel> onSelected;
 
+  final bool allowCustom;
+  final String? makerId;
+
   const _ModelPickerSheet({
     required this.models,
     this.selectedModel,
     required this.onSelected,
+    this.allowCustom = true,
+    this.makerId,
   });
 
   @override
@@ -555,7 +657,9 @@ class _ModelPickerSheet extends StatefulWidget {
 
 class _ModelPickerSheetState extends State<_ModelPickerSheet> {
   final _searchController = TextEditingController();
+  final _customController = TextEditingController();
   List<VehicleModel> _filteredModels = [];
+  bool _showCustomInput = false;
 
   @override
   void initState() {
@@ -566,7 +670,30 @@ class _ModelPickerSheetState extends State<_ModelPickerSheet> {
   @override
   void dispose() {
     _searchController.dispose();
+    _customController.dispose();
     super.dispose();
+  }
+
+  /// Seed the free-text field from the search box — see the maker sheet.
+  void _openCustomInput() {
+    setState(() {
+      _showCustomInput = !_showCustomInput;
+      if (_showCustomInput && _customController.text.isEmpty) {
+        _customController.text = _searchController.text.trim();
+      }
+    });
+  }
+
+  void _submitCustom() {
+    final name = _customController.text.trim();
+    if (name.isEmpty) return;
+    widget.onSelected(
+      VehicleModel(
+        id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
+        makerId: widget.makerId ?? '',
+        name: name,
+      ),
+    );
   }
 
   void _filterModels(String query) {
@@ -632,11 +759,53 @@ class _ModelPickerSheetState extends State<_ModelPickerSheet> {
                 ],
               ),
             ),
+            if (_showCustomInput)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _customController,
+                        decoration: InputDecoration(
+                          hintText: '車種名を入力（例: 3シリーズ）',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 16),
+                        ),
+                        autofocus: true,
+                        onSubmitted: (_) => _submitCustom(),
+                      ),
+                    ),
+                    AppSpacing.horizontalSm,
+                    ElevatedButton(
+                      onPressed: _submitCustom,
+                      child: const Text('決定'),
+                    ),
+                  ],
+                ),
+              ),
+            AppSpacing.verticalSm,
             Expanded(
               child: ListView.builder(
                 controller: scrollController,
-                itemCount: _filteredModels.length,
+                itemCount:
+                    _filteredModels.length + (widget.allowCustom ? 1 : 0),
                 itemBuilder: (context, index) {
+                  if (widget.allowCustom && index == _filteredModels.length) {
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.grey[200],
+                        child: const Icon(Icons.edit, color: Colors.black54),
+                      ),
+                      title: const Text('一覧にない車種を入力'),
+                      subtitle: const Text('カタログ未収録の車種・輸入車など'),
+                      onTap: _openCustomInput,
+                    );
+                  }
+
                   final model = _filteredModels[index];
                   final isSelected = widget.selectedModel?.id == model.id;
 

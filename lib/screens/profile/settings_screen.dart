@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../models/user.dart';
 import '../../models/newsletter.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/constants/colors.dart';
 import '../../core/di/service_locator.dart';
+import '../../core/ui/app_dialog.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/newsletter_service.dart';
 import '../../widgets/common/app_card.dart';
@@ -90,6 +93,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// アカウント削除（App Store ガイドライン 5.1.1(v)）
+  Future<void> _handleDeleteAccount() async {
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      title: 'アカウントを削除',
+      message: 'アカウントとすべてのデータが削除されます。この操作は取り消せません。\n'
+          '本当に削除しますか？',
+      confirmText: '削除する',
+      cancelText: 'キャンセル',
+      isDestructive: true,
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    final authProvider = context.read<AuthProvider>();
+    final success = await authProvider.deleteAccount();
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (success) {
+      // authStateChanges が null を流し、AuthWrapper が自動でログインへ戻す
+      showSuccessSnackBar(context, 'アカウントを削除しました');
+    } else {
+      showErrorSnackBar(
+        context,
+        authProvider.errorMessage ?? 'アカウントの削除に失敗しました',
+      );
+    }
+  }
+
   /// 法人アカウント登録・編集ダイアログ
   Future<void> _showBusinessAccountDialog() async {
     final authProvider = context.read<AuthProvider>();
@@ -162,6 +197,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: const Text('設定'),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
             onPressed: _isLoading ? null : _saveSettings,
             child: _isLoading
                 ? const SizedBox(
@@ -178,6 +214,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 表示（テーマ）セクション
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.xxs,
+                bottom: AppSpacing.xs,
+              ),
+              child: Text(
+                '表示',
+                style: theme.textTheme.labelMedium,
+              ),
+            ),
+            AppCard(
+              child: Builder(builder: (context) {
+                final themeProvider = context.watch<ThemeProvider>();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('テーマ', style: theme.textTheme.titleSmall),
+                    AppSpacing.verticalSm,
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<ThemeMode>(
+                        segments: const [
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            label: Text('ライト'),
+                            icon: Icon(Icons.light_mode_outlined),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            label: Text('ダーク'),
+                            icon: Icon(Icons.dark_mode_outlined),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.system,
+                            label: Text('システム'),
+                            icon: Icon(Icons.settings_suggest_outlined),
+                          ),
+                        ],
+                        selected: {themeProvider.themeMode},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (selection) {
+                          themeProvider.setThemeMode(selection.first);
+                        },
+                      ),
+                    ),
+                    AppSpacing.verticalXs,
+                    Text(
+                      'システムを選ぶと端末の設定に追従します。',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ),
+
+            AppSpacing.verticalXxl,
+
             // 通知設定セクション
             Padding(
               padding: const EdgeInsets.only(
@@ -461,6 +557,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
+
+            AppSpacing.verticalXxl,
+
+            // アカウント削除（破壊的操作・App Store ガイドライン 5.1.1(v)）
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: ListTile(
+                leading:
+                    const Icon(Icons.delete_forever, color: AppColors.error),
+                title: const Text(
+                  'アカウントを削除',
+                  style: TextStyle(color: AppColors.error),
+                ),
+                subtitle: const Text('アカウントとすべてのデータを完全に削除します'),
+                onTap: _isLoading ? null : _handleDeleteAccount,
+              ),
+            ),
+
+            AppSpacing.verticalLg,
           ],
         ),
       ),

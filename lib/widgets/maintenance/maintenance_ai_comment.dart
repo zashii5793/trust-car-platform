@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/spacing.dart';
+import '../common/ai_disclaimer.dart';
 import '../../models/maintenance_record.dart';
 import '../../services/maintenance_comment_service.dart';
 
@@ -102,6 +103,10 @@ class MaintenanceAiComment extends StatelessWidget {
               ],
             ),
           ],
+          const SizedBox(height: AppSpacing.xs),
+          // AIの出力には必ず注記を添える。整備の要否を鵜呑みにされると
+          // 実害が出る。
+          const AiDisclaimer(subject: 'このコメント', compact: true),
         ],
       ),
     );

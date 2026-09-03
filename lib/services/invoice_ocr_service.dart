@@ -144,14 +144,30 @@ class InvoiceItem {
 
 /// 請求書OCRサービス
 class InvoiceOcrService {
-  final TextRecognizer _textRecognizer;
+  /// この端末でOCRが使えるか。
+  ///
+  /// `google_mlkit_text_recognition` は Web に対応していない。Web で
+  /// TextRecognizer を作るとその場で例外になり、画面には原因の分からない
+  /// 「エラーが発生しました」だけが出る。使えないことを先に判定して、
+  /// 何をすればよいかを伝える。
+  static bool get isSupported => !kIsWeb;
 
-  InvoiceOcrService()
-      : _textRecognizer =
-            TextRecognizer(script: TextRecognitionScript.japanese);
+  /// 非対応環境では生成自体が失敗するため遅延生成する。
+  TextRecognizer? _recognizer;
+
+  TextRecognizer get _textRecognizer =>
+      _recognizer ??= TextRecognizer(script: TextRecognitionScript.japanese);
+
+  InvoiceOcrService();
 
   /// 画像ファイルから請求書情報を抽出
   Future<Result<InvoiceData, AppError>> extractFromImage(File imageFile) async {
+    if (!isSupported) {
+      return Result.failure(
+        AppError.validation('Web版では請求書の読み取りに対応していません。\n下のフォームから手入力するか、'
+            'アプリ版をご利用ください。'),
+      );
+    }
     try {
       final inputImage = InputImage.fromFile(imageFile);
       final recognizedText = await _textRecognizer.processImage(inputImage);
@@ -361,6 +377,14 @@ class InvoiceOcrService {
       '工場',
       'サービス',
       'モータース',
+      // 「タカヤモーター」のように「ス」が付かない社名も多い。
+      'モーター',
+      '自動車',
+      'オート',
+      'カー',
+      '車検',
+      '板金',
+      '鈑金',
       'カーショップ',
       'ガレージ',
       'ディーラー',
@@ -472,6 +496,7 @@ class InvoiceOcrService {
   }
 
   void dispose() {
-    _textRecognizer.close();
+    _recognizer?.close();
+    _recognizer = null;
   }
 }

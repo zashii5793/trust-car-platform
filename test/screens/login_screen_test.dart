@@ -67,6 +67,15 @@ class MockAuthService implements AuthService {
   }
 
   @override
+  Future<Result<firebase_auth.UserCredential?, AppError>>
+      signInWithApple() async =>
+          Result.failure(const AuthError('Not implemented'));
+
+  @override
+  Future<Result<void, AppError>> deleteAccount() async =>
+      const Result.success(null);
+
+  @override
   Future<Result<void, AppError>> signOut() async => const Result.success(null);
 
   @override
@@ -83,6 +92,8 @@ class MockAuthService implements AuthService {
   Future<Result<void, AppError>> updateUserProfile({
     String? displayName,
     String? photoUrl,
+    String? prefecture,
+    String? city,
   }) async =>
       const Result.success(null);
 
@@ -122,7 +133,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('TrustCar'), findsOneWidget);
-      expect(find.text('信頼を設計する、新時代のカーライフ'), findsOneWidget);
+      expect(find.text('クルマを安心・安全に、楽しく管理'), findsOneWidget);
     });
 
     testWidgets('displays car icon', (tester) async {

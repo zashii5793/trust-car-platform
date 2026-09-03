@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../providers/vehicle_provider.dart';
 import '../providers/maintenance_provider.dart';
@@ -12,6 +13,7 @@ import '../models/app_notification.dart';
 import '../models/fleet_plan.dart';
 import '../core/constants/colors.dart';
 import '../core/constants/spacing.dart';
+import '../widgets/common/ai_disclaimer.dart';
 import '../core/utils/inspection_urgency.dart';
 import '../widgets/common/loading_indicator.dart';
 import '../widgets/common/offline_banner.dart';
@@ -23,7 +25,9 @@ import 'profile/settings_screen.dart';
 import 'settings/privacy_policy_screen.dart';
 import 'settings/terms_of_service_screen.dart';
 import 'notifications/notification_list_screen.dart';
+import 'notifications/social_notification_screen.dart';
 import '../core/di/service_locator.dart';
+import '../services/follow_service.dart';
 import '../services/mileage_notification_service.dart';
 import 'marketplace/marketplace_screen.dart';
 import 'marketplace/shop_list_screen.dart';
@@ -38,6 +42,15 @@ import 'accessories/accessory_showcase_screen.dart';
 import 'safety/safety_tip_screen.dart';
 import '../widgets/vehicle/mileage_reminder_banner.dart';
 import '../widgets/vehicle/mileage_update_dialog.dart';
+import '../widgets/getting_started_card.dart';
+import '../services/firebase_service.dart';
+import '../services/feedback_service.dart';
+import 'settings/feedback_screen.dart';
+import 'settings/help_screen.dart';
+import '../core/constants/app_info.dart';
+import 'settings/shop_invite_screen.dart';
+import '../services/shop_invite_service.dart';
+import '../widgets/vehicle/maker_badge.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -70,13 +83,41 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     final vehicleProvider =
         Provider.of<VehicleProvider>(context, listen: false);
-    final notificationProvider =
-        Provider.of<NotificationProvider>(context, listen: false);
+    if (vehicleProvider.vehicles.isEmpty) return;
 
-    if (vehicleProvider.vehicles.isNotEmpty) {
-      notificationProvider
+    // This runs while VehicleProvider is still dispatching to its listeners.
+    // Touching another provider here mutates the widget tree mid-dispatch,
+    // which left _VehicleTab's `context.watch` subscription unrebuilt — the
+    // list stayed on the empty-state until some other setState happened to
+    // rebuild it. Deferring to the next frame lets the dispatch finish first.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Provider.of<NotificationProvider>(context, listen: false)
           .generateNotificationsForVehicles(vehicleProvider.vehicles);
-    }
+      _shareInspectionExpiries(vehicleProvider.vehicles);
+    });
+  }
+
+  /// かかりつけの店に、車検の満了日だけを渡す。
+  ///
+  /// `docs/BUSINESS_MODEL_RETHINK_2026-08-27.md` §6-2 の案A。
+  /// **車検を受けて満了日が延びたら、店の画面もそれに追いつく必要がある。**
+  /// 顧客が設定画面を開きに来るのを待っていると、古い日付が残り続ける。
+  ///
+  /// かかりつけが無い人・共有を切っている人には何も書かない（サービス側で判定）。
+  void _shareInspectionExpiries(List<Vehicle> vehicles) {
+    final userId =
+        Provider.of<AuthProvider>(context, listen: false).firebaseUser?.uid;
+    if (userId == null || userId.isEmpty) return;
+
+    final active = vehicles.where((v) => !v.status.isRetired).toList();
+
+    // 失敗しても画面には出さない。本人の操作ではなく、裏の同期のため。
+    sl.get<ShopInviteService>().shareInspectionExpiries(
+          userId: userId,
+          expiryDates: active.map((v) => v.inspectionExpiryDate).toList(),
+          vehicleCount: active.length,
+        );
   }
 
   @override
@@ -159,6 +200,36 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    // SNS（みんなの投稿）タブにソーシャル通知ベルを表示。未読数をバッジ表示し、
+    // タップでソーシャル通知一覧（いいね・コメント）へ遷移する。
+    if (_currentIndex == 2) {
+      final uid = context.read<AuthProvider>().firebaseUser?.uid ?? '';
+      if (uid.isNotEmpty) {
+        actions.add(
+          StreamBuilder<int>(
+            stream: sl.get<FollowService>().watchUnreadNotificationCount(uid),
+            builder: (context, snapshot) {
+              final count = snapshot.data ?? 0;
+              return IconButton(
+                tooltip: '通知',
+                icon: Badge(
+                  isLabelVisible: count > 0,
+                  label: Text(count > 99 ? '99+' : '$count'),
+                  child: const Icon(Icons.notifications_outlined),
+                ),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => SocialNotificationScreen(userId: uid),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      }
+    }
+
     // 通知タブのみ「すべて既読」ボタンを表示
     if (_currentIndex == 3) {
       actions.add(
@@ -189,6 +260,10 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           const OfflineBanner(),
+          // 広い画面ではナビゲーションを上段に置く。ボトムナビはモバイルの
+          // 作法であって、ブラウザやタブレットでは主要メニューが画面の
+          // 一番下にあるのは不自然に映る。狭い画面では従来どおり下段。
+          if (_useTopNavigation(context)) _buildNavigation(),
           Expanded(child: _buildBody()),
         ],
       ),
@@ -207,65 +282,78 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Icon(Icons.add),
             )
           : null,
-      bottomNavigationBar: Consumer<NotificationProvider>(
-        builder: (context, notificationProvider, child) {
-          final unread = notificationProvider.unreadCount;
-          return NavigationBar(
-            selectedIndex: _currentIndex,
-            onDestinationSelected: (index) {
-              setState(() => _currentIndex = index);
-            },
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.directions_car_outlined),
-                selectedIcon: Icon(Icons.directions_car),
-                label: 'マイカー',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.store_outlined),
-                selectedIcon: Icon(Icons.store),
-                label: 'マーケット',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.forum_outlined),
-                selectedIcon: Icon(Icons.forum),
-                label: 'みんなの投稿',
-              ),
-              NavigationDestination(
-                icon: Semantics(
-                  label: unread > 0
-                      ? '通知 未読${unread > 99 ? '99件以上' : '$unread件'}'
-                      : '通知',
-                  child: Badge(
-                    isLabelVisible: unread > 0,
-                    label: Text(
-                      unread > 99 ? '99+' : '$unread',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                    child: const ExcludeSemantics(
-                      child: Icon(Icons.notifications_outlined),
-                    ),
-                  ),
-                ),
-                selectedIcon: Badge(
+      bottomNavigationBar:
+          _useTopNavigation(context) ? null : _buildNavigation(),
+    );
+  }
+
+  /// ナビゲーションを上段に出すか。
+  ///
+  /// しきい値 720 は「タブレット横向き以上」。この幅より広い環境は
+  /// マウス操作が主で、親指の届きやすさを優先するボトムナビの前提が
+  /// 成り立たない。
+  static bool _useTopNavigation(BuildContext context) =>
+      MediaQuery.sizeOf(context).width >= 720;
+
+  Widget _buildNavigation() {
+    return Consumer<NotificationProvider>(
+      builder: (context, notificationProvider, child) {
+        final unread = notificationProvider.unreadCount;
+        return NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (index) {
+            setState(() => _currentIndex = index);
+          },
+          destinations: [
+            const NavigationDestination(
+              icon: Icon(Icons.directions_car_outlined),
+              selectedIcon: Icon(Icons.directions_car),
+              label: 'マイカー',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.store_outlined),
+              selectedIcon: Icon(Icons.store),
+              label: 'マーケット',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.forum_outlined),
+              selectedIcon: Icon(Icons.forum),
+              label: 'みんなの投稿',
+            ),
+            NavigationDestination(
+              icon: Semantics(
+                label: unread > 0
+                    ? '通知 未読${unread > 99 ? '99件以上' : '$unread件'}'
+                    : '通知',
+                child: Badge(
                   isLabelVisible: unread > 0,
                   label: Text(
                     unread > 99 ? '99+' : '$unread',
                     style: const TextStyle(fontSize: 10),
                   ),
-                  child: const Icon(Icons.notifications),
+                  child: const ExcludeSemantics(
+                    child: Icon(Icons.notifications_outlined),
+                  ),
                 ),
-                label: '通知',
               ),
-              const NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: 'プロフィール',
+              selectedIcon: Badge(
+                isLabelVisible: unread > 0,
+                label: Text(
+                  unread > 99 ? '99+' : '$unread',
+                  style: const TextStyle(fontSize: 10),
+                ),
+                child: const Icon(Icons.notifications),
               ),
-            ],
-          );
-        },
-      ),
+              label: '通知',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'プロフィール',
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -299,11 +387,76 @@ class _HomeScreenState extends State<HomeScreen> {
 // 車両タブ（マイカー一覧・ダッシュボード・AI提案）
 // ---------------------------------------------------------------------------
 
-class _VehicleTab extends StatelessWidget {
+class _VehicleTab extends StatefulWidget {
   /// Navigates to the notifications tab where the full AI suggestion list lives.
   final VoidCallback onNavigateToNotifications;
 
   const _VehicleTab({required this.onNavigateToNotifications});
+
+  @override
+  State<_VehicleTab> createState() => _VehicleTabState();
+}
+
+class _VehicleTabState extends State<_VehicleTab> {
+  /// 初回ガイドを閉じたことを覚えておくキー。端末ローカルで十分
+  /// （別端末で出ても困らない性質の案内なので、Firestore には置かない）。
+  static const _gettingStartedDismissedKey = 'getting_started_dismissed';
+
+  /// 「整備の記録が1件でもあるか」。車両ごとではなくアカウント全体で見るため、
+  /// MaintenanceProvider（車両単位）ではなく専用の1件読みを使う。
+  bool _hasMaintenanceRecord = false;
+  bool _gettingStartedDismissed = false;
+
+  /// 読み込みが終わるまでガイドを出さない。未取得を「未達成」として描くと、
+  /// 済んでいるステップが一瞬未達成に見えてちらつく。
+  bool _gettingStartedLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGettingStartedState();
+  }
+
+  Future<void> _loadGettingStartedState() async {
+    bool dismissed = false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      dismissed = prefs.getBool(_gettingStartedDismissedKey) ?? false;
+    } catch (_) {
+      // 端末設定の読み取りに失敗しても、ガイドが出るだけで害はない。
+    }
+
+    var hasRecord = false;
+    if (!dismissed) {
+      final result = await sl.get<FirebaseService>().hasAnyMaintenanceRecord();
+      hasRecord = result.valueOrNull ?? false;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _gettingStartedDismissed = dismissed;
+      _hasMaintenanceRecord = hasRecord;
+      _gettingStartedLoaded = true;
+    });
+  }
+
+  Future<void> _dismissGettingStarted() async {
+    setState(() => _gettingStartedDismissed = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_gettingStartedDismissedKey, true);
+    } catch (_) {
+      // 保存できなくても、この起動中は閉じたままになる。
+    }
+  }
+
+  /// 整備記録の追加から戻ったら数え直す。「1件つけたのに未達成のまま」を防ぐ。
+  Future<void> _refreshMaintenanceState() async {
+    if (_gettingStartedDismissed || _hasMaintenanceRecord) return;
+    final result = await sl.get<FirebaseService>().hasAnyMaintenanceRecord();
+    if (!mounted) return;
+    setState(() => _hasMaintenanceRecord = result.valueOrNull ?? false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -368,13 +521,62 @@ class _VehicleTab extends StatelessWidget {
             final vehicles = vehicleProvider.vehicles;
             final hasVehicleWithoutInspection =
                 vehicles.any((v) => v.inspectionExpiryDate == null);
+            final hasInspectionDate =
+                vehicles.any((v) => v.inspectionExpiryDate != null);
+
+            // 初回の3ステップ。全部済むか、閉じられたら出さない。
+            final showGettingStarted = _gettingStartedLoaded &&
+                !_gettingStartedDismissed &&
+                !(vehicles.isNotEmpty &&
+                    hasInspectionDate &&
+                    _hasMaintenanceRecord);
 
             // Build item list: fixed cards + optional prompt + vehicle rows
             final items = <Widget>[
+              if (showGettingStarted)
+                GettingStartedCard(
+                  hasVehicle: vehicles.isNotEmpty,
+                  hasInspectionDate: hasInspectionDate,
+                  hasMaintenanceRecord: _hasMaintenanceRecord,
+                  onRegisterVehicle: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const VehicleRegistrationScreen(),
+                    ),
+                  ),
+                  onSetInspectionDate: () {
+                    // 満了日が空の車から。全部埋まっていれば先頭の車を開く。
+                    final target = vehicles.firstWhere(
+                      (v) => v.inspectionExpiryDate == null,
+                      orElse: () => vehicles.first,
+                    );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => VehicleEditScreen(vehicle: target),
+                      ),
+                    );
+                  },
+                  onAddMaintenance: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => AddMaintenanceScreen(
+                          vehicleId: vehicles.first.id,
+                          currentVehicleMileage: vehicles.first.mileage,
+                        ),
+                      ),
+                    );
+                    await _refreshMaintenanceState();
+                  },
+                  onDismiss: _dismissGettingStarted,
+                ),
               _DashboardSummaryCard(vehicles: vehicles),
-              if (hasVehicleWithoutInspection)
+              // ガイドを出している間は車検の催促を重ねない。同じことを二か所で
+              // 言われると、どちらも読み飛ばされる。
+              if (hasVehicleWithoutInspection && !showGettingStarted)
                 _InspectionSetupCard(vehicles: vehicles),
-              _AiSuggestionSection(onSeeAll: onNavigateToNotifications),
+              _AiSuggestionSection(onSeeAll: widget.onNavigateToNotifications),
               ...vehicles.map((v) => _VehicleCard(vehicle: v)),
               _RetiredVehiclesLink(),
             ];
@@ -595,6 +797,53 @@ class _ProfileTab extends StatelessWidget {
             context,
             title: 'サポート・法的情報',
             items: [
+              // ここが利用者の見るサポート欄。ヘルプもフィードバックも
+              // ProfileScreen 側にしか無く、そこへは「プロフィールを編集」
+              // からしか行けなかったため、実質たどり着けなかった。
+              // 店から渡されたコードを入れる場所。
+              // docs/BUSINESS_MODEL_RETHINK_2026-08-27.md §4 — 既存客が
+              // 自分でアプリを探して自分で店を見つける導線しか無かった。
+              _MenuItemData(
+                icon: Icons.store_outlined,
+                label: 'お店のコードを入れる',
+                color: AppColors.secondary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => ShopInviteScreen(
+                      service: sl.get<ShopInviteService>(),
+                      userId: user?.uid ?? '',
+                      vehicles: context.read<VehicleProvider>().vehicles,
+                    ),
+                  ),
+                ),
+              ),
+              _MenuItemData(
+                icon: Icons.help_outline,
+                label: 'ヘルプ',
+                color: AppColors.info,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => HelpScreen(userId: user?.uid),
+                  ),
+                ),
+              ),
+              _MenuItemData(
+                icon: Icons.rate_review_outlined,
+                label: 'ご意見・不具合の報告',
+                color: AppColors.primary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => FeedbackScreen(
+                      service: sl.get<FeedbackService>(),
+                      userId: user?.uid ?? '',
+                      fromScreen: 'profile',
+                    ),
+                  ),
+                ),
+              ),
               _MenuItemData(
                 icon: Icons.health_and_safety_outlined,
                 label: '安全運転情報',
@@ -658,6 +907,25 @@ class _ProfileTab extends StatelessWidget {
                   ),
                 ),
                 onTap: () => _confirmSignOut(context),
+              ),
+            ),
+          ),
+
+          AppSpacing.verticalSm,
+
+          // ---- バージョン ----
+          // 「直したはずの不具合が直っていない」と言われたとき、その人が
+          // どのビルドを触っているかが分からないと確かめようがない。
+          // テスト配布中は 1.0.0 のまま何度も出し直すので、ビルド識別子まで
+          // 画面から読めるようにしておく（フィードバックにも同じ値が載る）。
+          Padding(
+            key: const Key('app_version_label'),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Text(
+              'バージョン ${AppInfo.fullVersion} / ${AppInfo.platform}',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
           ),
@@ -741,6 +1009,9 @@ class _ProfileTab extends StatelessWidget {
   }
 
   void _showUpgradeDialog(BuildContext context) {
+    final subscriptionProvider = context.read<UserSubscriptionProvider>();
+    final uid = context.read<AuthProvider>().firebaseUser?.uid ?? '';
+
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -753,6 +1024,27 @@ class _ProfileTab extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('閉じる'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              if (uid.isEmpty) return;
+              final result =
+                  await subscriptionProvider.purchasePremium(userId: uid);
+              if (context.mounted) {
+                result.when(
+                  success: (_) => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('プレミアムプランへの登録が完了しました'),
+                        backgroundColor: Colors.green),
+                  ),
+                  failure: (err) => ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(err.userMessage)),
+                  ),
+                );
+              }
+            },
+            child: const Text('プレミアムに登録する'),
           ),
         ],
       ),
@@ -900,14 +1192,27 @@ class _VehicleCard extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  '${vehicle.maker} ${vehicle.model}',
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: isDark
-                                        ? AppColors.darkTextPrimary
-                                        : AppColors.textPrimary,
-                                  ),
+                                // 複数台を持つ人は一覧をメーカーで見分ける。
+                                // `Vehicle` は makerId を持たないので名前から引く。
+                                Row(
+                                  children: [
+                                    MakerBadge.fromName(vehicle.maker,
+                                        size: 18),
+                                    AppSpacing.horizontalXs,
+                                    Expanded(
+                                      child: Text(
+                                        '${vehicle.maker} ${vehicle.model}',
+                                        style:
+                                            theme.textTheme.bodyLarge?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: isDark
+                                              ? AppColors.darkTextPrimary
+                                              : AppColors.textPrimary,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 AppSpacing.verticalXxs,
                                 Text(
@@ -1481,7 +1786,12 @@ class _DashboardSummaryCard extends StatelessWidget {
 
     return Container(
       margin: AppSpacing.marginListItem,
-      padding: const EdgeInsets.all(AppSpacing.md),
+      // 画面上部を占有しすぎていたため縮小。数字の可読性は保ちつつ、
+      // 余白・アイコン・区切り線の高さを詰めている。
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -1508,18 +1818,18 @@ class _DashboardSummaryCard extends StatelessWidget {
           Row(
             children: [
               const Icon(Icons.dashboard_outlined,
-                  size: AppSpacing.iconSm, color: Colors.white70),
+                  size: AppSpacing.iconSm, color: Colors.white),
               AppSpacing.horizontalXs,
               Text(
                 'ダッシュボード',
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: Colors.white70,
+                  color: Colors.white,
                   letterSpacing: 0.5,
                 ),
               ),
             ],
           ),
-          AppSpacing.verticalSm,
+          AppSpacing.verticalXxs,
 
           // ---- 統計行 ----
           Row(
@@ -1539,7 +1849,7 @@ class _DashboardSummaryCard extends StatelessWidget {
                 label: '要対応',
                 iconColor: expiredCount > 0
                     ? AppColors.error.withValues(alpha: 0.9)
-                    : Colors.white54,
+                    : Colors.white.withValues(alpha: 0.85),
               ),
               _buildDivider(),
               _buildStatItem(
@@ -1547,7 +1857,9 @@ class _DashboardSummaryCard extends StatelessWidget {
                 icon: Icons.warning_amber_outlined,
                 value: '$warnCount',
                 label: '注意',
-                iconColor: warnCount > 0 ? AppColors.warning : Colors.white54,
+                iconColor: warnCount > 0
+                    ? AppColors.warning
+                    : Colors.white.withValues(alpha: 0.85),
               ),
             ],
           ),
@@ -1617,7 +1929,7 @@ class _DashboardSummaryCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.business, size: 14, color: Colors.white70),
+                  const Icon(Icons.business, size: 14, color: Colors.white),
                   AppSpacing.horizontalXs,
                   Expanded(
                     child: Text(
@@ -1677,7 +1989,7 @@ class _DashboardSummaryCard extends StatelessWidget {
       case InspectionUrgency.normal:
       case InspectionUrgency.none:
         background = Colors.white.withValues(alpha: 0.12);
-        iconColor = Colors.white70;
+        iconColor = Colors.white;
         icon = Icons.verified_outlined;
         fontWeight = FontWeight.normal;
         keySuffix = 'normal';
@@ -1729,22 +2041,31 @@ class _DashboardSummaryCard extends StatelessWidget {
   }) {
     return Expanded(
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 20, color: iconColor),
-          AppSpacing.verticalXxs,
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+          // アイコンは数字の左に置き、1行分の高さを削る。
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: iconColor),
+              AppSpacing.horizontalXxs,
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  height: 1.1,
+                ),
+              ),
+            ],
           ),
           Text(
             label,
             style: const TextStyle(
               fontSize: 11,
-              color: Colors.white70,
+              color: Colors.white,
+              height: 1.2,
             ),
           ),
         ],
@@ -1755,7 +2076,7 @@ class _DashboardSummaryCard extends StatelessWidget {
   Widget _buildDivider() {
     return Container(
       width: 1,
-      height: 48,
+      height: 32,
       color: Colors.white.withValues(alpha: 0.2),
     );
   }
@@ -2197,13 +2518,13 @@ class _SuggestionDetailSheet extends StatelessWidget {
             ],
 
             // ---- 注意文 ----
-            Text(
-              'あなたが決めるための情報を整理しました。最終的な判断はあなた自身でお決めください。',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.outline,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
+            // 「あなたが決めるための情報を整理しました。最終的な判断はあなた自身で
+            // お決めください」から変更。判断を委ねる意図だったが、こちらが情報を
+            // 与えて相手に決めさせる構図になっており、上から目線に読める。
+            // 主語をサービス側に置き、「参考情報である」という事実だけを伝える。
+            // AIの出力に添える注記は AiDisclaimer に一本化する。
+            // 画面ごとに書き分けると必ず抜けと表記ゆれが出る。
+            const AiDisclaimer(subject: 'この提案'),
 
             const SizedBox(height: AppSpacing.lg),
 

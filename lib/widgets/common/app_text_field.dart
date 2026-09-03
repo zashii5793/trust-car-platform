@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/utils/thousands_separator_input_formatter.dart';
 
 /// アプリケーション全体で使用するテキストフィールドウィジェット
 /// DESIGN_SYSTEM.md に準拠
@@ -87,6 +88,44 @@ class AppTextField extends StatelessWidget {
       onChanged: onChanged,
       keyboardType: TextInputType.number,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      prefixIcon: prefixIcon,
+      prefixText: prefixText,
+      suffixText: suffixText,
+      enabled: enabled,
+    );
+  }
+
+  /// 3桁区切りカンマ付きの数値入力用テキストフィールド（金額・走行距離など）。
+  ///
+  /// 表示はカンマ区切り。値を読み取る際は
+  /// [ThousandsSeparatorInputFormatter.digitsOnly] でカンマを除去してから
+  /// パースすること。
+  factory AppTextField.numberGrouped({
+    Key? key,
+    TextEditingController? controller,
+    String? labelText,
+    String? hintText,
+    String? errorText,
+    String? Function(String?)? validator,
+    void Function(String)? onChanged,
+    Widget? prefixIcon,
+    String? prefixText,
+    String? suffixText,
+    int? maxDigits,
+    bool enabled = true,
+  }) {
+    return AppTextField(
+      key: key,
+      controller: controller,
+      labelText: labelText,
+      hintText: hintText,
+      errorText: errorText,
+      validator: validator,
+      onChanged: onChanged,
+      keyboardType: TextInputType.number,
+      inputFormatters: [
+        ThousandsSeparatorInputFormatter(maxDigits: maxDigits),
+      ],
       prefixIcon: prefixIcon,
       prefixText: prefixText,
       suffixText: suffixText,

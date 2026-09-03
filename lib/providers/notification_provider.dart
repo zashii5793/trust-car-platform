@@ -204,6 +204,20 @@ class NotificationProvider extends ChangeNotifier {
     _persistRead();
   }
 
+  /// 通知を未読に戻す。
+  ///
+  /// カードをタップすると既読になる設計なので、取り消せないと
+  /// 「読もうと思っていた通知」を戻す手段が無くなる。
+  Future<void> markAsUnread(String notificationId) async {
+    final index = _notifications.indexWhere((n) => n.id == notificationId);
+    if (index != -1) {
+      _notifications[index] = _notifications[index].copyWith(isRead: false);
+      notifyListeners();
+    }
+    _readIds.remove(notificationId);
+    _persistRead();
+  }
+
   /// すべての通知を既読にする
   Future<void> markAllAsRead() async {
     _notifications =

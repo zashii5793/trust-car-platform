@@ -44,6 +44,31 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
+    // getShowcaseById（通知ディープリンク用: ID→投稿の取得）
+    // -------------------------------------------------------------------------
+    group('getShowcaseById', () {
+      test('存在するIDで投稿を取得できる', () async {
+        await seedShowcase(showcase(id: 'sc-1', itemName: 'Vantrue N2 Pro'));
+        final result = await service.getShowcaseById('sc-1');
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull!.id, 'sc-1');
+        expect(result.valueOrNull!.itemName, 'Vantrue N2 Pro');
+      });
+
+      group('Edge Cases', () {
+        test('存在しないIDは notFound', () async {
+          final result = await service.getShowcaseById('missing');
+          expect(result.isFailure, isTrue);
+        });
+
+        test('空IDは validation エラー', () async {
+          final result = await service.getShowcaseById('   ');
+          expect(result.isFailure, isTrue);
+        });
+      });
+    });
+
+    // -------------------------------------------------------------------------
     // submitShowcase
     // -------------------------------------------------------------------------
     group('submitShowcase', () {
@@ -840,12 +865,143 @@ void main() {
         expect(ids, contains('ok'));
         expect(ids, isNot(contains('hidden')));
       });
+
+      test('isHidden=true のコメントは（reportCount によらず）非表示', () async {
+        // サーバー(onCommentReportCreated)が立てる権威的フラグ。
+        await firestore
+            .collection('accessory_showcases')
+            .doc('sc-1')
+            .collection('comments')
+            .doc('mod')
+            .set({
+          'showcaseId': 'sc-1',
+          'userId': 'u',
+          'content': 'mod',
+          'createdAt': Timestamp.fromDate(DateTime(2026, 1, 5)),
+          'likeCount': 0,
+          'reportCount': 0,
+          'isHidden': true,
+        });
+        await seedComment('visible', 0, DateTime(2026, 1, 6));
+
+        final result = await service.getComments('sc-1');
+        final ids = result.valueOrNull!.map((c) => c.id).toList();
+        expect(ids, contains('visible'));
+        expect(ids, isNot(contains('mod')));
+      });
     });
 
     // -------------------------------------------------------------------------
-    // reportComment: reportCount 集計
+    // getComments: 大量データ / ページング / パフォーマンス
+    // 「もっと見る」は limit を pageSize ずつ増やして先頭から取り直す方式。
+    // 大量コメント時の並び順の安定性・件数制御・非表示との相互作用を検証する。
     // -------------------------------------------------------------------------
-    group('reportComment reportCount', () {
+    group('getComments 大量データ/ページング', () {
+      final base = DateTime(2026, 1, 1);
+
+      // Seeds [count] visible comments c000..c(count-1), createdAt 昇順、
+      // likeCount は i（末尾ほど多い）。
+      Future<void> seedMany(int count) async {
+        final batch = firestore.batch();
+        for (var i = 0; i < count; i++) {
+          final id = 'c${i.toString().padLeft(3, '0')}';
+          batch.set(
+            firestore
+                .collection('accessory_showcases')
+                .doc('sc-1')
+                .collection('comments')
+                .doc(id),
+            {
+              'showcaseId': 'sc-1',
+              'userId': 'u',
+              'content': id,
+              'createdAt': Timestamp.fromDate(base.add(Duration(minutes: i))),
+              'likeCount': i,
+              'reportCount': 0,
+            },
+          );
+        }
+        await batch.commit();
+      }
+
+      test('limit は取得件数を正確に制限する（60件中20件）', () async {
+        await seedMany(60);
+        final result = await service.getComments('sc-1', limit: 20);
+        expect(result.valueOrNull!, hasLength(20));
+      });
+
+      test('oldest: limit ページの先頭は最古から連続する', () async {
+        await seedMany(60);
+        final page =
+            (await service.getComments('sc-1', limit: 20)).valueOrNull!;
+        // 先頭 20 件は c000..c019（createdAt 昇順）。
+        expect(page.first.id, 'c000');
+        expect(page.last.id, 'c019');
+      });
+
+      test('もっと見る相当: limit 漸増で件数が累積する', () async {
+        await seedMany(60);
+        final page1 =
+            (await service.getComments('sc-1', limit: 20)).valueOrNull!;
+        final page2 =
+            (await service.getComments('sc-1', limit: 40)).valueOrNull!;
+        expect(page1, hasLength(20));
+        expect(page2, hasLength(40));
+        // 先頭は取り直しても安定（同じ順序で拡張される）。
+        expect(page2.take(20).map((c) => c.id).toList(),
+            page1.map((c) => c.id).toList());
+      });
+
+      test('newest: 大量データでも最新が先頭', () async {
+        await seedMany(60);
+        final page = (await service.getComments('sc-1',
+                sort: CommentSort.newest, limit: 20))
+            .valueOrNull!;
+        expect(page.first.id, 'c059');
+        expect(page.last.id, 'c040');
+      });
+
+      test('mostLiked: いいね降順で上位 limit 件を返す', () async {
+        await seedMany(60);
+        final page = (await service.getComments('sc-1',
+                sort: CommentSort.mostLiked, limit: 5))
+            .valueOrNull!;
+        expect(page.map((c) => c.likeCount).toList(), [59, 58, 57, 56, 55]);
+      });
+
+      test('パフォーマンス: 150件でも全件取得できる', () async {
+        await seedMany(150);
+        final result = await service.getComments('sc-1', limit: 150);
+        expect(result.valueOrNull!, hasLength(150));
+      });
+
+      test('非表示コメントが範囲内にあるとページの可視件数は減る（既知の相互作用）', () async {
+        // limit は Firestore クエリ側、非表示除外は取得後の Dart 側で行われる。
+        // よって先頭 limit 件に非表示が混ざると、返る可視件数は limit を下回る。
+        await seedMany(20); // c000..c019 可視
+        // 範囲内(先頭20件)に非表示を3件差し込む。
+        for (final i in [2, 5, 9]) {
+          final id = 'c${i.toString().padLeft(3, '0')}';
+          await firestore
+              .collection('accessory_showcases')
+              .doc('sc-1')
+              .collection('comments')
+              .doc(id)
+              .update({'isHidden': true});
+        }
+        final page =
+            (await service.getComments('sc-1', limit: 20)).valueOrNull!;
+        expect(page, hasLength(17));
+        expect(page.every((c) => !c.isHidden), isTrue);
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // reportComment: 通報ドキュメント作成（集計は Cloud Function に移行）
+    // クライアントは comment_reports を作るだけで、comment.reportCount は
+    // 直接いじらない（サーバーの onCommentReportCreated が集計する）。
+    // -------------------------------------------------------------------------
+    group('reportComment', () {
       Future<String> seedComment() async {
         final ref = await firestore
             .collection('accessory_showcases')
@@ -862,6 +1018,14 @@ void main() {
         return ref.id;
       }
 
+      Future<int> reportDocCount(String commentId) async {
+        final s = await firestore
+            .collection('comment_reports')
+            .where('commentId', isEqualTo: commentId)
+            .get();
+        return s.docs.length;
+      }
+
       Future<int> reportCountOf(String id) async {
         final s = await firestore
             .collection('accessory_showcases')
@@ -872,7 +1036,7 @@ void main() {
         return (s.data()!['reportCount'] as int?) ?? 0;
       }
 
-      test('別ユーザーからの通報で reportCount が増える', () async {
+      test('別ユーザーからの通報で通報ドキュメントが1件ずつ作られる', () async {
         final id = await seedComment();
         await service.reportComment(
             showcaseId: 'sc-1',
@@ -885,10 +1049,36 @@ void main() {
             reporterId: 'u2',
             reason: ReportReason.spam);
 
-        expect(await reportCountOf(id), 2);
+        expect(await reportDocCount(id), 2);
       });
 
-      test('同一ユーザーの再通報では reportCount は増えない', () async {
+      test('通報レコードは決定論的ID {commentId}_{reporterId} で作られる', () async {
+        final id = await seedComment();
+        await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: id,
+            reporterId: 'u1',
+            reason: ReportReason.spam);
+
+        final doc =
+            await firestore.collection('comment_reports').doc('${id}_u1').get();
+        expect(doc.exists, isTrue);
+        expect(doc.data()!['reporterId'], 'u1');
+      });
+
+      test('クライアントは comment.reportCount を書き換えない（サーバー集計に委譲）', () async {
+        final id = await seedComment();
+        await service.reportComment(
+            showcaseId: 'sc-1',
+            commentId: id,
+            reporterId: 'u1',
+            reason: ReportReason.spam);
+
+        // reportCount はクライアントからは 0 のまま（Cloud Function が集計する）。
+        expect(await reportCountOf(id), 0);
+      });
+
+      test('同一ユーザーの再通報では通報ドキュメントは1件のまま', () async {
         final id = await seedComment();
         await service.reportComment(
             showcaseId: 'sc-1',
@@ -901,7 +1091,7 @@ void main() {
             reporterId: 'u1',
             reason: ReportReason.harassment);
 
-        expect(await reportCountOf(id), 1);
+        expect(await reportDocCount(id), 1);
       });
     });
 

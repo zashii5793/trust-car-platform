@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'service_locator.dart';
 import '../error/app_error.dart';
@@ -55,6 +56,10 @@ import '../../services/shop_comparison_service.dart';
 import '../../services/feature_flag_service.dart';
 import '../../services/firebase_remote_flag_source.dart';
 import '../../services/shop_demand_service.dart';
+import '../../services/feedback_service.dart';
+import '../constants/app_info.dart';
+import '../../services/shop_invite_service.dart';
+import '../../services/fuel_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -243,6 +248,29 @@ class Injection {
 
     // Shop Demand Service (Issue #41 Phase 2: freemium question gate demand accumulation)
     locator.registerLazySingleton<ShopDemandService>(() => ShopDemandService());
+
+    // Feedback Service (in-app requests and bug reports).
+    // Write-only from the client — the rule mirrors that. Version and platform
+    // are stamped here so a report can be tied to the build it came from.
+    locator.registerLazySingleton<FeedbackService>(
+      () => FeedbackService(
+        firestore: FirebaseFirestore.instance,
+        appVersion: AppInfo.fullVersion,
+        platform: AppInfo.platform,
+      ),
+    );
+
+    // Shop invite (店が自分の顧客をアプリに載せるための招待コード).
+    // docs/BUSINESS_MODEL_RETHINK_2026-08-27.md §4 — これが無いと、既存客は
+    // 自分でアプリを探して自分で店を見つけるところから始めることになる。
+    locator.registerLazySingleton<ShopInviteService>(
+      () => ShopInviteService(firestore: FirebaseFirestore.instance),
+    );
+
+    // Fuel records (給油は月2〜4回あり、唯一の月単位の接点).
+    locator.registerLazySingleton<FuelService>(
+      () => FuelService(firestore: FirebaseFirestore.instance),
+    );
 
     // Feature Flag Service (applies remote flag overrides onto AppConfig).
     // Backed by Firebase Remote Config so flags like c2cPartsMarketplace can be
