@@ -154,9 +154,10 @@ export const onCommentReportCreated = onDocumentCreated(
  * Scheduled Cloud Function — deleted-account purge.
  *
  * The client writes an account_deletions/{uid} marker on account deletion,
- * and the privacy policy promises the data is removed 30 days later. This
- * job executes that promise daily. Until it was added, the marker was
- * written but nothing ever deleted the data.
+ * and the privacy policy promises the data is removed on withdrawal. This
+ * job executes that promise nightly - there is no grace period, so a marker
+ * written today is purged on the next run. Until it was added, the marker
+ * was written but nothing ever deleted the data.
  */
 export const purgeDeletedAccounts = onSchedule(
   { schedule: "every day 03:17", timeZone: "Asia/Tokyo",
