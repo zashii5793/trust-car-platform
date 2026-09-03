@@ -223,6 +223,23 @@ privacy / terms を実装に合わせ、特商法の雛形（`tokushoho.html`）
 
 Console のバージョン履歴での目視確認だけ人間側に残っている。
 
+### 6. 「Console でしかできない」と書いてあった2件は CLI でできた
+
+`docs/HUMAN_TASKS.md` は P1-10（バックアップ）と P2-15（Remote Config）を
+Console の手作業として書いていたが、**どちらも firebase CLI から設定できた。**
+
+```
+ firebase firestore:backups:schedules:create --recurrence DAILY --retention 30d
+ firebase deploy --only remoteconfig
+```
+
+Remote Config は `remoteconfig.template.json` に置いて `firebase.json` から
+参照する形にした。**Console から直接変えるとリポジトリと食い違う**ので、
+再開判断のときもテンプレートを直して deploy する。
+
+P0-4（Auth の Sign-in method）は Identity Platform の管理APIが要るため、
+現状の CLI では届かない。ここは Console のまま。
+
 ---
 
 ## 取りこぼしの可視化（案A）と、iOS 設定の追いつき（2026-09-01）
