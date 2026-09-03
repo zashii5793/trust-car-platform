@@ -35,8 +35,12 @@ dependencies:
   connectivity_plus: ^6.0.3
   # Phase 4: Push Notifications
   firebase_messaging: ^16.1.1
-  flutter_local_notifications: ^18.0.1
-  timezone: ^0.10.1
+  # v20 で initialize/show/cancel/zonedSchedule の位置引数が名前付きに
+  # 変わり、v19 で uiLocalNotificationDateInterpretation が消えた。
+  # 上げるときは lib/services/*_notification*・inspection_reminder_service
+  # と、それらを noSuchMethod で記録しているテストを一緒に直すこと。
+  flutter_local_notifications: ^22.3.0
+  timezone: ^0.11.1
   # Phase 2.0: OCR機能
   google_mlkit_text_recognition: ^0.17.1
   camera: ^0.11.0+2
