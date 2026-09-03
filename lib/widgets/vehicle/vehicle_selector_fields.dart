@@ -104,12 +104,22 @@ class _MakerSelectorFieldState extends State<MakerSelectorField> {
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.business,
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.textSecondary,
-                    ),
+                    // 選ぶまでは汎用アイコン、選んだらそのメーカーのバッジ。
+                    // 一覧（ボトムシート）にはバッジが出るのに、閉じた途端に
+                    // 灰色のビルのアイコンに戻っていた。
+                    if (widget.selectedMaker != null)
+                      MakerBadge(
+                        makerId: widget.selectedMaker!.id,
+                        makerName: widget.selectedMaker!.name,
+                        size: 28,
+                      )
+                    else
+                      Icon(
+                        Icons.business,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.textSecondary,
+                      ),
                     AppSpacing.horizontalMd,
                     Expanded(
                       child: Text(

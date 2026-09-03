@@ -60,7 +60,18 @@ CI は緑のまま通る。Android がまさにこれで、
 
 ---
 
-## 3. AI 側の作業（値をもらってから）
+## 3. AI 側の作業 — **完了（2026-09-01）**
+
+新しい `GoogleService-Info.plist`（Bundle ID `jp.trustcar.app` /
+App ID `1:31421119456:ios:5646ac324f34398880c985`）が配置されているのを確認し、
+コード側の古い値を差し替えた。
+
+- `lib/firebase_options.dart` の `ios` / `macos`: `appId` と `apiKey` を新しい値に
+- `.github/workflows/ci.yml` L307・L329 のフォールバック plist: 同上
+
+**残るのは §4 の実機/シミュレータでの起動確認だけ。**
+
+### （記録）当時の指示
 
 上の 7 で控えた App ID と API キーを渡してもらえれば、こちらで直す。
 

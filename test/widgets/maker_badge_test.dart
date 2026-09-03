@@ -74,6 +74,57 @@ void main() {
     });
   });
 
+  /// `Vehicle.maker` は makerId ではなく**和名**（"トヨタ"）で保存されている。
+  /// 保存済み車両のカードにバッジを出すには、そこから id を引き直すしかない。
+  group('MakerBrand.idFromName', () {
+    test('マスタの全メーカーが和名から引ける', () {
+      for (final maker in VehicleMasterData.makers) {
+        final id = maker['id'] as String;
+        final name = maker['name'] as String;
+
+        expect(MakerBrand.idFromName(name), id, reason: '$name を引けない');
+      }
+    });
+
+    test('マスタの全メーカーが英名から引ける', () {
+      for (final maker in VehicleMasterData.makers) {
+        final id = maker['id'] as String;
+        final nameEn = maker['nameEn'] as String;
+
+        expect(MakerBrand.idFromName(nameEn), id, reason: '$nameEn を引けない');
+      }
+    });
+
+    test('英名の大文字小文字と前後の空白は無視する', () {
+      expect(MakerBrand.idFromName('  TOYOTA '), 'toyota');
+      expect(MakerBrand.idFromName('nissan'), 'nissan');
+    });
+
+    test('makerId をそのまま渡しても通る', () {
+      expect(MakerBrand.idFromName('toyota'), 'toyota');
+    });
+
+    group('Edge Cases', () {
+      /// 自由入力メーカーは名前しか無い。id が引けなくても
+      /// **バッジは必ず出す**（ここで落ちるとカードごと壊れる）。
+      test('知らないメーカー名は名前をそのまま返す', () {
+        expect(MakerBrand.idFromName('ポルシェ'), 'ポルシェ');
+      });
+
+      test('知らないメーカー名でも同じ名前なら毎回同じ色になる', () {
+        final a = MakerBrand.of(MakerBrand.idFromName('ポルシェ'));
+        final b = MakerBrand.of(MakerBrand.idFromName('ポルシェ'));
+
+        expect(a.color, b.color);
+      });
+
+      test('空文字でも落ちない', () {
+        expect(
+            MakerBrand.of(MakerBrand.idFromName('')).mark.isNotEmpty, isTrue);
+      });
+    });
+  });
+
   group('MakerBadge', () {
     Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
@@ -101,6 +152,79 @@ void main() {
       final box = tester.getSize(find.byType(MakerBadge));
       expect(box.width, 56);
       expect(box.height, 56);
+    });
+
+    /// 自由入力のメーカーは id が `custom_<タイムスタンプ>` になる。
+    /// id をそのまま使うと登録のたびに色が変わり、マークは全部「C」になる。
+    testWidgets('カタログに無いidでも名前が分かれば名前で色を決める', (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          const Column(
+            children: [
+              MakerBadge(makerId: 'custom_1000', makerName: 'ポルシェ'),
+              MakerBadge(makerId: 'custom_2000', makerName: 'ポルシェ'),
+            ],
+          ),
+        ),
+      );
+
+      final marks = tester
+          .widgetList<Text>(find.descendant(
+            of: find.byType(MakerBadge),
+            matching: find.byType(Text),
+          ))
+          .map((t) => t.data)
+          .toList();
+
+      expect(marks.first, isNot('C'));
+      expect(marks.first, marks.last, reason: 'id が違っても同じメーカーなら同じマーク');
+    });
+
+    /// 名前が既知メーカーなら、自由入力でも正規のマークに寄せる。
+    testWidgets('自由入力でも名前がカタログにあれば正規のマークになる', (tester) async {
+      await tester.pumpWidget(
+        wrap(const MakerBadge(makerId: 'custom_1000', makerName: 'トヨタ')),
+      );
+
+      expect(find.text(MakerBrand.of('toyota').mark), findsOneWidget);
+    });
+
+    /// 保存済み車両は makerId を持たず和名しか無い。
+    testWidgets('メーカー名からでも組み立てられる', (tester) async {
+      await tester.pumpWidget(wrap(MakerBadge.fromName('トヨタ')));
+
+      expect(find.text(MakerBrand.of('toyota').mark), findsOneWidget);
+      expect(find.bySemanticsLabel('トヨタ'), findsOneWidget);
+    });
+
+    testWidgets('カタログに無いメーカー名でも表示できる', (tester) async {
+      await tester.pumpWidget(wrap(MakerBadge.fromName('ポルシェ')));
+
+      expect(find.byType(MakerBadge), findsOneWidget);
+      expect(find.bySemanticsLabel('ポルシェ'), findsOneWidget);
+    });
+
+    /// 選択中は枠を出す。枠のぶんだけ大きくなると、一覧の行が
+    /// 選択のたびにガタつく。**外形は変えない。**
+    testWidgets('選択しても外形の大きさが変わらない', (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          const Row(
+            children: [
+              MakerBadge(makerId: 'toyota', size: 40),
+              MakerBadge(makerId: 'honda', size: 40, isSelected: true),
+            ],
+          ),
+        ),
+      );
+
+      final sizes =
+          tester.widgetList<MakerBadge>(find.byType(MakerBadge)).map((w) {
+        return tester.getSize(find.byWidget(w));
+      }).toList();
+
+      expect(sizes[0], sizes[1]);
+      expect(sizes[0], const Size(40, 40));
     });
 
     group('Edge Cases', () {
