@@ -74,17 +74,42 @@ jobs:
           flutter test --coverage --exclude-tags "emulator || golden" 2>&1 | tee /tmp/test.log
           STATUS=${PIPESTATUS[0]}
           if [ "$STATUS" -ne 0 ]; then
+            # 「なぜ落ちたか」は "Failed to load" の *次の行以降* に出る
+            # （Compilation failed for testPath=... : <本当のエラー>）。
+            # マッチ行だけを拾うと、理由は構造的に必ず消える。-A で後続も残す。
+            #
+            # "failed after test completion" は同じファイルの再掲なので先に落とす。
+            # これが17行混ざって 50 行の枠を食い潰していた。
+            #
+            # head でパイプを閉じると grep 側が Broken pipe で死んで残りが欠ける。
+            # 一度ファイルに落としてから切り詰める。
+            grep -v "failed after test completion" /tmp/test.log \
+              | grep -E -A 20 "❌|\[E\]|Failed to load|Compilation failed|Test failed|^Error:|: Error:" \
+              | head -c 100000 > /tmp/test_failures.log
             echo "::group::失敗したテスト"
-            grep -E "❌|\[E\]|Failed to load|Test failed" /tmp/test.log | head -50
+            cat /tmp/test_failures.log
             echo "::endgroup::"
             {
               echo "## ❌ 失敗したテスト"
               echo '```'
-              grep -E "❌|\[E\]|Failed to load|Test failed" /tmp/test.log | head -50
+              cat /tmp/test_failures.log
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
           fi
           exit $STATUS
+
+      # 上の grep が取りこぼしても生ログを回収できるようにする。
+      # 手元に Flutter が無い環境から原因を追うときの最後の砦。
+      - name: Upload raw test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-test-log
+          path: /tmp/test.log
+          # analyze / format の段で落ちたときは test.log 自体が無い。
+          # そこで artifact 側が失敗すると、本当の失敗が見えなくなる。
+          if-no-files-found: ignore
+          retention-days: 7
 
       # --- Emulator-backed integration tests (best effort) -----------------
       # Everything below is continue-on-error: emulator download/startup can
