@@ -31,6 +31,9 @@ import '../services/community_trend_service.dart';
 import '../core/timeline/mileage_milestone.dart';
 import '../models/year_in_review.dart';
 import 'year_in_review_screen.dart';
+import 'fuel/add_fuel_screen.dart';
+import '../services/fuel_service.dart';
+import '../widgets/vehicle/maker_badge.dart';
 
 // Data returned by _InspectionCompleteDialog when the user confirms.
 class _InspectionCompletionResult {
@@ -483,9 +486,19 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '${_vehicle.maker} ${_vehicle.model}',
-                          style: theme.textTheme.displayMedium,
+                        // `Vehicle` は makerId を持たないので名前から引く。
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            MakerBadge.fromName(_vehicle.maker, size: 32),
+                            AppSpacing.horizontalSm,
+                            Expanded(
+                              child: Text(
+                                '${_vehicle.maker} ${_vehicle.model}',
+                                style: theme.textTheme.displayMedium,
+                              ),
+                            ),
+                          ],
                         ),
                         AppSpacing.verticalSm,
                         _InfoRow(
@@ -619,6 +632,38 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                         ),
                       );
                     },
+                  ),
+
+                  // 給油を記録（月2〜4回の接点。docs/HABIT_DESIGN.md 打ち手1）
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.xs,
+                    ),
+                    child: Card(
+                      margin: EdgeInsets.zero,
+                      child: ListTile(
+                        key: const Key('add_fuel_entry'),
+                        leading: const Icon(
+                          Icons.local_gas_station_outlined,
+                          color: AppColors.accentDrive,
+                        ),
+                        title: const Text('給油を記録'),
+                        subtitle: const Text('入力は4つだけ。満タン2回で燃費が出ます'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => AddFuelScreen(
+                              service: sl.get<FuelService>(),
+                              vehicleId: _vehicle.id,
+                              userId: _vehicle.userId,
+                              lastOdometer: _vehicle.mileage,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
 
                   // この1年のふりかえり

@@ -304,7 +304,7 @@ jobs:
           <plist version="1.0">
           <dict>
             <key>API_KEY</key>
-            <string>AIzaSyDZQ4UK6IXiUKNJ3u1Cjup4nIEmiV97O0Q</string>
+            <string>AIzaSyBt0hMKqo9viDFCXvNcDpNWcQ34seKfPEg</string>
             <key>GCM_SENDER_ID</key>
             <string>31421119456</string>
             <key>PLIST_VERSION</key>
@@ -326,7 +326,7 @@ jobs:
             <key>IS_SIGNIN_ENABLED</key>
             <true/>
             <key>GOOGLE_APP_ID</key>
-            <string>1:31421119456:ios:4320af5d1401f02c80c985</string>
+            <string>1:31421119456:ios:5646ac324f34398880c985</string>
           </dict>
           </plist>
           EOF
