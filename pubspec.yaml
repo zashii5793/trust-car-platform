@@ -30,7 +30,7 @@ dependencies:
   pdf: ^3.13.0
   printing: ^5.13.3
   share_plus: ^10.1.3
-  path_provider: ^2.1.1
+  path_provider: ^2.1.6
   # Phase 4: Offline Support
   connectivity_plus: ^6.0.3
   # Phase 4: Push Notifications
