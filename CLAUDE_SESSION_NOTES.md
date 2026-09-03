@@ -720,6 +720,29 @@ Actions ストレージ超過の発生源。
 
 ---
 
+## 夜間エージェント実行ログ（2026-07-28）
+
+**ブランチ**: `claude/night-20260728`
+**PR**: #98 https://github.com/zashii5793/trust-car-platform/pull/98
+**テスト**: 3505 件全パス / `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **`AppTextField` 拡張**: `fillColor`・`counterText`・`isDense` パラメータを追加
+2. **Issue #29 完了**: PR #91/PR #96 で「対応不可」とされた残存 TextField を全移行
+   - `invoice_result_screen.dart`: `_buildTextField` ヘルパー削除 + 4 箇所 AppTextField 移行
+   - `post_create_screen.dart`: `counterText: ''` 付き AppTextField に移行
+   - `fleet_member_screen.dart`: AlertDialog TextField → AppTextField
+   - `settings_screen.dart`: AlertDialog TextField → AppTextField
+
+### 次のアクション候補（3件）
+
+1. **`pm_report.yml` を修正した #97 をマージ** — 7週連続失敗中。最優先。
+2. **Issue #29 をクローズ** — AppTextField 移行全完了のためコメント＆クローズ。
+3. **`fleet_member_screen_test.dart` / `settings_screen_test.dart` 追加** — 移行したスクリーンのテストがまだない。RED フェーズから開始。
+
+---
+
 ## 夜間エージェント実行ログ（2026-07-11）
 
 **ブランチ**: `claude/night-20260711`
