@@ -1406,3 +1406,50 @@ describe('fuel_records（給油記録）', () => {
     await assertFails(deleteDoc(doc(dbFor(OTHER_UID), fuelPath)));
   });
 });
+
+describe('vehicle_master_suggestions — カタログ外入力の候補', () => {
+  const suggPath = 'vehicle_master_suggestions/maker__newbrand';
+
+  function suggestion(uid, status = 'pending') {
+    return { userId: uid, type: 'maker', value: 'NewBrand', status };
+  }
+
+  test('本人は自分の候補を作成できる', async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER_UID), suggPath), suggestion(OWNER_UID)),
+    );
+  });
+
+  test('userId の詐称は拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OTHER_UID), suggPath), suggestion(OWNER_UID)),
+    );
+  });
+
+  test('status が pending 以外の作成は拒否される', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OWNER_UID), suggPath), suggestion(OWNER_UID, 'approved')),
+    );
+  });
+
+  test('未認証は作成できない', async () => {
+    await assertFails(setDoc(doc(unauthDb(), suggPath), suggestion(OWNER_UID)));
+  });
+
+  test('クライアントは読み取れない（サーバー専用）', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), suggPath), suggestion(OWNER_UID));
+    });
+    await assertFails(getDoc(doc(dbFor(OWNER_UID), suggPath)));
+  });
+
+  test('更新・削除はできない（サーバー専用）', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), suggPath), suggestion(OWNER_UID));
+    });
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER_UID), suggPath), { status: 'approved' }),
+    );
+    await assertFails(deleteDoc(doc(dbFor(OWNER_UID), suggPath)));
+  });
+});
