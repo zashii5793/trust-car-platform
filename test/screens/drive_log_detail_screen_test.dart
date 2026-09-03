@@ -500,8 +500,7 @@ void main() {
       expect(find.text('保存しました'), findsOneWidget);
     });
 
-    testWidgets('地図の設定が無いときは、経路があっても案内文にして GoogleMap を出さない',
-        (tester) async {
+    testWidgets('地図の設定が無いときは、経路があっても案内文にして GoogleMap を出さない', (tester) async {
       // MapsConfig.isConfigured はコンパイル時定数で、テストでは常に false。
       // 2026-09-03 まで、この画面だけガードが無く、キーが無くても GoogleMap を
       // 組もうとしていた（実機では灰色のタイルが出るだけで理由が分からない）。
