@@ -84,10 +84,7 @@ class VehicleMasterService {
 
       final maker = makerName?.trim();
       final docId = _suggestionDocId(type, trimmed);
-      await _firestore
-          .collection('vehicle_master_suggestions')
-          .doc(docId)
-          .set({
+      await _firestore.collection('vehicle_master_suggestions').doc(docId).set({
         'userId': userId,
         'type': type,
         'value': trimmed,
