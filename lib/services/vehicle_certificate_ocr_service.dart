@@ -416,32 +416,25 @@ class VehicleCertificateOcrService {
 
   /// 初度登録年を抽出
   int? _extractYear(String currentLine, String nextLine) {
-    // 令和/平成/昭和のパターン
-    final eraPatterns = [
-      RegExp(r'令和\s*(\d{1,2})'),
-      RegExp(r'平成\s*(\d{1,2})'),
-      RegExp(r'昭和\s*(\d{1,2})'),
-      RegExp(r'R\s*(\d{1,2})'),
-      RegExp(r'H\s*(\d{1,2})'),
+    // Each pattern carries the era's base year, so the era is decided by the
+    // text that actually matched. Reading it off `currentLine` instead broke
+    // whenever ML Kit put the label and the value on separate lines - which
+    // is the normal case for a real certificate (fixed 2026-09-03).
+    final eraPatterns = <(RegExp, int)>[
+      (RegExp(r'令和\s*(\d{1,2})'), 2018),
+      (RegExp(r'平成\s*(\d{1,2})'), 1988),
+      (RegExp(r'昭和\s*(\d{1,2})'), 1925),
+      (RegExp(r'R\s*(\d{1,2})'), 2018),
+      (RegExp(r'H\s*(\d{1,2})'), 1988),
     ];
 
-    for (final pattern in eraPatterns) {
-      var match = pattern.firstMatch(currentLine);
-      match ??= pattern.firstMatch(nextLine);
+    for (final (pattern, eraBase) in eraPatterns) {
+      final match =
+          pattern.firstMatch(currentLine) ?? pattern.firstMatch(nextLine);
+      if (match == null) continue;
 
-      if (match != null) {
-        final eraYear = int.tryParse(match.group(1)!);
-        if (eraYear != null) {
-          // 元号を西暦に変換
-          if (currentLine.contains('令和') || currentLine.contains('R')) {
-            return 2018 + eraYear;
-          } else if (currentLine.contains('平成') || currentLine.contains('H')) {
-            return 1988 + eraYear;
-          } else if (currentLine.contains('昭和')) {
-            return 1925 + eraYear;
-          }
-        }
-      }
+      final eraYear = int.tryParse(match.group(1)!);
+      if (eraYear != null) return eraBase + eraYear;
     }
 
     // 西暦パターン
@@ -458,30 +451,29 @@ class VehicleCertificateOcrService {
   /// 有効期間の満了日を抽出
   DateTime? _extractExpiryDate(String currentLine, String nextLine) {
     // 令和/平成形式: "令和7年5月20日"
-    final eraPatterns = [
-      RegExp(r'令和\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日'),
-      RegExp(r'平成\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日'),
-      RegExp(r'R\s*(\d{1,2})[./年]\s*(\d{1,2})[./月]\s*(\d{1,2})'),
+    //
+    // Same rule as _extractYear: the base year travels with the pattern.
+    // A certificate that reads 「有効期間の満了する日 / 令和7年5月20日」 on two
+    // lines used to come back as 1995 - thirty years early, which shows every
+    // vehicle as overdue for inspection (fixed 2026-09-03).
+    final eraPatterns = <(RegExp, int)>[
+      (RegExp(r'令和\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日'), 2018),
+      (RegExp(r'平成\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日'), 1988),
+      (RegExp(r'R\s*(\d{1,2})[./年]\s*(\d{1,2})[./月]\s*(\d{1,2})'), 2018),
+      (RegExp(r'H\s*(\d{1,2})[./年]\s*(\d{1,2})[./月]\s*(\d{1,2})'), 1988),
     ];
 
-    for (final pattern in eraPatterns) {
-      var match = pattern.firstMatch(currentLine);
-      match ??= pattern.firstMatch(nextLine);
+    for (final (pattern, eraBase) in eraPatterns) {
+      final match =
+          pattern.firstMatch(currentLine) ?? pattern.firstMatch(nextLine);
+      if (match == null) continue;
 
-      if (match != null) {
-        final eraYear = int.tryParse(match.group(1)!);
-        final month = int.tryParse(match.group(2)!);
-        final day = int.tryParse(match.group(3)!);
+      final eraYear = int.tryParse(match.group(1)!);
+      final month = int.tryParse(match.group(2)!);
+      final day = int.tryParse(match.group(3)!);
 
-        if (eraYear != null && month != null && day != null) {
-          int year;
-          if (currentLine.contains('令和') || currentLine.contains('R')) {
-            year = 2018 + eraYear;
-          } else {
-            year = 1988 + eraYear;
-          }
-          return DateTime(year, month, day);
-        }
+      if (eraYear != null && month != null && day != null) {
+        return DateTime(eraBase + eraYear, month, day);
       }
     }
 

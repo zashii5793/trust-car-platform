@@ -95,43 +95,45 @@ storeFile=/Users/<ユーザー名>/trustcar-release.keystore
 
 ---
 
-### 3. Google Maps API キーの設定 `[実測: 未設定]`
+### 3. Google Maps API キーの設定 `[実測: 未設定。ただしコストはほぼゼロと判明]`
 
-**状態**: **未設定を実測で確認しました。** ブラウザのコンソールに以下が出ています。
+**詳細と試算: `docs/MAPS_API_COST.md`**
 
-```
-Google Maps JavaScript API warning: InvalidKey
-```
+**2026-09-03 に調べ直しました。Places API は使っていません**（`lib/` `functions/`
+`web/` を全文検索してヒット0）。Geocoding も Directions も未使用で、距離は
+Haversine のローカル計算です。**課金対象は地図の表示だけ**で、地図を出すのは
+2画面（近隣工場マップ・ドライブログの経路プレビュー）に限られます。
 
-**影響範囲**: 近隣工場の地図表示（#43 / #125）。ただし `MapsConfig.isConfigured` でガードされており、**キーが無い場合は距離順リストにフォールバック**します。アプリがクラッシュすることはありません。
+ソフトローンチ規模（20人）で **月140ロード程度**、無料枠の 1.4% です。
+さらに **Android / iOS のネイティブ地図は現行の価格体系では無料**で、課金される
+Web は `MAPS_API_KEY` を渡していないため**現状ロード数0**です。
 
-**手順**:
-1. [Google Cloud Console](https://console.cloud.google.com/) → APIとサービス → 認証情報 → APIキー発行
-2. 有効化するAPI（コスト最適化のため段階的に）:
-   - **フェーズ1a**: Maps SDK for Android / Maps SDK for iOS（地図表示）
-   - **フェーズ1b（任意）**: Places API（非提携先の近隣検索。**従量課金が高いため要判断**）
-3. APIキー制限（必須・漏洩対策）:
-   - Android: パッケージ名 `jp.trustcar.app` ＋ SHA-1 で制限
-   - iOS: Bundle ID `jp.trustcar.app` で制限
-   - 各キーで「使用するAPIのみ」に制限
-4. アプリへの設定（ハードコード禁止）:
-   - Android: `android/local.properties` に `MAPS_API_KEY=<実キー>`、または環境変数 `MAPS_API_KEY` / `GOOGLE_MAPS_API_KEY`
-     （`build.gradle.kts` の `manifestPlaceholders` が3経路とも読むよう実装済み）
-   - iOS: `ios/Runner/AppDelegate.swift` で注入
-   - CI: GitHub Secrets に `GOOGLE_MAPS_API_KEY`
-5. Google Cloud で **予算アラート**を設定（無料枠超過の早期検知）
+**やること**（30分）:
 
-**コスト目安（2026年時点・要最新確認）**:
-- 地図表示（Dynamic Maps, Essentials）: 月10,000ロードまで無料、超過後 約$7/1,000
-- Places 近隣検索（Pro）: 無料枠5,000/月、超過後 約$25〜/1,000
-- → フェーズ1a は無料枠内に収まりやすい。Places は1商圏限定＋キャッシュでコスト管理
+1. Google Cloud Console でAPIキーを発行
+2. 有効化: **Maps SDK for Android / Maps SDK for iOS のみ**（Places は不要）
+3. キー制限: Android はパッケージ名 `jp.trustcar.app` ＋ SHA-1、iOS は Bundle ID
+4. 渡し方: `android/local.properties` に `MAPS_API_KEY=...` / CI は GitHub Secrets
+5. 予算アラート（月$1で十分）
 
-**所要時間**: 1〜2時間
-**前提条件**: Google Cloud プロジェクトのオーナー権限・課金有効化
+**先に直すべきコード側の穴が2つあります**（AI 側で対応可能）:
+
+- **iOS はキーが注入されません。** `AppDelegate.swift` は `Info.plist` の
+  `MapsApiKey` を読みますが、**そのキーが Info.plist にありません**
+- **ドライブログ詳細に `MapsConfig` のガードがありません。** キーが無くても
+  地図を作ろうとして、灰色のタイルが出ます
 
 ---
 
 ### 4. Firebase Authentication の本番設定 `[要確認]`
+
+**詳細な手順: `docs/SETUP_AUTH_CONSOLE.md`**
+
+**2026-09-03 追記: `android/app/google-services.json` に Android 用の OAuth
+クライアント（SHA-1 付き）がありません。** このままでは Android の Google ログインが
+`ApiException: 10` で失敗します。**SHA-1 の登録と `google-services.json` の
+取り直しが要ります**（登録するのは P0-1 のリリース鍵の SHA-1。この開発機には
+Android SDK が無く、debug の SHA-1 は取れません）。
 
 **手順**:
 1. Firebase Console → Authentication → Sign-in method
@@ -273,6 +275,12 @@ plist は **Flutter のテンプレート既定のまま**で、取り直され�
 ---
 
 ### 9. 実機テスト（iOS / Android） `[未実施]`
+
+**チェックシート: `docs/DEVICE_TEST_CHECKLIST.md`**（項目ごとの記入欄あり）
+
+**2026-09-03 追記: 車検証OCRの元号変換にバグが見つかり、直しました。** ML Kit が
+ラベルと値を別行で返すと**令和7年が1995年**になっていました（満了日が30年前に
+なると、車検の案内が全部「切れている」と出ます）。実機で最初に確かめるべき項目です。
 
 エミュレータや Web では再現しない領域の確認です。**特に以下の3つは Web で一切検証できません**。
 
