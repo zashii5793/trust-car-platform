@@ -10,6 +10,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    # labeled が要る。build-ios は `ios` ラベルの有無で走るかが決まるのに、
+    # 既定のトリガ（opened / synchronize / reopened）にラベル操作は入らない。
+    # 付けても走らないので、次の push まで iOS の破壊が見えないままになる。
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 
 # Superseded runs on the same ref are pointless spend; cancel them.
