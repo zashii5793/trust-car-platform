@@ -69,6 +69,18 @@ privacy / terms を実装に合わせ、特商法の雛形（`tokushoho.html`）
 `.claude/worktrees/` を `.gitignore` に足した（リポジトリ内に作った作業用
 チェックアウトが未追跡で出ていた）。
 
+### 5. Firestore のルールとインデックスを本番へ反映した
+
+`docs/HUMAN_TASKS.md` P0-2。**8/28 以降に足したルールが全部未反映だった**ので、
+車検満了日の共有は本番では書き込みが弾かれる状態だった。
+
+```
+ firebase deploy --only firestore:rules     released
+ firebase deploy --only firestore:indexes   deployed
+```
+
+Console のバージョン履歴での目視確認だけ人間側に残っている。
+
 ---
 
 ## 取りこぼしの可視化（案A）と、iOS 設定の追いつき（2026-09-01）

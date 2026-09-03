@@ -62,7 +62,10 @@ storeFile=/Users/<ユーザー名>/trustcar-release.keystore
 
 ---
 
-### 2. Firestore セキュリティルール・インデックスのデプロイ `[要確認]`
+### 2. Firestore セキュリティルール・インデックスのデプロイ `[完了: 2026-09-03]`
+
+**状態**: **2026-09-03 に反映済みです。** 以降にルールを変えたときは、また同じ
+手順が要ります（変更のたびにデプロイが必要）。
 
 **なぜ必要**: 未デプロイだと該当機能の読み書きが全てルールで弾かれます。
 
@@ -80,16 +83,13 @@ storeFile=/Users/<ユーザー名>/trustcar-release.keystore
 - `safety_tips`: `isActive + publishedAt`, `isActive + category + publishedAt`
 - `inquiries`: `shopId + createdAt`（工場ダッシュボードの月次レポート #39 の前提）
 
-**ローカル検証は済んでいます**（2026-09-03・`cd test/rules && npm test` で Emulator 相手に
-148件パス）。**残るのは本番への反映だけ**です。
-
-**デプロイ手順チェックリスト**:
-- [x] ローカル検証: `cd test/rules && npm install && npm test` — 148件パス（2026-09-03）
-- [ ] `firebase login`（プロジェクトオーナー権限）
-- [ ] `git pull`（最新の `firestore.rules` / `firestore.indexes.json`）
-- [x] ドライラン: `firebase deploy --only firestore:rules --dry-run` — コンパイル成功（2026-09-03）
-- [ ] 本番反映: `firebase deploy --only firestore:rules,firestore:indexes`
-- [ ] Firebase Console → Firestore → ルール → バージョン履歴で反映時刻を確認
+**デプロイ手順チェックリスト**（2026-09-03 実施済み）:
+- [x] ローカル検証: `cd test/rules && npm install && npm test` — 148件パス
+- [x] `firebase login`（`hideki.ishizashi@gmail.com`）
+- [x] ドライラン: `firebase deploy --only firestore:rules --dry-run` — コンパイル成功
+- [x] 本番反映: `firebase deploy --only firestore:rules` — released
+- [x] 本番反映: `firebase deploy --only firestore:indexes` — deployed
+- [ ] Firebase Console → Firestore → ルール → バージョン履歴で反映時刻を確認（人間の目視）
 
 **所要時間**: 5分（インデックス構築は数分〜数十分かかる場合あり）
 
@@ -473,7 +473,7 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 
 **P0（これが揃わないと出せない）**
 - [ ] P0-1: **Android リリース署名の設定** — コード側は対応済み。残るはキーストア生成と `android/key.properties` の作成（`[実測]` 未作成）
-- [ ] P0-2: Firestore ルール・インデックスのデプロイ
+- [x] **P0-2: Firestore ルール・インデックスのデプロイ** — 2026-09-03 反映済み
 - [ ] P0-3: Google Maps API キーの発行・設定（未設定でも動作はする／地図のみ無効）
 - [ ] P0-4: Firebase Authentication の本番設定（メール/Google/Apple）
 
