@@ -1,6 +1,6 @@
 # 人間が実施すべきタスク一覧
 
-**最終更新**: 2026-08-17
+**最終更新**: 2026-09-03
 **前提**: AIが実装・テスト・コードプッシュまで完了済み。以下は **AIでは代替できない** 操作、および **人間の意思決定が必要な事項** のみ。
 **出荷目標**: 2026年8月ソフトローンチ（逆算計画は `docs/LAUNCH_PLAN.md`）。
 
@@ -22,23 +22,21 @@
 
 ## P0 — リリースブロッカー
 
-### 1. Android リリース署名の設定 `[コード検証済]`
+### 1. Android リリース署名の設定 `[実測: android/key.properties が存在しません]`
 
-**状態**: **未対応。現在リリースビルドが debug 鍵で署名されています。**
+**状態**: **コード側は対応済み。残るのはキーストアの生成だけです。**
 
-`android/app/build.gradle.kts` に以下が残っています。
+`android/app/build.gradle.kts` は `android/key.properties` を読む `signingConfigs`
+を持っており、鍵が無いまま release タスクを叩くとビルドが明示的に止まります
+（debug 署名の AAB が「リリースのつもり」で出来上がるのを防ぐため）。
 
-```kotlin
-buildTypes {
-    release {
-        // TODO: Add your own signing config for the release build.
-        // Signing with the debug keys for now, so `flutter run --release` works.
-        signingConfig = signingConfigs.getByName("debug")
-    }
-}
+```
+android/key.properties not found. A release build needs
+storeFile / storePassword / keyAlias / keyPassword.
 ```
 
-**この状態では Google Play にアップロードできません**（debug 署名の AAB は受け付けられない）。ローンチ前に必ず解消が必要です。
+debug ビルドには影響しません。**人間の作業はキーストアの生成と `key.properties`
+の作成の2つで、AI 側の実装作業はもう残っていません。**
 
 **手順**:
 
@@ -57,9 +55,7 @@ keyAlias=trust-car-platform
 storeFile=/Users/<ユーザー名>/trustcar-release.keystore
 ```
 
-3. `build.gradle.kts` の署名設定変更を AI に依頼（`key.properties` を読み込む `signingConfigs` の追加）
-
-4. 検証: `flutter build appbundle --release` → `jarsigner -verify -verbose build/app/outputs/bundle/release/app-release.aab`
+3. 検証: `flutter build appbundle --release` → `jarsigner -verify -verbose build/app/outputs/bundle/release/app-release.aab`
 
 **所要時間**: 30分
 **重要**: キーストアと `key.properties` はパスワードマネージャ等に厳重保管。**Google Play App Signing に登録すれば紛失リスクは緩和できる**ため、初回アップロード時に有効化を推奨。
@@ -69,6 +65,10 @@ storeFile=/Users/<ユーザー名>/trustcar-release.keystore
 ### 2. Firestore セキュリティルール・インデックスのデプロイ `[要確認]`
 
 **なぜ必要**: 未デプロイだと該当機能の読み書きが全てルールで弾かれます。
+
+**2026-09-01 追記**: 車検満了日の共有（`shop_customers` の
+`inspectionExpiries` / `vehicleCount` / `sharesInspectionExpiry` の検証）を
+足しました。**未デプロイだと、顧客側の共有が全て弾かれます。**
 
 現在 `firestore.rules` は789行あり、以下を含みます（前回デプロイ以降の追加分は Console のバージョン履歴で要確認）:
 - `fleet_members`, `accessory_showcases`, `car_purchase_inquiries`, `safety_tips`, `shop_chains`
@@ -80,11 +80,14 @@ storeFile=/Users/<ユーザー名>/trustcar-release.keystore
 - `safety_tips`: `isActive + publishedAt`, `isActive + category + publishedAt`
 - `inquiries`: `shopId + createdAt`（工場ダッシュボードの月次レポート #39 の前提）
 
+**ローカル検証は済んでいます**（2026-09-03・`cd test/rules && npm test` で Emulator 相手に
+148件パス）。**残るのは本番への反映だけ**です。
+
 **デプロイ手順チェックリスト**:
+- [x] ローカル検証: `cd test/rules && npm install && npm test` — 148件パス（2026-09-03）
 - [ ] `firebase login`（プロジェクトオーナー権限）
 - [ ] `git pull`（最新の `firestore.rules` / `firestore.indexes.json`）
-- [ ] ローカル検証: `cd test/rules && npm install && npm test`
-- [ ] ドライラン: `firebase deploy --only firestore:rules --dry-run`
+- [x] ドライラン: `firebase deploy --only firestore:rules --dry-run` — コンパイル成功（2026-09-03）
 - [ ] 本番反映: `firebase deploy --only firestore:rules,firestore:indexes`
 - [ ] Firebase Console → Firestore → ルール → バージョン履歴で反映時刻を確認
 
@@ -391,16 +394,33 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 
 ---
 
-### 14. プライバシーポリシー・利用規約の法的レビュー
+### 14. 規約ドラフトの確定（社長記入 ＋ 専門家確認） `[実測: 【要記入】が16箇所残っています]`
 
-車検証・位置情報・個人情報を扱うため、弁護士による最終確認を推奨します。
+2026-09-01 にプライバシーポリシー・利用規約を改訂し、特定商取引法に基づく表示
+（`web/tokushoho.html`）の雛形を追加しました。**いずれもドラフトで、事業者本人
+でなければ埋められない欄を `【要記入】` のまま残しています。** アプリ内の
+設定画面にもそのまま表示されるため、テスト配布より先には出せません。
+
+**社長でなければ埋められない欄**:
+
+| ファイル | 箇所 | 内容 |
+|---|---|---|
+| `web/tokushoho.html` | 12項目 | 販売事業者・運営統括責任者・所在地・電話番号・メール・販売価格・支払方法・提供時期・返品特約・動作環境 |
+| `web/privacy.html` ＋ `privacy_policy_screen.dart` | 3箇所 | データ保持期間、fleet の個人情報の役割分担、運営者の代表者名・所在地・電話番号 |
+| `web/terms.html` ＋ `terms_of_service_screen.dart` | 4箇所 | C2C の手数料率・支払方法・支払時期、特商法表示の要否、fleet 契約の整理、運営者情報 |
+
+`web/` と `docs/web/` は同一内容です（**両方を同じように直す必要があります**）。
+
+**専門家に見てもらう論点**:
 
 - 個人情報保護法の遵守確認（特に車検証のOCRデータ）
 - 位置情報の利用目的の明記（走行記録を含む）
-- 整備工場への情報提供の同意文言
+- 整備工場への情報提供の同意文言（車検満了日の共有を含む）
+- AIチャットで第三者の生成AIサービスへ送信することの説明
+- C2C取引における当サービスの立場（仲介か販売か）と特商法上の表示義務
 - データ削除リクエストへの対応ポリシー（`deleteAccount` は実装済み・#120 で purge 対応）
 
-**所要時間**: 弁護士費用次第（目安: 3〜5万円）
+**所要時間**: 記入 1時間 ＋ 専門家確認（弁護士費用の目安 3〜5万円）
 
 ---
 
@@ -452,7 +472,7 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 ## ローンチ前チェックリスト
 
 **P0（これが揃わないと出せない）**
-- [ ] P0-1: **Android リリース署名の設定**（現在 debug 鍵。Play にアップロード不可）
+- [ ] P0-1: **Android リリース署名の設定** — コード側は対応済み。残るはキーストア生成と `android/key.properties` の作成（`[実測]` 未作成）
 - [ ] P0-2: Firestore ルール・インデックスのデプロイ
 - [ ] P0-3: Google Maps API キーの発行・設定（未設定でも動作はする／地図のみ無効）
 - [ ] P0-4: Firebase Authentication の本番設定（メール/Google/Apple）
@@ -461,7 +481,7 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 - [ ] P1-5: iOS App ID・証明書・Sign in with Apple Capability
 - [ ] P1-6: FCM / APNs 認証キー
 - [ ] P1-7: RevenueCat の Public SDK キー設定と商品作成
-- [ ] **P1-8: GoogleService-Info.plist が別アプリのもの（iOS が起動しません・P0相当）**
+- [x] **P1-8: GoogleService-Info.plist が別アプリのもの** — Firebase の再登録（人間・2026-08-27）とコード側の差し替え（AI・2026-09-01）は完了。**残るは起動確認**（`docs/IOS_FIREBASE_FIX.md` §4）
 - [ ] P1-9: **実機テスト（特にOCRの実画像精度は完全に未検証）**
 - [ ] P1-10: Firestore バックアップ設定
 - [ ] P1-11: 本番データ投入（工場・安全情報・トレンド）＋ `demo_*` 店舗の扱いを決定
@@ -469,7 +489,7 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 **P2（判断が必要）**
 - [ ] P2-12: 走行記録のバックグラウンド動作方針（A/B/C から選択）
 - [ ] P2-13: App Check の導入時期
-- [ ] P2-14: 利用規約・プライバシーポリシーの法的レビュー
+- [ ] P2-14: **規約ドラフトの確定** — 事業者情報・手数料・保持期間など `【要記入】` が16箇所。埋めないとアプリ内にそのまま出ます
 - [ ] P2-15: Remote Config `c2c_parts_marketplace` の作成
 
 **P3（申請）**
@@ -488,7 +508,7 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 | ナンバープレートの全角/半角正規化 | 対応済み（`core/utils/license_plate.dart`） |
 | ログイン直後にデータが空になる不具合 | 対応済み（2026-08-17、`core/utils/auth_scoped_stream.dart`） |
 | Web版がEmulatorに繋がらない問題 | 対応済み（2026-08-17、`--dart-define=USE_EMULATOR=true` / localhost 自動判定） |
-| Android の署名設定コード | **人間がキーストアを作成後、AIが `build.gradle.kts` を実装可能** |
+| Android の署名設定コード | 対応済み（`key.properties` を読む `signingConfigs`。鍵が無いまま release ビルドすると明示的に停止） |
 | App Check の初期化コード | 人間が Console で有効化後、AIが実装可能 |
 | 走行記録のバックグラウンド対応 | 方針決定後、AIが実装可能 |
 
