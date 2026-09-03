@@ -29,16 +29,12 @@ Future<void> loadMaterialIcons() async {
 
 /// 日本語フォント。**在れば読む。無ければ読まない。**
 ///
-/// ## 限界（2026-08-20 実測）
+/// ## 限界（2026-08-20 実測 / 2026-09-01 更新）
 ///
-/// **`fontWeight: w500` の文字だけは、まだ豆腐で写る。**
-/// macOS の日本語は `.ttc`（複数の太さを 1 ファイルに束ねた形）でしか
-/// 手に入らず、`FontLoader` が 2 面目以降を読まない。W5 を渡しても
-/// w500 に当たらない。ボタンの文字（`elevatedButtonTheme` が w500）が該当する。
-///
-/// **見出しと説明文は読める**ので、折り返し・行数・詰まりの確認には使える。
-/// **ボタンの文字の見え方を確かめたいときは、シミュレータで撮ること。**
-/// 直すなら、日本語フォントを 1 ファイル 1 太さで同梱する（未着手）。
+/// ボタンの文字が豆腐で写るのは**太さの問題ではなかった。** 原因は
+/// `*ButtonThemeData` の `textStyle` に書体名が無いことで、[goldenTheme] が
+/// 名前を補うようにして直した（2026-09-01。それまで「コピーする」が □ だった）。
+/// **[goldenTheme] を通さずに撮ると、ボタンの文字はまた豆腐になる。**
 ///
 /// 端末のフォントを使うので、**機械が変われば絵も変わる。**
 /// だから比較用のゴールデン（CI で差分を見るもの）には使わない。
@@ -114,10 +110,35 @@ ThemeData goldenTheme(ThemeData base) {
   TextStyle? withFamily(TextStyle? style) =>
       style?.fontFamily == null ? style?.copyWith(fontFamily: family) : style;
 
+  // ボタンの文字も同じ理由で □ になる（2026-09-01 実測: 「コピーする」が
+  // 豆腐で写っていた）。`*ButtonThemeData` の `textStyle` も名前を持たない
+  // 生の `TextStyle` なので、AppBar と同じ手当てが要る。
+  ButtonStyle? withButtonFamily(ButtonStyle? style) {
+    final textStyle = style?.textStyle;
+    if (style == null || textStyle == null) return style;
+    return style.copyWith(
+      textStyle: WidgetStateProperty.resolveWith(
+        (states) => withFamily(textStyle.resolve(states)),
+      ),
+    );
+  }
+
   return base.copyWith(
     appBarTheme: base.appBarTheme.copyWith(
       titleTextStyle: withFamily(base.appBarTheme.titleTextStyle),
       toolbarTextStyle: withFamily(base.appBarTheme.toolbarTextStyle),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: withButtonFamily(base.elevatedButtonTheme.style),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: withButtonFamily(base.outlinedButtonTheme.style),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: withButtonFamily(base.textButtonTheme.style),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: withButtonFamily(base.filledButtonTheme.style),
     ),
   );
 }

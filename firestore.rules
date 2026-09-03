@@ -854,6 +854,23 @@ service cloud.firestore {
         && resource.data.shopOwnerId == request.auth.uid;
     }
 
+    // 車検満了日の共有で書ける形。日付の配列と台数だけを許す。
+    //
+    // **名簿の代わりに使えるほど持たせない。** 個人の保有台数を超える数を
+    // 書けても得は無く、店に渡る情報だけが増える。
+    function validShopCustomerExpiries() {
+      let d = request.resource.data;
+      return (!('inspectionExpiries' in d.keys())
+              || (d.inspectionExpiries is list
+                  && d.inspectionExpiries.size() <= 20))
+        && (!('vehicleCount' in d.keys())
+              || (d.vehicleCount is int
+                  && d.vehicleCount >= 0
+                  && d.vehicleCount <= 99))
+        && (!('sharesInspectionExpiry' in d.keys())
+              || d.sharesInspectionExpiry is bool);
+    }
+
     // 顧客と店の紐づけ（かかりつけ）
     //
     // ドキュメントIDが利用者ID。**本人と、紐づいた店だけが読める。**
@@ -870,9 +887,15 @@ service cloud.firestore {
       allow list: if isAuthenticated();
 
       // 書けるのは本人だけ。店が勝手に顧客を増やせないようにする。
+      //
+      // 車検満了日の共有（案A・BUSINESS_MODEL_RETHINK_2026-08-27 §6-2）は、
+      // **顧客が自分で置いた値を店が読む**形にしてある。店に vehicles を
+      // 開けると走行距離も整備履歴も渡ってしまうため、そこは開けない。
+      // 渡る中身が増えないよう、ここで形と量を縛る。
       allow create, update: if isAuthenticated()
         && request.auth.uid == userId
-        && request.resource.data.userId == request.auth.uid;
+        && request.resource.data.userId == request.auth.uid
+        && validShopCustomerExpiries();
 
       allow delete: if isAuthenticated() && request.auth.uid == userId;
     }

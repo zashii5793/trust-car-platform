@@ -2,20 +2,40 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
+import '../models/inspection_pipeline.dart';
 import '../models/shop_invite.dart';
 
 /// Where a customer's shop link lives.
+///
+/// **店に渡るのはこれだけ。** 車検の満了日と台数のほかは、車種も走行距離も
+/// 整備履歴も入っていない（`docs/BUSINESS_MODEL_RETHINK_2026-08-27.md` §6-2 案A）。
 class ShopCustomerLink {
   final String shopId;
   final String shopName;
   final String userId;
   final DateTime linkedAt;
 
+  /// 店に伝えている車検満了日。**日付だけ。どの車のものかは渡さない。**
+  final List<DateTime> inspectionExpiries;
+
+  /// 保有台数。[inspectionExpiries] との差が「満了日が未入力の台数」になる。
+  final int vehicleCount;
+
+  /// 満了日を店に伝えることに同意しているか。あとから切れる。
+  final bool sharesInspectionExpiry;
+
+  /// 満了日を最後に書き込んだ時刻。**古い数字を新しい顔で見せないため。**
+  final DateTime? expiryUpdatedAt;
+
   const ShopCustomerLink({
     required this.shopId,
     required this.shopName,
     required this.userId,
     required this.linkedAt,
+    this.inspectionExpiries = const [],
+    this.vehicleCount = 0,
+    this.sharesInspectionExpiry = true,
+    this.expiryUpdatedAt,
   });
 
   Map<String, dynamic> toMap() => {
@@ -23,10 +43,19 @@ class ShopCustomerLink {
         'shopName': shopName,
         'userId': userId,
         'linkedAt': Timestamp.fromDate(linkedAt),
+        'inspectionExpiries':
+            inspectionExpiries.map((d) => Timestamp.fromDate(d)).toList(),
+        'vehicleCount': vehicleCount,
+        'sharesInspectionExpiry': sharesInspectionExpiry,
+        if (expiryUpdatedAt != null)
+          'expiryUpdatedAt': Timestamp.fromDate(expiryUpdatedAt!),
       };
 
   factory ShopCustomerLink.fromMap(Map<String, dynamic> map) {
     final at = map['linkedAt'];
+    final updated = map['expiryUpdatedAt'];
+    final raw = map['inspectionExpiries'];
+
     return ShopCustomerLink(
       shopId: map['shopId'] as String? ?? '',
       shopName: map['shopName'] as String? ?? '',
@@ -34,6 +63,40 @@ class ShopCustomerLink {
       linkedAt: at is Timestamp
           ? at.toDate()
           : DateTime.fromMillisecondsSinceEpoch(0),
+      inspectionExpiries: raw is List
+          ? raw.whereType<Timestamp>().map((t) => t.toDate()).toList()
+          : const [],
+      vehicleCount: (map['vehicleCount'] as num?)?.toInt() ?? 0,
+      // 招待コード導入時の文書にはこの項目が無い。同意した上で入れた導線なので
+      // 既定は true。切りたい人は画面から切れる。
+      sharesInspectionExpiry: map['sharesInspectionExpiry'] as bool? ?? true,
+      expiryUpdatedAt: updated is Timestamp ? updated.toDate() : null,
+    );
+  }
+
+  /// 店側の集計に渡す形。
+  CustomerExpirySummary toExpirySummary() => CustomerExpirySummary(
+        expiries: inspectionExpiries,
+        vehicleCount: vehicleCount,
+        isSharing: sharesInspectionExpiry,
+      );
+
+  ShopCustomerLink copyWith({
+    List<DateTime>? inspectionExpiries,
+    int? vehicleCount,
+    bool? sharesInspectionExpiry,
+    DateTime? expiryUpdatedAt,
+  }) {
+    return ShopCustomerLink(
+      shopId: shopId,
+      shopName: shopName,
+      userId: userId,
+      linkedAt: linkedAt,
+      inspectionExpiries: inspectionExpiries ?? this.inspectionExpiries,
+      vehicleCount: vehicleCount ?? this.vehicleCount,
+      sharesInspectionExpiry:
+          sharesInspectionExpiry ?? this.sharesInspectionExpiry,
+      expiryUpdatedAt: expiryUpdatedAt ?? this.expiryUpdatedAt,
     );
   }
 }
@@ -49,8 +112,16 @@ class ShopCustomerLink {
 class ShopInviteService {
   final FirebaseFirestore _firestore;
 
-  ShopInviteService({required FirebaseFirestore firestore})
-      : _firestore = firestore;
+  /// Reads the wall clock. Injectable so tests - golden shots in particular -
+  /// can pin a date: the linked screen prints the day it was shared, which would
+  /// otherwise make the image differ every day.
+  final DateTime Function() _now;
+
+  ShopInviteService({
+    required FirebaseFirestore firestore,
+    DateTime Function()? now,
+  })  : _firestore = firestore,
+        _now = now ?? DateTime.now;
 
   static const String invitesCollection = 'shop_invites';
   static const String customersCollection = 'shop_customers';
@@ -87,7 +158,7 @@ class ShopInviteService {
     }
 
     try {
-      final now = DateTime.now();
+      final now = _now();
 
       // 空いているコードを探す。ぶつかったら種を変えて引き直す。
       for (var attempt = 0; attempt < 12; attempt++) {
@@ -151,7 +222,7 @@ class ShopInviteService {
           AppError.validation(InviteRejection.notFound.message));
     }
 
-    final rejection = invite.canBeUsedBy(userId, now: DateTime.now());
+    final rejection = invite.canBeUsedBy(userId, now: _now());
     if (rejection != null) {
       return Result.failure(AppError.validation(rejection.message));
     }
@@ -165,11 +236,20 @@ class ShopInviteService {
       final alreadyOnThisShop = existing.exists &&
           (existing.data()?['shopId'] as String?) == invite.shopId;
 
+      // 店を替えても、共有の可否と満了日は本人のものなので引き継ぐ。
+      // 上書きで消すと、切ったはずの共有が既定の true に戻ってしまう。
+      final previous =
+          existing.exists ? ShopCustomerLink.fromMap(existing.data()!) : null;
+
       final link = ShopCustomerLink(
         shopId: invite.shopId,
         shopName: invite.shopName,
         userId: userId,
-        linkedAt: DateTime.now(),
+        linkedAt: _now(),
+        inspectionExpiries: previous?.inspectionExpiries ?? const [],
+        vehicleCount: previous?.vehicleCount ?? 0,
+        sharesInspectionExpiry: previous?.sharesInspectionExpiry ?? true,
+        expiryUpdatedAt: previous?.expiryUpdatedAt,
       );
       await linkRef.set(link.toMap());
 
@@ -213,6 +293,96 @@ class ShopInviteService {
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
     }
+  }
+
+  /// 一度に店へ渡す満了日の上限。
+  ///
+  /// 個人が持つ台数を超える数を書けるようにしても得が無く、
+  /// 名簿の代わりに使われる余地を残すだけ。`firestore.rules` でも同じ数で止める。
+  static const int maxSharedExpiries = 20;
+
+  /// 車検の満了日だけを、かかりつけの店に渡す。
+  ///
+  /// `docs/BUSINESS_MODEL_RETHINK_2026-08-27.md` §6-2 の案A。
+  ///
+  /// 店は顧客の `vehicles` を読めない。読めるようにすると走行距離も整備履歴も
+  /// 渡ってしまう。**そこは開けず、必要な値だけを顧客側が置く。**
+  ///
+  /// かかりつけが無い人、共有を切っている人には何も書かない（成功として返す）。
+  Future<Result<void, AppError>> shareInspectionExpiries({
+    required String userId,
+    required List<DateTime?> expiryDates,
+    required int vehicleCount,
+  }) async {
+    if (userId.trim().isEmpty) return const Result.success(null);
+
+    try {
+      final linkRef = _customers.doc(_linkId(userId));
+      final snapshot = await linkRef.get();
+      if (!snapshot.exists) return const Result.success(null);
+
+      final link = ShopCustomerLink.fromMap(snapshot.data()!);
+      if (!link.sharesInspectionExpiry) return const Result.success(null);
+
+      final expiries = expiryDates.whereType<DateTime>().toList()..sort();
+      final capped = expiries.take(maxSharedExpiries).toList();
+      final count =
+          vehicleCount < 0 ? 0 : (vehicleCount > 99 ? 99 : vehicleCount);
+
+      // 中身が変わっていなければ書かない。開くたびに書き込むと、
+      // 「最終更新」が更新だけで動いて、実際の鮮度が分からなくなる。
+      if (_sameDates(link.inspectionExpiries, capped) &&
+          link.vehicleCount == count) {
+        return const Result.success(null);
+      }
+
+      await linkRef.set({
+        'inspectionExpiries': capped.map((d) => Timestamp.fromDate(d)).toList(),
+        'vehicleCount': count,
+        'expiryUpdatedAt': Timestamp.fromDate(_now()),
+      }, SetOptions(merge: true));
+
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// 満了日の共有を入り切りする。
+  ///
+  /// **切ったときは、すでに渡した満了日も消す。** 「今後は渡さない」だけで
+  /// 過去の分が店に残るのでは、切った意味がない。
+  Future<Result<ShopCustomerLink?, AppError>> setExpirySharing({
+    required String userId,
+    required bool enabled,
+  }) async {
+    if (userId.trim().isEmpty) return const Result.success(null);
+
+    try {
+      final linkRef = _customers.doc(_linkId(userId));
+      final snapshot = await linkRef.get();
+      if (!snapshot.exists) return const Result.success(null);
+
+      await linkRef.set({
+        'sharesInspectionExpiry': enabled,
+        if (!enabled) 'inspectionExpiries': <Timestamp>[],
+        if (!enabled) 'vehicleCount': 0,
+        'expiryUpdatedAt': Timestamp.fromDate(_now()),
+      }, SetOptions(merge: true));
+
+      final updated = await linkRef.get();
+      return Result.success(ShopCustomerLink.fromMap(updated.data()!));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  static bool _sameDates(List<DateTime> a, List<DateTime> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!a[i].isAtSameMomentAs(b[i])) return false;
+    }
+    return true;
   }
 
   /// 招待を止める。**すでに紐づいた顧客は外さない。**

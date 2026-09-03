@@ -1238,6 +1238,108 @@ describe('shop_customers（かかりつけ）', () => {
     });
     await assertFails(deleteDoc(doc(dbFor(INVITE_SHOP_OWNER_UID), linkPath)));
   });
+
+  // 車検満了日の共有（案A）。
+  // docs/BUSINESS_MODEL_RETHINK_2026-08-27.md §6-2。
+  // 店に vehicles を開けず、顧客が満了日だけを置く形にしてある。
+  // ここが緩むと、この文書が名簿の代わりになってしまう。
+  describe('車検満了日の共有', () => {
+    test('本人は満了日を置ける', async () => {
+      await assertSucceeds(
+        setDoc(
+          doc(dbFor(INVITE_CUSTOMER_UID), linkPath),
+          linkDoc(INVITE_CUSTOMER_UID, {
+            inspectionExpiries: [new Date('2026-11-20')],
+            vehicleCount: 2,
+            sharesInspectionExpiry: true,
+          }),
+        ),
+      );
+    });
+
+    test('紐づいた店は満了日を読める', async () => {
+      await seedInvite();
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), linkPath),
+          linkDoc(INVITE_CUSTOMER_UID, {
+            inspectionExpiries: [new Date('2026-11-20')],
+            vehicleCount: 1,
+          }),
+        );
+      });
+      await assertSucceeds(getDoc(doc(dbFor(INVITE_SHOP_OWNER_UID), linkPath)));
+    });
+
+    test('店が顧客の満了日を書き換えることはできない', async () => {
+      // 書けると、店が「まだ先」に書き換えて取りこぼしを隠せてしまう。
+      await seedInvite();
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), linkPath), linkDoc(INVITE_CUSTOMER_UID));
+      });
+      await assertFails(
+        updateDoc(doc(dbFor(INVITE_SHOP_OWNER_UID), linkPath), {
+          inspectionExpiries: [new Date('2027-01-01')],
+        }),
+      );
+    });
+
+    test('満了日を大量に詰め込むことはできない', async () => {
+      const many = Array.from({ length: 21 }, () => new Date('2026-11-20'));
+      await assertFails(
+        setDoc(
+          doc(dbFor(INVITE_CUSTOMER_UID), linkPath),
+          linkDoc(INVITE_CUSTOMER_UID, { inspectionExpiries: many }),
+        ),
+      );
+    });
+
+    test('満了日が配列でなければ拒否される', async () => {
+      await assertFails(
+        setDoc(
+          doc(dbFor(INVITE_CUSTOMER_UID), linkPath),
+          linkDoc(INVITE_CUSTOMER_UID, { inspectionExpiries: '2026-11-20' }),
+        ),
+      );
+    });
+
+    test('あり得ない台数は拒否される', async () => {
+      await assertFails(
+        setDoc(
+          doc(dbFor(INVITE_CUSTOMER_UID), linkPath),
+          linkDoc(INVITE_CUSTOMER_UID, { vehicleCount: 1000 }),
+        ),
+      );
+    });
+
+    test('共有フラグが真偽値でなければ拒否される', async () => {
+      await assertFails(
+        setDoc(
+          doc(dbFor(INVITE_CUSTOMER_UID), linkPath),
+          linkDoc(INVITE_CUSTOMER_UID, { sharesInspectionExpiry: 'yes' }),
+        ),
+      );
+    });
+
+    test('本人は共有を切れる', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), linkPath),
+          linkDoc(INVITE_CUSTOMER_UID, {
+            inspectionExpiries: [new Date('2026-11-20')],
+            vehicleCount: 1,
+          }),
+        );
+      });
+      await assertSucceeds(
+        updateDoc(doc(dbFor(INVITE_CUSTOMER_UID), linkPath), {
+          sharesInspectionExpiry: false,
+          inspectionExpiries: [],
+          vehicleCount: 0,
+        }),
+      );
+    });
+  });
 });
 
 describe('fuel_records（給油記録）', () => {

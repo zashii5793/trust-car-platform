@@ -20,6 +20,7 @@ import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/models/fuel_record.dart';
 import 'package:trust_car_platform/models/inspection_pipeline.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
+import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/models/year_in_review.dart';
 import 'package:trust_car_platform/screens/fuel/add_fuel_screen.dart';
 import 'package:trust_car_platform/screens/marketplace/shop_invite_manage_screen.dart';
@@ -32,6 +33,29 @@ import 'package:trust_car_platform/widgets/shop/inspection_pipeline_card.dart';
 import 'font_loader.dart';
 
 const _phone = Size(390, 844);
+
+/// 画像を撮る日。**画面の「今日」を全部これに寄せる。**
+///
+/// 寄せないと、日付が写る画面（給油日の初期値・「◯月◯日に更新」・
+/// 車検の集計期間）が**日付が変わっただけで落ちる**。2026-09-01 に撮った
+/// 画像が 09-03 に3件落ちたのが実例。
+final _goldenToday = DateTime(2026, 9, 1);
+
+/// 画面に渡すだけのダミー車両。**中身は店に渡らない**ことを示すために置く。
+Vehicle demoVehicle({required String id, DateTime? expiry}) {
+  return Vehicle(
+    id: id,
+    userId: 'user-a',
+    maker: 'トヨタ',
+    model: 'アルファード',
+    year: 2021,
+    grade: 'Z',
+    mileage: 30450,
+    createdAt: DateTime(2025, 1, 1),
+    updatedAt: DateTime(2026, 8, 27),
+    inspectionExpiryDate: expiry,
+  );
+}
 
 void main() {
   setUpAll(() async {
@@ -61,7 +85,10 @@ void main() {
 
   group('2026-08-27 に足した画面', () {
     testWidgets('お店のコードを入れる（未登録）', (tester) async {
-      final service = ShopInviteService(firestore: FakeFirebaseFirestore());
+      final service = ShopInviteService(
+        firestore: FakeFirebaseFirestore(),
+        now: () => _goldenToday,
+      );
 
       await shoot(
         tester,
@@ -72,7 +99,10 @@ void main() {
 
     testWidgets('お店のコードを入れる（登録済み）', (tester) async {
       final firestore = FakeFirebaseFirestore();
-      final service = ShopInviteService(firestore: firestore);
+      final service = ShopInviteService(
+        firestore: firestore,
+        now: () => _goldenToday,
+      );
       await service.createInvite(
         shopId: 'shop_takaya_motor_okayama',
         shopName: 'タカヤモーター株式会社',
@@ -87,7 +117,16 @@ void main() {
 
       await shoot(
         tester,
-        ShopInviteScreen(service: service, userId: 'user-a'),
+        ShopInviteScreen(
+          service: service,
+          userId: 'user-a',
+          // 満了日が店に渡っている状態を写す。渡るのは日付と台数だけで、
+          // 車種も走行距離もこの画面から出て行かない。
+          vehicles: [
+            demoVehicle(id: 'veh-a-family', expiry: DateTime(2026, 11, 20)),
+            demoVehicle(id: 'veh-a-second', expiry: null),
+          ],
+        ),
         'shop_invite_linked',
       );
     });
@@ -102,6 +141,7 @@ void main() {
           vehicleId: 'veh-a-family',
           userId: 'user-a',
           lastOdometer: 30450,
+          today: _goldenToday,
         ),
         'add_fuel',
       );
@@ -212,7 +252,10 @@ void main() {
 
   group('店側の画面', () {
     testWidgets('お客様に配るコード（発行前）', (tester) async {
-      final service = ShopInviteService(firestore: FakeFirebaseFirestore());
+      final service = ShopInviteService(
+        firestore: FakeFirebaseFirestore(),
+        now: () => _goldenToday,
+      );
 
       await shoot(
         tester,
@@ -221,6 +264,7 @@ void main() {
           shopId: 'shop_takaya_motor_okayama',
           shopName: 'タカヤモーター株式会社',
           shopOwnerId: 'shop-owner-takaya',
+          today: _goldenToday,
         ),
         'shop_invite_manage_before',
       );
@@ -228,13 +272,27 @@ void main() {
 
     testWidgets('お客様に配るコード（発行後・顧客3名）', (tester) async {
       final firestore = FakeFirebaseFirestore();
-      final service = ShopInviteService(firestore: firestore);
+      final service = ShopInviteService(
+        firestore: firestore,
+        now: () => _goldenToday,
+      );
+      // 満了日は画面の「今日」を基準に置く。相対で置いておけば、撮る日を
+      // 動かしてもカードの中身（迫っている／猶予がある）が変わらない。
+      final now = _goldenToday;
+      final expiriesByUser = {
+        'user-a': [now.add(const Duration(days: 40))],
+        'user-c': [now.add(const Duration(days: 12))],
+        'persona-j-user': [now.subtract(const Duration(days: 30))],
+      };
       for (final uid in ['user-a', 'user-c', 'persona-j-user']) {
         await firestore.collection('shop_customers').doc(uid).set({
           'shopId': 'shop_takaya_motor_okayama',
           'shopName': 'タカヤモーター株式会社',
           'userId': uid,
           'linkedAt': DateTime(2026, 8, 27),
+          'inspectionExpiries': expiriesByUser[uid],
+          'vehicleCount': uid == 'user-a' ? 2 : 1,
+          'sharesInspectionExpiry': true,
         });
       }
 
@@ -248,6 +306,7 @@ void main() {
             shopId: 'shop_takaya_motor_okayama',
             shopName: 'タカヤモーター株式会社',
             shopOwnerId: 'shop-owner-takaya',
+            today: _goldenToday,
           ),
         ),
       );
@@ -286,6 +345,39 @@ void main() {
         )),
         'inspection_pipeline',
         size: const Size(390, 420),
+      );
+    });
+
+    testWidgets('店が受け取った満了日だけで数えるとき', (tester) async {
+      // 店は顧客の整備記録を読めない（読めるようにするほうが問題）。
+      // **入庫の有無が分からないので「取りこぼし」とは書かない。**
+      final today = DateTime(2026, 9, 20);
+      await shoot(
+        tester,
+        card(InspectionPipeline.fromSharedExpiries(
+          customers: [
+            CustomerExpirySummary(
+              expiries: [DateTime(2026, 9, 25)],
+              vehicleCount: 2,
+              isSharing: true,
+            ),
+            CustomerExpirySummary(
+              expiries: [DateTime(2026, 9, 1), DateTime(2026, 9, 20)],
+              vehicleCount: 2,
+              isSharing: true,
+            ),
+            CustomerExpirySummary(
+              expiries: const [],
+              vehicleCount: 3,
+              isSharing: false,
+            ),
+          ],
+          from: DateTime(2026, 9, 1),
+          to: DateTime(2026, 9, 30),
+          today: today,
+        )),
+        'inspection_pipeline_shared',
+        size: const Size(390, 480),
       );
     });
 

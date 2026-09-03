@@ -21,12 +21,17 @@ class AddFuelScreen extends StatefulWidget {
   /// 前回の走行距離。入力欄の下に出して、打ち間違いに気づけるようにする。
   final int? lastOdometer;
 
+  /// The day the form opens on. Defaults to today; tests - golden shots in
+  /// particular - pin it so the shot does not change with the calendar.
+  final DateTime? today;
+
   const AddFuelScreen({
     super.key,
     required this.service,
     required this.vehicleId,
     required this.userId,
     this.lastOdometer,
+    this.today,
   });
 
   @override
@@ -39,7 +44,7 @@ class _AddFuelScreenState extends State<AddFuelScreen> {
   final _costController = TextEditingController();
   final _odometerController = TextEditingController();
 
-  DateTime _date = DateTime.now();
+  late DateTime _date = widget.today ?? DateTime.now();
   bool _isFullTank = true;
   bool _busy = false;
 
@@ -56,7 +61,7 @@ class _AddFuelScreenState extends State<AddFuelScreen> {
       context: context,
       initialDate: _date,
       firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
+      lastDate: widget.today ?? DateTime.now(),
     );
     if (picked != null) setState(() => _date = picked);
   }

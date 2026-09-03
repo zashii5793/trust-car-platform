@@ -53,7 +53,7 @@ class InspectionPipelineCard extends StatelessWidget {
             AppSpacing.verticalMd,
             if (!pipeline.canCount)
               _NotCountable(pipeline: pipeline)
-            else ...[
+            else if (pipeline.isCompletionKnown) ...[
               Row(
                 children: [
                   _Figure(
@@ -80,9 +80,67 @@ class InspectionPipelineCard extends StatelessWidget {
                 AppSpacing.verticalMd,
                 _UnknownExpiryNote(count: pipeline.unknownExpiryCount),
               ],
+            ] else ...[
+              Row(
+                children: [
+                  _Figure(
+                    label: '満了を迎える',
+                    value: pipeline.dueCount,
+                    color: AppColors.primary,
+                  ),
+                  _Figure(
+                    label: 'まだ猶予がある',
+                    value: pipeline.dueCount - pipeline.overdueCount,
+                    color: AppColors.textSecondary,
+                  ),
+                  _Figure(
+                    key: const Key('overdue_figure'),
+                    label: '要確認',
+                    value: pipeline.overdueCount,
+                    color: pipeline.overdueCount > 0
+                        ? AppColors.warning
+                        : AppColors.textSecondary,
+                  ),
+                ],
+              ),
+              AppSpacing.verticalMd,
+              const _CompletionUnknownNote(),
+              if (pipeline.unknownExpiryCount > 0) ...[
+                AppSpacing.verticalSm,
+                _UnknownExpiryNote(count: pipeline.unknownExpiryCount),
+              ],
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 入庫が分からないときの断り書き。**「取りこぼし」とは書かない。**
+///
+/// 店は顧客の整備記録を読めない（`firestore.rules`）。読めるようにするほうが
+/// 問題なので、そこは開けていない。だから満了が過ぎた台数までしか出せず、
+/// **入庫したかどうかは店の伝票と突き合わせる**ことになる。
+class _CompletionUnknownNote extends StatelessWidget {
+  const _CompletionUnknownNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      key: const Key('completion_unknown_note'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.08),
+        borderRadius: AppSpacing.borderRadiusMd,
+      ),
+      child: Text(
+        '入庫されたかどうかは、お客様の同意の範囲外なのでアプリでは分かりません。'
+        '「要確認」の台数を、お店の伝票と突き合わせてください。',
+        style: theme.textTheme.bodySmall,
       ),
     );
   }
@@ -175,8 +233,8 @@ class _NotCountable extends StatelessWidget {
           AppSpacing.verticalXxs,
           Text(
             unknown > 0
-                ? '車検満了日が入っていないお客様が $unknown 名います。'
-                    '満了日が入ると、取りこぼしが数えられるようになります。'
+                ? '車検満了日が分からない車が $unknown 台あります。'
+                    '満了日が入ると、満了を迎える台数が数えられるようになります。'
                 : 'この期間に満了を迎えるお客様がいません。',
             style: theme.textTheme.bodySmall,
           ),
@@ -207,7 +265,7 @@ class _UnknownExpiryNote extends StatelessWidget {
         Expanded(
           child: Text(
             // 数字の外に何台いるかを言わないと、上の数字が全体だと誤解される。
-            '車検満了日が未入力のお客様が $count 名います。この数字には入っていません。',
+            '車検満了日が分からない車が $count 台あります。この数字には入っていません。',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
             ),

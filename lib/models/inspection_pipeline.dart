@@ -34,12 +34,28 @@ class InspectionPipeline {
   /// 車検満了日が入っていない台数。**数えられない穴の大きさ。**
   final int unknownExpiryCount;
 
+  /// 満了日を過ぎ、猶予も過ぎた台数。入庫したかどうかは問わない。
+  ///
+  /// 入庫が分かる場合（[isCompletionKnown] が true）は [missedCount] と同じ。
+  /// 分からない場合は「取りこぼしかもしれない、確かめる先」の台数になる。
+  final int overdueCount;
+
+  /// 入庫したかどうかが分かるか。
+  ///
+  /// 店から顧客の整備記録は読めない（`firestore.rules`）。**読めるようにする
+  /// ほうが問題**なので、そこは開けない。店側の集計ではこれが false になり、
+  /// [completedCount] と [missedCount] は 0 のまま置く。
+  /// **分からないものを「取りこぼし0台」と出さないため。**
+  final bool isCompletionKnown;
+
   const InspectionPipeline({
     required this.dueCount,
     required this.completedCount,
     required this.pendingCount,
     required this.missedCount,
     required this.unknownExpiryCount,
+    this.overdueCount = 0,
+    this.isCompletionKnown = true,
   });
 
   /// 満了日を過ぎてから、これだけは待つ。
@@ -130,6 +146,88 @@ class InspectionPipeline {
       pendingCount: pending,
       missedCount: missed,
       unknownExpiryCount: unknown,
+      overdueCount: missed,
     );
   }
+
+  /// 店側の集計。**顧客が同意して渡した車検満了日だけ**から数える。
+  ///
+  /// `docs/BUSINESS_MODEL_RETHINK_2026-08-27.md` §6-2 の案A。
+  ///
+  /// 店は顧客の `vehicles` を読めない（読めるようにするほうが問題）。そこで
+  /// **顧客のアプリが、自分の `shop_customers` 文書に満了日だけを置く。**
+  /// 車種も走行距離も整備履歴も渡らない。
+  ///
+  /// 入庫したかどうかはここでは分からない。だから
+  /// [isCompletionKnown] は false で返し、[missedCount] は 0 のまま置く。
+  /// **「満了を迎える台数」と「猶予が切れた台数」までしか言わない。**
+  /// そこから先は、店の伝票と突き合わせる仕事になる。
+  static InspectionPipeline fromSharedExpiries({
+    required List<CustomerExpirySummary> customers,
+    required DateTime from,
+    required DateTime to,
+    required DateTime today,
+  }) {
+    final start = from.isAfter(to) ? to : from;
+    final end = from.isAfter(to) ? from : to;
+
+    var due = 0;
+    var pending = 0;
+    var overdue = 0;
+    var unknown = 0;
+
+    for (final c in customers) {
+      // 共有していない人は、台数まるごと「分からない」に入れる。
+      // 0台として扱うと、分母が小さく見えてしまう。
+      if (!c.isSharing) {
+        unknown += c.vehicleCount;
+        continue;
+      }
+
+      final missing = c.vehicleCount - c.expiries.length;
+      if (missing > 0) unknown += missing;
+
+      for (final expiry in c.expiries) {
+        if (expiry.isBefore(start) || expiry.isAfter(end)) continue;
+        due++;
+
+        if (today.difference(expiry).inDays > graceDays) {
+          overdue++;
+        } else {
+          pending++;
+        }
+      }
+    }
+
+    return InspectionPipeline(
+      dueCount: due,
+      completedCount: 0,
+      pendingCount: pending + overdue,
+      missedCount: 0,
+      unknownExpiryCount: unknown,
+      overdueCount: overdue,
+      isCompletionKnown: false,
+    );
+  }
+}
+
+/// 顧客ひとりが店に渡している、車検の満了日だけの写し。
+///
+/// **ここに車両IDも車種も入れない。** 入れた瞬間、店が顧客の車を特定できる
+/// ようになり、案Aの前提（車の中身は見せない）が崩れる。
+class CustomerExpirySummary {
+  /// 顧客が共有している車検満了日。台数分ある。
+  final List<DateTime> expiries;
+
+  /// その顧客の保有台数。[expiries] との差が「満了日が未入力の台数」。
+  final int vehicleCount;
+
+  /// 共有に同意しているか。**切っている人を0台と数えない。**
+  final bool isSharing;
+
+  const CustomerExpirySummary({
+    required this.expiries,
+    required this.vehicleCount,
+    required this.isSharing,
+  });
 }

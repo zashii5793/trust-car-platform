@@ -344,4 +344,139 @@ void main() {
       );
     });
   });
+
+  /// 店側の集計（案A）。
+  ///
+  /// `docs/BUSINESS_MODEL_RETHINK_2026-08-27.md` §6-2。
+  ///
+  /// 店は顧客の `vehicles` を読めない。**読めるようにするほうが問題**なので、
+  /// 顧客が自分で「車検の満了日だけ」を置き、店はそれを読む。
+  /// 入庫したかどうかは渡らないので、**「取りこぼし」と言い切ってはいけない。**
+  group('fromSharedExpiries（店側・満了日だけを受け取る）', () {
+    CustomerExpirySummary customer({
+      List<DateTime> expiries = const [],
+      int? vehicleCount,
+      bool isSharing = true,
+    }) {
+      return CustomerExpirySummary(
+        expiries: expiries,
+        vehicleCount: vehicleCount ?? expiries.length,
+        isSharing: isSharing,
+      );
+    }
+
+    InspectionPipeline pipelineOf(List<CustomerExpirySummary> customers) {
+      return InspectionPipeline.fromSharedExpiries(
+        customers: customers,
+        from: DateTime(2026, 8, 1),
+        to: DateTime(2026, 10, 31),
+        today: today,
+      );
+    }
+
+    test('期間内の満了日を数える', () {
+      final pipeline = pipelineOf([
+        customer(expiries: [DateTime(2026, 9, 10)]),
+        customer(expiries: [DateTime(2026, 10, 2)]),
+      ]);
+
+      expect(pipeline.dueCount, 2);
+    });
+
+    test('期間外の満了日は数えない', () {
+      final pipeline = pipelineOf([
+        customer(expiries: [DateTime(2026, 7, 31), DateTime(2026, 11, 1)]),
+      ]);
+
+      expect(pipeline.dueCount, 0);
+    });
+
+    test('入庫が分からないので、取りこぼしは名乗らない', () {
+      // ここが 0 でないと、「入庫済みかもしれない車」を逃したことにしてしまう。
+      final pipeline = pipelineOf([
+        customer(expiries: [DateTime(2026, 8, 1)]),
+      ]);
+
+      expect(pipeline.isCompletionKnown, isFalse);
+      expect(pipeline.missedCount, 0);
+      expect(pipeline.completedCount, 0);
+    });
+
+    test('猶予を過ぎたものは「要確認」に入る', () {
+      // 8/28 時点。8/1 満了は猶予14日を過ぎている。
+      final pipeline = pipelineOf([
+        customer(expiries: [DateTime(2026, 8, 1)]),
+      ]);
+
+      expect(pipeline.overdueCount, 1);
+    });
+
+    test('猶予の中はまだ要確認にしない', () {
+      // 8/20 満了は、8/28 時点で猶予14日の中。
+      final pipeline = pipelineOf([
+        customer(expiries: [DateTime(2026, 8, 20)]),
+      ]);
+
+      expect(pipeline.overdueCount, 0);
+      expect(pipeline.dueCount, 1);
+    });
+
+    test('満了日が未入力の台数は「分からない」に積む', () {
+      final pipeline = pipelineOf([
+        customer(expiries: [DateTime(2026, 9, 10)], vehicleCount: 3),
+      ]);
+
+      expect(pipeline.unknownExpiryCount, 2);
+    });
+
+    test('共有を切っている人は、台数まるごと分からない扱い', () {
+      // 0台として数えると、分母が小さく見えて取りこぼしを見落とす。
+      final pipeline = pipelineOf([
+        customer(expiries: const [], vehicleCount: 2, isSharing: false),
+      ]);
+
+      expect(pipeline.unknownExpiryCount, 2);
+      expect(pipeline.dueCount, 0);
+    });
+
+    test('共有を切っている人の満了日は、残っていても数えない', () {
+      final pipeline = pipelineOf([
+        customer(
+          expiries: [DateTime(2026, 9, 10)],
+          vehicleCount: 1,
+          isSharing: false,
+        ),
+      ]);
+
+      expect(pipeline.dueCount, 0);
+    });
+
+    test('誰もいなければ「数えられない」', () {
+      // 顧客0名で「取りこぼし0台」と出すと、うまく行っていると誤解される。
+      expect(pipelineOf(const []).canCount, isFalse);
+    });
+
+    test('満了予定 = 猶予内 + 要確認', () {
+      final pipeline = pipelineOf([
+        customer(expiries: [DateTime(2026, 8, 1), DateTime(2026, 9, 20)]),
+        customer(expiries: [DateTime(2026, 10, 5)]),
+      ]);
+
+      expect(pipeline.pendingCount, pipeline.dueCount);
+      expect(pipeline.overdueCount, 1);
+    });
+
+    test('from と to が逆でも落ちない', () {
+      final pipeline = InspectionPipeline.fromSharedExpiries(
+        customers: [
+          customer(expiries: [DateTime(2026, 9, 15)])
+        ],
+        from: DateTime(2026, 10, 31),
+        to: DateTime(2026, 8, 1),
+        today: today,
+      );
+
+      expect(pipeline.dueCount, 1);
+    });
+  });
 }

@@ -94,7 +94,30 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       Provider.of<NotificationProvider>(context, listen: false)
           .generateNotificationsForVehicles(vehicleProvider.vehicles);
+      _shareInspectionExpiries(vehicleProvider.vehicles);
     });
+  }
+
+  /// かかりつけの店に、車検の満了日だけを渡す。
+  ///
+  /// `docs/BUSINESS_MODEL_RETHINK_2026-08-27.md` §6-2 の案A。
+  /// **車検を受けて満了日が延びたら、店の画面もそれに追いつく必要がある。**
+  /// 顧客が設定画面を開きに来るのを待っていると、古い日付が残り続ける。
+  ///
+  /// かかりつけが無い人・共有を切っている人には何も書かない（サービス側で判定）。
+  void _shareInspectionExpiries(List<Vehicle> vehicles) {
+    final userId =
+        Provider.of<AuthProvider>(context, listen: false).firebaseUser?.uid;
+    if (userId == null || userId.isEmpty) return;
+
+    final active = vehicles.where((v) => !v.status.isRetired).toList();
+
+    // 失敗しても画面には出さない。本人の操作ではなく、裏の同期のため。
+    sl.get<ShopInviteService>().shareInspectionExpiries(
+          userId: userId,
+          expiryDates: active.map((v) => v.inspectionExpiryDate).toList(),
+          vehicleCount: active.length,
+        );
   }
 
   @override
@@ -790,6 +813,7 @@ class _ProfileTab extends StatelessWidget {
                     builder: (_) => ShopInviteScreen(
                       service: sl.get<ShopInviteService>(),
                       userId: user?.uid ?? '',
+                      vehicles: context.read<VehicleProvider>().vehicles,
                     ),
                   ),
                 ),
@@ -1178,8 +1202,8 @@ class _VehicleCard extends StatelessWidget {
                                     Expanded(
                                       child: Text(
                                         '${vehicle.maker} ${vehicle.model}',
-                                        style: theme.textTheme.bodyLarge
-                                            ?.copyWith(
+                                        style:
+                                            theme.textTheme.bodyLarge?.copyWith(
                                           fontWeight: FontWeight.w700,
                                           color: isDark
                                               ? AppColors.darkTextPrimary

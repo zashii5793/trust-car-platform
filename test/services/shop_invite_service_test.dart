@@ -265,4 +265,305 @@ void main() {
       expect(link.valueOrNull?.shopId, 'shop-1');
     });
   });
+
+  /// 車検満了日の共有（案A）。
+  ///
+  /// `docs/BUSINESS_MODEL_RETHINK_2026-08-27.md` §6-2。
+  /// **店に渡るのはここに書いたものが全部。** 増やすと、店が顧客の車を
+  /// どこまで見られるかが静かに変わる。
+  group('shareInspectionExpiries', () {
+    Future<void> link(String userId) async {
+      final code = await createInvite();
+      await service.redeem(code: code, userId: userId);
+    }
+
+    test('かかりつけがある人の満了日が店に渡る', () async {
+      await link('user-1');
+
+      await service.shareInspectionExpiries(
+        userId: 'user-1',
+        expiryDates: [DateTime(2026, 11, 20)],
+        vehicleCount: 1,
+      );
+
+      final saved = (await service.linkedShopFor('user-1')).valueOrNull!;
+      expect(saved.inspectionExpiries.single, DateTime(2026, 11, 20));
+      expect(saved.vehicleCount, 1);
+      expect(saved.expiryUpdatedAt, isNotNull);
+    });
+
+    test('満了日が未入力の車は、台数にだけ数える', () async {
+      // 差分が「満了日が分からない台数」になる。ここを詰めると、
+      // 店の画面が「全部把握できている」ように見えてしまう。
+      await link('user-1');
+
+      await service.shareInspectionExpiries(
+        userId: 'user-1',
+        expiryDates: [DateTime(2026, 11, 20), null],
+        vehicleCount: 2,
+      );
+
+      final saved = (await service.linkedShopFor('user-1')).valueOrNull!;
+      expect(saved.inspectionExpiries.length, 1);
+      expect(saved.vehicleCount, 2);
+    });
+
+    test('共有を切っている人には書かない', () async {
+      await link('user-1');
+      await service.setExpirySharing(userId: 'user-1', enabled: false);
+
+      await service.shareInspectionExpiries(
+        userId: 'user-1',
+        expiryDates: [DateTime(2026, 11, 20)],
+        vehicleCount: 1,
+      );
+
+      final saved = (await service.linkedShopFor('user-1')).valueOrNull!;
+      expect(saved.inspectionExpiries, isEmpty);
+    });
+
+    group('Edge Cases', () {
+      test('かかりつけが無ければ、文書を作らない', () async {
+        // ここで作ると、店に紐づいていない人の満了日が置き場所を持ってしまう。
+        final result = await service.shareInspectionExpiries(
+          userId: 'user-no-shop',
+          expiryDates: [DateTime(2026, 11, 20)],
+          vehicleCount: 1,
+        );
+
+        expect(result.isSuccess, isTrue);
+        final doc = await firestore
+            .collection('shop_customers')
+            .doc('user-no-shop')
+            .get();
+        expect(doc.exists, isFalse);
+      });
+
+      test('userId が空でも落ちない', () async {
+        final result = await service.shareInspectionExpiries(
+          userId: '',
+          expiryDates: const [],
+          vehicleCount: 0,
+        );
+
+        expect(result.isSuccess, isTrue);
+      });
+
+      test('車が0台なら、空で渡す', () async {
+        await link('user-1');
+
+        await service.shareInspectionExpiries(
+          userId: 'user-1',
+          expiryDates: const [],
+          vehicleCount: 0,
+        );
+
+        final saved = (await service.linkedShopFor('user-1')).valueOrNull!;
+        expect(saved.inspectionExpiries, isEmpty);
+        expect(saved.vehicleCount, 0);
+      });
+
+      test('上限を超える満了日は切り捨てる', () async {
+        await link('user-1');
+
+        await service.shareInspectionExpiries(
+          userId: 'user-1',
+          expiryDates: List.generate(30, (i) => DateTime(2026, 11, 1 + i)),
+          vehicleCount: 30,
+        );
+
+        final saved = (await service.linkedShopFor('user-1')).valueOrNull!;
+        expect(
+          saved.inspectionExpiries.length,
+          ShopInviteService.maxSharedExpiries,
+        );
+      });
+
+      test('負の台数は0として扱う', () async {
+        await link('user-1');
+
+        await service.shareInspectionExpiries(
+          userId: 'user-1',
+          expiryDates: const [],
+          vehicleCount: -3,
+        );
+
+        final saved = (await service.linkedShopFor('user-1')).valueOrNull!;
+        expect(saved.vehicleCount, 0);
+      });
+
+      test('中身が変わらなければ、更新時刻を動かさない', () async {
+        // 画面を開くたびに時刻だけ新しくなると、
+        // 「いつの満了日か」が読めなくなる。
+        await link('user-1');
+        await service.shareInspectionExpiries(
+          userId: 'user-1',
+          expiryDates: [DateTime(2026, 11, 20)],
+          vehicleCount: 1,
+        );
+        final first = (await service.linkedShopFor('user-1'))
+            .valueOrNull!
+            .expiryUpdatedAt;
+
+        await service.shareInspectionExpiries(
+          userId: 'user-1',
+          expiryDates: [DateTime(2026, 11, 20)],
+          vehicleCount: 1,
+        );
+        final second = (await service.linkedShopFor('user-1'))
+            .valueOrNull!
+            .expiryUpdatedAt;
+
+        expect(second, first);
+      });
+    });
+  });
+
+  group('setExpirySharing', () {
+    test('切ると、渡していた満了日も消える', () async {
+      // 「今後は渡さない」だけで過去の分が店に残るのでは、切った意味がない。
+      final code = await createInvite();
+      await service.redeem(code: code, userId: 'user-1');
+      await service.shareInspectionExpiries(
+        userId: 'user-1',
+        expiryDates: [DateTime(2026, 11, 20)],
+        vehicleCount: 1,
+      );
+
+      final updated =
+          (await service.setExpirySharing(userId: 'user-1', enabled: false))
+              .valueOrNull!;
+
+      expect(updated.sharesInspectionExpiry, isFalse);
+      expect(updated.inspectionExpiries, isEmpty);
+      expect(updated.vehicleCount, 0);
+    });
+
+    test('店を替えても、切ったままにする', () async {
+      // 上書きで既定の true に戻ると、切ったはずの共有が黙って復活する。
+      final code = await createInvite();
+      await service.redeem(code: code, userId: 'user-1');
+      await service.setExpirySharing(userId: 'user-1', enabled: false);
+
+      final otherCode =
+          await createInvite(shopId: 'shop-2', ownerId: 'owner-2');
+      await service.redeem(code: otherCode, userId: 'user-1');
+
+      final link = (await service.linkedShopFor('user-1')).valueOrNull!;
+      expect(link.shopId, 'shop-2');
+      expect(link.sharesInspectionExpiry, isFalse);
+    });
+
+    group('Edge Cases', () {
+      test('かかりつけが無ければ何もしない', () async {
+        final result =
+            await service.setExpirySharing(userId: 'user-x', enabled: true);
+
+        expect(result.valueOrNull, isNull);
+        final doc =
+            await firestore.collection('shop_customers').doc('user-x').get();
+        expect(doc.exists, isFalse);
+      });
+
+      test('userId が空でも落ちない', () async {
+        final result =
+            await service.setExpirySharing(userId: '', enabled: true);
+
+        expect(result.isSuccess, isTrue);
+      });
+    });
+  });
+
+  group('now の注入', () {
+    // 画面には「◯月◯日に更新」や車検の集計期間が出る。時計を外から
+    // 渡せないと、**日付が変わっただけでゴールデン画像が落ちる**
+    // （2026-09-01 に撮った3枚が 09-03 に落ちた）。
+    final pinned = DateTime(2026, 9, 1, 10, 30);
+
+    late ShopInviteService pinnedService;
+
+    setUp(() {
+      pinnedService = ShopInviteService(
+        firestore: firestore,
+        now: () => pinned,
+      );
+    });
+
+    test('引き換えた時刻が、渡した時計になる', () async {
+      final created = await pinnedService.createInvite(
+        shopId: 'shop-1',
+        shopName: 'タカヤモーター',
+        shopOwnerId: 'owner-1',
+      );
+
+      await pinnedService.redeem(
+        code: created.valueOrNull!.code,
+        userId: 'user-1',
+      );
+
+      final link = (await pinnedService.linkedShopFor('user-1')).valueOrNull!;
+      expect(link.linkedAt, pinned);
+    });
+
+    test('満了日を渡した時刻が、渡した時計になる', () async {
+      final created = await pinnedService.createInvite(
+        shopId: 'shop-1',
+        shopName: 'タカヤモーター',
+        shopOwnerId: 'owner-1',
+      );
+      await pinnedService.redeem(
+        code: created.valueOrNull!.code,
+        userId: 'user-1',
+      );
+
+      await pinnedService.shareInspectionExpiries(
+        userId: 'user-1',
+        expiryDates: [DateTime(2026, 11, 20)],
+        vehicleCount: 2,
+      );
+
+      final link = (await pinnedService.linkedShopFor('user-1')).valueOrNull!;
+      expect(link.expiryUpdatedAt, pinned);
+    });
+
+    test('共有を切ったときも、渡した時計で記録する', () async {
+      final created = await pinnedService.createInvite(
+        shopId: 'shop-1',
+        shopName: 'タカヤモーター',
+        shopOwnerId: 'owner-1',
+      );
+      await pinnedService.redeem(
+        code: created.valueOrNull!.code,
+        userId: 'user-1',
+      );
+
+      final result = await pinnedService.setExpirySharing(
+        userId: 'user-1',
+        enabled: false,
+      );
+
+      expect(result.valueOrNull!.expiryUpdatedAt, pinned);
+    });
+
+    group('Edge Cases', () {
+      test('渡さなければ実時刻で動く', () async {
+        final before = DateTime.now();
+        final created = await service.createInvite(
+          shopId: 'shop-1',
+          shopName: 'タカヤモーター',
+          shopOwnerId: 'owner-1',
+        );
+        await service.redeem(
+          code: created.valueOrNull!.code,
+          userId: 'user-2',
+        );
+
+        final link = (await service.linkedShopFor('user-2')).valueOrNull!;
+        expect(
+          link.linkedAt.isBefore(before.subtract(const Duration(seconds: 5))),
+          isFalse,
+        );
+      });
+    });
+  });
 }

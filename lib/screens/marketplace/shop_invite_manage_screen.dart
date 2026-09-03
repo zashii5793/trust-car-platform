@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../models/inspection_pipeline.dart';
 import '../../models/shop_invite.dart';
 import '../../services/shop_invite_service.dart';
+import '../../widgets/shop/inspection_pipeline_card.dart';
 
 /// Where the shop gets the code it hands to customers.
 ///
@@ -21,12 +23,17 @@ class ShopInviteManageScreen extends StatefulWidget {
   final String shopName;
   final String shopOwnerId;
 
+  /// The day the screen reads as "today". Defaults to the wall clock; tests -
+  /// golden shots in particular - pin it so the counted period stays put.
+  final DateTime? today;
+
   const ShopInviteManageScreen({
     super.key,
     required this.service,
     required this.shopId,
     required this.shopName,
     required this.shopOwnerId,
+    this.today,
   });
 
   @override
@@ -78,6 +85,32 @@ class _ShopInviteManageScreenState extends State<ShopInviteManageScreen> {
         _error = error.message;
         _issuing = false;
       }),
+    );
+  }
+
+  /// これから3か月に満了を迎える台数を数える。
+  ///
+  /// 当月だけだと、案内を出すには遅い。車検の案内は1〜2か月前に出すので、
+  /// **先の分まで見えていないと打ち手にならない。**
+  DateTimeRange get _period {
+    final now = widget.today ?? DateTime.now();
+    final from = DateTime(now.year, now.month, 1);
+    final to = DateTime(now.year, now.month + 3, 0);
+    return DateTimeRange(start: from, end: to);
+  }
+
+  String _periodLabel() {
+    final p = _period;
+    return '${p.start.month}月〜${p.end.month}月';
+  }
+
+  InspectionPipeline _pipeline() {
+    final p = _period;
+    return InspectionPipeline.fromSharedExpiries(
+      customers: _customers.map((c) => c.toExpirySummary()).toList(),
+      from: p.start,
+      to: p.end,
+      today: widget.today ?? DateTime.now(),
     );
   }
 
@@ -143,6 +176,13 @@ class _ShopInviteManageScreenState extends State<ShopInviteManageScreen> {
             AppSpacing.verticalXl,
             const Divider(),
             AppSpacing.verticalMd,
+            if (!_loading) ...[
+              InspectionPipelineCard(
+                pipeline: _pipeline(),
+                periodLabel: _periodLabel(),
+              ),
+              AppSpacing.verticalLg,
+            ],
             Text('コードを使ったお客様', style: theme.textTheme.titleSmall),
             AppSpacing.verticalXs,
             if (_loading)
