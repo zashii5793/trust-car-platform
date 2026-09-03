@@ -305,14 +305,24 @@ plist は **Flutter のテンプレート既定のまま**で、取り直され�
 
 ---
 
-### 10. Firestore バックアップ設定 `[要確認]`
+### 10. Firestore バックアップ設定 `[完了: 2026-09-03]`
 
-1. Firebase Console → Firestore → バックアップとエクスポート
-2. 自動バックアップを「毎日」に設定
-3. Cloud Storage バケットを指定（例: `gs://trust-car-backup-2026`）
-4. 保持期間: 30日
+**Console を開かずに CLI から設定できます。** 2026-09-03 に設定済み。
 
-**所要時間**: 15分
+```bash
+firebase firestore:backups:schedules:create --recurrence DAILY --retention 30d
+firebase firestore:backups:schedules:list   # 確認
+```
+
+```
+ Name         projects/trust-car-platform/databases/(default)/backupSchedules/d7be24ef-...
+ Recurrence   DAILY
+ Retention    2592000s（30日）
+```
+
+Firestore のスケジュールバックアップは Google 側が保持するため、Cloud Storage
+バケットの指定は要りません（手動エクスポートとは別の仕組み）。
+
 **費用**: 目安 月〜$5
 
 ---
@@ -431,10 +441,18 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 **実装済み**: `FirebaseRemoteFlagSource` ＋ `FeatureFlagService` を `injection.dart` に配線済み。
 起動時に `sync()` で取得し `AppConfig` に反映。未設定・取得失敗時はローカル既定値（凍結）を維持。
 
-**残作業**:
-1. Firebase Console → Remote Config でパラメータ作成:
-   - キー名: `c2c_parts_marketplace` / 型: Boolean / デフォルト: `false`（凍結のまま）
-2. 動作確認: `true` に変更 → アプリ再起動でマーケットの「パーツ」「マイ出品」タブが復活
+**パラメータは 2026-09-03 に作成済み**（`false` = 凍結のまま）。**Console 手作業
+ではなく、リポジトリの `remoteconfig.template.json` で管理する形にしました。**
+
+```bash
+firebase deploy --only remoteconfig   # テンプレートを反映
+firebase remoteconfig:get             # 現在の内容を確認
+```
+
+**残るのは再開の判断だけ**です。再開するときは `remoteconfig.template.json` の
+`defaultValue.value` を `"true"` にして deploy し、アプリ再起動でマーケットの
+「パーツ」「マイ出品」タブが戻ることを確認します（Console から直接変えると、
+リポジトリの内容と食い違うので避けてください）。
 
 **注意**: 将来 `firebase_core` を上げる際は、`cloud_firestore` の iOS ネイティブと Firebase iOS SDK の
 整合（CocoaPods）を必ず CI ビルドで確認すること（現在 `firebase_core` は 4.9.0 に固定）。
@@ -483,14 +501,14 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 - [ ] P1-7: RevenueCat の Public SDK キー設定と商品作成
 - [x] **P1-8: GoogleService-Info.plist が別アプリのもの** — Firebase の再登録（人間・2026-08-27）とコード側の差し替え（AI・2026-09-01）は完了。**残るは起動確認**（`docs/IOS_FIREBASE_FIX.md` §4）
 - [ ] P1-9: **実機テスト（特にOCRの実画像精度は完全に未検証）**
-- [ ] P1-10: Firestore バックアップ設定
+- [x] **P1-10: Firestore バックアップ設定** — 2026-09-03 設定済み（DAILY・30日保持）
 - [ ] P1-11: 本番データ投入（工場・安全情報・トレンド）＋ `demo_*` 店舗の扱いを決定
 
 **P2（判断が必要）**
 - [ ] P2-12: 走行記録のバックグラウンド動作方針（A/B/C から選択）
 - [ ] P2-13: App Check の導入時期
 - [ ] P2-14: **規約ドラフトの確定** — 事業者情報・手数料・保持期間など `【要記入】` が16箇所。埋めないとアプリ内にそのまま出ます
-- [ ] P2-15: Remote Config `c2c_parts_marketplace` の作成
+- [x] **P2-15: Remote Config `c2c_parts_marketplace` の作成** — 2026-09-03 作成済み（`false`）。残るは再開の判断
 
 **P3（申請）**
 - [ ] P3-16: App Store 審査申請
