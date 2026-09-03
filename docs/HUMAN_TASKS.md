@@ -116,12 +116,10 @@ Web は `MAPS_API_KEY` を渡していないため**現状ロード数0**です�
 4. 渡し方: `android/local.properties` に `MAPS_API_KEY=...` / CI は GitHub Secrets
 5. 予算アラート（月$1で十分）
 
-**先に直すべきコード側の穴が2つあります**（AI 側で対応可能）:
-
-- **iOS はキーが注入されません。** `AppDelegate.swift` は `Info.plist` の
-  `MapsApiKey` を読みますが、**そのキーが Info.plist にありません**
-- **ドライブログ詳細に `MapsConfig` のガードがありません。** キーが無くても
-  地図を作ろうとして、灰色のタイルが出ます
+**コード側の穴は 2026-09-03 に塞ぎました。** iOS は
+`ios/Flutter/Maps.xcconfig`（`.gitignore` 対象。`Maps.xcconfig.example` を
+コピーして使う）からキーが渡るようになり、ドライブログ詳細にもガードが
+入っています。**キーを発行したら、あとは置くだけです。**
 
 ---
 

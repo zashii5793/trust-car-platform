@@ -4,9 +4,11 @@
 // 優先度・高とされた画面テスト。
 //
 // GoogleMap（google_maps_flutter）はテスト環境にプラットフォームチャネルが
-// 無く描画できないため、**地図の描画自体はテストしない**。経路データは常に
-// 「2点未満」または「ぼかし後に空になる短経路」で構成し、_RoutePreview が
-// GoogleMap を組み立てるパス（2点以上）には入らないようにしている。
+// 無く描画できないため、**地図の描画自体はテストしない**。
+//
+// 2026-09-03 に _RoutePreview へ MapsConfig のガードを足したので、テスト環境
+// （キー未設定＝ isConfigured が false）では 2点以上でも GoogleMap を組まなく
+// なった。おかげで「経路はあるが地図は出せない」経路も検証できる。
 //
 // Coverage:
 //   - 日記（タイトル・本文）フィールドの表示とプリフィル
@@ -15,6 +17,7 @@
 //   - 非公開時のみ「公開したときの見え方を確認する」チェックが出ること
 //   - waypoints 取得失敗でも画面全体がエラーにならないこと
 //   - 経路が2点未満のとき「経路が記録されていません」表示
+//   - 地図の設定が無いとき、経路があっても案内文にする
 //   - Edge Cases（null プリフィル・空白タイトル・未ログイン・住所なし）
 
 import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
@@ -495,6 +498,28 @@ void main() {
 
       expect(service.lastTitle, '経路なしでも保存できる');
       expect(find.text('保存しました'), findsOneWidget);
+    });
+
+    testWidgets('地図の設定が無いときは、経路があっても案内文にして GoogleMap を出さない',
+        (tester) async {
+      // MapsConfig.isConfigured はコンパイル時定数で、テストでは常に false。
+      // 2026-09-03 まで、この画面だけガードが無く、キーが無くても GoogleMap を
+      // 組もうとしていた（実機では灰色のタイルが出るだけで理由が分からない）。
+      final log = _makeLog();
+      service.sourceLog = log;
+      service.waypointsResult = Result.success([
+        _waypoint(35.65, 139.70),
+        _waypoint(35.66, 139.71, secs: 60),
+        _waypoint(35.67, 139.72, secs: 120),
+      ]);
+
+      await _pumpScreen(tester, log);
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('地図を表示できません（地図の設定が未完了です）'), findsOneWidget);
+      expect(find.byType(GoogleMap), findsNothing);
+      // 経路そのものは読めているので、点数は出る
+      expect(find.text('3点の記録'), findsOneWidget);
     });
 
     testWidgets('公開ログでは自宅圏内だけの短経路が全点消え、1点も表示されない', (tester) async {
