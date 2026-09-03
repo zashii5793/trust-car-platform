@@ -2,27 +2,33 @@
 //
 // Problem: the client writes an `account_deletions/{uid}` marker when a user
 // deletes their account, and the privacy policy promises the user's data is
-// removed 30 days later — but nothing ever executed that promise. The marker
-// sat in Firestore forever and no document was ever deleted.
+// removed — but nothing ever executed that promise. The marker sat in
+// Firestore forever and no document was ever deleted.
 //
 // This module implements the purge. The scheduled-trigger wrapper lives in
 // index.ts; the logic here is pure / dependency-injected so it can be
 // unit-tested without emulators (same pattern as moderateComments.ts).
 //
 // Design notes:
-// - The 30-day window exists so an accidental deletion can be undone by
-//   support while the Auth account is already gone. Markers younger than
-//   30 days are left untouched.
+// - There is no grace period (2026-09-03). The policy says the data is
+//   deleted on withdrawal, so a marker is due the moment it is written and
+//   the next nightly run removes it. That gives up support-side recovery of
+//   an accidental deletion: once the Auth account is gone, nothing can be
+//   restored. Reinstating a window means changing PURGE_AFTER_DAYS *and*
+//   the retention section of the privacy policy together — they are two
+//   statements of one promise.
 // - Content that other users' data points at (comments on someone else's
-//   post, likes) is deleted rather than anonymised: the committed privacy
-//   policy says 「投稿・コメント：退会後30日間保持後、削除」, so deletion is
-//   what was promised.
+//   post, likes) is deleted rather than anonymised: the privacy policy
+//   promises deletion, so deletion is what happens.
 // - Every step is idempotent: a crash mid-purge leaves the marker 'pending'
 //   and the next run repeats the remaining deletes harmlessly.
 
 /// Days a deletion request waits before the purge executes.
-/// Must match the number stated in the privacy policy (退会後30日間保持).
-export const PURGE_AFTER_DAYS = 30;
+///
+/// **Must match the privacy policy's retention section.** 0 = no grace
+/// period: the nightly job removes the data on its first run after the
+/// request, so a user who withdraws is gone by the next morning.
+export const PURGE_AFTER_DAYS = 0;
 
 /// Collections owned by a user via a `userId` field.
 /// `drive_waypoints` is keyed by driveLogId, not userId, and is handled
