@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'vehicle_equipment.dart';
+import '../data/vehicle_master_data.dart';
+import 'vehicle_master.dart';
 
 export 'vehicle_equipment.dart';
 
@@ -78,6 +80,33 @@ enum VehicleUseCategory {
     this.firstInspectionYears,
     this.inspectionCycleYears,
   );
+
+  /// 選んだ車種から用途区分を当てる。**あくまで初期値で、画面で変えられる。**
+  ///
+  /// 利用者に「1ナンバーか4ナンバーか」を聞くのは酷なので、車種から寄せる。
+  /// ここを外すと車検満了日の計算がずれ、リマインドが1年単位で狂う。
+  ///
+  /// 軽貨物（軽トラ・軽バン）は普通貨物と周期が違う（以降2年 vs 以降1年）。
+  /// bodyType が truck / van というだけでは区別できないため、車種IDで見る。
+  static VehicleUseCategory suggestFor({
+    required String? modelId,
+    required BodyType? bodyType,
+  }) {
+    final id = (modelId ?? '').trim();
+    if (id.isNotEmpty && VehicleMasterData.keiCargoModelIds.contains(id)) {
+      return VehicleUseCategory.keiCargo;
+    }
+
+    switch (bodyType) {
+      case BodyType.truck:
+      case BodyType.van:
+        return VehicleUseCategory.cargo;
+      default:
+        // 分からないときは自家用乗用に倒す。台数が圧倒的に多く、
+        // 外したときの影響も小さい（車検が早まる側に間違えない）。
+        return VehicleUseCategory.privatePassenger;
+    }
+  }
 
   static VehicleUseCategory? fromString(String? value) {
     if (value == null) return null;

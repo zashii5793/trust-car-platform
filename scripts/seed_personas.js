@@ -175,6 +175,19 @@ const personaUsers = [
     accountType: 'personal',
     planType: 'free',
   },
+  // 2026-08-25 追加。
+  //
+  // それまで貨物車はペルソナAのハイエース1台だけで、**軽貨物も事業用も
+  // トラックも1台も無かった**。貨物は毎年車検、軽貨物は2年車検、事業用も
+  // 毎年車検と周期が違うのに、その導線が一度もテストされていなかった。
+  {
+    uid: 'persona-j-user',
+    email: 'persona.j@example.com',
+    displayName: '配送 七郎（J: 軽トラ・小型トラック）',
+    accountType: 'business',
+    companyName: '七郎運送',
+    planType: 'free',
+  },
 ];
 
 /** users/{uid} ドキュメント data を組み立てる */
@@ -196,6 +209,58 @@ function userDoc(u) {
 // 2) vehicles（トップレベル・userId/companyId で紐付け）
 // ---------------------------------------------------------------------------
 const vehicleSeeds = [];
+
+// ---- Persona J: 配送業（軽トラ・小型トラック・事業用） ---------------------
+//
+// 車検の周期が用途区分で変わることを、実際に確かめられる並びにしてある。
+//   軽貨物   初回2年 → 以降2年
+//   貨物     初回2年 → 以降1年   ← 毎年車検
+//   事業用   初回1年 → 以降1年   ← 毎年車検
+vehicleSeeds.push(
+  {
+    id: 'veh-j-keitruck',
+    data: {
+      userId: 'persona-j-user',
+      maker: 'ダイハツ', model: 'ハイゼットトラック', grade: 'スタンダード', year: 2021,
+      mileage: 62000,
+      licensePlate: '足立 480 あ 71-71',
+      inspectionExpiryDate: tsFromNow(310),
+      useCategory: 'keiCargo',
+      fuelType: 'gasoline',
+      status: 'active', isDataRetained: true,
+      createdAt: now, updatedAt: now,
+    },
+  },
+  {
+    id: 'veh-j-elf',
+    data: {
+      userId: 'persona-j-user',
+      maker: 'いすゞ', model: 'エルフ', grade: '標準キャブ', year: 2019,
+      mileage: 185000,
+      licensePlate: '足立 100 か 72-72',
+      // 毎年車検。期限が近い状態にして、催促の導線を確かめられるようにする。
+      inspectionExpiryDate: tsFromNow(25),
+      useCategory: 'cargo',
+      fuelType: 'diesel',
+      status: 'active', isDataRetained: true,
+      createdAt: now, updatedAt: now,
+    },
+  },
+  {
+    id: 'veh-j-dutro',
+    data: {
+      userId: 'persona-j-user',
+      maker: '日野', model: 'デュトロ', grade: 'ワイドキャブ', year: 2023,
+      mileage: 48000,
+      licensePlate: '足立 100 あ 73-73',
+      inspectionExpiryDate: tsFromNow(120),
+      useCategory: 'commercial',
+      fuelType: 'diesel',
+      status: 'active', isDataRetained: true,
+      createdAt: now, updatedAt: now,
+    },
+  },
+);
 
 // ---- Persona A: 個人4台混在（品川） -------------------------------------
 vehicleSeeds.push(
@@ -773,7 +838,7 @@ async function main() {
     );
     console.log('--- [DRY RUN] 完了（Firestore/Auth への書き込みは行っていません）---');
     console.log(
-      `\nログイン用: 各ペルソナのメール（persona.a@example.com 〜 persona.i@example.com）+ パスワード「${DEMO_PASSWORD}」`,
+      `\nログイン用: 各ペルソナのメール（persona.a@example.com 〜 persona.j@example.com）+ パスワード「${DEMO_PASSWORD}」`,
     );
     return;
   }
@@ -792,7 +857,7 @@ async function main() {
   console.log(`[SUCCESS] Firestore に ${all.length} 件のドキュメントを登録しました。`);
   console.log('');
   console.log('ログイン（Auth エミュレータ）:');
-  console.log(`  メール : persona.a@example.com 〜 persona.i@example.com`);
+  console.log(`  メール : persona.a@example.com 〜 persona.j@example.com`);
   console.log(`  パスワード : ${DEMO_PASSWORD}`);
   console.log('  例) 法人フリート20台を見る → persona.b@example.com（田中 花子）');
 }

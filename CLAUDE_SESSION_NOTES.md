@@ -1,6 +1,273 @@
 # Claude Session Notes
 
-最終更新: 2026-08-20
+最終更新: 2026-09-03
+
+---
+
+## 規約の【要記入】を埋め、退会後の削除を実装と揃えた（2026-09-03・その2）
+
+**ブランチ**: `claude/legal-drafts`
+
+### 1. 16箇所あった `【要記入】` を4項目まで減らした
+
+判断で決まるもの（社長に確認）とコードから確定できるものを埋めた。
+
+```
+ 埋めた   販売事業者（ZAXEL合同会社）・動作環境（iOS 16.0+ / Android 7.0+ / 主要ブラウザ）
+          fleet の役割分担・C2C の手数料条件・データ保持期間・運営者欄
+ 残り     運営統括責任者・所在地・電話番号・販売価格（すべて tokushoho.html）
+```
+
+販売価格は **P1-7 の RevenueCat 商品作成と同時に決まる**ので、そこまで埋まらない。
+
+### 2. 「即時削除」を選んだら、実装が30日猶予だった
+
+保持期間の選択肢を出すとき、**「deleteAccount は #120 で purge 対応済みなので
+即時削除が実装と一致する」と説明したが、これは誤りだった。**
+
+```
+ functions/src/purgeDeletedAccounts.ts
+   PURGE_AFTER_DAYS = 30    ← 退会から30日後に日次ジョブが消す
+```
+
+規約の元の記述「退会後30日間保持後、削除」のほうが実装と合っていた。
+誤りを伝えたうえで、**実装を即時削除（`PURGE_AFTER_DAYS = 0`）に変える**判断を
+もらった。
+
+**結果として、それまで食い違っていた3者が揃った。**
+
+```
+ 削除ダイアログ    「この操作は取り消せません」    ← 元からこう書いてあった
+ ヘルプ            「削除後の復元はできません」    ← 同上
+ 実装              30日猶予（サポートが戻せる）   ← ここだけ違った
+ プライバシー      退会後30日間保持              ← 実装には合っていた
+```
+
+UI が「取り消せない」と言っている以上、猶予を残すほうが嘘になる。
+`PURGE_AFTER_DAYS` は**規約の保持期間と対で動かす数字**なので、テストと
+コメントの両方にその旨を書いた。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 4357件パス
+ functions: npm test                 66件パス
+ functions: npx tsc --noEmit         エラーなし
+ dart format lib                     差分なし
+```
+
+---
+
+## 日付で落ちるゴールデンを直し、人間タスクを実態に合わせた（2026-09-03）
+
+**ブランチ**: `claude/business-rethink-invite`
+
+### 1. 9/01 の作業がまるごと未コミットで残っていた
+
+36ファイル・1517行。検証しなおしたところ、**ゴールデン3枚が落ちた**。
+
+### 2. 落ちた原因は「今日の日付が写り込んでいた」こと
+
+画像差分を取ると、変わっていたのは日付の1〜2文字だけだった。
+
+```
+ shop_invite_linked          （2026年9月1日に更新）  shop_invite_service.dart:334
+ add_fuel                    給油日の初期値          add_fuel_screen.dart:42
+ shop_invite_manage_issued   招待コードと集計期間     shop_invite_manage_screen.dart:91,108
+```
+
+**撮り直しても翌日また落ちる作り。** 画面の「今日」を外から渡せるようにした。
+
+- `ShopInviteService({DateTime Function()? now})` … 既定は `DateTime.now`
+- `AddFuelScreen({DateTime? today})` … 給油日の初期値と日付ピッカーの上限
+  （`createdAt` は「記録した時刻」なので実時刻のまま。混ぜない）
+- `ShopInviteManageScreen({DateTime? today})` … 車検の集計期間
+- ゴールデンは `_goldenToday = DateTime(2026, 9, 1)` に全部寄せた
+
+**副産物**: 招待コードは `InviteCode.generate(seed: now.microsecondsSinceEpoch)`
+なので、`now` が固定されるとコードも決まる。`shop_invite_manage_issued.png` が
+毎回同じ画像になった。
+
+前回の「満了日は今日を基準に置く（固定日付にすると月が変わるとカードが空に
+なる）」というコメントは、**画面の今日を渡せるようになったので不要**になった。
+
+### 3. 人間タスクの記述が実装に追いついていなかった
+
+`docs/HUMAN_TASKS.md` P0-1 は「build.gradle.kts が debug 鍵のまま」と書いて
+いたが、**実際は `key.properties` を読む `signingConfigs` が入っていて、鍵が
+無いまま release タスクを叩くと GradleException で止まる。** AI 側の作業は
+残っておらず、人間のキーストア生成だけが残っていた。
+
+- P0-1: 実測（`android/key.properties` が無い）に書き換え
+- P0-2: ローカル検証（148件）とドライラン（コンパイル成功）を済ませて記録
+- P2-14: 「法的レビュー」→「規約ドラフトの確定」に具体化。`【要記入】` 16箇所を
+  ファイル別に一覧化した
+
+### 4. 規約類のドラフトも未コミットで残っていた
+
+privacy / terms を実装に合わせ、特商法の雛形（`tokushoho.html`）を新設。
+**`【要記入】` はアプリ内の設定画面にもそのまま出る。** テスト配布より先には
+出せない。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos                     クリーン
+ flutter test --exclude-tags "emulator || golden"  4357件パス
+ flutter test test/golden/                         25件パス（撮り直し済み）
+ test/rules（Emulator）                            148件パス
+ dart format lib test                              差分なし
+ firebase deploy --only firestore:rules --dry-run  コンパイル成功（未反映）
+```
+
+`.claude/worktrees/` を `.gitignore` に足した（リポジトリ内に作った作業用
+チェックアウトが未追跡で出ていた）。
+
+### 5. Firestore のルールとインデックスを本番へ反映した
+
+`docs/HUMAN_TASKS.md` P0-2。**8/28 以降に足したルールが全部未反映だった**ので、
+車検満了日の共有は本番では書き込みが弾かれる状態だった。
+
+```
+ firebase deploy --only firestore:rules     released
+ firebase deploy --only firestore:indexes   deployed
+```
+
+Console のバージョン履歴での目視確認だけ人間側に残っている。
+
+---
+
+## 取りこぼしの可視化（案A）と、iOS 設定の追いつき（2026-09-01）
+
+**ブランチ**: `claude/business-rethink-invite`
+
+### 1. iOS の App ID がコード側だけ古いままだった
+
+`docs/IOS_FIREBASE_FIX.md` の「人間の作業」（Firebase に `jp.trustcar.app` で
+iOS アプリを再登録して plist を差し替える）は 8/27 に済んでいたが、
+**コード側の App ID が旧アプリのまま**だった。plist と食い違うので、
+直したつもりで直っていない状態。
+
+- `lib/firebase_options.dart` の `ios` / `macos`: `appId` `1:...ios:4320af5d...`
+  → `1:...ios:5646ac32...`、`apiKey` も新しいものに
+- `.github/workflows/ci.yml` L307/L329 のフォールバック plist も同じ値に
+
+**残るのは実機/シミュレータでの起動確認だけ**（`docs/IOS_FIREBASE_FIX.md` §4）。
+
+### 2. 店が取りこぼしを数えられるようにした（案A）
+
+`docs/BUSINESS_MODEL_RETHINK_2026-08-27.md` §6-2。集計とカードは 8/28 に
+作ってあったが、**店側に配線できていなかった**。店は顧客の `vehicles` を
+読めないため（そして読めるようにするほうが問題）。
+
+**顧客が自分の `shop_customers` 文書に、車検の満了日だけを置く形にした。**
+
+```
+ shop_customers/{userId}
+   inspectionExpiries: [Timestamp]  ← 日付だけ。車両IDも車種も入れない
+   vehicleCount: int                ← 差分が「満了日が分からない台数」
+   sharesInspectionExpiry: bool     ← 顧客が切れる
+```
+
+- `ShopInviteService.shareInspectionExpiries` / `setExpirySharing`
+- `InspectionPipeline.fromSharedExpiries` … **`isCompletionKnown: false`**
+- `InspectionPipelineCard` … 入庫が分からないときは
+  「満了を迎える / まだ猶予がある / 要確認」。**「取りこぼし」とは書かない**
+- `ShopInviteScreen` に共有スイッチと「いま何を渡しているか」
+- `HomeScreen` が車両の変化に合わせて裏で同期
+- `firestore.rules`: 満了日は20件・台数99まで。名簿の代わりにさせない
+
+**入庫の有無は渡っていない。** そこを「取りこぼし0台」と出すと経営判断を
+誤らせるので、要確認の台数までで止め、伝票との突き合わせは手作業に残した。
+
+**ルールを変えたので、`firebase deploy --only firestore:rules` が要る**
+（`docs/HUMAN_TASKS.md` P0-2）。
+
+### 3. ゴールデンでボタンの文字が豆腐だった
+
+`font_loader.dart` は「w500 は `.ttc` の制約で豆腐になる」と書いていたが、
+**原因は太さではなくフォント名の指定が無いこと**だった（AppBar と同じ形）。
+`goldenTheme` が `*ButtonThemeData` の `textStyle` にも名前を補うようにして、
+「コピーする」が読める字で写るようになった。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos                     クリーン
+ flutter test --exclude-tags "emulator || golden"  4340件パス
+ flutter test test/golden/                         25件パス（撮り直し済み）
+ test/rules（Emulator）                            122件パス（新規7件）
+ dart format lib test                              適用済み
+```
+
+`test/widgets/maker_badge_test.dart` は**前回のコミット時点で未整形**だった
+（今回の整形に巻き込まれている）。CI の `--set-exit-if-changed` に当たる形。
+
+---
+
+## テスト配布の穴を塞ぐ（2026-08-24）
+
+**ブランチ**: `claude/fix-empty-state-dead-ends`（PR #149）
+
+### 1. どのビルドかを特定できるようにした
+
+テスト配布中はバージョンが `1.0.0` のまま APK も Web も何度も出し直す。
+これまでフィードバックに載るのは `1.0.0` だけで、**「まだ直っていない」と
+言われても、その人がどのビルドを触っているか分からなかった。**
+
+- `AppInfo.buildId` = `String.fromEnvironment('APP_BUILD_ID')`
+- `AppInfo.fullVersion` → `1.0.0 (a1b2c3d)`。識別子が無ければバージョンだけ
+- 表示: `_ProfileTab` 最下部（Key: `app_version_label`）に
+  `バージョン 1.0.0 (a1b2c3d) / web`
+- 記録: `injection.dart` の `FeedbackService(appVersion: AppInfo.fullVersion)`
+- 配線: `scripts/deploy_web.sh`（`git rev-parse --short HEAD`・未コミットなら
+  `-dirty`）/ `test_apk.yml` / `web_preview.yml`（ともに `${GITHUB_SHA::7}`）
+
+整形は純粋関数 `AppInfo.formatVersion(version, buildId)` に出した。
+`buildId` はコンパイル時に固定されるためテストから振れない。
+
+### 2. 起動直後の白画面と □□□ を塞いだ
+
+**実測（Chrome・ローカル配信の release ビルド）**:
+
+```
+ 最初のフレーム        0.9 秒
+ Roboto の到着         1.4 秒
+ 日本語フォントの到着   3.4 秒   ← ここまで □□□
+ 初回の実ダウンロード   1.5〜6.7 秒
+```
+
+**踏んだ落とし穴が2つ**:
+
+1. **first-frame で消すと早すぎる。** 日本語フォントは最初の描画より*後*に
+   取りに行く。実装1回目（first-frame + 0.9 秒）は、消えた先が豆腐だった。
+2. **`fonts.gstatic.com` への取得すべてを数えると、Roboto で早合点する。**
+   Roboto は 1.4 秒で届く。実装2回目はこれで消えて、また豆腐が見えた。
+   待つ相手を `/notosansjp|notosanscjk/i` に限って解決。
+
+最終形（`web/index.html`）:
+
+| 条件 | 動き |
+|---|---|
+| 日本語フォント到着 → 0.7 秒静か | 消す（通常経路） |
+| 最初のフレームから 8 秒フォントが来ない | 消す |
+| 6 秒経過 | 「時間がかかっています」を表示 |
+| 20 秒経過 | 何があっても消す |
+
+`window.__splashTrace` に first-frame・フォント到着・消した時刻と理由を残した。
+**次に触る人が、ビルドし直して目視する代わりに数字で確かめられる。**
+
+### 学び: ブラウザで見ないと分からない
+
+2回とも「テストは通るのに実際は豆腐」だった。HTML の中身を読む検査
+（`test/ux/web_splash_test.dart` 13件）は**書いた条件が入っているか**しか
+見られない。**条件そのものが間違っている**のは、実際に開かないと分からない。
+
+### 数字
+
+- テスト 4,073件 → **4,098件**（+25）全パス
+- `flutter analyze --fatal-infos` クリーン / `dart format` 差分なし
 
 ---
 

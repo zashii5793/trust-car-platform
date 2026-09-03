@@ -4,6 +4,7 @@ import '../../services/vehicle_master_service.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import 'maker_badge.dart';
 
 /// Searchable dropdown for selecting vehicle maker
 class MakerSelectorField extends StatefulWidget {
@@ -103,12 +104,22 @@ class _MakerSelectorFieldState extends State<MakerSelectorField> {
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.business,
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.textSecondary,
-                    ),
+                    // 選ぶまでは汎用アイコン、選んだらそのメーカーのバッジ。
+                    // 一覧（ボトムシート）にはバッジが出るのに、閉じた途端に
+                    // 灰色のビルのアイコンに戻っていた。
+                    if (widget.selectedMaker != null)
+                      MakerBadge(
+                        makerId: widget.selectedMaker!.id,
+                        makerName: widget.selectedMaker!.name,
+                        size: 28,
+                      )
+                    else
+                      Icon(
+                        Icons.business,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.textSecondary,
+                      ),
                     AppSpacing.horizontalMd,
                     Expanded(
                       child: Text(
@@ -376,17 +387,12 @@ class _MakerPickerSheetState extends State<_MakerPickerSheet> {
                   final isSelected = widget.selectedMaker?.id == maker.id;
 
                   return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: isSelected
-                          ? theme.colorScheme.primary
-                          : Colors.grey[200],
-                      child: Text(
-                        maker.name.isEmpty ? '?' : maker.name.substring(0, 1),
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black87,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    // 灰色の丸に和名の1文字目、では見分けが付かず安っぽい。
+                    // 実ロゴは商標なので使えないため、色とマークで代用する。
+                    leading: MakerBadge(
+                      makerId: maker.id,
+                      makerName: maker.name,
+                      isSelected: isSelected,
                     ),
                     title: Text(maker.name),
                     subtitle: Text(maker.nameEn),

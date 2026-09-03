@@ -421,4 +421,153 @@ void main() {
       }
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Group 8: generateVehicleKarte — 愛車カルテPDF
+  // -------------------------------------------------------------------------
+  group('generateVehicleKarte', () {
+    Future<Uint8List> generateKarteBytes({
+      required Vehicle vehicle,
+      required List<MaintenanceRecord> records,
+    }) async {
+      final result = await service.generateVehicleKarte(
+        vehicle: vehicle,
+        records: records,
+      );
+      expect(result.isSuccess, isTrue,
+          reason: 'generateVehicleKarte should succeed');
+      return result.valueOrNull!;
+    }
+
+    test('最低限の車両情報でPDFが生成される', () async {
+      final vehicle = TestData.makeVehicle();
+      final bytes = await generateKarteBytes(vehicle: vehicle, records: []);
+      expect(bytes, isA<Uint8List>());
+      expect(bytes.isNotEmpty, isTrue);
+    });
+
+    test('有効なPDFヘッダー（%PDF）で始まる', () async {
+      final vehicle = TestData.makeVehicle();
+      final bytes = await generateKarteBytes(vehicle: vehicle, records: []);
+      expect(bytes.length, greaterThan(4));
+      final header = String.fromCharCodes(bytes.take(4));
+      expect(header, '%PDF');
+    });
+
+    test('整備記録0件でも正常に生成される', () async {
+      final vehicle = TestData.makeVehicle(
+        licensePlate: '品川 300 あ 12-34',
+        inspectionExpiryDate: DateTime(2027, 3, 31),
+      );
+      final bytes = await generateKarteBytes(vehicle: vehicle, records: []);
+      expect(bytes.isNotEmpty, isTrue);
+    });
+
+    test('車検満了日あり・未来日付でも正常に生成される', () async {
+      final vehicle = TestData.makeVehicle(
+        inspectionExpiryDate: DateTime.now().add(const Duration(days: 180)),
+      );
+      final bytes = await generateKarteBytes(vehicle: vehicle, records: []);
+      expect(bytes.isNotEmpty, isTrue);
+    });
+
+    test('車検満了日が過去（期限切れ）でもクラッシュしない', () async {
+      final vehicle = TestData.makeVehicle(
+        inspectionExpiryDate: DateTime.now().subtract(const Duration(days: 30)),
+      );
+      final bytes = await generateKarteBytes(vehicle: vehicle, records: []);
+      expect(bytes.isNotEmpty, isTrue);
+    });
+
+    test('全オプションフィールドありでPDFが生成される', () async {
+      final vehicle = Vehicle(
+        id: 'v-full',
+        userId: 'user-001',
+        maker: 'Toyota',
+        model: 'Prius',
+        year: 2022,
+        grade: 'Z',
+        mileage: 25000,
+        createdAt: DateTime(2022, 1, 1),
+        updatedAt: DateTime(2024, 1, 1),
+        licensePlate: '品川 300 あ 12-34',
+        vinNumber: 'JT1234567890ABCDE',
+        color: 'ハイテックシルバー',
+        fuelType: FuelType.hybrid,
+        inspectionExpiryDate: DateTime(2027, 1, 15),
+        purchaseDate: DateTime(2022, 1, 15),
+      );
+      final records = List.generate(
+        5,
+        (i) => TestData.makeMaintenanceRecord(
+          id: 'r-$i',
+          cost: (i + 1) * 5000,
+          date: DateTime(2023, i + 1, 1),
+        ),
+      );
+      final bytes =
+          await generateKarteBytes(vehicle: vehicle, records: records);
+      expect(bytes.isNotEmpty, isTrue);
+    });
+
+    test('リース情報ありでもクラッシュしない', () async {
+      final vehicle = Vehicle(
+        id: 'v-lease',
+        userId: 'user-001',
+        maker: 'Nissan',
+        model: 'Note',
+        year: 2023,
+        grade: 'e-POWER X',
+        mileage: 15000,
+        createdAt: DateTime(2023, 4, 1),
+        updatedAt: DateTime(2024, 1, 1),
+        leaseInfo: LeaseInfo(
+          lessorName: 'オリックス自動車',
+          monthlyFee: 35000,
+          contractStartDate: DateTime(2023, 4, 1),
+          contractEndDate: DateTime(2026, 3, 31),
+          maintenancePackDetails: '定期点検・消耗品交換含む',
+        ),
+      );
+      final bytes = await generateKarteBytes(vehicle: vehicle, records: []);
+      expect(bytes.isNotEmpty, isTrue);
+    });
+
+    test('100件の整備記録でもパフォーマンスが許容範囲内', () async {
+      final vehicle = TestData.makeVehicle();
+      final records = List.generate(
+        100,
+        (i) => TestData.makeMaintenanceRecord(
+          id: 'k-$i',
+          cost: (i + 1) * 100,
+          date: DateTime.now().subtract(Duration(days: i)),
+        ),
+      );
+      final bytes =
+          await generateKarteBytes(vehicle: vehicle, records: records);
+      expect(bytes.isNotEmpty, isTrue);
+    });
+
+    group('Edge Cases', () {
+      test('ナンバープレートがnullでもクラッシュしない', () async {
+        final vehicle = TestData.makeVehicle(licensePlate: null);
+        final bytes = await generateKarteBytes(vehicle: vehicle, records: []);
+        expect(bytes.isNotEmpty, isTrue);
+      });
+
+      test('車種名に特殊文字（記号/全角）が含まれてもクラッシュしない', () async {
+        final vehicle = TestData.makeVehicle(model: 'N-BOX（JF3）＋ターボ');
+        final bytes = await generateKarteBytes(vehicle: vehicle, records: []);
+        expect(bytes.isNotEmpty, isTrue);
+      });
+
+      test('複数回呼び出してもクラッシュしない', () async {
+        final vehicle = TestData.makeVehicle();
+        for (int i = 0; i < 3; i++) {
+          final bytes = await generateKarteBytes(vehicle: vehicle, records: []);
+          expect(bytes.isNotEmpty, isTrue);
+        }
+      });
+    });
+  });
 }

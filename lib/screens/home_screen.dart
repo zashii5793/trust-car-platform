@@ -47,6 +47,10 @@ import '../services/firebase_service.dart';
 import '../services/feedback_service.dart';
 import 'settings/feedback_screen.dart';
 import 'settings/help_screen.dart';
+import '../core/constants/app_info.dart';
+import 'settings/shop_invite_screen.dart';
+import '../services/shop_invite_service.dart';
+import '../widgets/vehicle/maker_badge.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -90,7 +94,30 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       Provider.of<NotificationProvider>(context, listen: false)
           .generateNotificationsForVehicles(vehicleProvider.vehicles);
+      _shareInspectionExpiries(vehicleProvider.vehicles);
     });
+  }
+
+  /// かかりつけの店に、車検の満了日だけを渡す。
+  ///
+  /// `docs/BUSINESS_MODEL_RETHINK_2026-08-27.md` §6-2 の案A。
+  /// **車検を受けて満了日が延びたら、店の画面もそれに追いつく必要がある。**
+  /// 顧客が設定画面を開きに来るのを待っていると、古い日付が残り続ける。
+  ///
+  /// かかりつけが無い人・共有を切っている人には何も書かない（サービス側で判定）。
+  void _shareInspectionExpiries(List<Vehicle> vehicles) {
+    final userId =
+        Provider.of<AuthProvider>(context, listen: false).firebaseUser?.uid;
+    if (userId == null || userId.isEmpty) return;
+
+    final active = vehicles.where((v) => !v.status.isRetired).toList();
+
+    // 失敗しても画面には出さない。本人の操作ではなく、裏の同期のため。
+    sl.get<ShopInviteService>().shareInspectionExpiries(
+          userId: userId,
+          expiryDates: active.map((v) => v.inspectionExpiryDate).toList(),
+          vehicleCount: active.length,
+        );
   }
 
   @override
@@ -773,6 +800,24 @@ class _ProfileTab extends StatelessWidget {
               // ここが利用者の見るサポート欄。ヘルプもフィードバックも
               // ProfileScreen 側にしか無く、そこへは「プロフィールを編集」
               // からしか行けなかったため、実質たどり着けなかった。
+              // 店から渡されたコードを入れる場所。
+              // docs/BUSINESS_MODEL_RETHINK_2026-08-27.md §4 — 既存客が
+              // 自分でアプリを探して自分で店を見つける導線しか無かった。
+              _MenuItemData(
+                icon: Icons.store_outlined,
+                label: 'お店のコードを入れる',
+                color: AppColors.secondary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => ShopInviteScreen(
+                      service: sl.get<ShopInviteService>(),
+                      userId: user?.uid ?? '',
+                      vehicles: context.read<VehicleProvider>().vehicles,
+                    ),
+                  ),
+                ),
+              ),
               _MenuItemData(
                 icon: Icons.help_outline,
                 label: 'ヘルプ',
@@ -862,6 +907,25 @@ class _ProfileTab extends StatelessWidget {
                   ),
                 ),
                 onTap: () => _confirmSignOut(context),
+              ),
+            ),
+          ),
+
+          AppSpacing.verticalSm,
+
+          // ---- バージョン ----
+          // 「直したはずの不具合が直っていない」と言われたとき、その人が
+          // どのビルドを触っているかが分からないと確かめようがない。
+          // テスト配布中は 1.0.0 のまま何度も出し直すので、ビルド識別子まで
+          // 画面から読めるようにしておく（フィードバックにも同じ値が載る）。
+          Padding(
+            key: const Key('app_version_label'),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Text(
+              'バージョン ${AppInfo.fullVersion} / ${AppInfo.platform}',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
           ),
@@ -1128,14 +1192,27 @@ class _VehicleCard extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  '${vehicle.maker} ${vehicle.model}',
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: isDark
-                                        ? AppColors.darkTextPrimary
-                                        : AppColors.textPrimary,
-                                  ),
+                                // 複数台を持つ人は一覧をメーカーで見分ける。
+                                // `Vehicle` は makerId を持たないので名前から引く。
+                                Row(
+                                  children: [
+                                    MakerBadge.fromName(vehicle.maker,
+                                        size: 18),
+                                    AppSpacing.horizontalXs,
+                                    Expanded(
+                                      child: Text(
+                                        '${vehicle.maker} ${vehicle.model}',
+                                        style:
+                                            theme.textTheme.bodyLarge?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: isDark
+                                              ? AppColors.darkTextPrimary
+                                              : AppColors.textPrimary,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 AppSpacing.verticalXxs,
                                 Text(

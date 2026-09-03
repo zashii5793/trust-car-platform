@@ -29,6 +29,11 @@ import 'maintenance_search_screen.dart';
 import '../services/firebase_service.dart';
 import '../services/community_trend_service.dart';
 import '../core/timeline/mileage_milestone.dart';
+import '../models/year_in_review.dart';
+import 'year_in_review_screen.dart';
+import 'fuel/add_fuel_screen.dart';
+import '../services/fuel_service.dart';
+import '../widgets/vehicle/maker_badge.dart';
 
 // Data returned by _InspectionCompleteDialog when the user confirms.
 class _InspectionCompletionResult {
@@ -115,6 +120,80 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
             child: const Text('閉じる'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showExportTypeSelector(
+      BuildContext context, List<MaintenanceRecord> records) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                'PDFエクスポートの種類を選択',
+                style: Theme.of(context).textTheme.headlineLarge,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              ListTile(
+                key: const Key('export_karte_option'),
+                leading: const Icon(Icons.book_outlined),
+                title: const Text('愛車カルテ'),
+                subtitle: const Text('車両情報＋整備履歴の完全記録'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  showExportDialog(
+                    context: context,
+                    vehicle: _vehicle,
+                    records: records,
+                    exportType: ExportType.vehicleKarte,
+                  );
+                },
+              ),
+              ListTile(
+                key: const Key('export_report_option'),
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: const Text('整備履歴レポート'),
+                subtitle: const Text('整備記録の一覧と費用サマリー'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  showExportDialog(
+                    context: context,
+                    vehicle: _vehicle,
+                    records: records,
+                    exportType: ExportType.maintenanceReport,
+                  );
+                },
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextButton(
+                onPressed: () => Navigator.pop(sheetContext),
+                child: const Text('キャンセル'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -333,6 +412,10 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                 final empty = provider.records.isEmpty;
                 return IconButton(
                   icon: const Icon(Icons.picture_as_pdf),
+                  // 空のときに押せなくするのではなく、押せて理由を言う
+                  // （main 側の判断。灰色のアイコンは「壊れている」に見える）。
+                  // 出す中身は #90 の種別選択に差し替え、愛車カルテと
+                  // 整備記録のどちらを出すか選ばせる。
                   tooltip: empty ? '整備記録を追加すると使えます' : 'PDFで出力',
                   onPressed: () {
                     if (empty) {
@@ -345,11 +428,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       _showPdfUpgradeDialog(context);
                       return;
                     }
-                    showExportDialog(
-                      context: context,
-                      vehicle: _vehicle,
-                      records: provider.records,
-                    );
+                    _showExportTypeSelector(context, provider.records);
                   },
                 );
               },
@@ -407,9 +486,19 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '${_vehicle.maker} ${_vehicle.model}',
-                          style: theme.textTheme.displayMedium,
+                        // `Vehicle` は makerId を持たないので名前から引く。
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            MakerBadge.fromName(_vehicle.maker, size: 32),
+                            AppSpacing.horizontalSm,
+                            Expanded(
+                              child: Text(
+                                '${_vehicle.maker} ${_vehicle.model}',
+                                style: theme.textTheme.displayMedium,
+                              ),
+                            ),
+                          ],
                         ),
                         AppSpacing.verticalSm,
                         _InfoRow(
@@ -544,6 +633,41 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       );
                     },
                   ),
+
+                  // 給油を記録（月2〜4回の接点。docs/HABIT_DESIGN.md 打ち手1）
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.xs,
+                    ),
+                    child: Card(
+                      margin: EdgeInsets.zero,
+                      child: ListTile(
+                        key: const Key('add_fuel_entry'),
+                        leading: const Icon(
+                          Icons.local_gas_station_outlined,
+                          color: AppColors.accentDrive,
+                        ),
+                        title: const Text('給油を記録'),
+                        subtitle: const Text('入力は4つだけ。満タン2回で燃費が出ます'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => AddFuelScreen(
+                              service: sl.get<FuelService>(),
+                              vehicleId: _vehicle.id,
+                              userId: _vehicle.userId,
+                              lastOdometer: _vehicle.mileage,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // この1年のふりかえり
+                  _YearInReviewCard(vehicle: _vehicle),
 
                   // 整備記録の査定価値バナー
                   _MaintenanceValueBanner(vehicle: _vehicle),
@@ -3235,6 +3359,100 @@ class _CommunityTrendSection extends StatefulWidget {
 
   @override
   State<_CommunityTrendSection> createState() => _CommunityTrendSectionState();
+}
+
+/// 「この1年のふりかえり」への入口。
+///
+/// docs/HABIT_DESIGN.md 打ち手2。1年で整備記録は数十件溜まるのに、それを
+/// 見返す道が履歴の一覧しかなかった。**溜めることには協力してもらっている
+/// のに、溜まった価値を突き返していない。**
+///
+/// 中身が薄いうちは出さない。1件だけの「ふりかえり」は白ける。
+class _YearInReviewCard extends StatefulWidget {
+  final Vehicle vehicle;
+
+  const _YearInReviewCard({required this.vehicle});
+
+  @override
+  State<_YearInReviewCard> createState() => _YearInReviewCardState();
+}
+
+class _YearInReviewCardState extends State<_YearInReviewCard> {
+  /// 同じ車種の人の年間費用。取れなければ null のまま（比較欄が出ないだけ）。
+  int? _peerAnnualCost;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPeerCost();
+  }
+
+  Future<void> _fetchPeerCost() async {
+    if (!sl.isRegistered<CommunityTrendService>()) return;
+    final result = await sl.get<CommunityTrendService>().getTrendsForVehicle(
+          maker: widget.vehicle.maker,
+          model: widget.vehicle.model,
+        );
+    if (!mounted) return;
+    setState(() => _peerAnnualCost = result.valueOrNull?.estimatedAnnualCost);
+  }
+
+  YearInReview _build(List<MaintenanceRecord> records) {
+    final now = DateTime.now();
+    return YearInReview.from(
+      records: records.where((r) => r.vehicleId == widget.vehicle.id).toList(),
+      from: DateTime(now.year - 1, now.month, now.day),
+      to: now,
+      peerAverageCost: _peerAnnualCost,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<MaintenanceProvider>(
+      builder: (context, provider, _) {
+        final review = _build(provider.records);
+        if (!review.hasEnoughData) return const SizedBox.shrink();
+
+        final theme = Theme.of(context);
+        final fmt = NumberFormat('#,###');
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: ListTile(
+              key: const Key('year_in_review_entry'),
+              leading: const Icon(
+                Icons.insights_outlined,
+                color: AppColors.primary,
+              ),
+              title: const Text('この1年のふりかえり'),
+              subtitle: Text(
+                '${fmt.format(review.totalCost)}円 ・ 整備${review.recordCount}回'
+                '${review.distanceKm != null ? ' ・ ${fmt.format(review.distanceKm)}km' : ''}',
+                style: theme.textTheme.bodySmall,
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => YearInReviewScreen(
+                    review: review,
+                    vehicleName:
+                        '${widget.vehicle.maker} ${widget.vehicle.model}',
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _CommunityTrendSectionState extends State<_CommunityTrendSection> {

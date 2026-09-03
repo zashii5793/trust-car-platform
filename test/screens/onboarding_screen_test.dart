@@ -203,4 +203,110 @@ void main() {
       expect(find.byType(OnboardingScreen), findsOneWidget);
     });
   });
+
+  // 「次へ」ボタン。
+  //
+  // 2026-08-25 にブラウザで触って分かった。1〜3ページ目には進むための
+  // ボタンが無く、**PC ではドラッグでしか進めない。** テスト配布の本命は
+  // Web 版（PC で開く人がいる）なので、スワイプを知らない人は
+  // 「スキップ」を押して 2 ページ目以降を一度も見ないまま終わる。
+  group('OnboardingScreen — 次へ', () {
+    testWidgets('最初のページに「次へ」がある', (tester) async {
+      await tester.pumpWidget(_buildOnboardingApp());
+      await tester.pump();
+
+      expect(find.text('次へ'), findsOneWidget);
+    });
+
+    testWidgets('「次へ」を押すと次のページに進む', (tester) async {
+      await tester.pumpWidget(_buildOnboardingApp());
+      await tester.pump();
+
+      await tester.tap(find.text('次へ'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('整備履歴'), findsOneWidget);
+    });
+
+    testWidgets('「次へ」だけで最後のページまで行ける', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(500, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildOnboardingApp());
+      await tester.pump();
+
+      for (int i = 0; i < 3; i++) {
+        await tester.tap(find.text('次へ'));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.text('はじめる'), findsOneWidget);
+      expect(find.text('次へ'), findsNothing);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('最後のページでは「次へ」を出さない（「はじめる」と二択にしない）', (tester) async {
+        await tester.pumpWidget(_buildOnboardingApp());
+        await tester.pump();
+
+        for (int i = 0; i < 3; i++) {
+          await tester.drag(find.byType(PageView), const Offset(-400, 0));
+          await tester.pumpAndSettle();
+        }
+
+        expect(find.text('次へ'), findsNothing);
+        expect(find.text('はじめる'), findsOneWidget);
+      });
+
+      testWidgets('スワイプで進めても「次へ」は残る', (tester) async {
+        await tester.pumpWidget(_buildOnboardingApp());
+        await tester.pump();
+
+        await tester.drag(find.byType(PageView), const Offset(-400, 0));
+        await tester.pumpAndSettle();
+
+        expect(find.text('次へ'), findsOneWidget);
+      });
+
+      // 2026-08-25 にブラウザで実測。「次へ」を素早く3回押しても
+      // **1ページしか進まなかった。** ページ位置は onPageChanged が呼ばれて
+      // 初めて更新されるため、アニメーション中の連打はすべて同じ行き先を
+      // 指してしまう。押した回数だけ進むのが期待。
+      testWidgets('アニメーション中に「次へ」を押しても押した分だけ進む', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(500, 900));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(_buildOnboardingApp());
+        await tester.pump();
+
+        // 送りきる前に次を押す。
+        for (int i = 0; i < 3; i++) {
+          await tester.tap(find.text('次へ'));
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        await tester.pumpAndSettle();
+
+        expect(find.text('はじめる'), findsOneWidget);
+        expect(find.text('次へ'), findsNothing);
+      });
+
+      testWidgets('「次へ」を連打しても最後のページを越えない', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(500, 900));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(_buildOnboardingApp());
+        await tester.pump();
+
+        for (int i = 0; i < 3; i++) {
+          await tester.tap(find.text('次へ'));
+          await tester.pumpAndSettle();
+        }
+
+        // 最後のページに着いたら「次へ」は消えている。残っていて押せると
+        // 範囲外へ飛ばしてしまう。
+        expect(find.text('次へ'), findsNothing);
+        expect(find.byKey(const Key('onboarding_dot_3')), findsOneWidget);
+      });
+    });
+  });
 }

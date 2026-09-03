@@ -54,12 +54,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.0'
+          flutter-version: '3.44.2'
           channel: 'stable'
           cache: true
 
@@ -92,7 +92,8 @@ jobs:
         id: build
         run: |
           set +e
-          flutter build web --release --base-href /trust-car-platform/ 2>&1 | tee /tmp/web_build.log
+          flutter build web --release --base-href /trust-car-platform/ \
+            --dart-define=APP_BUILD_ID=${GITHUB_SHA::7} 2>&1 | tee /tmp/web_build.log
           BUILD_STATUS=${PIPESTATUS[0]}
           if [ "$BUILD_STATUS" -ne 0 ]; then
             echo "::error::=== Flutter Web ビルド失敗 ==="
@@ -140,7 +141,7 @@ jobs:
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: build/web
 
@@ -156,4 +157,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

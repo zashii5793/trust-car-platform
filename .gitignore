@@ -93,3 +93,9 @@ test/golden/failures/
 # Firebase Emulator のエクスポートデータ（ローカル検証用）
 .emulator-data/
 firestore-debug.log
+
+# Firebase Hosting のデプロイキャッシュ（ローカル生成物）
+.firebase/
+
+# git worktree（リポジトリ内に作った作業用チェックアウト）
+.claude/worktrees/

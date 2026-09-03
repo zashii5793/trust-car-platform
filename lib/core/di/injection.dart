@@ -58,6 +58,8 @@ import '../../services/firebase_remote_flag_source.dart';
 import '../../services/shop_demand_service.dart';
 import '../../services/feedback_service.dart';
 import '../constants/app_info.dart';
+import '../../services/shop_invite_service.dart';
+import '../../services/fuel_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -253,9 +255,21 @@ class Injection {
     locator.registerLazySingleton<FeedbackService>(
       () => FeedbackService(
         firestore: FirebaseFirestore.instance,
-        appVersion: AppInfo.version,
+        appVersion: AppInfo.fullVersion,
         platform: AppInfo.platform,
       ),
+    );
+
+    // Shop invite (店が自分の顧客をアプリに載せるための招待コード).
+    // docs/BUSINESS_MODEL_RETHINK_2026-08-27.md §4 — これが無いと、既存客は
+    // 自分でアプリを探して自分で店を見つけるところから始めることになる。
+    locator.registerLazySingleton<ShopInviteService>(
+      () => ShopInviteService(firestore: FirebaseFirestore.instance),
+    );
+
+    // Fuel records (給油は月2〜4回あり、唯一の月単位の接点).
+    locator.registerLazySingleton<FuelService>(
+      () => FuelService(firestore: FirebaseFirestore.instance),
     );
 
     // Feature Flag Service (applies remote flag overrides onto AppConfig).
