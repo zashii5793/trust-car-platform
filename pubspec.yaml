@@ -14,7 +14,7 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.9
   flutter_dotenv: ^5.1.0
-  firebase_core: 4.9.0
+  firebase_core: 4.14.0
   firebase_auth: ^6.1.4
   cloud_firestore: ^6.1.2
   firebase_storage: ^13.0.6
@@ -66,7 +66,11 @@ dev_dependencies:
     sdk: flutter
   mockito: ^5.4.4
   build_runner: ^2.4.8
-  fake_cloud_firestore: ^4.0.2
+  # cloud_firestore 6.7.1 で WriteBatch.update がジェネリック化された。
+  # fake_cloud_firestore 4.1.1 は @override のシグネチャが旧いままで、
+  # 制約 (^6.4.0) は満たすのにコンパイルが通らない。pub は検出できない
+  # ので、下限をここで上げて縛る。cloud_firestore と対で動かすこと。
+  fake_cloud_firestore: ^4.2.0
   # 認証状態の遷移（未ログイン→ログイン）を伴うStreamのテストに使用
   firebase_auth_mocks: ^0.15.0
 
