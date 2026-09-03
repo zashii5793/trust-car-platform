@@ -12,7 +12,6 @@ import '../../core/constants/colors.dart';
 import '../../services/shop_service.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'inquiry_screen.dart';
-import 'shop_map_screen.dart';
 
 /// 工場詳細画面
 ///
@@ -708,7 +707,12 @@ class _AddressSection extends StatelessWidget {
 }
 
 /// Compact, non-interactive map preview of a single shop's location.
-/// Tapping opens [ShopMapScreen] for the full interactive map.
+///
+/// Tapping hands the coordinates to the device's map app. The in-app map
+/// ([NearbyShopsMapScreen]) plots every nearby shop from the provider and has
+/// no single-shop mode, so sending one shop there would show the wrong thing.
+/// The external app also gives directions, which is what someone tapping a
+/// shop's location is usually after.
 class _ShopLocationMap extends StatelessWidget {
   final Shop shop;
 
@@ -737,17 +741,12 @@ class _ShopLocationMap extends StatelessWidget {
               rotateGesturesEnabled: false,
               tiltGesturesEnabled: false,
             ),
-            // Tap overlay: opens the full interactive map for this shop.
+            // Tap overlay: hands the location to the device's map app.
             Positioned.fill(
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopMapScreen(shops: [shop]),
-                    ),
-                  ),
+                  onTap: () => _openInMapsApp(target),
                 ),
               ),
             ),
@@ -755,6 +754,16 @@ class _ShopLocationMap extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _openInMapsApp(LatLng target) async {
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1'
+      '&query=${target.latitude},${target.longitude}',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 }
 
