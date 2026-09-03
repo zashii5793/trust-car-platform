@@ -55,6 +55,81 @@ class VehicleMasterService {
     }
   }
 
+  /// Records a catalog-absent maker/model the user typed by hand so operations
+  /// can later curate it into the master. [type] is 'maker' or 'model'.
+  ///
+  /// - Empty values are rejected (validation failure).
+  /// - Values that already match a catalog entry are skipped (success no-op).
+  /// - De-duplicated by a deterministic document id, so repeated submissions of
+  ///   the same value collapse into a single suggestion document.
+  Future<Result<void, AppError>> recordCustomEntrySuggestion({
+    required String userId,
+    required String type,
+    required String value,
+    String? makerName,
+  }) async {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return Result.failure(AppError.validation('候補が空です'));
+    }
+
+    try {
+      // Already in the catalog → nothing to suggest.
+      final inCatalog = type == 'model'
+          ? await _matchesCatalogModel(trimmed, makerName)
+          : await _matchesCatalogMaker(trimmed);
+      if (inCatalog) {
+        return Result.success(null);
+      }
+
+      final maker = makerName?.trim();
+      final docId = _suggestionDocId(type, trimmed);
+      await _firestore.collection('vehicle_master_suggestions').doc(docId).set({
+        'userId': userId,
+        'type': type,
+        'value': trimmed,
+        if (maker != null && maker.isNotEmpty) 'makerName': maker,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return Result.success(null);
+    } catch (e) {
+      return Result.failure(AppError.unknown('候補の記録に失敗しました'));
+    }
+  }
+
+  /// Deterministic id so the same typed value maps to one suggestion document.
+  String _suggestionDocId(String type, String value) {
+    final safe = value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[/\\.#$\[\]\x00-\x1f]'), '_')
+        .replaceAll(RegExp(r'\s+'), '_');
+    final capped = safe.length > 200 ? safe.substring(0, 200) : safe;
+    return '${type}__$capped';
+  }
+
+  Future<bool> _matchesCatalogMaker(String value) async {
+    final makers = (await getMakers()).getOrElse(const <VehicleMaker>[]);
+    final v = value.toLowerCase();
+    return makers.any(
+      (m) => m.name.toLowerCase() == v || m.nameEn.toLowerCase() == v,
+    );
+  }
+
+  Future<bool> _matchesCatalogModel(String value, String? makerName) async {
+    final mk = makerName?.trim().toLowerCase() ?? '';
+    if (mk.isEmpty) return false;
+    final makers = (await getMakers()).getOrElse(const <VehicleMaker>[]);
+    final matched = makers.where(
+      (m) => m.name.toLowerCase() == mk || m.nameEn.toLowerCase() == mk,
+    );
+    if (matched.isEmpty) return false; // custom maker → model can't be catalog
+    final modelsResult = await getModelsForMaker(matched.first.id);
+    final models = modelsResult.getOrElse(const <VehicleModel>[]);
+    final v = value.toLowerCase();
+    return models.any((m) => m.name.toLowerCase() == v);
+  }
+
   /// Get vehicle models for a specific maker
   Future<Result<List<VehicleModel>, AppError>> getModelsForMaker(
       String makerId) async {
@@ -129,10 +204,10 @@ class VehicleMasterService {
       // カタログが埋まるまでは、間違った候補を出すより何も出さないほうが
       // よい。グレード欄は自由入力に対応しているので、入力自体は妨げない。
       _gradesCache[modelId] = const [];
-      return const Result.success([]);
+      return Result.success([]);
     } catch (e) {
       _gradesCache[modelId] = const [];
-      return const Result.success([]);
+      return Result.success([]);
     }
   }
 

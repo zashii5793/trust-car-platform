@@ -487,6 +487,29 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     }
   }
 
+  /// Records catalog-absent maker/model entries so operations can curate them
+  /// into the master later. Custom entries carry a 'custom_' id prefix (created
+  /// by the selector fields). Fire-and-forget; never blocks registration.
+  void _recordCustomMasterSuggestions(String userId) {
+    final maker = _selectedMaker;
+    if (maker != null && maker.id.startsWith('custom_')) {
+      _masterService.recordCustomEntrySuggestion(
+        userId: userId,
+        type: 'maker',
+        value: maker.name,
+      );
+    }
+    final model = _selectedModel;
+    if (model != null && model.id.startsWith('custom_')) {
+      _masterService.recordCustomEntrySuggestion(
+        userId: userId,
+        type: 'model',
+        value: model.name,
+        makerName: maker?.name,
+      );
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // 登録処理（ロジック変更なし、フォームバリデーションを手動チェックに変更）
   // ---------------------------------------------------------------------------
@@ -622,6 +645,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             );
           }
         }
+        // Record catalog-absent custom maker/model so ops can curate it later.
+        _recordCustomMasterSuggestions(currentUserId);
         if (!mounted) return;
         showSuccessSnackBar(context, '車両を登録しました');
         Navigator.pop(context);

@@ -287,6 +287,18 @@ service cloud.firestore {
       }
     }
 
+    // 車両マスタ追加候補 (カタログ外の自由入力を運営がレビューするための投函箱)
+    // vehicle_master_suggestions/{suggestionId}
+    // - 本人のみ作成可（status は pending 固定）
+    // - 読み取り・更新・削除はサーバー/管理者専用
+    // - ドキュメントIDは値から決定論的に生成され重複を吸収する
+    match /vehicle_master_suggestions/{suggestionId} {
+      allow read: if false;
+      allow create: if isCreatingOwnDocument() &&
+        request.resource.data.status == 'pending';
+      allow update, delete: if false;
+    }
+
     // ==================== SNS/コミュニティ機能 ====================
 
     // 投稿データ
