@@ -129,6 +129,7 @@ class _NewsletterComposeScreenState extends State<NewsletterComposeScreen> {
             )
           else
             TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
               onPressed: _saveDraft,
               child: const Text('保存'),
             ),

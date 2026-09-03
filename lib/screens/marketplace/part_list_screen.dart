@@ -81,6 +81,9 @@ class _PartListScreenState extends State<PartListScreen> {
             ],
           ),
           floatingActionButton: FloatingActionButton.extended(
+            // テーマの CircleBorder が extended にも効き、ラベルが円の外へ
+            // はみ出して読めなくなるため個別に指定する。
+            shape: const StadiumBorder(),
             onPressed: () async {
               final result = await Navigator.push<bool>(
                 context,
@@ -142,10 +145,29 @@ class _PartListScreenState extends State<PartListScreen> {
     }
 
     if (provider.browseParts.isEmpty) {
-      return const AppEmptyState(
+      // The screen suggested two things and offered neither. Clearing the
+      // filters is the one that keeps the user on this screen.
+      final filtered =
+          _selectedCategory != null || _searchController.text.isNotEmpty;
+      return AppEmptyState(
         icon: Icons.build_outlined,
         title: 'パーツが見つかりません',
-        description: '検索条件を変えるか、\n新しいパーツを出品してみましょう',
+        description: filtered
+            ? '絞り込みを外すと、出品されているパーツがすべて表示されます'
+            : 'まだ出品がありません。最初の1件を出品してみましょう',
+        buttonLabel: filtered ? '絞り込みをクリア' : 'パーツを出品する',
+        onButtonPressed: () {
+          if (filtered) {
+            _searchController.clear();
+            setState(() => _selectedCategory = null);
+            _load();
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CreateListingScreen()),
+          ).then((_) => _load(category: _selectedCategory));
+        },
       );
     }
 
@@ -273,11 +295,13 @@ class _CategoryFilterRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 42,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+    // A fixed row height minus padding gave each chip 26px to live in, but a
+    // compact ChoiceChip needs 40 — so every label was squeezed and sat low.
+    // Sizing the row from its content removes the magic number entirely.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      child: Row(
         children: [
           // 「すべて」チップ
           Padding(

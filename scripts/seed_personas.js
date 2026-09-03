@@ -13,6 +13,8 @@
  * Options:
  *   --dry-run    Firestore/Auth に書かず、登録予定データを標準出力に表示する
  *   --emulator   Firebase Emulator (Firestore localhost:8080 / Auth localhost:9099)
+ *   --with-auth  本番でも Auth ユーザーを作成する（Web版でログインする場合に必要。
+ *                パスワードは password123 のため、確認後は必ず削除すること）
  *                に接続する
  *
  * Requirements:
@@ -173,6 +175,19 @@ const personaUsers = [
     accountType: 'personal',
     planType: 'free',
   },
+  // 2026-08-25 追加。
+  //
+  // それまで貨物車はペルソナAのハイエース1台だけで、**軽貨物も事業用も
+  // トラックも1台も無かった**。貨物は毎年車検、軽貨物は2年車検、事業用も
+  // 毎年車検と周期が違うのに、その導線が一度もテストされていなかった。
+  {
+    uid: 'persona-j-user',
+    email: 'persona.j@example.com',
+    displayName: '配送 七郎（J: 軽トラ・小型トラック）',
+    accountType: 'business',
+    companyName: '七郎運送',
+    planType: 'free',
+  },
 ];
 
 /** users/{uid} ドキュメント data を組み立てる */
@@ -194,6 +209,58 @@ function userDoc(u) {
 // 2) vehicles（トップレベル・userId/companyId で紐付け）
 // ---------------------------------------------------------------------------
 const vehicleSeeds = [];
+
+// ---- Persona J: 配送業（軽トラ・小型トラック・事業用） ---------------------
+//
+// 車検の周期が用途区分で変わることを、実際に確かめられる並びにしてある。
+//   軽貨物   初回2年 → 以降2年
+//   貨物     初回2年 → 以降1年   ← 毎年車検
+//   事業用   初回1年 → 以降1年   ← 毎年車検
+vehicleSeeds.push(
+  {
+    id: 'veh-j-keitruck',
+    data: {
+      userId: 'persona-j-user',
+      maker: 'ダイハツ', model: 'ハイゼットトラック', grade: 'スタンダード', year: 2021,
+      mileage: 62000,
+      licensePlate: '足立 480 あ 71-71',
+      inspectionExpiryDate: tsFromNow(310),
+      useCategory: 'keiCargo',
+      fuelType: 'gasoline',
+      status: 'active', isDataRetained: true,
+      createdAt: now, updatedAt: now,
+    },
+  },
+  {
+    id: 'veh-j-elf',
+    data: {
+      userId: 'persona-j-user',
+      maker: 'いすゞ', model: 'エルフ', grade: '標準キャブ', year: 2019,
+      mileage: 185000,
+      licensePlate: '足立 100 か 72-72',
+      // 毎年車検。期限が近い状態にして、催促の導線を確かめられるようにする。
+      inspectionExpiryDate: tsFromNow(25),
+      useCategory: 'cargo',
+      fuelType: 'diesel',
+      status: 'active', isDataRetained: true,
+      createdAt: now, updatedAt: now,
+    },
+  },
+  {
+    id: 'veh-j-dutro',
+    data: {
+      userId: 'persona-j-user',
+      maker: '日野', model: 'デュトロ', grade: 'ワイドキャブ', year: 2023,
+      mileage: 48000,
+      licensePlate: '足立 100 あ 73-73',
+      inspectionExpiryDate: tsFromNow(120),
+      useCategory: 'commercial',
+      fuelType: 'diesel',
+      status: 'active', isDataRetained: true,
+      createdAt: now, updatedAt: now,
+    },
+  },
+);
 
 // ---- Persona A: 個人4台混在（品川） -------------------------------------
 vehicleSeeds.push(
@@ -430,7 +497,7 @@ function maint({ id, vehicleId, userId, type, title, cost, date, mileage }) {
     maint({ id: 'mnt-d-oil-4', vehicleId: 'veh-d-prius', userId: 'persona-d-user', type: 'oilChange', title: 'オイル交換', cost: 4300, date: tsPlus(base, 540), mileage: 25000 }),
     maint({ id: 'mnt-d-tire-1', vehicleId: 'veh-d-prius', userId: 'persona-d-user', type: 'tireChange', title: 'タイヤ交換', cost: 32000, date: tsPlus(base, 365), mileage: 18000 }),
     maint({ id: 'mnt-d-tire-2', vehicleId: 'veh-d-prius', userId: 'persona-d-user', type: 'tireChange', title: 'タイヤ交換', cost: 34000, date: tsPlus(base, 730), mileage: 28000 }),
-    maint({ id: 'mnt-d-batt-1', vehicleId: 'veh-d-prius', userId: 'persona-d-user', type: 'batteryChange', title: 'バッテリー交換', cost: 15000, date: tsPlus(base, 1200), mileage: 40000 }),
+    maint({ id: 'mnt-d-batt-1', vehicleId: 'veh-d-prius', userId: 'persona-d-user', type: 'batteryChange', title: 'バッテリー交換', cost: 15000, date: tsPlus(base, 1200), mileage: 26500 }),
   );
 }
 
@@ -606,11 +673,23 @@ function logGroup(title, entries, labelFn) {
 }
 
 async function seedAuthUsers() {
-  if (!useEmulator) {
+  // 本番 Auth への作成は既定でスキップする。ただし Web 版（本番接続）で
+  // ログインして動作確認するには本番側に Auth ユーザーが必要なので、
+  // 明示フラグ --with-auth を付けた場合のみ本番にも作成する。
+  const withAuth = process.argv.includes('--with-auth');
+  if (!useEmulator && !withAuth) {
     console.log(
       '[SKIP] Auth ユーザー作成は --emulator 時のみ実行します（本番 Auth を汚さないため）。',
     );
+    console.log(
+      '       Web版でログインする場合は --with-auth を付けてください。');
     return;
+  }
+  if (!useEmulator && withAuth) {
+    console.log(
+      '[WARN] 本番 Auth にテストユーザー9名を作成します（パスワードは ' +
+        'password123）。公開されている Web からログイン可能になるため、' +
+        '確認が終わったら必ず削除してください。');
   }
   const auth = admin.auth();
   let created = 0;
@@ -651,7 +730,36 @@ async function seedAuthUsers() {
   console.log('');
 }
 
+/// 作成した Auth ユーザー9名を削除する（--delete-auth）。
+///
+/// パスワードが password123 の共通値なので、本番で確認が終わったら
+/// アカウントを残さないこと。Firestore 側のシードデータは公開情報のみで
+/// あり、残っても不正ログインの足がかりにはならないが、Auth は別。
+async function deleteAuthUsers() {
+  const auth = admin.auth();
+  let deleted = 0;
+  for (const u of personaUsers) {
+    try {
+      await auth.deleteUser(u.uid);
+      deleted++;
+      console.log(`[AUTH] deleted ${u.email} (uid=${u.uid})`);
+    } catch (err) {
+      if (err && err.code === 'auth/user-not-found') {
+        console.log(`[AUTH] skip（存在しない）: ${u.uid}`);
+      } else {
+        console.warn(`[AUTH][WARN] 削除失敗 ${u.uid}: ${err.message}`);
+      }
+    }
+  }
+  console.log(`[AUTH] 削除 ${deleted} 件 / 全 ${personaUsers.length} 件`);
+}
+
 async function main() {
+  // 初期化はモジュール先頭で済んでいる（emulator/本番の分岐込み）。
+  if (process.argv.includes('--delete-auth')) {
+    await deleteAuthUsers();
+    return;
+  }
   console.log('=== Persona Seed Script ===');
   console.log(`dry-run  : ${isDryRun}`);
   console.log(`emulator : ${useEmulator}`);
@@ -730,7 +838,7 @@ async function main() {
     );
     console.log('--- [DRY RUN] 完了（Firestore/Auth への書き込みは行っていません）---');
     console.log(
-      `\nログイン用: 各ペルソナのメール（persona.a@example.com 〜 persona.i@example.com）+ パスワード「${DEMO_PASSWORD}」`,
+      `\nログイン用: 各ペルソナのメール（persona.a@example.com 〜 persona.j@example.com）+ パスワード「${DEMO_PASSWORD}」`,
     );
     return;
   }
@@ -749,7 +857,7 @@ async function main() {
   console.log(`[SUCCESS] Firestore に ${all.length} 件のドキュメントを登録しました。`);
   console.log('');
   console.log('ログイン（Auth エミュレータ）:');
-  console.log(`  メール : persona.a@example.com 〜 persona.i@example.com`);
+  console.log(`  メール : persona.a@example.com 〜 persona.j@example.com`);
   console.log(`  パスワード : ${DEMO_PASSWORD}`);
   console.log('  例) 法人フリート20台を見る → persona.b@example.com（田中 花子）');
 }

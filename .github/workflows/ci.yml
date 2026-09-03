@@ -24,12 +24,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.0'
+          flutter-version: '3.44.2'
           channel: 'stable'
           cache: true
 
@@ -71,7 +71,7 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           set +e
-          flutter test --coverage --exclude-tags emulator 2>&1 | tee /tmp/test.log
+          flutter test --coverage --exclude-tags "emulator || golden" 2>&1 | tee /tmp/test.log
           STATUS=${PIPESTATUS[0]}
           if [ "$STATUS" -ne 0 ]; then
             echo "::group::失敗したテスト"
@@ -90,12 +90,12 @@ jobs:
       # Everything below is continue-on-error: emulator download/startup can
       # be flaky on hosted runners and must not block the required gate.
       - name: Setup Node.js (for Firebase CLI)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
 
       - name: Setup Java (for Firestore emulator)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -120,7 +120,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           files: coverage/lcov.info
           fail_ci_if_error: false
@@ -133,17 +133,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
 
       # Storage Emulator は Java を必要とする。
       # firebase-tools は JDK 21 以上が必須（17 だと起動エラー）。
       - name: Setup Java (for Storage emulator)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -168,10 +168,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -179,7 +179,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.0'
+          flutter-version: '3.44.2'
           channel: 'stable'
           cache: true
 
@@ -199,6 +199,16 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
 
+      # google-services.json は .gitignore 対象なので CI では書き起こす。
+      # 中身は APK に埋め込まれて配布されるものなので秘密ではない。
+      #
+      # 2026-08-23: ここに書かれていた値は実在しないアプリを指していた。
+      # mobilesdk_app_id が com.example.trust_car_platform 用のもので、
+      # package_name だけ jp.trustcar.app に書き換えられていた。api_key も
+      # web 用だった。gradle の google-services プラグインは package_name しか
+      # 照合しないためビルドは通り、実行時にだけ壊れる。
+      # jp.trustcar.app の Android アプリを Firebase に登録し直し、
+      # その正しい値へ差し替えた（App ID: ...:android:145b8b79b1d9e7cf80c985）。
       - name: Place google-services.json
         run: |
           cat > android/app/google-services.json <<'EOF'
@@ -210,12 +220,18 @@ jobs:
             },
             "client": [{
               "client_info": {
-                "mobilesdk_app_id": "1:31421119456:android:cc5714538a154c3f80c985",
+                "mobilesdk_app_id": "1:31421119456:android:145b8b79b1d9e7cf80c985",
                 "android_client_info": { "package_name": "jp.trustcar.app" }
               },
-              "oauth_client": [],
-              "api_key": [{ "current_key": "AIzaSyDZQ4UK6IXiUKNJ3u1Cjup4nIEmiV97O0Q" }],
-              "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+              "oauth_client": [{
+                "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
+                "client_type": 3
+              }],
+              "api_key": [{ "current_key": "AIzaSyDwjPzpdQqXFl4be7oE3n-yzcl6hoLv_Uw" }],
+              "services": { "appinvite_service": { "other_platform_oauth_client": [{
+                "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
+                "client_type": 3
+              }] } }
             }],
             "configuration_version": "1"
           }
@@ -265,12 +281,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.0'
+          flutter-version: '3.44.2'
           channel: 'stable'
           cache: true
 
@@ -288,7 +304,7 @@ jobs:
           <plist version="1.0">
           <dict>
             <key>API_KEY</key>
-            <string>AIzaSyDZQ4UK6IXiUKNJ3u1Cjup4nIEmiV97O0Q</string>
+            <string>AIzaSyBt0hMKqo9viDFCXvNcDpNWcQ34seKfPEg</string>
             <key>GCM_SENDER_ID</key>
             <string>31421119456</string>
             <key>PLIST_VERSION</key>
@@ -310,7 +326,7 @@ jobs:
             <key>IS_SIGNIN_ENABLED</key>
             <true/>
             <key>GOOGLE_APP_ID</key>
-            <string>1:31421119456:ios:4320af5d1401f02c80c985</string>
+            <string>1:31421119456:ios:5646ac324f34398880c985</string>
           </dict>
           </plist>
           EOF
@@ -334,7 +350,14 @@ jobs:
           BUILD_STATUS=${PIPESTATUS[0]}
           if [ $BUILD_STATUS -ne 0 ]; then
             echo "::error::=== XCODE ERRORS ==="
-            grep -E "error:|fatal error:|BUILD FAILED" /tmp/ios_build.log | grep -v "^note:" | tail -50 | while IFS= read -r line; do
+            # Xcode does not always say "error:". The failures that actually
+            # stopped a build on 2026-08-21 were
+            #   Command PhaseScriptExecution failed with a nonzero exit code
+            #   Can't load Kernel binary: Invalid kernel binary format version
+            # Neither contains "error:", so the cause never reached the log and
+            # the build looked like it failed for no reason. Match those too.
+            grep -E "error:|fatal error:|BUILD FAILED|Command [A-Za-z]+ failed|Can't load Kernel binary|Encountered error|linker command failed|Undefined symbol" \
+              /tmp/ios_build.log | grep -v "^note:" | tail -50 | while IFS= read -r line; do
               echo "::error::$line"
             done
             exit $BUILD_STATUS

@@ -15,6 +15,8 @@ import 'shop_inquiry_list_screen.dart';
 import 'shop_plan_screen.dart';
 import 'shop_registration_screen.dart';
 import '../newsletter/newsletter_list_screen.dart';
+import 'shop_invite_manage_screen.dart';
+import '../../services/shop_invite_service.dart';
 
 /// Shop owner hub screen.
 ///
@@ -298,6 +300,26 @@ class _RegisteredBody extends StatelessWidget {
           AppSpacing.verticalMd,
           // Monthly inquiry report (ROI visibility)
           _MonthlyReportCard(provider: provider),
+          AppSpacing.verticalMd,
+          // お客様に配るコード
+          // docs/BUSINESS_MODEL_RETHINK_2026-08-27.md §4 —
+          // 顧客側の入力画面だけあっても、渡すものが無ければ誰も使えない。
+          OutlinedButton.icon(
+            key: const Key('shop_invite_manage_btn'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => ShopInviteManageScreen(
+                  service: sl.get<ShopInviteService>(),
+                  shopId: shop.id,
+                  shopName: shop.name,
+                  shopOwnerId: shop.ownerId ?? '',
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.qr_code_2),
+            label: const Text('お客様に配るコード'),
+          ),
           // Inquiry count badge (tappable → ShopInquiryListScreen)
           _InquiryCountBadge(provider: provider, shopId: shop.id),
           AppSpacing.verticalMd,

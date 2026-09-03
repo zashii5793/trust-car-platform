@@ -20,6 +20,7 @@ class FirestoreCollections {
   static const String inquiries = 'inquiries';
   static const String messages = 'messages';
   static const String notifications = 'notifications';
+  static const String feedback = 'feedback';
   static const String postLikes = 'post_likes';
   static const String commentLikes = 'comment_likes';
   static const String driveLogLikes = 'drive_log_likes';

@@ -66,6 +66,8 @@ class _StubAuthService implements AuthService {
   Future<Result<void, AppError>> updateUserProfile({
     String? displayName,
     String? photoUrl,
+    String? prefecture,
+    String? city,
   }) async =>
       const Result.success(null);
 

@@ -290,6 +290,8 @@ class AuthProvider with ChangeNotifier {
   Future<bool> updateProfile({
     String? displayName,
     String? photoUrl,
+    String? prefecture,
+    String? city,
   }) async {
     _isLoading = true;
     _error = null;
@@ -298,6 +300,8 @@ class AuthProvider with ChangeNotifier {
     final result = await _authService.updateUserProfile(
       displayName: displayName,
       photoUrl: photoUrl,
+      prefecture: prefecture,
+      city: city,
     );
 
     _isLoading = false;

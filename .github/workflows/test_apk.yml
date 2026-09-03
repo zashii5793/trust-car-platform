@@ -1,0 +1,186 @@
+name: Test APK
+
+# テストユーザーへ配る Android の APK を作る。
+#
+# なぜ CI で作るのか: 開発機に Android SDK が入っていない（flutter doctor が
+# "Unable to locate Android SDK"）。SDK を入れれば手元でも作れるが、配布のたびに
+# 手元の環境に依存させたくないので、ここで作って成果物として置く。
+#
+# 署名の扱い:
+#   ANDROID_KEYSTORE_BASE64 などの Secret があれば release ビルド（署名付き）。
+#   無ければ profile ビルドにフォールバックする。profile は release と同じ AOT
+#   コンパイルなので体感速度はほぼ同じで、debug 鍵で署名されるため鍵の用意が要らない。
+#   debug ビルドは JIT で目に見えて遅く、UI の評価を歪めるので使わない。
+#
+# 出力: Actions の実行ページ下部 "Artifacts" から zip をダウンロードできる。
+# テストユーザーには、その zip を展開した .apk を渡す。
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: 'この APK の目印（例: 8/25 テスト配布1回目）'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build test APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Install Android SDK 36 and NDK
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | $SDKMANAGER --licenses 2>/dev/null || true
+          $SDKMANAGER "platforms;android-36"
+          $SDKMANAGER "ndk;28.2.13676358"
+          $SDKMANAGER "build-tools;36.0.0" || echo "build-tools;36.0.0 not available, continuing"
+
+      - name: Update android/local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
+
+      # 地図キーは任意。無くても地図が出ないだけで、他の画面は動く。
+      - name: Add Google Maps key (optional)
+        env:
+          MAPS_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY_ANDROID }}
+        run: |
+          if [ -n "$MAPS_KEY" ]; then
+            echo "MAPS_API_KEY=$MAPS_KEY" >> android/local.properties
+            echo "Google Maps のキーを設定しました"
+          else
+            echo "::warning::GOOGLE_MAPS_API_KEY_ANDROID が未設定です。地図は距離順リストにフォールバックします。"
+          fi
+
+      # ci.yml と同じ内容。APK に埋め込まれて配られるものなので秘密ではない。
+      - name: Place google-services.json
+        run: |
+          cat > android/app/google-services.json <<'EOF'
+          {
+            "project_info": {
+              "project_number": "31421119456",
+              "project_id": "trust-car-platform",
+              "storage_bucket": "trust-car-platform.firebasestorage.app"
+            },
+            "client": [{
+              "client_info": {
+                "mobilesdk_app_id": "1:31421119456:android:145b8b79b1d9e7cf80c985",
+                "android_client_info": { "package_name": "jp.trustcar.app" }
+              },
+              "oauth_client": [{
+                "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
+                "client_type": 3
+              }],
+              "api_key": [{ "current_key": "AIzaSyDwjPzpdQqXFl4be7oE3n-yzcl6hoLv_Uw" }],
+              "services": { "appinvite_service": { "other_platform_oauth_client": [{
+                "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
+                "client_type": 3
+              }] } }
+            }],
+            "configuration_version": "1"
+          }
+          EOF
+
+      - name: Restore release keystore (if configured)
+        id: keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASSWORD" ]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::署名用の Secret が未設定のため profile ビルドで作ります（debug 鍵で署名）。"
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          cat > android/key.properties <<EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=${KEY_PASSWORD:-$STORE_PASSWORD}
+          keyAlias=${KEY_ALIAS:-trust-car-platform}
+          storeFile=$RUNNER_TEMP/release.keystore
+          EOF
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build APK
+        id: build
+        run: |
+          if [ "${{ steps.keystore.outputs.signed }}" = "true" ]; then
+            MODE=release
+          else
+            MODE=profile
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
+          set +e
+          # APP_BUILD_ID: どのビルドを触っているかを、アプリの画面と
+          # フィードバックの両方から読めるようにする。テスト配布中は
+          # バージョンが 1.0.0 のまま出し直すので、これが無いと
+          # 「直っていない」という報告を確かめられない。
+          flutter build apk --$MODE \
+            --dart-define=APP_BUILD_ID=${GITHUB_SHA::7} 2>&1 | tee /tmp/apk_build.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::error::=== APK ビルド失敗 ==="
+            awk '/^FAILURE:/,0' /tmp/apk_build.log | head -80 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+          fi
+          exit $STATUS
+
+      - name: Rename APK
+        run: |
+          MODE=${{ steps.build.outputs.mode }}
+          SRC="build/app/outputs/flutter-apk/app-$MODE.apk"
+          mkdir -p dist
+          cp "$SRC" "dist/TrustCar-$MODE-${GITHUB_SHA::7}.apk"
+          ls -la dist
+
+      - name: Report
+        run: |
+          {
+            echo "## Android テスト用 APK"
+            echo
+            echo "| 項目 | 値 |"
+            echo "|---|---|"
+            echo "| ビルド種別 | ${{ steps.build.outputs.mode }} |"
+            echo "| 署名 | ${{ steps.keystore.outputs.signed == 'true' && 'リリース鍵' || 'debug 鍵（直接インストール用）' }} |"
+            echo "| コミット | ${GITHUB_SHA::7} |"
+            echo "| 目印 | ${{ inputs.note }} |"
+            echo
+            echo "下の Artifacts から zip をダウンロードし、展開した .apk を配布してください。"
+            echo "端末側で「提供元不明のアプリ」の許可が必要です（docs/TESTUSER_GUIDE.md 参照）。"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: trustcar-test-apk
+          path: dist/*.apk
+          retention-days: 14
+          if-no-files-found: error

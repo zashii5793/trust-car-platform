@@ -30,6 +30,10 @@ import 'package:trust_car_platform/services/part_listing_service.dart';
 ///
 /// Implements (not extends) FirebaseService so no real Firebase app is needed.
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
+      const Result.success(false);
+
   final Result<List<String>, AppError> uploadResult = const Result.success([]);
 
   @override

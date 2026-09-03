@@ -75,6 +75,9 @@ class NotificationListScreen extends StatelessWidget {
                       onMarkRead: notification.isRead
                           ? null
                           : () => provider.markAsRead(notification.id),
+                      onMarkUnread: notification.isRead
+                          ? () => provider.markAsUnread(notification.id)
+                          : null,
                     ),
                   );
                 },
@@ -384,12 +387,14 @@ class _NotificationCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onDismiss;
   final VoidCallback? onMarkRead;
+  final VoidCallback? onMarkUnread;
 
   const _NotificationCard({
     required this.notification,
     required this.onTap,
     required this.onDismiss,
     this.onMarkRead,
+    this.onMarkUnread,
   });
 
   @override
@@ -556,18 +561,20 @@ class _NotificationCard extends StatelessWidget {
                                   fontSize: 11,
                                 ),
                               ),
-                              // 未読ドット
-                              if (!notification.isRead) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  width: 7,
-                                  height: 7,
-                                  decoration: BoxDecoration(
-                                    color: priorityColor,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ],
+                              // 既読/未読の切り替え。
+                              //
+                              // 以前は7pxの未読ドットを出すだけで、既読に
+                              // する手段はスワイプしかなかった。スワイプは
+                              // 見えないので「既読機能が無い」のと同じ。
+                              // 状態が読めて、その場で切り替えられる形にする。
+                              const SizedBox(width: 4),
+                              _ReadToggle(
+                                isRead: notification.isRead,
+                                color: priorityColor,
+                                onPressed: notification.isRead
+                                    ? onMarkUnread
+                                    : onMarkRead,
+                              ),
                             ],
                           ),
                           const SizedBox(height: 4),
@@ -795,6 +802,61 @@ class _DetailRow extends StatelessWidget {
             style: theme.textTheme.bodyLarge,
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 既読/未読トグル
+// ---------------------------------------------------------------------------
+
+/// 既読状態を表示し、その場で切り替えるボタン。
+///
+/// 表示だけのドットではなく押せるようにしてあるのは、既読にする操作が
+/// スワイプにしか無かったため。誤ってタップして既読になった通知も
+/// ここから未読へ戻せる。
+class _ReadToggle extends StatelessWidget {
+  final bool isRead;
+  final Color color;
+  final VoidCallback? onPressed;
+
+  const _ReadToggle({
+    required this.isRead,
+    required this.color,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: isRead ? '未読に戻す' : '既読にする',
+      child: InkWell(
+        key: Key('notification_read_toggle_${isRead ? 'read' : 'unread'}'),
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isRead ? Icons.drafts_outlined : Icons.circle,
+                size: isRead ? 14 : 8,
+                color: isRead ? AppColors.textTertiary : color,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                isRead ? '既読' : '未読',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                  color: isRead ? AppColors.textTertiary : color,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

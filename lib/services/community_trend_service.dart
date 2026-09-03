@@ -84,6 +84,41 @@ class CommunityTrendData {
     required this.insights,
   });
 
+  /// 同じ車種の人の、1年あたりのおおよその整備費用。
+  ///
+  /// 「あなたのクルマの1年」で比較の相手にする（docs/HABIT_DESIGN.md 打ち手2）。
+  /// **自分の数字だけでは良し悪しが分からない。** 18万円が高いのか安いのかは、
+  /// 同じ車に乗っている人と比べて初めて分かる。
+  ///
+  /// トレンドは「この整備を中央値で何日ごとに、いくらで」しか持っていないので、
+  /// 1年あたりに割り戻して足し合わせる。半年ごと5,000円なら年10,000円、
+  /// 2年ごと80,000円なら年40,000円。
+  ///
+  /// 使える項目が1つも無ければ null。**推定できないものを0円と書くと、
+  /// 「同じ車種の人は年0円」という嘘になる。**
+  int? get estimatedAnnualCost {
+    var total = 0.0;
+    var used = 0;
+
+    for (final insight in insights) {
+      final cost = insight.medianCost;
+      final days = insight.medianIntervalDays;
+
+      if (cost == null || days == null || days <= 0) continue;
+      // 1台の実績を「平均」と呼ばない。
+      if (insight.sampleCount < minimumSampleCount) continue;
+
+      total += cost * (365.0 / days);
+      used++;
+    }
+
+    if (used == 0) return null;
+    return total.round();
+  }
+
+  /// これ未満の件数しかない項目は、平均として扱わない。
+  static const int minimumSampleCount = 3;
+
   factory CommunityTrendData.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return CommunityTrendData(

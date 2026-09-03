@@ -1,4 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'vehicle_equipment.dart';
+import '../data/vehicle_master_data.dart';
+import 'vehicle_master.dart';
+
+export 'vehicle_equipment.dart';
 
 /// 車両の現在のステータス
 ///
@@ -75,6 +80,33 @@ enum VehicleUseCategory {
     this.firstInspectionYears,
     this.inspectionCycleYears,
   );
+
+  /// 選んだ車種から用途区分を当てる。**あくまで初期値で、画面で変えられる。**
+  ///
+  /// 利用者に「1ナンバーか4ナンバーか」を聞くのは酷なので、車種から寄せる。
+  /// ここを外すと車検満了日の計算がずれ、リマインドが1年単位で狂う。
+  ///
+  /// 軽貨物（軽トラ・軽バン）は普通貨物と周期が違う（以降2年 vs 以降1年）。
+  /// bodyType が truck / van というだけでは区別できないため、車種IDで見る。
+  static VehicleUseCategory suggestFor({
+    required String? modelId,
+    required BodyType? bodyType,
+  }) {
+    final id = (modelId ?? '').trim();
+    if (id.isNotEmpty && VehicleMasterData.keiCargoModelIds.contains(id)) {
+      return VehicleUseCategory.keiCargo;
+    }
+
+    switch (bodyType) {
+      case BodyType.truck:
+      case BodyType.van:
+        return VehicleUseCategory.cargo;
+      default:
+        // 分からないときは自家用乗用に倒す。台数が圧倒的に多く、
+        // 外したときの影響も小さい（車検が早まる側に間違えない）。
+        return VehicleUseCategory.privatePassenger;
+    }
+  }
 
   static VehicleUseCategory? fromString(String? value) {
     if (value == null) return null;
@@ -468,7 +500,13 @@ class Vehicle {
   final String grade;
   final int mileage;
   final DateTime? mileageUpdatedAt; // Last updated date of mileage
+  /// 一覧やカードで使う代表画像。[imageUrls] の先頭と同じものを指す。
+  /// 旧バージョンのアプリ・既存ドキュメントとの互換のために残している。
   final String? imageUrl;
+
+  /// 車両の写真。好きな角度の写真を複数残せるようにするためのフィールド。
+  /// 既存データは imageUrl しか持たないため、読み取り時に引き上げる。
+  final List<String> imageUrls;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -500,6 +538,9 @@ class Vehicle {
   // リース契約情報（法人・個人リース車両）
   final LeaseInfo? leaseInfo;
 
+  // オプション・装備（ナビ / ドラレコ / ETC / 有無フラグ / 自由記述）
+  final VehicleEquipment? equipment;
+
   // フリート管理: 法人アカウントの companyId（= 管理者の userId）
   final String? companyId;
   // フリート担当者アサイン
@@ -528,6 +569,7 @@ class Vehicle {
     required this.mileage,
     this.mileageUpdatedAt,
     this.imageUrl,
+    this.imageUrls = const [],
     required this.createdAt,
     required this.updatedAt,
     // Phase 1.5 追加
@@ -548,6 +590,7 @@ class Vehicle {
     this.seatingCapacity,
     this.voluntaryInsurance,
     this.leaseInfo,
+    this.equipment,
     this.useCategory,
     this.status = VehicleStatus.active,
     this.retiredAt,
@@ -621,7 +664,8 @@ class Vehicle {
       grade: data['grade'] ?? '',
       mileage: data['mileage'] ?? 0,
       mileageUpdatedAt: _parseTimestampNullable(data['mileageUpdatedAt']),
-      imageUrl: data['imageUrl'],
+      imageUrl: _pickImageUrls(data).firstOrNull,
+      imageUrls: _pickImageUrls(data),
       createdAt: _parseTimestamp(data['createdAt']),
       updatedAt: _parseTimestamp(data['updatedAt']),
       // Phase 1.5 追加フィールド
@@ -646,6 +690,10 @@ class Vehicle {
           VoluntaryInsurance.fromMap(data['voluntaryInsurance']),
       leaseInfo: data['leaseInfo'] != null
           ? LeaseInfo.fromMap(data['leaseInfo'])
+          : null,
+      equipment: data['equipment'] != null
+          ? VehicleEquipment.fromMap(
+              Map<String, dynamic>.from(data['equipment'] as Map))
           : null,
       companyId: data['companyId'],
       assigneeId: data['assigneeId'],
@@ -692,7 +740,10 @@ class Vehicle {
       'mileageUpdatedAt': mileageUpdatedAt != null
           ? Timestamp.fromDate(mileageUpdatedAt!)
           : null,
-      'imageUrl': imageUrl,
+      // 先頭を imageUrl にも書いておく。まだ更新していない端末や
+      // imageUrl だけを見る既存コードでも1枚目が表示できる。
+      'imageUrl': imageUrls.isNotEmpty ? imageUrls.first : imageUrl,
+      'imageUrls': imageUrls,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
       // Phase 1.5 追加フィールド
@@ -720,6 +771,11 @@ class Vehicle {
       'seatingCapacity': seatingCapacity,
       'voluntaryInsurance': voluntaryInsurance?.toMap(),
       'leaseInfo': leaseInfo?.toMap(),
+      // 空の装備は書き戻さない。未入力で保存したときに既存の装備を
+      // 消してしまわないようにするため。
+      'equipment': (equipment != null && equipment!.hasAnyValue)
+          ? equipment!.toMap()
+          : null,
       'companyId': companyId,
       'assigneeId': assigneeId,
       'assigneeName': assigneeName,
@@ -742,6 +798,7 @@ class Vehicle {
     int? mileage,
     DateTime? mileageUpdatedAt,
     String? imageUrl,
+    List<String>? imageUrls,
     DateTime? createdAt,
     DateTime? updatedAt,
     // Phase 1.5 追加
@@ -762,6 +819,7 @@ class Vehicle {
     int? seatingCapacity,
     VoluntaryInsurance? voluntaryInsurance,
     LeaseInfo? leaseInfo,
+    VehicleEquipment? equipment,
     String? companyId,
     String? assigneeId,
     String? assigneeName,
@@ -784,6 +842,7 @@ class Vehicle {
       mileage: mileage ?? this.mileage,
       mileageUpdatedAt: mileageUpdatedAt ?? this.mileageUpdatedAt,
       imageUrl: imageUrl ?? this.imageUrl,
+      imageUrls: imageUrls ?? this.imageUrls,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       // Phase 1.5 追加
@@ -805,6 +864,7 @@ class Vehicle {
       seatingCapacity: seatingCapacity ?? this.seatingCapacity,
       voluntaryInsurance: voluntaryInsurance ?? this.voluntaryInsurance,
       leaseInfo: leaseInfo ?? this.leaseInfo,
+      equipment: equipment ?? this.equipment,
       useCategory: useCategory ?? this.useCategory,
       status: status ?? this.status,
       retiredAt: retiredAt ?? this.retiredAt,
@@ -843,4 +903,20 @@ class Vehicle {
 
   @override
   int get hashCode => id.hashCode;
+}
+
+/// Firestore の車両ドキュメントから画像URLの一覧を取り出す。
+///
+/// 新形式（imageUrls 配列）を優先し、無ければ旧形式（imageUrl 単数）を
+/// 1件のリストとして扱う。空文字・空白だけの値は保存事故なので取り除く。
+List<String> _pickImageUrls(Map<String, dynamic> data) {
+  final raw = data['imageUrls'];
+  if (raw is List && raw.isNotEmpty) {
+    return raw
+        .map((e) => e?.toString().trim() ?? '')
+        .where((e) => e.isNotEmpty)
+        .toList();
+  }
+  final single = data['imageUrl']?.toString().trim() ?? '';
+  return single.isEmpty ? const [] : [single];
 }

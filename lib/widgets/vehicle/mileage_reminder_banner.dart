@@ -15,21 +15,19 @@ class MileageReminderBanner extends StatelessWidget {
     required this.onTapUpdate,
   });
 
-  /// Whether the banner should be displayed.
-  /// True when mileageUpdatedAt is null or >= 30 days ago.
-  bool get _shouldShow {
-    if (vehicle.mileageUpdatedAt == null) {
-      return true;
-    }
-    return DateTime.now().difference(vehicle.mileageUpdatedAt!).inDays >= 30;
-  }
+  /// 判定の基準時刻。
+  ///
+  /// mileageUpdatedAt が無い車両（この項目の導入前に登録されたもの）は
+  /// 登録日を基準にする。以前は「未設定なら常に表示」だったため、
+  /// たった今距離を入力して登録した直後に「更新してください」が出ていた。
+  DateTime get _reference => vehicle.mileageUpdatedAt ?? vehicle.createdAt;
+
+  /// Whether the banner should be displayed (30日以上未更新のときのみ).
+  bool get _shouldShow => DateTime.now().difference(_reference).inDays >= 30;
 
   /// Human-readable last-update label.
   String _lastUpdatedLabel() {
-    if (vehicle.mileageUpdatedAt == null) {
-      return '未設定';
-    }
-    final days = DateTime.now().difference(vehicle.mileageUpdatedAt!).inDays;
+    final days = DateTime.now().difference(_reference).inDays;
     return '$days日前';
   }
 

@@ -43,14 +43,23 @@ class VehicleProvider with ChangeNotifier {
     // 既存のサブスクリプションをキャンセル
     _vehiclesSubscription?.cancel();
 
+    // 最初のスナップショットが届くまで vehicles は空のまま。読み込み中を
+    // 立てておかないと、ホームが「まず愛車を登録しよう」のオンボーディングを
+    // 数秒表示してしまう（車を持っている人にこれを見せない）。
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
     _vehiclesSubscription = _firebaseService.getUserVehicles().listen(
       (vehicles) {
         _vehicles = vehicles;
+        _isLoading = false;
         _error = null;
         _retryCount = 0;
         notifyListeners();
       },
       onError: (error) {
+        _isLoading = false;
         _error = mapFirebaseError(error);
         notifyListeners();
         _scheduleRetry(() => listenToVehicles());

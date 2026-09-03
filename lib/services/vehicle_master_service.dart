@@ -119,15 +119,20 @@ class VehicleMasterService {
         return Result.success(grades);
       }
 
-      // Fallback to common grades
-      final commonGrades = VehicleMasterData.getCommonGrades(modelId);
-      _gradesCache[modelId] = commonGrades;
-      return Result.success(commonGrades);
+      // この車種のグレードがカタログに無い場合は**空を返す**。
+      //
+      // 以前は全車種共通の汎用リスト（S / G / X / Z / ハイブリッド …）へ
+      // フォールバックしていた。しかしこれはトヨタ系の呼称で、ホンダにも
+      // 日産にもマツダにも同じものが出ていた。シビックに「S・G・X・Z」が
+      // 並ぶような、車種と噛み合わない候補を見せていたことになる。
+      //
+      // カタログが埋まるまでは、間違った候補を出すより何も出さないほうが
+      // よい。グレード欄は自由入力に対応しているので、入力自体は妨げない。
+      _gradesCache[modelId] = const [];
+      return const Result.success([]);
     } catch (e) {
-      // Fallback to common grades on error
-      final commonGrades = VehicleMasterData.getCommonGrades(modelId);
-      _gradesCache[modelId] = commonGrades;
-      return Result.success(commonGrades);
+      _gradesCache[modelId] = const [];
+      return const Result.success([]);
     }
   }
 

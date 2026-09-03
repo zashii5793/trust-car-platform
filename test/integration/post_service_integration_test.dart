@@ -671,7 +671,7 @@ void main() {
 
       // Assert
       expect(result.isSuccess, true);
-      final posts = result.valueOrNull;
+      final posts = result.valueOrNull?.posts;
       // Only public posts should be returned
       expect(posts?.every((p) => p.visibility == PostVisibility.public), true);
     });

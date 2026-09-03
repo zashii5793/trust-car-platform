@@ -48,7 +48,10 @@ class MockAuthService implements AuthService {
 
   @override
   Future<Result<void, AppError>> updateUserProfile(
-          {String? displayName, String? photoUrl}) async =>
+          {String? displayName,
+          String? photoUrl,
+          String? prefecture,
+          String? city}) async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override
@@ -203,13 +206,32 @@ void main() {
       expect(find.text('ドライブログがありません'), findsOneWidget);
     });
 
-    testWidgets('空状態の説明文を表示する', (tester) async {
+    testWidgets('空状態から記録に進める（行き止まりにしない）', (tester) async {
       service.logsResult = const Result.success([]);
 
       await tester.pumpWidget(_buildUnderTest(driveLogService: service));
       await tester.pump();
 
-      expect(find.text('ドライブを記録してみましょう'), findsOneWidget);
+      // The description used to be the whole empty state. Advice alone is a
+      // dead end: what matters is that a next step is on the screen.
+      expect(find.textContaining('手で入力できます'), findsOneWidget);
+
+      // find.byType は runtimeType の完全一致で、サブクラスに当たらない。
+      // ElevatedButton.icon が返す型は Flutter のバージョンで変わる
+      // （3.38 では _ElevatedButtonWithIcon、3.44 では ElevatedButton）ため、
+      // byType(ElevatedButton) だと CI と手元で結果が食い違う。
+      // ここで確かめたいのは「押せる次の一手が画面にあるか」なので、
+      // is 判定で拾って実際に押す。
+      final button = find.ancestor(
+        of: find.text('手動で記録する'),
+        matching: find.byWidgetPredicate((w) => w is ElevatedButton),
+      );
+      expect(button, findsOneWidget);
+
+      // 押した先（ManualDriveLogScreen）は VehicleProvider を要求するので、
+      // ここでは押さない。押せる導線が出ていることまでを見る。
+      final widget = tester.widget<ElevatedButton>(button);
+      expect(widget.onPressed, isNotNull);
     });
   });
 

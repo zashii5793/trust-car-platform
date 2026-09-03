@@ -103,6 +103,8 @@ class MockAuthService implements AuthService {
   Future<Result<void, AppError>> updateUserProfile({
     String? displayName,
     String? photoUrl,
+    String? prefecture,
+    String? city,
   }) async {
     return const Result.success(null);
   }

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Drive log status
@@ -140,73 +141,27 @@ class GeoPoint2D {
     return GeoPoint(latitude, longitude);
   }
 
-  /// Calculate distance to another point in meters (Haversine formula)
+  /// Calculate distance to another point in meters (Haversine formula).
+  ///
+  /// 以前は sin/cos/sqrt/atan2 を自前のテイラー展開で実装していた。
+  /// 理由として「dart:math の import 問題を避けるため」と書かれていたが、
+  /// dart:math は Dart のコアライブラリで Web を含む全ターゲットで使える。
+  /// 精度と可読性の両面で自前実装を持つ理由が無いため置き換えた。
   double distanceTo(GeoPoint2D other) {
     const earthRadius = 6371000.0; // meters
-    final lat1 = latitude * 3.141592653589793 / 180;
-    final lat2 = other.latitude * 3.141592653589793 / 180;
-    final dLat = (other.latitude - latitude) * 3.141592653589793 / 180;
-    final dLon = (other.longitude - longitude) * 3.141592653589793 / 180;
+    final lat1 = latitude * math.pi / 180;
+    final lat2 = other.latitude * math.pi / 180;
+    final dLat = (other.latitude - latitude) * math.pi / 180;
+    final dLon = (other.longitude - longitude) * math.pi / 180;
 
-    final a = _sin(dLat / 2) * _sin(dLat / 2) +
-        _cos(lat1) * _cos(lat2) * _sin(dLon / 2) * _sin(dLon / 2);
-    final c = 2 * _atan2(_sqrt(a), _sqrt(1 - a));
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
 
     return earthRadius * c;
-  }
-
-  // Simple math functions to avoid dart:math import issues
-  double _sin(double x) => _taylor(x, true);
-  double _cos(double x) => _taylor(x, false);
-  double _sqrt(double x) {
-    if (x <= 0) return 0;
-    double guess = x / 2;
-    for (int i = 0; i < 20; i++) {
-      guess = (guess + x / guess) / 2;
-    }
-    return guess;
-  }
-
-  double _atan2(double y, double x) {
-    if (x > 0) return _atan(y / x);
-    if (x < 0 && y >= 0) return _atan(y / x) + 3.141592653589793;
-    if (x < 0 && y < 0) return _atan(y / x) - 3.141592653589793;
-    if (x == 0 && y > 0) return 3.141592653589793 / 2;
-    if (x == 0 && y < 0) return -3.141592653589793 / 2;
-    return 0;
-  }
-
-  double _atan(double x) {
-    if (x.abs() > 1) {
-      return (x > 0 ? 1 : -1) * (3.141592653589793 / 2 - _atan(1 / x.abs()));
-    }
-    double result = 0;
-    double term = x;
-    for (int i = 1; i <= 15; i += 2) {
-      result += term / i;
-      term *= -x * x;
-    }
-    return result;
-  }
-
-  double _taylor(double x, bool isSin) {
-    // Normalize x to [-pi, pi]
-    const pi = 3.141592653589793;
-    while (x > pi) {
-      x -= 2 * pi;
-    }
-    while (x < -pi) {
-      x += 2 * pi;
-    }
-
-    double result = isSin ? x : 1;
-    double term = isSin ? x : 1;
-    for (int i = 1; i <= 10; i++) {
-      term *=
-          -x * x / ((isSin ? 2 * i : 2 * i - 1) * (isSin ? 2 * i + 1 : 2 * i));
-      result += term;
-    }
-    return result;
   }
 
   @override
