@@ -4,7 +4,7 @@
 
 ---
 
-## 未マージPR 32本の棚卸し（2026-09-03・その3）
+## 未マージPR 32本の棚卸し（2026-09-03・その5）
 
 7月に18本だった未マージPRが32本まで増えていたので、全部見て片付けた。
 
@@ -106,6 +106,68 @@ base を main に付け替えて初めて走り、#171 は dart format の差分
 2. #172 — カタログ外入力の候補記録（#176 で実装が上がっている）
 3. dependabot にネイティブ依存パッケージ用の `ios` ラベル自動付与を入れるか、
    運用ルールで縛るかを決める
+
+## 地図のキー注入とOCRのエラー文言を揃える（2026-09-03・その4）
+
+**ブランチ**: `claude/maps-and-ocr-polish`
+
+### 1. iOS はキーを置く場所が無かった
+
+`AppDelegate.swift` は `Info.plist` の `MapsApiKey` を読む作りなのに、
+**そのキーが Info.plist に無かった。** キーを発行しても iOS では地図が出ない。
+
+Android の `local.properties` と同じ形にした。
+
+```
+ ios/Runner/Info.plist         MapsApiKey = $(MAPS_API_KEY)
+ ios/Flutter/{Debug,Release}   #include? "Maps.xcconfig"
+ ios/Flutter/Maxs.xcconfig     MAPS_API_KEY = <実キー>   ← .gitignore
+ ios/Flutter/Maps.xcconfig.example                       ← テンプレート
+```
+
+`#include?` は省略可能インクルードなので、**ファイルが無くてもビルドは通る**
+（キー無し扱いになるだけ）。
+
+### 2. ドライブログ詳細だけガードが無かった
+
+`MapsConfig.isConfigured` を見ているのは工場一覧だけで、ドライブログ詳細は
+**キーが無くても `GoogleMap` を作っていた**（実機では灰色のタイルが出るだけで、
+理由が分からない）。
+
+ガードを足して「地図を表示できません（地図の設定が未完了です）」を出す。
+
+**副産物**: テスト環境はキー未設定なので、**2点以上の経路でも GoogleMap を
+組まなくなった。** これまで「テストできないから避ける」と書いてあった経路が
+検証できるようになり、テストを1件足した。
+
+### 3. Lite Mode は見送った
+
+`liteModeEnabled: true` にすると Android で静止画になり、**拡大縮小ができなく
+なる。** コストが問題にならないと分かった以上、見え方を変えてまで軽くする理由が
+ない。
+
+### 4. 請求書OCRのエラーが例外の生文字列を出していた
+
+```dart
+ 車検証   const AppError.unknown('OCR処理中にエラーが発生しました。もう一度お試しください。')
+ 請求書   AppError.unknown('OCR処理中にエラーが発生しました: $e')     ← これ
+```
+
+**例外メッセージに OCR したテキストの断片（店舗名・電話番号）が混じる恐れ**が
+ある。車検証側にはその旨のコメント付きで対策が入っていたのに、請求書側だけ
+漏れていた。
+
+失敗時の案内も非対称だった（車検証は「下のフォームから手動でも入力できます」、
+請求書は素の `userMessage` だけ）。**読み取れなくても手入力すれば記録は残せる**
+ので、そこを言わないと「使えない」で終わる。揃えた。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 4369件パス
+ dart format lib test                差分なし
+```
 
 ---
 

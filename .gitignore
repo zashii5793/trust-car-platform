@@ -99,3 +99,6 @@ firestore-debug.log
 
 # git worktree（リポジトリ内に作った作業用チェックアウト）
 .claude/worktrees/
+
+# iOS の Google Maps キー（android/local.properties と同じ扱い）
+ios/Flutter/Maps.xcconfig

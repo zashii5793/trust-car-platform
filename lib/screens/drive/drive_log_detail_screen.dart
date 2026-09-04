@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
+import '../../core/maps_config.dart';
 import '../../core/utils/route_privacy.dart';
 import '../../models/drive_log.dart';
 import '../../providers/auth_provider.dart';
@@ -449,19 +450,16 @@ class _RoutePreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     if (waypoints.length < 2) {
-      return Container(
-        height: 180,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: AppColors.divider.withValues(alpha: 0.3),
-          borderRadius: AppSpacing.borderRadiusSm,
-        ),
-        child: Text(
-          isBlurred ? '公開できる経路が残っていません' : '経路が記録されていません',
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: AppColors.textSecondary),
-        ),
+      return _placeholder(
+        theme,
+        isBlurred ? '公開できる経路が残っていません' : '経路が記録されていません',
       );
+    }
+
+    // キーが無いと地図は灰色のタイルになるだけで、何が起きたか分からない。
+    // 工場一覧（ShopListScreen）と同じように、出さずに理由を書く。
+    if (!MapsConfig.isConfigured) {
+      return _placeholder(theme, '地図を表示できません（地図の設定が未完了です）');
     }
 
     final points = waypoints
@@ -508,6 +506,24 @@ class _RoutePreview extends StatelessWidget {
           myLocationButtonEnabled: false,
           liteModeEnabled: false,
         ),
+      ),
+    );
+  }
+
+  /// 地図の代わりに出す枠。経路が無いときと、地図の設定が無いときに使う。
+  Widget _placeholder(ThemeData theme, String message) {
+    return Container(
+      height: 180,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.divider.withValues(alpha: 0.3),
+        borderRadius: AppSpacing.borderRadiusSm,
+      ),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style:
+            theme.textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
       ),
     );
   }

@@ -170,7 +170,12 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           }
         },
         failure: (error) {
-          showErrorSnackBar(context, error.userMessage);
+          // 読み取れなくても、下のフォームで手入力すれば記録は残せる。
+          // そこを言わないと「使えない」で終わってしまう（車検証側と同じ扱い）。
+          if (mounted) {
+            showErrorSnackBar(context,
+                '請求書を読み取れませんでした。下のフォームから手動でも入力できます（${error.userMessage}）');
+          }
         },
       );
     } finally {

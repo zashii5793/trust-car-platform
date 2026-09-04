@@ -71,33 +71,52 @@ Maps JavaScript API で、**そちらは現状ロード数 0** です（次項�
 
 ---
 
-## 4. コストより先に直すべきこと（コード側）
+## 4. コード側の穴は塞ぎました（2026-09-03）
 
-課金の心配は要りませんが、**キーの注入経路に穴が2つあります。**
+調べる過程で、キーの注入経路に穴が2つ見つかったので直しました。
 
-### (a) iOS はキーが注入されていません
+### (a) iOS にキーが渡るようにしました
 
-`ios/Runner/AppDelegate.swift:14-17` は `Info.plist` の `MapsApiKey` を読んで
-`GMSServices.provideAPIKey` に渡す作りですが、**`ios/Runner/Info.plist` に
-`MapsApiKey` のキーが存在しません**（xcconfig にもなし）。
+`ios/Runner/AppDelegate.swift:14-17` は `Info.plist` の `MapsApiKey` を読む作り
+でしたが、**そのキーが `Info.plist` に存在しませんでした**（xcconfig にもなし）。
+キーを発行しても iOS では地図が出ない状態です。
 
-→ **iOS ではキーを発行しても地図が出ません。** Info.plist への追加が要ります
-（AI 側で対応可能）。
+**Android の `local.properties` と同じ形にしました。**
 
-### (b) ドライブログ詳細に `MapsConfig` のガードがありません
+```
+ ios/Runner/Info.plist        MapsApiKey = $(MAPS_API_KEY)
+ ios/Flutter/Debug.xcconfig   #include? "Maps.xcconfig"
+ ios/Flutter/Release.xcconfig #include? "Maps.xcconfig"
+ ios/Flutter/Maps.xcconfig    MAPS_API_KEY = <実キー>   ← .gitignore 対象
+```
 
-`drive_log_detail_screen.dart` は `maps_config.dart` を import しておらず、
-**キーが無くても `GoogleMap` を生成します。** Android では灰色のタイルと
-`InvalidKey` のログ、Web ではレンダリング失敗になります。
+**使い方**（キーを発行したら）:
 
-→ 工場一覧と同じようにガードして、キーが無いときは「経路の地図は表示できません」
-と出すのが筋です（AI 側で対応可能）。
+```bash
+cp ios/Flutter/Maps.xcconfig.example ios/Flutter/Maps.xcconfig
+# MAPS_API_KEY = に発行したキーを書く
+```
 
-### (c) 経路プレビューは Lite Mode に落とせます
+`#include?` は省略可能インクルードなので、**ファイルが無くてもビルドは通ります**
+（キー無し扱いになるだけ）。
 
-`drive_log_detail_screen.dart:492` は `liteModeEnabled: false` です。
-経路を眺めるだけの静止プレビューなので、Android では Lite Mode（静止画相当）に
-できます。スクロールでの再生成コストも下がります。
+### (b) ドライブログ詳細にガードを入れました
+
+`drive_log_detail_screen.dart` は `MapsConfig` を見ておらず、キーが無くても
+`GoogleMap` を作っていました（実機では灰色のタイルが出るだけで、理由が分からない）。
+
+工場一覧と同じようにガードし、キーが無いときは
+**「地図を表示できません（地図の設定が未完了です）」**と出します。
+
+副産物として、**テスト環境（キー未設定）では2点以上の経路でも GoogleMap を
+組まなくなった**ので、これまで避けていた経路をテストできるようになりました
+（`test/screens/drive_log_detail_screen_test.dart` に1件追加）。
+
+### (c) Lite Mode は変えていません
+
+`liteModeEnabled: true` にすると Android では静止画になり、**拡大縮小が
+できなくなります**。コストが問題にならない以上、見え方を変えてまで軽くする
+理由がないので、そのままにしました。
 
 ---
 
@@ -114,7 +133,7 @@ Maps JavaScript API で、**そちらは現状ロード数 0** です（次項�
    - 各キーで「使用する API のみ」に制限
 4. キーを渡す
    - Android: `android/local.properties` に `MAPS_API_KEY=<実キー>`
-   - iOS: **先に (a) の Info.plist 対応が要ります**
+   - iOS: `cp ios/Flutter/Maps.xcconfig.example ios/Flutter/Maps.xcconfig` して記入
    - CI: GitHub Secrets の `GOOGLE_MAPS_API_KEY`
 5. 予算アラートは念のため設定（月$1で十分。超えたら想定外が起きている合図）
 
