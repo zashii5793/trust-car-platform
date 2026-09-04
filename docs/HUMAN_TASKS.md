@@ -95,43 +95,45 @@ storeFile=/Users/<ユーザー名>/trustcar-release.keystore
 
 ---
 
-### 3. Google Maps API キーの設定 `[実測: 未設定]`
+### 3. Google Maps API キーの設定 `[実測: 未設定。ただしコストはほぼゼロと判明]`
 
-**状態**: **未設定を実測で確認しました。** ブラウザのコンソールに以下が出ています。
+**詳細と試算: `docs/MAPS_API_COST.md`**
 
-```
-Google Maps JavaScript API warning: InvalidKey
-```
+**2026-09-03 に調べ直しました。Places API は使っていません**（`lib/` `functions/`
+`web/` を全文検索してヒット0）。Geocoding も Directions も未使用で、距離は
+Haversine のローカル計算です。**課金対象は地図の表示だけ**で、地図を出すのは
+2画面（近隣工場マップ・ドライブログの経路プレビュー）に限られます。
 
-**影響範囲**: 近隣工場の地図表示（#43 / #125）。ただし `MapsConfig.isConfigured` でガードされており、**キーが無い場合は距離順リストにフォールバック**します。アプリがクラッシュすることはありません。
+ソフトローンチ規模（20人）で **月140ロード程度**、無料枠の 1.4% です。
+さらに **Android / iOS のネイティブ地図は現行の価格体系では無料**で、課金される
+Web は `MAPS_API_KEY` を渡していないため**現状ロード数0**です。
 
-**手順**:
-1. [Google Cloud Console](https://console.cloud.google.com/) → APIとサービス → 認証情報 → APIキー発行
-2. 有効化するAPI（コスト最適化のため段階的に）:
-   - **フェーズ1a**: Maps SDK for Android / Maps SDK for iOS（地図表示）
-   - **フェーズ1b（任意）**: Places API（非提携先の近隣検索。**従量課金が高いため要判断**）
-3. APIキー制限（必須・漏洩対策）:
-   - Android: パッケージ名 `jp.trustcar.app` ＋ SHA-1 で制限
-   - iOS: Bundle ID `jp.trustcar.app` で制限
-   - 各キーで「使用するAPIのみ」に制限
-4. アプリへの設定（ハードコード禁止）:
-   - Android: `android/local.properties` に `MAPS_API_KEY=<実キー>`、または環境変数 `MAPS_API_KEY` / `GOOGLE_MAPS_API_KEY`
-     （`build.gradle.kts` の `manifestPlaceholders` が3経路とも読むよう実装済み）
-   - iOS: `ios/Runner/AppDelegate.swift` で注入
-   - CI: GitHub Secrets に `GOOGLE_MAPS_API_KEY`
-5. Google Cloud で **予算アラート**を設定（無料枠超過の早期検知）
+**やること**（30分）:
 
-**コスト目安（2026年時点・要最新確認）**:
-- 地図表示（Dynamic Maps, Essentials）: 月10,000ロードまで無料、超過後 約$7/1,000
-- Places 近隣検索（Pro）: 無料枠5,000/月、超過後 約$25〜/1,000
-- → フェーズ1a は無料枠内に収まりやすい。Places は1商圏限定＋キャッシュでコスト管理
+1. Google Cloud Console でAPIキーを発行
+2. 有効化: **Maps SDK for Android / Maps SDK for iOS のみ**（Places は不要）
+3. キー制限: Android はパッケージ名 `jp.trustcar.app` ＋ SHA-1、iOS は Bundle ID
+4. 渡し方: `android/local.properties` に `MAPS_API_KEY=...` / CI は GitHub Secrets
+5. 予算アラート（月$1で十分）
 
-**所要時間**: 1〜2時間
-**前提条件**: Google Cloud プロジェクトのオーナー権限・課金有効化
+**先に直すべきコード側の穴が2つあります**（AI 側で対応可能）:
+
+- **iOS はキーが注入されません。** `AppDelegate.swift` は `Info.plist` の
+  `MapsApiKey` を読みますが、**そのキーが Info.plist にありません**
+- **ドライブログ詳細に `MapsConfig` のガードがありません。** キーが無くても
+  地図を作ろうとして、灰色のタイルが出ます
 
 ---
 
 ### 4. Firebase Authentication の本番設定 `[要確認]`
+
+**詳細な手順: `docs/SETUP_AUTH_CONSOLE.md`**
+
+**2026-09-03 追記: `android/app/google-services.json` に Android 用の OAuth
+クライアント（SHA-1 付き）がありません。** このままでは Android の Google ログインが
+`ApiException: 10` で失敗します。**SHA-1 の登録と `google-services.json` の
+取り直しが要ります**（登録するのは P0-1 のリリース鍵の SHA-1。この開発機には
+Android SDK が無く、debug の SHA-1 は取れません）。
 
 **手順**:
 1. Firebase Console → Authentication → Sign-in method
@@ -274,6 +276,12 @@ plist は **Flutter のテンプレート既定のまま**で、取り直され�
 
 ### 9. 実機テスト（iOS / Android） `[未実施]`
 
+**チェックシート: `docs/DEVICE_TEST_CHECKLIST.md`**（項目ごとの記入欄あり）
+
+**2026-09-03 追記: 車検証OCRの元号変換にバグが見つかり、直しました。** ML Kit が
+ラベルと値を別行で返すと**令和7年が1995年**になっていました（満了日が30年前に
+なると、車検の案内が全部「切れている」と出ます）。実機で最初に確かめるべき項目です。
+
 エミュレータや Web では再現しない領域の確認です。**特に以下の3つは Web で一切検証できません**。
 
 #### 9-1. OCR（iOS/Android専用機能）
@@ -305,14 +313,24 @@ plist は **Flutter のテンプレート既定のまま**で、取り直され�
 
 ---
 
-### 10. Firestore バックアップ設定 `[要確認]`
+### 10. Firestore バックアップ設定 `[完了: 2026-09-03]`
 
-1. Firebase Console → Firestore → バックアップとエクスポート
-2. 自動バックアップを「毎日」に設定
-3. Cloud Storage バケットを指定（例: `gs://trust-car-backup-2026`）
-4. 保持期間: 30日
+**Console を開かずに CLI から設定できます。** 2026-09-03 に設定済み。
 
-**所要時間**: 15分
+```bash
+firebase firestore:backups:schedules:create --recurrence DAILY --retention 30d
+firebase firestore:backups:schedules:list   # 確認
+```
+
+```
+ Name         projects/trust-car-platform/databases/(default)/backupSchedules/d7be24ef-...
+ Recurrence   DAILY
+ Retention    2592000s（30日）
+```
+
+Firestore のスケジュールバックアップは Google 側が保持するため、Cloud Storage
+バケットの指定は要りません（手動エクスポートとは別の仕組み）。
+
 **費用**: 目安 月〜$5
 
 ---
@@ -394,22 +412,35 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 
 ---
 
-### 14. 規約ドラフトの確定（社長記入 ＋ 専門家確認） `[実測: 【要記入】が16箇所残っています]`
+### 14. 規約ドラフトの確定（社長記入 ＋ 専門家確認） `[実測: 【要記入】は残り4項目]`
 
 2026-09-01 にプライバシーポリシー・利用規約を改訂し、特定商取引法に基づく表示
-（`web/tokushoho.html`）の雛形を追加しました。**いずれもドラフトで、事業者本人
-でなければ埋められない欄を `【要記入】` のまま残しています。** アプリ内の
-設定画面にもそのまま表示されるため、テスト配布より先には出せません。
+（`web/tokushoho.html`）を追加しました。**2026-09-03 に、判断で決まる欄と
+コードから確定できる欄をすべて埋めました。** 残っているのは、事業者本人でなければ
+確定できない4項目だけです。
 
-**社長でなければ埋められない欄**:
+**社長でなければ埋められない欄**（すべて `web/tokushoho.html`）:
 
-| ファイル | 箇所 | 内容 |
-|---|---|---|
-| `web/tokushoho.html` | 12項目 | 販売事業者・運営統括責任者・所在地・電話番号・メール・販売価格・支払方法・提供時期・返品特約・動作環境 |
-| `web/privacy.html` ＋ `privacy_policy_screen.dart` | 3箇所 | データ保持期間、fleet の個人情報の役割分担、運営者の代表者名・所在地・電話番号 |
-| `web/terms.html` ＋ `terms_of_service_screen.dart` | 4箇所 | C2C の手数料率・支払方法・支払時期、特商法表示の要否、fleet 契約の整理、運営者情報 |
+| 項目 | 補足 |
+|---|---|
+| 運営統括責任者 | 代表者または運営責任者の氏名 |
+| 所在地 | 本店所在地。請求があれば遅滞なく開示する形にする場合は、その旨と条件も |
+| 電話番号 | 同上 |
+| 販売価格 | 各有料プランの価格。**P1-7 の RevenueCat 商品作成と同時に決まります**。App Store / Google Play のアプリ内課金画面の表示と一致させること |
 
-`web/` と `docs/web/` は同一内容です（**両方を同じように直す必要があります**）。
+加えて、公開時に**最終更新日**（現在は「2026年9月3日（ドラフト）」）を公開日に
+直してください。
+
+**`web/` と `docs/web/` は同一内容です**（両方を同じように直す必要があります）。
+
+**2026-09-03 に決めたこと**:
+
+| 論点 | 決定 |
+|---|---|
+| 退会後のデータ保持 | **猶予なしで削除**。`PURGE_AFTER_DAYS` を 30 → 0 に変更し、規約・UI・実装を揃えた。**誤って退会した場合の復旧はできません** |
+| C2C の手数料 | 数字は書かず「本サービス上に表示するところによる」。**機能は停止中で、再開前に手数料率と表示事項を定めて表示する**と明記 |
+| 返品・キャンセル | デジタルサービスのため、期間途中の解約でも未経過分の返金は原則なし（法令上の義務・当方の責による場合・サービス終了・ストアの返金ポリシーを除く） |
+| fleet の個人情報 | 契約法人との法人向け契約で別途定める（規約本文には書き切らない） |
 
 **専門家に見てもらう論点**:
 
@@ -418,9 +449,10 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 - 整備工場への情報提供の同意文言（車検満了日の共有を含む）
 - AIチャットで第三者の生成AIサービスへ送信することの説明
 - C2C取引における当サービスの立場（仲介か販売か）と特商法上の表示義務
+- 猶予なしの即時削除が、誤操作の救済という観点で問題にならないか
 - データ削除リクエストへの対応ポリシー（`deleteAccount` は実装済み・#120 で purge 対応）
 
-**所要時間**: 記入 1時間 ＋ 専門家確認（弁護士費用の目安 3〜5万円）
+**所要時間**: 記入 30分 ＋ 専門家確認（弁護士費用の目安 3〜5万円）
 
 ---
 
@@ -431,10 +463,18 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 **実装済み**: `FirebaseRemoteFlagSource` ＋ `FeatureFlagService` を `injection.dart` に配線済み。
 起動時に `sync()` で取得し `AppConfig` に反映。未設定・取得失敗時はローカル既定値（凍結）を維持。
 
-**残作業**:
-1. Firebase Console → Remote Config でパラメータ作成:
-   - キー名: `c2c_parts_marketplace` / 型: Boolean / デフォルト: `false`（凍結のまま）
-2. 動作確認: `true` に変更 → アプリ再起動でマーケットの「パーツ」「マイ出品」タブが復活
+**パラメータは 2026-09-03 に作成済み**（`false` = 凍結のまま）。**Console 手作業
+ではなく、リポジトリの `remoteconfig.template.json` で管理する形にしました。**
+
+```bash
+firebase deploy --only remoteconfig   # テンプレートを反映
+firebase remoteconfig:get             # 現在の内容を確認
+```
+
+**残るのは再開の判断だけ**です。再開するときは `remoteconfig.template.json` の
+`defaultValue.value` を `"true"` にして deploy し、アプリ再起動でマーケットの
+「パーツ」「マイ出品」タブが戻ることを確認します（Console から直接変えると、
+リポジトリの内容と食い違うので避けてください）。
 
 **注意**: 将来 `firebase_core` を上げる際は、`cloud_firestore` の iOS ネイティブと Firebase iOS SDK の
 整合（CocoaPods）を必ず CI ビルドで確認すること（現在 `firebase_core` は 4.9.0 に固定）。
@@ -483,14 +523,14 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 - [ ] P1-7: RevenueCat の Public SDK キー設定と商品作成
 - [x] **P1-8: GoogleService-Info.plist が別アプリのもの** — Firebase の再登録（人間・2026-08-27）とコード側の差し替え（AI・2026-09-01）は完了。**残るは起動確認**（`docs/IOS_FIREBASE_FIX.md` §4）
 - [ ] P1-9: **実機テスト（特にOCRの実画像精度は完全に未検証）**
-- [ ] P1-10: Firestore バックアップ設定
+- [x] **P1-10: Firestore バックアップ設定** — 2026-09-03 設定済み（DAILY・30日保持）
 - [ ] P1-11: 本番データ投入（工場・安全情報・トレンド）＋ `demo_*` 店舗の扱いを決定
 
 **P2（判断が必要）**
 - [ ] P2-12: 走行記録のバックグラウンド動作方針（A/B/C から選択）
 - [ ] P2-13: App Check の導入時期
-- [ ] P2-14: **規約ドラフトの確定** — 事業者情報・手数料・保持期間など `【要記入】` が16箇所。埋めないとアプリ内にそのまま出ます
-- [ ] P2-15: Remote Config `c2c_parts_marketplace` の作成
+- [ ] P2-14: **規約ドラフトの確定** — 残り4項目（運営統括責任者・所在地・電話番号・販売価格）。すべて `web/tokushoho.html`。埋めないとアプリ内にそのまま出ます
+- [x] **P2-15: Remote Config `c2c_parts_marketplace` の作成** — 2026-09-03 作成済み（`false`）。残るは再開の判断
 
 **P3（申請）**
 - [ ] P3-16: App Store 審査申請

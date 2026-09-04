@@ -4,6 +4,253 @@
 
 ---
 
+## 未マージPR 32本の棚卸し（2026-09-03・その3）
+
+7月に18本だった未マージPRが32本まで増えていたので、全部見て片付けた。
+
+### 何が滞留していたか
+
+**半分は「もう要らないPR」だった。** 内容が別経路で main に入っていたり
+（#156 #155 #106）、直す対象そのものが消えていたり（#142 は文言が既に
+置き換わっていた）、目的が別PRで達成済み（#88）だったりする。
+
+**つまり滞留の主因はレビュー待ちではなく、棚卸しをしていなかったこと。**
+放っておくと「マージできないPR」ではなく「意味を失ったPR」が積もる。
+
+| 分類 | 本数 | 例 |
+|---|---|---|
+| マージ | 13 | #170（OCR満了日）#169（規約）#153（事業docs退避） |
+| クローズ（取り込み済み） | 6 | #156 #155 #106 #142 #88 #144 |
+| クローズ（構造的に無理） | 1 | #164 mockito（Flutter SDK が meta を固定） |
+| クローズ（public に事業情報） | 3 | #148 #119 #114 |
+| Issue に切り出し | 1 | #145 → #172 |
+
+### #160 のマージで main を壊した
+
+**google_mlkit_text_recognition 0.14.0 → 0.17.1 を「CI 全green」と見て
+マージしたら、main の Build iOS が落ちた。**
+
+```
+In snapshot (Podfile.lock):  GoogleMLKit/TextRecognition (= 7.0.0)
+In Podfile:                  ... 0.17.1 depends on (~> 9.0.0)
+```
+
+`ios/Podfile.lock` の固定と、プラグインが要求する版が食い違う。
+
+**なぜ緑に見えたか。** `build-ios` は macOS ランナーが10倍課金なので、
+`ios` ラベル付きの PR か main への push でしか走らない。dependabot の
+PR にラベルは付かないので **skipped のまま「全green」に見える**。
+
+**ネイティブ依存を持つパッケージの更新は、この形だと構造的に PR の CI を
+すり抜ける。** 該当しそうなもの: `google_mlkit_*` `camera` `image_picker`
+`firebase_*` `google_maps_flutter` `flutter_local_notifications`。
+
+さらに、気づいて `ios` ラベルを付けても **CI は走らなかった**。
+`pull_request` の既定トリガ（opened / synchronize / reopened）に
+ラベル操作が入っていないため。#173 で `labeled` を足した。
+
+Podfile.lock は CocoaPods のチェックサムを含み、macOS 無しでは
+再生成できない。#178 で revert し、入れ直しは #177 に残した。
+
+### CI が失敗の理由を捨てていた
+
+失敗サマリが `grep ... | head -50` でマッチ行だけを拾う作りだった。
+`flutter test` は `Failed to load "..."` の **次の行** に本当の理由を
+出すので、**理由は構造的に必ず消える**。
+
+#162（firebase_core 4.14.0）でこれを踏んだ。サマリは `Failed to load`
+18行だけ。生ログを掘って初めて原因が分かった。
+
+```
+fake_cloud_firestore-4.1.1/lib/src/mock_write_batch.dart:22:8:
+  Error: Declared type variables of 'MockWriteBatch.update'
+         doesn't match those on overridden method
+```
+
+**firebase_core ではなく fake_cloud_firestore が原因だった。**
+
+```
+firebase_core 4.14.0 → fcpi ^8.x を要求
+  → cloud_firestore 6.4.1 は fcpi ^7.0.1 固定なので 6.9.0 に上がる
+    → 6.7.1 で WriteBatch.update がジェネリック化
+      → fake_cloud_firestore 4.1.1 の @override が不一致
+```
+
+**制約（`^6.4.0`）は満たすのに、override のシグネチャが合わない。**
+pub には検出できない型の壊れ方。#174 で下限を 4.2.0 に上げて縛り、
+dependabot の Firebase 系をグループ化した。
+
+### flutter_local_notifications は v18 → v22
+
+#161 は analyze が28件のエラー。v20 で `initialize` / `show` / `cancel` /
+`zonedSchedule` の位置引数が全部名前付きになり、v19 で
+`uiLocalNotificationDateInterpretation` が消えていた。
+
+**テスト側も直す必要がある。** `noSuchMethod` フェイクが
+`invocation.positionalArguments[0]` で ID を読んでいて、名前付き化で
+必ず壊れる（`namedArguments[#id]` に置換）。lib だけ直すと RangeError。
+
+#175 で移行。
+
+### 積んだPRは CI が走らない
+
+#170 / #171 は base が別の `claude/` ブランチだったため、**CI が一度も
+走っていなかった**（`ci.yml` の `pull_request` は `branches: [main]`）。
+base を main に付け替えて初めて走り、#171 は dart format の差分で落ちた。
+
+**PR を積むときは、base を main に戻すまで検証されていないと考えること。**
+
+### 次のアクション候補
+
+1. #177 — macOS 上で `pod update` して google_mlkit 0.17.1 を入れ直す
+2. #172 — カタログ外入力の候補記録（#176 で実装が上がっている）
+3. dependabot にネイティブ依存パッケージ用の `ios` ラベル自動付与を入れるか、
+   運用ルールで縛るかを決める
+
+---
+
+## 車検証OCRの元号バグと、人間タスクの前提の作り直し（2026-09-03・その3）
+
+**ブランチ**: `claude/prep-docs`
+
+### 1. 満了日が30年ずれていた
+
+`vehicle_certificate_ocr_service.dart` の `_extractExpiryDate`。
+
+```dart
+ var match = pattern.firstMatch(currentLine);
+ match ??= pattern.firstMatch(nextLine);     ← 値は次の行からも取る
+ ...
+ if (currentLine.contains('令和')) { ... }    ← なのに元号は今の行で判定
+```
+
+**ML Kit は「有効期間の満了する日」と「令和7年5月20日」を別ブロックで返す。**
+実物の車検証ではこちらが普通。すると `currentLine` に「令和」が無いので
+else に落ちて **1988 + 7 = 1995年**になる。
+
+満了日が30年前になると、**車検の案内は全部「切れている」と出る。**
+
+再現テストを書いて RED を確認してから直した（`test/ocr/era_conversion_test.dart`・11件）。
+**元号の基準年をパターンと対にして持たせる**形にして、どの行から拾っても
+正しくなるようにした。
+
+```dart
+ final eraPatterns = <(RegExp, int)>[
+   (RegExp(r'令和\s*(\d{1,2})...'), 2018),
+   (RegExp(r'平成\s*(\d{1,2})...'), 1988),
+ ];
+ for (final (pattern, eraBase) in eraPatterns) { ... }
+```
+
+同じ構造の不具合が `_extractYear`（初度登録年）にもあり、こちらは**別行だと
+null になっていた**（誤った値にはならないが取れない）。あわせて直した。
+
+### 2. Places API は使っていなかった
+
+`docs/HUMAN_TASKS.md` P0-3 は「Places は従量課金が高いため要判断」「1〜2時間」と
+書いていたが、**Places も Geocoding も Directions も一切使っていない。**
+距離は Haversine のローカル計算で、課金対象は地図の表示だけ。
+
+```
+ ソフトローンチ規模（20人）  月140ロード ≒ 無料枠の 1.4%
+ Android / iOS のネイティブ地図  現行の価格体系では無料
+ Web                            MAPS_API_KEY を渡していないのでロード数0
+```
+
+**判断は不要で、やることは30分の作業だけ**だった。ただし調べる過程で穴が2つ出た。
+
+- **iOS はキーが注入されない**（`AppDelegate.swift` が読む `MapsApiKey` が
+  `Info.plist` に無い）
+- **ドライブログ詳細に `MapsConfig` のガードが無い**（キー無しでも地図を作る）
+
+### 3. Google ログインは、いまのままでは Android で失敗する
+
+`android/app/google-services.json` の `oauth_client` に **`client_type: 1`
+（Android・SHA-1 付き）のエントリが無い。** Web 用しかない。
+
+**SHA-1 を登録して plist を取り直さないと `ApiException: 10` で落ちる。**
+しかも登録すべきは **P0-1 のリリース鍵の SHA-1** で、この開発機には
+Android SDK が無く（`flutter doctor` → `✗ Unable to locate Android SDK`）、
+`./gradlew signingReport` は Java 26 で止まる。**P0-4 は P0-1 に依存する**という
+依存関係が、これまでどこにも書かれていなかった。
+
+### 4. 作った文書
+
+| ファイル | 内容 |
+|---|---|
+| `docs/SETUP_AUTH_CONSOLE.md` | P0-4 の手順。SHA-1 の話と P0-1 依存 |
+| `docs/MAPS_API_COST.md` | P0-3 の試算と、実際に要る作業 |
+| `docs/DEVICE_TEST_CHECKLIST.md` | P1-9 のチェックシート。記入欄つき |
+
+`test/ocr/ocr_accuracy_test.dart` が参照していた `REAL_DATA_VALIDATION_CHECKLIST.md`
+はリポジトリに無かった。3つ目がその代わりになる。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 全件パス
+ test/ocr/                           42件パス（既存の精度テストに影響なし）
+ dart format lib test                差分なし
+```
+
+---
+
+## 規約の【要記入】を埋め、退会後の削除を実装と揃えた（2026-09-03・その2）
+
+**ブランチ**: `claude/legal-drafts`
+
+### 1. 16箇所あった `【要記入】` を4項目まで減らした
+
+判断で決まるもの（社長に確認）とコードから確定できるものを埋めた。
+
+```
+ 埋めた   販売事業者（ZAXEL合同会社）・動作環境（iOS 16.0+ / Android 7.0+ / 主要ブラウザ）
+          fleet の役割分担・C2C の手数料条件・データ保持期間・運営者欄
+ 残り     運営統括責任者・所在地・電話番号・販売価格（すべて tokushoho.html）
+```
+
+販売価格は **P1-7 の RevenueCat 商品作成と同時に決まる**ので、そこまで埋まらない。
+
+### 2. 「即時削除」を選んだら、実装が30日猶予だった
+
+保持期間の選択肢を出すとき、**「deleteAccount は #120 で purge 対応済みなので
+即時削除が実装と一致する」と説明したが、これは誤りだった。**
+
+```
+ functions/src/purgeDeletedAccounts.ts
+   PURGE_AFTER_DAYS = 30    ← 退会から30日後に日次ジョブが消す
+```
+
+規約の元の記述「退会後30日間保持後、削除」のほうが実装と合っていた。
+誤りを伝えたうえで、**実装を即時削除（`PURGE_AFTER_DAYS = 0`）に変える**判断を
+もらった。
+
+**結果として、それまで食い違っていた3者が揃った。**
+
+```
+ 削除ダイアログ    「この操作は取り消せません」    ← 元からこう書いてあった
+ ヘルプ            「削除後の復元はできません」    ← 同上
+ 実装              30日猶予（サポートが戻せる）   ← ここだけ違った
+ プライバシー      退会後30日間保持              ← 実装には合っていた
+```
+
+UI が「取り消せない」と言っている以上、猶予を残すほうが嘘になる。
+`PURGE_AFTER_DAYS` は**規約の保持期間と対で動かす数字**なので、テストと
+コメントの両方にその旨を書いた。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 4357件パス
+ functions: npm test                 66件パス
+ functions: npx tsc --noEmit         エラーなし
+ dart format lib                     差分なし
+```
+
+---
+
 ## 日付で落ちるゴールデンを直し、人間タスクを実態に合わせた（2026-09-03）
 
 **ブランチ**: `claude/business-rethink-invite`
@@ -81,6 +328,23 @@ privacy / terms を実装に合わせ、特商法の雛形（`tokushoho.html`）
 
 Console のバージョン履歴での目視確認だけ人間側に残っている。
 
+### 6. 「Console でしかできない」と書いてあった2件は CLI でできた
+
+`docs/HUMAN_TASKS.md` は P1-10（バックアップ）と P2-15（Remote Config）を
+Console の手作業として書いていたが、**どちらも firebase CLI から設定できた。**
+
+```
+ firebase firestore:backups:schedules:create --recurrence DAILY --retention 30d
+ firebase deploy --only remoteconfig
+```
+
+Remote Config は `remoteconfig.template.json` に置いて `firebase.json` から
+参照する形にした。**Console から直接変えるとリポジトリと食い違う**ので、
+再開判断のときもテンプレートを直して deploy する。
+
+P0-4（Auth の Sign-in method）は Identity Platform の管理APIが要るため、
+現状の CLI では届かない。ここは Console のまま。
+
 ---
 
 ## 取りこぼしの可視化（案A）と、iOS 設定の追いつき（2026-09-01）
@@ -148,6 +412,34 @@ iOS アプリを再登録して plist を差し替える）は 8/27 に済んで
 
 `test/widgets/maker_badge_test.dart` は**前回のコミット時点で未整形**だった
 （今回の整形に巻き込まれている）。CI の `--set-exit-if-changed` に当たる形。
+
+---
+
+## 開発進捗レポート（2026-08-29）
+
+**ブランチ**: `claude/dev-progress-report-pdf-95rw0t`
+
+開発遍歴・機能一覧・コンセプト整合性・未実装・バグ・課題を1本の PDF にまとめた
+（`docs/reports/DEV_PROGRESS_REPORT_2026-08-29.pdf` / 15ページ。HTML を同梱してあるので
+`chromium --headless --print-to-pdf` で再生成できる）。
+
+### 調査で出てきた新しい事実
+
+| 重さ | 内容 |
+|---|---|
+| **重大・新規** | **main の `Build iOS` が 8/25 から失敗している。** `cloud_firestore 6.4.1` の `FLTPipelineParser.m` が Firebase iOS SDK と噛み合わず `no visible @interface for 'FIRCollectionSourceStageBridge'`。8/21 レポート時点は success だったので**回帰**。`pubspec.yaml` は `^6.1.2` と上限を開けているため、解決版が動くたび再発しうる |
+| 改善 | **未マージPR が 28本 → 21本。初めて減った。** Flutter を 3.44.2 に揃えたことで dependabot の version solving 失敗が解けたのが主因 |
+| 未解決 | iOS 白画面（Bundle ID 不一致）の修正 PR #155 が4日間オープンのまま。B-2「購入を復元」も B2C 側に無いまま |
+
+### コンセプト照合で見つかったずれ
+
+- **`PartRecommendation` が企画書の形になっていない。** 企画書は `reasons`（複数）/ `cautions` /
+  `confidenceScore` を求めるが、実装は `compatibility` + `compatibilityNote`（1本の文字列）+ `relevanceScore`。
+  **「isBest を持たない」という禁止側は守られているが、「理由を複数出す」肯定側が構造として無い。**
+- **`docs/FEATURE_SPEC.md` が 2026-02-21 から更新されていない。** そこで「未実装 P0」とされている
+  車両マスタ・愛車タイムライン・ホームAI提案は**3つとも実装済み**。この文書を根拠に優先順位を
+  決めると済んだ仕事をやり直す。
+- `TireInfoCard` は自ファイル以外からの参照が0件のまま（削除か組み込みか未判断）。
 
 ---
 
@@ -530,6 +822,29 @@ Actions ストレージ超過の発生源。
 ---
 
 最終更新: 2026-07-11
+
+---
+
+## 夜間エージェント実行ログ（2026-07-28）
+
+**ブランチ**: `claude/night-20260728`
+**PR**: #98 https://github.com/zashii5793/trust-car-platform/pull/98
+**テスト**: 3505 件全パス / `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **`AppTextField` 拡張**: `fillColor`・`counterText`・`isDense` パラメータを追加
+2. **Issue #29 完了**: PR #91/PR #96 で「対応不可」とされた残存 TextField を全移行
+   - `invoice_result_screen.dart`: `_buildTextField` ヘルパー削除 + 4 箇所 AppTextField 移行
+   - `post_create_screen.dart`: `counterText: ''` 付き AppTextField に移行
+   - `fleet_member_screen.dart`: AlertDialog TextField → AppTextField
+   - `settings_screen.dart`: AlertDialog TextField → AppTextField
+
+### 次のアクション候補（3件）
+
+1. **`pm_report.yml` を修正した #97 をマージ** — 7週連続失敗中。最優先。
+2. **Issue #29 をクローズ** — AppTextField 移行全完了のためコメント＆クローズ。
+3. **`fleet_member_screen_test.dart` / `settings_screen_test.dart` 追加** — 移行したスクリーンのテストがまだない。RED フェーズから開始。
 
 ---
 
