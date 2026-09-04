@@ -60,6 +60,11 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
     if (controller == null || !controller.value.isInitialized) return;
 
     if (state == AppLifecycleState.inactive) {
+      // Drop the preview *before* the controller goes away. build() only looks
+      // at _isInitialized, so leaving it true paints a disposed controller -
+      // switching away from the scanner and back used to be enough to hit it.
+      if (mounted) setState(() => _isInitialized = false);
+      _controller = null;
       controller.dispose();
     } else if (state == AppLifecycleState.resumed) {
       _initializeCamera();
@@ -89,11 +94,21 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
     return Icons.flash_auto;
   }
 
+  /// Builds the camera controller. Re-entrant: the lifecycle handler calls it
+  /// again on resume, so anything already there is torn down first.
   Future<void> _initializeCamera() async {
+    final previous = _controller;
+    if (previous != null) {
+      _controller = null;
+      if (mounted) setState(() => _isInitialized = false);
+      await previous.dispose();
+    }
+
     try {
       _cameras = await availableCameras();
 
       if (_cameras == null || _cameras!.isEmpty) {
+        if (!mounted) return;
         setState(() {
           _hasError = true;
           _errorMessage = 'カメラが利用できません';
@@ -123,6 +138,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
         });
       }
     } catch (e) {
+      // The screen can be gone by the time initialize() fails (the user backs
+      // out while the camera is still opening).
+      if (!mounted) return;
       setState(() {
         _hasError = true;
         _errorMessage = 'カメラの初期化に失敗しました: $e';
