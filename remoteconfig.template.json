@@ -1,0 +1,16 @@
+{
+  "parameters": {
+    "c2c_parts_marketplace": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "valueType": "BOOLEAN",
+      "description": "ユーザー間のパーツ売買（C2C）を開くかどうか。false は凍結。アプリを出し直さずに再開判断を切り替えるための口（docs/HUMAN_TASKS.md P2-15）。"
+    }
+  },
+  "parameterGroups": {},
+  "conditions": [],
+  "version": {
+    "description": "c2c_parts_marketplace を作成（凍結のまま）"
+  }
+}

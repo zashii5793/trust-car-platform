@@ -25,16 +25,16 @@ function marker(status: string, daysAgo: number | null): DeletionMarker {
 }
 
 describe("isDue", () => {
-  it("pending & 30 days old → due", () => {
+  it("pending & just requested → due (no grace period)", () => {
+    expect(isDue(marker("pending", 0), NOW)).toBe(true);
+  });
+
+  it("pending & a day old → due", () => {
+    expect(isDue(marker("pending", 1), NOW)).toBe(true);
+  });
+
+  it("pending & 30 days old → still due", () => {
     expect(isDue(marker("pending", 30), NOW)).toBe(true);
-  });
-
-  it("pending & 29 days old → not due (undo window)", () => {
-    expect(isDue(marker("pending", 29), NOW)).toBe(false);
-  });
-
-  it("pending & 31 days old → due", () => {
-    expect(isDue(marker("pending", 31), NOW)).toBe(true);
   });
 
   it("completed marker → never due again", () => {
@@ -157,7 +157,10 @@ describe("handleScheduledPurge", () => {
 });
 
 describe("constants", () => {
-  it("purge window matches the privacy policy (30 days)", () => {
-    expect(PURGE_AFTER_DAYS).toBe(30);
+  // The policy says the data is deleted on withdrawal. If this number moves,
+  // the retention section of the privacy policy has to move with it - they
+  // are two statements of one promise.
+  it("purge window matches the privacy policy (no grace period)", () => {
+    expect(PURGE_AFTER_DAYS).toBe(0);
   });
 });

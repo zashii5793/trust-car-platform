@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Trust Car Platform 開発進捗レポート 2026-08-29</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm 16mm 14mm; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: 'IPAPGothic','IPAGothic','Noto Sans CJK JP',sans-serif;
+    color: #16202b; font-size: 9.4pt; line-height: 1.72; margin: 0;
+  }
+  h1,h2,h3,h4 { line-height: 1.4; }
+  a { color: #1d6fa5; text-decoration: none; }
+
+  /* ---- 表紙 ---- */
+  .cover { height: 252mm; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; }
+  .cover-top { border-top: 6px solid #1d6fa5; padding-top: 14mm; }
+  .cover .eyebrow { font-size: 9pt; letter-spacing: .22em; color: #5b6b7c; }
+  .cover h1 { font-size: 27pt; margin: 6mm 0 3mm; letter-spacing: .01em; }
+  .cover .sub { font-size: 12pt; color: #3b4b5c; font-weight: normal; }
+  .cover-meta { border-top: 1px solid #dde3e9; padding-top: 5mm; font-size: 9pt; color: #5b6b7c; }
+  .cover-meta table { width: 100%; border-collapse: collapse; }
+  .cover-meta td { padding: 1.6mm 0; vertical-align: top; }
+  .cover-meta td:first-child { width: 26mm; color: #8494a4; }
+  .verdict { background: #f5f7f9; border-left: 4px solid #1d6fa5; padding: 6mm 7mm; margin: 8mm 0; }
+  .verdict p { margin: 0 0 3mm; }
+  .verdict p:last-child { margin-bottom: 0; }
+
+  /* ---- 見出し ---- */
+  h2 { font-size: 14pt; margin: 9mm 0 4mm; padding-bottom: 2mm; border-bottom: 2px solid #16202b; page-break-after: avoid; }
+  h2 .num { color: #1d6fa5; margin-right: 3mm; }
+  h3 { font-size: 11pt; margin: 6mm 0 2.5mm; color: #16202b; page-break-after: avoid; }
+  h4 { font-size: 9.6pt; margin: 4mm 0 1.5mm; color: #3b4b5c; page-break-after: avoid; }
+  p { margin: 0 0 3mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5mm; }
+  li { margin-bottom: 1mm; }
+
+  /* ---- 表 ---- */
+  table.d { width: 100%; border-collapse: collapse; margin: 3mm 0 5mm; font-size: 8.6pt; page-break-inside: auto; }
+  table.d th { background: #16202b; color: #fff; text-align: left; padding: 2mm 2.5mm; font-weight: normal; font-size: 8.4pt; }
+  table.d td { border-bottom: 1px solid #e4e9ee; padding: 2mm 2.5mm; vertical-align: top; }
+  table.d tr:nth-child(even) td { background: #fafbfc; }
+  table.d tr { page-break-inside: avoid; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .cap { font-size: 7.8pt; color: #8494a4; margin: -3mm 0 5mm; }
+
+  /* ---- チップ ---- */
+  .chip { display: inline-block; padding: 0.3mm 1.8mm; border-radius: 2px; font-size: 7.6pt; white-space: nowrap; }
+  .ok   { background: #e3f2e9; color: #1e6b45; }
+  .warn { background: #fdf0dc; color: #8a5000; }
+  .bad  { background: #fbe4e2; color: #99231b; }
+  .info { background: #e5eff7; color: #14577f; }
+  .off  { background: #eceff2; color: #5b6b7c; }
+
+  /* ---- 罫囲み ---- */
+  .box { border: 1px solid #dde3e9; border-radius: 3px; padding: 4mm 5mm; margin: 3mm 0 5mm; background: #fafbfc; page-break-inside: avoid; }
+  .box.alert { border-color: #e8b4ae; background: #fdf6f5; }
+  .box.note  { border-color: #b9d3e6; background: #f4f9fd; }
+  .box h4 { margin-top: 0; }
+  pre { font-family: 'DejaVu Sans Mono',monospace; font-size: 7.8pt; line-height: 1.5;
+        background: #16202b; color: #e8eef4; padding: 3mm 4mm; border-radius: 3px;
+        white-space: pre-wrap; word-break: break-all; margin: 2mm 0 3mm; }
+  code { font-family: 'DejaVu Sans Mono',monospace; font-size: 8pt; background: #eef1f4; padding: 0 1mm; border-radius: 2px; }
+  pre code { background: none; padding: 0; color: inherit; font-size: 7.8pt; }
+
+  /* ---- タイムライン ---- */
+  .tl { border-left: 2px solid #dde3e9; margin: 4mm 0 5mm 2mm; padding-left: 6mm; }
+  .tl-item { position: relative; margin-bottom: 5mm; page-break-inside: avoid; }
+  .tl-item::before { content: ''; position: absolute; left: -7.1mm; top: 1.6mm;
+                     width: 2.4mm; height: 2.4mm; border-radius: 50%; background: #1d6fa5; }
+  .tl-date { font-size: 8.4pt; color: #1d6fa5; font-weight: bold; letter-spacing: .04em; }
+  .tl-title { font-size: 9.8pt; font-weight: bold; margin: 0.5mm 0 1mm; }
+  .tl-body { font-size: 8.8pt; color: #3b4b5c; }
+
+  /* ---- 指標カード ---- */
+  .kpis { display: flex; flex-wrap: wrap; gap: 3mm; margin: 4mm 0 5mm; }
+  .kpi { flex: 1 1 30%; border: 1px solid #dde3e9; border-radius: 3px; padding: 3mm 4mm; background: #fff; }
+  .kpi .k { font-size: 7.8pt; color: #8494a4; }
+  .kpi .v { font-size: 15pt; font-weight: bold; letter-spacing: -.01em; }
+  .kpi .d { font-size: 7.6pt; color: #5b6b7c; }
+
+  .pb { page-break-before: always; }
+  .avoid { page-break-inside: avoid; }
+  footer.end { margin-top: 8mm; padding-top: 3mm; border-top: 1px solid #dde3e9; font-size: 7.8pt; color: #8494a4; }
+</style>
+</head>
+<body>
+
+<!-- ============ 表紙 ============ -->
+<section class="cover">
+  <div class="cover-top">
+    <div class="eyebrow">TRUST CAR PLATFORM</div>
+    <h1>開発進捗レポート</h1>
+    <div class="sub">開発遍歴・機能一覧・コンセプト整合性・未実装・バグ・課題</div>
+
+    <div class="verdict">
+      <p><strong>コードは育っている。届け先に届いていない、という構造は7月から変わっていない。</strong></p>
+      <p>実装は 8.4万行・機能60画面まで積み上がり、8月は「作る」から「実際に触って確かめる」へ
+      軸足が移った。実機で触ったことで、テストが通っていたのに効いていなかった欠陥が見つかり、
+      未マージPRは 28本 → 21本へ初めて減った。</p>
+      <p>一方で <strong>iOS は依然として起動せず、さらに 8/25 から main の iOS ビルド自体が壊れている</strong>。
+      Android のリリース署名は debug 鍵のまま、実在の整備工場データは1件。
+      <strong>技術的な残作業より、人間が決める・登録する作業がボトルネックになっている。</strong></p>
+    </div>
+  </div>
+
+  <div class="cover-meta">
+    <table>
+      <tr><td>作成日</td><td>2026年8月29日</td></tr>
+      <tr><td>対象</td><td>プロダクトオーナー / ステークホルダー</td></tr>
+      <tr><td>基準</td><td><code>main</code> ブランチ <code>f305f58</code>（2026-08-25 時点の最新コミット）</td></tr>
+      <tr><td>前回</td><td>docs/DEV_PROGRESS_REPORT_2026-08-21.md（8日前）</td></tr>
+      <tr><td>方法</td><td>コード・設定ファイル・GitHub API の実測。文書の記述は根拠にせず、必ずコードで裏を取った</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 1. サマリー ============ -->
+<h2><span class="num">1</span>エグゼクティブサマリー</h2>
+
+<div class="kpis">
+  <div class="kpi"><div class="k">実装コード</div><div class="v">83,665 行</div><div class="d">lib / 234ファイル（前回比 +5,409行）</div></div>
+  <div class="kpi"><div class="k">テストコード</div><div class="v">73,486 行</div><div class="d">test / 193ファイル・4,098件</div></div>
+  <div class="kpi"><div class="k">画面</div><div class="v">60</div><div class="d">Service 53 / Provider 19 / Model 37</div></div>
+  <div class="kpi"><div class="k">未マージPR</div><div class="v">21 本</div><div class="d">前回28本から −7（初の減少）</div></div>
+  <div class="kpi"><div class="k">main の CI</div><div class="v">3/4 成功</div><div class="d">Build iOS のみ失敗（8/25〜）</div></div>
+  <div class="kpi"><div class="k">オープンIssue</div><div class="v">14 件</div><div class="d">うち実タスクは9件（5件は自動レポート）</div></div>
+</div>
+
+<h3>前回（8/21）からの8日間で動いたこと</h3>
+<table class="d">
+  <tr><th style="width:32%">項目</th><th style="width:34%">8/21 時点</th><th>8/29 時点（本レポート）</th></tr>
+  <tr><td>未マージPR</td><td><span class="bad">28本</span>（7月18本から悪化）</td><td><span class="warn">21本</span> — dependabot 10本と PR #90/#149/#151/#154 をマージして初めて減った</td></tr>
+  <tr><td>愛車カルテPDF（Issue #64）</td><td>PR #90 で1か月以上停止</td><td><span class="ok">マージ済</span>（8/25）— 「溜めた記録を売却材料に変える」中核が main に入った</td></tr>
+  <tr><td>Flutter のバージョン</td><td>CI 3.38.0 / 開発機 3.44.2 で不一致</td><td><span class="ok">3.44.2 に統一</span>（PR #154）— 依存更新PR7本の version solving 失敗が解けた</td></tr>
+  <tr><td>Web の初回表示</td><td>白画面 → □□□（豆腐）</td><td><span class="ok">解消</span>（PR #151）— 日本語フォント到着を待って隠す方式に</td></tr>
+  <tr><td>iOS の起動</td><td><span class="bad">起動しない</span>（Bundle ID 不一致）</td><td><span class="bad">未解決</span> — 修正 PR #155 が4日間オープンのまま</td></tr>
+  <tr><td>iOS のビルド</td><td><span class="ok">main で成功</span></td><td><span class="bad">失敗</span> — cloud_firestore 6.4.1 でコンパイルエラー（新規発生）</td></tr>
+</table>
+
+<div class="box alert avoid">
+  <h4>いま最も重いこと</h4>
+  <p><strong>iOS は「起動しない」に加えて「ビルドも通らない」状態になった。</strong>
+  8/25 の main で <code>Build iOS</code> が失敗している。原因は <code>cloud_firestore 6.4.1</code> の
+  ネイティブ実装が Firebase iOS SDK と噛み合っていないこと（詳細 §6-2）。
+  <strong>iOS の提出可能性は、8日前より後退している。</strong></p>
+</div>
+
+<!-- ============ 2. 開発遍歴 ============ -->
+<h2 class="pb"><span class="num">2</span>開発遍歴</h2>
+
+<p>2026年1月末に着手し、7か月。<strong>「作る」フェーズが6か月、「実際に届けて確かめる」フェーズが直近1か月</strong>という配分になっている。</p>
+
+<table class="d">
+  <tr><th style="width:16%">時期</th><th class="num" style="width:12%">コミット</th><th>この期間の主題</th></tr>
+  <tr><td>2026-01〜02</td><td class="num">32</td><td>基盤とコア機能を一気に敷いた。認証・車両CRUD・整備記録・OCR・PDF・オフライン対応。<strong>車両マスタ／愛車タイムラインもこの時期</strong>。SNS・BtoB・AI提案は「モデルとService層だけ」先に置いた</td></tr>
+  <tr><td>2026-03</td><td class="num">17</td><td>品質基盤。Firebase Emulator 導入、テストを1,811件まで拡充、CI整備、週次PMレポートの自動化、保守Runbook</td></tr>
+  <tr><td>2026-04</td><td class="num">16</td><td>BtoB を画面にした。工場オーナーダッシュボード・問い合わせ管理・返信・既読・出品管理。UI/UX全面刷新（ウィザード登録・タブ詳細）</td></tr>
+  <tr><td>2026-05</td><td class="num">—</td><td>本レポートのクローンからは当月のコミットが見えない（浅いクローンのため、断定はできない）</td></tr>
+  <tr><td>2026-06</td><td class="num">94</td><td><strong>事業性を問い直した月。</strong> C2Cパーツ手数料8%を凍結し「シェア＋コメント」に置換。工場向け月次レポート（ROI可視化）。Firestoreルールの自動テスト導入</td></tr>
+  <tr><td>2026-07</td><td class="num">5</td><td>愛車カルテPDF・AI提案強化・コメントモデレーション。<strong>ただし成果の大半はPRのまま滞留し、mainには入らなかった</strong>（この月のコミット数の少なさが、そのまま滞留の量）</td></tr>
+  <tr><td>2026-08</td><td class="num">86</td><td><strong>実機に出した月。</strong> Android の Firebase 設定修正、テストAPK配布、Web白画面・文字化け修正、ビルドID表示、車種マスタを403車種へ拡張、「この1年のふりかえり」、Flutter版統一、ブロッカー再監査</td></tr>
+</table>
+<p class="cap">コミット数は本セッションの浅い（shallow）クローンから到達できる250件の集計。過去の全履歴ではないため、月ごとの相対的な傾向として読んでほしい。</p>
+
+<h3>節目になった意思決定</h3>
+<div class="tl">
+  <div class="tl-item">
+    <div class="tl-date">2026-06-18</div>
+    <div class="tl-title">C2Cパーツ売買（手数料8%）を凍結した</div>
+    <div class="tl-body">メルカリ・ヤフオク等と競合し、低単価パーツ×8%では運用コスト割れ。返品・送金・トラブル対応の負荷も重い。
+    <strong>コードは消さず <code>FeatureFlag.c2cPartsMarketplace</code> で隠す形にした</strong>ため、判断が変われば1フラグで戻せる。
+    代替として「良かったパーツをシェアして語り合う」軽量機能を実装した。</div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-date">2026-06-19〜20</div>
+    <div class="tl-title">集客モデルを「送客」に寄せ、ROI可視化を最優先にした</div>
+    <div class="tl-body">工場向け月次問い合わせレポート（今月の問い合わせ数・未対応・回答済み・前月比）を実装。
+    「工場に払う理由を数字で見せられない」という事業性評価の最重要指摘に、実装で答えた。</div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-date">2026-08-15</div>
+    <div class="tl-title">重複していた地図実装を1本に統合した</div>
+    <div class="tl-body">Issue #41系と #43系が別々に地図を作り、AndroidManifest に API キーの meta-data が2つ入る状態だった。
+    実機フィードバック起点の <code>NearbyShopsMapScreen</code> を採用し、もう一方を削除。APIキーも <code>MAPS_API_KEY</code> に一本化。</div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-date">2026-08-21</div>
+    <div class="tl-title">「テストが欠陥を守っていた」と認めた</div>
+    <div class="tl-body">実機で見つかった指摘7件のうち3件は「機能が無い」ではなく「機能が効いていない」だった。
+    <strong>3件とも既存テストがその欠陥を固定していた。</strong> テスト件数は、この観点では品質を意味しない。</div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-date">2026-08-25</div>
+    <div class="tl-title">古い前提を捨てるため、ブロッカーを実地で再監査した</div>
+    <div class="tl-body">7月の提出ブロッカー（Sign in with Apple・アカウント削除・Privacy Manifest）は<strong>すべて解決済み</strong>だと確認。
+    一方で7月の文書に無い、より重い問題（iOSが起動しない／PR滞留）が見つかった。
+    <strong>文書を根拠にせずコードで確かめる</strong>という方法自体が、この時期に定着した。</div>
+  </div>
+</div>
+
+<!-- ============ 3. 機能一覧 ============ -->
+<h2 class="pb"><span class="num">3</span>機能一覧（実装済み）</h2>
+<p>以下はすべて <code>main</code> のコードで実在を確認したもの。「モデルとService層だけあって画面が無い」ものは、そう明記した。</p>
+
+<h3>3-1. 個人ユーザー向け（B2C）</h3>
+<table class="d">
+  <tr><th style="width:22%">領域</th><th style="width:44%">機能</th><th>状態・備考</th></tr>
+  <tr><td>認証</td><td>メール登録・ログイン・パスワードリセット / Google認証 / <strong>Sign in with Apple</strong> / アカウント削除</td><td><span class="chip ok">完了</span> ストア審査要件（A-1/A-2）を満たす</td></tr>
+  <tr><td>車両管理</td><td>車両CRUD、車検・自賠責期限、車体色・排気量・燃料・駆動方式・ミッション、写真アップロード、走行距離の整合性チェック（減少禁止）、ナンバー重複チェック、廃車・売却の記録</td><td><span class="chip ok">完了</span></td></tr>
+  <tr><td>車両マスタ</td><td>メーカー／車種／グレードの選択式入力。<strong>15メーカー・403車種</strong>（トラック34・バン32を含む）</td><td><span class="chip ok">完了</span> カタログは入力補助であってゲートにしない設計。カタログ外の入力も受け付ける</td></tr>
+  <tr><td>整備記録</td><td>22種のメンテナンスタイプ、費用・工場・走行距離・部品、作業項目とパーツの明細、フィルタ、キーワード検索、コメント</td><td><span class="chip ok">完了</span></td></tr>
+  <tr><td>愛車タイムライン</td><td>整備記録＋ドライブログを時系列で縦型表示。走行距離マイルストーン表示、表示フィルタ、詳細BottomSheet</td><td><span class="chip ok">完了</span> 企画書のコンセプトUI</td></tr>
+  <tr><td>OCR自動入力</td><td>車検証OCR（ML Kit）、請求書・領収書OCR、日本語認識、ナンバープレートのマスキング</td><td><span class="chip ok">完了</span> 配布APKで日本語が動かない不具合は8月に修正済み</td></tr>
+  <tr><td>アラート・通知</td><td>車検／自賠責の期限アラート（期限切れ・30日・7日で色分け）、走行距離ベースの整備推奨、FCMプッシュ、通知一覧</td><td><span class="chip ok">完了</span></td></tr>
+  <tr><td>AI提案</td><td>ホーム画面「AIからの提案」セクション（理由付き複数提示・提案詳細シート）、AIチャット（Cloud Functions）、パーツ提案画面</td><td><span class="chip ok">完了</span> AI出力には <code>AiDisclaimer</code> を一律で添える</td></tr>
+  <tr><td>PDF出力</td><td>整備記録のエクスポート、<strong>愛車カルテPDF</strong>（ExportType 選択UI）</td><td><span class="chip ok">完了</span> 8/25 に main へ到達</td></tr>
+  <tr><td>ドライブログ</td><td>走行記録（自動記録／手動入力）、訪問スポット、日記、公開・非公開切替、経路のぼかし・住所丸め</td><td><span class="chip ok">完了</span> 地図は Google Maps 標準</td></tr>
+  <tr><td>SNS・コミュニティ</td><td>投稿フィード（複数カテゴリ選択・並び替え・ページング）、写真投稿、コメント／返信、画像付きコメント、フォロー、通報、モデレーション自動非表示</td><td><span class="chip ok">完了</span></td></tr>
+  <tr><td>アクセサリー</td><td>使用実績のシェア（AccessoryShowcase）、詳細＋コメントスレッド、いいね、通報</td><td><span class="chip ok">完了</span> C2C凍結の代替として実装</td></tr>
+  <tr><td>ふりかえり</td><td>「この1年のふりかえり」（Year in Review）</td><td><span class="chip ok">完了</span> 8月追加</td></tr>
+  <tr><td>安全情報 / FAQ / お知らせ</td><td>安全情報ティップス、FAQ、ニュースレター配信</td><td><span class="chip ok">完了</span></td></tr>
+  <tr><td>課金（B2C）</td><td>プレミアムプラン購入（RevenueCat・商品定義はストア側）</td><td><span class="chip warn">要修正</span> <strong>「購入を復元」導線が無い</strong>（§6-3）</td></tr>
+</table>
+
+<h3>3-2. 事業者向け（B2B）</h3>
+<table class="d">
+  <tr><th style="width:22%">領域</th><th style="width:44%">機能</th><th>状態・備考</th></tr>
+  <tr><td>工場登録・掲載</td><td>工場登録、業態（整備工場・板金・ガソリンスタンド等）、審査済バッジ、チェーン管理、施工事例</td><td><span class="chip ok">完了</span></td></tr>
+  <tr><td>工場ダッシュボード</td><td>問い合わせ一覧・ステータス管理・返信・既読、<strong>月次レポート（ROI可視化）</strong>：今月の問い合わせ数・未対応・回答済み・前月比</td><td><span class="chip ok">完了</span> 「払う理由」を数字で示す中核</td></tr>
+  <tr><td>集客・需要</td><td>近隣工場の地図（提携=青／注目=橙／その他=赤／現在地=緑）、距離順リスト、工場比較、需要蓄積（未提携先への問い合わせ意図を貯める）</td><td><span class="chip warn">部分</span> 地図はAPIキー未設定のため<strong>本番では出ない</strong>（未設定時はリスト表示にフォールバック）</td></tr>
+  <tr><td>課金（B2B）</td><td>4プラン（¥0 / ¥3,980 / ¥9,800 / ¥14,800）、購入と<strong>復元</strong></td><td><span class="chip ok">完了</span> 復元導線はB2B側にのみ存在</td></tr>
+  <tr><td>パーツ出品</td><td>出品作成・管理・詳細・問い合わせ</td><td><span class="chip off">凍結</span> <code>ENABLE_C2C_PARTS</code> で開く。既定OFF（製品判断）</td></tr>
+</table>
+
+<h3>3-3. 法人・フリート／基盤</h3>
+<table class="d">
+  <tr><th style="width:22%">領域</th><th style="width:44%">機能</th><th>状態・備考</th></tr>
+  <tr><td>フリート管理</td><td>法人ダッシュボード、担当者アサイン、メンバー管理、CSVエクスポート、まとめ問い合わせ</td><td><span class="chip ok">完了</span> 20台規模のペルソナで実機確認済み</td></tr>
+  <tr><td>品質・運用基盤</td><td>オフライン対応（Firestore永続化100MB）、Crashlytics、Performance、LoggingService、Analytics、フィードバック導線、Remote Config によるフラグ制御</td><td><span class="chip ok">完了</span></td></tr>
+  <tr><td>ビルド識別</td><td><code>1.0.0 (a1b2c3d) / web</code> 形式でビルドIDを画面表示し、フィードバックにも記録</td><td><span class="chip ok">完了</span> 「どのビルドを触っているか」が分かるようになった</td></tr>
+  <tr><td>CI/CD</td><td>解析・フォーマット・テスト・ルールテスト・Android/iOSビルド・Web自動デプロイ・テストAPK配布・週次PMレポート・スクリーンショット</td><td><span class="chip warn">部分</span> iOS ジョブが失敗中（§6-2）</td></tr>
+  <tr><td>セキュリティ</td><td>Firestoreルール836行、複合インデックス54本、Storageルール、ルール自動テスト79件</td><td><span class="chip warn">未反映</span> <strong>本番へのデプロイは人手待ち</strong></td></tr>
+</table>
+
+<!-- ============ 4. コンセプト整合性 ============ -->
+<h2 class="pb"><span class="num">4</span>コンセプトとの整合性</h2>
+
+<p>企画のコンセプトは <strong>「クルマをもっと安全に、楽しく、個性的に。」</strong>、
+設計思想は <strong>「主役は常にユーザー。AIは判断しない。理由を添えて選択肢を整理するだけ」</strong>。
+これがコードでどこまで守られているかを照合した。</p>
+
+<h3>4-1. 3つの価値軸との対応</h3>
+<table class="d">
+  <tr><th style="width:14%">価値軸</th><th style="width:30%">企画上の約束</th><th style="width:30%">実装</th><th>判定</th></tr>
+  <tr><td><strong>安全</strong></td><td>見落とさない安心。車検／保険の期限、整備記録、OCR</td><td>期限アラート（3段階の色分け）、走行距離ベースの整備推奨、車検証OCR、貨物車の車検周期を登録時から反映、安全情報ティップス</td><td><span class="chip ok">整合</span> 最も厚く実装されている軸</td></tr>
+  <tr><td><strong>楽しく</strong></td><td>クルマのある生活の喜び。ドライブログ、SNS、愛車タイムライン</td><td>3つとも実装済み。加えて「この1年のふりかえり」で溜めた記録を体験として返す</td><td><span class="chip ok">整合</span></td></tr>
+  <tr><td><strong>個性的に</strong></td><td>自分だけの一台への誇り。AIパーツ提案、BtoBマーケット、カスタム履歴</td><td>パーツ提案・マーケット・アクセサリーのシェアは実装済み。<strong>ただし提案の「理由の構造」が企画と違う</strong>（下記4-3）</td><td><span class="chip warn">部分整合</span></td></tr>
+</table>
+
+<h3>4-2. 設計思想が守られている点</h3>
+<table class="d">
+  <tr><th style="width:30%">原則</th><th>コード上の裏付け</th></tr>
+  <tr><td><strong>AIは提案する、決めない</strong></td><td>ホーム画面のAI提案は<strong>理由全文を出す詳細シート</strong>を持ち、断定表現を避ける。AI出力には <code>AiDisclaimer</code> を一律で添える設計に統一されている（ホーム／パーツ提案／AIチャット／整備コメントの4か所で使用）</td></tr>
+  <tr><td><strong>事業者は売り込まない</strong></td><td>問い合わせはユーザー起点のみ。事業者からのプッシュ型接触の実装は存在しない。未提携工場への関心は「需要蓄積」として貯め、営業に使う設計</td></tr>
+  <tr><td><strong>情報はフラットに</strong></td><td>広告枠（<code>isFeatured</code>）は<strong>「広告」ラベルで明示</strong>される。<code>shop_list_screen.dart</code> に「ソート優先度を隠さない」と設計意図がコメントで残っている</td></tr>
+  <tr><td><strong>撤退できる形で作る</strong></td><td>C2Cは削除ではなくフラグで凍結。地図はAPIキーが無ければ導線ごと隠してリストにフォールバック。<strong>止まっても壊れない</strong>作りになっている</td></tr>
+</table>
+
+<h3>4-3. コンセプトとコードがずれている点</h3>
+
+<div class="box alert avoid">
+  <h4>ずれ①　パーツ提案が「理由の複数提示」の形になっていない</h4>
+  <p>企画書は <code>PartRecommendation</code> のあるべき姿をこう定めている。</p>
+  <pre><code>class PartRecommendation {
+  final List&lt;String&gt; reasons;    // 推奨理由（複数）
+  final List&lt;String&gt; cautions;   // 注意点・デメリット
+  final int confidenceScore;     // 信頼度
+  // ❌ "isBest" や "isRecommended" フラグは持たない
+}</code></pre>
+  <p>実際の実装（<code>lib/models/part_listing.dart:416</code>）はこうなっている。</p>
+  <pre><code>class PartRecommendation {
+  final PartListing part;
+  final CompatibilityLevel compatibility;
+  final String? compatibilityNote;   // ← 理由は1本の文字列
+  final double relevanceScore;
+}</code></pre>
+  <p><strong>「isBest を持たない」という禁止側は守られている。</strong>
+  だが「理由を複数」「注意点をセットで」という肯定側は、構造として存在しない。
+  比較のための材料が、ユーザーに1行しか渡っていない。
+  <span class="chip info">影響</span> 差別化の中核である「当たり前の互換確認が不要」という体験が、
+  互換ラベル1つに縮んでいる。</p>
+</div>
+
+<div class="box avoid">
+  <h4>ずれ②　ドライブマップが「Google Maps 標準」のまま</h4>
+  <p>企画書は「Google Maps 標準だと『それでいい』で終わり、アプリの世界観・個性が死ぬ」として、
+  独自スタイルのビジュアルマップを目指すと明記している。実装は標準の Google Maps。
+  <strong>ただしこれは P3（優先度最低）として意図的に後回しにされたもの</strong>で、判断としては筋が通っている。</p>
+</div>
+
+<div class="box avoid">
+  <h4>ずれ③　仕様書が半年更新されておらず、現状と食い違っている</h4>
+  <p><code>docs/FEATURE_SPEC.md</code> の最終更新は <strong>2026-02-21</strong>。
+  そこで「未実装（P0）」とされている<strong>車両マスタ・愛車タイムライン・ホームAI提案セクションは、3つとも実装済み</strong>。
+  ロードマップも「Phase 6 ← 今ここ（2026/Q1）」のまま止まっている。</p>
+  <p><span class="chip warn">リスク</span> この文書を根拠に優先順位を決めると、<strong>済んだ仕事をやり直す。</strong>
+  8/25 の再監査が「文書を根拠にしない」と宣言したのは、まさにこれが原因である。</p>
+</div>
+
+<!-- ============ 5. 未実装 ============ -->
+<h2 class="pb"><span class="num">5</span>未実装の機能</h2>
+
+<h3>5-1. コンセプト由来の残り</h3>
+<table class="d">
+  <tr><th style="width:26%">機能</th><th style="width:10%">優先</th><th>状況</th></tr>
+  <tr><td>パーツ提案の理由・注意点の複数提示</td><td><span class="chip bad">P1</span></td><td>モデル構造の変更が必要（§4-3 ずれ①）。差別化の中核に直結する</td></tr>
+  <tr><td>KYC（事業者の本人・実在確認）フロー</td><td><span class="chip bad">P1</span></td><td>検証フロー自体が無い。ただし <code>isVerified</code> フィールドと「（審査済）」バッジ表示の<strong>土台はある</strong>ため、初期は手動審査＋バッジ付与で始められる。「Trust」の看板に関わる</td></tr>
+  <tr><td>初期パートナー向けキャンペーン価格・据え置き特権</td><td><span class="chip warn">P2</span></td><td>Issue #42 が6月から未着手。営業を始めるなら価格の器が先に要る</td></tr>
+  <tr><td>車両購入レコメンド（予算・条件から中古車提案）</td><td><span class="chip warn">P2</span></td><td>専用画面は無い。関連の <code>CarPurchaseInquiryService</code>／<code>VehicleListingService</code> は存在するが、レコメンド機能としては未着手</td></tr>
+  <tr><td>独自スタイルのドライブマップ</td><td><span class="chip off">P3</span></td><td>意図的な後回し（実装コストが高い）</td></tr>
+  <tr><td>広告・マーケットプレイス基盤（新車／中古車広告）</td><td><span class="chip off">P3</span></td><td>Issue #23。収益の第2の柱だが、まだ検証段階に達していない</td></tr>
+  <tr><td>OBD-II連携 / EV専用管理 / 保険・ローン連携 / 天気連動スポット提案</td><td><span class="chip off">将来</span></td><td>企画書の「将来展望」。着手なし（正しい判断）</td></tr>
+</table>
+
+<h3>5-2. 実装済みだが有効化されていないもの</h3>
+<table class="d">
+  <tr><th style="width:26%">機能</th><th>止まっている理由</th></tr>
+  <tr><td>C2Cパーツ売買</td><td><strong>製品判断による凍結</strong>（2026-06-18）。<code>--dart-define=ENABLE_C2C_PARTS=true</code> で検証可能。既定は変えない</td></tr>
+  <tr><td>近隣工場の地図表示</td><td><strong>Google Maps API キーが未設定</strong>。キーが無いビルドでは導線ごと隠れ、距離順リストにフォールバックする。実装は完了している</td></tr>
+  <tr><td>Firestore ルール・複合インデックスの最新版</td><td><strong>本番デプロイが人手待ち。</strong> 未反映だと SNS の並び替えなど該当クエリが失敗する（アプリは落ちないが機能が効かない）</td></tr>
+  <tr><td>工場詳細の地図プレビュー / 近隣工場の色分けピン</td><td>PR #126 / #106 が未マージ</td></tr>
+  <tr><td>AppTextField への全面移行（Issue #29）</td><td>PR #98 / #88 が7月から未マージ</td></tr>
+</table>
+
+<!-- ============ 6. バグ ============ -->
+<h2 class="pb"><span class="num">6</span>バグ・不具合</h2>
+
+<h3>6-1. <span class="chip bad">重大</span> iOS アプリが起動しない（白画面）</h3>
+<p>シミュレータで <code>main()</code> の1行目が例外を投げて止まる。<strong>UIが一度も描かれない。</strong></p>
+<pre><code>Unhandled Exception: [core/duplicate-app] A Firebase App named "[DEFAULT]" already exists
+  #2  main (package:trust_car_platform/main.dart:84:3)</code></pre>
+<table class="d">
+  <tr><th style="width:26%"></th><th style="width:37%"><code>ios/Runner/GoogleService-Info.plist</code></th><th><code>lib/firebase_options.dart</code></th></tr>
+  <tr><td>Bundle ID</td><td><strong>com.example.trustCarPlatform</strong>（Flutterのテンプレート既定のまま）</td><td>jp.trustcar.app</td></tr>
+</table>
+<p><code>firebase_core 4.9.0</code> は iOS でネイティブ側が先に plist から既定アプリを作るため、
+そのあと Dart が別の設定で初期化しようとして衝突する。アンインストール後の新規インストールでも再現済み。</p>
+<p><strong>直せるのは人間だけ。</strong> Firebase の iOS アプリは後から Bundle ID を変更できないため、
+Console で <code>jp.trustcar.app</code> として新規登録し、plist を差し替える必要がある。
+Android は 8/23 に同じ手当てを済ませてある。<strong>修正 PR #155 は 8/25 から4日間オープンのまま。</strong></p>
+
+<h3>6-2. <span class="chip bad">重大・新規</span> main の iOS ビルドが失敗している</h3>
+<p>8/21 のレポートでは「iOS ビルドは main で成功している」と確認されていた。<strong>いまは失敗する。</strong></p>
+<pre><code>cloud_firestore-6.4.1/ios/.../FLTPipelineParser.m:865:57: error:
+  no visible @interface for 'FIRCollectionSourceStageBridge'
+  declares the selector 'initWithRef:firestore:'
+** BUILD FAILED **</code></pre>
+<table class="d">
+  <tr><th style="width:34%">ジョブ（main / f305f58 / 8-25）</th><th>結果</th></tr>
+  <tr><td>Analyze &amp; Test</td><td><span class="chip ok">成功</span> 解析・フォーマット・単体テスト・エミュレータ統合テストすべて通過</td></tr>
+  <tr><td>Storage &amp; Firestore Rules Tests</td><td><span class="chip ok">成功</span></td></tr>
+  <tr><td>Build Android</td><td><span class="chip ok">成功</span></td></tr>
+  <tr><td>Build iOS</td><td><span class="chip bad">失敗</span> 上記コンパイルエラー</td></tr>
+</table>
+<p><strong>原因は依存の組み合わせ</strong>で、アプリ側のコードではない。<code>cloud_firestore 6.4.1</code> の
+ネイティブ実装が、CocoaPods が解決した Firebase iOS SDK のバージョンと噛み合っていない。
+<code>pubspec.yaml</code> は <code>cloud_firestore: ^6.1.2</code> と上限を開けているため、
+<strong>解決されるバージョンが動くたびに再発しうる。</strong></p>
+<div class="box note avoid">
+  <p><strong>なぜ見逃されうるか。</strong> <code>build-ios</code> は macOS ランナーの課金が10倍であることから、
+  <strong>main への push・手動実行・<code>ios</code> ラベル付きPR でしか走らない</strong>（意図した設計）。
+  通常のPRでは iOS は検証されない。<strong>ストア申請前のPRには必ず <code>ios</code> ラベルを付けること。</strong></p>
+</div>
+
+<h3>6-3. <span class="chip warn">中</span> B2Cプレミアムに「購入を復元」導線が無い</h3>
+<table class="d">
+  <tr><th style="width:40%">画面</th><th>復元</th></tr>
+  <tr><td>工場向けプラン <code>shop_plan_screen.dart:118</code></td><td><span class="chip ok">あり</span> <code>restorePurchases</code> を呼ぶ</td></tr>
+  <tr><td>B2Cプレミアム <code>settings/plan_screen.dart</code></td><td><span class="chip bad">なし</span></td></tr>
+  <tr><td><code>UserSubscriptionProvider</code></td><td><span class="chip bad">restore メソッド自体が無い</span></td></tr>
+</table>
+<p>7月時点は「B2Cは購入導線が無い」ので復元も問われなかった。
+<strong>その後買えるようにした結果、「買えるのに復元できない」状態になった。</strong>
+自動更新サブスクリプションで復元手段が無いのは App Store ガイドライン 3.1.1 の指摘対象。
+<code>RevenueCatService.restorePurchases</code> は既に存在し、工場側に前例があるため、迷う余地は少ない。</p>
+
+<h3>6-4. 直近8日間で解消したもの（記録）</h3>
+<table class="d">
+  <tr><th style="width:34%">不具合</th><th style="width:34%">原因</th><th>対応</th></tr>
+  <tr><td>パーツ提案の車種フィルタが1件も除外していなかった（スバル専用パーツがプリウスに並ぶ）</td><td>互換情報が無いと既定で「互換あり」を返し、除外対象が発生しなかった。<strong>単体テストがサービスの出さないID形式を検証していた</strong></td><td><span class="chip ok">修正済</span> PR #149</td></tr>
+  <tr><td>空表示から先に進めない画面が7つ</td><td>「ドライブログがありません」で終わり、記録する導線が無い</td><td><span class="chip ok">修正済</span> 7画面に次の一手を追加</td></tr>
+  <tr><td>押せないボタンが理由を言わずに薄くなる</td><td>記録0件で <code>onPressed: null</code>。「まだ使えない」と「壊れている」の区別がつかない</td><td><span class="chip ok">修正済</span> 理由と導線を表示</td></tr>
+  <tr><td>Web の初回白画面と □□□（豆腐）</td><td>日本語フォントは最初の描画より<strong>後</strong>に届く。first-frame で隠しを消すと早すぎた</td><td><span class="chip ok">修正済</span> PR #151</td></tr>
+  <tr><td>フリート管理が「車両データの取得に失敗しました」</td><td>Firestoreルールの read が <code>userId</code> しか見ておらず、<code>companyId</code> 検索の list が丸ごと拒否</td><td><span class="chip ok">修正済</span> ※本番反映は未確認</td></tr>
+  <tr><td>問い合わせが「回答済み」なのにチャットが空</td><td>messages の read 判定に、コード上存在しない <code>receiverId</code> が使われていた</td><td><span class="chip ok">修正済</span> ※本番反映は未確認</td></tr>
+  <tr><td>SNSフィードのページングが毎回先頭を取り直す</td><td><code>loadMoreFeed</code> がカーソルを渡していなかった</td><td><span class="chip ok">修正済</span></td></tr>
+  <tr><td>配布APKで日本語OCRが動かない</td><td>Android のモデル同梱設定</td><td><span class="chip ok">修正済</span> PR #145 から取り込み</td></tr>
+</table>
+
+<h3>6-5. 未判断の小さな残り</h3>
+<ul>
+  <li><strong>死んだコード</strong>：<code>lib/widgets/maintenance/tire_info_card.dart</code> の <code>TireInfoCard</code> は、
+  自ファイル以外からの参照が0件。<strong>削除か組み込みかが未決のまま。</strong></li>
+  <li><strong>タブレット幅</strong>：空表示が中央に間延びする。上限幅を設けるかが未判断。</li>
+  <li><strong>ゴールデンテスト</strong>：CI対象外（<code>@Tags(['golden'])</code>）。画像は撮った環境（OS・フォント）に依存するため、
+  Linux の CI で一致しない。<strong>見え方は直した本人が手元で目視する</strong>という位置づけ。</li>
+</ul>
+
+<!-- ============ 7. 課題 ============ -->
+<h2 class="pb"><span class="num">7</span>課題</h2>
+
+<h3>7-1. <span class="chip bad">構造</span> PRの滞留 — 初めて減ったが、まだ21本</h3>
+<table class="d">
+  <tr><th style="width:20%">分類</th><th class="num" style="width:10%">本数</th><th>内訳</th></tr>
+  <tr><td>機能・修正</td><td class="num">10</td><td>#155 iOS Firebase修正／#156 メーカーバッジ／#152 テスト配布／#145 日本語OCR＋カタログ外入力／#142 オンボーディング文言／#126・#106 地図／#98・#88 AppTextField統一／#61 データ運用強化</td></tr>
+  <tr><td>ドキュメント</td><td class="num">5</td><td>#153 内部文書の退避／#148 事業フォーカス戦略／#144 人間タスク実施プラン／#119・#114 他案件の下書き</td></tr>
+  <tr><td>dependabot</td><td class="num">6</td><td>mockito / path_provider / mlkit / camera / printing / image_picker</td></tr>
+</table>
+<p><strong>最古は PR #61（6/27）で、2か月間オープン。</strong>
+7月・8月の推移は 18本 → 28本 → <strong>21本</strong>。Flutter版を3.44.2に揃えたことで
+dependabot の「version solving failed」が解けたのが、減少の主因である。</p>
+<div class="box alert avoid">
+  <p><strong>滞留は、それ自体が品質問題を生む。</strong> main に入らないものは実機で確かめられず、
+  実機で確かめられないと §6-4 のような「効いていない機能」が見つからない。
+  8月に見つかった欠陥は、<strong>マージして触ったから見つかった</strong>ものだった。</p>
+</div>
+
+<h3>7-2. <span class="chip bad">事業</span> 実データがまだ存在しない</h3>
+<table class="d">
+  <tr><th style="width:24%">データ</th><th>実測</th></tr>
+  <tr><td>整備工場</td><td>実在するのは <code>shop_takaya_motor_okayama</code> の<strong>1件のみ</strong>。他8件は <code>demo_*</code> の架空データ</td></tr>
+  <tr><td>パーツ</td><td>「商品名・ブランド名・型番はすべて架空」とスクリプトに明記された12件（検証用の300件も架空）</td></tr>
+  <tr><td>車種マスタ</td><td><span class="chip ok">解消</span> 15メーカー / 403車種へ拡張済み（トラック34・バン32を含む）</td></tr>
+</table>
+<p><strong>これは6月から動いていない。</strong> 営業＝人間の仕事であり、AI側でできるのは
+「登録しやすい形にする」「架空データを本番に出さない」ところまで。
+<strong>ROI可視化も送客も、送る先の工場が1件では検証できない。</strong></p>
+
+<h3>7-3. <span class="chip bad">出荷</span> リリースの前提が揃っていない（すべて人間の作業）</h3>
+<table class="d">
+  <tr><th style="width:28%">項目</th><th style="width:14%">状態</th><th>影響</th></tr>
+  <tr><td>Android リリース署名</td><td><span class="chip bad">未対応</span></td><td><code>build.gradle.kts</code> が <strong>debug 鍵で署名</strong>している。この状態では Google Play にアップロードできない。所要30分だが、<strong>キーストアを紛失するとアプリ更新が永久に不可能</strong>になるため慎重に</td></tr>
+  <tr><td>iOS Firebase アプリの再登録</td><td><span class="chip bad">未対応</span></td><td>§6-1。<strong>他のすべての前提</strong></td></tr>
+  <tr><td>Firestore ルール・インデックスの本番反映</td><td><span class="chip warn">未反映</span></td><td>未反映のクエリは失敗する。ドライラン・ルールのコンパイルは成功済みで、<strong>いつでもデプロイできる状態</strong></td></tr>
+  <tr><td>Google Maps API キー</td><td><span class="chip warn">未設定</span></td><td>地図が出ない（実測で <code>InvalidKey</code> を確認）。キー制限と予算アラートの設定も必要</td></tr>
+  <tr><td>RevenueCat 本番キー / ストア商品定義</td><td><span class="chip warn">未投入</span></td><td>コード側の実装は完了。キー投入は人間の作業</td></tr>
+</table>
+
+<h3>7-4. <span class="chip warn">品質</span> テスト件数は品質の証明にならない</h3>
+<p>4,098件のテストが全パスしている。<strong>それでも実機で3件の「効いていない機能」が見つかり、3件とも既存テストがその欠陥を固定していた。</strong></p>
+<table class="d">
+  <tr><th style="width:32%">検査が見られる範囲</th><th>見られない範囲</th></tr>
+  <tr><td>書いた条件がコードに入っているか</td><td><strong>条件そのものが間違っていること</strong></td></tr>
+  <tr><td>Firebase を差し替えた状態での動作</td><td>実機の初期化・ネイティブ設定の食い違い（→ iOS白画面）</td></tr>
+  <tr><td>ビルドが通ること</td><td><strong>起動すること</strong></td></tr>
+  <tr><td>データが入った状態の画面</td><td>空の状態（→ 行き止まり7画面。Persona J を追加して塞いだ）</td></tr>
+</table>
+<p>この認識自体は8月に得られ、CIとローカルの検査手順（<code>--fatal-infos</code> を <code>test</code> にも掛ける、
+Flutter版を揃える）も揃えた。<strong>残る穴は「起動して触る」ところだけで、それは iOS が動かない限り塞がらない。</strong></p>
+
+<h3>7-5. <span class="chip warn">運用</span> 仕様書とコードの乖離</h3>
+<p>§4-3 ずれ③のとおり、<code>FEATURE_SPEC.md</code> は2月から更新されていない。
+実装済みの機能が「未実装 P0」として残り、ロードマップは Phase 6 / 2026-Q1 で止まっている。
+<strong>いま参照すべき最新の実測は <code>docs/BLOCKER_AUDIT_2026-08-25.md</code> と本レポート。</strong></p>
+
+<!-- ============ 8. 次のアクション ============ -->
+<h2 class="pb"><span class="num">8</span>次のアクション（優先順）</h2>
+
+<table class="d">
+  <tr><th style="width:6%">順</th><th style="width:32%">内容</th><th style="width:14%">担当</th><th>理由</th></tr>
+  <tr><td><strong>1</strong></td><td><strong>PR #155 をマージし、<code>GoogleService-Info.plist</code> を取り直す</strong></td><td>社長（Console）＋開発</td><td><strong>動かないものは審査に出せない。</strong> 他すべての前提。PRは4日間止まっている</td></tr>
+  <tr><td><strong>2</strong></td><td><strong>iOS ビルドの失敗を直す</strong>（<code>cloud_firestore</code> のバージョンを固定するか、Firebase iOS SDK 側を合わせる）</td><td>開発</td><td>8/25 から main が赤。<strong>1 を直しても、ビルドが通らなければ確かめられない</strong></td></tr>
+  <tr><td><strong>3</strong></td><td><strong>B2Cプレミアムに「購入を復元」を足す</strong></td><td>開発</td><td>小さく、確実に却下理由を1つ消す。工場側に前例あり</td></tr>
+  <tr><td>4</td><td>Firestore ルール・インデックスを本番へデプロイ</td><td>社長</td><td>所要5分。未反映のまま配布すると、直したはずのバグが再現する</td></tr>
+  <tr><td>5</td><td>Android リリース署名の設定</td><td>社長</td><td>所要30分。Play へのアップロードが物理的に不可能な状態</td></tr>
+  <tr><td>6</td><td>残る未マージPR 21本のトリアージ（特に #145 OCR・#126/#106 地図）</td><td>社長＋開発</td><td>減り始めたいまが、片付ける機会</td></tr>
+  <tr><td>7</td><td>実在の整備工場を、1商圏に絞って登録する</td><td>社長（営業）</td><td>AIでは作れない。<strong>ROI可視化も送客も、ここが1件では検証できない</strong></td></tr>
+  <tr><td>8</td><td>パーツ提案に「理由の複数提示」と「注意点」を持たせる</td><td>開発</td><td>差別化の中核がコンセプトからずれている（§4-3）</td></tr>
+  <tr><td>9</td><td><code>FEATURE_SPEC.md</code> を実態に合わせて更新する</td><td>開発</td><td>古い前提で優先順位を決めると、済んだ仕事をやり直す</td></tr>
+</table>
+
+<div class="box note avoid">
+  <h4>まとめ</h4>
+  <p><strong>1〜3 は今週中に着手でき、そのうち 2 と 3 は開発側だけで完結する。</strong>
+  1・4・5・7 は人間にしかできない。<strong>この4つが、いまプロダクト全体を止めている。</strong></p>
+  <p>逆に言えば、<strong>技術的な残作業はもう多くない。</strong>
+  8月に未マージPRが初めて減り、Flutter版が揃い、Webの初回表示が直り、愛車カルテPDFが main に入った。
+  <strong>足りないのはコードではなく、届ける経路である。</strong></p>
+</div>
+
+<footer class="end">
+  Trust Car Platform 開発進捗レポート ／ 2026年8月29日作成 ／
+  基準コミット <code>f305f58</code>（main・2026-08-25）／
+  数値はすべてリポジトリと GitHub API の実測。テスト件数 4,098件は 2026-08-24 の実測値で、本レポート作成環境に Flutter SDK が無いため再実行はしていない。
+</footer>
+
+</body>
+</html>

@@ -95,34 +95,33 @@ cd ~/development/trust_car_platform
 
 ---
 
-### A-2. docs/ が全世界に公開されている `[実測: 公開中]`
+### A-2. docs/ の公開範囲 `[対応済み 2026-08-25]`
 
-**テスト配布とは別件ですが、先に潰しておくべきです。**
+**この作業は終わっています。人間の作業はありません。**
 
-GitHub Pages の公開元が「main ブランチの `/docs`」のままで、`docs/` 配下の
-Markdown が Jekyll でHTML化され、誰でも読める状態になっています。
+GitHub Pages の公開元が「main ブランチの `/docs`」のままで、`docs/` 配下の Markdown が
+Jekyll でHTML化され、誰でも読める状態でした。**Pages は停止済み**（全URLが404であることを実測）。
+
+ただし **Pages を止めても、それだけでは足りませんでした。**
+このリポジトリは public なので、ソースは GitHub 上でそのまま読めます。
 
 ```
-https://zashii5793.github.io/trust-car-platform/BUSINESS_VIABILITY_ASSESSMENT.html  → 200
-https://zashii5793.github.io/trust-car-platform/OPERATIONS_COST_ESTIMATE.html       → 200
-https://zashii5793.github.io/trust-car-platform/PERSONA_TEST_REPORT.html            → 200
-https://zashii5793.github.io/trust-car-platform/HUMAN_TASKS.html                    → 200
+https://raw.githubusercontent.com/zashii5793/trust-car-platform/main/docs/OPERATIONS_COST_ESTIMATE.md  → 200
 ```
 
-事業性評価、運用コスト見積、ペルソナテスト結果、朝のブリーフィングまで含まれます。
+Pages が配っていたのは「描画されたHTML」だけで、ソースは元から公開されていました。
 
-**対応（どちらか）**:
+**対応**: 金額・収益見込み・競合の評価を含む5本を
+[trust-car-platform-internal](https://github.com/zashii5793/trust-car-platform-internal)（private）へ移しました。
+技術ドキュメントは公開したままです。詳細は `docs/INTERNAL_DOCS.md`。
 
-| 方法 | 内容 | 効き方 |
-|---|---|---|
-| **推奨: Pages を止める** | Settings → Pages → Source を `None` にする | 即座に全部消える |
-| 除外設定を入れる | `docs/_config.yml` を追加済み（Markdown を除外） | **main にマージされた次のビルドから**効く |
+> **リポジトリごと private にする案は見送りました。**
+> GitHub Actions の無料枠が月2,000分になるためです（public は無制限）。
+> iOS ビルドは10倍課金で実測18分＝180分なので、月10回程度で枠を使い切ります。
 
-`docs/_config.yml` はこのブランチに入れてありますが、**main に入るまで効きません**。
-急ぐなら Pages を止めるのが確実です。Firebase Hosting に移したので、Pages は
-もう使いません。
-
-**所要時間**: 2分
+**残っている問題**: 移したファイルは**git 履歴に残っています**。最新の状態から消えるだけで、
+過去のコミットを辿れば読めます。完全に消すには履歴の書き換えと force push が要りますが、
+未マージの PR が全て壊れます。すでに公開された情報として扱ってください。
 
 ---
 

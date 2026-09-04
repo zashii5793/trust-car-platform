@@ -101,7 +101,7 @@ class InspectionReminderService {
       final isLease =
           request.id >= _leaseIdBase && request.id < _leaseIdBase + rangeLength;
       if (isInspection || isInsurance || isLease) {
-        await _plugin.cancel(request.id);
+        await _plugin.cancel(id: request.id);
       }
     }
 
@@ -173,14 +173,12 @@ class InspectionReminderService {
       if (!fireAt.isAfter(now)) continue;
 
       await _plugin.zonedSchedule(
-        idFor(i),
-        title,
-        body(daysBefore),
-        fireAt,
-        details,
+        id: idFor(i),
+        title: title,
+        body: body(daysBefore),
+        scheduledDate: fireAt,
+        notificationDetails: details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
       );
     }
   }

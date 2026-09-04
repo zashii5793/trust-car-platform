@@ -23,7 +23,7 @@ class _RecordingPlugin implements FlutterLocalNotificationsPlugin {
       return Future<void>.value();
     }
     if (invocation.memberName == #cancel) {
-      cancelledIds.add(invocation.positionalArguments[0] as int);
+      cancelledIds.add(invocation.namedArguments[#id] as int);
       return Future<void>.value();
     }
     if (invocation.memberName == #pendingNotificationRequests) {
