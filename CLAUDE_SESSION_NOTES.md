@@ -1,6 +1,95 @@
 # Claude Session Notes
 
-最終更新: 2026-09-03
+最終更新: 2026-09-04
+
+---
+
+## OCRの取りこぼしを潰し、残る判断材料を揃える（2026-09-04・夜間）
+
+**ブランチ**: `claude/night-ocr-and-decisions`
+
+社長が就寝中の自律作業。**本番に触る操作とマージは避け、手元で完結するものだけ**
+進めた。
+
+### 1. 車台番号の先頭が落ちていた
+
+```
+ BNR35-123456    → NR35-123456     （B が落ちる）
+ ZVW30W-1234567  → W30W-1234567    （ZV が落ちる）
+ NCP131-0123456  → P131-0123456    （NC が落ちる）
+```
+
+プレフィックスを `[A-Z0-9]{2,4}` で拾っていたため、**5文字以上だと先頭から
+欠ける。** 車台番号は車両の一意識別子で、**1文字違えば別の車**になる。
+
+`{2,8}` に広げて解決（6文字は日本車では珍しくない: ZVW30W・NCP131・GRS182）。
+ナンバープレート・電話番号・型式の行に誤爆しないことも確認してテストにした。
+
+`test/ocr/ocr_accuracy_test.dart` の `Known Limitations` に「仕様」として
+記録されていたが、**仕様ではなく不具合だった**ので、リグレッションガードに
+書き換えた。同ファイルが参照していた存在しない `REAL_DATA_VALIDATION_CHECKLIST.md`
+も `docs/DEVICE_TEST_CHECKLIST.md` に直した。
+
+### 2. 色だけ次の行を見ていなかった
+
+燃料は `currentLine || nextLine` で次行も見るのに、**色は currentLine だけ**。
+ML Kit がラベルと値を別ブロックで返すと取れない。
+
+ついでに、走査を**行優先**に変えた。候補ごとに currentLine→nextLine を見る形だと、
+**次の行の語が今の行の値に勝つ**ことがある。
+
+```
+ 燃料の種類 軽油
+ ガソリンスタンド利用可     ← 「ガソリン」が先に当たっていた
+```
+
+### 3. キーワードの後ろが空のとき '' を返していた
+
+`_extractAfterKeyword` が空文字を返すため、**値が無いのに「入っている」ように
+見えていた**（結果画面に空欄が出る）。null を返すようにした。
+
+### 4. カメラ画面がライフサイクルで壊れる形だった
+
+```dart
+ if (state == AppLifecycleState.inactive) {
+   controller.dispose();     ← _isInitialized は true のまま
+ }
+ // build() は _isInitialized だけを見て CameraPreview(_controller!) を描く
+```
+
+**スキャナ画面のままアプリを切り替えて戻る**と、破棄済みコントローラを触る。
+`_isInitialized` を false に戻し、`_controller` も null にした。
+`_initializeCamera` は再入可能にし（resume で再度呼ばれる）、
+`setState` の前に `mounted` を見るようにした。
+
+### 5. HUMAN_TASKS の前提が、また2つ実態と違っていた
+
+**P2-12（走行記録のバックグラウンド）**: 「現状は停止する」「A/B/C から選ぶ」と
+書いてあったが、**A は既に実装済み**だった（`_ForegroundOnlyNotice`）。
+判断すべきは B/C へ進むかどうか。
+
+また「iOS の常時位置情報は審査が厳しい」と書いてあったが、**`Always` は不要**。
+`WhenInUse` のままでも「前面で開始 → 背面で継続」はできる。
+
+**P1-7（RevenueCat）**: **B2Cプレミアムの月額だけが、コードのどこにも無い。**
+店舗プラン（3,980 / 9,800 / 14,800円）と fleet（4,980 / 9,800円）は決まっている。
+**特商法の「販売価格」が埋まらない理由がこれ。**
+
+### 作った文書
+
+| ファイル | 内容 |
+|---|---|
+| `docs/PRICING_DECISION_B2C.md` | B2C価格の判断材料。相場調査と3案 |
+| `docs/DRIVE_RECORDING_BACKGROUND.md` | P2-12 の A/B/C 比較。**B を勧める** |
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 4387件パス
+ test/ocr/                           39件パス
+ dart format lib test                差分なし
+```
 
 ---
 
