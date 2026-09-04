@@ -89,7 +89,21 @@ storeFile=/Users/<ユーザー名>/trustcar-release.keystore
 - [x] ドライラン: `firebase deploy --only firestore:rules --dry-run` — コンパイル成功
 - [x] 本番反映: `firebase deploy --only firestore:rules` — released
 - [x] 本番反映: `firebase deploy --only firestore:indexes` — deployed
+- [ ] **本番反映: `firebase deploy --only storage`** — **未実施**（下記）
 - [ ] Firebase Console → Firestore → ルール → バージョン履歴で反映時刻を確認（人間の目視）
+
+### Storage のルールが未反映です `[実測: 2026-09-04]`
+
+**`storage.rules` は本番に反映していません。** ドライランは通るので、打てば
+そのまま入ります。
+
+```bash
+firebase deploy --only storage --dry-run   # ✔ compiled successfully（確認済み）
+firebase deploy --only storage             # ← これが未実施
+```
+
+**未反映だと、写真のアップロードが弾かれます**（車両の画像・整備記録の写真・
+プロフィールのアイコン）。実機テストの前に必要です。
 
 **所要時間**: 5分（インデックス構築は数分〜数十分かかる場合あり）
 
