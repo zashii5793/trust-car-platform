@@ -46,6 +46,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/screens/vehicle_registration_screen.dart';
 import 'package:trust_car_platform/widgets/vehicle/year_picker_sheet.dart';
 import 'package:trust_car_platform/providers/vehicle_provider.dart';
@@ -59,6 +60,8 @@ import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/core/di/injection.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+
+import '../golden/font_loader.dart';
 
 // ===========================================================================
 // Test fixtures
@@ -239,14 +242,16 @@ class _FakeVehicleProvider extends VehicleProvider {
 // Widget builder
 // ===========================================================================
 
-Widget _buildScreen() {
+Widget _buildScreen({ThemeData? theme}) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<VehicleProvider>.value(
           value: _FakeVehicleProvider()),
     ],
-    child: const MaterialApp(
-      home: VehicleRegistrationScreen(),
+    child: MaterialApp(
+      theme: theme,
+      debugShowCheckedModeBanner: false,
+      home: const VehicleRegistrationScreen(),
     ),
   );
 }
@@ -312,6 +317,37 @@ Future<void> _fillStep1AndAdvance(WidgetTester tester) async {
 // ===========================================================================
 
 void main() {
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildScreen(theme: goldenTheme(base)));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('車両登録（ライト）', (tester) async {
+      await shoot(
+          tester, 'screen_vehicle_registration_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('車両登録（ダーク）', (tester) async {
+      await shoot(
+          tester, 'screen_vehicle_registration_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
+  });
+
   setUpAll(() {
     _firebaseStub = _StubFirebaseService();
     ServiceLocator.instance

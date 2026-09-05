@@ -10,9 +10,11 @@
 //   - 請求書スキャンボタン
 //   - Edge cases (超長文字、0コスト)
 
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/screens/add_maintenance_screen.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
@@ -23,6 +25,8 @@ import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/core/di/injection.dart';
+
+import '../golden/font_loader.dart';
 
 // ---------------------------------------------------------------------------
 // Mock Services
@@ -127,8 +131,11 @@ class _MockInvoiceOcrService implements InvoiceOcrService {
 
 final _mockFirebase = _MockFirebaseService();
 
-Widget _buildNew({String vehicleId = 'v-001', int? currentMileage}) {
+Widget _buildNew(
+    {String vehicleId = 'v-001', int? currentMileage, ThemeData? theme}) {
   return MaterialApp(
+    theme: theme,
+    debugShowCheckedModeBanner: false,
     home: ChangeNotifierProvider<MaintenanceProvider>(
       create: (_) => MaintenanceProvider(firebaseService: _mockFirebase),
       child: AddMaintenanceScreen(
@@ -191,6 +198,38 @@ void main() {
 
   tearDownAll(() {
     Injection.reset();
+  });
+
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    // 画面が下書きの復元で SharedPreferences を読む。
+    setUp(() => SharedPreferences.setMockInitialValues({}));
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildNew(theme: goldenTheme(base)));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('整備記録の追加（ライト）', (tester) async {
+      await shoot(tester, 'screen_add_maintenance_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('整備記録の追加（ダーク）', (tester) async {
+      await shoot(tester, 'screen_add_maintenance_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
   });
 
   // =========================================================================

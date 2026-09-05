@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/screens/drive/drive_log_screen.dart';
 import 'package:trust_car_platform/providers/drive_log_provider.dart';
 import 'package:trust_car_platform/providers/drive_recording_provider.dart';
@@ -14,6 +15,8 @@ import 'package:trust_car_platform/models/user.dart';
 import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+
+import '../golden/font_loader.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -155,6 +158,7 @@ DriveLog _makeDriveLog({
 
 Widget _buildUnderTest({
   required MockDriveLogService driveLogService,
+  ThemeData? theme,
 }) {
   return MultiProvider(
     providers: [
@@ -172,7 +176,11 @@ Widget _buildUnderTest({
         ),
       ),
     ],
-    child: const MaterialApp(home: DriveLogScreen()),
+    child: MaterialApp(
+      theme: theme,
+      debugShowCheckedModeBanner: false,
+      home: const DriveLogScreen(),
+    ),
   );
 }
 
@@ -181,6 +189,38 @@ Widget _buildUnderTest({
 // ---------------------------------------------------------------------------
 
 void main() {
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildUnderTest(
+        driveLogService: MockDriveLogService(),
+        theme: goldenTheme(base),
+      ));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('ドライブログ（ライト）', (tester) async {
+      await shoot(tester, 'screen_drive_log_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('ドライブログ（ダーク）', (tester) async {
+      await shoot(tester, 'screen_drive_log_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
+  });
+
   late MockDriveLogService service;
 
   setUp(() {
