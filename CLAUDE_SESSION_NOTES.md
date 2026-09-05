@@ -1,6 +1,78 @@
 # Claude Session Notes
 
-最終更新: 2026-09-04
+最終更新: 2026-09-05
+
+---
+
+## B2C の課金を凍結し、店舗プランだけで出す（2026-09-05）
+
+**ブランチ**: `claude/night-ocr-and-decisions`
+
+B2C プレミアムの価格を決めるのは見送り、**ソフトローンチは店舗プラン（B2B）
+だけで出す**方針になった。
+
+### 1. 買えないのに買えるように見えていた
+
+`plan_screen.dart` に「プレミアムプランに登録する」ボタンが**生きていた**。
+しかし、
+
+```
+ 価格          画面に1円も出ていない
+ RevenueCat    btoc_premium の entitlement はあるが、商品が無い
+```
+
+**金額を見せないまま購入フローに入る形**で、ストアの審査でも通らない。
+
+`FeatureFlag.premiumFeatures` は**定義だけあって、どこからも使われていなかった**
+（既定 `false`）。C2C と同じ形で配線した。
+
+```
+ lib/core/utils/premium_upsell.dart   canPurchasePremium / premiumUpsellMessage
+ remoteconfig.template.json           premium_features を追加（反映済み）
+ feature_flag_service.dart            remoteKeys に premium_features
+```
+
+### 2. 「アップグレードしてください」が5箇所にあった
+
+購入ボタンは **plan / profile / home の3箇所**にあり、文言だけの誘導が
+**vehicle_detail / inquiry の2箇所**。全部が「買えないものを勧める」状態だった。
+
+- 購入ボタンは `if (canPurchasePremium)` で出さない
+- 文言は `premiumUpsellMessage()` で「ご案内を準備中です」に切り替え
+- 問い合わせ上限のダイアログは「来月になると、また問い合わせできます」に
+
+**比較表そのものは見せる。** 何が有料なのかを隠す理由はない。
+
+`app_error.dart` の汎用メッセージは触っていない。`core/error` が
+`core/config` に依存する形になるのを避けた（サーバー起因のエラーで、
+発生頻度も低い）。
+
+### 3. 特商法の販売価格が埋まった
+
+店舗プランは価格が決まっている（`lib/models/shop.dart:28-33`）。
+
+```
+ フリー          無料
+ スタンダード     3,980円 / 月
+ プレミアム       9,800円 / 月
+ エンタープライズ 14,800円 / 月
+```
+
+B2C は「現在ご提供しておりません」と記載。**残る `【要記入】` は事業者情報の
+3項目**（運営統括責任者・所在地・電話番号）になった。
+
+fleet プラン（4,980 / 9,800円）は RevenueCat の entitlement が無く、
+アプリ内課金かどうか判断できないので書いていない。公開前に確認する旨を
+ページに残した。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 4390件パス
+ dart format lib test                差分なし
+ firebase deploy --only remoteconfig  反映済み（version 2）
+```
 
 ---
 

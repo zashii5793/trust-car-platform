@@ -6,11 +6,18 @@
       },
       "valueType": "BOOLEAN",
       "description": "ユーザー間のパーツ売買（C2C）を開くかどうか。false は凍結。アプリを出し直さずに再開判断を切り替えるための口（docs/HUMAN_TASKS.md P2-15）。"
+    },
+    "premium_features": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "valueType": "BOOLEAN",
+      "description": "B2C（一般ユーザー）のプレミアムプランを売るかどうか。false は凍結。価格が決まり、RevenueCat と各ストアに商品を作ってから true にする（docs/PRICING_DECISION_B2C.md）。"
     }
   },
   "parameterGroups": {},
   "conditions": [],
   "version": {
-    "description": "c2c_parts_marketplace を作成（凍結のまま）"
+    "description": "premium_features を追加（凍結のまま）"
   }
 }

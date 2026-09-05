@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import '../../core/utils/premium_upsell.dart';
 import '../../core/config/app_config.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
@@ -287,37 +288,36 @@ class ProfileScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('プレミアムプランが必要です'),
-        content: const Text(
-          'データのエクスポートはプレミアムプランの機能です。\n'
-          'アップグレードすると整備記録や走行ログのPDFエクスポート、無制限の問い合わせが利用できます。',
-        ),
+        content: Text(premiumUpsellMessage('データのエクスポート')),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('閉じる'),
           ),
-          FilledButton(
-            key: const Key('profile_upgrade_purchase_button'),
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              if (uid.isEmpty) return;
-              final result =
-                  await subscriptionProvider.purchasePremium(userId: uid);
-              if (!context.mounted) return;
-              result.when(
-                success: (_) => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('プレミアムプランへの登録が完了しました'),
-                    backgroundColor: Colors.green,
+          // 凍結中は買えないので、ボタンごと出さない。
+          if (canPurchasePremium)
+            FilledButton(
+              key: const Key('profile_upgrade_purchase_button'),
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                if (uid.isEmpty) return;
+                final result =
+                    await subscriptionProvider.purchasePremium(userId: uid);
+                if (!context.mounted) return;
+                result.when(
+                  success: (_) => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('プレミアムプランへの登録が完了しました'),
+                      backgroundColor: Colors.green,
+                    ),
                   ),
-                ),
-                failure: (err) => ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(err.userMessage)),
-                ),
-              );
-            },
-            child: const Text('プレミアムに登録する'),
-          ),
+                  failure: (err) => ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(err.userMessage)),
+                  ),
+                );
+              },
+              child: const Text('プレミアムに登録する'),
+            ),
         ],
       ),
     );

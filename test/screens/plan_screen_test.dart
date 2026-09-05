@@ -3,10 +3,15 @@
 // 比較表は UserPlanLimits.forPlan() から組み立てている。
 // プラン定義を変えたのに画面の表示だけ古いまま、という食い違いが
 // 起きないことを確認する。
+//
+// **B2C の課金は FeatureFlag.premiumFeatures で凍結している**（2026-09-05）。
+// 価格が未定のまま「登録する」ボタンだけ出ていて、押しても RevenueCat に
+// 商品が無い状態だった。ソフトローンチは店舗プラン（B2B）だけで出す。
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:trust_car_platform/core/config/app_config.dart';
 import 'package:trust_car_platform/models/user_plan.dart';
 import 'package:trust_car_platform/providers/user_subscription_provider.dart';
 import 'package:trust_car_platform/screens/settings/plan_screen.dart';
@@ -36,21 +41,33 @@ void main() {
       );
     });
 
-    testWidgets('フリープランではアップグレードボタンが出る', (tester) async {
+    testWidgets('課金が凍結されているとアップグレードボタンを出さない', (tester) async {
+      // 既定（premiumFeatures = false）の状態。
+      // ボタンは比較表の下にあるので、最後までスクロールしてから確かめる
+      // （ListView は画面外を組み立てないため、pump しただけでは
+      // 「出ていない」のか「まだ作られていない」のか区別できない）。
+      final provider = UserSubscriptionProvider();
+      provider.loadFromUser(UserPlanType.free, null);
+
+      await tester.pumpWidget(_wrap(provider));
+      await tester.pump();
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -2000));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('plan_upgrade_button')), findsNothing);
+      expect(find.byKey(const Key('plan_upgrade_paused_note')), findsOneWidget);
+    });
+
+    testWidgets('凍結中でも、比較表そのものは見える', (tester) async {
+      // 「何が有料なのか」は見せてよい。買えないだけ。
       final provider = UserSubscriptionProvider();
       provider.loadFromUser(UserPlanType.free, null);
 
       await tester.pumpWidget(_wrap(provider));
       await tester.pump();
 
-      // 比較表が長くボタンは初期表示の外にあるため、スクロールして構築させる
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('plan_upgrade_button')),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-
-      expect(find.byKey(const Key('plan_upgrade_button')), findsOneWidget);
+      expect(find.text('車両の登録'), findsOneWidget);
+      expect(find.text('できることの比較'), findsOneWidget);
     });
 
     testWidgets('プレミアムではアップグレードボタンを出さない', (tester) async {
@@ -128,12 +145,47 @@ void main() {
         reason: '期限を過ぎたら課金機能は使えないので、表示もフリーに戻すべき',
       );
 
+      // 凍結中なのでボタンは出ない
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -2000));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('plan_upgrade_button')), findsNothing);
+    });
+  });
+
+  group('PlanScreen — 課金を開けたとき（フラグON）', () {
+    setUp(() =>
+        AppConfig.instance.setFeatureFlag(FeatureFlag.premiumFeatures, true));
+    tearDown(() =>
+        AppConfig.instance.setFeatureFlag(FeatureFlag.premiumFeatures, false));
+
+    testWidgets('フリープランではアップグレードボタンが出る', (tester) async {
+      final provider = UserSubscriptionProvider();
+      provider.loadFromUser(UserPlanType.free, null);
+
+      await tester.pumpWidget(_wrap(provider));
+      await tester.pump();
+
+      // 比較表が長くボタンは初期表示の外にあるため、スクロールして構築させる
       await tester.scrollUntilVisible(
         find.byKey(const Key('plan_upgrade_button')),
         300,
         scrollable: find.byType(Scrollable).first,
       );
+
       expect(find.byKey(const Key('plan_upgrade_button')), findsOneWidget);
+    });
+
+    testWidgets('プレミアムのままならボタンは出ない', (tester) async {
+      final provider = UserSubscriptionProvider();
+      provider.loadFromUser(
+        UserPlanType.premium,
+        DateTime.now().add(const Duration(days: 30)),
+      );
+
+      await tester.pumpWidget(_wrap(provider));
+      await tester.pump();
+
+      expect(find.byKey(const Key('plan_upgrade_button')), findsNothing);
     });
   });
 }
