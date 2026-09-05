@@ -1,6 +1,167 @@
 # Claude Session Notes
 
-最終更新: 2026-09-03
+最終更新: 2026-09-05
+
+---
+
+## B2C の課金を凍結し、店舗プランだけで出す（2026-09-05）
+
+**ブランチ**: `claude/night-ocr-and-decisions`
+
+B2C プレミアムの価格を決めるのは見送り、**ソフトローンチは店舗プラン（B2B）
+だけで出す**方針になった。
+
+### 1. 買えないのに買えるように見えていた
+
+`plan_screen.dart` に「プレミアムプランに登録する」ボタンが**生きていた**。
+しかし、
+
+```
+ 価格          画面に1円も出ていない
+ RevenueCat    btoc_premium の entitlement はあるが、商品が無い
+```
+
+**金額を見せないまま購入フローに入る形**で、ストアの審査でも通らない。
+
+`FeatureFlag.premiumFeatures` は**定義だけあって、どこからも使われていなかった**
+（既定 `false`）。C2C と同じ形で配線した。
+
+```
+ lib/core/utils/premium_upsell.dart   canPurchasePremium / premiumUpsellMessage
+ remoteconfig.template.json           premium_features を追加（反映済み）
+ feature_flag_service.dart            remoteKeys に premium_features
+```
+
+### 2. 「アップグレードしてください」が5箇所にあった
+
+購入ボタンは **plan / profile / home の3箇所**にあり、文言だけの誘導が
+**vehicle_detail / inquiry の2箇所**。全部が「買えないものを勧める」状態だった。
+
+- 購入ボタンは `if (canPurchasePremium)` で出さない
+- 文言は `premiumUpsellMessage()` で「ご案内を準備中です」に切り替え
+- 問い合わせ上限のダイアログは「来月になると、また問い合わせできます」に
+
+**比較表そのものは見せる。** 何が有料なのかを隠す理由はない。
+
+`app_error.dart` の汎用メッセージは触っていない。`core/error` が
+`core/config` に依存する形になるのを避けた（サーバー起因のエラーで、
+発生頻度も低い）。
+
+### 3. 特商法の販売価格が埋まった
+
+店舗プランは価格が決まっている（`lib/models/shop.dart:28-33`）。
+
+```
+ フリー          無料
+ スタンダード     3,980円 / 月
+ プレミアム       9,800円 / 月
+ エンタープライズ 14,800円 / 月
+```
+
+B2C は「現在ご提供しておりません」と記載。**残る `【要記入】` は事業者情報の
+3項目**（運営統括責任者・所在地・電話番号）になった。
+
+fleet プラン（4,980 / 9,800円）は RevenueCat の entitlement が無く、
+アプリ内課金かどうか判断できないので書いていない。公開前に確認する旨を
+ページに残した。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 4390件パス
+ dart format lib test                差分なし
+ firebase deploy --only remoteconfig  反映済み（version 2）
+```
+
+---
+
+## OCRの取りこぼしを潰し、残る判断材料を揃える（2026-09-04・夜間）
+
+**ブランチ**: `claude/night-ocr-and-decisions`
+
+社長が就寝中の自律作業。**本番に触る操作とマージは避け、手元で完結するものだけ**
+進めた。
+
+### 1. 車台番号の先頭が落ちていた
+
+```
+ BNR35-123456    → NR35-123456     （B が落ちる）
+ ZVW30W-1234567  → W30W-1234567    （ZV が落ちる）
+ NCP131-0123456  → P131-0123456    （NC が落ちる）
+```
+
+プレフィックスを `[A-Z0-9]{2,4}` で拾っていたため、**5文字以上だと先頭から
+欠ける。** 車台番号は車両の一意識別子で、**1文字違えば別の車**になる。
+
+`{2,8}` に広げて解決（6文字は日本車では珍しくない: ZVW30W・NCP131・GRS182）。
+ナンバープレート・電話番号・型式の行に誤爆しないことも確認してテストにした。
+
+`test/ocr/ocr_accuracy_test.dart` の `Known Limitations` に「仕様」として
+記録されていたが、**仕様ではなく不具合だった**ので、リグレッションガードに
+書き換えた。同ファイルが参照していた存在しない `REAL_DATA_VALIDATION_CHECKLIST.md`
+も `docs/DEVICE_TEST_CHECKLIST.md` に直した。
+
+### 2. 色だけ次の行を見ていなかった
+
+燃料は `currentLine || nextLine` で次行も見るのに、**色は currentLine だけ**。
+ML Kit がラベルと値を別ブロックで返すと取れない。
+
+ついでに、走査を**行優先**に変えた。候補ごとに currentLine→nextLine を見る形だと、
+**次の行の語が今の行の値に勝つ**ことがある。
+
+```
+ 燃料の種類 軽油
+ ガソリンスタンド利用可     ← 「ガソリン」が先に当たっていた
+```
+
+### 3. キーワードの後ろが空のとき '' を返していた
+
+`_extractAfterKeyword` が空文字を返すため、**値が無いのに「入っている」ように
+見えていた**（結果画面に空欄が出る）。null を返すようにした。
+
+### 4. カメラ画面がライフサイクルで壊れる形だった
+
+```dart
+ if (state == AppLifecycleState.inactive) {
+   controller.dispose();     ← _isInitialized は true のまま
+ }
+ // build() は _isInitialized だけを見て CameraPreview(_controller!) を描く
+```
+
+**スキャナ画面のままアプリを切り替えて戻る**と、破棄済みコントローラを触る。
+`_isInitialized` を false に戻し、`_controller` も null にした。
+`_initializeCamera` は再入可能にし（resume で再度呼ばれる）、
+`setState` の前に `mounted` を見るようにした。
+
+### 5. HUMAN_TASKS の前提が、また2つ実態と違っていた
+
+**P2-12（走行記録のバックグラウンド）**: 「現状は停止する」「A/B/C から選ぶ」と
+書いてあったが、**A は既に実装済み**だった（`_ForegroundOnlyNotice`）。
+判断すべきは B/C へ進むかどうか。
+
+また「iOS の常時位置情報は審査が厳しい」と書いてあったが、**`Always` は不要**。
+`WhenInUse` のままでも「前面で開始 → 背面で継続」はできる。
+
+**P1-7（RevenueCat）**: **B2Cプレミアムの月額だけが、コードのどこにも無い。**
+店舗プラン（3,980 / 9,800 / 14,800円）と fleet（4,980 / 9,800円）は決まっている。
+**特商法の「販売価格」が埋まらない理由がこれ。**
+
+### 作った文書
+
+| ファイル | 内容 |
+|---|---|
+| `docs/PRICING_DECISION_B2C.md` | B2C価格の判断材料。相場調査と3案 |
+| `docs/DRIVE_RECORDING_BACKGROUND.md` | P2-12 の A/B/C 比較。**B を勧める** |
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 4387件パス
+ test/ocr/                           39件パス
+ dart format lib test                差分なし
+```
 
 ---
 

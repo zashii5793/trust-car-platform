@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../models/user_plan.dart';
@@ -9,7 +10,11 @@ import '../../providers/user_subscription_provider.dart';
 
 /// プラン画面
 ///
-/// フリー / プレミアムの違いを一覧で示し、その場でアップグレードできる。
+/// フリー / プレミアムの違いを一覧で示す。
+///
+/// 購入は [FeatureFlag.premiumFeatures] が有効なときだけできる。既定は凍結で、
+/// Remote Config の `premium_features` で開ける（`c2c_parts_marketplace` と
+/// 同じ扱い）。
 /// 以前は「データをエクスポート」を押したときのダイアログが唯一の導線で、
 /// 何がフリーで何が有料かを確認する場所がどこにも無かった。
 ///
@@ -27,6 +32,12 @@ class PlanScreen extends StatelessWidget {
     final free = UserPlanLimits.forPlan(UserPlanType.free);
     final premium = UserPlanLimits.forPlan(UserPlanType.premium);
     final rows = _buildRows(free, premium);
+
+    // B2C の課金は凍結中（2026-09-05）。価格が決まっておらず、RevenueCat にも
+    // 商品が無い。押せるボタンだけ出ていると、金額を見せないまま購入フローに
+    // 入ることになる（ストアの審査でも通らない）。
+    // 比較表そのものは見せる。「何が有料なのか」は隠さない。
+    final canPurchase = isFeatureEnabled(FeatureFlag.premiumFeatures);
 
     return Scaffold(
       appBar: AppBar(title: const Text('プラン')),
@@ -46,7 +57,7 @@ class PlanScreen extends StatelessWidget {
           const SizedBox(height: 12),
           _ComparisonTable(rows: rows, isPremium: isPremium),
           const SizedBox(height: 24),
-          if (!isPremium) ...[
+          if (!isPremium && canPurchase) ...[
             _UpgradeButton(),
             const SizedBox(height: 12),
             Text(
@@ -56,7 +67,16 @@ class PlanScreen extends StatelessWidget {
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
-          ] else
+          ] else if (!isPremium)
+            Text(
+              'プレミアムプランは現在ご案内を準備中です。'
+              '開始しましたらアプリ内でお知らせします。',
+              key: const Key('plan_upgrade_paused_note'),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            )
+          else
             Text(
               '解約は App Store / Google Play のサブスクリプション設定から行えます。'
               '解約後も期間終了までプレミアム機能をご利用いただけます。',

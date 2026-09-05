@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/utils/premium_upsell.dart';
 import '../../models/shop.dart';
 import '../../models/inquiry.dart';
 import '../../models/user_plan.dart';
@@ -122,8 +123,11 @@ class _InquiryScreenState extends State<InquiryScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('今月の問い合わせ上限に達しました'),
         content: Text(
-          'フリープランでは月$maxMonthly件まで問い合わせできます。\n'
-          'プレミアムプランにアップグレードすると無制限になります。',
+          canPurchasePremium
+              ? 'フリープランでは月$maxMonthly件まで問い合わせできます。\n'
+                  'プレミアムプランにアップグレードすると無制限になります。'
+              : 'フリープランでは月$maxMonthly件まで問い合わせできます。\n'
+                  '来月になると、また問い合わせできます。',
         ),
         actions: [
           TextButton(
