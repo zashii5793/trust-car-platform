@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import '../core/theme/button_text_style.dart';
 import '../core/utils/premium_upsell.dart';
 import '../providers/vehicle_provider.dart';
 import '../providers/maintenance_provider.dart';
@@ -778,7 +779,9 @@ class _ProfileTab extends StatelessWidget {
             items: [
               _MenuItemData(
                 icon: Icons.download_outlined,
-                label: isPremium ? 'データをエクスポート' : 'データをエクスポート（プレミアム）',
+                // profile_screen と同じ理由で「（プレミアム）」を外す
+                // （390px 幅で2行に折り返す）。
+                label: 'データをエクスポート',
                 color: AppColors.primary,
                 onTap: isPremium
                     ? () => Navigator.push(
@@ -1658,7 +1661,8 @@ class _VehicleEmptyOnboarding extends StatelessWidget {
               label: const Text('車両を登録する'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                textStyle: const TextStyle(
+                textStyle: buttonTextStyle(
+                  context,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),

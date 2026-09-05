@@ -12,12 +12,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:trust_car_platform/core/config/app_config.dart';
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/models/user_plan.dart';
 import 'package:trust_car_platform/providers/user_subscription_provider.dart';
 import 'package:trust_car_platform/screens/settings/plan_screen.dart';
 
-Widget _wrap(UserSubscriptionProvider provider) {
+import '../golden/font_loader.dart';
+
+Widget _wrap(UserSubscriptionProvider provider, {ThemeData? theme}) {
   return MaterialApp(
+    theme: theme,
+    debugShowCheckedModeBanner: false,
     home: ChangeNotifierProvider<UserSubscriptionProvider>.value(
       value: provider,
       child: const PlanScreen(),
@@ -26,6 +31,39 @@ Widget _wrap(UserSubscriptionProvider provider) {
 }
 
 void main() {
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  //   flutter test --update-goldens test/screens/plan_screen_test.dart
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final provider = UserSubscriptionProvider();
+      provider.loadFromUser(UserPlanType.free, null);
+
+      await tester.pumpWidget(_wrap(provider, theme: goldenTheme(base)));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('プラン（ライト）', (tester) async {
+      await shoot(tester, 'screen_plan_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('プラン（ダーク）', (tester) async {
+      await shoot(tester, 'screen_plan_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
+  });
+
   group('PlanScreen', () {
     testWidgets('フリープランでは現在のプランがフリーと表示される', (tester) async {
       final provider = UserSubscriptionProvider();

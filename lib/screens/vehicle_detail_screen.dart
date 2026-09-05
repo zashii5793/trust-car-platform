@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../core/theme/button_text_style.dart';
 import '../core/utils/premium_upsell.dart';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
@@ -529,7 +530,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                                 horizontal: 10,
                                 vertical: 4,
                               ),
-                              textStyle: const TextStyle(fontSize: 12),
+                              textStyle: buttonTextStyle(context, fontSize: 12),
                             ),
                           ),
                         ),
@@ -562,7 +563,8 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                                   horizontal: 10,
                                   vertical: 4,
                                 ),
-                                textStyle: const TextStyle(fontSize: 12),
+                                textStyle:
+                                    buttonTextStyle(context, fontSize: 12),
                               ),
                             ),
                           ),

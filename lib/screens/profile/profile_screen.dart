@@ -185,7 +185,10 @@ class ProfileScreen extends StatelessWidget {
                   items: [
                     _MenuItem(
                       icon: Icons.download_outlined,
-                      label: isPremium ? 'データをエクスポート' : 'データをエクスポート（プレミアム）',
+                      // 「（プレミアム）」まで付けると 390px 幅で2行に折り返す
+                      // （2026-09-05 実測）。有料であることは、開いたときの
+                      // 案内で伝わる。
+                      label: 'データをエクスポート',
                       onTap: isPremium
                           ? () => _showExportPicker(context)
                           : () => _showUpgradeDialog(context),
