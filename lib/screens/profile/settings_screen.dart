@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/theme/button_text_style.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../models/user.dart';
@@ -255,6 +256,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                         selected: {themeProvider.themeMode},
                         showSelectedIcon: false,
+                        // 既定の大きさだと、アイコンと並んだ「システム」が
+                        // 「システ / ム」に折り返す（390px 幅で実測
+                        // 2026-09-06）。少し詰めて1行に収める。
+                        style: SegmentedButton.styleFrom(
+                          textStyle: buttonTextStyle(context, fontSize: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xs,
+                          ),
+                        ),
                         onSelectionChanged: (selection) {
                           themeProvider.setThemeMode(selection.first);
                         },
