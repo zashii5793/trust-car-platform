@@ -22,6 +22,29 @@
 
 ## P0 — リリースブロッカー
 
+### 0. Cloud Functions が本番に1つも無い `[実測: 2026-09-06]`
+
+**手順: `docs/FUNCTIONS_DEPLOY.md`**
+
+```
+$ firebase functions:list
+No functions found in project trust-car-platform.
+```
+
+**退会後のデータ削除（`purgeDeletedAccounts`）が動いていません。**
+プライバシーポリシーに「退会手続きの完了時に削除します」と書いてあるのに、
+削除する仕組みが本番にありません。AIチャット・課金の同期・コメントの
+モデレーションも同様に動きません。
+
+**止まっている原因は Secret Manager API が無効なこと**で、有効化は
+Console でのクリックが要ります（AI からはできません）。あわせて
+`ANTHROPIC_API_KEY` / `SENDGRID_API_KEY` / `REVENUECAT_WEBHOOK_SECRET` の
+3つを設定する必要があります（値が無いものはダミーでも可）。
+
+**所要時間**: 30分（API の反映待ちを含む）
+
+---
+
 ### 1. Android リリース署名の設定 `[実測: android/key.properties が存在しません]`
 
 **状態**: **コード側は対応済み。残るのはキーストアの生成だけです。**
@@ -89,21 +112,13 @@ storeFile=/Users/<ユーザー名>/trustcar-release.keystore
 - [x] ドライラン: `firebase deploy --only firestore:rules --dry-run` — コンパイル成功
 - [x] 本番反映: `firebase deploy --only firestore:rules` — released
 - [x] 本番反映: `firebase deploy --only firestore:indexes` — deployed
-- [ ] **本番反映: `firebase deploy --only storage`** — **未実施**（下記）
+- [x] **本番反映: `firebase deploy --only storage`** — 2026-09-06 released
 - [ ] Firebase Console → Firestore → ルール → バージョン履歴で反映時刻を確認（人間の目視）
 
-### Storage のルールが未反映です `[実測: 2026-09-04]`
+### Storage のルールは 2026-09-06 に反映しました
 
-**`storage.rules` は本番に反映していません。** ドライランは通るので、打てば
-そのまま入ります。
-
-```bash
-firebase deploy --only storage --dry-run   # ✔ compiled successfully（確認済み）
-firebase deploy --only storage             # ← これが未実施
-```
-
-**未反映だと、写真のアップロードが弾かれます**（車両の画像・整備記録の写真・
-プロフィールのアイコン）。実機テストの前に必要です。
+未反映のあいだは写真のアップロードが弾かれる状態でした（車両の画像・整備記録の
+写真・プロフィールのアイコン）。
 
 **所要時間**: 5分（インデックス構築は数分〜数十分かかる場合あり）
 
@@ -544,6 +559,7 @@ firebase remoteconfig:get             # 現在の内容を確認
 ## ローンチ前チェックリスト
 
 **P0（これが揃わないと出せない）**
+- [ ] P0-0: **Cloud Functions のデプロイ** — 本番に1つも無い。**退会後の削除が動いていません**
 - [ ] P0-1: **Android リリース署名の設定** — コード側は対応済み。残るはキーストア生成と `android/key.properties` の作成（`[実測]` 未作成）
 - [x] **P0-2: Firestore ルール・インデックスのデプロイ** — 2026-09-03 反映済み
 - [ ] P0-3: Google Maps API キーの発行・設定（未設定でも動作はする／地図のみ無効）

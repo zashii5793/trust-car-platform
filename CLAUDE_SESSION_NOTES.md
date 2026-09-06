@@ -1,6 +1,62 @@
 # Claude Session Notes
 
-最終更新: 2026-09-05
+最終更新: 2026-09-06
+
+---
+
+## Cloud Functions が本番に1つも無かった（2026-09-06）
+
+**ブランチ**: `claude/functions-not-deployed`
+
+`PURGE_AFTER_DAYS = 0` を反映しようとして発覚。
+
+```
+ $ firebase functions:list
+ No functions found in project trust-car-platform.
+```
+
+**規約に「退会手続きの完了時に削除します」と書いたのに、削除する仕組みが
+本番に無い。** 退会マーカーだけが書かれ、データは残り続ける状態だった。
+
+動いていないのは5つ。
+
+```
+ purgeDeletedAccounts     退会後のデータ削除（日次 03:17 JST）
+ askCarAi                 AIチャットの応答
+ onRevenueCatWebhook      課金状態の同期
+ onCommentReportCreated   通報が閾値を超えたコメントを隠す
+ onNewsletterSend         ニュースレター配信
+```
+
+### 止まっている理由
+
+Secret Manager API が無効で、`defineSecret` が解決できない。
+
+```
+ Error: ... secrets/SENDGRID_API_KEY had HTTP Error: 403,
+ Secret Manager API has not been used in project ... before or it is disabled.
+```
+
+**`--only functions:purgeDeletedAccounts` と絞っても同じ。** ソース解析の
+時点で全関数の `defineSecret` が評価される。
+
+API の有効化は Console のクリックが要る（`gcloud` が開発機に無く、
+firebase CLI にも有効化コマンドが無い）。手順は
+`docs/FUNCTIONS_DEPLOY.md` に書いた。
+
+### 同時に片付いたもの
+
+`firebase deploy --only storage` は通った。**未反映のあいだは写真の
+アップロードが全部弾かれる状態**だった（車両画像・整備記録の写真・
+プロフィールのアイコン）。
+
+### 気づいた警告
+
+```
+ Node.js 20 was deprecated on 2026-04-30 and will be decommissioned on 2026-10-30
+```
+
+**10月末以降はこのランタイムでデプロイできない。** 更新が別途要る。
 
 ---
 
