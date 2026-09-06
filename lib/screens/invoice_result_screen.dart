@@ -239,7 +239,10 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
                   const SizedBox(height: 4),
                   Text(
                     message,
-                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                    style: TextStyle(
+                      color: theme.textTheme.bodySmall?.color,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),
@@ -257,7 +260,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
   Widget _buildSectionHeader(ThemeData theme, String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: Colors.grey),
+        Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
         const SizedBox(width: 8),
         Text(
           title,
@@ -319,7 +322,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           border: Border.all(
-            color: hasDate ? Colors.grey.shade300 : Colors.orange,
+            color: hasDate ? theme.dividerColor : Colors.orange,
             width: hasDate ? 1 : 2,
           ),
           borderRadius: BorderRadius.circular(8),
@@ -336,9 +339,12 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     '作業日',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -439,7 +445,11 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
       child: SafeArea(
         child: Row(
           children: [
+            // 1:2 だと「キャンセ / ル」に折り返す（390px 幅で実測
+            // 2026-09-06）。主要アクションは色で目立つので、幅で
+            // 差をつけすぎない。
             Expanded(
+              flex: 3,
               child: OutlinedButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('キャンセル'),
@@ -447,7 +457,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
             ),
             const SizedBox(width: 16),
             Expanded(
-              flex: 2,
+              flex: 4,
               child: ElevatedButton.icon(
                 onPressed: _validateAndSubmit,
                 icon: const Icon(Icons.check),

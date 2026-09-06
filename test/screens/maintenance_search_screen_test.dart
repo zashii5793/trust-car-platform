@@ -1,5 +1,6 @@
 // MaintenanceSearchScreen Widget Tests
 
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'dart:async';
@@ -10,6 +11,8 @@ import 'package:trust_car_platform/screens/maintenance_search_screen.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
+
+import '../golden/font_loader.dart';
 
 // ---------------------------------------------------------------------------
 // Stub FirebaseService
@@ -58,10 +61,14 @@ MaintenanceRecord _record({
   );
 }
 
-Widget _buildUnderTest(MaintenanceProvider provider) {
+Widget _buildUnderTest(MaintenanceProvider provider, {ThemeData? theme}) {
   return ChangeNotifierProvider<MaintenanceProvider>.value(
     value: provider,
-    child: const MaterialApp(home: MaintenanceSearchScreen()),
+    child: MaterialApp(
+      theme: theme,
+      debugShowCheckedModeBanner: false,
+      home: const MaintenanceSearchScreen(),
+    ),
   );
 }
 
@@ -87,6 +94,38 @@ void main() {
 
   tearDown(() {
     provider.dispose();
+  });
+
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester
+          .pumpWidget(_buildUnderTest(provider, theme: goldenTheme(base)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('整備記録の検索（ライト）', (tester) async {
+      await shoot(
+          tester, 'screen_maintenance_search_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('整備記録の検索（ダーク）', (tester) async {
+      await shoot(tester, 'screen_maintenance_search_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
   });
 
   group('MaintenanceSearchScreen — 基本表示', () {
