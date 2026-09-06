@@ -190,6 +190,7 @@ class _VehicleCertificateResultScreenState
   }
 
   Widget _buildConfidenceCard() {
+    final theme = Theme.of(context);
     final score = widget.ocrData.confidenceScore;
     final percentage = (score * 100).toInt();
 
@@ -234,7 +235,10 @@ class _VehicleCertificateResultScreenState
                   const SizedBox(height: 4),
                   Text(
                     message,
-                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                    style: TextStyle(
+                      color: theme.textTheme.bodySmall?.color,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),
@@ -251,12 +255,15 @@ class _VehicleCertificateResultScreenState
 
   Widget _buildSectionHeader(String title, IconData icon,
       {bool isImportant = false}) {
+    final theme = Theme.of(context);
     return Row(
       children: [
         Icon(
           icon,
           size: 20,
-          color: isImportant ? AppColors.warning : Colors.grey,
+          color: isImportant
+              ? AppColors.warning
+              : theme.colorScheme.onSurfaceVariant,
         ),
         const SizedBox(width: 8),
         Text(
@@ -316,6 +323,7 @@ class _VehicleCertificateResultScreenState
   }
 
   Widget _buildInspectionDateTile() {
+    final theme = Theme.of(context);
     final hasDate = _inspectionExpiryDate != null;
     final isExtracted = widget.ocrData.inspectionExpiryDate != null;
 
@@ -343,11 +351,11 @@ class _VehicleCertificateResultScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     '車検満了日',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -377,6 +385,7 @@ class _VehicleCertificateResultScreenState
   }
 
   Widget _buildFuelTypeSelector() {
+    final theme = Theme.of(context);
     final isExtracted = widget.ocrData.fuelTypeEnum != null;
 
     return Column(
@@ -384,9 +393,12 @@ class _VehicleCertificateResultScreenState
       children: [
         Row(
           children: [
-            const Text(
+            Text(
               '燃料タイプ',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             if (isExtracted) ...[
               const SizedBox(width: 8),
@@ -437,6 +449,7 @@ class _VehicleCertificateResultScreenState
   }
 
   Widget _buildBottomBar() {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -471,13 +484,17 @@ class _VehicleCertificateResultScreenState
               const SizedBox(height: 4),
               Text(
                 '車検満了日まで読み取れました。走行距離は後で更新できます',
-                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 8),
             ],
             Row(
               children: [
                 Expanded(
+                  flex: 3,
                   child: OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     child: const Text('キャンセル'),
@@ -485,7 +502,7 @@ class _VehicleCertificateResultScreenState
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  flex: 2,
+                  flex: 4,
                   child: _canQuickRegister
                       ? OutlinedButton.icon(
                           onPressed: () => _validateAndSubmit(),
