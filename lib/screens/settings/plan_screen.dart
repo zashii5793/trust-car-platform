@@ -239,7 +239,10 @@ class _ComparisonTable extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Expanded(flex: 4, child: SizedBox()),
+                // 左列は 4:3:3 だと「愛車カルテのPDF出力」など5項目が
+                // 2行に折り返していた（390px 幅で実測・2026-09-06）。
+                // 値側は「無制限」「3件 / 月」と短いので、左に寄せる。
+                const Expanded(flex: 6, child: SizedBox()),
                 Expanded(
                   flex: 3,
                   child: Text(
@@ -276,7 +279,7 @@ class _ComparisonTable extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      flex: 4,
+                      flex: 6,
                       child: Text(row.label, style: theme.textTheme.bodyMedium),
                     ),
                     Expanded(

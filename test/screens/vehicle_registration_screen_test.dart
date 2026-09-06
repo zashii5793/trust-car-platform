@@ -4,7 +4,7 @@
 //   Step 1 — 基本情報:
 //     1.  AppBar title '基本情報を入力'
 //     2.  Step indicator labels (基本情報 / 車検・保険 / 詳細情報)
-//     3.  OCR scan button '車検証をスキャンして自動入力' visible
+//     3.  OCR scan button '車検証をスキャン' visible
 //     4.  Photo picker '車両の写真を追加（任意）' visible
 //     5.  '次へ' button visible
 //     6.  Maker selector placeholder 'メーカーを選択 *' visible
@@ -415,7 +415,7 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pump();
 
-      expect(find.text('車検証をスキャンして自動入力'), findsOneWidget);
+      expect(find.text('車検証をスキャン'), findsOneWidget);
     });
 
     testWidgets('4. Photo picker label visible', (tester) async {

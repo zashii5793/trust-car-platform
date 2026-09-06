@@ -1002,7 +1002,9 @@ class _GradeSelectorFieldState extends State<GradeSelectorField> {
                     Expanded(
                       child: Text(
                         widget.selectedGrade?.name ??
-                            (widget.modelId == null ? '車種を先に選択' : 'グレードを選択 *'),
+                            // 年式と横並びで幅が狭く、「車種を先に選択」は
+                            // 2行に折り返して隣と高さが揃わなかった。
+                            (widget.modelId == null ? '車種を選択' : 'グレードを選択 *'),
                         style: theme.textTheme.bodyLarge?.copyWith(
                           color: widget.selectedGrade == null || isDisabled
                               ? (isDark
