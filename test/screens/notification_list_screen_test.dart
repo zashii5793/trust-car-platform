@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/screens/notifications/notification_list_screen.dart';
 import 'package:trust_car_platform/providers/notification_provider.dart';
 import 'package:trust_car_platform/models/app_notification.dart';
@@ -14,6 +15,8 @@ import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
+
+import '../golden/font_loader.dart';
 
 // ---------------------------------------------------------------------------
 // Stub FirebaseService
@@ -264,7 +267,7 @@ AppNotification _makeNotification({
   );
 }
 
-Widget _buildUnderTest(MockNotificationProvider provider) {
+Widget _buildUnderTest(MockNotificationProvider provider, {ThemeData? theme}) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<NotificationProvider>.value(value: provider),
@@ -272,8 +275,10 @@ Widget _buildUnderTest(MockNotificationProvider provider) {
         create: (_) => VehicleProvider(firebaseService: _StubFirebaseService()),
       ),
     ],
-    child: const MaterialApp(
-      home: Scaffold(
+    child: MaterialApp(
+      theme: theme,
+      debugShowCheckedModeBanner: false,
+      home: const Scaffold(
         body: NotificationListScreen(),
       ),
     ),
@@ -285,6 +290,38 @@ Widget _buildUnderTest(MockNotificationProvider provider) {
 // ---------------------------------------------------------------------------
 
 void main() {
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        _buildUnderTest(MockNotificationProvider(), theme: goldenTheme(base)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('通知一覧（ライト）', (tester) async {
+      await shoot(tester, 'screen_notification_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('通知一覧（ダーク）', (tester) async {
+      await shoot(tester, 'screen_notification_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
+  });
+
   late MockNotificationProvider provider;
 
   setUp(() {
@@ -319,7 +356,7 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('メンテナンスの推奨がある場合はここに表示されます'),
+        find.text('メンテナンスの推奨があるとここに表示されます'),
         findsOneWidget,
       );
     });
