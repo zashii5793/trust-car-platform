@@ -27,6 +27,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:google_sign_in/google_sign_in.dart';
 
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/screens/auth/login_screen.dart';
 import 'package:trust_car_platform/screens/auth/signup_screen.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
@@ -34,6 +35,8 @@ import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/models/user.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+
+import 'font_loader.dart';
 
 // Import NotificationSettings for the mock
 
@@ -122,10 +125,11 @@ class MockAuthService implements AuthService {
 Widget wrapWithMaterialApp(Widget child) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-      useMaterial3: true,
-    ),
+    // **アプリのテーマで撮る。** 2026-09-05 まで素の
+    // `ColorScheme.fromSeed(seedColor: Colors.blue)` を使っていたため、
+    // ここで撮った画像は実際の見た目と色も書体も違っていた（そのうえ
+    // font_loader を呼んでおらず、日本語が全部 □ で写っていた）。
+    theme: goldenTheme(AppTheme.lightTheme),
     home: child,
   );
 }
@@ -155,6 +159,12 @@ Widget createSignupScreen() {
 // =============================================================================
 
 void main() {
+  // 呼ばないと文字もアイコンも豆腐（□）で写る。
+  setUpAll(() async {
+    await loadMaterialIcons();
+    await loadJapaneseFont();
+  });
+
   group('Screen Golden Tests - Auth Screens', () {
     testWidgets('LoginScreen - initial state', (tester) async {
       await tester.pumpWidget(createLoginScreen());

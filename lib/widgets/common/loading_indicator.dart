@@ -155,10 +155,16 @@ class AppEmptyState extends StatelessWidget {
             ),
             if (description != null) ...[
               AppSpacing.verticalXs,
-              Text(
-                description!,
-                style: theme.textTheme.bodyMedium,
-                textAlign: TextAlign.center,
+              // 画面幅いっぱいに流すと、最後の1〜2文字だけが次の行に落ちる
+              // （「…すべて表示さ / れます」・390px 幅で実測 2026-09-06）。
+              // 読み幅を絞ったほうが、どの文言でも収まりが良い。
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: Text(
+                  description!,
+                  style: theme.textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
               ),
             ],
             if (buttonLabel != null && onButtonPressed != null) ...[

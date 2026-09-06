@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/core/di/injection.dart';
 import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
@@ -26,6 +27,8 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:trust_car_platform/models/drive_log.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
+
+import '../golden/font_loader.dart';
 
 // ---------------------------------------------------------------------------
 // Mock
@@ -213,8 +216,11 @@ Widget _buildScreen(
   Vehicle vehicle,
   MaintenanceProvider provider, {
   UserSubscriptionProvider? subscriptionProvider,
+  ThemeData? theme,
 }) {
   return MaterialApp(
+    theme: theme,
+    debugShowCheckedModeBanner: false,
     home: MultiProvider(
       providers: [
         ChangeNotifierProvider<MaintenanceProvider>.value(value: provider),
@@ -255,6 +261,40 @@ Future<void> _pumpScreen(
 // ---------------------------------------------------------------------------
 
 void main() {
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  //   flutter test --update-goldens test/screens/vehicle_detail_screen_test.dart
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildScreen(
+        _testVehicle(),
+        MaintenanceProvider(firebaseService: MockFirebaseService()),
+        theme: goldenTheme(base),
+      ));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('車両詳細（ライト）', (tester) async {
+      await shoot(tester, 'screen_vehicle_detail_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('車両詳細（ダーク）', (tester) async {
+      await shoot(tester, 'screen_vehicle_detail_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
+  });
+
   late MockFirebaseService mockFirebase;
   late MaintenanceProvider maintenanceProvider;
 

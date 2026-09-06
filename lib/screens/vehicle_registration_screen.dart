@@ -1498,7 +1498,10 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '車検証をスキャンして自動入力',
+                        // 「おすすめ」バッジと矢印に押されて2行に折り返して
+                        // いた（390px 幅で実測 2026-09-06）。中身は下の
+                        // 説明文が補う。
+                        '車検証をスキャン',
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: AppColors.primary,

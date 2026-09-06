@@ -1,3 +1,4 @@
+import '../../core/theme/button_text_style.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
@@ -115,7 +116,8 @@ class AppButton extends StatelessWidget {
           onPressed: isLoading ? null : onPressed,
           style: ElevatedButton.styleFrom(
             padding: _padding,
-            textStyle: TextStyle(
+            textStyle: buttonTextStyle(
+              context,
               fontSize: _fontSize,
               fontWeight: FontWeight.w500,
             ),
@@ -128,7 +130,8 @@ class AppButton extends StatelessWidget {
           onPressed: isLoading ? null : onPressed,
           style: OutlinedButton.styleFrom(
             padding: _padding,
-            textStyle: TextStyle(
+            textStyle: buttonTextStyle(
+              context,
               fontSize: _fontSize,
               fontWeight: FontWeight.w500,
             ),
@@ -141,7 +144,8 @@ class AppButton extends StatelessWidget {
           onPressed: isLoading ? null : onPressed,
           style: TextButton.styleFrom(
             padding: _padding,
-            textStyle: TextStyle(
+            textStyle: buttonTextStyle(
+              context,
               fontSize: _fontSize,
               fontWeight: FontWeight.w500,
             ),

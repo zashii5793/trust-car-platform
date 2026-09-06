@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../core/theme/button_text_style.dart';
+import '../core/utils/premium_upsell.dart';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
 import '../models/drive_log.dart';
@@ -110,10 +112,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('プレミアムプランが必要です'),
-        content: const Text(
-          'PDF出力はプレミアムプランの機能です。\n'
-          'プレミアムプランにアップグレードしてご利用ください。',
-        ),
+        content: Text(premiumUpsellMessage('PDF出力')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
@@ -531,7 +530,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                                 horizontal: 10,
                                 vertical: 4,
                               ),
-                              textStyle: const TextStyle(fontSize: 12),
+                              textStyle: buttonTextStyle(context, fontSize: 12),
                             ),
                           ),
                         ),
@@ -564,7 +563,8 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                                   horizontal: 10,
                                   vertical: 4,
                                 ),
-                                textStyle: const TextStyle(fontSize: 12),
+                                textStyle:
+                                    buttonTextStyle(context, fontSize: 12),
                               ),
                             ),
                           ),

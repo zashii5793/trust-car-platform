@@ -15,12 +15,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/screens/home_screen.dart';
 import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/providers/notification_provider.dart';
 import 'package:trust_car_platform/providers/connectivity_provider.dart';
+import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/services/recommendation_service.dart';
@@ -40,6 +42,8 @@ import 'package:trust_car_platform/services/post_service.dart';
 import 'package:trust_car_platform/providers/drive_log_provider.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/providers/user_subscription_provider.dart';
+
+import '../golden/font_loader.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 
 // ---------------------------------------------------------------------------
@@ -309,6 +313,7 @@ Widget _buildApp({
   _FakeVehicleProvider? vehicleProvider,
   _FakeNotificationProvider? notificationProvider,
   bool isOffline = false,
+  ThemeData? theme,
 }) {
   final fb = _StubFirebaseService();
   final vp = vehicleProvider ?? _FakeVehicleProvider();
@@ -350,7 +355,11 @@ Widget _buildApp({
         create: (_) => UserSubscriptionProvider(),
       ),
     ],
-    child: const MaterialApp(home: HomeScreen()),
+    child: MaterialApp(
+      theme: theme,
+      debugShowCheckedModeBanner: false,
+      home: const HomeScreen(),
+    ),
   );
 }
 
@@ -382,6 +391,45 @@ class _StubConnectivityProvider extends ChangeNotifier
 // ---------------------------------------------------------------------------
 
 void main() {
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  //   flutter test --update-goldens test/screens/home_screen_test.dart
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    // 画面全体を組むと ServiceLocator 経由の依存にも触れる
+    // （他のテストは Provider 経由の一部しか触らないので要らなかった）。
+    setUp(() {
+      ServiceLocator.instance
+          .registerLazySingleton<FirebaseService>(_StubFirebaseService.new);
+    });
+
+    tearDown(() => ServiceLocator.instance.unregister<FirebaseService>());
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildApp(theme: goldenTheme(base)));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('ホーム（ライト）', (tester) async {
+      await shoot(tester, 'screen_home_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('ホーム（ダーク）', (tester) async {
+      await shoot(tester, 'screen_home_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
+  });
+
   group('HomeScreen — AppBar', () {
     testWidgets('初期タブはマイカー（タイトルが "マイカー"）', (tester) async {
       await tester.pumpWidget(_buildApp());

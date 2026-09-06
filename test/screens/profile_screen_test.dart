@@ -12,7 +12,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/models/user.dart';
+
+import '../golden/font_loader.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
 import 'package:trust_car_platform/providers/user_subscription_provider.dart';
@@ -176,7 +179,7 @@ class _StubFirebaseService implements FirebaseService {
 // Builder
 // ---------------------------------------------------------------------------
 
-Widget _buildScreen({AppUser? appUser}) {
+Widget _buildScreen({AppUser? appUser, ThemeData? theme}) {
   final fb = _StubFirebaseService();
 
   return MultiProvider(
@@ -196,7 +199,12 @@ Widget _buildScreen({AppUser? appUser}) {
         create: (_) => MaintenanceProvider(firebaseService: fb),
       ),
     ],
-    child: const MaterialApp(home: ProfileScreen()),
+    child: MaterialApp(
+      theme: theme,
+      // ゴールデンに右上の赤いリボンが写り込むのを防ぐ。
+      debugShowCheckedModeBanner: false,
+      home: const ProfileScreen(),
+    ),
   );
 }
 
@@ -205,6 +213,49 @@ Widget _buildScreen({AppUser? appUser}) {
 // ---------------------------------------------------------------------------
 
 void main() {
+  // 見え方を画像に残す。**数値の検査では、詰まっている・沈んでいる・
+  // 読みにくい、は分からない。** CI では走らない（tags: 'golden'）。
+  //
+  //   flutter test --update-goldens test/screens/profile_screen_test.dart
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        _buildScreen(
+          appUser: AppUser(
+            id: 'uid1',
+            email: 'test@example.com',
+            displayName: 'テストユーザー',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          theme: goldenTheme(base),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('プロフィール（ライト）', (tester) async {
+      await shoot(tester, 'screen_profile_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('プロフィール（ダーク）', (tester) async {
+      await shoot(tester, 'screen_profile_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
+  });
+
   group('ProfileScreen — initial rendering', () {
     testWidgets('shows プロフィール app bar title', (tester) async {
       await tester.pumpWidget(_buildScreen());
@@ -219,7 +270,7 @@ void main() {
 
       expect(find.text('プロフィールを編集'), findsOneWidget);
       expect(find.text('通知設定'), findsOneWidget);
-      // Label is plan-dependent: 'データをエクスポート（プレミアム）' on the free plan.
+      // ラベルはプランによらず同じ。有料であることは開いたときの案内で伝える。
       expect(find.textContaining('データをエクスポート'), findsOneWidget);
     });
 

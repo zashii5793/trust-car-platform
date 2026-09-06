@@ -14,13 +14,20 @@
 
 | API | 利用 | 根拠 |
 |---|---|---|
-| Places（近隣検索・オートコンプリート） | **未使用** | `lib/` `functions/src/` `web/` を全文検索して `maps.googleapis.com` / `nearbysearch` / `autocomplete` のヒット 0。工場検索は Firestore クエリで完結 |
+| Places（近隣検索・オートコンプリート） | **未使用** | `lib/` `functions/src/` `web/` を全文検索して `maps.googleapis.com` / `nearbysearch` / `autocomplete` のヒット 0。工場検索は Firestore クエリで完結。**ただし Issue #44（非提携先の網羅表示）を実装する段階では必要になります**（下記） |
 | Geocoding（住所↔座標） | **未使用** | `geocoding` パッケージが `pubspec.lock` に無い。ドライブログの住所はユーザーの手入力 |
 | Directions / Distance Matrix / Roads | **未使用** | 経路は記録済み GPS 点列を `Polyline` で結ぶだけ。距離は Haversine のローカル計算（`shop_provider.dart:187-230` ほか3箇所） |
 | Dynamic Maps（地図表示） | **使用** | 下記2箇所のみ |
 
-**HUMAN_TASKS には「Places は従量課金が高いため要判断」と書いてありましたが、
-そもそも使っていません。** 判断は不要です。
+**HUMAN_TASKS の「Places は従量課金が高いため要判断」は、Issue #44（非提携先の
+網羅表示）を見越した記述でした。#44 は未着手なので、いま有効化する必要は
+ありません。**
+
+**将来 #44 に着手するときは、改めて判断が要ります**（Places 近隣検索は無料枠
+5,000/月・超過後は約$25〜/1,000 と高単価）。#44 自身が「1商圏限定・キャッシュ・
+呼び出し上限」をコスト管理として求めているので、そこで設計します。
+
+**この文書が試算しているのは、ローンチ時点＝ #43 までの構成です。**
 
 ## 2. 地図を出しているのは2箇所だけ
 
@@ -126,7 +133,7 @@ cp ios/Flutter/Maps.xcconfig.example ios/Flutter/Maps.xcconfig
 
 1. [Google Cloud Console](https://console.cloud.google.com/) → APIとサービス → 認証情報 → APIキーを発行
 2. 有効化する API: **Maps SDK for Android** と **Maps SDK for iOS** のみ
-   （**Places API は有効化不要**。使っていません）
+   （**Places API は、いまは有効化不要**。Issue #44 に着手するときに追加します）
 3. キーの制限（漏洩対策・必須）
    - Android: パッケージ名 `jp.trustcar.app` ＋ SHA-1（P0-1 の鍵）
    - iOS: Bundle ID `jp.trustcar.app`
@@ -137,7 +144,8 @@ cp ios/Flutter/Maps.xcconfig.example ios/Flutter/Maps.xcconfig
    - CI: GitHub Secrets の `GOOGLE_MAPS_API_KEY`
 5. 予算アラートは念のため設定（月$1で十分。超えたら想定外が起きている合図）
 
-**やらなくていいこと**: Places API の有効化、コスト最適化のためのキャッシュ設計、
-1商圏に絞る運用。どれも Places を使う前提の話でした。
+**いまはやらなくていいこと**: Places API の有効化、コスト最適化のためのキャッシュ
+設計、1商圏に絞る運用。**どれも Issue #44（非提携先の網羅表示）を実装するときの
+話**で、ローンチ時点の構成では出番がありません。
 
 **所要時間**: 30分（HUMAN_TASKS の「1〜2時間」は Places の判断込みの見積もりでした）

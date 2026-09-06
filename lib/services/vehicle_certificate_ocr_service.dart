@@ -315,7 +315,11 @@ class VehicleCertificateOcrService {
   /// 車台番号を抽出
   /// 例: "ZN6-012345" or "GRB-0123456"
   String? _extractVinNumber(String currentLine, String nextLine) {
-    final pattern = RegExp(r'[A-Z0-9]{2,4}[-−]?\d{5,8}');
+    // The prefix runs up to 8 characters. Capping it at 4 dropped the leading
+    // characters of anything longer - BNR35-123456 came back as NR35-123456,
+    // a different car (fixed 2026-09-03). Six-character prefixes are common
+    // on Japanese vehicles (ZVW30W, NCP131, GRS182).
+    final pattern = RegExp(r'[A-Z0-9]{2,8}[-−]?\d{5,8}');
 
     var match = pattern.firstMatch(currentLine);
     if (match != null) return match.group(0);
@@ -541,9 +545,12 @@ class VehicleCertificateOcrService {
   String? _extractFuelType(String currentLine, String nextLine) {
     final fuelTypes = ['ガソリン', '軽油', 'ディーゼル', '電気', 'ハイブリッド', 'LPG', '水素'];
 
-    for (final fuel in fuelTypes) {
-      if (currentLine.contains(fuel) || nextLine.contains(fuel)) {
-        return fuel;
+    // Scan the label's own line first. Going candidate-by-candidate instead
+    // let a word on the *next* line win over the real value on this one
+    // （「燃料の種類 軽油」の次に「ガソリンスタンド利用可」が来ると軽油を取り逃す）.
+    for (final line in [currentLine, nextLine]) {
+      for (final fuel in fuelTypes) {
+        if (line.contains(fuel)) return fuel;
       }
     }
     return _extractAfterKeyword(currentLine, '燃料');
@@ -576,9 +583,12 @@ class VehicleCertificateOcrService {
       'オレンジ',
     ];
 
-    for (final color in colors) {
-      if (currentLine.contains(color)) {
-        return color;
+    // Same as the fuel scan: the value usually arrives on the next line.
+    // Until 2026-09-03 this only looked at the label's line, so a certificate
+    // that put 「車体の色」 and 「白」 in separate blocks came back empty.
+    for (final line in [currentLine, nextLine]) {
+      for (final color in colors) {
+        if (line.contains(color)) return color;
       }
     }
     return _extractAfterKeyword(currentLine, '色');
@@ -617,10 +627,13 @@ class VehicleCertificateOcrService {
       final afterKeyword = text.substring(index + keyword.length).trim();
       // 最初の空白または改行までを取得
       final endIndex = afterKeyword.indexOf(RegExp(r'\s{2,}'));
-      if (endIndex != -1) {
-        return afterKeyword.substring(0, endIndex).trim();
-      }
-      return afterKeyword;
+      final value = endIndex != -1
+          ? afterKeyword.substring(0, endIndex).trim()
+          : afterKeyword;
+      // Nothing after the keyword means the value is on another line, not
+      // that the value is an empty string. Returning '' made the field look
+      // filled in（「色: 」が空欄のまま結果画面に出ていた）.
+      return value.isEmpty ? null : value;
     }
     return null;
   }

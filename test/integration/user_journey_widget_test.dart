@@ -1309,7 +1309,7 @@ void main() {
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('車検証をスキャンして自動入力'), findsOneWidget);
+      expect(find.text('車検証をスキャン'), findsOneWidget);
     });
 
     testWidgets('空フォームで「次へ」をタップするとメーカーバリデーションエラーが出る', (tester) async {
