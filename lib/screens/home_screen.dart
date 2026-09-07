@@ -194,6 +194,22 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
+    // マイカータブのヘッダーに「たびの記録」。プロフィールの「アカウント」
+    // セクションの奥にあり、記録したことを忘れられる位置だった（2026-09-07）。
+    if (_currentIndex == 0) {
+      actions.add(
+        IconButton(
+          key: const Key('header_drive_log_button'),
+          icon: const Icon(Icons.route_outlined),
+          tooltip: 'たびの記録',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(builder: (_) => const DriveLogScreen()),
+          ),
+        ),
+      );
+    }
+
     // マーケットプレイスタブにオーナー掲載ボタンを表示
     if (_currentIndex == 1) {
       actions.add(
@@ -212,7 +228,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // SNS（みんなの投稿）タブにソーシャル通知ベルを表示。未読数をバッジ表示し、
     // タップでソーシャル通知一覧（いいね・コメント）へ遷移する。
+    //
+    // 「みんなのアクセサリー」も同じ並びに置く。プロフィールの「コミュニティ」
+    // セクションの奥にあり、同じコミュニティ機能なのに入口が離れていた。
     if (_currentIndex == 2) {
+      actions.add(
+        IconButton(
+          key: const Key('header_accessories_button'),
+          icon: const Icon(Icons.auto_awesome_outlined),
+          tooltip: 'みんなのアクセサリー',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => const AccessoryShowcaseScreen(),
+            ),
+          ),
+        ),
+      );
+
       final uid = context.read<AuthProvider>().firebaseUser?.uid ?? '';
       if (uid.isNotEmpty) {
         actions.add(
@@ -699,25 +732,10 @@ class _ProfileTab extends StatelessWidget {
             ),
           ),
 
-          AppSpacing.verticalSm,
-
-          // ---- コミュニティセクション ----
-          _buildMenuSection(
-            context,
-            title: 'コミュニティ',
-            items: [
-              _MenuItemData(
-                icon: Icons.forum_outlined,
-                label: 'みんなのアクセサリー（口コミ・コメント）',
-                color: AppColors.secondary,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const AccessoryShowcaseScreen()),
-                ),
-              ),
-            ],
-          ),
+          // 「みんなのアクセサリー」はここに置いていた。プロフィールの奥では
+          // 見つからないので、ホームの一覧と「みんなの投稿」のヘッダーへ
+          // 移した（2026-09-07）。同じ導線を二か所に置くと、どちらも
+          // 覚えられない。
 
           AppSpacing.verticalSm,
 
@@ -735,15 +753,9 @@ class _ProfileTab extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const ProfileScreen()),
                 ),
               ),
-              _MenuItemData(
-                icon: Icons.directions_car_outlined,
-                label: 'ドライブログ',
-                color: AppColors.accentDrive,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const DriveLogScreen()),
-                ),
-              ),
+              // 「ドライブログ」はここに置いていた。「アカウント」の中では
+              // 見つからないので、ホームの一覧とマイカーのヘッダーへ移した
+              // （2026-09-07）。
               _MenuItemData(
                 icon: Icons.compare_arrows_outlined,
                 label: '整備工場を比較する',
@@ -2044,6 +2056,22 @@ class _DashboardSummaryCard extends StatelessWidget {
             ],
           ),
         ),
+        // 残量バー。**「あと19日」は数字を読まないと分からないが、
+        // バーは目を向けただけで分かる。** 車検は2年（730日）周期なので、
+        // 残り日数をその割合で描く。
+        if (days >= 0) ...[
+          AppSpacing.verticalXs,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              key: Key('dashboard_inspection_meter_$keySuffix'),
+              value: (days / 730).clamp(0.0, 1.0),
+              minHeight: 5,
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
+              valueColor: AlwaysStoppedAnimation<Color>(iconColor),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -2826,6 +2854,47 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+/// セクションの合計を1行で出す帯。
+///
+/// **1件ずつ見なくても分かる数字**を、リストの前に置く。
+class _SectionSummary extends StatelessWidget {
+  /// (ラベル, 値)。値が空なら、ラベルだけを薄く出す。
+  final List<(String, String)> items;
+
+  const _SectionSummary({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Row(
+        children: [
+          for (final (label, value) in items) ...[
+            if (value.isEmpty)
+              Text(label, style: theme.textTheme.bodySmall)
+            else ...[
+              const Spacer(),
+              Text(
+                label,
+                style: theme.textTheme.bodySmall,
+              ),
+              AppSpacing.horizontalXs,
+              Text(
+                value,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// ホームの「メンテナンスの記録」。
 ///
 /// **車検・点検だけでなく、オイル交換もカスタムパーツも同じ並びで出す。**
@@ -2877,6 +2946,17 @@ class _RecentMaintenanceSectionState extends State<_RecentMaintenanceSection> {
               builder: (_) => const MaintenanceSearchScreen(),
             ),
           ),
+        ),
+        // 直近の3件だけだと「今月いくら使ったか」が見えない。**積み上がった
+        // 額が維持費の実感になる**ので、合計を先に出す。
+        _SectionSummary(
+          items: [
+            ('直近${_records!.length}件', ''),
+            (
+              '合計',
+              '¥${NumberFormat('#,###').format(records.fold<int>(0, (s, r) => s + r.cost))}'
+            ),
+          ],
         ),
         Card(
           clipBehavior: Clip.antiAlias,
@@ -2986,6 +3066,15 @@ class _RecentDriveSectionState extends State<_RecentDriveSection> {
             context,
             MaterialPageRoute<void>(builder: (_) => const DriveLogScreen()),
           ),
+        ),
+        _SectionSummary(
+          items: [
+            ('${logs.length}回', ''),
+            (
+              '合計',
+              '${logs.fold<double>(0, (s, l) => s + l.statistics.totalDistance).toStringAsFixed(0)} km'
+            ),
+          ],
         ),
         Card(
           clipBehavior: Clip.antiAlias,
