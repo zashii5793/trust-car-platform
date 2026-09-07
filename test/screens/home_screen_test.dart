@@ -27,6 +27,9 @@ import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/services/recommendation_service.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
+import 'package:trust_car_platform/models/accessory_showcase.dart';
+import 'package:trust_car_platform/services/popular_accessories_service.dart';
+import 'package:trust_car_platform/services/vehicle_retirement_service.dart';
 import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/app_notification.dart';
 import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
@@ -51,6 +54,9 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 // ---------------------------------------------------------------------------
 
 class _StubFirebaseService implements FirebaseService {
+  /// ホームの「メンテナンスの記録」に出す分。テストから差し替える。
+  List<MaintenanceRecord> recentRecords = const [];
+
   @override
   Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
       const Result.success(false);
@@ -99,6 +105,13 @@ class _StubFirebaseService implements FirebaseService {
   @override
   Future<Result<void, AppError>> deleteMaintenanceRecord(String id) async =>
       const Result.success(null);
+
+  @override
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getRecentMaintenanceRecords({
+    int limit = 5,
+  }) async =>
+          Result.success(recentRecords);
 
   @override
   Future<Result<List<MaintenanceRecord>, AppError>>
@@ -192,6 +205,26 @@ class _StubAuthService implements AuthService {
 // ---------------------------------------------------------------------------
 // Fake VehicleProvider — exposes setters so tests control state
 // ---------------------------------------------------------------------------
+
+class _StubPopularAccessoriesService implements PopularAccessoriesService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
+  @override
+  Future<Result<List<AccessoryTrend>, AppError>> getTopAccessories(
+          {int limit = 10}) async =>
+      const Result.success([]);
+}
+
+class _StubVehicleRetirementService implements VehicleRetirementService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
+  @override
+  Future<Result<List<Vehicle>, AppError>> getRetiredVehicles(
+          String userId) async =>
+      const Result.success([]);
+}
 
 class _FakeVehicleProvider extends VehicleProvider {
   _FakeVehicleProvider() : super(firebaseService: _StubFirebaseService());
@@ -391,6 +424,117 @@ class _StubConnectivityProvider extends ChangeNotifier
 // ---------------------------------------------------------------------------
 
 void main() {
+  // ホームは「メンテナンスの記録」を ServiceLocator 経由で読む
+  // （2026-09-07 に追加）。どのテストでも要るので、ファイル全体で登録する。
+  late _StubFirebaseService stubFirebase;
+
+  setUp(() {
+    stubFirebase = _StubFirebaseService();
+    final sl = ServiceLocator.instance;
+    sl.registerLazySingleton<FirebaseService>(() => stubFirebase);
+    // ホームは「みんなのアクセサリー」と「過去の車両」も読む。
+    // どちらも Firestore を触るが、テストでは空を返すスタブで足りる。
+    sl.registerLazySingleton<PopularAccessoriesService>(
+        _StubPopularAccessoriesService.new);
+    sl.registerLazySingleton<VehicleRetirementService>(
+        _StubVehicleRetirementService.new);
+  });
+
+  tearDown(() {
+    final sl = ServiceLocator.instance;
+    sl.unregister<FirebaseService>();
+    sl.unregister<PopularAccessoriesService>();
+    sl.unregister<VehicleRetirementService>();
+  });
+
+  group('ホーム — メンテナンスの記録', () {
+    // 車検・点検だけでなく、オイル交換もカスタムパーツも同じ並びで出す。
+    // 金額を添えるのは、積み上がった費用が維持費の実感になるため。
+    MaintenanceRecord record({
+      required String id,
+      required String title,
+      required MaintenanceType type,
+      required int cost,
+      required DateTime date,
+    }) {
+      return MaintenanceRecord(
+        id: id,
+        vehicleId: 'v1',
+        userId: 'u1',
+        type: type,
+        title: title,
+        cost: cost,
+        date: date,
+        createdAt: date,
+      );
+    }
+
+    testWidgets('種類を問わず時系列で並び、金額が出る', (tester) async {
+      stubFirebase.recentRecords = [
+        record(
+          id: 'r1',
+          title: 'ドラレコ取り付け',
+          type: MaintenanceType.customization,
+          cost: 38000,
+          date: DateTime(2026, 8, 20),
+        ),
+        record(
+          id: 'r2',
+          title: 'オイル交換',
+          type: MaintenanceType.oilChange,
+          cost: 6200,
+          date: DateTime(2026, 7, 2),
+        ),
+        record(
+          id: 'r3',
+          title: '車検',
+          type: MaintenanceType.carInspection,
+          cost: 74000,
+          date: DateTime(2026, 3, 18),
+        ),
+      ];
+
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // セクションは車両カードの下にある。ListView は画面外を組み立てない
+      // ので、スクロールして初めて現れる。
+      await tester.scrollUntilVisible(
+        find.text('メンテナンスの記録'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      expect(find.text('メンテナンスの記録'), findsOneWidget);
+      // カスタムも点検も、種類で分けずに並ぶ
+      expect(find.text('ドラレコ取り付け'), findsOneWidget);
+      expect(find.text('オイル交換'), findsOneWidget);
+      expect(find.text('車検'), findsOneWidget);
+      // 金額
+      expect(find.text('¥38,000'), findsOneWidget);
+      expect(find.text('¥6,200'), findsOneWidget);
+      expect(find.text('¥74,000'), findsOneWidget);
+    });
+
+    testWidgets('記録が無ければ見出しごと出さない', (tester) async {
+      stubFirebase.recentRecords = const [];
+
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -3000));
+      await tester.pumpAndSettle();
+
+      // ホームの一等地に「ありません」を置いても、できることは増えない
+      expect(find.text('メンテナンスの記録'), findsNothing);
+    });
+  });
+
   // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
   //   flutter test --update-goldens test/screens/home_screen_test.dart
   group('ゴールデン', () {
@@ -398,15 +542,6 @@ void main() {
       await loadMaterialIcons();
       await loadJapaneseFont();
     });
-
-    // 画面全体を組むと ServiceLocator 経由の依存にも触れる
-    // （他のテストは Provider 経由の一部しか触らないので要らなかった）。
-    setUp(() {
-      ServiceLocator.instance
-          .registerLazySingleton<FirebaseService>(_StubFirebaseService.new);
-    });
-
-    tearDown(() => ServiceLocator.instance.unregister<FirebaseService>());
 
     Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
       await tester.binding.setSurfaceSize(const Size(390, 844));

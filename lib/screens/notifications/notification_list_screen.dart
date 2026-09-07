@@ -28,7 +28,7 @@ class NotificationListScreen extends StatelessWidget {
           return const AppEmptyState(
             icon: Icons.notifications_none,
             title: '通知はありません',
-            description: 'メンテナンスの推奨がある場合はここに表示されます',
+            description: 'メンテナンスの推奨があるとここに表示されます',
           );
         }
 

@@ -5,11 +5,17 @@ import 'package:intl/intl.dart';
 import '../core/theme/button_text_style.dart';
 import '../core/utils/premium_upsell.dart';
 import '../providers/vehicle_provider.dart';
+import '../providers/drive_log_provider.dart';
 import '../providers/maintenance_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/connectivity_provider.dart';
 import '../providers/user_subscription_provider.dart';
+import '../models/accessory_showcase.dart';
+import '../services/popular_accessories_service.dart';
+import '../services/vehicle_retirement_service.dart';
+import '../models/maintenance_record.dart';
+import '../models/drive_log.dart';
 import '../models/vehicle.dart';
 import '../models/app_notification.dart';
 import '../models/fleet_plan.dart';
@@ -35,8 +41,10 @@ import 'marketplace/marketplace_screen.dart';
 import 'marketplace/shop_list_screen.dart';
 import 'marketplace/shop_owner_screen.dart';
 import 'sns/sns_feed_screen.dart';
+import 'drive/drive_log_detail_screen.dart';
 import 'drive/drive_log_screen.dart';
 import 'add_maintenance_screen.dart';
+import 'maintenance_search_screen.dart';
 import 'ai_chat/ai_chat_screen.dart';
 import 'fleet/fleet_dashboard_screen.dart';
 import 'vehicle/retired_vehicles_screen.dart';
@@ -186,6 +194,22 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
+    // マイカータブのヘッダーに「たびの記録」。プロフィールの「アカウント」
+    // セクションの奥にあり、記録したことを忘れられる位置だった（2026-09-07）。
+    if (_currentIndex == 0) {
+      actions.add(
+        IconButton(
+          key: const Key('header_drive_log_button'),
+          icon: const Icon(Icons.route_outlined),
+          tooltip: 'たびの記録',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(builder: (_) => const DriveLogScreen()),
+          ),
+        ),
+      );
+    }
+
     // マーケットプレイスタブにオーナー掲載ボタンを表示
     if (_currentIndex == 1) {
       actions.add(
@@ -204,7 +228,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // SNS（みんなの投稿）タブにソーシャル通知ベルを表示。未読数をバッジ表示し、
     // タップでソーシャル通知一覧（いいね・コメント）へ遷移する。
+    //
+    // 「みんなのアクセサリー」も同じ並びに置く。プロフィールの「コミュニティ」
+    // セクションの奥にあり、同じコミュニティ機能なのに入口が離れていた。
     if (_currentIndex == 2) {
+      actions.add(
+        IconButton(
+          key: const Key('header_accessories_button'),
+          icon: const Icon(Icons.auto_awesome_outlined),
+          tooltip: 'みんなのアクセサリー',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => const AccessoryShowcaseScreen(),
+            ),
+          ),
+        ),
+      );
+
       final uid = context.read<AuthProvider>().firebaseUser?.uid ?? '';
       if (uid.isNotEmpty) {
         actions.add(
@@ -580,7 +621,10 @@ class _VehicleTabState extends State<_VehicleTab> {
                 _InspectionSetupCard(vehicles: vehicles),
               _AiSuggestionSection(onSeeAll: widget.onNavigateToNotifications),
               ...vehicles.map((v) => _VehicleCard(vehicle: v)),
-              _RetiredVehiclesLink(),
+              const _RecentMaintenanceSection(),
+              const _RecentDriveSection(),
+              const _PopularAccessoriesSection(),
+              const _RetiredVehiclesSection(),
             ];
 
             return ListView.builder(
@@ -688,25 +732,10 @@ class _ProfileTab extends StatelessWidget {
             ),
           ),
 
-          AppSpacing.verticalSm,
-
-          // ---- コミュニティセクション ----
-          _buildMenuSection(
-            context,
-            title: 'コミュニティ',
-            items: [
-              _MenuItemData(
-                icon: Icons.forum_outlined,
-                label: 'みんなのアクセサリー（口コミ・コメント）',
-                color: AppColors.secondary,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const AccessoryShowcaseScreen()),
-                ),
-              ),
-            ],
-          ),
+          // 「みんなのアクセサリー」はここに置いていた。プロフィールの奥では
+          // 見つからないので、ホームの一覧と「みんなの投稿」のヘッダーへ
+          // 移した（2026-09-07）。同じ導線を二か所に置くと、どちらも
+          // 覚えられない。
 
           AppSpacing.verticalSm,
 
@@ -724,15 +753,9 @@ class _ProfileTab extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const ProfileScreen()),
                 ),
               ),
-              _MenuItemData(
-                icon: Icons.directions_car_outlined,
-                label: 'ドライブログ',
-                color: AppColors.accentDrive,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const DriveLogScreen()),
-                ),
-              ),
+              // 「ドライブログ」はここに置いていた。「アカウント」の中では
+              // 見つからないので、ホームの一覧とマイカーのヘッダーへ移した
+              // （2026-09-07）。
               _MenuItemData(
                 icon: Icons.compare_arrows_outlined,
                 label: '整備工場を比較する',
@@ -2033,6 +2056,22 @@ class _DashboardSummaryCard extends StatelessWidget {
             ],
           ),
         ),
+        // 残量バー。**「あと19日」は数字を読まないと分からないが、
+        // バーは目を向けただけで分かる。** 車検は2年（730日）周期なので、
+        // 残り日数をその割合で描く。
+        if (days >= 0) ...[
+          AppSpacing.verticalXs,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              key: Key('dashboard_inspection_meter_$keySuffix'),
+              value: (days / 730).clamp(0.0, 1.0),
+              minHeight: 5,
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
+              valueColor: AlwaysStoppedAnimation<Color>(iconColor),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -2634,28 +2673,611 @@ class _InfoChip extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // 過去の車両リンク（退役済み車両への導線）
 // ---------------------------------------------------------------------------
-class _RetiredVehiclesLink extends StatelessWidget {
-  const _RetiredVehiclesLink();
+/// ホームの「過去の車両」。
+///
+/// **一覧から消すと「記録ごと無くなった」と感じる。** 売却・リース返却済みの
+/// 車も薄く残し、いつ手放したかを添える。過去の車にかけた整備費も、生涯
+/// コストとしては意味がある。
+///
+/// 2026-09-07 まではテキストリンクだけで、車そのものは奥の画面まで行かないと
+/// 見えなかった。
+class _RetiredVehiclesSection extends StatefulWidget {
+  const _RetiredVehiclesSection();
+
+  @override
+  State<_RetiredVehiclesSection> createState() =>
+      _RetiredVehiclesSectionState();
+}
+
+class _RetiredVehiclesSectionState extends State<_RetiredVehiclesSection> {
+  List<Vehicle>? _vehicles;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    final uid = context.read<AuthProvider>().appUser?.id ?? '';
+    if (uid.isEmpty) return;
+    final result =
+        await sl.get<VehicleRetirementService>().getRetiredVehicles(uid);
+    if (!mounted) return;
+    result.when(
+      success: (vehicles) => setState(() {
+        _vehicles = vehicles
+          ..sort((a, b) => (b.retiredAt ?? DateTime(0))
+              .compareTo(a.retiredAt ?? DateTime(0)));
+      }),
+      failure: (_) => setState(() => _vehicles = const []),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-      child: Center(
-        child: TextButton.icon(
-          key: const Key('retired_vehicles_link'),
-          icon: const Icon(Icons.history_outlined, size: 16),
-          label: const Text('売却・廃車した過去の車両を見る'),
-          style: TextButton.styleFrom(
-            foregroundColor: AppColors.textSecondary,
-          ),
-          onPressed: () => Navigator.push(
+    final vehicles = _vehicles;
+    if (vehicles == null || vehicles.isEmpty) return const SizedBox.shrink();
+
+    final shown = vehicles.take(3).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(
+          icon: Icons.history_outlined,
+          title: '過去の車両',
+          onSeeAll: () => Navigator.push(
             context,
             MaterialPageRoute<void>(
               builder: (_) => const RetiredVehiclesScreen(),
             ),
           ),
         ),
+        Card(
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              for (var i = 0; i < shown.length; i++) ...[
+                if (i > 0) const Divider(height: 1),
+                _RetiredVehicleRow(vehicle: shown[i]),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RetiredVehicleRow extends StatelessWidget {
+  final Vehicle vehicle;
+
+  const _RetiredVehicleRow({required this.vehicle});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dateFormat = DateFormat('yyyy年M月');
+    final retiredAt = vehicle.retiredAt;
+
+    // 現役の車と同じ濃さで出すと、どれが今の愛車か分からなくなる。
+    return Opacity(
+      opacity: 0.65,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.directions_car_outlined,
+                size: 18, color: AppColors.textTertiary),
+            AppSpacing.horizontalSm,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${vehicle.maker} ${vehicle.model}',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  AppSpacing.verticalXxs,
+                  Text(
+                    retiredAt == null
+                        ? vehicle.status.displayName
+                        : '${vehicle.status.displayName} ・ ${dateFormat.format(retiredAt)}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ホームに出す「最近のメンテナンス」と「最近のドライブ」
+//
+// どちらもメニューの奥にあって見つけにくかった（ドライブログは「アカウント」
+// セクションの中）。**開いてすぐ、クルマの情報・メンテナンスの記録・たびの
+// 記録が並んで見える**のが望ましい、という判断で 2026-09-07 にホームへ出した。
+// ---------------------------------------------------------------------------
+
+/// 見出しと「すべて見る」を揃えるための共通の帯。
+class _SectionHeader extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onSeeAll;
+
+  const _SectionHeader({
+    required this.icon,
+    required this.title,
+    required this.onSeeAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: AppSpacing.md,
+        bottom: AppSpacing.xs,
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: AppColors.primary),
+          AppSpacing.horizontalXs,
+          Text(
+            title,
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const Spacer(),
+          TextButton(
+            onPressed: onSeeAll,
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+            ),
+            child: const Text('すべて見る'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// セクションの合計を1行で出す帯。
+///
+/// **1件ずつ見なくても分かる数字**を、リストの前に置く。
+class _SectionSummary extends StatelessWidget {
+  /// (ラベル, 値)。値が空なら、ラベルだけを薄く出す。
+  final List<(String, String)> items;
+
+  const _SectionSummary({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Row(
+        children: [
+          for (final (label, value) in items) ...[
+            if (value.isEmpty)
+              Text(label, style: theme.textTheme.bodySmall)
+            else ...[
+              const Spacer(),
+              Text(
+                label,
+                style: theme.textTheme.bodySmall,
+              ),
+              AppSpacing.horizontalXs,
+              Text(
+                value,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// ホームの「メンテナンスの記録」。
+///
+/// **車検・点検だけでなく、オイル交換もカスタムパーツも同じ並びで出す。**
+/// 種類で分けずに時系列で見せたほうが、そのクルマに何をしてきたかが分かる。
+/// 金額を右に出すのは、積み上がった費用がそのまま維持費の実感になるため。
+class _RecentMaintenanceSection extends StatefulWidget {
+  const _RecentMaintenanceSection();
+
+  @override
+  State<_RecentMaintenanceSection> createState() =>
+      _RecentMaintenanceSectionState();
+}
+
+class _RecentMaintenanceSectionState extends State<_RecentMaintenanceSection> {
+  List<MaintenanceRecord>? _records;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final result =
+        await sl.get<FirebaseService>().getRecentMaintenanceRecords(limit: 3);
+    if (!mounted) return;
+    result.when(
+      success: (records) => setState(() => _records = records),
+      failure: (_) => setState(() => _records = const []),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final records = _records;
+    // 読み込み中とゼロ件は、どちらも何も出さない。ホームの一等地に
+    // 「ありません」を置いても、できることが増えるわけではない。
+    if (records == null || records.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(
+          icon: Icons.build_outlined,
+          title: 'メンテナンスの記録',
+          onSeeAll: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => const MaintenanceSearchScreen(),
+            ),
+          ),
+        ),
+        // 直近の3件だけだと「今月いくら使ったか」が見えない。**積み上がった
+        // 額が維持費の実感になる**ので、合計を先に出す。
+        _SectionSummary(
+          items: [
+            ('直近${_records!.length}件', ''),
+            (
+              '合計',
+              '¥${NumberFormat('#,###').format(records.fold<int>(0, (s, r) => s + r.cost))}'
+            ),
+          ],
+        ),
+        Card(
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              for (var i = 0; i < records.length; i++) ...[
+                if (i > 0) const Divider(height: 1),
+                _MaintenanceRow(record: records[i]),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MaintenanceRow extends StatelessWidget {
+  final MaintenanceRecord record;
+
+  const _MaintenanceRow({required this.record});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dateFormat = DateFormat('yyyy/MM/dd');
+    final costFormat = NumberFormat('#,###');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          Icon(record.typeIcon, size: 18, color: record.typeColor),
+          AppSpacing.horizontalSm,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  record.title,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                AppSpacing.verticalXxs,
+                Text(
+                  dateFormat.format(record.date),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.horizontalSm,
+          Text(
+            '¥${costFormat.format(record.cost)}',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ホームの「たびの記録」。
+///
+/// ドライブログは「アカウント」セクションの奥にあり、**記録したことを
+/// 忘れられる位置**だった。距離と時間を添えて出す。
+class _RecentDriveSection extends StatefulWidget {
+  const _RecentDriveSection();
+
+  @override
+  State<_RecentDriveSection> createState() => _RecentDriveSectionState();
+}
+
+class _RecentDriveSectionState extends State<_RecentDriveSection> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final uid = context.read<AuthProvider>().appUser?.id;
+      if (uid == null || uid.isEmpty) return;
+      context.read<DriveLogProvider>().loadUserDriveLogs(uid);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final logs = context.watch<DriveLogProvider>().logs;
+    if (logs.isEmpty) return const SizedBox.shrink();
+
+    final recent = logs.take(2).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(
+          icon: Icons.route_outlined,
+          title: 'たびの記録',
+          onSeeAll: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(builder: (_) => const DriveLogScreen()),
+          ),
+        ),
+        _SectionSummary(
+          items: [
+            ('${logs.length}回', ''),
+            (
+              '合計',
+              '${logs.fold<double>(0, (s, l) => s + l.statistics.totalDistance).toStringAsFixed(0)} km'
+            ),
+          ],
+        ),
+        Card(
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              for (var i = 0; i < recent.length; i++) ...[
+                if (i > 0) const Divider(height: 1),
+                _DriveRow(log: recent[i]),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DriveRow extends StatelessWidget {
+  final DriveLog log;
+
+  const _DriveRow({required this.log});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dateFormat = DateFormat('yyyy/MM/dd');
+
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => DriveLogDetailScreen(driveLog: log),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.navigation_outlined,
+                size: 18, color: AppColors.secondary),
+            AppSpacing.horizontalSm,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    log.displayTitle,
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  AppSpacing.verticalXxs,
+                  Text(
+                    dateFormat.format(log.startTime),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            AppSpacing.horizontalSm,
+            Text(
+              '${log.statistics.totalDistance.toStringAsFixed(1)} km',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.secondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// ホームの「みんなのアクセサリー」。
+///
+/// **他の人が何を付けているかは、カタログより参考になる。** 品名・ブランド・
+/// 平均価格・何人が使っているかを並べる。プロフィールの奥にあった導線を、
+/// メンテナンスやドライブと同じ高さに引き上げた（2026-09-07）。
+class _PopularAccessoriesSection extends StatefulWidget {
+  const _PopularAccessoriesSection();
+
+  @override
+  State<_PopularAccessoriesSection> createState() =>
+      _PopularAccessoriesSectionState();
+}
+
+class _PopularAccessoriesSectionState
+    extends State<_PopularAccessoriesSection> {
+  List<AccessoryTrend>? _trends;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final result =
+        await sl.get<PopularAccessoriesService>().getTopAccessories(limit: 3);
+    if (!mounted) return;
+    result.when(
+      success: (trends) => setState(() => _trends = trends),
+      failure: (_) => setState(() => _trends = const []),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final trends = _trends;
+    if (trends == null || trends.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(
+          icon: Icons.auto_awesome_outlined,
+          title: 'みんなのアクセサリー',
+          onSeeAll: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => const AccessoryShowcaseScreen(),
+            ),
+          ),
+        ),
+        Card(
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              for (var i = 0; i < trends.length; i++) ...[
+                if (i > 0) const Divider(height: 1),
+                _AccessoryRow(trend: trends[i]),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AccessoryRow extends StatelessWidget {
+  final AccessoryTrend trend;
+
+  const _AccessoryRow({required this.trend});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final priceFormat = NumberFormat('#,###');
+    final price = trend.averagePriceApprox;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.star_rounded, size: 18, color: AppColors.warning),
+          AppSpacing.horizontalSm,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  trend.itemName,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                AppSpacing.verticalXxs,
+                Text(
+                  // ブランドが無い投稿もあるので、その分は詰める。
+                  [
+                    if (trend.brand != null && trend.brand!.isNotEmpty)
+                      trend.brand!,
+                    '${trend.showcaseCount}人が使用',
+                    '★${trend.averageRating.toStringAsFixed(1)}',
+                  ].join(' ・ '),
+                  style: theme.textTheme.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (price != null) ...[
+            AppSpacing.horizontalSm,
+            Text(
+              '¥${priceFormat.format(price)}',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
