@@ -89,6 +89,13 @@ class MockFirebaseService implements FirebaseService {
 
   @override
   Future<Result<List<MaintenanceRecord>, AppError>>
+      getRecentMaintenanceRecords({
+    int limit = 5,
+  }) async =>
+          const Result.success([]);
+
+  @override
+  Future<Result<List<MaintenanceRecord>, AppError>>
       getMaintenanceRecordsForVehicle(
     String vehicleId, {
     int limit = 20,

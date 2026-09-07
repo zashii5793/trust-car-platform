@@ -255,6 +255,32 @@ class FirebaseService {
     }
   }
 
+  /// 全車両ぶんの整備記録を新しい順に取る。
+  ///
+  /// 車両単位の [getMaintenanceRecordsForVehicle] と違い、**ホームで
+  /// 「最近のメンテナンス」を出すため**のもの。車検も点検もオイル交換も
+  /// カスタムも、種類を問わず時系列で並べる。
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getRecentMaintenanceRecords({
+    int limit = 5,
+  }) async {
+    try {
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.maintenanceRecords)
+          .where('userId', isEqualTo: currentUserId)
+          .orderBy('date', descending: true)
+          .limit(limit)
+          .get();
+
+      final records = snapshot.docs
+          .map((doc) => MaintenanceRecord.fromFirestore(doc))
+          .toList();
+      return Result.success(records);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
   /// 履歴を削除
   Future<Result<void, AppError>> deleteMaintenanceRecord(
       String recordId) async {
