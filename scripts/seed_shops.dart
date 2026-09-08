@@ -57,19 +57,19 @@ final List<Map<String, dynamic>> shopSeeds = [
 
     // サービス
     'services': [
-      'inspection',   // 車検
-      'maintenance',  // 整備・点検
-      'repair',       // 修理
-      'bodyWork',     // 板金・塗装
-      'purchase',     // 車両購入（新車・中古車販売）
-      'rental',       // レンタカー
-      'insurance',    // 保険
+      'inspection', // 車検
+      'maintenance', // 整備・点検
+      'repair', // 修理
+      'bodyWork', // 板金・塗装
+      'purchase', // 車両購入（新車・中古車販売）
+      'rental', // レンタカー
+      'insurance', // 保険
     ],
     'supportedMakerIds': <String>[], // 空 = 全メーカー対応
 
     // 営業時間 (0=日, 1=月, 2=火, 3=水, 4=木, 5=金, 6=土)
     'businessHours': {
-      '0': {'openTime': null, 'closeTime': null, 'isClosed': true},  // 日曜
+      '0': {'openTime': null, 'closeTime': null, 'isClosed': true}, // 日曜
       '1': {'openTime': '09:00', 'closeTime': '18:00', 'isClosed': false},
       '2': {'openTime': '09:00', 'closeTime': '18:00', 'isClosed': false},
       '3': {'openTime': '09:00', 'closeTime': '18:00', 'isClosed': false},
@@ -84,8 +84,8 @@ final List<Map<String, dynamic>> shopSeeds = [
     'reviewCount': 0,
 
     // ステータス
-    'isVerified': true,   // オーナー確認済み
-    'isFeatured': true,   // トップ表示
+    'isVerified': true, // オーナー確認済み
+    'isFeatured': true, // トップ表示
     'isActive': true,
   },
 ];
