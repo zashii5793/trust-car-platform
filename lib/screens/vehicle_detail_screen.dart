@@ -33,7 +33,7 @@ import '../services/community_trend_service.dart';
 import '../core/timeline/mileage_milestone.dart';
 import '../models/year_in_review.dart';
 import 'year_in_review_screen.dart';
-import 'fuel/add_fuel_screen.dart';
+import 'fuel/fuel_history_screen.dart';
 import '../services/fuel_service.dart';
 import '../widgets/vehicle/maker_badge.dart';
 
@@ -648,17 +648,22 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                           Icons.local_gas_station_outlined,
                           color: AppColors.accentDrive,
                         ),
-                        title: const Text('給油を記録'),
+                        title: const Text('給油と燃費'),
                         subtitle: const Text('入力は4つだけ。満タン2回で燃費が出ます'),
                         trailing: const Icon(Icons.chevron_right),
+                        // 記録の入口だけを置いていたので、**溜めた記録を見る
+                        // 場所が無かった**（保存直後に燃費が1回出るだけ）。
+                        // 一覧を開き、そこから記録する形にした（2026-09-08）。
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute<void>(
-                            builder: (_) => AddFuelScreen(
+                            builder: (_) => FuelHistoryScreen(
                               service: sl.get<FuelService>(),
                               vehicleId: _vehicle.id,
                               userId: _vehicle.userId,
-                              lastOdometer: _vehicle.mileage,
+                              vehicleName:
+                                  '${_vehicle.maker} ${_vehicle.model}',
+                              currentOdometer: _vehicle.mileage,
                             ),
                           ),
                         ),
