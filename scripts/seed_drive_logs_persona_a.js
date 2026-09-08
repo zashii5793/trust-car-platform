@@ -13,6 +13,11 @@
  *   のに、アプリの addWaypoint は userId を書いていないため、ここでは必ず
  *   入れる。
  *
+ * 車両IDについて:
+ *   seed_personas.js が作る ID は veh-a-sports / veh-a-cargo / veh-a-lease /
+ *   veh-a-family。**以前は veh-a-roadster などと書かれていて、存在しない車両を
+ *   指していた**（2026-09-08 に修正）。
+ *
  * Usage:
  *   node seed_drive_logs_persona_a.js --emulator [--delete]
  */
@@ -52,7 +57,7 @@ const LOGS = [
     id: 'dl-pa-hakone',
     title: '箱根までワインディング',
     description: '峠の途中で雨。タイヤを替えたばかりで良かった。帰りは渋滞だったけれど、屋根を開けられたので気にならず。',
-    vehicleId: 'veh-a-roadster',
+    vehicleId: 'veh-a-sports',
     start: '2026-09-05T07:10:00+09:00',
     minutes: 160,
     startAddress: '東京都世田谷区',
@@ -69,7 +74,7 @@ const LOGS = [
     id: 'dl-pa-zushi',
     title: '海沿いを流す',
     description: '朝の134号。空いていて気持ちが良い。',
-    vehicleId: 'veh-a-roadster',
+    vehicleId: 'veh-a-sports',
     start: '2026-08-29T06:40:00+09:00',
     minutes: 80,
     startAddress: '東京都世田谷区',
@@ -86,7 +91,7 @@ const LOGS = [
     id: 'dl-pa-costco',
     title: '買い出し（多摩）',
     description: '',
-    vehicleId: 'veh-a-hiace',
+    vehicleId: 'veh-a-cargo',
     start: '2026-08-23T10:20:00+09:00',
     minutes: 55,
     startAddress: '東京都世田谷区',
@@ -103,7 +108,7 @@ const LOGS = [
     id: 'dl-pa-karuizawa',
     title: '軽井沢へ family trip',
     description: '往路は関越。渋滞を避けて早朝に出たのが正解だった。燃費は 14.2km/L。',
-    vehicleId: 'veh-a-hiace',
+    vehicleId: 'veh-a-cargo',
     start: '2026-08-11T05:30:00+09:00',
     minutes: 195,
     startAddress: '東京都世田谷区',
@@ -120,7 +125,7 @@ const LOGS = [
     id: 'dl-pa-commute',
     title: '',
     description: '',
-    vehicleId: 'veh-a-note',
+    vehicleId: 'veh-a-lease',
     start: '2026-08-05T08:05:00+09:00',
     minutes: 38,
     startAddress: '東京都世田谷区',

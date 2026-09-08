@@ -102,6 +102,9 @@ node scripts/seed_safety_tips.js --emulator
 
 # ⑥ コミュニティトレンド
 node scripts/seed_community_trends.js --emulator
+
+# ⑦ 1年ぶんの利用データ（ペルソナA）— 使い込んだ状態の見え方を確認する
+node scripts/seed_year_of_use.js --emulator
 ```
 
 - どのスクリプトも `--dry-run` を付けると **書き込まずに** 投入予定の内容を確認できます。
@@ -125,6 +128,25 @@ node scripts/seed_community_trends.js --emulator
 | 問い合わせ返信（inquiries/{id}/messages） | 5 |
 | 公開ドライブログ（drive_logs, isPublic: true） | 5 |
 | ドライブログいいね（drive_log_likes） | 14 |
+
+### seed_year_of_use.js が投入するもの（545ドキュメント）
+
+**「1年近く使い続けた人」の状態**を作る。機能ごとに数件ずつ置く既存のシードでは、
+件数が増えたときの見え方（並び順・合計・スクロール量・読み取り件数）が確認できない。
+
+| 内容 | 件数 | 期間 |
+|---|---|---|
+| ドライブログ（通勤・仕事・週末・家族の遠出） | 198 | 直近1年 |
+| 経路（drive_waypoints。直近12件ぶん） | 252 | — |
+| 給油記録（満タン法で燃費が出る並び） | 75 | 直近1年 |
+| 整備記録（rich_history が止まる 2026-05 以降を補う） | 12 | 直近4か月 |
+| アクセサリーのクチコミ | 4 | 直近1年 |
+| 車両の走行距離更新（merge） | 4 | — |
+
+- オドメーターは**車両ドキュメントの走行距離から日割りで逆算**する。ドライブログの
+  合計ではない（記録に残すのは走った日の一部なので、合計にすると燃費が倍ずれる）。
+- 決定的な乱数を使っているので、**何度流しても同じデータ**になる。
+- 後片付け: `node scripts/seed_year_of_use.js --delete --emulator`
 
 ---
 
