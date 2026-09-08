@@ -166,10 +166,16 @@ class DocumentService {
   }
 
   /// 車両に紐付く書類一覧を取得
+  ///
+  /// **userId で絞る。** ルール（firestore.rules の documents）は所有者を
+  /// read の条件にしており、絞らないクエリは本番で permission-denied になる。
   Future<Result<List<Document>, AppError>> getDocumentsByVehicle(
       String vehicleId) async {
+    if (currentUserId == null) return const Result.success([]);
+
     try {
       final snapshot = await _documentsCollection
+          .where('userId', isEqualTo: currentUserId)
           .where('vehicleId', isEqualTo: vehicleId)
           .where('isArchived', isEqualTo: false)
           .orderBy('uploadedAt', descending: true)
@@ -185,8 +191,11 @@ class DocumentService {
   /// 整備記録に紐付く書類一覧を取得
   Future<Result<List<Document>, AppError>> getDocumentsByMaintenanceRecord(
       String maintenanceRecordId) async {
+    if (currentUserId == null) return const Result.success([]);
+
     try {
       final snapshot = await _documentsCollection
+          .where('userId', isEqualTo: currentUserId)
           .where('maintenanceRecordId', isEqualTo: maintenanceRecordId)
           .orderBy('uploadedAt', descending: true)
           .get();
