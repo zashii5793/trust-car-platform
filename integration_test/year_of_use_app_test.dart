@@ -17,6 +17,7 @@
 /// 画像の保存先は `docs/screenshots/year_of_use/`。macOS では
 /// `binding.takeScreenshot` が使えないため、`screencapture` で画面を撮る。
 /// アプリのウィンドウが最前面にある前提。
+library;
 
 import 'dart:io';
 
@@ -31,7 +32,8 @@ const _outDir = 'docs/screenshots/year_of_use';
 
 Future<void> capture(String name) async {
   await Directory(_outDir).create(recursive: true);
-  final result = await Process.run('screencapture', ['-x', '$_outDir/$name.png']);
+  final result =
+      await Process.run('screencapture', ['-x', '$_outDir/$name.png']);
   if (result.exitCode == 0) {
     print('captured: $_outDir/$name.png');
   } else {
