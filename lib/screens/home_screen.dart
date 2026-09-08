@@ -50,6 +50,8 @@ import 'add_maintenance_screen.dart';
 import 'fuel/add_fuel_screen.dart';
 import '../services/fuel_service.dart';
 import 'maintenance_search_screen.dart';
+import 'year_in_review_screen.dart';
+import '../models/year_in_review.dart';
 import 'ai_chat/ai_chat_screen.dart';
 import 'fleet/fleet_dashboard_screen.dart';
 import 'vehicle/retired_vehicles_screen.dart';
@@ -638,7 +640,7 @@ class _VehicleTabState extends State<_VehicleTab> {
               // 1年使っても辿り着かない位置だった（2026-09-08）。
               const _RecentDriveSection(),
               _RecommendedPartsSection(vehicle: primaryVehicle),
-              const _RecentMaintenanceSection(),
+              _RecentMaintenanceSection(vehicle: primaryVehicle),
               const _PopularAccessoriesSection(),
               const _RetiredVehiclesSection(),
             ];
@@ -2918,7 +2920,10 @@ class _SectionSummary extends StatelessWidget {
 /// 種類で分けずに時系列で見せたほうが、そのクルマに何をしてきたかが分かる。
 /// 金額を右に出すのは、積み上がった費用がそのまま維持費の実感になるため。
 class _RecentMaintenanceSection extends StatefulWidget {
-  const _RecentMaintenanceSection();
+  /// ふりかえりを開く対象。ふだん乗っている1台。
+  final Vehicle vehicle;
+
+  const _RecentMaintenanceSection({required this.vehicle});
 
   @override
   State<_RecentMaintenanceSection> createState() =>
@@ -2954,6 +2959,43 @@ class _RecentMaintenanceSectionState extends State<_RecentMaintenanceSection> {
     setState(() => _summary = summary.valueOrNull);
   }
 
+  /// この1年のふりかえりを開く。
+  ///
+  /// 記録は**押されたときに読む**。ホームを開くたびに1年ぶん（多い人で
+  /// 40件超）を読むわけにはいかない。
+  Future<void> _openYearInReview() async {
+    final result = await sl
+        .get<FirebaseService>()
+        .getMaintenanceRecordsForVehicle(widget.vehicle.id, limit: 100);
+    if (!mounted) return;
+
+    final records = result.valueOrNull ?? const <MaintenanceRecord>[];
+    final now = DateTime.now();
+    final review = YearInReview.from(
+      records: records,
+      from: DateTime(now.year - 1, now.month, now.day),
+      to: now,
+    );
+
+    if (!review.hasEnoughData) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ふりかえりは、記録がもう少し溜まってからお出しします')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => YearInReviewScreen(
+          review: review,
+          vehicleName: widget.vehicle.displayName,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final records = _records;
@@ -2977,22 +3019,29 @@ class _RecentMaintenanceSectionState extends State<_RecentMaintenanceSection> {
         // 直近の3件だけだと「1年でいくら使ったか」が見えない。**積み上がった
         // 額が維持費の実感になる**ので、集計を先に出す。集計が取れないあいだは
         // 直近3件ぶんを出すが、そのときは「合計」とは書かない。
-        _SectionSummary(
-          items: _summary == null
-              ? [
-                  ('直近${records.length}件', ''),
-                  (
-                    '小計',
-                    '¥${NumberFormat('#,###').format(records.fold<int>(0, (s, r) => s + r.cost))}'
-                  ),
-                ]
-              : [
-                  ('この1年で${_summary!.count}件', ''),
-                  (
-                    '合計',
-                    '¥${NumberFormat('#,###').format(_summary!.totalCost)}'
-                  ),
-                ],
+        // 1年ぶんの数字はタップで「ふりかえり」に入れる。ふりかえりは
+        // 車両詳細のいちばん奥にあり、1年ぶんが溜まった人にいちばん
+        // 見せたい画面が、いちばん遠かった（2026-09-08）。
+        InkWell(
+          key: const Key('maintenance_year_review'),
+          onTap: _summary == null ? null : _openYearInReview,
+          child: _SectionSummary(
+            items: _summary == null
+                ? [
+                    ('直近${records.length}件', ''),
+                    (
+                      '小計',
+                      '¥${NumberFormat('#,###').format(records.fold<int>(0, (s, r) => s + r.cost))}'
+                    ),
+                  ]
+                : [
+                    ('この1年で${_summary!.count}件', ''),
+                    (
+                      '合計',
+                      '¥${NumberFormat('#,###').format(_summary!.totalCost)}'
+                    ),
+                  ],
+          ),
         ),
         Card(
           clipBehavior: Clip.antiAlias,

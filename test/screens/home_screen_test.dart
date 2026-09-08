@@ -61,6 +61,9 @@ class _StubFirebaseService implements FirebaseService {
   /// ホームの「メンテナンスの記録」に出す分。テストから差し替える。
   List<MaintenanceRecord> recentRecords = const [];
 
+  /// 車両単位の記録（ふりかえりを開くときに読む）。
+  List<MaintenanceRecord> vehicleRecords = const [];
+
   /// ホームの「メンテナンスの記録」に出す1年ぶんの集計。
   MaintenanceSummary summary = const MaintenanceSummary(
     count: 17,
@@ -133,7 +136,7 @@ class _StubFirebaseService implements FirebaseService {
   Future<Result<List<MaintenanceRecord>, AppError>>
       getMaintenanceRecordsForVehicle(String vehicleId,
               {int limit = 20}) async =>
-          const Result.success([]);
+          Result.success(vehicleRecords);
 
   @override
   Future<Result<Map<String, List<MaintenanceRecord>>, AppError>>
@@ -480,6 +483,18 @@ Vehicle _makeVehicle(String id) => Vehicle(
       updatedAt: DateTime(2024, 1, 1),
     );
 
+MaintenanceRecord goldenRecord(String title, int cost, DateTime date) =>
+    MaintenanceRecord(
+      id: title,
+      vehicleId: 'v1',
+      userId: 'u1',
+      type: MaintenanceType.other,
+      title: title,
+      date: date,
+      cost: cost,
+      createdAt: date,
+    );
+
 AppNotification _makeNotif({bool isRead = false}) => AppNotification(
       id: 'n1',
       userId: 'u1',
@@ -823,6 +838,32 @@ void main() {
     // DriveRecordingProvider を要求するためホームのテストからは開けない。
     // 一覧画面側の drive_log_screen_test.dart でカバーする。
 
+    testWidgets('1年の数字をタップするとふりかえりが開く', (tester) async {
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+      stubFirebase.recentRecords = [
+        goldenRecord('車検（継続検査）', 138000, DateTime(2026, 6, 29)),
+        goldenRecord('バッテリー交換', 28000, DateTime(2026, 7, 7)),
+        goldenRecord('エンジンオイル交換', 5550, DateTime(2026, 8, 15)),
+      ];
+      // ふりかえりは、押されたときに読む記録で組み立てる。
+      stubFirebase.vehicleRecords = stubFirebase.recentRecords;
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp, signedIn: true));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('maintenance_year_review')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('maintenance_year_review')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('この1年のふりかえり'), findsWidgets);
+    });
+
     group('Edge Cases', () {
       testWidgets('車が無ければクイック導線は出さない（記録する対象が無い）', (tester) async {
         final vp = _FakeVehicleProvider()..setVehicles([]);
@@ -846,18 +887,6 @@ void main() {
       });
     });
   });
-
-  MaintenanceRecord goldenRecord(String title, int cost, DateTime date) =>
-      MaintenanceRecord(
-        id: title,
-        vehicleId: 'v1',
-        userId: 'u1',
-        type: MaintenanceType.other,
-        title: title,
-        date: date,
-        cost: cost,
-        createdAt: date,
-      );
 
   // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
   //   flutter test --update-goldens test/screens/home_screen_test.dart
