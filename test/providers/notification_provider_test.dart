@@ -12,6 +12,12 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 // Mock FirebaseService
 class MockFirebaseService implements FirebaseService {
   @override
+  Future<Result<MaintenanceSummary, AppError>> maintenanceSummary({
+    DateTime? since,
+  }) async =>
+      const Result.success(MaintenanceSummary.empty);
+
+  @override
   Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
       const Result.success(false);
 
@@ -763,6 +769,12 @@ void main() {
 // Helper mock for null user case
 class _MockFirebaseServiceNullUser implements FirebaseService {
   @override
+  Future<Result<MaintenanceSummary, AppError>> maintenanceSummary({
+    DateTime? since,
+  }) async =>
+      const Result.success(MaintenanceSummary.empty);
+
+  @override
   Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
       const Result.success(false);
 
@@ -856,6 +868,12 @@ class _MockFirebaseServiceNullUser implements FirebaseService {
 
 // Helper mock for throwing exception case
 class _MockFirebaseServiceThrowing implements FirebaseService {
+  @override
+  Future<Result<MaintenanceSummary, AppError>> maintenanceSummary({
+    DateTime? since,
+  }) async =>
+      const Result.success(MaintenanceSummary.empty);
+
   @override
   Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
       const Result.success(false);

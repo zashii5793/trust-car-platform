@@ -11,7 +11,7 @@
 //   P4b — 車両詳細フロー         : Vehicle card tap → detail → maintenance add
 //   P5 — SNS投稿ユーザー        : Navigate to SNS feed, open PostCreateScreen
 //   P6 — マーケットプレイス利用者  : Switch to marketplace, verify 3 tabs
-//   P7 — 通知ありユーザー        : Unread badge, navigate to 通知 tab
+//   P7 — 通知ありユーザー        : AppBar のベルの未読バッジ → 通知一覧へ遷移
 //   P8 — オフラインユーザー       : Offline banner visible
 //   P9 — ショップオーナー        : Inquiry list, filter chips, bottom sheet
 //   P10 — 車両登録フロー          : VehicleRegistrationScreen wizard
@@ -46,6 +46,11 @@ import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
 import 'package:trust_car_platform/services/post_service.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
+import 'package:trust_car_platform/services/popular_accessories_service.dart';
+import 'package:trust_car_platform/services/vehicle_retirement_service.dart';
+import 'package:trust_car_platform/services/part_recommendation_service.dart';
+import 'package:trust_car_platform/models/accessory_showcase.dart';
+import 'package:trust_car_platform/models/part_listing.dart';
 import 'package:trust_car_platform/services/vehicle_master_service.dart';
 import 'package:trust_car_platform/services/vehicle_certificate_ocr_service.dart';
 import 'package:trust_car_platform/services/invoice_ocr_service.dart';
@@ -63,6 +68,12 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 // =============================================================================
 
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<MaintenanceSummary, AppError>> maintenanceSummary({
+    DateTime? since,
+  }) async =>
+      const Result.success(MaintenanceSummary.empty);
+
   @override
   Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
       const Result.success(false);
@@ -246,6 +257,45 @@ class _StubShopService implements ShopService {
 class _StubInvoiceOcrService implements InvoiceOcrService {
   @override
   void dispose() {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+// ---------------------------------------------------------------------------
+// ホームが ServiceLocator 経由で読むサービス群。
+// どれも Firestore を触るので、空を返すスタブに差し替える。
+// ---------------------------------------------------------------------------
+
+class _StubPopularAccessoriesService implements PopularAccessoriesService {
+  @override
+  Future<Result<List<AccessoryTrend>, AppError>> getTopAccessories(
+          {int limit = 10}) async =>
+      const Result.success([]);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _StubVehicleRetirementService implements VehicleRetirementService {
+  @override
+  Future<Result<List<Vehicle>, AppError>> getRetiredVehicles(
+          String userId) async =>
+      const Result.success([]);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _StubPartRecommendationService implements PartRecommendationService {
+  @override
+  Future<Result<List<PartRecommendation>, AppError>>
+      getRecommendationsForVehicle(
+    Vehicle vehicle, {
+    PartCategory? category,
+    int limit = 10,
+  }) async =>
+          const Result.success([]);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -555,10 +605,58 @@ Future<void> _setSurface(WidgetTester tester) async {
 }
 
 // =============================================================================
+// ナビゲーションのヘルパー
+// =============================================================================
+
+/// タブを切り替える。
+///
+/// ホームは Material の NavigationBar をやめ、自前の `_NavCell`
+/// （`Key('nav_cell_$index')`）を並べる形になった。画面幅が広いと上段、
+/// 狭いと下段に出るので、位置ではなく Key で指す。
+///
+/// index: 0=マイカー / 1=マーケットプレイス / 2=みんなの投稿 / 3=プロフィール
+Future<void> _tapNavCell(WidgetTester tester, int index) async {
+  await tester.tap(find.byKey(Key('nav_cell_$index')));
+  await tester.pumpAndSettle(const Duration(seconds: 10));
+}
+
+/// ホームを描くのに要る ServiceLocator の登録。
+///
+/// 車両カードの下に「メンテナンスの記録」「過去の車両」「みんなのアクセサリー」
+/// 「おすすめパーツ」が並ぶようになり、どれも ServiceLocator から
+/// サービスを取る。登録が無いと initState で ServiceLocatorException が飛ぶ。
+void _registerHomeServices() {
+  final sl = ServiceLocator.instance;
+  sl.registerLazySingleton<FirebaseService>(_StubFirebaseService.new);
+  sl.registerLazySingleton<PopularAccessoriesService>(
+      _StubPopularAccessoriesService.new);
+  sl.registerLazySingleton<VehicleRetirementService>(
+      _StubVehicleRetirementService.new);
+  sl.registerLazySingleton<PartRecommendationService>(
+      _StubPartRecommendationService.new);
+  sl.registerLazySingleton<DriveLogService>(
+      () => DriveLogService(firestore: FakeFirebaseFirestore()));
+}
+
+void _unregisterHomeServices() {
+  final sl = ServiceLocator.instance;
+  sl.unregister<FirebaseService>();
+  sl.unregister<PopularAccessoriesService>();
+  sl.unregister<VehicleRetirementService>();
+  sl.unregister<PartRecommendationService>();
+  sl.unregister<DriveLogService>();
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 
 void main() {
+  // ホームを出すテストが多いので、ServiceLocator の登録はファイル全体で面倒を見る。
+  // グループごとに書くと、新しいセクションが増えるたびに登録漏れで落ちる。
+  setUp(_registerHomeServices);
+  tearDown(_unregisterHomeServices);
+
   // ---------------------------------------------------------------------------
   // P1: ゲストユーザー — LoginScreen
   // ---------------------------------------------------------------------------
@@ -687,16 +785,29 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('P3 初回ログインユーザー — 車両なし', () {
-    testWidgets('NavigationBar の 5 タブが表示される', (tester) async {
+    // 通知タブは廃止され、タブは4つになった。通知は AppBar のベルに移った。
+    testWidgets('ナビゲーションの 4 タブが表示され、通知は AppBar のベルにある', (tester) async {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
 
-      expect(find.byType(NavigationBar), findsOneWidget);
+      for (var i = 0; i < 4; i++) {
+        expect(find.byKey(Key('nav_cell_$i')), findsOneWidget,
+            reason: 'nav_cell_$i が無い');
+      }
+      expect(find.byKey(const Key('nav_cell_4')), findsNothing);
+
       expect(find.text('マイカー'), findsWidgets);
       expect(find.text('マーケット'), findsOneWidget);
       expect(find.text('みんなの投稿'), findsOneWidget);
-      expect(find.text('通知'), findsOneWidget);
       expect(find.text('プロフィール'), findsOneWidget);
+
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byKey(const Key('header_notifications_button')),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('初期タブは「マイカー」でAppBarタイトルが正しい', (tester) async {
@@ -721,21 +832,9 @@ void main() {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
 
-      final tabIcons = [
-        Icons.store_outlined,
-        Icons.forum_outlined,
-        Icons.notifications_outlined,
-        Icons.person_outline,
-        // NavigationBar shows the outlined icon while マイカー is unselected.
-        Icons.directions_car_outlined,
-      ];
-      for (final icon in tabIcons) {
-        final target = find.descendant(
-          of: find.byType(NavigationBar),
-          matching: find.byIcon(icon),
-        );
-        await tester.tap(target);
-        await tester.pumpAndSettle(const Duration(seconds: 10));
+      // マーケット → みんなの投稿 → プロフィール → マイカー と一巡する
+      for (final index in [1, 2, 3, 0]) {
+        await _tapNavCell(tester, index);
       }
 
       expect(tester.takeException(), isNull);
@@ -774,6 +873,7 @@ void main() {
       expect(find.textContaining('Nissan'), findsWidgets);
     });
 
+    // バッジは通知タブではなく AppBar のベルに付くようになった。
     testWidgets('未読通知がないとき通知バッジは非表示', (tester) async {
       await tester.pumpWidget(_buildHomeApp(
         notifications: [_makeNotification(isRead: true)],
@@ -782,14 +882,14 @@ void main() {
 
       expect(
         find.descendant(
-          of: find.byType(NavigationBar),
+          of: find.byKey(const Key('header_notifications_button')),
           matching: find.text('1'),
         ),
         findsNothing,
       );
     });
 
-    testWidgets('未読通知2件のとき通知バッジに「2」が表示される', (tester) async {
+    testWidgets('未読通知2件のときベルのバッジに「2」が表示される', (tester) async {
       await tester.pumpWidget(_buildHomeApp(
         notifications: [
           _makeNotification(isRead: false),
@@ -800,7 +900,7 @@ void main() {
 
       expect(
         find.descendant(
-          of: find.byType(NavigationBar),
+          of: find.byKey(const Key('header_notifications_button')),
           matching: find.text('2'),
         ),
         findsOneWidget,
@@ -818,11 +918,7 @@ void main() {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
 
-      await tester.tap(find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.byIcon(Icons.forum_outlined),
-      ));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _tapNavCell(tester, 2);
 
       expect(
         find.descendant(of: find.byType(AppBar), matching: find.text('みんなの投稿')),
@@ -835,11 +931,7 @@ void main() {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
 
-      await tester.tap(find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.byIcon(Icons.forum_outlined),
-      ));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _tapNavCell(tester, 2);
 
       expect(find.byType(FloatingActionButton), findsOneWidget);
     });
@@ -849,11 +941,7 @@ void main() {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
 
-      await tester.tap(find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.byIcon(Icons.forum_outlined),
-      ));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _tapNavCell(tester, 2);
 
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -867,11 +955,7 @@ void main() {
       await tester.pump();
 
       // SNSタブ → FAB → PostCreateScreen
-      await tester.tap(find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.byIcon(Icons.forum_outlined),
-      ));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _tapNavCell(tester, 2);
 
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -887,11 +971,7 @@ void main() {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
 
-      await tester.tap(find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.byIcon(Icons.forum_outlined),
-      ));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _tapNavCell(tester, 2);
 
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -916,11 +996,7 @@ void main() {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
 
-      await tester.tap(find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.byIcon(Icons.store_outlined),
-      ));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _tapNavCell(tester, 1);
 
       expect(
         find.descendant(
@@ -934,11 +1010,7 @@ void main() {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
 
-      await tester.tap(find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.byIcon(Icons.store_outlined),
-      ));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _tapNavCell(tester, 1);
 
       expect(find.byIcon(Icons.storefront_outlined), findsOneWidget);
     });
@@ -948,11 +1020,7 @@ void main() {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
 
-      await tester.tap(find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.byIcon(Icons.store_outlined),
-      ));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await _tapNavCell(tester, 1);
 
       expect(find.text('工場・業者'), findsOneWidget);
       expect(find.text('問い合わせ'), findsOneWidget);
@@ -966,8 +1034,11 @@ void main() {
   // P7: 通知ありユーザー
   // ---------------------------------------------------------------------------
 
+  // 通知タブは廃止。通知はどのタブからでも AppBar のベルで開く。
+  // ホームの AppBar にあった「すべて既読」も通知一覧画面側へ移ったので、
+  // ここで見るのは「ベル → 通知一覧が開く」までにする。
   group('P7 通知ありユーザー', () {
-    testWidgets('未読2件 → 通知タブに切り替えると「すべて既読」ボタンが出る', (tester) async {
+    testWidgets('未読2件 → ベルにバッジが出て、タップで通知一覧が開く', (tester) async {
       await _setSurface(tester);
       await tester.pumpWidget(_buildHomeApp(
         notifications: [
@@ -977,29 +1048,45 @@ void main() {
       ));
       await tester.pump();
 
-      await tester.tap(find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.byIcon(Icons.notifications_outlined),
-      ));
+      final bell = find.byKey(const Key('header_notifications_button'));
+      expect(
+        find.descendant(of: bell, matching: find.text('2')),
+        findsOneWidget,
+      );
+
+      await tester.tap(bell);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('すべて既読'), findsOneWidget);
+      // 通知一覧に未読の通知が並ぶ
+      expect(find.text('オイル交換の時期です'), findsWidgets);
     });
 
-    testWidgets('全て既読のとき「すべて既読」ボタンは非表示', (tester) async {
+    testWidgets('通知が無ければ通知一覧は空状態になる', (tester) async {
       await _setSurface(tester);
-      await tester.pumpWidget(_buildHomeApp(
-        notifications: [_makeNotification(isRead: true)],
-      ));
+      await tester.pumpWidget(_buildHomeApp());
       await tester.pump();
 
-      await tester.tap(find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.byIcon(Icons.notifications_outlined),
-      ));
+      final bell = find.byKey(const Key('header_notifications_button'));
+      // 未読0なのでバッジの数字は出ない
+      expect(find.descendant(of: bell, matching: find.text('0')), findsNothing);
+
+      await tester.tap(bell);
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('すべて既読'), findsNothing);
+      expect(find.text('通知はありません'), findsOneWidget);
+    });
+
+    testWidgets('マイカー以外のタブからでもベルで通知一覧に行ける', (tester) async {
+      await _setSurface(tester);
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pump();
+
+      await _tapNavCell(tester, 3); // プロフィール
+
+      await tester.tap(find.byKey(const Key('header_notifications_button')));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('通知はありません'), findsOneWidget);
     });
   });
 
@@ -1116,15 +1203,10 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('P4b 車両詳細フロー', () {
+    // FirebaseService と DriveLogService はファイル共通の setUp が見ている。
+    // ここは AddMaintenanceScreen が要る分だけ足す。
     setUpAll(() {
       final sl = ServiceLocator.instance;
-      if (!sl.isRegistered<FirebaseService>()) {
-        sl.registerLazySingleton<FirebaseService>(() => _StubFirebaseService());
-      }
-      if (!sl.isRegistered<DriveLogService>()) {
-        sl.registerLazySingleton<DriveLogService>(
-            () => DriveLogService(firestore: FakeFirebaseFirestore()));
-      }
       if (!sl.isRegistered<InvoiceOcrService>()) {
         sl.registerLazySingleton<InvoiceOcrService>(
             () => _StubInvoiceOcrService());
@@ -1479,9 +1561,8 @@ void main() {
       await tester.pumpWidget(buildProfileHomeApp());
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      // Tap the profile tab (index 4 — rightmost)
-      await tester.tap(find.byIcon(Icons.person_outline));
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      // プロフィールタブ（index 3）へ
+      await _tapNavCell(tester, 3);
 
       expect(
         find.descendant(of: find.byType(AppBar), matching: find.text('プロフィール')),
@@ -1494,8 +1575,7 @@ void main() {
       await tester.pumpWidget(buildProfileHomeApp());
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      await tester.tap(find.byIcon(Icons.person_outline));
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await _tapNavCell(tester, 3);
 
       expect(find.byIcon(Icons.settings_outlined), findsWidgets);
     });
@@ -1505,8 +1585,7 @@ void main() {
       await tester.pumpWidget(buildProfileHomeApp());
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      await tester.tap(find.byIcon(Icons.person_outline));
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await _tapNavCell(tester, 3);
 
       expect(find.byIcon(Icons.logout), findsOneWidget);
     });
@@ -1516,8 +1595,7 @@ void main() {
       await tester.pumpWidget(buildProfileHomeApp());
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      await tester.tap(find.byIcon(Icons.person_outline));
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await _tapNavCell(tester, 3);
 
       await tester.tap(find.byIcon(Icons.logout));
       await tester.pumpAndSettle();
@@ -1532,8 +1610,7 @@ void main() {
       await tester.pumpWidget(buildProfileHomeApp());
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      await tester.tap(find.byIcon(Icons.person_outline));
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await _tapNavCell(tester, 3);
 
       await tester.tap(find.byIcon(Icons.logout));
       await tester.pumpAndSettle();
@@ -1582,8 +1659,7 @@ void main() {
       await tester.pumpWidget(buildProfileHomeApp());
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      await tester.tap(find.byIcon(Icons.person_outline));
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await _tapNavCell(tester, 3);
 
       // Chip renders text through DefaultTextStyle chain; textContaining is robust to widget wrapping
       expect(find.textContaining('フリープラン'), findsWidgets);
@@ -1595,8 +1671,7 @@ void main() {
           .pumpWidget(buildProfileHomeApp(planType: UserPlanType.premium));
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      await tester.tap(find.byIcon(Icons.person_outline));
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await _tapNavCell(tester, 3);
 
       expect(find.textContaining('プレミアム'), findsWidgets);
     });
@@ -1606,8 +1681,7 @@ void main() {
       await tester.pumpWidget(buildProfileHomeApp());
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      await tester.tap(find.byIcon(Icons.person_outline));
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await _tapNavCell(tester, 3);
 
       // Find the export menu item by its label text fragment
       await tester.tap(find.textContaining('データをエクスポート'));

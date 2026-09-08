@@ -13,6 +13,9 @@ import '../providers/connectivity_provider.dart';
 import '../providers/user_subscription_provider.dart';
 import '../models/accessory_showcase.dart';
 import '../services/popular_accessories_service.dart';
+import '../services/drive_log_service.dart';
+import '../services/part_recommendation_service.dart';
+import '../models/part_listing.dart';
 import '../services/vehicle_retirement_service.dart';
 import '../models/maintenance_record.dart';
 import '../models/drive_log.dart';
@@ -44,11 +47,14 @@ import 'sns/sns_feed_screen.dart';
 import 'drive/drive_log_detail_screen.dart';
 import 'drive/drive_log_screen.dart';
 import 'add_maintenance_screen.dart';
+import 'fuel/add_fuel_screen.dart';
+import '../services/fuel_service.dart';
 import 'maintenance_search_screen.dart';
 import 'ai_chat/ai_chat_screen.dart';
 import 'fleet/fleet_dashboard_screen.dart';
 import 'vehicle/retired_vehicles_screen.dart';
 import 'accessories/accessory_showcase_screen.dart';
+import 'parts/part_recommendation_screen.dart';
 import 'safety/safety_tip_screen.dart';
 import '../widgets/vehicle/mileage_reminder_banner.dart';
 import '../widgets/vehicle/mileage_update_dialog.dart';
@@ -137,6 +143,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ---- AppBar タイトル（タブ連動） ----
+  /// 通知一覧を開く。
+  ///
+  /// タブから外して AppBar のベルに寄せた（2026-09-07）。メニューを4つに
+  /// 束ねるためで、**通知は「どのタブにいても見たいもの」**なので、
+  /// タブより常設のベルのほうが合う。
+  void _openNotifications() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(builder: (_) => const NotificationListScreen()),
+    );
+  }
+
   String get _appBarTitle {
     switch (_currentIndex) {
       case 0:
@@ -146,8 +164,6 @@ class _HomeScreenState extends State<HomeScreen> {
       case 2:
         return 'みんなの投稿';
       case 3:
-        return '通知';
-      case 4:
         return 'プロフィール';
       default:
         return 'マイカー';
@@ -189,6 +205,28 @@ class _HomeScreenState extends State<HomeScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AiChatScreen()),
+          );
+        },
+      ),
+    );
+
+    // 通知のベルは全タブ共通。タブから外した分、どこからでも届くようにする。
+    actions.add(
+      Consumer<NotificationProvider>(
+        builder: (context, provider, child) {
+          final unread = provider.unreadCount;
+          return IconButton(
+            key: const Key('header_notifications_button'),
+            tooltip: unread > 0 ? '通知 未読$unread件' : '通知',
+            icon: Badge(
+              isLabelVisible: unread > 0,
+              label: Text(
+                unread > 99 ? '99+' : '$unread',
+                style: const TextStyle(fontSize: 10),
+              ),
+              child: const Icon(Icons.notifications_outlined),
+            ),
+            onPressed: _openNotifications,
           );
         },
       ),
@@ -273,22 +311,8 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    // 通知タブのみ「すべて既読」ボタンを表示
-    if (_currentIndex == 3) {
-      actions.add(
-        Consumer<NotificationProvider>(
-          builder: (context, provider, child) {
-            if (provider.unreadCount > 0) {
-              return TextButton(
-                onPressed: () => provider.markAllAsRead(),
-                child: const Text('すべて既読'),
-              );
-            }
-            return const SizedBox.shrink();
-          },
-        ),
-      );
-    }
+    // 「すべて既読」は通知タブに置いていたが、タブを外したので
+    // 通知画面（NotificationListScreen）側に任せる。
 
     return actions;
   }
@@ -338,90 +362,76 @@ class _HomeScreenState extends State<HomeScreen> {
   static bool _useTopNavigation(BuildContext context) =>
       MediaQuery.sizeOf(context).width >= 720;
 
+  /// 下段のメニュー。**2行2列**に置く。
+  ///
+  /// 横一列に5つ並べると、390px 幅では1項目あたり78pxしか取れず、
+  /// ラベルが小さくなって押し間違えやすい。2行に分けると倍の幅が取れる。
+  ///
+  /// 通知はタブから外して AppBar のベルに寄せた（どのタブにいても見たい
+  /// ものなので、常設のほうが合う）。残る4つを 2×2 に置いている。
   Widget _buildNavigation() {
-    return Consumer<NotificationProvider>(
-      builder: (context, notificationProvider, child) {
-        final unread = notificationProvider.unreadCount;
-        return NavigationBar(
-          selectedIndex: _currentIndex,
-          onDestinationSelected: (index) {
-            setState(() => _currentIndex = index);
-          },
-          destinations: [
-            const NavigationDestination(
-              icon: Icon(Icons.directions_car_outlined),
-              selectedIcon: Icon(Icons.directions_car),
-              label: 'マイカー',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.store_outlined),
-              selectedIcon: Icon(Icons.store),
-              label: 'マーケット',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.forum_outlined),
-              selectedIcon: Icon(Icons.forum),
-              label: 'みんなの投稿',
-            ),
-            NavigationDestination(
-              icon: Semantics(
-                label: unread > 0
-                    ? '通知 未読${unread > 99 ? '99件以上' : '$unread件'}'
-                    : '通知',
-                child: Badge(
-                  isLabelVisible: unread > 0,
-                  label: Text(
-                    unread > 99 ? '99+' : '$unread',
-                    style: const TextStyle(fontSize: 10),
-                  ),
-                  child: const ExcludeSemantics(
-                    child: Icon(Icons.notifications_outlined),
-                  ),
+    const items = <({IconData icon, IconData selectedIcon, String label})>[
+      (
+        icon: Icons.directions_car_outlined,
+        selectedIcon: Icons.directions_car,
+        label: 'マイカー'
+      ),
+      (icon: Icons.store_outlined, selectedIcon: Icons.store, label: 'マーケット'),
+      (icon: Icons.forum_outlined, selectedIcon: Icons.forum, label: 'みんなの投稿'),
+      (icon: Icons.person_outline, selectedIcon: Icons.person, label: 'プロフィール'),
+    ];
+
+    final theme = Theme.of(context);
+
+    return Material(
+      color: theme.colorScheme.surface,
+      elevation: 3,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var row = 0; row < 2; row++)
+                Row(
+                  children: [
+                    for (var col = 0; col < 2; col++)
+                      Expanded(
+                        child: _NavCell(
+                          index: row * 2 + col,
+                          icon: items[row * 2 + col].icon,
+                          selectedIcon: items[row * 2 + col].selectedIcon,
+                          label: items[row * 2 + col].label,
+                          isSelected: _currentIndex == row * 2 + col,
+                          onTap: () =>
+                              setState(() => _currentIndex = row * 2 + col),
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-              selectedIcon: Badge(
-                isLabelVisible: unread > 0,
-                label: Text(
-                  unread > 99 ? '99+' : '$unread',
-                  style: const TextStyle(fontSize: 10),
-                ),
-                child: const Icon(Icons.notifications),
-              ),
-              label: '通知',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'プロフィール',
-            ),
-          ],
-        );
-      },
+            ],
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildBody() {
     switch (_currentIndex) {
       case 0:
-        return _VehicleTab(onNavigateToNotifications: () {
-          setState(() {
-            _currentIndex = 3;
-          });
-        });
+        return _VehicleTab(onNavigateToNotifications: _openNotifications);
       case 1:
         return const MarketplaceScreen();
       case 2:
         return const SnsFeedScreen();
       case 3:
-        return const NotificationListScreen();
-      case 4:
         return const _ProfileTab();
       default:
-        return _VehicleTab(onNavigateToNotifications: () {
-          setState(() {
-            _currentIndex = 3;
-          });
-        });
+        return _VehicleTab(onNavigateToNotifications: _openNotifications);
     }
   }
 }
@@ -615,14 +625,20 @@ class _VehicleTabState extends State<_VehicleTab> {
                   onDismiss: _dismissGettingStarted,
                 ),
               _DashboardSummaryCard(vehicles: vehicles),
+              // 記録する行為と、次に買うものへの入口。開いてすぐの高さに置く。
+              _QuickActionsRow(vehicle: primaryVehicle),
               // ガイドを出している間は車検の催促を重ねない。同じことを二か所で
               // 言われると、どちらも読み飛ばされる。
               if (hasVehicleWithoutInspection && !showGettingStarted)
                 _InspectionSetupCard(vehicles: vehicles),
               _AiSuggestionSection(onSeeAll: widget.onNavigateToNotifications),
               ...vehicles.map((v) => _VehicleCard(vehicle: v)),
-              const _RecentMaintenanceSection(),
+              // たびの記録とおすすめパーツを、車両カードのすぐ下に置く。
+              // どちらもプロフィールの奥・車両詳細のヘッダーにあって、
+              // 1年使っても辿り着かない位置だった（2026-09-08）。
               const _RecentDriveSection(),
+              _RecommendedPartsSection(vehicle: primaryVehicle),
+              const _RecentMaintenanceSection(),
               const _PopularAccessoriesSection(),
               const _RetiredVehiclesSection(),
             ];
@@ -2705,10 +2721,11 @@ class _RetiredVehiclesSectionState extends State<_RetiredVehiclesSection> {
         await sl.get<VehicleRetirementService>().getRetiredVehicles(uid);
     if (!mounted) return;
     result.when(
+      // **返ってきたリストをその場で並べ替えない。** 呼び出し先が変更できない
+      // リスト（const [] など）を返すと落ちる。写しを作ってから並べ替える。
       success: (vehicles) => setState(() {
-        _vehicles = vehicles
-          ..sort((a, b) => (b.retiredAt ?? DateTime(0))
-              .compareTo(a.retiredAt ?? DateTime(0)));
+        _vehicles = [...vehicles]..sort((a, b) =>
+            (b.retiredAt ?? DateTime(0)).compareTo(a.retiredAt ?? DateTime(0)));
       }),
       failure: (_) => setState(() => _vehicles = const []),
     );
@@ -2911,6 +2928,9 @@ class _RecentMaintenanceSection extends StatefulWidget {
 class _RecentMaintenanceSectionState extends State<_RecentMaintenanceSection> {
   List<MaintenanceRecord>? _records;
 
+  /// この1年の件数と金額。直近3件の合計では、かけた額が分からない。
+  MaintenanceSummary? _summary;
+
   @override
   void initState() {
     super.initState();
@@ -2918,13 +2938,20 @@ class _RecentMaintenanceSectionState extends State<_RecentMaintenanceSection> {
   }
 
   Future<void> _load() async {
-    final result =
-        await sl.get<FirebaseService>().getRecentMaintenanceRecords(limit: 3);
+    final service = sl.get<FirebaseService>();
+    final result = await service.getRecentMaintenanceRecords(limit: 3);
     if (!mounted) return;
     result.when(
       success: (records) => setState(() => _records = records),
       failure: (_) => setState(() => _records = const []),
     );
+
+    final summary = await service.maintenanceSummary(
+      since: DateTime.now().subtract(const Duration(days: 365)),
+    );
+    if (!mounted) return;
+    // 集計が取れなくても一覧は出す。数字が出ないだけ。
+    setState(() => _summary = summary.valueOrNull);
   }
 
   @override
@@ -2947,16 +2974,25 @@ class _RecentMaintenanceSectionState extends State<_RecentMaintenanceSection> {
             ),
           ),
         ),
-        // 直近の3件だけだと「今月いくら使ったか」が見えない。**積み上がった
-        // 額が維持費の実感になる**ので、合計を先に出す。
+        // 直近の3件だけだと「1年でいくら使ったか」が見えない。**積み上がった
+        // 額が維持費の実感になる**ので、集計を先に出す。集計が取れないあいだは
+        // 直近3件ぶんを出すが、そのときは「合計」とは書かない。
         _SectionSummary(
-          items: [
-            ('直近${_records!.length}件', ''),
-            (
-              '合計',
-              '¥${NumberFormat('#,###').format(records.fold<int>(0, (s, r) => s + r.cost))}'
-            ),
-          ],
+          items: _summary == null
+              ? [
+                  ('直近${records.length}件', ''),
+                  (
+                    '小計',
+                    '¥${NumberFormat('#,###').format(records.fold<int>(0, (s, r) => s + r.cost))}'
+                  ),
+                ]
+              : [
+                  ('この1年で${_summary!.count}件', ''),
+                  (
+                    '合計',
+                    '¥${NumberFormat('#,###').format(_summary!.totalCost)}'
+                  ),
+                ],
         ),
         Card(
           clipBehavior: Clip.antiAlias,
@@ -3039,6 +3075,9 @@ class _RecentDriveSection extends StatefulWidget {
 }
 
 class _RecentDriveSectionState extends State<_RecentDriveSection> {
+  /// この1年の回数と距離。一覧を読まずに集計だけを取る。
+  DriveLogSummary? _summary;
+
   @override
   void initState() {
     super.initState();
@@ -3046,7 +3085,18 @@ class _RecentDriveSectionState extends State<_RecentDriveSection> {
       final uid = context.read<AuthProvider>().appUser?.id;
       if (uid == null || uid.isEmpty) return;
       context.read<DriveLogProvider>().loadUserDriveLogs(uid);
+      _loadSummary(uid);
     });
+  }
+
+  Future<void> _loadSummary(String uid) async {
+    final result = await sl.get<DriveLogService>().summaryForUser(
+          userId: uid,
+          since: DateTime.now().subtract(const Duration(days: 365)),
+        );
+    if (!mounted) return;
+    // 失敗しても一覧は出す。数字が出ないだけで、記録は読める。
+    setState(() => _summary = result.valueOrNull);
   }
 
   @override
@@ -3055,6 +3105,24 @@ class _RecentDriveSectionState extends State<_RecentDriveSection> {
     if (logs.isEmpty) return const SizedBox.shrink();
 
     final recent = logs.take(2).toList();
+
+    // 集計が返るまでは、読み込んだ分だけで出す。**「合計」とは書かない。**
+    // 1年で200回近く走る人がいるので、1ページ分（20件）の合計を「合計」と
+    // 呼ぶと、実際の1/10の距離が出る（2026-09-08 に実データで確認）。
+    final summary = _summary;
+    final kmFormat = NumberFormat('#,###');
+    final items = summary == null
+        ? <(String, String)>[
+            ('直近${logs.length}回', ''),
+            (
+              '距離',
+              '${kmFormat.format(logs.fold<double>(0, (s, l) => s + l.statistics.totalDistance).round())} km'
+            ),
+          ]
+        : <(String, String)>[
+            ('この1年で${summary.count}回', ''),
+            ('合計', '${kmFormat.format(summary.totalDistanceKm.round())} km'),
+          ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3067,15 +3135,7 @@ class _RecentDriveSectionState extends State<_RecentDriveSection> {
             MaterialPageRoute<void>(builder: (_) => const DriveLogScreen()),
           ),
         ),
-        _SectionSummary(
-          items: [
-            ('${logs.length}回', ''),
-            (
-              '合計',
-              '${logs.fold<double>(0, (s, l) => s + l.statistics.totalDistance).toStringAsFixed(0)} km'
-            ),
-          ],
-        ),
+        _SectionSummary(items: items),
         Card(
           clipBehavior: Clip.antiAlias,
           child: Column(
@@ -3278,6 +3338,439 @@ class _AccessoryRow extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// ホームのいちばん上に置く4つの入口。
+///
+/// **記録する行為と、次に買うものへの入口を、開いてすぐの場所に置く。**
+/// これまでは、たびの記録はプロフィールの奥、給油は車両詳細を開いて
+/// スクロールした先、パーツ提案は車両詳細のヘッダーのアイコン、と
+/// バラバラだった。どれも「毎月やること」なのに、毎月たどり着けない。
+///
+/// 車が1台も無いときは出さない（記録する対象が無い）。
+class _QuickActionsRow extends StatelessWidget {
+  /// ふだん乗っている1台。給油・整備・パーツはこの車に対して開く。
+  final Vehicle vehicle;
+
+  const _QuickActionsRow({required this.vehicle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        child: Row(
+          children: [
+            Expanded(
+              child: _QuickAction(
+                actionKey: const Key('quick_action_drive'),
+                icon: Icons.route_outlined,
+                label: 'たびの記録',
+                color: AppColors.secondary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const DriveLogScreen(),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: _QuickAction(
+                actionKey: const Key('quick_action_parts'),
+                icon: Icons.build_circle_outlined,
+                // 見出しの「おすすめパーツ」と同じ文字にしない。同じ言葉が
+                // 画面に2つあると、どちらを押したのか分からなくなる。
+                label: 'パーツを探す',
+                color: AppColors.primary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => PartRecommendationScreen(vehicle: vehicle),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: _QuickAction(
+                actionKey: const Key('quick_action_fuel'),
+                icon: Icons.local_gas_station_outlined,
+                label: '給油を記録',
+                color: AppColors.warning,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => AddFuelScreen(
+                      service: sl.get<FuelService>(),
+                      vehicleId: vehicle.id,
+                      userId: vehicle.userId,
+                      lastOdometer: vehicle.mileage,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: _QuickAction(
+                actionKey: const Key('quick_action_maintenance'),
+                icon: Icons.build_outlined,
+                label: '整備を記録',
+                color: AppColors.info,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => AddMaintenanceScreen(
+                      vehicleId: vehicle.id,
+                      currentVehicleMileage: vehicle.mileage,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  final Key actionKey;
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _QuickAction({
+    required this.actionKey,
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      key: actionKey,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.sm,
+          horizontal: AppSpacing.xxs,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 24, color: color),
+            AppSpacing.verticalXxs,
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// ホームの「おすすめパーツ」。
+///
+/// パーツ提案は**車両詳細のヘッダーにあるアイコン1つ**からしか開けなかった。
+/// 車を選んで、詳細を開いて、右上のアイコンに気づいて、はじめて届く位置に
+/// ある。1年使ってもそこに辿り着かない人がいる、という前提で、ホームの
+/// 「メンテナンスの記録」と同じ高さに出す（2026-09-08）。
+///
+/// **適合するものだけを出す。** 付かない部品を並べても、選ぶ手間が増える
+/// だけで買い物にならない。適合の度合いは行ごとにラベルで見せる。
+class _RecommendedPartsSection extends StatefulWidget {
+  /// どの車に合わせて出すか。ふだん乗っている1台。
+  final Vehicle vehicle;
+
+  const _RecommendedPartsSection({required this.vehicle});
+
+  @override
+  State<_RecommendedPartsSection> createState() =>
+      _RecommendedPartsSectionState();
+}
+
+class _RecommendedPartsSectionState extends State<_RecommendedPartsSection> {
+  List<PartRecommendation>? _recommendations;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RecommendedPartsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 車を乗り換えたら取り直す。前の車のパーツが残っていては意味がない。
+    if (oldWidget.vehicle.id != widget.vehicle.id) {
+      setState(() => _recommendations = null);
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final result = await sl
+        .get<PartRecommendationService>()
+        .getRecommendationsForVehicle(widget.vehicle, limit: 3);
+    if (!mounted) return;
+    result.when(
+      success: (recs) => setState(() => _recommendations = recs),
+      failure: (_) => setState(() => _recommendations = const []),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recommendations = _recommendations;
+    // 読み込み中と0件は何も出さない。ホームの一等地に「ありません」を
+    // 置いても、できることは増えない。
+    if (recommendations == null || recommendations.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(
+          icon: Icons.build_circle_outlined,
+          title: 'おすすめパーツ',
+          onSeeAll: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => PartRecommendationScreen(vehicle: widget.vehicle),
+            ),
+          ),
+        ),
+        _SectionSummary(
+          items: [('${widget.vehicle.displayName}に合うもの', '')],
+        ),
+        Card(
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              for (var i = 0; i < recommendations.length; i++) ...[
+                if (i > 0) const Divider(height: 1),
+                _PartRow(
+                  recommendation: recommendations[i],
+                  vehicle: widget.vehicle,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PartRow extends StatelessWidget {
+  final PartRecommendation recommendation;
+  final Vehicle vehicle;
+
+  const _PartRow({required this.recommendation, required this.vehicle});
+
+  /// カテゴリの絵。**何の部品かが、名前を読む前に分かる**ようにする。
+  IconData get _categoryIcon {
+    switch (recommendation.part.category) {
+      case PartCategory.wheel:
+      case PartCategory.tire:
+        return Icons.trip_origin;
+      case PartCategory.brake:
+        return Icons.disc_full_outlined;
+      case PartCategory.lighting:
+        return Icons.lightbulb_outline;
+      case PartCategory.audio:
+        return Icons.speaker_outlined;
+      case PartCategory.navigation:
+        return Icons.navigation_outlined;
+      case PartCategory.safety:
+        return Icons.shield_outlined;
+      case PartCategory.interior:
+        return Icons.event_seat_outlined;
+      case PartCategory.maintenance:
+        return Icons.oil_barrel_outlined;
+      case PartCategory.aero:
+      case PartCategory.exterior:
+        return Icons.directions_car_outlined;
+      case PartCategory.suspension:
+      case PartCategory.exhaust:
+      case PartCategory.intake:
+      case PartCategory.performance:
+      case PartCategory.accessory:
+      case PartCategory.other:
+        return Icons.build_outlined;
+    }
+  }
+
+  /// 適合の度合いを色で分ける。**「条件付き」を「完全対応」と同じ色で
+  /// 出さない。** 追加の部品や加工が要ることは、買う前に伝わっていてよい。
+  Color get _compatibilityColor {
+    switch (recommendation.compatibility) {
+      case CompatibilityLevel.perfect:
+        return AppColors.success;
+      case CompatibilityLevel.compatible:
+        return AppColors.primary;
+      case CompatibilityLevel.conditional:
+        return AppColors.warning;
+      case CompatibilityLevel.incompatible:
+        return AppColors.error;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final part = recommendation.part;
+
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => PartRecommendationScreen(vehicle: vehicle),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            Icon(_categoryIcon, size: 18, color: AppColors.primary),
+            AppSpacing.horizontalSm,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    part.name,
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  AppSpacing.verticalXxs,
+                  Row(
+                    children: [
+                      Text(
+                        recommendation.compatibility.displayName,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: _compatibilityColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      // ブランドが無い出品もあるので、その分は詰める。
+                      if (part.brand != null && part.brand!.isNotEmpty) ...[
+                        Text(' ・ ', style: theme.textTheme.bodySmall),
+                        Flexible(
+                          child: Text(
+                            part.brand!,
+                            style: theme.textTheme.bodySmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            AppSpacing.horizontalSm,
+            Text(
+              part.priceDisplay,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 下段メニューの1マス。
+///
+/// アイコンと文字を横に並べる。縦積み（アイコンの下に文字）より1行ぶん
+/// 低く収まり、2行にしても画面を取りすぎない。
+class _NavCell extends StatelessWidget {
+  final int index;
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _NavCell({
+    required this.index,
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = isSelected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
+
+    return Semantics(
+      selected: isSelected,
+      button: true,
+      child: InkWell(
+        key: Key('nav_cell_$index'),
+        onTap: onTap,
+        borderRadius: AppSpacing.borderRadiusSm,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            vertical: AppSpacing.xs,
+            horizontal: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? theme.colorScheme.primary.withValues(alpha: 0.10)
+                : null,
+            borderRadius: AppSpacing.borderRadiusSm,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(isSelected ? selectedIcon : icon, size: 20, color: color),
+              AppSpacing.horizontalXs,
+              Flexible(
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: color,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

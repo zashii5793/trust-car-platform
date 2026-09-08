@@ -255,6 +255,40 @@ class FirebaseService {
     }
   }
 
+  /// 整備にかけた件数と金額を、ドキュメントを読まずに集計する。
+  ///
+  /// ホームは直近3件しか出しておらず、**この1年でいくら使ったか**が
+  /// 分からなかった。積み上がった額がそのまま維持費の実感になる。
+  /// 1年で 150 件を超える人がいる（2026-09-08 に実データで確認）ので、
+  /// 全件を読まずに集計クエリで取る。
+  Future<Result<MaintenanceSummary, AppError>> maintenanceSummary({
+    DateTime? since,
+  }) async {
+    final uid = currentUserId;
+    if (uid == null) return const Result.success(MaintenanceSummary.empty);
+
+    try {
+      Query<Map<String, dynamic>> query = _firestore
+          .collection(FirestoreCollections.maintenanceRecords)
+          .where('userId', isEqualTo: uid);
+      if (since != null) {
+        query = query.where('date',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(since));
+      }
+
+      final snapshot = await query.aggregate(sum('cost')).get();
+
+      return Result.success(
+        MaintenanceSummary(
+          count: snapshot.count ?? 0,
+          totalCost: (snapshot.getSum('cost') ?? 0).round(),
+        ),
+      );
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
   /// 全車両ぶんの整備記録を新しい順に取る。
   ///
   /// 車両単位の [getMaintenanceRecordsForVehicle] と違い、**ホームで
@@ -422,4 +456,21 @@ class FirebaseService {
       return Result.failure(mapFirebaseError(e));
     }
   }
+}
+
+/// 整備にかけた件数と金額。
+///
+/// 一覧を読まずに数字だけを出すための入れ物（2026-09-08 追加）。
+class MaintenanceSummary {
+  final int count;
+
+  /// かかった金額の合計（円）。
+  final int totalCost;
+
+  const MaintenanceSummary({required this.count, required this.totalCost});
+
+  static const MaintenanceSummary empty =
+      MaintenanceSummary(count: 0, totalCost: 0);
+
+  bool get isEmpty => count == 0;
 }
