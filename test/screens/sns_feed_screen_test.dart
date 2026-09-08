@@ -190,6 +190,12 @@ Post _makePost({
 /// state in these tests, so no method is actually invoked.
 class _StubFirebaseService implements FirebaseService {
   @override
+  Future<Result<MaintenanceSummary, AppError>> maintenanceSummary({
+    DateTime? since,
+  }) async =>
+      const Result.success(MaintenanceSummary.empty);
+
+  @override
   Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
       const Result.success(false);
 

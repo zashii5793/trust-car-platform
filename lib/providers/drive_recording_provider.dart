@@ -278,6 +278,7 @@ class DriveRecordingProvider with ChangeNotifier {
     for (final waypoint in batch) {
       await _service.addWaypoint(
         driveLogId: _currentDriveLogId!,
+        userId: _currentUserId ?? '',
         waypoint: waypoint,
       );
     }

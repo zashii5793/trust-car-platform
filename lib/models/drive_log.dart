@@ -549,3 +549,28 @@ class DriveLogLike {
     };
   }
 }
+
+/// 走った回数と距離の合計。
+///
+/// 一覧を読まずに数字だけを出すための入れ物。**「直近20件の合計」を
+/// 「合計」と書いていた**のを直すために足した（2026-09-08）。
+class DriveLogSummary {
+  /// 走った回数。
+  final int count;
+
+  /// 距離の合計（km）。
+  final double totalDistanceKm;
+
+  const DriveLogSummary({
+    required this.count,
+    required this.totalDistanceKm,
+  });
+
+  static const DriveLogSummary empty =
+      DriveLogSummary(count: 0, totalDistanceKm: 0);
+
+  bool get isEmpty => count == 0;
+
+  /// 1回あたりの距離（km）。0回なら null。
+  double? get averageDistanceKm => count == 0 ? null : totalDistanceKm / count;
+}

@@ -113,8 +113,12 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
                   return AppEmptyState(
                     icon: Icons.forum_outlined,
                     title: '投稿がまだありません',
-                    description:
-                        '他のユーザーの投稿や、\n気になるハッシュタグを探してみましょう\n\n右下のボタンから最初の投稿をしてみましょう',
+                    // 改行を明示する。自動折り返しに任せると、
+                    // 「探してみましょ / う」のように最後の1文字だけが
+                    // 次の行に落ちる（2026-09-07 実測）。
+                    description: '他のユーザーの投稿や\n'
+                        'ハッシュタグを見てみましょう\n\n'
+                        '右下のボタンから投稿できます',
                     buttonLabel: '投稿する',
                     onButtonPressed: () => _openCreatePost(context),
                   );

@@ -256,6 +256,7 @@ void main() {
       // Act
       final result = await driveLogService.addWaypoint(
         driveLogId: testDriveLogId,
+        userId: testUserId,
         waypoint: DriveWaypoint(
           location: const GeoPoint2D(latitude: 35.6762, longitude: 139.6503),
           timestamp: DateTime.now(),
@@ -293,7 +294,8 @@ void main() {
       });
 
       // Act
-      final result = await driveLogService.getWaypoints(testDriveLogId);
+      final result = await driveLogService.getWaypoints(testDriveLogId,
+          userId: testUserId);
 
       // Assert
       expect(result.isSuccess, true);

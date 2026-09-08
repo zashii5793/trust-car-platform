@@ -76,6 +76,12 @@ UserSubscriptionProvider _premiumSubscription() => UserSubscriptionProvider()
 
 class MockFirebaseService implements FirebaseService {
   @override
+  Future<Result<MaintenanceSummary, AppError>> maintenanceSummary({
+    DateTime? since,
+  }) async =>
+      const Result.success(MaintenanceSummary.empty);
+
+  @override
   Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
       const Result.success(false);
 
@@ -142,6 +148,13 @@ class MockFirebaseService implements FirebaseService {
       getMaintenanceRecordsForVehicles(List<String> vehicleIds,
               {int limitPerVehicle = 20}) async =>
           const Result.success({});
+
+  @override
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getRecentMaintenanceRecords({
+    int limit = 5,
+  }) async =>
+          const Result.success([]);
 
   @override
   Future<Result<List<MaintenanceRecord>, AppError>>
