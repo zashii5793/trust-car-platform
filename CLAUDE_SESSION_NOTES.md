@@ -1,6 +1,61 @@
 # Claude Session Notes
 
-最終更新: 2026-09-06
+最終更新: 2026-09-09
+
+---
+
+## テスター配布を iPhone / Android の両方で（2026-09-09）
+
+**ブランチ**: `claude/happy-meitner-gvvv6t`
+
+今週末にテスターへ配る。8月の配布で残っていた2つの穴を塞いだ。
+
+```
+ 8月                                   9月
+ 公開は手元 Mac で publish_test_build   Actions「Test Distribution」ボタン1回
+ iOS は「間に合わない」で見送り          ブラウザ版（ホーム画面に追加）を即日
+                                        + TestFlight ワークフロー（Apple 承認済みなら1日）
+```
+
+### 判断したこと
+
+- **配布 URL は `download.html` の1本に寄せる。** ページが端末を見て Android には APK、
+  iPhone にはブラウザ版（TestFlight のリンクがあればそれも）を出す。テスターに端末別の URL を
+  送り分けると、間違った方を開いた人の問い合わせが必ず来る
+- **iOS の署名は自動署名 + App Store Connect API キー。** 証明書 .p12 と Provisioning Profile を
+  人間が作って Secret に貼る方式は取らなかった。手順が3つ減り、期限切れの更新作業も消える。
+  代わりに API キーの役割は Admin が要る
+- **TestFlight ワークフローは Secret が揃うまで macOS を起動しない。** ubuntu の preflight で
+  4つの Secret を先に見る。macOS は10倍課金で、Secret 不足で落ちる回に払う理由が無い
+- **Sign in with Apple とプッシュ通知の iOS 設定は入れていない。** entitlements と pbxproj の
+  変更を Xcode 無しで手で入れるのは、白画面の一件（Bundle ID 不一致）と同じ形の壊れ方を
+  しうる。テスターには「iPhone はメール/パスワードで」と案内する
+- **web_preview.yml の Pages デプロイを止めた。** Pages は 8/25 に停止済みで、以後 main への
+  push のたび deploy ジョブが赤くなっていた（9/6 も failure）。ビルド検証だけ残した
+- **ci.yml にあった iOS plist のフォールバックを `ios/ci/GoogleService-Info.ci.plist` に出した。**
+  testflight.yml でも同じ値が要る。2か所に書くと、App ID を直したときに片方だけ古いままになる
+  （それが 8月の白画面だった）
+
+### 人間の作業（`docs/TESTUSER_ROLLOUT_2026-09.md`）
+
+```
+ §1  Secret FIREBASE_SERVICE_ACCOUNT を1つ登録（15分）← これが無いと公開で止まる
+ §2  Actions → Test Distribution → Run workflow → download.html を配る
+ §4  iPhone アプリ版: Apple 承認確認 → App ID → ASC アプリ → API キー → Secret 4つ → TestFlight
+```
+
+Storage ルールが 9/4 時点で未反映（Issue #49）。Test Distribution の `deploy_storage_rules` を
+初回だけオンにすれば同じ鍵で反映できるようにした。既定はオフ。
+
+### 検証
+
+- actionlint 1.7.7: 変更した5本のワークフローすべて指摘なし
+- `download.html` の組み立て（APK あり/なし × TestFlight あり/なし）を sed で通し、プレースホルダ残りなし
+- plist 3本を plistlib でパース
+- Dart コードは触っていない（flutter analyze / test の対象変更なし）
+- **CI では確かめられないこと**: Firebase Hosting への実デプロイ、xcodebuild の自動署名、altool の
+  アップロード。いずれも Secret と Apple 側の状態に依存する。初回は人間がワークフローを回して
+  ログを見る必要がある
 
 ---
 

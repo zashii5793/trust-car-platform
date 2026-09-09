@@ -19,12 +19,24 @@
 # 左右されないため。private にした瞬間、Releases のリンクはテスターから
 # 見えなくなる。
 #
+# 2026-09-09 から、同じことを GitHub Actions の **Test Distribution**
+# （.github/workflows/test_distribution.yml）が「Run workflow」1回でやる。
+# 手元に flutter / firebase / gh が揃っていない場合はそちらを使う。
+# このスクリプトは、Actions が使えないときの手元用として残している。
+#
 # 使い方:
 #   ./scripts/publish_test_build.sh              # origin/main を出す
 #   ./scripts/publish_test_build.sh <ref>        # 任意のコミットを出す
 #   SKIP_APK=1 ./scripts/publish_test_build.sh   # Web だけ出し直す
+#   TESTFLIGHT_URL=https://testflight.apple.com/join/XXXX ./scripts/publish_test_build.sh
+#                                                # iPhone 向けに TestFlight の案内も出す
 #
 set -euo pipefail
+
+# sed -i は macOS（BSD）と Linux（GNU）で書式が違う。両方で動くようにする。
+sedi() {
+  if sed --version >/dev/null 2>&1; then sed -i "$@"; else sed -i '' "$@"; fi
+}
 
 REF="${1:-origin/main}"
 PROJECT=trust-car-platform
@@ -53,7 +65,7 @@ echo
 echo "=== 2/5 Web をビルド ==="
 if [ -n "${GOOGLE_MAPS_API_KEY_WEB:-}" ]; then
   # 切り出した側を書き換えるので、リポジトリ本体は汚れない。
-  sed -i '' "s|__GOOGLE_MAPS_API_KEY__|$GOOGLE_MAPS_API_KEY_WEB|g" web/index.html
+  sedi "s|__GOOGLE_MAPS_API_KEY__|$GOOGLE_MAPS_API_KEY_WEB|g" web/index.html
   echo "  Google Maps のキーを埋め込みました"
 else
   echo "  GOOGLE_MAPS_API_KEY_WEB は未設定。地図は距離順リストにフォールバックします。"
@@ -91,14 +103,23 @@ fi
 echo
 echo "=== 4/5 受け取りページを組み立てる ==="
 if [ -n "$APK_NAME" ]; then
-  sed -i '' "s|__APK_FILENAME__|/$APK_NAME|g; s|__APK_SIZE__|$APK_SIZE|g; s|__APK_BUILD__|$SHA|g" \
+  sedi "s|__APK_FILENAME__|/$APK_NAME|g; s|__APK_SIZE__|$APK_SIZE|g; s|__APK_BUILD__|$SHA|g" \
     build/web/download.html
 else
   # APK 抜きで出すときは Android の欄ごと隠す。リンク切れを配るより良い。
-  sed -i '' 's|<section class="card" id="android-card">|<section class="card" id="android-card" hidden>|' \
+  sedi 's|<section class="card" id="android-card">|<section class="card" id="android-card" hidden>|' \
     build/web/download.html
+  sedi 's|__APK_FILENAME__|#|g; s|__APK_SIZE__||g; s|__APK_BUILD__||g' build/web/download.html
 fi
-if grep -q "__APK_" build/web/download.html; then
+# iPhone: TestFlight のリンクがあるときだけ欄を出す。
+if [ -n "${TESTFLIGHT_URL:-}" ]; then
+  sedi "s|__TESTFLIGHT_URL__|$TESTFLIGHT_URL|g" build/web/download.html
+  sedi 's|<section class="card" id="testflight-card" hidden>|<section class="card" id="testflight-card">|' \
+    build/web/download.html
+else
+  sedi 's|__TESTFLIGHT_URL__|#|g' build/web/download.html
+fi
+if grep -q "__APK_\|__TESTFLIGHT_" build/web/download.html; then
   echo "  プレースホルダが残っています"; exit 1
 fi
 
@@ -110,4 +131,5 @@ echo
 echo "Web 版      https://trust-car-platform.web.app"
 echo "受け取り口  https://trust-car-platform.web.app/download.html   ← テストユーザーにはこれを渡す"
 [ -n "$APK_NAME" ] && echo "APK         https://trust-car-platform.web.app/$APK_NAME"
+[ -n "${TESTFLIGHT_URL:-}" ] && echo "TestFlight  $TESTFLIGHT_URL"
 echo "ビルド      $SHA"

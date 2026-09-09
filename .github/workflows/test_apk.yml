@@ -14,12 +14,25 @@ name: Test APK
 #
 # 出力: Actions の実行ページ下部 "Artifacts" から zip をダウンロードできる。
 # テストユーザーには、その zip を展開した .apk を渡す。
+#
+# 単体で回すより、Test Distribution（test_distribution.yml）から回すことを勧める。
+# そちらは Web と一緒に Firebase Hosting へ出し、テスターは
+# https://trust-car-platform.web.app/download.html から受け取れる。
 
 on:
   workflow_dispatch:
     inputs:
       note:
         description: 'この APK の目印（例: 8/25 テスト配布1回目）'
+        required: false
+        default: ''
+  # test_distribution.yml から呼ばれる。APK の作り方をここ1か所に閉じるため、
+  # 配布側は成果物 `trustcar-test-apk` を受け取るだけにしている。
+  workflow_call:
+    inputs:
+      note:
+        description: 'この APK の目印'
+        type: string
         required: false
         default: ''
 
