@@ -1,6 +1,38 @@
 # Claude Session Notes
 
-最終更新: 2026-09-09
+最終更新: 2026-09-10
+
+---
+
+## 夜間の自走: 本番で弾かれるクエリ・CI の取り残し・Functions ランタイム（2026-09-10）
+
+**ブランチ**: `claude/happy-meitner-gvvv6t`（PR #189 に積んだ）
+
+「開発が残っているものを進めて、テストも回して、不具合は起票して直す」という
+指示で、人間が寝ている間に進めた。判断が要るものは Issue に切り出して止めた。
+
+### 直したもの（Issue → 修正）
+
+| Issue | 何が起きていたか | 直し |
+|---|---|---|
+| #190 | 店舗オーナーの需要通知カードが本番で常に非表示。`shop_inquiry_demands` を `shopId` だけで list しており、ルール（`shopOwnerId == uid`）を静的に満たせず list ごと拒否 | クエリに `shopOwnerId` を足し、複合インデックス追加。旧形は弾かれ新形は通ることをルールテストで固定 |
+| #191 | `faqs` / `faq_answers` / `faq_helpful_votes` に match ブロックが無く既定拒否。画面が無いので露見していなかった | ルール追加（本人名義・カウンタは +1 のみ・ベストアンサーは質問作者のみ・投票 ID は `<answerId>_<uid>`）。ルールテスト 16 件 |
+| #193 | `screenshots.yml` の google-services.json が 8/23 再登録前の旧 Android App ID と Web 用 API キーのまま。`firebase.json` の `flutter.platforms` も旧 ID | `android/ci/google-services.ci.json` に 1 か所化して 3 本のワークフローで共用。firebase.json を現行 ID に |
+| #194 | 週次 PM レポートのテスト欄が毎週「1 件パス / ? 件失敗」。golden を除外しておらず、件数もスタックトレースの `+1` を拾っていた | CI と同じ `"emulator \|\| golden"` 除外、進捗行の最後の 1 行だけから読む |
+| — | Functions の Node.js 20 が 10/30 に廃止 | `engines.node` 22、`@types/node` 22。tsc / jest 66 件パス |
+| — | dependabot のネイティブ依存更新が Build iOS を素通り（9/3 に main を壊した形） | PR の diff に pubspec.lock / pubspec.yaml / ios/ が含まれれば `ios` ラベル無しでも build-ios を走らせる `ios-changes` ジョブ |
+
+### 起票して止めたもの（設計判断が要る）
+
+#192: ルールとクエリが食い違う残り 6 件（法人の整備記録の見せ方・ニュースレター解除の
+Cloud Function 化・followers 投稿の可視性・spots の切り分け）。
+
+### 検証
+
+- Firestore / Storage ルールテスト: エミュレータで 168 件全パス（新規 20 件含む）
+- functions: jest 66 件・tsc クリーン（Node 22）
+- actionlint: 変更した ci.yml / test_apk.yml / screenshots.yml / pm_report.yml 指摘なし
+- Flutter 側（`flutter test` / `analyze --fatal-infos` / `dart format`）: 下に追記
 
 ---
 
