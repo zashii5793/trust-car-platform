@@ -294,19 +294,60 @@ jobs:
           retention-days: 3
           if-no-files-found: warn
 
+  # PR が iOS のネイティブ側に触れているかを見る。build-ios の条件に使う。
+  #
+  # 2026-09-03 に dependabot の google_mlkit_text_recognition 0.14 → 0.17 を
+  # 「CI 全 green」と見てマージしたら main の Build iOS が落ちた。dependabot の
+  # PR には `ios` ラベルが付かないので build-ios は skipped のまま「全 green」に
+  # 見える。ネイティブ依存は pubspec.lock の変更として必ず現れるので、
+  # pubspec.lock か ios/ が変わった PR はラベル無しでも iOS を組む。
+  ios-changes:
+    name: Detect iOS-affecting changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      touched: ${{ steps.diff.outputs.touched }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Compare against base
+        id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          CHANGED="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- pubspec.lock pubspec.yaml 'ios/**' || true)"
+          if [ -n "$CHANGED" ]; then
+            echo "touched=true" >> "$GITHUB_OUTPUT"
+            echo "iOS に影響しうる変更:"; echo "$CHANGED"
+          else
+            echo "touched=false" >> "$GITHUB_OUTPUT"
+            echo "pubspec.lock / pubspec.yaml / ios/ に変更なし"
+          fi
+
   build-ios:
     name: Build iOS
     runs-on: macos-15
-    needs: analyze-and-test
+    needs: [analyze-and-test, ios-changes]
     # macOS ランナーは分数が 10 倍で課金される。実測で 1 回あたり 57〜205 課金分
     # かかっており、private リポジトリ（Free = 月2,000分）なら iOS ビルド
     # 10〜15 回で月の枠を使い切る。
     # そのため PR では既定で走らせず、main への push / 手動実行 /
-    # `ios` ラベル付きの PR に限定する。
-    # iOS 固有の破壊を PR 段階で見たいときは PR に `ios` ラベルを付ける。
+    # `ios` ラベル付きの PR / ネイティブ依存（pubspec.lock・ios/）に触れた PR
+    # に限定する。iOS 固有の破壊を PR 段階で見たいときは PR に `ios` ラベルを付ける。
+    #
+    # ios-changes は push / workflow_dispatch では skipped になる。needs に
+    # skipped が混ざると既定ではこのジョブも skipped になるので、always() で
+    # 評価を強制し、analyze-and-test の成功は明示的に見る。
     if: >-
-      github.event_name != 'pull_request' ||
-      contains(github.event.pull_request.labels.*.name, 'ios')
+      always() &&
+      needs.analyze-and-test.result == 'success' &&
+      (github.event_name != 'pull_request' ||
+       contains(github.event.pull_request.labels.*.name, 'ios') ||
+       needs.ios-changes.outputs.touched == 'true')
 
     steps:
       - name: Checkout repository
