@@ -1406,3 +1406,274 @@ describe('fuel_records（給油記録）', () => {
     await assertFails(deleteDoc(doc(dbFor(OTHER_UID), fuelPath)));
   });
 });
+
+// ---------------------------------------------------------------------------
+// shop_inquiry_demands — 店舗オーナーの一覧クエリ
+//
+// ルールは read を resource.data.userId == uid || resource.data.shopOwnerId == uid
+// に絞る。Firestore は list クエリがこの条件を満たすことを静的に証明できないと
+// 丸ごと拒否するので、shopId だけで絞った旧クエリは本番で 1 件も返らない
+// （fake_cloud_firestore はルールを見ないため単体テストは緑だった）。
+// ここで「旧形は弾かれ、shopOwnerId を足した形は通る」を固定する。
+// ---------------------------------------------------------------------------
+describe('shop_inquiry_demands — 店舗オーナーの一覧', () => {
+  const DEMAND_SHOP_ID = 'shop_demand_1';
+  const DEMAND_OWNER_UID = 'demand_shop_owner_uid';
+  const DEMAND_USER_UID = 'demand_customer_uid';
+
+  async function seedDemands() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'shop_inquiry_demands/d1'), {
+        shopId: DEMAND_SHOP_ID,
+        shopOwnerId: DEMAND_OWNER_UID,
+        userId: DEMAND_USER_UID,
+        type: 'estimate',
+        subject: 'タイヤ交換',
+        createdAt: new Date('2026-09-01'),
+      });
+      await setDoc(doc(db, 'shop_inquiry_demands/d2'), {
+        shopId: DEMAND_SHOP_ID,
+        shopOwnerId: DEMAND_OWNER_UID,
+        userId: OTHER_UID,
+        type: 'estimate',
+        subject: 'オイル交換',
+        createdAt: new Date('2026-09-02'),
+      });
+    });
+  }
+
+  test('shopId だけで絞った旧クエリは、オーナーでも弾かれる', async () => {
+    await seedDemands();
+    const q = query(
+      collection(dbFor(DEMAND_OWNER_UID), 'shop_inquiry_demands'),
+      where('shopId', '==', DEMAND_SHOP_ID),
+    );
+    await assertFails(getDocs(q));
+  });
+
+  test('shopId + 自分の shopOwnerId で絞れば、オーナーは読める', async () => {
+    await seedDemands();
+    const q = query(
+      collection(dbFor(DEMAND_OWNER_UID), 'shop_inquiry_demands'),
+      where('shopId', '==', DEMAND_SHOP_ID),
+      where('shopOwnerId', '==', DEMAND_OWNER_UID),
+    );
+    const snap = await assertSucceeds(getDocs(q));
+    expect(snap.size).toBe(2);
+  });
+
+  test('他人が shopOwnerId を偽っても読めない', async () => {
+    await seedDemands();
+    const q = query(
+      collection(dbFor(OTHER_UID), 'shop_inquiry_demands'),
+      where('shopId', '==', DEMAND_SHOP_ID),
+      where('shopOwnerId', '==', DEMAND_OWNER_UID),
+    );
+    await assertFails(getDocs(q));
+  });
+
+  test('未認証は読めない', async () => {
+    await seedDemands();
+    const q = query(
+      collection(unauthDb(), 'shop_inquiry_demands'),
+      where('shopId', '==', DEMAND_SHOP_ID),
+      where('shopOwnerId', '==', DEMAND_OWNER_UID),
+    );
+    await assertFails(getDocs(q));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// faqs / faq_answers / faq_helpful_votes（Issue #191）
+// FaqService の読み書きが本番ルールで通ることを固定する。
+// ---------------------------------------------------------------------------
+describe('faqs — 質問', () => {
+  const FAQ_AUTHOR = 'faq_author_uid';
+  const faqPath = 'faqs/faq_1';
+  const faqDoc = (overrides = {}) => ({
+    question: 'オイル交換の目安は？',
+    category: 'maintenance',
+    authorId: FAQ_AUTHOR,
+    createdAt: new Date('2026-09-01'),
+    viewCount: 0,
+    answerCount: 0,
+    allowShopResponse: true,
+    tags: [],
+    ...overrides,
+  });
+  async function seedFaq(overrides = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), faqPath), faqDoc(overrides));
+    });
+  }
+
+  test('未認証は読めない', async () => {
+    await seedFaq();
+    await assertFails(getDoc(doc(unauthDb(), faqPath)));
+  });
+
+  test('認証済みなら誰でも読める・一覧できる', async () => {
+    await seedFaq();
+    await assertSucceeds(getDoc(doc(dbFor(OTHER_UID), faqPath)));
+    await assertSucceeds(
+      getDocs(query(collection(dbFor(OTHER_UID), 'faqs'), where('category', '==', 'maintenance'))),
+    );
+  });
+
+  test('本人名義でカウンタ 0 なら作れる', async () => {
+    await assertSucceeds(setDoc(doc(dbFor(FAQ_AUTHOR), faqPath), faqDoc()));
+  });
+
+  test('他人名義では作れない', async () => {
+    await assertFails(setDoc(doc(dbFor(OTHER_UID), faqPath), faqDoc()));
+  });
+
+  test('カウンタを 0 以外で作れない', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(FAQ_AUTHOR), faqPath), faqDoc({ viewCount: 5 })),
+    );
+  });
+
+  test('本人は本文を直せるが、authorId は変えられない', async () => {
+    await seedFaq();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(FAQ_AUTHOR), faqPath), { question: '直した質問' }),
+    );
+    await assertFails(
+      updateDoc(doc(dbFor(FAQ_AUTHOR), faqPath), { authorId: OTHER_UID }),
+    );
+  });
+
+  test('他人は本文を直せない', async () => {
+    await seedFaq();
+    await assertFails(
+      updateDoc(doc(dbFor(OTHER_UID), faqPath), { question: '乗っ取り' }),
+    );
+  });
+
+  test('誰でも閲覧数・回答数は +1 だけできる', async () => {
+    await seedFaq();
+    await assertSucceeds(updateDoc(doc(dbFor(OTHER_UID), faqPath), { viewCount: 1 }));
+    await assertSucceeds(updateDoc(doc(dbFor(OTHER_UID), faqPath), { answerCount: 1 }));
+    await assertFails(updateDoc(doc(dbFor(OTHER_UID), faqPath), { viewCount: 10 }));
+  });
+
+  test('本人だけが消せる', async () => {
+    await seedFaq();
+    await assertFails(deleteDoc(doc(dbFor(OTHER_UID), faqPath)));
+    await assertSucceeds(deleteDoc(doc(dbFor(FAQ_AUTHOR), faqPath)));
+  });
+});
+
+describe('faq_answers / faq_helpful_votes — 回答と投票', () => {
+  const FAQ_AUTHOR = 'faq_author_uid';
+  const ANSWERER = 'faq_answerer_uid';
+  const faqPath = 'faqs/faq_1';
+  const answerPath = 'faq_answers/ans_1';
+  const answerDoc = (overrides = {}) => ({
+    faqId: 'faq_1',
+    content: '5,000km か半年が目安です',
+    authorId: ANSWERER,
+    isShopResponse: false,
+    helpfulCount: 0,
+    isBestAnswer: false,
+    createdAt: new Date('2026-09-02'),
+    ...overrides,
+  });
+  async function seed({ answer = true } = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, faqPath), {
+        question: 'オイル交換の目安は？',
+        category: 'maintenance',
+        authorId: FAQ_AUTHOR,
+        createdAt: new Date('2026-09-01'),
+        viewCount: 0,
+        answerCount: 0,
+        allowShopResponse: true,
+        tags: [],
+      });
+      if (answer) await setDoc(doc(db, answerPath), answerDoc());
+    });
+  }
+
+  test('本人名義・初期値なら回答を作れる', async () => {
+    await seed({ answer: false });
+    await assertSucceeds(setDoc(doc(dbFor(ANSWERER), answerPath), answerDoc()));
+  });
+
+  test('isBestAnswer=true や helpfulCount>0 では作れない', async () => {
+    await seed({ answer: false });
+    await assertFails(
+      setDoc(doc(dbFor(ANSWERER), answerPath), answerDoc({ isBestAnswer: true })),
+    );
+    await assertFails(
+      setDoc(doc(dbFor(ANSWERER), answerPath), answerDoc({ helpfulCount: 3 })),
+    );
+  });
+
+  test('getAnswers のクエリ（faqId 絞り込み）は認証済みなら通る', async () => {
+    await seed();
+    const snap = await assertSucceeds(
+      getDocs(query(collection(dbFor(OTHER_UID), 'faq_answers'), where('faqId', '==', 'faq_1'))),
+    );
+    expect(snap.size).toBe(1);
+  });
+
+  test('ベストアンサーは質問の作者だけが選べる', async () => {
+    await seed();
+    await assertFails(
+      updateDoc(doc(dbFor(ANSWERER), answerPath), { isBestAnswer: true }),
+    );
+    await assertFails(
+      updateDoc(doc(dbFor(OTHER_UID), answerPath), { isBestAnswer: true }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(dbFor(FAQ_AUTHOR), answerPath), { isBestAnswer: true }),
+    );
+  });
+
+  test('「役に立った」は誰でも +1 だけ', async () => {
+    await seed();
+    await assertSucceeds(updateDoc(doc(dbFor(OTHER_UID), answerPath), { helpfulCount: 1 }));
+    await assertFails(updateDoc(doc(dbFor(OTHER_UID), answerPath), { helpfulCount: 3 }));
+    await assertFails(updateDoc(doc(dbFor(OTHER_UID), answerPath), { content: '改ざん' }));
+  });
+
+  test('投票マーカーは <answerId>_<uid> の ID で本人だけが作れる', async () => {
+    await seed();
+    const votePath = `faq_helpful_votes/ans_1_${OTHER_UID}`;
+    await assertSucceeds(
+      setDoc(doc(dbFor(OTHER_UID), votePath), {
+        answerId: 'ans_1',
+        userId: OTHER_UID,
+        faqId: 'faq_1',
+        createdAt: new Date(),
+      }),
+    );
+    // 他人の名義や、ID の形が違うものは作れない
+    await assertFails(
+      setDoc(doc(dbFor(OTHER_UID), `faq_helpful_votes/ans_1_${ANSWERER}`), {
+        answerId: 'ans_1',
+        userId: ANSWERER,
+        faqId: 'faq_1',
+        createdAt: new Date(),
+      }),
+    );
+    await assertFails(
+      setDoc(doc(dbFor(OTHER_UID), 'faq_helpful_votes/free_form_id'), {
+        answerId: 'ans_1',
+        userId: OTHER_UID,
+        faqId: 'faq_1',
+        createdAt: new Date(),
+      }),
+    );
+  });
+
+  test('回答は本人だけが消せる', async () => {
+    await seed();
+    await assertFails(deleteDoc(doc(dbFor(OTHER_UID), answerPath)));
+    await assertSucceeds(deleteDoc(doc(dbFor(ANSWERER), answerPath)));
+  });
+});

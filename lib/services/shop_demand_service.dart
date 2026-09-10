@@ -95,15 +95,24 @@ class ShopDemandService {
   /// Returns the total number of demand records for [shopId].
   ///
   /// Used during shop onboarding to display "N users tried to contact you".
-  Future<Result<int, AppError>> getDemandCountForShop(String shopId) async {
-    if (shopId.isEmpty) {
-      return const Result.failure(
-        AppError.validation('shopId must not be empty', field: 'shopId'),
-      );
-    }
+  ///
+  /// [shopOwnerId] must be the caller's own uid. `firestore.rules` only
+  /// allows reading a demand when `resource.data.shopOwnerId == request.auth.uid`,
+  /// and Firestore rejects a list query it cannot prove satisfies that rule.
+  /// A query filtered by `shopId` alone is therefore denied in production
+  /// (fake_cloud_firestore does not evaluate rules, so unit tests passed).
+  Future<Result<int, AppError>> getDemandCountForShop(
+    String shopId, {
+    required String shopOwnerId,
+  }) async {
+    final invalid = _validateShopQuery(shopId, shopOwnerId);
+    if (invalid != null) return Result.failure(invalid);
 
     try {
-      final snapshot = await _demands.where('shopId', isEqualTo: shopId).get();
+      final snapshot = await _demands
+          .where('shopId', isEqualTo: shopId)
+          .where('shopOwnerId', isEqualTo: shopOwnerId)
+          .get();
       return Result.success(snapshot.docs.length);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -113,17 +122,18 @@ class ShopDemandService {
   /// Returns demand records for [shopId], ordered by creation date descending.
   ///
   /// Intended for the shop owner's onboarding screen to list captured demands.
+  /// See [getDemandCountForShop] for why [shopOwnerId] is required.
   Future<Result<List<ShopInquiryDemand>, AppError>> getDemandsForShop(
-      String shopId) async {
-    if (shopId.isEmpty) {
-      return const Result.failure(
-        AppError.validation('shopId must not be empty', field: 'shopId'),
-      );
-    }
+    String shopId, {
+    required String shopOwnerId,
+  }) async {
+    final invalid = _validateShopQuery(shopId, shopOwnerId);
+    if (invalid != null) return Result.failure(invalid);
 
     try {
       final snapshot = await _demands
           .where('shopId', isEqualTo: shopId)
+          .where('shopOwnerId', isEqualTo: shopOwnerId)
           .orderBy('createdAt', descending: true)
           .get();
       final demands = snapshot.docs
@@ -133,5 +143,17 @@ class ShopDemandService {
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
     }
+  }
+
+  AppError? _validateShopQuery(String shopId, String shopOwnerId) {
+    if (shopId.isEmpty) {
+      return const AppError.validation('shopId must not be empty',
+          field: 'shopId');
+    }
+    if (shopOwnerId.isEmpty) {
+      return const AppError.validation('shopOwnerId must not be empty',
+          field: 'shopOwnerId');
+    }
+    return null;
   }
 }

@@ -49,7 +49,10 @@ class _MockShopDemandService extends ShopDemandService {
   _MockShopDemandService() : super();
 
   @override
-  Future<Result<int, AppError>> getDemandCountForShop(String shopId) async =>
+  Future<Result<int, AppError>> getDemandCountForShop(
+    String shopId, {
+    required String shopOwnerId,
+  }) async =>
       Result.success(_mockDemandCount);
 }
 
