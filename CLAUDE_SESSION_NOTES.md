@@ -21,6 +21,14 @@
 | #194 | 週次 PM レポートのテスト欄が毎週「1 件パス / ? 件失敗」。golden を除外しておらず、件数もスタックトレースの `+1` を拾っていた | CI と同じ `"emulator \|\| golden"` 除外、進捗行の最後の 1 行だけから読む |
 | — | Functions の Node.js 20 が 10/30 に廃止 | `engines.node` 22、`@types/node` 22。tsc / jest 66 件パス |
 | — | dependabot のネイティブ依存更新が Build iOS を素通り（9/3 に main を壊した形） | PR の diff に pubspec.lock / pubspec.yaml / ios/ が含まれれば `ios` ラベル無しでも build-ios を走らせる `ios-changes` ジョブ |
+| — | #190 の直しで `shop.ownerId` が null の店は需要カードが消えていた（全テストで 2 件失敗して判明） | この画面はオーナー本人の店しか出ないので、ログイン中の uid にフォールバック。uid が渡ることをテストで固定 |
+
+### 進めた開発（残っていたもの）
+
+- **パーツ推薦の「理由」と「注意点」**（`docs/FEATURE_SPEC.md` の方針: 1 位を決めない・理由は複数・広告は明示）。
+  `PartRecommendation` に `reasons` / `cautions` / `confidenceScore` を足し、Service で
+  適合度・レビュー数・pros/cons から組み立てる。掲載枠は理由に入れず注意点で「広告」と出す。
+  画面はカードと詳細シートで recommendation 側の文言を優先（無ければ従来の pros/cons）
 
 ### 起票して止めたもの（設計判断が要る）
 
@@ -32,7 +40,11 @@ Cloud Function 化・followers 投稿の可視性・spots の切り分け）。
 - Firestore / Storage ルールテスト: エミュレータで 168 件全パス（新規 20 件含む）
 - functions: jest 66 件・tsc クリーン（Node 22）
 - actionlint: 変更した ci.yml / test_apk.yml / screenshots.yml / pm_report.yml 指摘なし
-- Flutter 側（`flutter test` / `analyze --fatal-infos` / `dart format`）: 下に追記
+- Flutter 側（Flutter 3.44.2 をこのセッションに入れて CI と同じコマンドで実行）:
+  `flutter test --exclude-tags "emulator || golden"` 4,416 件パス（上の 2 件失敗を直して再実行）、
+  `flutter analyze --fatal-infos` No issues、`dart format --set-exit-if-changed lib test` 差分なし
+- 注意: この環境で `flutter pub get` を打つと pubspec.lock が 5 件ダウングレード（intl 0.20.3→0.20.2 など）した。
+  環境側の解決結果なので**コミットしていない**。手元で同じことが起きたら CLAUDE.md の「バージョンを揃える」を参照
 
 ---
 
