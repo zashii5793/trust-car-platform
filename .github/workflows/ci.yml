@@ -239,33 +239,9 @@ jobs:
       # jp.trustcar.app の Android アプリを Firebase に登録し直し、
       # その正しい値へ差し替えた（App ID: ...:android:145b8b79b1d9e7cf80c985）。
       - name: Place google-services.json
-        run: |
-          cat > android/app/google-services.json <<'EOF'
-          {
-            "project_info": {
-              "project_number": "31421119456",
-              "project_id": "trust-car-platform",
-              "storage_bucket": "trust-car-platform.firebasestorage.app"
-            },
-            "client": [{
-              "client_info": {
-                "mobilesdk_app_id": "1:31421119456:android:145b8b79b1d9e7cf80c985",
-                "android_client_info": { "package_name": "jp.trustcar.app" }
-              },
-              "oauth_client": [{
-                "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
-                "client_type": 3
-              }],
-              "api_key": [{ "current_key": "AIzaSyDwjPzpdQqXFl4be7oE3n-yzcl6hoLv_Uw" }],
-              "services": { "appinvite_service": { "other_platform_oauth_client": [{
-                "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
-                "client_type": 3
-              }] } }
-            }],
-            "configuration_version": "1"
-          }
-          EOF
-
+        # 値は android/ci/google-services.ci.json に1か所で持つ（3 本のワークフローで共用）。
+        # APK に埋め込まれて配られるものなので秘密ではない。
+        run: cp android/ci/google-services.ci.json android/app/google-services.json
       - name: Build APK (debug)
         run: |
           flutter build apk --debug 2>&1 | tee /tmp/apk_build.log
