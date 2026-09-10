@@ -72,7 +72,7 @@ Firebase Console → Authentication → Sign-in method → 「メール/パス�
    | `note` | 目印。例: `9/13 テスター配布1回目` |
    | `include_apk` | オン（Android にも配る） |
    | `testflight_url` | TestFlight の公開リンクがあれば（§4-7）。無ければ空 |
-   | `deploy_storage_rules` | 初回だけオン（§1-3）。以降はオフ |
+   | `deploy_storage_rules` | オフのまま。`storage.rules` を変えたときだけオン（§1-3） |
 
 3. 15〜20分待つ。終わったら実行ページの **Summary** に URL が並ぶ
 4. **自分のスマホで `download.html` を開き、Android なら APK を入れて起動、iPhone ならブラウザ版でログインまで**やる。
