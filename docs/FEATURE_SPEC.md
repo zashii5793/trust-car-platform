@@ -1,6 +1,6 @@
 # Trust Car Platform — 機能仕様書
 
-> **最終更新**: 2026-02-21
+> **最終更新**: 2026-09-10（実装状況の照合）／ 2026-02-21（ビジョン・設計原則）
 
 ---
 
@@ -132,160 +132,79 @@ Trust Car Platform は、**クルマを所有するすべての人が、安心�
 - LoggingService
 - CI/CD（GitHub Actions）
 
-#### 9. SNS・BtoB・AI 基盤（モデル・Service層のみ、UI未実装）
-- Post/Comment/Follow、Shop/Inquiry/PartListing、PartRecommendationService
+#### 9. 車両マスタ（表記ゆれ解消）
+- `VehicleMaker / VehicleModel / VehicleGrade`（`models/vehicle_master.dart`）、`VehicleMasterService`
+- `data/vehicle_masters.csv` → `scripts/import_vehicle_master.dart` で Firestore へ投入
+- 車両登録・編集画面はマスタから選択。コミュニティ整備データからの諸元サジェストも同画面に
+- 残り: カタログ外入力の候補記録 `vehicle_master_suggestions`（#172 / PR #176）
+
+#### 10. 愛車タイムライン
+- `vehicle_detail_screen.dart` の `_VehicleTimeline`。整備記録とドライブログを1本の時系列に統合（すべて／整備／ドライブのフィルタ）
+
+#### 11. ホーム画面「AIからの提案」
+- `home_screen.dart` の `_AiSuggestionSection`。提案が無ければセクション自体を出さない
+- 文言は「○○が必要です」ではなく「走行距離と履歴から候補」形式
+
+#### 12. BtoB マーケット（`screens/marketplace/`）
+- 工場・業者一覧／詳細／近隣マップ／比較、問い合わせ送信・スレッド、店舗側の問い合わせ管理・需要通知・月次レポート
+- 店舗登録・プラン（RevenueCat）・招待コード・事例管理
+- 「売り込まない」原則: 接触はユーザーの問い合わせから。掲載枠は「広告」と明示
+- C2C パーツ売買は凍結（下記）。パーツ・アクセサリーのシェア＋コメントで代替
+
+#### 13. AI パーツ提案（`screens/parts/part_recommendation_screen.dart`）
+- `PartRecommendation` は `reasons`（複数）・`cautions`・`confidenceScore`（0-100）を持ち、`isBest` の類は持たない
+- 適合度・レビュー数・pros/cons から理由と注意点を組み立てる。掲載枠は理由に入れず注意点で「広告」と出す
+
+#### 14. SNS（`screens/sns/`）
+- フィード、投稿作成（写真付き）、投稿詳細でコメント・返信・いいね、フォロー
+
+#### 15. ドライブログ（`screens/drive/`）
+- 走行記録（自動・手動）、詳細画面の地図表示、スポット・訪問・お気に入り
+
+#### 16. パーツ・アクセサリーのシェア＋コメント（C2C の代替）
+- **シェア**: `AccessoryShowcase`（使用実績の投稿）。**コメント**: `accessory_showcases/{id}/comments`（投稿者本人のみ作成/削除）
+- 画面: `screens/accessories/accessory_showcase_screen.dart`（トレンド一覧）／`showcase_detail_screen.dart`（詳細＋コメント）
+- スコープ外（意図的に最小化）: 売買・ペイアウト・在庫連携
+
+#### 17. その他
+- 法人・フリート（`screens/fleet/`）、給油記録、アクセサリーショーケース、年間振り返り、AI チャット（Functions 経由）、ニュースレター、安全情報、車両売却・退役
 
 ---
 
-### 🔲 未実装（優先度順）
+### 実装状況の照合（2026-09-10）
 
-#### P0: 車両マスタ（表記ゆれ解消）
+2026-02 時点で「未実装」としていた項目をコードで裏取りした結果。
 
-**問題**: メーカー/車種/グレードがテキスト自由入力 → 表記ゆれ発生
+| 当時の優先度 | 項目 | 状態 | 根拠 |
+|---|---|---|---|
+| P0 | 車両マスタ | ✅ 実装済み | §9。カタログ外入力の候補記録のみ残（#172） |
+| P0 | 愛車タイムライン UI | ✅ 実装済み | §10 |
+| P0 | ホーム「AIからの提案」 | ✅ 実装済み | §11 |
+| P1 | BtoB マーケット画面 | ✅ 実装済み | §12。Google Maps は API キー未設定のため本番はリスト表示 |
+| P1 | AI パーツ提案ロジック | ✅ 実装済み | §13（2026-09-10 に reasons / cautions を追加） |
+| P2 | SNS フィード | ✅ 実装済み | §14 |
+| P2 | 車両購入レコメンド | 🔲 未実装 | 購入相談の問い合わせ（`CarPurchaseInquiryService`）のみ。外部 API 連携は無し |
+| P3 | ドライブログ × 独自マップ UI | 🔶 一部 | 記録と地図表示はあり。独自スタイルのマップは未着手 |
 
-**設計方針（運用フロー）**:
-```
-新車発表
-  → CSV（vehicle_masters.csv）を更新
-  → scripts/import_vehicle_master.dart を実行
-  → Firestoreに投入
-  → アプリに即時反映
-```
+### 🔲 未実装・凍結
 
-**Firestoreコレクション設計**:
-```
-vehicle_makers/{makerId}
-  - name: "トヨタ"
-  - nameEn: "Toyota"
-  - displayOrder: 1
-
-vehicle_models/{modelId}
-  - makerId: "toyota"
-  - name: "プリウス"
-  - bodyType: "セダン"          # セダン/SUV/軽/ミニバン/スポーツ/トラック
-  - productionStartYear: 1997
-  - productionEndYear: null     # 現行モデルはnull
-
-vehicle_grades/{gradeId}
-  - modelId: "prius"
-  - name: "Z"
-  - fuelType: "hybrid"          # gasoline/hybrid/ev/diesel/phev
-  - driveType: "fwd"            # fwd/rwd/awd/4wd
-  - startYear: 2023
-  - endYear: null               # 現行グレードはnull
-```
-
-**実装ファイル**:
-```
-models/vehicle_master.dart           # VehicleMaker / VehicleModel / VehicleGrade
-services/vehicle_master_service.dart # Firestore CRUD（injection.dart登録済み）
-scripts/import_vehicle_master.dart   # CSV→Firestore投入スクリプト（新規作成）
-data/vehicle_masters.csv            # 初期マスタデータ（新規作成）
-screens/ 車両登録・編集画面          # ドロップダウン選択式に改修
-```
-
----
-
-#### P0: 「愛車タイムライン」UI
-**企画書で明示されているUI**。現在は「整備記録一覧（日付降順リスト）」止まり。
-
-整備記録を時系列タイムライン形式で表示し、「この車と歩んだ歴史」を視覚的に体験できるUI。
-
----
-
-#### P0: ホーム画面「AIからの提案」セクション
-**企画書のモックアップに明示**。
-
-```
-ホーム画面の構成:
-  ├── マイカー情報カード（車検残日数、走行距離）
-  ├── 【AIからの提案】セクション  ← 未実装
-  │    ├── メンテナンス提案（理由付きで複数提示）
-  │    └── （将来）天気連動ドライブスポット提案
-  └── 最近の整備記録
-```
-
-**設計思想に従い**: 「○○が必要です！」ではなく「○○km走りました。以下の整備が候補です（理由）」という表示。
-
----
-
-#### P1: BtoBマーケット画面
-**収益モデルの根幹**。モデル・Service層は実装済み。
-
-**収益モデル（企画書より）**:
-- **加盟料**: 整備工場・販売店からのプラットフォーム利用料
-- **広告・送客費**: カスタムパーツメーカーからの広告掲載料、ユーザー送客に応じた成果報酬
-
-**UI設計原則（「売り込まない」原則）**:
-- ユーザーが「この工場に興味あり」をタップして初めて接触
-- 業者からのプッシュ型アプローチは不可
-- 広告枠は「広告」と明示する
-
-```
-screens/marketplace/
-  shop_list_screen.dart     # 工場・業者一覧（フィルタ・ソート自由）
-  shop_detail_screen.dart   # 詳細・問い合わせ（ユーザー主導）
-  part_list_screen.dart     # パーツ一覧（車種フィルタ付き）
-  inquiry_screen.dart       # 問い合わせ送信
-```
-
-**C2Cパーツ売買（手数料8%）は凍結（2026-06-18 決定）**:
+#### C2C パーツ売買（手数料8%）は凍結（2026-06-18 決定）
 - メルカリ/ヤフオク/モノタロウ等の既存サービスと競合し、低単価パーツ×8%では運用コスト割れ。返品・送金・トラブル対応の運用負荷も重く、在庫連携も未実装のため**凍結**。
 - `FeatureFlag.c2cPartsMarketplace`（デフォルト無効）で「パーツ」「マイ出品」導線を非表示。出品/ペイアウト計算/問い合わせのコード・テスト・Firestoreルールは残置し、フラグ1つで復活可能。
 - 工場・業者（BtoB）／問い合わせの導線は対象外（残置）。
 
----
-
-#### ✅ パーツ・アクセサリーのシェア＋コメント（実装済み・C2Cの代替）
-
-C2C売買の代わりに「良かったパーツ／アクセサリーをシェアし合い、コメントで語り合う」軽量機能を提供する。
-
-- **シェア**: 既存の `AccessoryShowcase`（使用実績の投稿）を活用
-- **コメント**: `accessory_showcases/{id}/comments` サブコレクション。投稿者本人のみ作成/削除（更新不可）
-- **画面**: `ShowcaseDetailScreen`（投稿詳細＋コメントスレッド）。トレンドカードのタップから遷移
-- **スコープ外**（意図的に最小化）: 売買・ペイアウト・いいね・通知・在庫連携
-
-```
-screens/accessories/
-  accessory_showcase_screen.dart  # トレンド一覧（カテゴリ別）
-  showcase_detail_screen.dart     # 投稿詳細＋コメント
-```
-
----
-
-#### P1: AIパーツ提案ロジック実装
-
-**設計思想に従い**:
-- 車種×走行距離×整備履歴からパーツ候補を複数スコアリング
-- 各候補に「推奨理由」「注意点」を必ずセットで表示
-- 「ベスト1」を押し付けない。ユーザーが比較して選ぶ形式
-
-```dart
-// PartRecommendation モデルのあるべき姿
-class PartRecommendation {
-  final String partName;
-  final List<String> reasons;    // 推奨理由（複数）
-  final List<String> cautions;   // 注意点・デメリット
-  final int confidenceScore;     // 信頼度（0-100）
-  // ❌ "isBest" や "isRecommended" フラグは持たない
-}
-```
-
----
-
-#### P2: SNSフィード画面
-- 投稿一覧（フィード）、投稿作成（写真付き）、コメント・いいね
-- 同じ車種オーナーとのつながり
-
-#### P2: 車両購入レコメンド
+#### 車両購入レコメンド（P2）
 - 予算・条件・ライフスタイルから中古車を提案（外部API連携）
 
-#### P3: ドライブログ × マップUI
-- 走行ルート記録・訪問スポット・ドライブ履歴タイムライン
+#### ドライブログの独自マップ UI（P3）
 - **マップUI方針**: Google Maps標準ではなく、企画書に描かれた独自スタイルのビジュアルマップを目指す
   - 理由: Google Maps標準だと「それでいい」で終わりがち。アプリの世界観・個性が死ぬ
   - 実装検討: flutter_map + カスタムスタイルタイル or Canvas描画によるオリジナルマップ
   - ※ 実装コストが高いため P3 で詳細設計する
+
+#### リリース前の運用基盤（コードではなく登録・設定）
+- Cloud Functions の本番デプロイ、Google Maps API キー、RevenueCat 本番キー、App Check、iOS の APNs / Sign in with Apple
+- 一覧は #117、テスター配布の手順は `docs/TESTUSER_ROLLOUT_2026-09.md`
 
 #### 将来展望（企画書記載）
 - OBD-II連携（リアルタイム車両診断）
@@ -323,7 +242,10 @@ Provider（コンストラクタ注入） ← Service（Result<T,AppError>）
 - 走行距離整合性: 編集時に減少禁止
 - ナンバープレート: 重複禁止
 
-### テストカバレッジ（2026-02-21時点）
+### テストカバレッジ
+
+2026-09-10 時点: `flutter test --exclude-tags "emulator || golden"` 4,416 件、Firestore/Storage ルールテスト 168 件、functions 66 件。
+以下は 2026-02-21 時点の内訳（層ごとの実数は `docs/ARCHITECTURE.md`）。
 
 | 層 | 件数 | 状態 |
 |---|---|---|
@@ -352,7 +274,7 @@ Provider（コンストラクタ注入） ← Service（Result<T,AppError>）
 | フェーズ | 時期 | 内容 |
 |---------|------|------|
 | Phase 1〜5 ✅ | 〜2026/02 | コア機能・アーキテクチャ・品質基盤 |
-| **Phase 6 ← 今ここ** | **2026/Q1** | **車両マスタ(P0)・愛車タイムライン・ホームAI提案セクション** |
-| Phase 7 | 2026/Q2 | BtoBマーケット画面・AIパーツ提案ロジック・SNSフィード |
-| Phase 8 | 2026/Q3 | プレミアムプラン決済・整備工場パートナー開拓 |
+| Phase 6 ✅ | 2026/Q1 | 車両マスタ・愛車タイムライン・ホームAI提案セクション |
+| Phase 7 ✅ | 2026/Q2 | BtoBマーケット画面・AIパーツ提案ロジック・SNSフィード（C2C 売買は凍結） |
+| **Phase 8 ← 今ここ** | **2026/Q3** | **テスター配布・本番の登録作業（#117）・整備工場パートナー開拓** |
 | Phase 9+ | 2027〜 | BtoBマーケット本格展開・OBD-II連携・海外展開検討 |

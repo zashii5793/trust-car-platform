@@ -577,13 +577,39 @@
     // =========================================================
     // shop_inquiry_demands (Issue #41 Phase 2)
     // =========================================================
-    // getDemandsForShop: shopId フィルタ + createdAt 降順
+    // getDemandsForShop: shopId + shopOwnerId フィルタ + createdAt 降順。
+    // ルールが resource.data.shopOwnerId == request.auth.uid を要求するため、
+    // クエリにも shopOwnerId 条件が要る（2026-09-10。無いと本番で弾かれる）。
+    {
+      "collectionGroup": "shop_inquiry_demands",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "shopOwnerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // 旧形（shopId のみ）。クライアントは使わなくなったが、配布済みの APK が
+    // 参照しうる間は残す。
     {
       "collectionGroup": "shop_inquiry_demands",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "shopId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+
+    // =========================================================
+    // faq_answers（Issue #191）
+    // =========================================================
+    // FaqService.getAnswers: faqId フィルタ + createdAt 昇順
+    {
+      "collectionGroup": "faq_answers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "faqId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
     }
 

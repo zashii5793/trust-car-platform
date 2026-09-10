@@ -36,7 +36,10 @@ class _StubShopDemandService extends ShopDemandService {
   _StubShopDemandService() : super();
 
   @override
-  Future<Result<int, AppError>> getDemandCountForShop(String shopId) async =>
+  Future<Result<int, AppError>> getDemandCountForShop(
+    String shopId, {
+    required String shopOwnerId,
+  }) async =>
       const Result.success(0);
 }
 

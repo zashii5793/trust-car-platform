@@ -239,33 +239,9 @@ jobs:
       # jp.trustcar.app の Android アプリを Firebase に登録し直し、
       # その正しい値へ差し替えた（App ID: ...:android:145b8b79b1d9e7cf80c985）。
       - name: Place google-services.json
-        run: |
-          cat > android/app/google-services.json <<'EOF'
-          {
-            "project_info": {
-              "project_number": "31421119456",
-              "project_id": "trust-car-platform",
-              "storage_bucket": "trust-car-platform.firebasestorage.app"
-            },
-            "client": [{
-              "client_info": {
-                "mobilesdk_app_id": "1:31421119456:android:145b8b79b1d9e7cf80c985",
-                "android_client_info": { "package_name": "jp.trustcar.app" }
-              },
-              "oauth_client": [{
-                "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
-                "client_type": 3
-              }],
-              "api_key": [{ "current_key": "AIzaSyDwjPzpdQqXFl4be7oE3n-yzcl6hoLv_Uw" }],
-              "services": { "appinvite_service": { "other_platform_oauth_client": [{
-                "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
-                "client_type": 3
-              }] } }
-            }],
-            "configuration_version": "1"
-          }
-          EOF
-
+        # 値は android/ci/google-services.ci.json に1か所で持つ（3 本のワークフローで共用）。
+        # APK に埋め込まれて配られるものなので秘密ではない。
+        run: cp android/ci/google-services.ci.json android/app/google-services.json
       - name: Build APK (debug)
         run: |
           flutter build apk --debug 2>&1 | tee /tmp/apk_build.log
@@ -294,19 +270,60 @@ jobs:
           retention-days: 3
           if-no-files-found: warn
 
+  # PR が iOS のネイティブ側に触れているかを見る。build-ios の条件に使う。
+  #
+  # 2026-09-03 に dependabot の google_mlkit_text_recognition 0.14 → 0.17 を
+  # 「CI 全 green」と見てマージしたら main の Build iOS が落ちた。dependabot の
+  # PR には `ios` ラベルが付かないので build-ios は skipped のまま「全 green」に
+  # 見える。ネイティブ依存は pubspec.lock の変更として必ず現れるので、
+  # pubspec.lock か ios/ が変わった PR はラベル無しでも iOS を組む。
+  ios-changes:
+    name: Detect iOS-affecting changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      touched: ${{ steps.diff.outputs.touched }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Compare against base
+        id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          CHANGED="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- pubspec.lock pubspec.yaml 'ios/**' || true)"
+          if [ -n "$CHANGED" ]; then
+            echo "touched=true" >> "$GITHUB_OUTPUT"
+            echo "iOS に影響しうる変更:"; echo "$CHANGED"
+          else
+            echo "touched=false" >> "$GITHUB_OUTPUT"
+            echo "pubspec.lock / pubspec.yaml / ios/ に変更なし"
+          fi
+
   build-ios:
     name: Build iOS
     runs-on: macos-15
-    needs: analyze-and-test
+    needs: [analyze-and-test, ios-changes]
     # macOS ランナーは分数が 10 倍で課金される。実測で 1 回あたり 57〜205 課金分
     # かかっており、private リポジトリ（Free = 月2,000分）なら iOS ビルド
     # 10〜15 回で月の枠を使い切る。
     # そのため PR では既定で走らせず、main への push / 手動実行 /
-    # `ios` ラベル付きの PR に限定する。
-    # iOS 固有の破壊を PR 段階で見たいときは PR に `ios` ラベルを付ける。
+    # `ios` ラベル付きの PR / ネイティブ依存（pubspec.lock・ios/）に触れた PR
+    # に限定する。iOS 固有の破壊を PR 段階で見たいときは PR に `ios` ラベルを付ける。
+    #
+    # ios-changes は push / workflow_dispatch では skipped になる。needs に
+    # skipped が混ざると既定ではこのジョブも skipped になるので、always() で
+    # 評価を強制し、analyze-and-test の成功は明示的に見る。
     if: >-
-      github.event_name != 'pull_request' ||
-      contains(github.event.pull_request.labels.*.name, 'ios')
+      always() &&
+      needs.analyze-and-test.result == 'success' &&
+      (github.event_name != 'pull_request' ||
+       contains(github.event.pull_request.labels.*.name, 'ios') ||
+       needs.ios-changes.outputs.touched == 'true')
 
     steps:
       - name: Checkout repository
@@ -322,43 +339,13 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      # 値は ios/ci/GoogleService-Info.ci.plist に1か所で持つ（testflight.yml と共用）。
       - name: Place GoogleService-Info.plist
         run: |
           if [ -n "${{ secrets.GOOGLE_SERVICES_PLIST }}" ]; then
             echo '${{ secrets.GOOGLE_SERVICES_PLIST }}' > ios/Runner/GoogleService-Info.plist
           else
-            cat > ios/Runner/GoogleService-Info.plist <<'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>API_KEY</key>
-            <string>AIzaSyBt0hMKqo9viDFCXvNcDpNWcQ34seKfPEg</string>
-            <key>GCM_SENDER_ID</key>
-            <string>31421119456</string>
-            <key>PLIST_VERSION</key>
-            <string>1</string>
-            <key>BUNDLE_ID</key>
-            <string>jp.trustcar.app</string>
-            <key>PROJECT_ID</key>
-            <string>trust-car-platform</string>
-            <key>STORAGE_BUCKET</key>
-            <string>trust-car-platform.firebasestorage.app</string>
-            <key>IS_ADS_ENABLED</key>
-            <false/>
-            <key>IS_ANALYTICS_ENABLED</key>
-            <false/>
-            <key>IS_APPINVITE_ENABLED</key>
-            <true/>
-            <key>IS_GCM_ENABLED</key>
-            <true/>
-            <key>IS_SIGNIN_ENABLED</key>
-            <true/>
-            <key>GOOGLE_APP_ID</key>
-            <string>1:31421119456:ios:5646ac324f34398880c985</string>
-          </dict>
-          </plist>
-          EOF
+            cp ios/ci/GoogleService-Info.ci.plist ios/Runner/GoogleService-Info.plist
           fi
 
       - name: Install CocoaPods dependencies

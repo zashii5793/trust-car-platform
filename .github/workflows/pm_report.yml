@@ -70,12 +70,19 @@ jobs:
         id: tests
         run: |
           set +e
-          flutter test --exclude-tags emulator > test_output.txt 2>&1
+          # CI（ci.yml）と同じ除外にする。golden は画像が撮った環境（OS・フォント）に
+          # 依存し Linux では一致しないため CI から外してある。ここだけ含めていた
+          # 結果、2026-08〜09 の週次レポートは毎週「1 件パス / ? 件失敗」と赤く
+          # 出ていた（実際の単体テストは 4,000 件超が全パス）。
+          flutter test --exclude-tags "emulator || golden" > test_output.txt 2>&1
           TEST_EXIT=$?
           cat test_output.txt
-          # Last "+N: " counter = passed, last " -N:" counter = failed.
-          PASS=$(grep -oE '\+[0-9]+' test_output.txt | tail -1 | tr -cd '0-9')
-          FAIL=$(grep -oE ' -[0-9]+:' test_output.txt | tail -1 | tr -cd '0-9')
+          # flutter test の進捗行は「MM:SS +passed ~skipped -failed: メッセージ」。
+          # 最後の進捗行だけを読む。output 全体から "+N" を拾うと、失敗時の
+          # スタックトレースに混ざる "+1" を件数と誤認する。
+          SUMMARY=$(grep -E '^[0-9]+:[0-9]+ \+[0-9]+' test_output.txt | tail -1)
+          PASS=$(printf '%s' "$SUMMARY" | grep -oE '\+[0-9]+' | head -1 | tr -cd '0-9')
+          FAIL=$(printf '%s' "$SUMMARY" | grep -oE ' -[0-9]+' | head -1 | tr -cd '0-9')
           PASS="${PASS:-0}"
           FAIL="${FAIL:-0}"
           # A non-zero exit with no parsed failure count means the suite never

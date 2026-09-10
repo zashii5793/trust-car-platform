@@ -101,5 +101,7 @@ decommissioned on 2026-10-30
 functions: package.json indicates an outdated version of firebase-functions
 ```
 
-**2026-10-30 以降は Node.js 20 でデプロイできなくなります。** ランタイムの
-更新は別途必要です（AI 側で対応可能）。
+**2026-10-30 以降は Node.js 20 でデプロイできなくなります。**
+2026-09-10 に `functions/package.json` の `engines.node` を `22` に上げた
+（`@types/node` も 22 系）。`tsc` と `jest`（66 件）は Node 22 で通っている。
+次のデプロイからは Node.js 22 ランタイムで作られる。

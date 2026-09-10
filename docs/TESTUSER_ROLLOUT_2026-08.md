@@ -1,5 +1,9 @@
 # テストユーザー配布（2026年8月最終週）— 人間側の作業一覧と手順
 
+> **2026-09-09**: 9月の配布（iPhone を含む）は `docs/TESTUSER_ROLLOUT_2026-09.md` を見てください。
+> この文書で「手元 Mac でスクリプト実行」としていた公開作業は GitHub Actions（Test Distribution）に、
+> 「間に合わない」としていた iOS は TestFlight ワークフローに置き換わっています。
+
 **目的**: 来週、テストユーザーに TrustCar を実際に触ってもらう。
 **対象読者**: 人間（Firebase Console / GitHub Settings / Apple・Google の各コンソールなど、AI から操作できない領域の担当）。
 **データ環境**: 本番 Firebase プロジェクト `trust-car-platform` をそのまま使う（決定済み）。

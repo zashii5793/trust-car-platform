@@ -25,7 +25,26 @@
 スマホのブラウザでも動きます。ホーム画面に追加すると、アプリのように開けます。
 
 > ブラウザ版では、**カメラで車検証を読み取る機能とプッシュ通知は使えません**。
-> この2つを試していただく場合は、下のAndroid版をお使いください。
+> この2つを試していただく場合は、下のAndroid版（または iPhone の TestFlight 版）をお使いください。
+
+#### iPhone でアプリのように使う場合（ホーム画面に追加）
+
+1. 上のURLを **Safari** で開きます
+   （LINE などから開いた場合は、右下の「Safari で開く」を押してください）
+2. 画面下の **共有ボタン**（□ から矢印が出ているマーク）を押します
+3. 下にスクロールして **「ホーム画面に追加」** → 右上の **「追加」** を押します
+4. ホーム画面の「TrustCar」から起動してください
+
+> iPhone では、ログインは **メールアドレスとパスワード** をお使いください。
+
+#### iPhone にアプリをインストールする場合（TestFlight・ご案内があった方のみ）
+
+1. お送りしたリンク（`https://testflight.apple.com/join/...`）を開きます
+2. 「TestFlight」アプリが無い場合は、案内に従って App Store から入れます（無料です）
+3. TestFlight で「テストを開始」→「インストール」を押します
+4. ホーム画面の「TrustCar」から起動してください
+
+> TestFlight 版は 90 日で期限が切れます。テストが終わったら通常のアプリと同じ手順で削除できます。
 
 > 開いた直後は、青い画面に「TrustCar 読み込んでいます…」と出ます。
 > 文字とアプリを読み込んでいる間なので、そのままお待ちください。
@@ -33,7 +52,8 @@
 
 #### Android スマホにインストールして使う場合（全機能が使えます）
 
-1. お送りしたリンクから `TrustCar-....apk` というファイルをダウンロードします
+1. お送りしたページ（`https://trust-car-platform.web.app/download.html`）を開き、
+   「アプリをダウンロード」を押します（`TrustCar-....apk` というファイルが落ちてきます）
 2. ダウンロードしたファイルをタップします
 3. **「提供元不明のアプリ」または「この提供元のアプリを許可」** という確認が出ます。
    表示された画面で許可をオンにしてください
@@ -96,7 +116,8 @@
 
 ### 配布前のチェック
 
-- [ ] `./scripts/deploy_web.sh` で Firebase Hosting へ公開済み（`trust-car-platform.web.app` は承認済みドメインに最初から入っています）
+- [ ] GitHub → Actions → **Test Distribution** を回して Firebase Hosting へ公開済み（`trust-car-platform.web.app` は承認済みドメインに最初から入っています）
+- [ ] Secret `FIREBASE_SERVICE_ACCOUNT` を登録済み（1回だけ。無いと上のワークフローが止まる）
 - [ ] Firestore ルール・インデックスを本番へデプロイ済み（**未デプロイだとフィードバックが送信できません**）
 - [ ] 本番の `shops` から `demo_*` の架空店舗を削除または差し替え済み
 - [ ] 本番の Authentication に `persona.*@example.com` が残っていないことを確認済み
@@ -105,15 +126,21 @@
 - [ ] 公開URLでログイン〜愛車登録〜整備記録まで自分で1周した
 - [ ] Android版を配る場合、自分の実機で車検証OCRを1回試した
 
-詳細な手順は `docs/TESTUSER_ROLLOUT_2026-08.md` を参照。
+詳細な手順は `docs/TESTUSER_ROLLOUT_2026-09.md`（iPhone 含む）を参照。8月の経緯は `docs/TESTUSER_ROLLOUT_2026-08.md`。
 
-### APK の作りかた
+### 配布物の作りかた（Web + APK をまとめて公開）
 
 開発機に Android SDK が入っていないため、GitHub Actions で作ります。
 
-1. GitHub → Actions → **Test APK** → `Run workflow`
-2. 完了後、実行ページ下部の **Artifacts** から `trustcar-test-apk` をダウンロード
-3. zip を展開して出てくる `.apk` を配布（保持期間は14日）
+1. GitHub → Actions → **Test Distribution** → `Run workflow`
+2. 15〜20分後、実行ページの Summary に URL が出る
+3. テスターには `https://trust-car-platform.web.app/download.html` を渡す
+   （ページが端末を見て、Android には APK、iPhone にはブラウザ版 / TestFlight を出す）
+
+APK だけ欲しいときは **Test APK** → `Run workflow` → Artifacts の `trustcar-test-apk`（保持期間14日）。
+
+iPhone のアプリ版は **TestFlight** ワークフロー。Apple Developer Program と App Store Connect API キーが要る
+（`docs/TESTUSER_ROLLOUT_2026-09.md` §4）。
 
 署名用の Secret（`ANDROID_KEYSTORE_BASE64` ほか）が未設定の間は **profile ビルド**になります。
 release と同じ AOT コンパイルなので体感速度はほぼ同じで、debug 鍵で署名されるため直接インストールできます。

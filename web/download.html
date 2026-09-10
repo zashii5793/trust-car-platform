@@ -124,13 +124,47 @@
       </div>
     </section>
 
+    <!-- TestFlight の公開リンクがあるときだけ、公開側（CI）が hidden を外す。
+         リンクが無いのに欄を出すと、iPhone の人がここで止まる。 -->
+    <section class="card" id="testflight-card" hidden>
+      <h2>iPhone の方（アプリ版）</h2>
+      <p class="lead">Apple の TestFlight を通してアプリを入れます。車検証のカメラ読み取りまで試せます。</p>
+      <a class="btn" id="testflight-link" href="__TESTFLIGHT_URL__">TestFlight でアプリを入れる</a>
+
+      <h2 style="margin-top:22px">入れかた</h2>
+      <ol>
+        <li>上のボタンを押します。<span class="quote">TestFlight</span> というアプリが無ければ、
+            先に App Store から入れるよう案内が出ます（無料です）。</li>
+        <li>TestFlight を開き、<span class="quote">テストを開始</span>（または
+            <span class="quote">承諾</span>）を押します。</li>
+        <li><span class="quote">インストール</span> を押すと、ホーム画面に TrustCar が入ります。</li>
+      </ol>
+      <div class="note">
+        TestFlight 経由のアプリは 90 日で期限が切れます。テストが終わったら、
+        通常のアプリと同じ手順で削除できます。
+      </div>
+    </section>
+
     <section class="card" id="web-card">
-      <h2>iPhone・パソコンの方</h2>
+      <h2>iPhone・パソコンの方（ブラウザ版）</h2>
       <p class="lead">
         インストールは不要です。ブラウザでそのまま使えます。
         ただし<strong>車検証のカメラ読み取りと通知は、ブラウザ版では動きません</strong>。
       </p>
       <a class="btn secondary" href="/">ブラウザ版をひらく</a>
+
+      <h2 style="margin-top:22px">iPhone でアプリのように使う</h2>
+      <p class="lead">Safari で開いてから、ホーム画面に置くと全画面で使えます。</p>
+      <ol>
+        <li>上のボタンで開きます。<strong>Safari</strong> で開いてください
+            （LINE などのアプリ内ブラウザで開いた場合は、右下の
+            <span class="quote">Safari で開く</span> を押します）。</li>
+        <li>画面下（iPad は画面上）の <span class="quote">共有</span> ボタン
+            （□ から矢印が出ているマーク）を押します。</li>
+        <li>下にスクロールして <span class="quote">ホーム画面に追加</span> を押し、
+            右上の <span class="quote">追加</span> を押します。</li>
+        <li>ホーム画面の <span class="quote">TrustCar</span> から起動します。</li>
+      </ol>
       <div class="note">
         開いた直後の数秒間、日本語が □□□ のように表示されることがあります。
         文字の読み込み中なので、そのままお待ちください。
@@ -161,10 +195,12 @@
       var isIOS = /iPhone|iPad|iPod/i.test(ua);
       if (isAndroid) {
         document.getElementById('web-card').hidden = true;
+        document.getElementById('testflight-card').hidden = true;
       } else if (isIOS) {
         document.getElementById('android-card').hidden = true;
       }
-      // デスクトップは両方出したままにする。配る側が中身を確認するため。
+      // TestFlight の欄は公開側が hidden を外したときだけ出る（iOS・デスクトップ）。
+      // デスクトップは全部出したままにする。配る側が中身を確認するため。
     })();
   </script>
 </body>

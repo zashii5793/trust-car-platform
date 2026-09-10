@@ -66,5 +66,10 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- 通信は HTTPS のみで独自の暗号化を持たない（輸出コンプライアンス免除）。
+	     これが無いと TestFlight がビルドごとに「輸出コンプライアンス情報」を
+	     人間に聞いてきて、テスターへ配れるまでが1手遅れる。 -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

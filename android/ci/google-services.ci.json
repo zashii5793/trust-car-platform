@@ -1,0 +1,23 @@
+{
+  "project_info": {
+    "project_number": "31421119456",
+    "project_id": "trust-car-platform",
+    "storage_bucket": "trust-car-platform.firebasestorage.app"
+  },
+  "client": [{
+    "client_info": {
+      "mobilesdk_app_id": "1:31421119456:android:145b8b79b1d9e7cf80c985",
+      "android_client_info": { "package_name": "jp.trustcar.app" }
+    },
+    "oauth_client": [{
+      "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
+      "client_type": 3
+    }],
+    "api_key": [{ "current_key": "AIzaSyDwjPzpdQqXFl4be7oE3n-yzcl6hoLv_Uw" }],
+    "services": { "appinvite_service": { "other_platform_oauth_client": [{
+      "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
+      "client_type": 3
+    }] } }
+  }],
+  "configuration_version": "1"
+}

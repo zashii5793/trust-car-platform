@@ -374,7 +374,14 @@ class _RegisteredBody extends StatelessWidget {
           // Non-partner demand notification (pull hook toward upgrade)
           if (!shop.isPartner) ...[
             AppSpacing.verticalMd,
-            _DemandNotificationCard(shopId: shop.id),
+            _DemandNotificationCard(
+              shopId: shop.id,
+              // The rules require shopOwnerId in the query. Fall back to the
+              // signed-in uid: this screen is always the owner's own shop.
+              shopOwnerId: shop.ownerId ??
+                  context.read<AuthProvider>().firebaseUser?.uid ??
+                  '',
+            ),
           ],
           // Free plan upgrade banner
           if (isFree) ...[
@@ -832,7 +839,14 @@ class _InquiryCountBadge extends StatelessWidget {
 class _DemandNotificationCard extends StatefulWidget {
   final String shopId;
 
-  const _DemandNotificationCard({required this.shopId});
+  /// The signed-in owner's uid. Required by the Firestore rules for
+  /// shop_inquiry_demands; without it the list query is denied in production.
+  final String shopOwnerId;
+
+  const _DemandNotificationCard({
+    required this.shopId,
+    required this.shopOwnerId,
+  });
 
   @override
   State<_DemandNotificationCard> createState() =>
@@ -850,8 +864,15 @@ class _DemandNotificationCardState extends State<_DemandNotificationCard> {
   }
 
   Future<void> _fetchCount() async {
-    final result =
-        await sl.get<ShopDemandService>().getDemandCountForShop(widget.shopId);
+    if (widget.shopOwnerId.isEmpty) {
+      // No owner uid → the rules-compliant query cannot be formed. Stay hidden.
+      if (mounted) setState(() => _loaded = true);
+      return;
+    }
+    final result = await sl.get<ShopDemandService>().getDemandCountForShop(
+          widget.shopId,
+          shopOwnerId: widget.shopOwnerId,
+        );
     if (!mounted) return;
     setState(() {
       _count = result.getOrElse(0);

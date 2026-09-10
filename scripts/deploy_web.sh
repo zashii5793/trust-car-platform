@@ -34,7 +34,17 @@ RESTORE_INDEX=0
 if [ -n "$MAPS_KEY" ]; then
   cp web/index.html web/index.html.bak
   RESTORE_INDEX=1
-  sed -i '' "s|__GOOGLE_MAPS_API_KEY__|$MAPS_KEY|g" web/index.html
+  # sed -i は macOS（BSD）と Linux（GNU）で書式が違う。
+  if sed --version >/dev/null 2>&1; then
+    sed -i "s|__GOOGLE_MAPS_API_KEY__|$MAPS_KEY|g" web/index.html
+  else
+    # sed -i は macOS（BSD）と Linux（GNU）で書式が違う。
+  if sed --version >/dev/null 2>&1; then
+    sed -i "s|__GOOGLE_MAPS_API_KEY__|$MAPS_KEY|g" web/index.html
+  else
+    sed -i '' "s|__GOOGLE_MAPS_API_KEY__|$MAPS_KEY|g" web/index.html
+  fi
+  fi
   echo "Google Maps のキーを埋め込みました"
 else
   echo "GOOGLE_MAPS_API_KEY_WEB が未設定です。地図は距離順リストにフォールバックします。"

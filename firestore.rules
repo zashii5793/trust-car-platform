@@ -916,6 +916,85 @@ service cloud.firestore {
         && resource.data.userId == request.auth.uid;
     }
 
+    // =========================================================
+    // FAQ（質問と回答・役に立った投票）
+    //
+    // FaqService（lib/services/faq_service.dart）が読み書きする 3 つ。
+    // 2026-09-10 まで match ブロックが無く、既定拒否で全部弾かれていた
+    // （画面はまだ無いため露見しなかった。Issue #191）。
+    // =========================================================
+    match /faqs/{faqId} {
+      allow read: if isAuthenticated();
+
+      // 本人名義で、カウンタは 0 から
+      allow create: if isAuthenticated()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.question is string
+        && request.resource.data.question.size() > 0
+        && request.resource.data.viewCount == 0
+        && request.resource.data.answerCount == 0;
+
+      // 1) 本人は本文を編集できる（authorId とカウンタは触れない）
+      // 2) 誰でもカウンタだけは +1 できる（閲覧数・回答数。FieldValue.increment）
+      allow update: if isAuthenticated() && (
+        (resource.data.authorId == request.auth.uid
+          && request.resource.data.authorId == resource.data.authorId
+          && !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['viewCount', 'answerCount']))
+        || (request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['viewCount', 'answerCount'])
+            && request.resource.data.viewCount >= resource.data.viewCount
+            && request.resource.data.viewCount <= resource.data.viewCount + 1
+            && request.resource.data.answerCount >= resource.data.answerCount
+            && request.resource.data.answerCount <= resource.data.answerCount + 1)
+      );
+
+      allow delete: if isAuthenticated()
+        && resource.data.authorId == request.auth.uid;
+    }
+
+    match /faq_answers/{answerId} {
+      allow read: if isAuthenticated();
+
+      // 本人名義。ベストアンサーと「役に立った」は 0 / false から
+      allow create: if isAuthenticated()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.faqId is string
+        && request.resource.data.faqId.size() > 0
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0
+        && request.resource.data.isBestAnswer == false
+        && request.resource.data.helpfulCount == 0;
+
+      // 1) 質問の作者だけがベストアンサーを選べる（isBestAnswer のみ変更）
+      // 2) 「役に立った」は誰でも +1 だけ。二重投票は faq_helpful_votes の
+      //    マーカーとトランザクションで防ぐ（markHelpful）
+      allow update: if isAuthenticated() && (
+        (request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['isBestAnswer'])
+          && get(/databases/$(database)/documents/faqs/$(resource.data.faqId))
+              .data.authorId == request.auth.uid)
+        || (request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['helpfulCount'])
+            && request.resource.data.helpfulCount
+                == resource.data.helpfulCount + 1)
+      );
+
+      allow delete: if isAuthenticated()
+        && resource.data.authorId == request.auth.uid;
+    }
+
+    // 投票マーカー。ID は `<answerId>_<uid>` で、1 人 1 回を構造で保証する
+    match /faq_helpful_votes/{voteId} {
+      allow read: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.answerId is string
+        && voteId == request.resource.data.answerId + '_' + request.auth.uid;
+      allow update, delete: if false;
+    }
+
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;
