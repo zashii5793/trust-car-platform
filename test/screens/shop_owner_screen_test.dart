@@ -44,6 +44,7 @@ import 'package:trust_car_platform/core/di/injection.dart';
 // ---------------------------------------------------------------------------
 
 int _mockDemandCount = 0;
+String? _lastDemandQueryOwnerId;
 
 class _MockShopDemandService extends ShopDemandService {
   _MockShopDemandService() : super();
@@ -52,8 +53,10 @@ class _MockShopDemandService extends ShopDemandService {
   Future<Result<int, AppError>> getDemandCountForShop(
     String shopId, {
     required String shopOwnerId,
-  }) async =>
-      Result.success(_mockDemandCount);
+  }) async {
+    _lastDemandQueryOwnerId = shopOwnerId;
+    return Result.success(_mockDemandCount);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -589,6 +592,20 @@ void main() {
 
       expect(find.byKey(const Key('demand_notification_card')), findsOneWidget);
       expect(find.text('お問い合わせ希望が 5 件あります'), findsOneWidget);
+    });
+
+    testWidgets(
+        'queries with the signed-in uid when shop.ownerId is missing '
+        '(rules require shopOwnerId)', (tester) async {
+      _mockDemandCount = 1;
+      _lastDemandQueryOwnerId = null;
+      final provider = _FakeShopProvider(
+        shop: _makeShop(subscriptionStatus: ShopSubscriptionStatus.free),
+      );
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(_lastDemandQueryOwnerId, 'owner-uid');
     });
 
     testWidgets('hides demand card when demand count is 0', (tester) async {

@@ -376,7 +376,11 @@ class _RegisteredBody extends StatelessWidget {
             AppSpacing.verticalMd,
             _DemandNotificationCard(
               shopId: shop.id,
-              shopOwnerId: shop.ownerId ?? '',
+              // The rules require shopOwnerId in the query. Fall back to the
+              // signed-in uid: this screen is always the owner's own shop.
+              shopOwnerId: shop.ownerId ??
+                  context.read<AuthProvider>().firebaseUser?.uid ??
+                  '',
             ),
           ],
           // Free plan upgrade banner
