@@ -44,8 +44,8 @@
  §4  iPhone アプリ版: Apple 承認確認 → App ID → ASC アプリ → API キー → Secret 4つ → TestFlight
 ```
 
-Storage ルールが 9/4 時点で未反映（Issue #49）。Test Distribution の `deploy_storage_rules` を
-初回だけオンにすれば同じ鍵で反映できるようにした。既定はオフ。
+Storage ルールは 9/6 に本番反映済み。Test Distribution の `deploy_storage_rules` は
+今後ルールを変えたときに同じ鍵で反映するためのもので、既定はオフ。
 
 ### 検証
 

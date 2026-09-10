@@ -52,13 +52,13 @@ Actions から Firebase Hosting へデプロイするための鍵。**これが�
 Firebase Console → Authentication → Sign-in method → 「メール/パスワード」が **有効**。
 手順は `docs/SETUP_AUTH_CONSOLE.md`。**これが無効だと、どの端末でも新規登録で止まる。**
 
-### 1-3. Storage ルールが本番に入っているか `[9/4 時点: 未反映]`
+### 1-3. Storage ルールは 9/6 に本番反映済み `[実測]`
 
-Issue #49 のコメント（2026-09-04）で **`storage.rules` は未反映**と記録されている。
-未反映のままだと、車両・整備記録の**写真アップロードが失敗**する（画面は出る）。
+9/4 時点で未反映だった `storage.rules` は、2026-09-06 のセッションで `firebase deploy --only storage` が
+通っている（`CLAUDE_SESSION_NOTES.md` 2026-09-06）。**追加の作業は要らない。**
 
-§2 のワークフローに **`deploy_storage_rules`** というチェックがある。
-写真を試してもらうなら、**初回だけオンにして回す**。それ以降はオフのままでよい。
+§2 のワークフローの **`deploy_storage_rules`** は、今後 `storage.rules` を変えたときに同じ鍵で反映する
+ためのもの。写真アップロードが弾かれたときだけオンにする。普段はオフ。
 
 ---
 
