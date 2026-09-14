@@ -345,6 +345,31 @@ void main() {
       // Bottom sheet is now open — there should be a Material with elevation
       expect(find.byType(BottomSheet), findsOneWidget);
     });
+
+    // 開いたシートを、開いた位置から閉じられること。
+    // ハンドルのドラッグしか出口が無いと、閉じ方が分からず詰まる。
+    testWidgets('13b. detail bottom sheet closes from its header button',
+        (tester) async {
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [_makeInquiry(subject: 'ボトムシートテスト')],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('ボトムシートテスト'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      final closeButton = find.byKey(const Key('inquiry_detail_close'));
+      expect(closeButton, findsOneWidget);
+
+      await tester.tap(closeButton);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byType(BottomSheet), findsNothing);
+    });
   });
 
   group('ShopInquiryListScreen — Edge Cases', () {

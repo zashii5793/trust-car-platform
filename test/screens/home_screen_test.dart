@@ -1035,6 +1035,29 @@ void main() {
       expect(find.text('通知はありません'), findsOneWidget);
     });
 
+    // 開けることと、閉じられることは別。2026-09-14 まで NotificationListScreen は
+    // Scaffold を持たず、push で積まれると AppBar ごと戻るボタンが無かった。
+    // Web ではブラウザバック以外に戻る手段が無く、事実上そこで詰まる。
+    testWidgets('通知一覧は戻るボタンでホームに戻れる', (tester) async {
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('header_notifications_button')));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      expect(find.text('通知はありません'), findsOneWidget);
+
+      // AppBar が自動で出す戻るボタン。無ければここで落ちる。
+      expect(find.byType(BackButton), findsOneWidget);
+
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // ホーム（ベルのある画面）に戻っている。
+      expect(find.text('通知はありません'), findsNothing);
+      expect(
+          find.byKey(const Key('header_notifications_button')), findsOneWidget);
+    });
+
     // ベルはタブに紐付かないので、マイカー以外のタブでも同じ場所にある。
     testWidgets('通知ベルはどのタブでも AppBar に居る', (tester) async {
       await tester.binding.setSurfaceSize(const Size(800, 1200));

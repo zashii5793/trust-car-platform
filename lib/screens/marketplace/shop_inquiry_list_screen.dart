@@ -637,16 +637,39 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
       builder: (_, __) {
         return Column(
           children: [
-            // Drag handle
+            // ドラッグハンドルと閉じるボタン。
+            //
+            // ハンドルだけだと、ドラッグで下ろせることを知らない人には
+            // 閉じ方が分からない。**開いた位置から見える出口を置く。**
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+              child: Row(
+                children: [
+                  const SizedBox(width: 40),
+                  Expanded(
+                    child: Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.outlineVariant,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 40,
+                    child: IconButton(
+                      key: const Key('inquiry_detail_close'),
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      tooltip: '閉じる',
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                ],
               ),
             ),
             // Scrollable content area

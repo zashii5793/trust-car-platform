@@ -12,80 +12,89 @@ import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../vehicle_detail_screen.dart';
 
-/// 通知一覧（Scaffold なし — HomeScreen の AppBar に統合）
+/// 通知一覧。
+///
+/// **自前の Scaffold と AppBar を持つ。** HomeScreen の AppBar に body として
+/// 差し込んでいた頃の名残で Scaffold を持たない実装だったが、2026-09-07 に
+/// タブから外してベルから `Navigator.push` するようになった時点で、戻る導線の
+/// 無い全画面になっていた（Web ではブラウザバック以外に戻る手段が無い）。
+/// push される画面は、自分で戻れなければならない。
 class NotificationListScreen extends StatelessWidget {
   const NotificationListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<NotificationProvider>(
-      builder: (context, provider, child) {
-        if (provider.isLoading) {
-          return const AppLoadingCenter();
-        }
+    return Scaffold(
+      appBar: AppBar(title: const Text('通知')),
+      body: Consumer<NotificationProvider>(
+        builder: (context, provider, child) {
+          if (provider.isLoading) {
+            return const AppLoadingCenter();
+          }
 
-        if (provider.notifications.isEmpty) {
-          return const AppEmptyState(
-            icon: Icons.notifications_none,
-            title: '通知はありません',
-            description: 'メンテナンスの推奨があるとここに表示されます',
-          );
-        }
+          if (provider.notifications.isEmpty) {
+            return const AppEmptyState(
+              icon: Icons.notifications_none,
+              title: '通知はありません',
+              description: 'メンテナンスの推奨があるとここに表示されます',
+            );
+          }
 
-        final hasUnread = provider.notifications.any((n) => !n.isRead);
+          final hasUnread = provider.notifications.any((n) => !n.isRead);
 
-        return Column(
-          children: [
-            if (hasUnread)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      icon: const Icon(Icons.done_all, size: 16),
-                      label: const Text('全て既読'),
-                      style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        foregroundColor: AppColors.primary,
+          return Column(
+            children: [
+              if (hasUnread)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton.icon(
+                        icon: const Icon(Icons.done_all, size: 16),
+                        label: const Text('全て既読'),
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          foregroundColor: AppColors.primary,
+                        ),
+                        onPressed: () => provider.markAllAsRead(),
                       ),
-                      onPressed: () => provider.markAllAsRead(),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+              Expanded(
+                child: ListView.builder(
+                  padding: AppSpacing.paddingScreen,
+                  itemCount: provider.notifications.length,
+                  itemBuilder: (context, index) {
+                    final notification = provider.notifications[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: _NotificationCard(
+                        notification: notification,
+                        onTap: () {
+                          provider.markAsRead(notification.id);
+                          _showNotificationDetail(context, notification);
+                        },
+                        onDismiss: () {
+                          provider.removeNotification(notification.id);
+                        },
+                        onMarkRead: notification.isRead
+                            ? null
+                            : () => provider.markAsRead(notification.id),
+                        onMarkUnread: notification.isRead
+                            ? () => provider.markAsUnread(notification.id)
+                            : null,
+                      ),
+                    );
+                  },
                 ),
               ),
-            Expanded(
-              child: ListView.builder(
-                padding: AppSpacing.paddingScreen,
-                itemCount: provider.notifications.length,
-                itemBuilder: (context, index) {
-                  final notification = provider.notifications[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: _NotificationCard(
-                      notification: notification,
-                      onTap: () {
-                        provider.markAsRead(notification.id);
-                        _showNotificationDetail(context, notification);
-                      },
-                      onDismiss: () {
-                        provider.removeNotification(notification.id);
-                      },
-                      onMarkRead: notification.isRead
-                          ? null
-                          : () => provider.markAsRead(notification.id),
-                      onMarkUnread: notification.isRead
-                          ? () => provider.markAsUnread(notification.id)
-                          : null,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -113,18 +122,40 @@ class NotificationListScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ハンドル
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                      decoration: BoxDecoration(
-                        color: AppColors.border,
-                        borderRadius: BorderRadius.circular(2),
+                  // ハンドルと閉じるボタン。
+                  //
+                  // 「閉じる」はシートの一番下にもあるが、初期表示は画面の半分で
+                  // そこまで届かない。ドラッグで下ろせることを知らないと、
+                  // 開いたきり閉じ方が分からない。**出口は開いた位置から見える所に。**
+                  Row(
+                    children: [
+                      const SizedBox(width: 40),
+                      Expanded(
+                        child: Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: AppColors.border,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                      SizedBox(
+                        width: 40,
+                        child: IconButton(
+                          key: const Key('notification_detail_close'),
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          tooltip: '閉じる',
+                          icon: const Icon(Icons.close, size: 20),
+                          onPressed: () => Navigator.pop(sheetContext),
+                        ),
+                      ),
+                    ],
                   ),
+                  AppSpacing.verticalSm,
 
                   // アイコンとタイプ
                   Row(

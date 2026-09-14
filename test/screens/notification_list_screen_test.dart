@@ -291,9 +291,8 @@ Widget _buildUnderTest(MockNotificationProvider provider, {ThemeData? theme}) {
     child: MaterialApp(
       theme: theme,
       debugShowCheckedModeBanner: false,
-      home: const Scaffold(
-        body: NotificationListScreen(),
-      ),
+      // 画面が自分で Scaffold と AppBar を持つ。ここで包まないこと。
+      home: const NotificationListScreen(),
     ),
   );
 }
@@ -596,6 +595,50 @@ void main() {
 
       expect(find.text('なぜ今なのか'), findsOneWidget);
       expect(find.text('オイル交換から5,000km超過しています'), findsOneWidget);
+    });
+
+    // 開いた詳細シートを、開いた位置から閉じられること。
+    // 「閉じる」はシート下端にもあるが初期表示（画面の半分）では見えず、
+    // ドラッグを知らないと閉じ方が分からなかった。
+    testWidgets('詳細シートはヘッダーの閉じるボタンで閉じられる', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', title: 'オイル交換推奨'),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.tap(find.text('オイル交換推奨'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      final closeButton = find.byKey(const Key('notification_detail_close'));
+      expect(closeButton, findsOneWidget);
+
+      await tester.tap(closeButton);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // シートが閉じて一覧だけが残る。
+      expect(closeButton, findsNothing);
+      expect(find.text('オイル交換推奨'), findsOneWidget);
+    });
+
+    testWidgets('詳細シートの閉じるボタンは開いた直後から見えている', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', title: 'オイル交換推奨'),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.tap(find.text('オイル交換推奨'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // スクロールせずに画面内に在ること（下端の「閉じる」は初期表示では届かない）。
+      final closeButton = find.byKey(const Key('notification_detail_close'));
+      final box = tester.getRect(closeButton);
+      final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+      expect(box.top, greaterThanOrEqualTo(0));
+      expect(box.bottom, lessThanOrEqualTo(screen.height));
     });
 
     testWidgets('reason がないとき「なぜ今なのか」セクションが非表示', (tester) async {
