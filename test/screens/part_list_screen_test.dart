@@ -25,6 +25,22 @@ class MockPartRecommendationService implements PartRecommendationService {
   int getFeaturedCallCount = 0;
 
   @override
+  List<String> buildReasons(
+    PartListing part,
+    Vehicle vehicle,
+    CompatibilityLevel compatibility,
+  ) =>
+      const [];
+
+  @override
+  List<String> buildCautions(
+    PartListing part,
+    Vehicle vehicle,
+    CompatibilityLevel compatibility,
+  ) =>
+      const [];
+
+  @override
   Future<Result<List<PartListing>, AppError>> getFeaturedParts(
       {int limit = 5}) async {
     getFeaturedCallCount++;

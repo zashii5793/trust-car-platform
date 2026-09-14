@@ -44,31 +44,13 @@ jobs:
         run: flutter pub get
 
       - name: Place google-services.json
+        # 値は android/ci/google-services.ci.json に1か所で持つ（ci.yml / test_apk.yml と共用）。
         run: |
           if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
             echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
           else
-            cat > android/app/google-services.json <<'EOF'
-          {
-            "project_info": {
-              "project_number": "31421119456",
-              "project_id": "trust-car-platform",
-              "storage_bucket": "trust-car-platform.firebasestorage.app"
-            },
-            "client": [{
-              "client_info": {
-                "mobilesdk_app_id": "1:31421119456:android:cc5714538a154c3f80c985",
-                "android_client_info": { "package_name": "jp.trustcar.app" }
-              },
-              "oauth_client": [],
-              "api_key": [{ "current_key": "AIzaSyDZQ4UK6IXiUKNJ3u1Cjup4nIEmiV97O0Q" }],
-              "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
-            }],
-            "configuration_version": "1"
-          }
-          EOF
+            cp android/ci/google-services.ci.json android/app/google-services.json
           fi
-
       - name: Setup Node.js & Firebase CLI
         uses: actions/setup-node@v7
         with:

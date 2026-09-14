@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    TestFlight 向けの .ipa 書き出し設定。.github/workflows/testflight.yml が
+    __APPLE_TEAM_ID__ を Secret の値に置き換えて使う。
+
+    signingStyle が automatic なのは、証明書と Provisioning Profile を人手で
+    作って Secret に入れる手順を無くすため。App Store Connect API キーがあれば
+    xcodebuild（-allowProvisioningUpdates）が用意する。
+  -->
+  <key>method</key>
+  <string>app-store-connect</string>
+  <key>destination</key>
+  <string>export</string>
+  <key>signingStyle</key>
+  <string>automatic</string>
+  <key>teamID</key>
+  <string>__APPLE_TEAM_ID__</string>
+  <key>uploadSymbols</key>
+  <true/>
+  <key>uploadBitcode</key>
+  <false/>
+  <!-- ビルド番号は Flutter 側（GitHub の run_number）で決める。Xcode に触らせない。 -->
+  <key>manageAppVersionAndBuildNumber</key>
+  <false/>
+  <key>stripSwiftSymbols</key>
+  <true/>
+</dict>
+</plist>

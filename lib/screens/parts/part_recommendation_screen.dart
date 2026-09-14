@@ -217,8 +217,15 @@ class _RecommendationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final part = recommendation.part;
-    final pros = part.pros.take(2).toList();
-    final cons = part.cons.take(1).toList();
+    // 提案が持つ理由・注意点を優先し、無ければ商品側の pros / cons に落ちる。
+    final reasons = recommendation.reasons.isNotEmpty
+        ? recommendation.reasons
+        : part.pros.map((p) => p.text).toList();
+    final cautions = recommendation.cautions.isNotEmpty
+        ? recommendation.cautions
+        : part.cons.map((c) => c.text).toList();
+    final pros = reasons.take(2).toList();
+    final cons = cautions.take(1).toList();
 
     return AppCard(
       onTap: () => _showDetail(context),
@@ -278,8 +285,8 @@ class _RecommendationCard extends StatelessWidget {
             AppSpacing.verticalSm,
             const Divider(height: 1),
             AppSpacing.verticalSm,
-            ...pros.map((p) => _ProConRow(text: p.text, isPro: true)),
-            ...cons.map((c) => _ProConRow(text: c.text, isPro: false)),
+            ...pros.map((p) => _ProConRow(text: p, isPro: true)),
+            ...cons.map((c) => _ProConRow(text: c, isPro: false)),
           ],
 
           // 関連度バー（控えめに表示）
@@ -497,8 +504,13 @@ class _PartDetailSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final part = recommendation.part;
-    final pros = part.pros;
-    final cons = part.cons;
+    // 提案が持つ理由・注意点を優先し、無ければ商品側の pros / cons に落ちる。
+    final pros = recommendation.reasons.isNotEmpty
+        ? recommendation.reasons
+        : part.pros.map((p) => p.text).toList();
+    final cons = recommendation.cautions.isNotEmpty
+        ? recommendation.cautions
+        : part.cons.map((c) => c.text).toList();
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -603,7 +615,7 @@ class _PartDetailSheet extends StatelessWidget {
                   color: AppColors.success,
                 ),
                 AppSpacing.verticalSm,
-                ...pros.map((p) => _ProConDetailRow(text: p.text, isPro: true)),
+                ...pros.map((p) => _ProConDetailRow(text: p, isPro: true)),
                 AppSpacing.verticalMd,
               ],
 
@@ -615,8 +627,7 @@ class _PartDetailSheet extends StatelessWidget {
                   color: AppColors.warning,
                 ),
                 AppSpacing.verticalSm,
-                ...cons
-                    .map((c) => _ProConDetailRow(text: c.text, isPro: false)),
+                ...cons.map((c) => _ProConDetailRow(text: c, isPro: false)),
                 AppSpacing.verticalMd,
               ],
 

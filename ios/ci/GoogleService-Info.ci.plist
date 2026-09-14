@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    CI 用の GoogleService-Info.plist。Secret GOOGLE_SERVICES_PLIST が無いときに
+    ci.yml / testflight.yml がこれを ios/Runner/GoogleService-Info.plist へコピーする。
+
+    アプリに埋め込まれて配られる値なので秘密ではない（lib/firebase_options.dart の
+    ios と同じ）。ここと firebase_options.dart の GOOGLE_APP_ID / API_KEY が
+    食い違うと、ビルドは通るのに起動時に白画面になる（2026-08 に実際に起きた。
+    docs/IOS_FIREBASE_FIX.md）。片方を変えるときは必ず両方を見る。
+  -->
+  <key>API_KEY</key>
+  <string>AIzaSyBt0hMKqo9viDFCXvNcDpNWcQ34seKfPEg</string>
+  <key>GCM_SENDER_ID</key>
+  <string>31421119456</string>
+  <key>PLIST_VERSION</key>
+  <string>1</string>
+  <key>BUNDLE_ID</key>
+  <string>jp.trustcar.app</string>
+  <key>PROJECT_ID</key>
+  <string>trust-car-platform</string>
+  <key>STORAGE_BUCKET</key>
+  <string>trust-car-platform.firebasestorage.app</string>
+  <key>IS_ADS_ENABLED</key>
+  <false/>
+  <key>IS_ANALYTICS_ENABLED</key>
+  <false/>
+  <key>IS_APPINVITE_ENABLED</key>
+  <true/>
+  <key>IS_GCM_ENABLED</key>
+  <true/>
+  <key>IS_SIGNIN_ENABLED</key>
+  <true/>
+  <key>GOOGLE_APP_ID</key>
+  <string>1:31421119456:ios:5646ac324f34398880c985</string>
+</dict>
+</plist>

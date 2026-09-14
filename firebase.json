@@ -79,14 +79,14 @@
       "ios": {
         "default": {
           "projectId": "trust-car-platform",
-          "appId": "1:31421119456:ios:4320af5d1401f02c80c985",
+          "appId": "1:31421119456:ios:5646ac324f34398880c985",
           "uploadDebugSymbols": false
         }
       },
       "android": {
         "default": {
           "projectId": "trust-car-platform",
-          "appId": "1:31421119456:android:cc5714538a154c3f80c985",
+          "appId": "1:31421119456:android:145b8b79b1d9e7cf80c985",
           "uploadDebugSymbols": false
         }
       },
@@ -94,8 +94,8 @@
         "lib/firebase_options.dart": {
           "projectId": "trust-car-platform",
           "configurations": {
-            "ios": "1:31421119456:ios:4320af5d1401f02c80c985",
-            "android": "1:31421119456:android:cc5714538a154c3f80c985",
+            "ios": "1:31421119456:ios:5646ac324f34398880c985",
+            "android": "1:31421119456:android:145b8b79b1d9e7cf80c985",
             "web": "1:31421119456:web:b4cb461b8951f19e80c985"
           }
         }

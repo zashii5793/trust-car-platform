@@ -62,6 +62,8 @@ class PartRecommendationService {
           compatibility: compatibility,
           compatibilityNote: _getCompatibilityNote(compatibility, vehicle),
           relevanceScore: relevance,
+          reasons: buildReasons(part, vehicle, compatibility),
+          cautions: buildCautions(part, vehicle, compatibility),
         ));
       }
 
@@ -170,6 +172,74 @@ class PartRecommendationService {
     } catch (e) {
       return Result.failure(AppError.server('パーツ情報の取得に失敗しました: $e'));
     }
+  }
+
+  /// Reasons to consider [part] for [vehicle], most specific first.
+  ///
+  /// Pure function (no Firestore). The compatibility line comes first because
+  /// it is the one thing that differs per vehicle; the rest are the generic
+  /// merits from [generateProsAndCons]. Featured (paid) placement is *not* a
+  /// reason — it goes to [buildCautions] so promotion stays visible as such
+  /// (docs/FEATURE_SPEC.md: 「プロモーション枠も透明に」).
+  List<String> buildReasons(
+    PartListing part,
+    Vehicle vehicle,
+    CompatibilityLevel compatibility,
+  ) {
+    final reasons = <String>[];
+    switch (compatibility) {
+      case CompatibilityLevel.perfect:
+        reasons.add('${vehicle.displayName}に完全対応');
+        break;
+      case CompatibilityLevel.compatible:
+        reasons.add('${vehicle.displayName}に対応');
+        break;
+      case CompatibilityLevel.conditional:
+      case CompatibilityLevel.incompatible:
+        break;
+    }
+    if (part.rating != null && part.rating! >= 4.0 && part.reviewCount > 10) {
+      reasons.add(
+          '${part.reviewCount}件のレビューで評価${part.rating!.toStringAsFixed(1)}');
+    }
+    for (final p in generateProsAndCons(part, vehicle)) {
+      if (p.isPro && !reasons.contains(p.text)) reasons.add(p.text);
+    }
+    return reasons;
+  }
+
+  /// What the user should check before buying [part] for [vehicle].
+  ///
+  /// Pure function (no Firestore). Conditional compatibility and paid
+  /// placement are always surfaced; the rest are the generic downsides from
+  /// [generateProsAndCons]. Never empty for a conditional or featured part.
+  List<String> buildCautions(
+    PartListing part,
+    Vehicle vehicle,
+    CompatibilityLevel compatibility,
+  ) {
+    final cautions = <String>[];
+    switch (compatibility) {
+      case CompatibilityLevel.conditional:
+        cautions.add('追加パーツや加工が必要な場合があります。装着前に工場へ確認を');
+        break;
+      case CompatibilityLevel.incompatible:
+        cautions.add('${vehicle.displayName}には非対応');
+        break;
+      case CompatibilityLevel.perfect:
+      case CompatibilityLevel.compatible:
+        break;
+    }
+    if (part.isFeatured) {
+      cautions.add('掲載枠（広告）の商品です。順位はこれで決めていません');
+    }
+    if (part.rating != null && part.reviewCount < 3) {
+      cautions.add('レビューが少なく評価はまだ参考程度です');
+    }
+    for (final c in generateProsAndCons(part, vehicle)) {
+      if (!c.isPro && !cautions.contains(c.text)) cautions.add(c.text);
+    }
+    return cautions;
   }
 
   /// Generate AI pros and cons for a part (placeholder for future LLM integration)

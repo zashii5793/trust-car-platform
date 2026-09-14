@@ -303,5 +303,59 @@ void main() {
       expect(list[1].part.id, '1'); // perfectLow
       expect(list[2].part.id, '3'); // conditional (lower compatibility)
     });
+
+    PartListing makePart() => PartListing(
+          id: 'p',
+          shopId: 's',
+          name: 'P',
+          description: 'd',
+          category: PartCategory.wheel,
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
+        );
+
+    test('reasons / cautions は省略すると空リスト（既存呼び出しを壊さない）', () {
+      final rec = PartRecommendation(
+        part: makePart(),
+        compatibility: CompatibilityLevel.compatible,
+      );
+      expect(rec.reasons, isEmpty);
+      expect(rec.cautions, isEmpty);
+    });
+
+    test('reasons / cautions は渡した順を保つ（複数の理由を並べて見せる）', () {
+      final rec = PartRecommendation(
+        part: makePart(),
+        compatibility: CompatibilityLevel.perfect,
+        reasons: const ['車種に完全対応', '評価が高い'],
+        cautions: const ['取付工賃が別途必要'],
+      );
+      expect(rec.reasons, ['車種に完全対応', '評価が高い']);
+      expect(rec.cautions, ['取付工賃が別途必要']);
+    });
+
+    test('confidenceScore は relevanceScore を 0-100 の整数に丸める', () {
+      PartRecommendation withScore(double s) => PartRecommendation(
+            part: makePart(),
+            compatibility: CompatibilityLevel.compatible,
+            relevanceScore: s,
+          );
+      expect(withScore(0.5).confidenceScore, 50);
+      expect(withScore(0.845).confidenceScore, 85);
+      expect(withScore(0.0).confidenceScore, 0);
+      expect(withScore(1.0).confidenceScore, 100);
+    });
+
+    group('Edge Cases', () {
+      test('confidenceScore は範囲外の relevanceScore を 0-100 に収める', () {
+        PartRecommendation withScore(double s) => PartRecommendation(
+              part: makePart(),
+              compatibility: CompatibilityLevel.compatible,
+              relevanceScore: s,
+            );
+        expect(withScore(-0.2).confidenceScore, 0);
+        expect(withScore(1.7).confidenceScore, 100);
+      });
+    });
   });
 }

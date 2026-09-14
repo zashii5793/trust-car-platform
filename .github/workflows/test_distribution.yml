@@ -1,0 +1,276 @@
+name: Test Distribution
+
+# テスト配布ひと揃い（Web 版 + Android APK + 受け取りページ）を作って
+# Firebase Hosting に出す。Actions の「Run workflow」を押すだけで済むようにしてある。
+#
+#   受け取り口   https://trust-car-platform.web.app/download.html  ← テスターに渡すのはこれ
+#   Web 版       https://trust-car-platform.web.app
+#   APK          https://trust-car-platform.web.app/TrustCar-<sha>.apk
+#
+# なぜ CI でやるのか: scripts/publish_test_build.sh は手元の Mac に
+# flutter / firebase / gh が揃っていることが前提で、配布のたびに開発機に
+# 依存していた。ここなら押した人の環境に左右されず、いつ・どのコミットを
+# 出したかが Actions の履歴に残る。
+#
+# iPhone の扱い: TestFlight の枠が用意できるまでは、同じページのブラウザ版を
+# 「ホーム画面に追加」して使ってもらう（OCR と通知は動かない）。TestFlight の
+# 公開リンクができたら `testflight_url` に入れると、iPhone 向けの案内が出る。
+#
+# 必要な Secret:
+#   FIREBASE_SERVICE_ACCOUNT   Firebase Hosting へ出すためのサービスアカウント鍵（JSON）。
+#                              Firebase Console → プロジェクトの設定 → サービスアカウント →
+#                              「新しい秘密鍵の生成」で落とした JSON をそのまま貼る。
+#                              無ければ配布物を Artifacts に残して、ここで止まる。
+# 任意の Secret:
+#   GOOGLE_MAPS_API_KEY_WEB / GOOGLE_MAPS_API_KEY_ANDROID   地図。無ければ距離順リストになる。
+#   ANDROID_KEYSTORE_*         APK のリリース署名。無ければ profile ビルド（test_apk.yml 参照）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: 'この配布の目印（例: 9/13 テスター配布1回目）'
+        required: false
+        default: ''
+      include_apk:
+        description: 'Android の APK も作って同梱する'
+        type: boolean
+        default: true
+      testflight_url:
+        description: 'TestFlight の公開リンク（あれば。iPhone 向けの案内に出す）'
+        required: false
+        default: ''
+      deploy_storage_rules:
+        description: '⚠️ storage.rules も本番へデプロイする（写真アップロードが弾かれるときだけ）'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Hosting は同時デプロイを受け付けない。途中で止めると中途半端に残りうるので
+# 進行中は殺さない。
+concurrency:
+  group: test-distribution
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    name: Build test APK
+    if: ${{ inputs.include_apk }}
+    uses: ./.github/workflows/test_apk.yml
+    with:
+      note: ${{ inputs.note }}
+    secrets: inherit
+
+  web:
+    name: Build Flutter Web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      # web_preview.yml と同じ。キーはリポジトリに置かず、CI でプレースホルダを置換する。
+      - name: Inject Google Maps API key (optional)
+        env:
+          MAPS_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY_WEB }}
+        run: |
+          if [ -z "$MAPS_KEY" ]; then
+            echo "::warning::GOOGLE_MAPS_API_KEY_WEB が未設定です。地図は距離順リストにフォールバックします。"
+            exit 0
+          fi
+          sed -i "s|__GOOGLE_MAPS_API_KEY__|$MAPS_KEY|g" web/index.html
+          if grep -q "__GOOGLE_MAPS_API_KEY__" web/index.html; then
+            echo "::error::プレースホルダの置換に失敗しました"
+            exit 1
+          fi
+
+      # Hosting はルート直下に配るので --base-href は既定の / のまま。
+      # APP_BUILD_ID: どのビルドを触っているかを画面とフィードバックから読めるようにする。
+      - name: Build web
+        run: |
+          set +e
+          flutter build web --release \
+            --dart-define=APP_BUILD_ID=${GITHUB_SHA::7} 2>&1 | tee /tmp/web_build.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::error::=== Flutter Web ビルド失敗 ==="
+            grep -E "Error:|error:" /tmp/web_build.log | head -40 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+          fi
+          exit $STATUS
+
+      - name: Upload web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: trustcar-test-web
+          path: build/web
+          retention-days: 14
+          if-no-files-found: error
+
+  publish:
+    name: Assemble & publish to Firebase Hosting
+    runs-on: ubuntu-latest
+    needs: [apk, web]
+    # APK を作らない指定（skipped）でも進む。web が落ちたら進まない。
+    if: >-
+      ${{ !cancelled() && needs.web.result == 'success' &&
+          (needs.apk.result == 'success' || needs.apk.result == 'skipped') }}
+    steps:
+      # firebase.json と storage.rules が要る。
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Download web build
+        uses: actions/download-artifact@v4
+        with:
+          name: trustcar-test-web
+          path: build/web
+
+      - name: Download APK
+        if: ${{ inputs.include_apk }}
+        uses: actions/download-artifact@v4
+        with:
+          name: trustcar-test-apk
+          path: ${{ runner.temp }}/apk
+
+      - name: Assemble download page
+        id: assemble
+        env:
+          INCLUDE_APK: ${{ inputs.include_apk }}
+          TESTFLIGHT_URL: ${{ inputs.testflight_url }}
+        run: |
+          SHA=${GITHUB_SHA::7}
+          PAGE=build/web/download.html
+          [ -f "$PAGE" ] || { echo "::error::$PAGE がありません（web/download.html が消えていませんか）"; exit 1; }
+
+          # --- Android ---
+          APK_NAME=""
+          if [ "$INCLUDE_APK" = "true" ]; then
+            SRC_APK="$(find "$RUNNER_TEMP/apk" -name '*.apk' | head -1)"
+            [ -n "$SRC_APK" ] || { echo "::error::APK の成果物が見つかりません"; exit 1; }
+            APK_NAME="TrustCar-$SHA.apk"
+            cp "$SRC_APK" "build/web/$APK_NAME"
+            APK_SIZE="$(du -h "build/web/$APK_NAME" | cut -f1 | tr -d ' ')"
+            sed -i "s|__APK_FILENAME__|/$APK_NAME|g; s|__APK_SIZE__|$APK_SIZE|g; s|__APK_BUILD__|$SHA|g" "$PAGE"
+            echo "APK: $APK_NAME ($APK_SIZE)"
+          else
+            # APK 抜きで出すときは Android の欄ごと隠す。リンク切れを配るより良い。
+            sed -i 's|<section class="card" id="android-card">|<section class="card" id="android-card" hidden>|' "$PAGE"
+            sed -i 's|__APK_FILENAME__|#|g; s|__APK_SIZE__||g; s|__APK_BUILD__||g' "$PAGE"
+          fi
+
+          # --- iPhone (TestFlight) ---
+          # リンクが無いうちは欄を隠したまま。ブラウザ版の案内だけが出る。
+          if [ -n "$TESTFLIGHT_URL" ]; then
+            case "$TESTFLIGHT_URL" in
+              https://testflight.apple.com/*) ;;
+              *) echo "::error::testflight_url は https://testflight.apple.com/ で始まる必要があります: $TESTFLIGHT_URL"; exit 1 ;;
+            esac
+            sed -i "s|__TESTFLIGHT_URL__|$TESTFLIGHT_URL|g" "$PAGE"
+            sed -i 's|<section class="card" id="testflight-card" hidden>|<section class="card" id="testflight-card">|' "$PAGE"
+          else
+            sed -i 's|__TESTFLIGHT_URL__|#|g' "$PAGE"
+          fi
+
+          if grep -q "__APK_\|__TESTFLIGHT_" "$PAGE"; then
+            echo "::error::プレースホルダが残っています:"
+            grep -n "__APK_\|__TESTFLIGHT_" "$PAGE"
+            exit 1
+          fi
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+
+      # 公開できなかった場合でも、手元から `firebase deploy --only hosting` で
+      # 出せるように配布物一式を残す。
+      - name: Upload assembled site
+        uses: actions/upload-artifact@v4
+        with:
+          name: trustcar-test-site
+          path: build/web
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Check Firebase credentials
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA_JSON" ]; then
+            {
+              echo "## ❌ Firebase Hosting へ公開できませんでした"
+              echo
+              echo "Secret \`FIREBASE_SERVICE_ACCOUNT\` が未設定です。配布物は Artifacts の \`trustcar-test-site\` に残してあります。"
+              echo
+              echo "**設定手順（1回だけ）**"
+              echo "1. Firebase Console → プロジェクトの設定 → サービス アカウント → 「新しい秘密鍵の生成」"
+              echo "2. 落ちてきた JSON の中身をそのまま GitHub → Settings → Secrets and variables → Actions → \`FIREBASE_SERVICE_ACCOUNT\` に貼る"
+              echo "3. このワークフローをもう一度 Run workflow"
+              echo
+              echo "手元で出す場合: \`trustcar-test-site\` を展開して \`build/web\` に置き、\`firebase deploy --only hosting\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::FIREBASE_SERVICE_ACCOUNT が未設定です。手順は Summary を見てください。"
+            exit 1
+          fi
+          printf '%s' "$SA_JSON" > "$RUNNER_TEMP/firebase-sa.json"
+          # 形が JSON かだけ先に見る。壊れた鍵で deploy に進むと原因が分かりにくい。
+          node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(!j.client_email||!j.private_key){throw new Error("client_email / private_key がありません")}; console.log("service account:", j.client_email)' "$RUNNER_TEMP/firebase-sa.json"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy to Firebase Hosting
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
+        run: firebase deploy --only hosting --project trust-car-platform --non-interactive
+
+      # 既定では触らない。写真のアップロードが弾かれる原因が storage.rules の
+      # 未反映だと分かっているときだけ、入力で明示的にオンにする。
+      - name: Deploy storage.rules (opt-in)
+        if: ${{ inputs.deploy_storage_rules }}
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
+        run: firebase deploy --only storage --project trust-car-platform --non-interactive
+
+      - name: Report
+        env:
+          APK_NAME: ${{ steps.assemble.outputs.apk_name }}
+          NOTE: ${{ inputs.note }}
+          TESTFLIGHT_URL: ${{ inputs.testflight_url }}
+        run: |
+          {
+            echo "## ✅ テスト配布を公開しました"
+            echo
+            echo "| 項目 | 値 |"
+            echo "|---|---|"
+            echo "| 受け取り口（テスターに渡す） | https://trust-car-platform.web.app/download.html |"
+            echo "| Web 版 | https://trust-car-platform.web.app |"
+            if [ -n "$APK_NAME" ]; then
+              echo "| Android APK | https://trust-car-platform.web.app/$APK_NAME |"
+            else
+              echo "| Android APK | 同梱なし |"
+            fi
+            if [ -n "$TESTFLIGHT_URL" ]; then
+              echo "| iPhone (TestFlight) | $TESTFLIGHT_URL |"
+            else
+              echo "| iPhone | ブラウザ版（ホーム画面に追加）。TestFlight は testflight_url を入れると案内が出ます |"
+            fi
+            echo "| コミット | ${GITHUB_SHA::7} |"
+            echo "| 目印 | $NOTE |"
+            echo
+            echo "アプリのプロフィール最下部に \`バージョン 1.0.0 (${GITHUB_SHA::7})\` と出ていれば、この配布物です。"
+          } >> "$GITHUB_STEP_SUMMARY"
