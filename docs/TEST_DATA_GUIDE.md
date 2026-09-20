@@ -90,6 +90,16 @@ firebase emulators:start --only auth,firestore,storage   # 別ターミナル
 `verify_personas.js`（ルール越しの確認30件）まで走ります。
 **エミュレータのデータは止めると消える**ので、翌日また触るときはこれを1回。
 
+流し終えた状態を保存しておくこともできます（次回は流し直し不要）:
+
+```bash
+firebase emulators:export .emulator-data --force          # 今の状態を保存
+firebase emulators:start --only auth,firestore,storage \
+  --import=.emulator-data                                 # 次回はこれで復元
+```
+
+`.emulator-data/` は `.gitignore` 済みです（手元だけのもの）。
+
 以下は個別に流したいときの手順です。
 
 ```bash
