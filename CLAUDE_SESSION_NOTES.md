@@ -96,6 +96,12 @@ Dart のペルソナテスト97件は `FakeFirebaseFirestore` で動くので、
 - `test/rules`（jest + エミュレータ）175 件パス
 - `node scripts/verify_personas.js` 30 件すべて OK
 
+### ゴールデンは全部緑に戻っていた
+
+2026-09-14 に「`screen_vehicle_detail_light` / `_dark` / `screen_home_year_of_use`
+の3枚が 0.12% の差で赤い」と書いたが、**この環境では 25 件すべて通った**。
+差は文字のラスタライズだけで、撮った環境に依存する（CI の対象外なのは変わらない）。
+
 ### 残っているもの
 
 - `integration_test/year_of_use_app_test.dart` は macOS で動かないまま
