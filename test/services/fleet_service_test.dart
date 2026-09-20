@@ -397,9 +397,17 @@ void main() {
   });
 
   group('getMaintenanceSummaries', () {
-    Future<void> seedRecord(String vehicleId, DateTime date, int cost) async {
+    const ownerId = 'fleet-owner';
+
+    Future<void> seedRecord(
+      String vehicleId,
+      DateTime date,
+      int cost, {
+      String userId = ownerId,
+    }) async {
       await fakeFirestore.collection('maintenance_records').add({
         'vehicleId': vehicleId,
+        'userId': userId,
         'date': Timestamp.fromDate(date),
         'cost': cost,
         'type': 'oilChange',
@@ -412,7 +420,8 @@ void main() {
       await seedRecord('v1', DateTime(2026, 5, 20), 12000);
       await seedRecord('v2', DateTime(2026, 1, 10), 30000);
 
-      final result = await service.getMaintenanceSummaries(['v1', 'v2']);
+      final result =
+          await service.getMaintenanceSummaries(['v1', 'v2'], userId: ownerId);
 
       expect(result.isSuccess, isTrue);
       final summaries = result.valueOrNull!;
@@ -425,14 +434,15 @@ void main() {
     test('整備記録なしの車両 → サマリーに含まれない', () async {
       await seedRecord('v1', DateTime(2026, 1, 1), 1000);
 
-      final result = await service.getMaintenanceSummaries(['v1', 'v2']);
+      final result =
+          await service.getMaintenanceSummaries(['v1', 'v2'], userId: ownerId);
       final summaries = result.valueOrNull!;
       expect(summaries.containsKey('v1'), isTrue);
       expect(summaries.containsKey('v2'), isFalse);
     });
 
     test('空リスト → 空マップ', () async {
-      final result = await service.getMaintenanceSummaries([]);
+      final result = await service.getMaintenanceSummaries([], userId: ownerId);
       expect(result.isSuccess, isTrue);
       expect(result.valueOrNull!, isEmpty);
     });
@@ -445,8 +455,46 @@ void main() {
         await seedRecord(id, DateTime(2026, 2, 1), 1000);
       }
 
-      final result = await service.getMaintenanceSummaries(ids);
+      final result =
+          await service.getMaintenanceSummaries(ids, userId: ownerId);
       expect(result.valueOrNull!.length, 12);
+    });
+
+    // ルール（maintenance_records の read は userId == uid）を静的に満たすため、
+    // クエリ自体が userId で絞られていること。vehicleId だけで絞っていた頃は
+    // 本番で list ごと permission-denied になり、CSV の整備欄が常に空だった。
+    test('他人の整備記録は混ざらない', () async {
+      await seedRecord('v1', DateTime(2026, 3, 1), 5000);
+      await seedRecord('v1', DateTime(2026, 4, 1), 9000,
+          userId: 'someone-else');
+
+      final result =
+          await service.getMaintenanceSummaries(['v1'], userId: ownerId);
+
+      final summaries = result.valueOrNull!;
+      expect(summaries['v1']!.recordCount, 1);
+      expect(summaries['v1']!.totalCost, 5000);
+    });
+
+    group('Edge Cases', () {
+      test('空のユーザーID → 空マップ（他人の記録を舐めない）', () async {
+        await seedRecord('v1', DateTime(2026, 3, 1), 5000);
+
+        final result =
+            await service.getMaintenanceSummaries(['v1'], userId: '');
+
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull!, isEmpty);
+      });
+
+      test('記録を1件も持たないユーザー → 空マップ', () async {
+        await seedRecord('v1', DateTime(2026, 3, 1), 5000);
+
+        final result = await service
+            .getMaintenanceSummaries(['v1'], userId: 'no-such-user');
+
+        expect(result.valueOrNull!, isEmpty);
+      });
     });
   });
 }
