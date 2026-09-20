@@ -102,11 +102,29 @@ Dart のペルソナテスト97件は `FakeFirebaseFirestore` で動くので、
 の3枚が 0.12% の差で赤い」と書いたが、**この環境では 25 件すべて通った**。
 差は文字のラスタライズだけで、撮った環境に依存する（CI の対象外なのは変わらない）。
 
+### macOS が動かなかった原因は spec ではなくロックだった
+
+`flutter build macos` が「CocoaPods's specs repository is too out-of-date」で
+止まり、2026-09-08 から `year_of_use_app_test.dart` を動かせずにいた。
+メッセージは spec リポジトリが古いと言うが、**`pod repo update` では直らない**
+（spec は新しかった）。本当の原因は `macos/Podfile.lock` が pubspec に対して
+古かったこと:
+
+```
+ Podfile.lock   firebase_messaging 16.1.1 → Firebase/Messaging 12.8.0 固定
+ pubspec.lock   firebase_messaging 16.6.0 → Firebase/Messaging ~> 12.18.0
+```
+
+`pod update Firebase` でロックを解き直して通った（Firebase 系 59 pods が
+12.18.0 に揃う）。**エラーメッセージの言うとおりに直そうとすると直らない**類。
+
 ### 残っているもの
 
-- `integration_test/year_of_use_app_test.dart` は macOS で動かないまま
-  （CocoaPods の spec が古く `Firebase/Crashlytics` を解決できない。`pod repo update` が要る）。
-  実アプリの画面は今回も目視できていない
+- `year_of_use_app_test.dart` は**ビルドと起動までは通るようになった**が、
+  このセッションからは `Failed to foreground app; open returned 1` で止まる。
+  macOS の GUI アプリを最前面に出すには対話的なデスクトップセッションが要る
+  （スクリーンショットは `screencapture` で撮る作りなので、最前面が前提）。
+  **人の手元では動くはず。** 実アプリの画面は今回も目視できていない
 - `newsletter_service.unsubscribeByToken` は Cloud Function 向きのまま（#192）
 
 ---
