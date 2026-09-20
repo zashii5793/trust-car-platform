@@ -69,7 +69,7 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   mockito: ^5.4.4
-  build_runner: ^2.4.8
+  build_runner: ^2.16.1
   # cloud_firestore 6.7.1 で WriteBatch.update がジェネリック化された。
   # fake_cloud_firestore 4.1.1 は @override のシグネチャが旧いままで、
   # 制約 (^6.4.0) は満たすのにコンパイルが通らない。pub は検出できない
