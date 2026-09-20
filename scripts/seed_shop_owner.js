@@ -46,7 +46,17 @@ const db = admin.firestore();
 const now = admin.firestore.Timestamp.now();
 
 const SHOP_ID = 'shop_takaya_motor_okayama';
-const OWNER_UID = 'shop-owner-takaya';
+// 店主の uid は **店の文書IDと同じ**でなければならない。
+//
+// アプリは `ShopService.getMyShop(uid)` で `shops/{uid}` を直接引き、
+// `firestore.rules` の `isShopOwner(shopId)` / `isInquiryParticipant()` も
+// `request.auth.uid == shopId` で当事者を判定する（ルール 35-51 行）。
+// uid と文書IDが違うと、店主でログインしても自分の店が見つからず、
+// 問い合わせ一覧もチャットも**ルールに弾かれて常に空**になる。
+//
+// 2026-09-20 まで uid が 'shop-owner-takaya' だったため、店側の画面は
+// 一度も実データで開けていなかった。
+const OWNER_UID = SHOP_ID;
 const OWNER_EMAIL = 'shop.owner@example.com';
 const DEMO_PASSWORD = 'password123';
 
@@ -117,6 +127,19 @@ async function seed() {
 
   // 1) Auth（エミュレータのみ）
   if (useEmulator) {
+    // 旧シードは uid 'shop-owner-takaya' でこのメールを作っていた。残って
+    // いると uid を直したのに古い方でログインしてしまうので、消してから作る。
+    try {
+      const stale = await admin.auth().getUserByEmail(OWNER_EMAIL);
+      if (stale.uid !== OWNER_UID) {
+        await admin.auth().deleteUser(stale.uid);
+        await db.collection('users').doc(stale.uid).delete();
+        console.log(`[AUTH] 旧 uid を削除しました（${stale.uid} → ${OWNER_UID}）`);
+      }
+    } catch (e) {
+      if (e.code !== 'auth/user-not-found') throw e;
+    }
+
     try {
       await admin.auth().createUser({
         uid: OWNER_UID,
