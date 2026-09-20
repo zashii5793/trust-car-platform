@@ -52,7 +52,7 @@ dependencies:
   # Maps: nearby shops map + partner pins (Issues #41/#43). Requires
   # MAPS_API_KEY at build time; the UI degrades to the distance list when the
   # key is absent.
-  google_maps_flutter: ^2.10.0
+  google_maps_flutter: ^2.18.1
   # Phase 7: BtoB Subscription (RevenueCat)
   purchases_flutter: ^8.0.0
   url_launcher: ^6.3.0
