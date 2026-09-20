@@ -14,10 +14,10 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.9
   flutter_dotenv: ^5.1.0
-  firebase_core: 4.14.0
-  firebase_auth: ^6.1.4
-  cloud_firestore: ^6.9.0
-  firebase_storage: ^13.0.6
+  firebase_core: 4.15.0
+  firebase_auth: ^6.7.0
+  cloud_firestore: ^6.10.0
+  firebase_storage: ^13.6.0
   provider: ^6.1.1
   cached_network_image: ^3.3.0
   image_picker: ^1.2.3
@@ -34,7 +34,7 @@ dependencies:
   # Phase 4: Offline Support
   connectivity_plus: ^6.0.3
   # Phase 4: Push Notifications
-  firebase_messaging: ^16.1.1
+  firebase_messaging: ^16.7.0
   # v20 で initialize/show/cancel/zonedSchedule の位置引数が名前付きに
   # 変わり、v19 で uiLocalNotificationDateInterpretation が消えた。
   # 上げるときは lib/services/*_notification*・inspection_reminder_service
@@ -45,8 +45,8 @@ dependencies:
   google_mlkit_text_recognition: ^0.14.0
   camera: ^0.11.0+2
   image: ^4.9.2
-  firebase_crashlytics: ^5.0.7
-  firebase_performance: ^0.11.1+4
+  firebase_crashlytics: ^5.4.0
+  firebase_performance: ^0.11.6
   # GPS / Location (Drive recording)
   geolocator: ^13.0.2
   # Maps: nearby shops map + partner pins (Issues #41/#43). Requires
@@ -57,10 +57,10 @@ dependencies:
   purchases_flutter: ^8.0.0
   url_launcher: ^6.3.0
   shared_preferences: ^2.5.5
-  firebase_analytics: ^12.4.1
+  firebase_analytics: ^12.6.0
   # AI Chat: Anthropic API
   http: ^1.2.0
-  firebase_remote_config: ^6.5.1
+  firebase_remote_config: ^6.7.0
 
 dev_dependencies:
   flutter_test:
@@ -74,7 +74,7 @@ dev_dependencies:
   # fake_cloud_firestore 4.1.1 は @override のシグネチャが旧いままで、
   # 制約 (^6.4.0) は満たすのにコンパイルが通らない。pub は検出できない
   # ので、下限をここで上げて縛る。cloud_firestore と対で動かすこと。
-  fake_cloud_firestore: ^4.2.0
+  fake_cloud_firestore: ^4.3.0
   # 認証状態の遷移（未ログイン→ログイン）を伴うStreamのテストに使用
   firebase_auth_mocks: ^0.15.0
 
