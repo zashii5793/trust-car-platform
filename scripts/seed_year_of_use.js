@@ -548,11 +548,20 @@ async function main() {
   // 車両の現在の走行距離を読み、1年前の値を逆算する。
   const startOdo = {};
   const currentOdo = {};
+  // 問い合わせは車名をそのまま持つ（`Inquiry.vehicleDisplay` が使う）。
+  // 一覧で「トヨタ ハイエース」と出るのはこの写しで、車両を引き直さない。
+  const vehicleInfo = {};
   for (const v of VEHICLES) {
     const doc = await db.collection('vehicles').doc(v.id).get();
     const mileage = doc.exists ? doc.data().mileage : v.kmPerYear * 3;
     currentOdo[v.id] = mileage;
     startOdo[v.id] = Math.max(0, mileage - v.kmPerYear);
+    const d = doc.exists ? doc.data() : {};
+    vehicleInfo[v.id] = {
+      maker: d.maker || null,
+      model: d.model || null,
+      year: d.year || null,
+    };
   }
 
   const drives = buildDrives();
@@ -760,6 +769,10 @@ async function main() {
         shopId: t.shop.id,
         shopName: t.shop.name,
         vehicleId: t.vehicleId,
+        vehicleMaker: vehicleInfo[t.vehicleId]?.maker ?? null,
+        vehicleModel: vehicleInfo[t.vehicleId]?.model ?? null,
+        vehicleYear: vehicleInfo[t.vehicleId]?.year ?? null,
+        partListingId: null,
         type: t.type,
         status: t.status,
         subject: t.subject,
