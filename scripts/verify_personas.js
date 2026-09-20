@@ -305,6 +305,71 @@ async function main() {
       )), (n) => n >= 1);
   });
 
+  await as('persona.c@example.com', 'C 工場比較', async (uid) => {
+    await check('自分の整備記録', () =>
+      count(query(collection(db, 'maintenance_records'), where('userId', '==', uid))),
+      (n) => n >= 30);
+    await check('工場一覧（提携・未提携）', () =>
+      count(query(collection(db, 'shops'), limit(20))), (n) => n >= 10);
+    await check('コーティング見積もりのやりとり', () =>
+      count(query(
+        collection(db, 'inquiries', 'inq-fx-c-coating', 'messages'),
+        orderBy('sentAt'),
+      )), (n) => n >= 1);
+  });
+
+  await as('persona.f@example.com', 'F 売却・廃車', async (uid) => {
+    // 退役させてもデータは残る、が売りなので「読めること」を見る。
+    await check('退役車両を含む自分の車両', () =>
+      count(query(collection(db, 'vehicles'), where('userId', '==', uid))),
+      (n) => n >= 1);
+    await check('自分の投稿', () =>
+      count(query(collection(db, 'posts'), where('userId', '==', uid))),
+      (n) => n >= 1);
+  });
+
+  await as('persona.g@example.com', 'G EVオーナー', async (uid) => {
+    await check('EVの整備記録（オイル交換なし）', () =>
+      count(query(collection(db, 'maintenance_records'), where('userId', '==', uid))),
+      (n) => n >= 10);
+    await check('コミュニティトレンド', () =>
+      count(query(collection(db, 'community_maintenance_trends'), limit(10))),
+      (n) => n >= 5);
+  });
+
+  await as('persona.i@example.com', 'I 中古車購入検討', async (uid) => {
+    // 車両を1台も持たない状態で、画面が空で成立するか。
+    await check('車両0台', () =>
+      count(query(collection(db, 'vehicles'), where('userId', '==', uid))),
+      (n) => n === 0);
+    await check('購入相談の問い合わせ', () =>
+      count(query(collection(db, 'inquiries'), where('userId', '==', uid))),
+      (n) => n >= 1);
+  });
+
+  await as('persona.j@example.com', 'J 登録した直後（空の状態）', async (uid) => {
+    await check('車両はある', () =>
+      count(query(collection(db, 'vehicles'), where('userId', '==', uid))),
+      (n) => n >= 1);
+    // 記録0件でも「拒否」ではなく「0件」で返ること。空表示の前提。
+    await check('整備記録0件が、拒否ではなく0件で返る', () =>
+      count(query(collection(db, 'maintenance_records'), where('userId', '==', uid))),
+      (n) => n === 0);
+    await check('ドライブログ0件が、拒否ではなく0件で返る', () =>
+      count(query(
+        collection(db, 'drive_logs'),
+        where('userId', '==', uid),
+        orderBy('startTime', 'desc'),
+        limit(20),
+      )), (n) => n === 0);
+    await check('問い合わせ0件が、拒否ではなく0件で返る', () =>
+      count(query(
+        collection(db, 'inquiries'),
+        where('userId', '==', uid),
+        orderBy('updatedAt', 'desc'),
+      )), (n) => n === 0);
+  });
+
   // -------------------------------------------------------------------------
   // 他人の会話は読めないこと（読めてしまったら重大）
   // -------------------------------------------------------------------------
