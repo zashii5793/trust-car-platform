@@ -13,12 +13,15 @@
  *   ときにどう見えるか**（並び順・件数・合計・スクロール量）は分からない。
  *   ホームに何を出すべきかは、溜まった状態でしか判断できない。
  *
- * 作るもの（すべて user-a = persona.a@example.com に紐づく）:
+ * 作るもの（断りのないものは user-a = persona.a@example.com に紐づく）:
  *   drive_logs        1年分の走行（通勤・仕事・週末・家族の遠出）
  *   drive_waypoints   直近ぶんだけ経路（地図が描けるのは2点以上から）
  *   fuel_records      1年分の給油（満タン法で燃費が出る並び）
- *   maintenance_records  rich_history が止まっている 2026-06 以降を補う
+ *   maintenance_records  A: rich_history が止まっている 2026-06 以降を補う
+ *                        B: 法人20台の1年ぶん（フリートCSVの整備欄が埋まる）
  *   accessory_showcases  1年のあいだに書いたクチコミ
+ *   inquiries         店舗とのやりとり（1年で8スレッド・未読と未対応を含む）
+ *   inquiries/messages  その往復メッセージ
  *   vehicles          走行距離の更新日だけを今に寄せる（距離そのものは触らない）
  *
  * 走行距離の作り方:
@@ -326,6 +329,172 @@ const SHOWCASES = [
 ];
 
 // ---------------------------------------------------------------------------
+// 店舗とお客様のチャット（inquiries + inquiries/{id}/messages）
+//
+// なぜ1年ぶんが要るか:
+//   既存の seed_full_experience.js は問い合わせ4件・返信5通の「スナップショット」
+//   で、**続いている付き合い**にはならない。1年使った人の画面では、問い合わせは
+//   溜まって並び、古いものは閉じ、直近のものだけが未読で上に来る。その見え方は
+//   件数がそろって初めて確かめられる。
+//
+// 相手はタカヤモーター（shop_takaya_motor_okayama）を主にする:
+//   店の文書ID = 店主の uid なので、**店側でもログインして同じ会話を開ける**。
+//   fx-shop-* には Auth ユーザーが無く、お客様側からしか見えない。
+//
+// 会話の中身は MAINTENANCE の整備記録と噛み合わせてある（見積もり → 入庫 →
+// 完了 → 次回の案内）。整備履歴とチャットが別々の作り話だと、突き合わせた
+// ときに辻褄が合わない。
+// ---------------------------------------------------------------------------
+
+const SHOP_TAKAYA = { id: 'shop_takaya_motor_okayama', name: 'タカヤモーター株式会社' };
+const SHOP_SHINAGAWA = { id: 'fx-shop-shinagawa', name: 'テストオート品川整備センター' };
+
+/**
+ * m: メッセージ。fromShop=true なら店舗発。
+ * daysAgo は「何日前のやりとりか」。スレッド内は必ず新しい順に下る。
+ */
+const CHAT_THREADS = [
+  {
+    id: 'inq-yu-01-oil-first',
+    shop: SHOP_TAKAYA,
+    vehicleId: 'veh-a-cargo',
+    type: 'appointment',
+    status: 'closed',
+    subject: 'ハイエースのオイル交換をお願いしたいです',
+    daysAgo: 312,
+    initial: 'はじめまして。ハイエース（品川400か22-22）のオイル交換をお願いしたいのですが、'
+      + '今週の土曜日は空いていますか。走行は8万kmを超えたところです。',
+    messages: [
+      { fromShop: true, daysAgo: 311, text: 'お問い合わせありがとうございます。土曜は14時以降でしたらお取りできます。'
+        + '8万km超でしたらオイルエレメントも一緒の交換をおすすめします。合わせて6,500円前後です。' },
+      { fromShop: false, daysAgo: 311, text: '14時でお願いします。エレメントも一緒でお願いします。' },
+      { fromShop: true, daysAgo: 310, text: '承知しました。土曜14時でお待ちしております。所要は40分ほどです。' },
+      { fromShop: true, daysAgo: 309, text: '本日はありがとうございました。次回の交換の目安は9万kmか、半年後の頃合いです。' },
+    ],
+  },
+  {
+    id: 'inq-yu-02-roadster-tire',
+    shop: SHOP_TAKAYA,
+    vehicleId: 'veh-a-sports',
+    type: 'estimate',
+    status: 'closed',
+    subject: 'ロードスターのタイヤ交換の見積もりをお願いします',
+    daysAgo: 141,
+    initial: 'ロードスターのタイヤにひび割れが出てきました。4年目です。'
+      + '前後4本の交換で、銘柄のおすすめも含めて見積もりをいただけますか。',
+    messages: [
+      { fromShop: true, daysAgo: 140, text: 'ひび割れは側面でしょうか。写真を送っていただけると判断しやすいです。'
+        + '純正サイズ195/50R16でしたら、静かさ重視と走り重視で2案お出しできます。' },
+      { fromShop: false, daysAgo: 140, text: '側面です。峠も走るので、どちらかというと走り重視でお願いします。' },
+      { fromShop: true, daysAgo: 139, text: '走り重視の銘柄で工賃・廃タイヤ処分込み 88,000円前後でいかがでしょうか。'
+        + '在庫は取り寄せで3日ほどいただきます。' },
+      { fromShop: false, daysAgo: 138, text: 'それでお願いします。来週の土曜に持ち込みます。' },
+      { fromShop: true, daysAgo: 132, text: '交換完了しました。慣らしの100kmは急のつく操作を控えてください。'
+        + '1か月後に増し締めの点検をおすすめします（無料です）。' },
+    ],
+  },
+  {
+    id: 'inq-yu-03-hiace-shaken',
+    shop: SHOP_TAKAYA,
+    vehicleId: 'veh-a-cargo',
+    type: 'estimate',
+    status: 'closed',
+    subject: 'ハイエースの車検見積もりをお願いします',
+    daysAgo: 84,
+    initial: 'ハイエースの車検が来月末で切れます。貨物なので毎年で、今年もお願いしたいです。'
+      + '概算をいただけますか。ブレーキの効きが少し甘い気がします。',
+    messages: [
+      { fromShop: true, daysAgo: 83, text: '承知しました。貨物の継続検査は法定費用込みで 128,000〜148,000円が目安です。'
+        + 'ブレーキは入庫時に点検します。パッドが残り2mmを切っていれば交換をご提案します。' },
+      { fromShop: false, daysAgo: 83, text: 'ありがとうございます。パッド交換込みだといくらぐらいになりますか。' },
+      { fromShop: true, daysAgo: 82, text: '前後パッド交換で +22,000円ほどです。見てからのご相談でも間に合います。' },
+      { fromShop: false, daysAgo: 78, text: '来週の火曜に入庫でお願いします。代車はお借りできますか。' },
+      { fromShop: true, daysAgo: 77, text: '火曜9時で承りました。代車をご用意します。車検証と自賠責をお持ちください。' },
+      { fromShop: true, daysAgo: 71, text: '車検が完了しました。ブレーキパッドは前後とも交換しています。'
+        + '明細をこのスレッドに添付しました。次回は来年の同じ時期です。' },
+    ],
+  },
+  {
+    id: 'inq-yu-04-alphard-battery',
+    shop: SHOP_TAKAYA,
+    vehicleId: 'veh-a-family',
+    type: 'serviceInquiry',
+    status: 'closed',
+    subject: 'アルファードのエンジンのかかりが重いです',
+    daysAgo: 66,
+    initial: '朝いちばんのエンジンのかかりが重くなってきました。5年ほど替えていません。'
+      + 'バッテリーでしょうか。週末に家族で出かける予定があるので、その前に見てほしいです。',
+    messages: [
+      { fromShop: true, daysAgo: 65, text: '5年でしたら寿命の範囲です。無料で点検できますので、'
+        + '明日でもお持ちください。交換の場合は 24,000〜32,000円が目安です。' },
+      { fromShop: false, daysAgo: 64, text: '明日の午前に伺います。' },
+      { fromShop: true, daysAgo: 63, text: '点検の結果、充電の戻りが弱く交換をおすすめする状態でした。'
+        + '本日交換まで済んでいます。これで週末は安心してお出かけいただけます。' },
+    ],
+  },
+  {
+    id: 'inq-yu-05-note-lease-end',
+    shop: SHOP_SHINAGAWA,
+    vehicleId: 'veh-a-lease',
+    type: 'general',
+    status: 'closed',
+    subject: 'リース満了前の点検について',
+    daysAgo: 47,
+    initial: 'ノートのリース満了が近づいています。返却前に見ておいた方がよい点はありますか。',
+    messages: [
+      { fromShop: true, daysAgo: 46, text: '返却時の査定で見られるのは、外装の傷・内装の汚れ・タイヤの残り溝です。'
+        + '小傷はそのままの方が安く済むことが多いので、まずは現状のままお持ちください。' },
+      { fromShop: false, daysAgo: 45, text: '分かりました。タイヤは見ておきます。ありがとうございます。' },
+    ],
+  },
+  {
+    id: 'inq-yu-06-aircon-filter',
+    shop: SHOP_TAKAYA,
+    vehicleId: 'veh-a-family',
+    type: 'appointment',
+    status: 'closed',
+    subject: 'エアコンフィルターの交換をお願いします',
+    daysAgo: 41,
+    initial: '花粉の時期の前にエアコンフィルターを替えたいです。点検のついでにお願いできますか。',
+    messages: [
+      { fromShop: true, daysAgo: 40, text: 'もちろん可能です。部品代込みで 3,200〜4,800円、作業は15分ほどです。' },
+      { fromShop: false, daysAgo: 39, text: 'ではお願いします。' },
+      { fromShop: true, daysAgo: 38, text: '交換しました。前のフィルターはかなり詰まっていました。'
+        + '1年ごとの交換をおすすめします。' },
+    ],
+  },
+  {
+    id: 'inq-yu-07-hiace-oil-recent',
+    shop: SHOP_TAKAYA,
+    vehicleId: 'veh-a-cargo',
+    type: 'appointment',
+    status: 'replied',
+    subject: 'ハイエースのオイル交換の時期でしょうか',
+    daysAgo: 27,
+    initial: '前回の交換から1万km近く走りました。そろそろでしょうか。来週あたりで空いている日はありますか。',
+    messages: [
+      { fromShop: false, daysAgo: 26, text: '今の走行は 96,400km ほどです。' },
+      { fromShop: true, daysAgo: 25, text: 'ちょうど良い時期です。来週でしたら水曜・木曜の午前が空いています。' },
+      // 最後の1通は**お客様が未読**。一覧でバッジが付いて見える状態を作る。
+      { fromShop: true, daysAgo: 24, text: '本日交換分の明細をお送りします。次回は10万kmの頃合いでご案内します。', unread: true },
+    ],
+  },
+  {
+    id: 'inq-yu-08-roadster-noise',
+    shop: SHOP_TAKAYA,
+    vehicleId: 'veh-a-sports',
+    type: 'serviceInquiry',
+    status: 'pending',
+    subject: 'ロードスターから異音がします（相談）',
+    daysAgo: 3,
+    // 店舗側が**まだ返していない**スレッド。店側の一覧で「未対応」として見える。
+    initial: '低速で曲がるときに、右前あたりから「コトコト」という音がするようになりました。'
+      + '走行に支障は無さそうですが、一度見ていただけますか。今週末は空いていますか。',
+    messages: [],
+  },
+];
+
+// ---------------------------------------------------------------------------
 
 admin.initializeApp({ projectId: 'trust-car-platform' });
 const db = admin.firestore();
@@ -348,6 +517,25 @@ async function wipe() {
     }
     console.log(`[DELETE] ${c}: ${snap.size} 件`);
   }
+
+  // 問い合わせは messages サブコレクションを持つ。親だけ消すと**メッセージが
+  // 孤児として残り**、同じ ID で流し直したときに古い会話が混ざる。
+  const inq = await db
+    .collection('inquiries')
+    .where('seedTag', '==', SEED_TAG)
+    .get();
+  let msgCount = 0;
+  for (const d of inq.docs) {
+    const msgs = await d.ref.collection('messages').get();
+    msgCount += msgs.size;
+    for (let i = 0; i < msgs.docs.length; i += 400) {
+      const batch = db.batch();
+      msgs.docs.slice(i, i + 400).forEach((m) => batch.delete(m.ref));
+      await batch.commit();
+    }
+    await d.ref.delete();
+  }
+  console.log(`[DELETE] inquiries: ${inq.size} 件（messages ${msgCount} 件）`);
 }
 
 async function main() {
@@ -505,6 +693,108 @@ async function main() {
     });
   });
 
+  // ---- 法人フリート（ペルソナB）の1年ぶんの整備 ----
+  //
+  // B の20台には整備記録が1件も無かった。フリート画面の CSV 出力は
+  // `FleetService.getMaintenanceSummaries` で整備欄を埋めるので、記録が無いと
+  // **出力は通るのに整備欄だけ空**になり、直っているのか壊れているのか
+  // 区別が付かない。1台あたり2〜3件を1年に散らす。
+  const FLEET_MENU = [
+    { type: 'oilChange', title: 'エンジンオイル交換', cost: [5400, 7200] },
+    { type: 'inspection', title: '12ヶ月点検', cost: [14000, 19000] },
+    { type: 'tireChange', title: 'タイヤ交換（前後4本）', cost: [58000, 74000] },
+    { type: 'legalInspection24', title: '車検（継続検査）', cost: [118000, 142000] },
+    { type: 'other', title: 'ブレーキパッド交換', cost: [18000, 26000] },
+  ];
+  for (let v = 0; v < 20; v += 1) {
+    const vehicleId = `veh-b-fleet-${String(v).padStart(2, '0')}`;
+    const howMany = 2 + (v % 2); // 2 件か 3 件
+    for (let k = 0; k < howMany; k += 1) {
+      const menu = pick(FLEET_MENU);
+      // 1年を台数ぶんずらして散らす。同じ日に20台まとめて入庫はしない。
+      const ago = between(20, 350);
+      entries.push({
+        col: 'maintenance_records',
+        id: `mnt-yu-fleet-${String(v).padStart(2, '0')}-${k}`,
+        data: {
+          vehicleId,
+          userId: 'president-uid',
+          type: menu.type,
+          title: menu.title,
+          description: '',
+          cost: between(menu.cost[0], menu.cost[1]),
+          shopName: 'タカヤモーター株式会社',
+          date: ts(daysAgo(ago)),
+          mileageAtService: 20000 + v * 3500 - Math.round((ago / 365) * 18000),
+          imageUrls: [],
+          createdAt: ts(daysAgo(ago)),
+          updatedAt: ts(daysAgo(ago)),
+          ...META,
+        },
+      });
+    }
+  }
+
+  // ---- 店舗とお客様のチャット ----
+  //
+  // 初回の相談は inquiry.initialMessage に入り、messages サブコレクションには
+  // 入らない（lib/models/inquiry.dart の作り）。messageCount は 1 + 返信数。
+  CHAT_THREADS.forEach((t) => {
+    const opened = daysAgo(t.daysAgo);
+    const replies = t.messages;
+    const last = replies.length > 0 ? replies[replies.length - 1] : null;
+    const lastAt = last ? daysAgo(last.daysAgo) : opened;
+
+    // 未読数は「相手が送って、まだ読んでいない通数」。
+    const unreadUser = replies.filter((m) => m.fromShop && m.unread).length;
+    const unreadShop = replies.filter((m) => !m.fromShop && m.unread).length
+      + (replies.length === 0 ? 1 : 0); // 返信0件＝店舗がまだ初回を読んでいない
+
+    const firstShopReply = replies.find((m) => m.fromShop);
+
+    entries.push({
+      col: 'inquiries',
+      id: t.id,
+      data: {
+        userId: USER_ID,
+        shopId: t.shop.id,
+        shopName: t.shop.name,
+        vehicleId: t.vehicleId,
+        type: t.type,
+        status: t.status,
+        subject: t.subject,
+        initialMessage: t.initial,
+        attachmentUrls: [],
+        messageCount: 1 + replies.length,
+        unreadCountUser: unreadUser,
+        unreadCountShop: unreadShop,
+        createdAt: ts(opened),
+        updatedAt: ts(lastAt),
+        repliedAt: firstShopReply ? ts(daysAgo(firstShopReply.daysAgo)) : null,
+        closedAt: t.status === 'closed' ? ts(lastAt) : null,
+        ...META,
+      },
+    });
+
+    replies.forEach((m, i) => {
+      const at = daysAgo(m.daysAgo);
+      entries.push({
+        // サブコレクション。col ではなくパスで指定する。
+        path: `inquiries/${t.id}/messages/msg-yu-${String(i).padStart(2, '0')}`,
+        col: 'inquiries/messages',
+        data: {
+          senderId: m.fromShop ? t.shop.id : USER_ID,
+          isFromShop: m.fromShop,
+          content: m.text,
+          attachmentUrls: [],
+          sentAt: ts(at),
+          isRead: !m.unread,
+          ...META,
+        },
+      });
+    });
+  });
+
   // ---- 「最近ちゃんと入力している人」に見えるよう、更新日だけ今に寄せる ----
   //
   // **走行距離そのものは書き換えない。** この スクリプトは車両の走行距離を
@@ -526,7 +816,8 @@ async function main() {
     byCol[e.col] = (byCol[e.col] || 0) + 1;
   });
 
-  console.log('■ 1年ぶんの利用データ（user-a / persona.a@example.com）');
+  console.log('■ 1年ぶんの利用データ（主に user-a / persona.a@example.com）');
+  console.log('  ※ maintenance_records には法人B（president-uid）の20台ぶんを含む');
   Object.entries(byCol).forEach(([c, n]) => console.log(`  ${c.padEnd(22)} ${n} 件`));
   const totalKm = drives.reduce((s, d) => s + d.km, 0);
   const totalFuelCost = fuel.reduce((s, f) => s + f.cost, 0);
@@ -540,7 +831,8 @@ async function main() {
   for (let i = 0; i < entries.length; i += 400) {
     const batch = db.batch();
     entries.slice(i, i + 400).forEach((e) => {
-      batch.set(db.collection(e.col).doc(e.id), e.data, { merge: true });
+      const ref = e.path ? db.doc(e.path) : db.collection(e.col).doc(e.id);
+      batch.set(ref, e.data, { merge: true });
     });
     await batch.commit();
   }
