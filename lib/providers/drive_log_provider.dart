@@ -66,18 +66,19 @@ class DriveLogProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    // cursor-based paginationにはFirestoreのDocumentSnapshotが必要。
-    // 現バージョンでは件数を増やしての再取得で代替。
-    final nextLimit = _logs.length + _pageSize;
+    // **最後の1件から続きを読む。** 件数を増やして取り直す形だと、
+    // 1年ぶん（200件近く）を末尾までたどるあいだに同じ記録を何度も読み、
+    // 読み取りが1,000件を超える（2026-09-08 に実データで確認）。
     final result = await _service.getUserDriveLogs(
       userId: userId,
-      limit: nextLimit,
+      limit: _pageSize,
+      startAfterId: _logs.isEmpty ? null : _logs.last.id,
     );
 
     result.when(
       success: (logs) {
-        _hasMore = logs.length >= nextLimit;
-        _logs = logs;
+        _hasMore = logs.length >= _pageSize;
+        _logs = [..._logs, ...logs];
       },
       failure: (err) {
         _error = err;

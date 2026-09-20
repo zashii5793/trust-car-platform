@@ -10,10 +10,10 @@ import 'package:trust_car_platform/main.dart' as app;
 
 /// Take simulator screenshot using xcrun
 Future<void> captureSimulatorScreenshot(String filename) async {
-  final screenshotDir = '/Users/zashii/development/trust_car_platform/docs/screenshots';
-  final result = await Process.run('xcrun', [
-    'simctl', 'io', 'booted', 'screenshot', '$screenshotDir/$filename.png'
-  ]);
+  final screenshotDir =
+      '/Users/zashii/development/trust_car_platform/docs/screenshots';
+  final result = await Process.run('xcrun',
+      ['simctl', 'io', 'booted', 'screenshot', '$screenshotDir/$filename.png']);
   if (result.exitCode == 0) {
     print('📸 Captured: $filename.png');
   } else {

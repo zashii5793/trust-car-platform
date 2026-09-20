@@ -44,7 +44,11 @@ class PlanBadge extends StatelessWidget {
       ),
       label: Text(
         label,
-        style: const TextStyle(
+        // 生の `TextStyle` を渡すと fontFamily が落ちる。Web ではこの1行が
+        // **文字ごと消えて、白い枠だけ**になっていた（2026-09-07 実測）。
+        // ゴールデンでは同じ原因で □ になる。テーマから派生させる。
+        style: (Theme.of(context).textTheme.labelMedium ?? const TextStyle())
+            .copyWith(
           fontSize: 12,
           fontWeight: FontWeight.w600,
           color: _foreground,

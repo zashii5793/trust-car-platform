@@ -141,7 +141,9 @@ class MockDriveLogService implements DriveLogService {
 
   @override
   Future<Result<List<DriveWaypoint>, AppError>> getWaypoints(
-          String driveLogId) async =>
+    String driveLogId, {
+    required String userId,
+  }) async =>
       waypointsResult;
 
   @override
@@ -184,6 +186,12 @@ class MockDriveLogService implements DriveLogService {
 
 /// 写真アップロード導線でしか使われないため、呼ばれない前提のスタブ。
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<MaintenanceSummary, AppError>> maintenanceSummary({
+    DateTime? since,
+  }) async =>
+      const Result.success(MaintenanceSummary.empty);
+
   @override
   Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
       const Result.success(false);

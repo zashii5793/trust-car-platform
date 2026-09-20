@@ -72,7 +72,7 @@ class _DriveLogDetailScreenState extends State<DriveLogDetailScreen> {
   }
 
   Future<void> _loadWaypoints() async {
-    final result = await _service.getWaypoints(_log.id);
+    final result = await _service.getWaypoints(_log.id, userId: _log.userId);
     if (!mounted) return;
     result.when(
       success: (waypoints) => setState(() {

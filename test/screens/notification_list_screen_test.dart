@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/screens/notifications/notification_list_screen.dart';
 import 'package:trust_car_platform/providers/notification_provider.dart';
 import 'package:trust_car_platform/models/app_notification.dart';
@@ -15,11 +16,19 @@ import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 
+import '../golden/font_loader.dart';
+
 // ---------------------------------------------------------------------------
 // Stub FirebaseService
 // ---------------------------------------------------------------------------
 
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<MaintenanceSummary, AppError>> maintenanceSummary({
+    DateTime? since,
+  }) async =>
+      const Result.success(MaintenanceSummary.empty);
+
   @override
   Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
       const Result.success(false);
@@ -77,6 +86,13 @@ class _StubFirebaseService implements FirebaseService {
       getMaintenanceRecordsForVehicles(List<String> vehicleIds,
               {int limitPerVehicle = 20}) async =>
           const Result.success({});
+
+  @override
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getRecentMaintenanceRecords({
+    int limit = 5,
+  }) async =>
+          const Result.success([]);
 
   @override
   Future<Result<List<MaintenanceRecord>, AppError>>
@@ -264,7 +280,7 @@ AppNotification _makeNotification({
   );
 }
 
-Widget _buildUnderTest(MockNotificationProvider provider) {
+Widget _buildUnderTest(MockNotificationProvider provider, {ThemeData? theme}) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<NotificationProvider>.value(value: provider),
@@ -272,10 +288,11 @@ Widget _buildUnderTest(MockNotificationProvider provider) {
         create: (_) => VehicleProvider(firebaseService: _StubFirebaseService()),
       ),
     ],
-    child: const MaterialApp(
-      home: Scaffold(
-        body: NotificationListScreen(),
-      ),
+    child: MaterialApp(
+      theme: theme,
+      debugShowCheckedModeBanner: false,
+      // 画面が自分で Scaffold と AppBar を持つ。ここで包まないこと。
+      home: const NotificationListScreen(),
     ),
   );
 }
@@ -285,6 +302,38 @@ Widget _buildUnderTest(MockNotificationProvider provider) {
 // ---------------------------------------------------------------------------
 
 void main() {
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        _buildUnderTest(MockNotificationProvider(), theme: goldenTheme(base)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('通知一覧（ライト）', (tester) async {
+      await shoot(tester, 'screen_notification_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('通知一覧（ダーク）', (tester) async {
+      await shoot(tester, 'screen_notification_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
+  });
+
   late MockNotificationProvider provider;
 
   setUp(() {
@@ -319,7 +368,7 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('メンテナンスの推奨がある場合はここに表示されます'),
+        find.text('メンテナンスの推奨があるとここに表示されます'),
         findsOneWidget,
       );
     });
@@ -546,6 +595,50 @@ void main() {
 
       expect(find.text('なぜ今なのか'), findsOneWidget);
       expect(find.text('オイル交換から5,000km超過しています'), findsOneWidget);
+    });
+
+    // 開いた詳細シートを、開いた位置から閉じられること。
+    // 「閉じる」はシート下端にもあるが初期表示（画面の半分）では見えず、
+    // ドラッグを知らないと閉じ方が分からなかった。
+    testWidgets('詳細シートはヘッダーの閉じるボタンで閉じられる', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', title: 'オイル交換推奨'),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.tap(find.text('オイル交換推奨'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      final closeButton = find.byKey(const Key('notification_detail_close'));
+      expect(closeButton, findsOneWidget);
+
+      await tester.tap(closeButton);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // シートが閉じて一覧だけが残る。
+      expect(closeButton, findsNothing);
+      expect(find.text('オイル交換推奨'), findsOneWidget);
+    });
+
+    testWidgets('詳細シートの閉じるボタンは開いた直後から見えている', (tester) async {
+      provider.mockNotifications = [
+        _makeNotification(id: 'n1', title: 'オイル交換推奨'),
+      ];
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      await tester.tap(find.text('オイル交換推奨'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // スクロールせずに画面内に在ること（下端の「閉じる」は初期表示では届かない）。
+      final closeButton = find.byKey(const Key('notification_detail_close'));
+      final box = tester.getRect(closeButton);
+      final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+      expect(box.top, greaterThanOrEqualTo(0));
+      expect(box.bottom, lessThanOrEqualTo(screen.height));
     });
 
     testWidgets('reason がないとき「なぜ今なのか」セクションが非表示', (tester) async {

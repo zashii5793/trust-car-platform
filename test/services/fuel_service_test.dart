@@ -132,7 +132,8 @@ void main() {
       await service.add(rec(date: DateTime(2026, 8, 1), odometer: 30900));
       await service.add(rec(date: DateTime(2026, 7, 1), odometer: 30450));
 
-      final records = (await service.recordsFor('v1')).valueOrNull!;
+      final records =
+          (await service.recordsFor('v1', userId: 'u1')).valueOrNull!;
 
       expect(records.first.date, DateTime(2026, 8, 1));
       expect(records.last.date, DateTime(2026, 6, 1));
@@ -142,19 +143,40 @@ void main() {
       await service.add(rec(date: DateTime(2026, 8, 1), vehicleId: 'v1'));
       await service.add(rec(date: DateTime(2026, 8, 2), vehicleId: 'v2'));
 
-      final records = (await service.recordsFor('v1')).valueOrNull!;
+      final records =
+          (await service.recordsFor('v1', userId: 'u1')).valueOrNull!;
 
       expect(records.length, 1);
       expect(records.first.vehicleId, 'v1');
     });
 
+    test('他人の記録は混ざらない', () async {
+      // 同じ車両IDでも、別のユーザーのものは返さない。
+      // firestore.rules は userId での絞り込みを read の条件にしている。
+      await service.add(rec(date: DateTime(2026, 8, 1), userId: 'u1'));
+      await service.add(rec(date: DateTime(2026, 8, 2), userId: 'u2'));
+
+      final records =
+          (await service.recordsFor('v1', userId: 'u1')).valueOrNull!;
+
+      expect(records.length, 1);
+      expect(records.first.userId, 'u1');
+    });
+
     group('Edge Cases', () {
       test('車両が空なら空で返す', () async {
-        expect((await service.recordsFor('')).valueOrNull, isEmpty);
+        expect(
+            (await service.recordsFor('', userId: 'u1')).valueOrNull, isEmpty);
+      });
+
+      test('ユーザーが空なら空で返す（ルールで弾かれるクエリを投げない）', () async {
+        expect(
+            (await service.recordsFor('v1', userId: '')).valueOrNull, isEmpty);
       });
 
       test('記録が無ければ空で返す', () async {
-        expect((await service.recordsFor('v-none')).valueOrNull, isEmpty);
+        expect((await service.recordsFor('v-none', userId: 'u1')).valueOrNull,
+            isEmpty);
       });
     });
   });
@@ -165,7 +187,8 @@ void main() {
 
       await service.delete(added.valueOrNull!.id);
 
-      expect((await service.recordsFor('v1')).valueOrNull, isEmpty);
+      expect(
+          (await service.recordsFor('v1', userId: 'u1')).valueOrNull, isEmpty);
     });
 
     group('Edge Cases', () {

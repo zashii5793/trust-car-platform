@@ -690,6 +690,112 @@ describe('vehicles — 法人フリートの companyId クエリ', () => {
 });
 
 // ---------------------------------------------------------------------------
+// fuel_records / drive_waypoints — 一覧クエリが所有者で絞られているか
+//
+// どちらもルールは resource.data.userId == uid を read の条件にしている。
+// Firestore は「クエリがルールを満たすこと」を静的に証明できないと list を
+// 丸ごと弾くため、**関連ID（vehicleId / driveLogId）だけで引くクエリは
+// 本番で1件も返らない**。アプリ側は 2026-09-08 に userId 付きへ直した。
+// ここでは「直した形は通る／直す前の形は弾かれる」を固定する。
+// ---------------------------------------------------------------------------
+
+describe('fuel_records — 給油履歴のクエリ', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'fuel_records/fuel_q1'), {
+        userId: OWNER_UID,
+        vehicleId: 'veh_1',
+        date: new Date('2026-08-01'),
+        liters: 40,
+        cost: 7000,
+        isFullTank: true,
+        createdAt: new Date('2026-08-01'),
+      });
+    });
+  });
+
+  test('vehicleId だけのクエリは弾かれる（直す前のアプリの形）', async () => {
+    await assertFails(
+      getDocs(
+        query(
+          collection(dbFor(OWNER_UID), 'fuel_records'),
+          where('vehicleId', '==', 'veh_1'),
+        ),
+      ),
+    );
+  });
+
+  test('userId と vehicleId で絞れば取得できる', async () => {
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(dbFor(OWNER_UID), 'fuel_records'),
+          where('userId', '==', OWNER_UID),
+          where('vehicleId', '==', 'veh_1'),
+        ),
+      ),
+    );
+  });
+
+  test('他人の userId では取得できない', async () => {
+    await assertFails(
+      getDocs(
+        query(
+          collection(dbFor(OTHER_UID), 'fuel_records'),
+          where('userId', '==', OWNER_UID),
+        ),
+      ),
+    );
+  });
+});
+
+describe('drive_waypoints — 経路のクエリと書き込み', () => {
+  test('userId を書かない create は弾かれる（直す前のアプリの形）', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OWNER_UID), 'drive_waypoints/wp_no_user'), {
+        driveLogId: 'log_1',
+        location: { latitude: 35.6, longitude: 139.6 },
+        timestamp: new Date('2026-08-01T10:00:00Z'),
+      }),
+    );
+  });
+
+  test('userId を書けば create できる', async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER_UID), 'drive_waypoints/wp_with_user'), {
+        driveLogId: 'log_1',
+        userId: OWNER_UID,
+        location: { latitude: 35.6, longitude: 139.6 },
+        timestamp: new Date('2026-08-01T10:00:00Z'),
+      }),
+    );
+  });
+
+  test('driveLogId だけのクエリは弾かれる', async () => {
+    await assertFails(
+      getDocs(
+        query(
+          collection(dbFor(OWNER_UID), 'drive_waypoints'),
+          where('driveLogId', '==', 'log_1'),
+        ),
+      ),
+    );
+  });
+
+  test('userId と driveLogId で絞れば取得できる', async () => {
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(dbFor(OWNER_UID), 'drive_waypoints'),
+          where('userId', '==', OWNER_UID),
+          where('driveLogId', '==', 'log_1'),
+        ),
+      ),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // inquiries/{id}/messages — 会話の閲覧
 //
 // メッセージ単体の senderId / receiverId で判定していると list クエリを静的に

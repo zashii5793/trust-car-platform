@@ -195,4 +195,93 @@ class FuelEfficiency {
 
     return efficiency;
   }
+
+  /// 1回ぶんの給油と、その回の燃費。
+  ///
+  /// 一覧に「入れた量・払った額・そのときの燃費」を並べるための形。
+  static List<FuelEntry> history(List<FuelRecord> records) {
+    if (records.isEmpty) return const [];
+
+    final sorted = List<FuelRecord>.from(records)
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    final out = <FuelEntry>[];
+    for (var i = 0; i < sorted.length; i++) {
+      // その回までの履歴で満タン法を回す。継ぎ足しは飛ばさず量に足される。
+      final efficiency = latestFor(sorted.sublist(0, i + 1));
+      out.add(FuelEntry(record: sorted[i], kmPerLiter: efficiency));
+    }
+
+    // 一覧は新しい順に見る。
+    return out.reversed.toList();
+  }
+}
+
+/// 給油1回と、その回に出せた燃費。
+class FuelEntry {
+  final FuelRecord record;
+
+  /// その回の燃費（km/L）。出せなければ null。
+  final double? kmPerLiter;
+
+  const FuelEntry({required this.record, this.kmPerLiter});
+}
+
+/// 給油の合計。**かかった額と燃費の平均**を、一覧の前に出すための形。
+class FuelSummary {
+  final int count;
+
+  /// 払った額の合計（円）。
+  final int totalCost;
+
+  /// 入れた量の合計（L）。
+  final double totalLiters;
+
+  /// 燃費の平均（km/L）。1回も出せなければ null。
+  final double? averageKmPerLiter;
+
+  /// 走った距離（km）。オドメーターの最小と最大の差。出せなければ null。
+  final int? distanceKm;
+
+  const FuelSummary({
+    required this.count,
+    required this.totalCost,
+    required this.totalLiters,
+    this.averageKmPerLiter,
+    this.distanceKm,
+  });
+
+  static const FuelSummary empty =
+      FuelSummary(count: 0, totalCost: 0, totalLiters: 0);
+
+  bool get isEmpty => count == 0;
+
+  /// 1kmあたりいくらかかったか（円）。**維持費の実感に近い数字。**
+  double? get costPerKm {
+    final distance = distanceKm;
+    if (distance == null || distance <= 0) return null;
+    return totalCost / distance;
+  }
+
+  factory FuelSummary.of(List<FuelRecord> records) {
+    if (records.isEmpty) return empty;
+
+    final entries = FuelEfficiency.history(records);
+    final efficiencies =
+        entries.map((e) => e.kmPerLiter).whereType<double>().toList();
+
+    final odometers = records.map((r) => r.odometer).whereType<int>().toList()
+      ..sort();
+
+    return FuelSummary(
+      count: records.length,
+      totalCost: records.fold<int>(0, (s, r) => s + r.cost),
+      totalLiters: records.fold<double>(0, (s, r) => s + r.liters),
+      averageKmPerLiter: efficiencies.isEmpty
+          ? null
+          : efficiencies.reduce((a, b) => a + b) / efficiencies.length,
+      distanceKm:
+          odometers.length < 2 ? null : odometers.last - odometers.first,
+    );
+  }
 }

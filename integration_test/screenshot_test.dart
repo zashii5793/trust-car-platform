@@ -106,7 +106,8 @@ void main() {
             await takeScreenshot(binding, '06_vehicle_form_filled');
 
             // Scroll down and find save button
-            await tester.drag(find.byType(SingleChildScrollView).first, const Offset(0, -300));
+            await tester.drag(find.byType(SingleChildScrollView).first,
+                const Offset(0, -300));
             await tester.pumpAndSettle();
 
             // Try to save the vehicle

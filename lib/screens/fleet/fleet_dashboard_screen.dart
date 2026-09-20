@@ -173,11 +173,14 @@ class FleetDashboardScreen extends StatelessWidget {
 
   Future<void> _exportCsv(BuildContext context, List<Vehicle> vehicles) async {
     final messenger = ScaffoldMessenger.of(context);
+    final uid = context.read<AuthProvider>().firebaseUser?.uid ?? '';
 
     // Best-effort maintenance aggregation; CSV still works without it.
-    final summariesResult = await sl
-        .get<FleetService>()
-        .getMaintenanceSummaries(vehicles.map((v) => v.id).toList());
+    final summariesResult =
+        await sl.get<FleetService>().getMaintenanceSummaries(
+              vehicles.map((v) => v.id).toList(),
+              userId: uid,
+            );
     final summaries = summariesResult.valueOrNull ?? {};
 
     final result = sl

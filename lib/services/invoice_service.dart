@@ -79,10 +79,16 @@ class InvoiceService {
   }
 
   /// 車両の請求書一覧を取得
+  ///
+  /// **userId で絞る。** ルールが所有者を read の条件にしているため、
+  /// 絞らないクエリは本番で permission-denied になる。
   Future<Result<List<Invoice>, AppError>> getInvoicesByVehicle(
       String vehicleId) async {
+    if (currentUserId == null) return const Result.success([]);
+
     try {
       final snapshot = await _invoicesCollection
+          .where('userId', isEqualTo: currentUserId)
           .where('vehicleId', isEqualTo: vehicleId)
           .orderBy('issueDate', descending: true)
           .get();
@@ -97,8 +103,11 @@ class InvoiceService {
   /// 整備記録に紐付く請求書を取得
   Future<Result<Invoice?, AppError>> getInvoiceByMaintenanceRecord(
       String maintenanceRecordId) async {
+    if (currentUserId == null) return const Result.success(null);
+
     try {
       final snapshot = await _invoicesCollection
+          .where('userId', isEqualTo: currentUserId)
           .where('maintenanceRecordId', isEqualTo: maintenanceRecordId)
           .limit(1)
           .get();
@@ -183,6 +192,7 @@ class InvoiceService {
       final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
 
       final snapshot = await _invoicesCollection
+          .where('userId', isEqualTo: currentUserId)
           .where('issueDate',
               isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
           .where('issueDate',

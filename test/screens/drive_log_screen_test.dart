@@ -106,6 +106,7 @@ class MockDriveLogService implements DriveLogService {
     required String userId,
     int limit = 20,
     dynamic startAfter,
+    String? startAfterId,
   }) async {
     loadCallCount++;
     return logsResult;

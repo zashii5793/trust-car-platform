@@ -67,12 +67,14 @@ void main(List<String> args) async {
   if (isDryRun) {
     print('[DRY RUN] Makers:');
     for (final m in makers) {
-      print('  ${m['id']} | ${m['name']} (${m['name_en']}) | country: ${m['country']} | order: ${m['display_order']}');
+      print(
+          '  ${m['id']} | ${m['name']} (${m['name_en']}) | country: ${m['country']} | order: ${m['display_order']}');
     }
     print('');
     print('[DRY RUN] Models (first 10):');
     for (final m in models.take(10)) {
-      print('  ${m['id']} | ${m['name']} | maker: ${m['parent_id']} | body: ${m['body_type']} | from: ${m['production_start_year']}');
+      print(
+          '  ${m['id']} | ${m['name']} | maker: ${m['parent_id']} | body: ${m['body_type']} | from: ${m['production_start_year']}');
     }
     print('  ... (${models.length} total)');
     print('');
@@ -95,7 +97,8 @@ void main(List<String> args) async {
   print('OR run the generated integration test:');
   print('  flutter test scripts/_seed_vehicle_master_generated.dart');
   print('');
-  print('TIP: VehicleMasterService.seedMasterData() reads from VehicleMasterData');
+  print(
+      'TIP: VehicleMasterService.seedMasterData() reads from VehicleMasterData');
   print('     (lib/data/vehicle_master_data.dart) and writes to Firestore.');
   print('     Update that file AND this CSV together when adding new models.');
 }
@@ -119,12 +122,12 @@ List<Map<String, String>> _parseCsv(String content) {
     }
 
     // Skip comment-only data lines
-    final withoutInlineComment = line.contains('#')
-        ? line.substring(0, line.indexOf('#')).trim()
-        : line;
+    final withoutInlineComment =
+        line.contains('#') ? line.substring(0, line.indexOf('#')).trim() : line;
     if (withoutInlineComment.isEmpty) continue;
 
-    final values = withoutInlineComment.split(',').map((v) => v.trim()).toList();
+    final values =
+        withoutInlineComment.split(',').map((v) => v.trim()).toList();
     if (values.length < headers.length) {
       // Pad with empty strings
       while (values.length < headers.length) {
@@ -137,7 +140,8 @@ List<Map<String, String>> _parseCsv(String content) {
       record[headers[i]] = i < values.length ? values[i] : '';
     }
 
-    if (record['type']?.isNotEmpty == true && record['id']?.isNotEmpty == true) {
+    if (record['type']?.isNotEmpty == true &&
+        record['id']?.isNotEmpty == true) {
       records.add(record);
     }
   }
@@ -157,7 +161,8 @@ void _generateSeedFile(
   buf.writeln('// DO NOT EDIT MANUALLY — regenerate from CSV instead');
   buf.writeln('');
   buf.writeln('// To apply this seed:');
-  buf.writeln('// 1. Ensure Firebase emulator is running (or use production with caution)');
+  buf.writeln(
+      '// 1. Ensure Firebase emulator is running (or use production with caution)');
   buf.writeln('// 2. Call VehicleMasterSeeder.seed() from your app or test');
   buf.writeln('');
   buf.writeln("import 'package:cloud_firestore/cloud_firestore.dart';");
@@ -175,11 +180,13 @@ void _generateSeedFile(
 
   buf.writeln('    // MAKERS');
   for (final m in makers) {
-    buf.writeln("    batch.set(db.collection('vehicle_makers').doc('${m['id']}'), {");
+    buf.writeln(
+        "    batch.set(db.collection('vehicle_makers').doc('${m['id']}'), {");
     buf.writeln("      'name': '${m['name']}',");
     buf.writeln("      'nameEn': '${m['name_en']}',");
     buf.writeln("      'country': '${m['country']}',");
-    buf.writeln("      'displayOrder': ${(m['display_order']?.isEmpty ?? true) ? '100' : m['display_order']},");
+    buf.writeln(
+        "      'displayOrder': ${(m['display_order']?.isEmpty ?? true) ? '100' : m['display_order']},");
     buf.writeln("      'isActive': true,");
     buf.writeln("    });");
   }
@@ -187,7 +194,8 @@ void _generateSeedFile(
   buf.writeln('');
   buf.writeln('    // MODELS');
   for (final m in models) {
-    buf.writeln("    batch.set(db.collection('vehicle_models').doc('${m['id']}'), {");
+    buf.writeln(
+        "    batch.set(db.collection('vehicle_models').doc('${m['id']}'), {");
     buf.writeln("      'makerId': '${m['parent_id']}',");
     buf.writeln("      'name': '${m['name']}',");
     buf.writeln("      'nameEn': '${m['name_en']}',");
@@ -195,29 +203,35 @@ void _generateSeedFile(
       buf.writeln("      'bodyType': '${m['body_type']}',");
     }
     if (m['production_start_year']?.isNotEmpty == true) {
-      buf.writeln("      'productionStartYear': ${m['production_start_year']},");
+      buf.writeln(
+          "      'productionStartYear': ${m['production_start_year']},");
     }
     if (m['production_end_year']?.isNotEmpty == true) {
       buf.writeln("      'productionEndYear': ${m['production_end_year']},");
     }
-    buf.writeln("      'displayOrder': ${(m['display_order']?.isEmpty ?? true) ? '100' : m['display_order']},");
+    buf.writeln(
+        "      'displayOrder': ${(m['display_order']?.isEmpty ?? true) ? '100' : m['display_order']},");
     buf.writeln("      'isActive': true,");
     buf.writeln("    });");
   }
 
   buf.writeln('');
   buf.writeln('    await batch.commit();');
-  buf.writeln('    print(\'Seeded ${makers.length} makers, ${models.length} models\');');
+  buf.writeln(
+      '    print(\'Seeded ${makers.length} makers, ${models.length} models\');');
   buf.writeln('  }');
 
   if (doClear) {
     buf.writeln('');
-    buf.writeln('  static Future<void> _clearCollections(FirebaseFirestore db) async {');
-    buf.writeln("    final collections = ['vehicle_makers', 'vehicle_models', 'vehicle_grades'];");
+    buf.writeln(
+        '  static Future<void> _clearCollections(FirebaseFirestore db) async {');
+    buf.writeln(
+        "    final collections = ['vehicle_makers', 'vehicle_models', 'vehicle_grades'];");
     buf.writeln('    for (final col in collections) {');
     buf.writeln('      final docs = await db.collection(col).get();');
     buf.writeln('      final batch = db.batch();');
-    buf.writeln('      for (final doc in docs.docs) { batch.delete(doc.reference); }');
+    buf.writeln(
+        '      for (final doc in docs.docs) { batch.delete(doc.reference); }');
     buf.writeln('      await batch.commit();');
     buf.writeln('    }');
     buf.writeln('  }');
@@ -225,7 +239,8 @@ void _generateSeedFile(
 
   buf.writeln('}');
 
-  File('scripts/_seed_vehicle_master_generated.dart').writeAsStringSync(buf.toString());
+  File('scripts/_seed_vehicle_master_generated.dart')
+      .writeAsStringSync(buf.toString());
 }
 
 String? _getArg(List<String> args, String flag) {

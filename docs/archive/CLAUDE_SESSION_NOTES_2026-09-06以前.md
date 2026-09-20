@@ -1,0 +1,1623 @@
+# Claude Session Notes アーカイブ（2026-09-06 以前）
+
+`CLAUDE_SESSION_NOTES.md` から移した古い記録。通常は読まなくてよい。
+
+---
+
+## Cloud Functions が本番に1つも無かった（2026-09-06）
+
+**ブランチ**: `claude/functions-not-deployed`
+
+`PURGE_AFTER_DAYS = 0` を反映しようとして発覚。
+
+```
+ $ firebase functions:list
+ No functions found in project trust-car-platform.
+```
+
+**規約に「退会手続きの完了時に削除します」と書いたのに、削除する仕組みが
+本番に無い。** 退会マーカーだけが書かれ、データは残り続ける状態だった。
+
+動いていないのは5つ。
+
+```
+ purgeDeletedAccounts     退会後のデータ削除（日次 03:17 JST）
+ askCarAi                 AIチャットの応答
+ onRevenueCatWebhook      課金状態の同期
+ onCommentReportCreated   通報が閾値を超えたコメントを隠す
+ onNewsletterSend         ニュースレター配信
+```
+
+### 止まっている理由
+
+Secret Manager API が無効で、`defineSecret` が解決できない。
+
+```
+ Error: ... secrets/SENDGRID_API_KEY had HTTP Error: 403,
+ Secret Manager API has not been used in project ... before or it is disabled.
+```
+
+**`--only functions:purgeDeletedAccounts` と絞っても同じ。** ソース解析の
+時点で全関数の `defineSecret` が評価される。
+
+API の有効化は Console のクリックが要る（`gcloud` が開発機に無く、
+firebase CLI にも有効化コマンドが無い）。手順は
+`docs/FUNCTIONS_DEPLOY.md` に書いた。
+
+### 同時に片付いたもの
+
+`firebase deploy --only storage` は通った。**未反映のあいだは写真の
+アップロードが全部弾かれる状態**だった（車両画像・整備記録の写真・
+プロフィールのアイコン）。
+
+### 気づいた警告
+
+```
+ Node.js 20 was deprecated on 2026-04-30 and will be decommissioned on 2026-10-30
+```
+
+**10月末以降はこのランタイムでデプロイできない。** 更新が別途要る。
+
+---
+
+## B2C の課金を凍結し、店舗プランだけで出す（2026-09-05）
+
+**ブランチ**: `claude/night-ocr-and-decisions`
+
+B2C プレミアムの価格を決めるのは見送り、**ソフトローンチは店舗プラン（B2B）
+だけで出す**方針になった。
+
+### 1. 買えないのに買えるように見えていた
+
+`plan_screen.dart` に「プレミアムプランに登録する」ボタンが**生きていた**。
+しかし、
+
+```
+ 価格          画面に1円も出ていない
+ RevenueCat    btoc_premium の entitlement はあるが、商品が無い
+```
+
+**金額を見せないまま購入フローに入る形**で、ストアの審査でも通らない。
+
+`FeatureFlag.premiumFeatures` は**定義だけあって、どこからも使われていなかった**
+（既定 `false`）。C2C と同じ形で配線した。
+
+```
+ lib/core/utils/premium_upsell.dart   canPurchasePremium / premiumUpsellMessage
+ remoteconfig.template.json           premium_features を追加（反映済み）
+ feature_flag_service.dart            remoteKeys に premium_features
+```
+
+### 2. 「アップグレードしてください」が5箇所にあった
+
+購入ボタンは **plan / profile / home の3箇所**にあり、文言だけの誘導が
+**vehicle_detail / inquiry の2箇所**。全部が「買えないものを勧める」状態だった。
+
+- 購入ボタンは `if (canPurchasePremium)` で出さない
+- 文言は `premiumUpsellMessage()` で「ご案内を準備中です」に切り替え
+- 問い合わせ上限のダイアログは「来月になると、また問い合わせできます」に
+
+**比較表そのものは見せる。** 何が有料なのかを隠す理由はない。
+
+`app_error.dart` の汎用メッセージは触っていない。`core/error` が
+`core/config` に依存する形になるのを避けた（サーバー起因のエラーで、
+発生頻度も低い）。
+
+### 3. 特商法の販売価格が埋まった
+
+店舗プランは価格が決まっている（`lib/models/shop.dart:28-33`）。
+
+```
+ フリー          無料
+ スタンダード     3,980円 / 月
+ プレミアム       9,800円 / 月
+ エンタープライズ 14,800円 / 月
+```
+
+B2C は「現在ご提供しておりません」と記載。**残る `【要記入】` は事業者情報の
+3項目**（運営統括責任者・所在地・電話番号）になった。
+
+fleet プラン（4,980 / 9,800円）は RevenueCat の entitlement が無く、
+アプリ内課金かどうか判断できないので書いていない。公開前に確認する旨を
+ページに残した。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 4390件パス
+ dart format lib test                差分なし
+ firebase deploy --only remoteconfig  反映済み（version 2）
+```
+
+---
+
+## OCRの取りこぼしを潰し、残る判断材料を揃える（2026-09-04・夜間）
+
+**ブランチ**: `claude/night-ocr-and-decisions`
+
+社長が就寝中の自律作業。**本番に触る操作とマージは避け、手元で完結するものだけ**
+進めた。
+
+### 1. 車台番号の先頭が落ちていた
+
+```
+ BNR35-123456    → NR35-123456     （B が落ちる）
+ ZVW30W-1234567  → W30W-1234567    （ZV が落ちる）
+ NCP131-0123456  → P131-0123456    （NC が落ちる）
+```
+
+プレフィックスを `[A-Z0-9]{2,4}` で拾っていたため、**5文字以上だと先頭から
+欠ける。** 車台番号は車両の一意識別子で、**1文字違えば別の車**になる。
+
+`{2,8}` に広げて解決（6文字は日本車では珍しくない: ZVW30W・NCP131・GRS182）。
+ナンバープレート・電話番号・型式の行に誤爆しないことも確認してテストにした。
+
+`test/ocr/ocr_accuracy_test.dart` の `Known Limitations` に「仕様」として
+記録されていたが、**仕様ではなく不具合だった**ので、リグレッションガードに
+書き換えた。同ファイルが参照していた存在しない `REAL_DATA_VALIDATION_CHECKLIST.md`
+も `docs/DEVICE_TEST_CHECKLIST.md` に直した。
+
+### 2. 色だけ次の行を見ていなかった
+
+燃料は `currentLine || nextLine` で次行も見るのに、**色は currentLine だけ**。
+ML Kit がラベルと値を別ブロックで返すと取れない。
+
+ついでに、走査を**行優先**に変えた。候補ごとに currentLine→nextLine を見る形だと、
+**次の行の語が今の行の値に勝つ**ことがある。
+
+```
+ 燃料の種類 軽油
+ ガソリンスタンド利用可     ← 「ガソリン」が先に当たっていた
+```
+
+### 3. キーワードの後ろが空のとき '' を返していた
+
+`_extractAfterKeyword` が空文字を返すため、**値が無いのに「入っている」ように
+見えていた**（結果画面に空欄が出る）。null を返すようにした。
+
+### 4. カメラ画面がライフサイクルで壊れる形だった
+
+```dart
+ if (state == AppLifecycleState.inactive) {
+   controller.dispose();     ← _isInitialized は true のまま
+ }
+ // build() は _isInitialized だけを見て CameraPreview(_controller!) を描く
+```
+
+**スキャナ画面のままアプリを切り替えて戻る**と、破棄済みコントローラを触る。
+`_isInitialized` を false に戻し、`_controller` も null にした。
+`_initializeCamera` は再入可能にし（resume で再度呼ばれる）、
+`setState` の前に `mounted` を見るようにした。
+
+### 5. HUMAN_TASKS の前提が、また2つ実態と違っていた
+
+**P2-12（走行記録のバックグラウンド）**: 「現状は停止する」「A/B/C から選ぶ」と
+書いてあったが、**A は既に実装済み**だった（`_ForegroundOnlyNotice`）。
+判断すべきは B/C へ進むかどうか。
+
+また「iOS の常時位置情報は審査が厳しい」と書いてあったが、**`Always` は不要**。
+`WhenInUse` のままでも「前面で開始 → 背面で継続」はできる。
+
+**P1-7（RevenueCat）**: **B2Cプレミアムの月額だけが、コードのどこにも無い。**
+店舗プラン（3,980 / 9,800 / 14,800円）と fleet（4,980 / 9,800円）は決まっている。
+**特商法の「販売価格」が埋まらない理由がこれ。**
+
+### 作った文書
+
+| ファイル | 内容 |
+|---|---|
+| `docs/PRICING_DECISION_B2C.md` | B2C価格の判断材料。相場調査と3案 |
+| `docs/DRIVE_RECORDING_BACKGROUND.md` | P2-12 の A/B/C 比較。**B を勧める** |
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 4387件パス
+ test/ocr/                           39件パス
+ dart format lib test                差分なし
+```
+
+---
+
+## 未マージPR 32本の棚卸し（2026-09-03・その5）
+
+7月に18本だった未マージPRが32本まで増えていたので、全部見て片付けた。
+
+### 何が滞留していたか
+
+**半分は「もう要らないPR」だった。** 内容が別経路で main に入っていたり
+（#156 #155 #106）、直す対象そのものが消えていたり（#142 は文言が既に
+置き換わっていた）、目的が別PRで達成済み（#88）だったりする。
+
+**つまり滞留の主因はレビュー待ちではなく、棚卸しをしていなかったこと。**
+放っておくと「マージできないPR」ではなく「意味を失ったPR」が積もる。
+
+| 分類 | 本数 | 例 |
+|---|---|---|
+| マージ | 13 | #170（OCR満了日）#169（規約）#153（事業docs退避） |
+| クローズ（取り込み済み） | 6 | #156 #155 #106 #142 #88 #144 |
+| クローズ（構造的に無理） | 1 | #164 mockito（Flutter SDK が meta を固定） |
+| クローズ（public に事業情報） | 3 | #148 #119 #114 |
+| Issue に切り出し | 1 | #145 → #172 |
+
+### #160 のマージで main を壊した
+
+**google_mlkit_text_recognition 0.14.0 → 0.17.1 を「CI 全green」と見て
+マージしたら、main の Build iOS が落ちた。**
+
+```
+In snapshot (Podfile.lock):  GoogleMLKit/TextRecognition (= 7.0.0)
+In Podfile:                  ... 0.17.1 depends on (~> 9.0.0)
+```
+
+`ios/Podfile.lock` の固定と、プラグインが要求する版が食い違う。
+
+**なぜ緑に見えたか。** `build-ios` は macOS ランナーが10倍課金なので、
+`ios` ラベル付きの PR か main への push でしか走らない。dependabot の
+PR にラベルは付かないので **skipped のまま「全green」に見える**。
+
+**ネイティブ依存を持つパッケージの更新は、この形だと構造的に PR の CI を
+すり抜ける。** 該当しそうなもの: `google_mlkit_*` `camera` `image_picker`
+`firebase_*` `google_maps_flutter` `flutter_local_notifications`。
+
+さらに、気づいて `ios` ラベルを付けても **CI は走らなかった**。
+`pull_request` の既定トリガ（opened / synchronize / reopened）に
+ラベル操作が入っていないため。#173 で `labeled` を足した。
+
+Podfile.lock は CocoaPods のチェックサムを含み、macOS 無しでは
+再生成できない。#178 で revert し、入れ直しは #177 に残した。
+
+### CI が失敗の理由を捨てていた
+
+失敗サマリが `grep ... | head -50` でマッチ行だけを拾う作りだった。
+`flutter test` は `Failed to load "..."` の **次の行** に本当の理由を
+出すので、**理由は構造的に必ず消える**。
+
+#162（firebase_core 4.14.0）でこれを踏んだ。サマリは `Failed to load`
+18行だけ。生ログを掘って初めて原因が分かった。
+
+```
+fake_cloud_firestore-4.1.1/lib/src/mock_write_batch.dart:22:8:
+  Error: Declared type variables of 'MockWriteBatch.update'
+         doesn't match those on overridden method
+```
+
+**firebase_core ではなく fake_cloud_firestore が原因だった。**
+
+```
+firebase_core 4.14.0 → fcpi ^8.x を要求
+  → cloud_firestore 6.4.1 は fcpi ^7.0.1 固定なので 6.9.0 に上がる
+    → 6.7.1 で WriteBatch.update がジェネリック化
+      → fake_cloud_firestore 4.1.1 の @override が不一致
+```
+
+**制約（`^6.4.0`）は満たすのに、override のシグネチャが合わない。**
+pub には検出できない型の壊れ方。#174 で下限を 4.2.0 に上げて縛り、
+dependabot の Firebase 系をグループ化した。
+
+### flutter_local_notifications は v18 → v22
+
+#161 は analyze が28件のエラー。v20 で `initialize` / `show` / `cancel` /
+`zonedSchedule` の位置引数が全部名前付きになり、v19 で
+`uiLocalNotificationDateInterpretation` が消えていた。
+
+**テスト側も直す必要がある。** `noSuchMethod` フェイクが
+`invocation.positionalArguments[0]` で ID を読んでいて、名前付き化で
+必ず壊れる（`namedArguments[#id]` に置換）。lib だけ直すと RangeError。
+
+#175 で移行。
+
+### 積んだPRは CI が走らない
+
+#170 / #171 は base が別の `claude/` ブランチだったため、**CI が一度も
+走っていなかった**（`ci.yml` の `pull_request` は `branches: [main]`）。
+base を main に付け替えて初めて走り、#171 は dart format の差分で落ちた。
+
+**PR を積むときは、base を main に戻すまで検証されていないと考えること。**
+
+### 次のアクション候補
+
+1. #177 — macOS 上で `pod update` して google_mlkit 0.17.1 を入れ直す
+2. #172 — カタログ外入力の候補記録（#176 で実装が上がっている）
+3. dependabot にネイティブ依存パッケージ用の `ios` ラベル自動付与を入れるか、
+   運用ルールで縛るかを決める
+
+## 地図のキー注入とOCRのエラー文言を揃える（2026-09-03・その4）
+
+**ブランチ**: `claude/maps-and-ocr-polish`
+
+### 1. iOS はキーを置く場所が無かった
+
+`AppDelegate.swift` は `Info.plist` の `MapsApiKey` を読む作りなのに、
+**そのキーが Info.plist に無かった。** キーを発行しても iOS では地図が出ない。
+
+Android の `local.properties` と同じ形にした。
+
+```
+ ios/Runner/Info.plist         MapsApiKey = $(MAPS_API_KEY)
+ ios/Flutter/{Debug,Release}   #include? "Maps.xcconfig"
+ ios/Flutter/Maxs.xcconfig     MAPS_API_KEY = <実キー>   ← .gitignore
+ ios/Flutter/Maps.xcconfig.example                       ← テンプレート
+```
+
+`#include?` は省略可能インクルードなので、**ファイルが無くてもビルドは通る**
+（キー無し扱いになるだけ）。
+
+### 2. ドライブログ詳細だけガードが無かった
+
+`MapsConfig.isConfigured` を見ているのは工場一覧だけで、ドライブログ詳細は
+**キーが無くても `GoogleMap` を作っていた**（実機では灰色のタイルが出るだけで、
+理由が分からない）。
+
+ガードを足して「地図を表示できません（地図の設定が未完了です）」を出す。
+
+**副産物**: テスト環境はキー未設定なので、**2点以上の経路でも GoogleMap を
+組まなくなった。** これまで「テストできないから避ける」と書いてあった経路が
+検証できるようになり、テストを1件足した。
+
+### 3. Lite Mode は見送った
+
+`liteModeEnabled: true` にすると Android で静止画になり、**拡大縮小ができなく
+なる。** コストが問題にならないと分かった以上、見え方を変えてまで軽くする理由が
+ない。
+
+### 4. 請求書OCRのエラーが例外の生文字列を出していた
+
+```dart
+ 車検証   const AppError.unknown('OCR処理中にエラーが発生しました。もう一度お試しください。')
+ 請求書   AppError.unknown('OCR処理中にエラーが発生しました: $e')     ← これ
+```
+
+**例外メッセージに OCR したテキストの断片（店舗名・電話番号）が混じる恐れ**が
+ある。車検証側にはその旨のコメント付きで対策が入っていたのに、請求書側だけ
+漏れていた。
+
+失敗時の案内も非対称だった（車検証は「下のフォームから手動でも入力できます」、
+請求書は素の `userMessage` だけ）。**読み取れなくても手入力すれば記録は残せる**
+ので、そこを言わないと「使えない」で終わる。揃えた。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 4369件パス
+ dart format lib test                差分なし
+```
+
+---
+
+## 車検証OCRの元号バグと、人間タスクの前提の作り直し（2026-09-03・その3）
+
+**ブランチ**: `claude/prep-docs`
+
+### 1. 満了日が30年ずれていた
+
+`vehicle_certificate_ocr_service.dart` の `_extractExpiryDate`。
+
+```dart
+ var match = pattern.firstMatch(currentLine);
+ match ??= pattern.firstMatch(nextLine);     ← 値は次の行からも取る
+ ...
+ if (currentLine.contains('令和')) { ... }    ← なのに元号は今の行で判定
+```
+
+**ML Kit は「有効期間の満了する日」と「令和7年5月20日」を別ブロックで返す。**
+実物の車検証ではこちらが普通。すると `currentLine` に「令和」が無いので
+else に落ちて **1988 + 7 = 1995年**になる。
+
+満了日が30年前になると、**車検の案内は全部「切れている」と出る。**
+
+再現テストを書いて RED を確認してから直した（`test/ocr/era_conversion_test.dart`・11件）。
+**元号の基準年をパターンと対にして持たせる**形にして、どの行から拾っても
+正しくなるようにした。
+
+```dart
+ final eraPatterns = <(RegExp, int)>[
+   (RegExp(r'令和\s*(\d{1,2})...'), 2018),
+   (RegExp(r'平成\s*(\d{1,2})...'), 1988),
+ ];
+ for (final (pattern, eraBase) in eraPatterns) { ... }
+```
+
+同じ構造の不具合が `_extractYear`（初度登録年）にもあり、こちらは**別行だと
+null になっていた**（誤った値にはならないが取れない）。あわせて直した。
+
+### 2. Places API は使っていなかった
+
+`docs/HUMAN_TASKS.md` P0-3 は「Places は従量課金が高いため要判断」「1〜2時間」と
+書いていたが、**Places も Geocoding も Directions も一切使っていない。**
+距離は Haversine のローカル計算で、課金対象は地図の表示だけ。
+
+```
+ ソフトローンチ規模（20人）  月140ロード ≒ 無料枠の 1.4%
+ Android / iOS のネイティブ地図  現行の価格体系では無料
+ Web                            MAPS_API_KEY を渡していないのでロード数0
+```
+
+**判断は不要で、やることは30分の作業だけ**だった。ただし調べる過程で穴が2つ出た。
+
+- **iOS はキーが注入されない**（`AppDelegate.swift` が読む `MapsApiKey` が
+  `Info.plist` に無い）
+- **ドライブログ詳細に `MapsConfig` のガードが無い**（キー無しでも地図を作る）
+
+### 3. Google ログインは、いまのままでは Android で失敗する
+
+`android/app/google-services.json` の `oauth_client` に **`client_type: 1`
+（Android・SHA-1 付き）のエントリが無い。** Web 用しかない。
+
+**SHA-1 を登録して plist を取り直さないと `ApiException: 10` で落ちる。**
+しかも登録すべきは **P0-1 のリリース鍵の SHA-1** で、この開発機には
+Android SDK が無く（`flutter doctor` → `✗ Unable to locate Android SDK`）、
+`./gradlew signingReport` は Java 26 で止まる。**P0-4 は P0-1 に依存する**という
+依存関係が、これまでどこにも書かれていなかった。
+
+### 4. 作った文書
+
+| ファイル | 内容 |
+|---|---|
+| `docs/SETUP_AUTH_CONSOLE.md` | P0-4 の手順。SHA-1 の話と P0-1 依存 |
+| `docs/MAPS_API_COST.md` | P0-3 の試算と、実際に要る作業 |
+| `docs/DEVICE_TEST_CHECKLIST.md` | P1-9 のチェックシート。記入欄つき |
+
+`test/ocr/ocr_accuracy_test.dart` が参照していた `REAL_DATA_VALIDATION_CHECKLIST.md`
+はリポジトリに無かった。3つ目がその代わりになる。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 全件パス
+ test/ocr/                           42件パス（既存の精度テストに影響なし）
+ dart format lib test                差分なし
+```
+
+---
+
+## 規約の【要記入】を埋め、退会後の削除を実装と揃えた（2026-09-03・その2）
+
+**ブランチ**: `claude/legal-drafts`
+
+### 1. 16箇所あった `【要記入】` を4項目まで減らした
+
+判断で決まるもの（社長に確認）とコードから確定できるものを埋めた。
+
+```
+ 埋めた   販売事業者（ZAXEL合同会社）・動作環境（iOS 16.0+ / Android 7.0+ / 主要ブラウザ）
+          fleet の役割分担・C2C の手数料条件・データ保持期間・運営者欄
+ 残り     運営統括責任者・所在地・電話番号・販売価格（すべて tokushoho.html）
+```
+
+販売価格は **P1-7 の RevenueCat 商品作成と同時に決まる**ので、そこまで埋まらない。
+
+### 2. 「即時削除」を選んだら、実装が30日猶予だった
+
+保持期間の選択肢を出すとき、**「deleteAccount は #120 で purge 対応済みなので
+即時削除が実装と一致する」と説明したが、これは誤りだった。**
+
+```
+ functions/src/purgeDeletedAccounts.ts
+   PURGE_AFTER_DAYS = 30    ← 退会から30日後に日次ジョブが消す
+```
+
+規約の元の記述「退会後30日間保持後、削除」のほうが実装と合っていた。
+誤りを伝えたうえで、**実装を即時削除（`PURGE_AFTER_DAYS = 0`）に変える**判断を
+もらった。
+
+**結果として、それまで食い違っていた3者が揃った。**
+
+```
+ 削除ダイアログ    「この操作は取り消せません」    ← 元からこう書いてあった
+ ヘルプ            「削除後の復元はできません」    ← 同上
+ 実装              30日猶予（サポートが戻せる）   ← ここだけ違った
+ プライバシー      退会後30日間保持              ← 実装には合っていた
+```
+
+UI が「取り消せない」と言っている以上、猶予を残すほうが嘘になる。
+`PURGE_AFTER_DAYS` は**規約の保持期間と対で動かす数字**なので、テストと
+コメントの両方にその旨を書いた。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos       クリーン
+ flutter test（emulator/golden 除く） 4357件パス
+ functions: npm test                 66件パス
+ functions: npx tsc --noEmit         エラーなし
+ dart format lib                     差分なし
+```
+
+---
+
+## 日付で落ちるゴールデンを直し、人間タスクを実態に合わせた（2026-09-03）
+
+**ブランチ**: `claude/business-rethink-invite`
+
+### 1. 9/01 の作業がまるごと未コミットで残っていた
+
+36ファイル・1517行。検証しなおしたところ、**ゴールデン3枚が落ちた**。
+
+### 2. 落ちた原因は「今日の日付が写り込んでいた」こと
+
+画像差分を取ると、変わっていたのは日付の1〜2文字だけだった。
+
+```
+ shop_invite_linked          （2026年9月1日に更新）  shop_invite_service.dart:334
+ add_fuel                    給油日の初期値          add_fuel_screen.dart:42
+ shop_invite_manage_issued   招待コードと集計期間     shop_invite_manage_screen.dart:91,108
+```
+
+**撮り直しても翌日また落ちる作り。** 画面の「今日」を外から渡せるようにした。
+
+- `ShopInviteService({DateTime Function()? now})` … 既定は `DateTime.now`
+- `AddFuelScreen({DateTime? today})` … 給油日の初期値と日付ピッカーの上限
+  （`createdAt` は「記録した時刻」なので実時刻のまま。混ぜない）
+- `ShopInviteManageScreen({DateTime? today})` … 車検の集計期間
+- ゴールデンは `_goldenToday = DateTime(2026, 9, 1)` に全部寄せた
+
+**副産物**: 招待コードは `InviteCode.generate(seed: now.microsecondsSinceEpoch)`
+なので、`now` が固定されるとコードも決まる。`shop_invite_manage_issued.png` が
+毎回同じ画像になった。
+
+前回の「満了日は今日を基準に置く（固定日付にすると月が変わるとカードが空に
+なる）」というコメントは、**画面の今日を渡せるようになったので不要**になった。
+
+### 3. 人間タスクの記述が実装に追いついていなかった
+
+`docs/HUMAN_TASKS.md` P0-1 は「build.gradle.kts が debug 鍵のまま」と書いて
+いたが、**実際は `key.properties` を読む `signingConfigs` が入っていて、鍵が
+無いまま release タスクを叩くと GradleException で止まる。** AI 側の作業は
+残っておらず、人間のキーストア生成だけが残っていた。
+
+- P0-1: 実測（`android/key.properties` が無い）に書き換え
+- P0-2: ローカル検証（148件）とドライラン（コンパイル成功）を済ませて記録
+- P2-14: 「法的レビュー」→「規約ドラフトの確定」に具体化。`【要記入】` 16箇所を
+  ファイル別に一覧化した
+
+### 4. 規約類のドラフトも未コミットで残っていた
+
+privacy / terms を実装に合わせ、特商法の雛形（`tokushoho.html`）を新設。
+**`【要記入】` はアプリ内の設定画面にもそのまま出る。** テスト配布より先には
+出せない。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos                     クリーン
+ flutter test --exclude-tags "emulator || golden"  4357件パス
+ flutter test test/golden/                         25件パス（撮り直し済み）
+ test/rules（Emulator）                            148件パス
+ dart format lib test                              差分なし
+ firebase deploy --only firestore:rules --dry-run  コンパイル成功（未反映）
+```
+
+`.claude/worktrees/` を `.gitignore` に足した（リポジトリ内に作った作業用
+チェックアウトが未追跡で出ていた）。
+
+### 5. Firestore のルールとインデックスを本番へ反映した
+
+`docs/HUMAN_TASKS.md` P0-2。**8/28 以降に足したルールが全部未反映だった**ので、
+車検満了日の共有は本番では書き込みが弾かれる状態だった。
+
+```
+ firebase deploy --only firestore:rules     released
+ firebase deploy --only firestore:indexes   deployed
+```
+
+Console のバージョン履歴での目視確認だけ人間側に残っている。
+
+### 6. 「Console でしかできない」と書いてあった2件は CLI でできた
+
+`docs/HUMAN_TASKS.md` は P1-10（バックアップ）と P2-15（Remote Config）を
+Console の手作業として書いていたが、**どちらも firebase CLI から設定できた。**
+
+```
+ firebase firestore:backups:schedules:create --recurrence DAILY --retention 30d
+ firebase deploy --only remoteconfig
+```
+
+Remote Config は `remoteconfig.template.json` に置いて `firebase.json` から
+参照する形にした。**Console から直接変えるとリポジトリと食い違う**ので、
+再開判断のときもテンプレートを直して deploy する。
+
+P0-4（Auth の Sign-in method）は Identity Platform の管理APIが要るため、
+現状の CLI では届かない。ここは Console のまま。
+
+---
+
+## 取りこぼしの可視化（案A）と、iOS 設定の追いつき（2026-09-01）
+
+**ブランチ**: `claude/business-rethink-invite`
+
+### 1. iOS の App ID がコード側だけ古いままだった
+
+`docs/IOS_FIREBASE_FIX.md` の「人間の作業」（Firebase に `jp.trustcar.app` で
+iOS アプリを再登録して plist を差し替える）は 8/27 に済んでいたが、
+**コード側の App ID が旧アプリのまま**だった。plist と食い違うので、
+直したつもりで直っていない状態。
+
+- `lib/firebase_options.dart` の `ios` / `macos`: `appId` `1:...ios:4320af5d...`
+  → `1:...ios:5646ac32...`、`apiKey` も新しいものに
+- `.github/workflows/ci.yml` L307/L329 のフォールバック plist も同じ値に
+
+**残るのは実機/シミュレータでの起動確認だけ**（`docs/IOS_FIREBASE_FIX.md` §4）。
+
+### 2. 店が取りこぼしを数えられるようにした（案A）
+
+`docs/BUSINESS_MODEL_RETHINK_2026-08-27.md` §6-2。集計とカードは 8/28 に
+作ってあったが、**店側に配線できていなかった**。店は顧客の `vehicles` を
+読めないため（そして読めるようにするほうが問題）。
+
+**顧客が自分の `shop_customers` 文書に、車検の満了日だけを置く形にした。**
+
+```
+ shop_customers/{userId}
+   inspectionExpiries: [Timestamp]  ← 日付だけ。車両IDも車種も入れない
+   vehicleCount: int                ← 差分が「満了日が分からない台数」
+   sharesInspectionExpiry: bool     ← 顧客が切れる
+```
+
+- `ShopInviteService.shareInspectionExpiries` / `setExpirySharing`
+- `InspectionPipeline.fromSharedExpiries` … **`isCompletionKnown: false`**
+- `InspectionPipelineCard` … 入庫が分からないときは
+  「満了を迎える / まだ猶予がある / 要確認」。**「取りこぼし」とは書かない**
+- `ShopInviteScreen` に共有スイッチと「いま何を渡しているか」
+- `HomeScreen` が車両の変化に合わせて裏で同期
+- `firestore.rules`: 満了日は20件・台数99まで。名簿の代わりにさせない
+
+**入庫の有無は渡っていない。** そこを「取りこぼし0台」と出すと経営判断を
+誤らせるので、要確認の台数までで止め、伝票との突き合わせは手作業に残した。
+
+**ルールを変えたので、`firebase deploy --only firestore:rules` が要る**
+（`docs/HUMAN_TASKS.md` P0-2）。
+
+### 3. ゴールデンでボタンの文字が豆腐だった
+
+`font_loader.dart` は「w500 は `.ttc` の制約で豆腐になる」と書いていたが、
+**原因は太さではなくフォント名の指定が無いこと**だった（AppBar と同じ形）。
+`goldenTheme` が `*ButtonThemeData` の `textStyle` にも名前を補うようにして、
+「コピーする」が読める字で写るようになった。
+
+### 検証
+
+```
+ flutter analyze --fatal-infos                     クリーン
+ flutter test --exclude-tags "emulator || golden"  4340件パス
+ flutter test test/golden/                         25件パス（撮り直し済み）
+ test/rules（Emulator）                            122件パス（新規7件）
+ dart format lib test                              適用済み
+```
+
+`test/widgets/maker_badge_test.dart` は**前回のコミット時点で未整形**だった
+（今回の整形に巻き込まれている）。CI の `--set-exit-if-changed` に当たる形。
+
+---
+
+## 開発進捗レポート（2026-08-29）
+
+**ブランチ**: `claude/dev-progress-report-pdf-95rw0t`
+
+開発遍歴・機能一覧・コンセプト整合性・未実装・バグ・課題を1本の PDF にまとめた
+（`docs/reports/DEV_PROGRESS_REPORT_2026-08-29.pdf` / 15ページ。HTML を同梱してあるので
+`chromium --headless --print-to-pdf` で再生成できる）。
+
+### 調査で出てきた新しい事実
+
+| 重さ | 内容 |
+|---|---|
+| **重大・新規** | **main の `Build iOS` が 8/25 から失敗している。** `cloud_firestore 6.4.1` の `FLTPipelineParser.m` が Firebase iOS SDK と噛み合わず `no visible @interface for 'FIRCollectionSourceStageBridge'`。8/21 レポート時点は success だったので**回帰**。`pubspec.yaml` は `^6.1.2` と上限を開けているため、解決版が動くたび再発しうる |
+| 改善 | **未マージPR が 28本 → 21本。初めて減った。** Flutter を 3.44.2 に揃えたことで dependabot の version solving 失敗が解けたのが主因 |
+| 未解決 | iOS 白画面（Bundle ID 不一致）の修正 PR #155 が4日間オープンのまま。B-2「購入を復元」も B2C 側に無いまま |
+
+### コンセプト照合で見つかったずれ
+
+- **`PartRecommendation` が企画書の形になっていない。** 企画書は `reasons`（複数）/ `cautions` /
+  `confidenceScore` を求めるが、実装は `compatibility` + `compatibilityNote`（1本の文字列）+ `relevanceScore`。
+  **「isBest を持たない」という禁止側は守られているが、「理由を複数出す」肯定側が構造として無い。**
+- **`docs/FEATURE_SPEC.md` が 2026-02-21 から更新されていない。** そこで「未実装 P0」とされている
+  車両マスタ・愛車タイムライン・ホームAI提案は**3つとも実装済み**。この文書を根拠に優先順位を
+  決めると済んだ仕事をやり直す。
+- `TireInfoCard` は自ファイル以外からの参照が0件のまま（削除か組み込みか未判断）。
+
+---
+
+## テスト配布の穴を塞ぐ（2026-08-24）
+
+**ブランチ**: `claude/fix-empty-state-dead-ends`（PR #149）
+
+### 1. どのビルドかを特定できるようにした
+
+テスト配布中はバージョンが `1.0.0` のまま APK も Web も何度も出し直す。
+これまでフィードバックに載るのは `1.0.0` だけで、**「まだ直っていない」と
+言われても、その人がどのビルドを触っているか分からなかった。**
+
+- `AppInfo.buildId` = `String.fromEnvironment('APP_BUILD_ID')`
+- `AppInfo.fullVersion` → `1.0.0 (a1b2c3d)`。識別子が無ければバージョンだけ
+- 表示: `_ProfileTab` 最下部（Key: `app_version_label`）に
+  `バージョン 1.0.0 (a1b2c3d) / web`
+- 記録: `injection.dart` の `FeedbackService(appVersion: AppInfo.fullVersion)`
+- 配線: `scripts/deploy_web.sh`（`git rev-parse --short HEAD`・未コミットなら
+  `-dirty`）/ `test_apk.yml` / `web_preview.yml`（ともに `${GITHUB_SHA::7}`）
+
+整形は純粋関数 `AppInfo.formatVersion(version, buildId)` に出した。
+`buildId` はコンパイル時に固定されるためテストから振れない。
+
+### 2. 起動直後の白画面と □□□ を塞いだ
+
+**実測（Chrome・ローカル配信の release ビルド）**:
+
+```
+ 最初のフレーム        0.9 秒
+ Roboto の到着         1.4 秒
+ 日本語フォントの到着   3.4 秒   ← ここまで □□□
+ 初回の実ダウンロード   1.5〜6.7 秒
+```
+
+**踏んだ落とし穴が2つ**:
+
+1. **first-frame で消すと早すぎる。** 日本語フォントは最初の描画より*後*に
+   取りに行く。実装1回目（first-frame + 0.9 秒）は、消えた先が豆腐だった。
+2. **`fonts.gstatic.com` への取得すべてを数えると、Roboto で早合点する。**
+   Roboto は 1.4 秒で届く。実装2回目はこれで消えて、また豆腐が見えた。
+   待つ相手を `/notosansjp|notosanscjk/i` に限って解決。
+
+最終形（`web/index.html`）:
+
+| 条件 | 動き |
+|---|---|
+| 日本語フォント到着 → 0.7 秒静か | 消す（通常経路） |
+| 最初のフレームから 8 秒フォントが来ない | 消す |
+| 6 秒経過 | 「時間がかかっています」を表示 |
+| 20 秒経過 | 何があっても消す |
+
+`window.__splashTrace` に first-frame・フォント到着・消した時刻と理由を残した。
+**次に触る人が、ビルドし直して目視する代わりに数字で確かめられる。**
+
+### 学び: ブラウザで見ないと分からない
+
+2回とも「テストは通るのに実際は豆腐」だった。HTML の中身を読む検査
+（`test/ux/web_splash_test.dart` 13件）は**書いた条件が入っているか**しか
+見られない。**条件そのものが間違っている**のは、実際に開かないと分からない。
+
+### 数字
+
+- テスト 4,073件 → **4,098件**（+25）全パス
+- `flutter analyze --fatal-infos` クリーン / `dart format` 差分なし
+
+---
+
+## ペルソナデータ実機テスト＋SNS強化（2026-08-20）
+
+**ブランチ**: `claude/guest-mode-and-web-emulator`
+
+### 実機確認で見つけた本番バグ2件（Firestore ルール）
+
+| 症状 | 原因 | 対応 |
+|---|---|---|
+| フリート管理が「車両データの取得に失敗しました」 | `fleet_service` は `vehicles.where('companyId', ==, uid)` で引くのに、ルールの read が `userId` しか見ておらず list が丸ごと拒否 | vehicles の read に `companyId == uid` 条項を追加 |
+| 問い合わせが「回答済み」なのにチャットが空 | messages の read が `senderId`/`receiverId` 判定。`receiverId` は `lib/` に存在せず、list クエリも静的検証できない | `isInquiryParticipant(inquiryId)` を新設し、親 inquiry の当事者で判定 |
+
+いずれも `test/rules/firestore.rules.test.js` に RED を作ってから修正（rules テスト計79件）。
+`RULES_TEST_PROJECT_ID` を追加し、ローカルのシードを消さずにルールテストを回せるようにした。
+
+### フリートオーナーの担当者アサイン
+
+`fleet_service.assignVehicle()` は他ユーザー名義の車両にも書き込む。vehicles の update に
+「フリートオーナーは `assigneeId` / `assigneeName` / `updatedAt` のみ」を追加（`companyId`
+書き換えと削除は不可）。
+
+### SNS（みんなの投稿）の強化
+
+- **カテゴリの複数選択**: `PostProvider` を `Set<PostCategory>` + `toggleCategory` /
+  `clearCategories` に。クエリは `whereIn`（等価フィルタ扱いなので既存インデックスと共用）
+- **並び替え**: `PostSortBy { newest, mostCommented }`。コメント数が同じときは新しい順で安定化。
+  `firestore.indexes.json` に commentCount 用の複合インデックス4件を追加（**本番デプロイは未実施**）
+- **ページングの重複バグ修正**: `loadMoreFeed` がカーソルを渡しておらず毎回先頭ページを
+  取り直していた。`getFeed` は `PostPage`（posts + 不透明カーソル）を返す形に変更
+- **コメントのゼブラ表示**: 1件ごとに背景を塗り分け、返信は親の背景を継承 + 左に縦線
+- **コメントの画像添付**: `Comment.imageUrls`（最大2枚）、`comment_images/{uid}/{ts}/` の
+  Storage ルール、入力バーの添付ボタン、コメント/返信のサムネイル表示
+- **投稿画像のレイアウト**: 1枚なら幅いっぱい（16:9）、複数なら横スクロール
+
+### プロフィールのプランバッジ
+
+青いヘッダーの上で白背景に白文字となり読めなかった。`lib/widgets/plan_badge.dart` に切り出し、
+背景・文字・アイコン色を明示（フリー=白/濃色、プレミアム=アンバー/濃色）。
+コントラスト比 4.5:1 以上をテストで固定。
+
+### シードデータ
+
+- `seed_rich_history.js`: 車両ドキュメントの実距離を正として履歴を逆算するよう修正
+  （45,000km の Hiace に 89,522km の記録が並んでいた）。年間走行距離も実距離から算出
+- `seed_personas.js`: プリウスのバッテリー交換記録 40,000km → 26,500km
+- `seed_media.js`（新規）: PNG をその場で生成して Storage に置き、投稿7件・コメント3件に
+  画像を紐づける。ダウンロードトークン付き URL を発行（`?alt=media` だけでは
+  `allow read: if isAuthenticated()` に 403 で弾かれる）
+
+### 未対応・申し送り
+
+- Firestore インデックスとルールの**本番デプロイは未実施**（`firebase deploy` は要承認）
+- Web 版で `image_picker` による投稿画像添付の実機確認は未了（モバイル実機での確認が必要）
+- ログイン直後、データ到着まで数秒「まず愛車を登録しよう」の空表示が出る（Web debug で A=約10秒）
+
+---
+
+## 自律継続モード（2026-08-15・ユーザー外出中）
+
+**ブランチ**: `claude/rustcar-pr-triage-ci-rumd73` / **PR**: #120
+
+### PRトリアージ（マージ権限はユーザーの事前承認に基づく）
+
+- **#111（ドライブログ手動入力）**: ローカル test-merge で衝突なしを確認 → ready化 → squashマージ完了
+- **#106**: クローズ済み（内容は #120 へ移送済み）
+- **#120 へ origin/main を取り込み**: コンフリクト2件を手動解決
+
+### 決定: Google Maps APIキーは MAPS_API_KEY に一本化
+
+#41系（GOOGLE_MAPS_API_KEY 環境変数直読み）と #43系（MAPS_API_KEY Gradleプロパティ
++ env + `MapsConfig.isConfigured` ゲート）が併存し、AndroidManifest に
+`com.google.android.geo.API_KEY` の meta-data が2つ入る状態だった。
+
+- **採用**: #43系。`build.gradle.kts` は `MAPS_API_KEY` プロパティ→ env
+  `MAPS_API_KEY` → env `GOOGLE_MAPS_API_KEY`（後方互換）→ 空 の順でフォールバック
+- Web は従来どおり CI が `GOOGLE_MAPS_API_KEY_WEB` を `web/index.html` に注入（変更なし）
+
+### 決定: 工場地図は NearbyShopsMapScreen（埋め込みトグル）に一本化
+
+main側 #125 の `ShopMapScreen`（別ルートpush・142行）と #120 の
+`NearbyShopsMapScreen`（埋め込みトグル・BottomSheet詳細・審査済バッジ・308行）が
+重複。実機フィードバック起点の後者を採用し `shop_map_screen.dart` は削除。
+main側の良い点だった **`MapsConfig.isConfigured` ゲートは `_canShowMap` に統合**
+（キー未設定ビルドでは地図導線を出さず距離順リストのみ）。テストはどちらの
+地図ボタンKeyにも依存していないことを確認済み。
+
+### CI修正
+
+- `pubspec.yaml`: 自動マージで `google_maps_flutter` が重複（^2.9.0 / ^2.10.0）
+  → pub get がパースで即死し Analyze/Web build 全滅 → ^2.10.0 に一本化
+
+### テスト追加（エージェント作・計39件）
+
+- `test/screens/drive_log_detail_screen_test.dart`（21件）: 日記保存/公開切替/
+  経路ぼかし表示/住所丸め/未ログイン・取得失敗系
+- `test/widgets/equipment_section_test.dart`（18件): 装備スイッチ→メーカー・型番欄/
+  候補シート+自由入力/FilterChip/OFF→ON値復元の仕様固定
+
+---
+
+## 実機確認の指摘対応（2026-08-07）
+
+**ブランチ**: `claude/rustcar-pr-triage-ci-rumd73` / **PR**: #120
+
+### 決定1: カタログは常に「入力補助」であってゲートにしない
+
+メーカー・車種・グレードに続き、**車体色・装備メーカー・都道府県/市区町村**にも
+同じ方針を適用した。判断基準を明文化する。
+
+| 対象 | 網羅できるか | 扱い |
+|------|-------------|------|
+| 都道府県 | できる（47件で確定） | 選択式のみ |
+| 市区町村 | できない（約1,700件・合併あり） | 自由入力 |
+| 車体色 | できない（メーカー固有名が無数） | 候補18色 ＋ 自由入力 |
+| ナビ/ドラレコのメーカー | できない（OEM多数） | 候補 ＋ 自由入力 |
+
+**保守できない一覧を持つと、必ず「登録できないユーザー」が出る。**
+
+### 決定2: オプション・装備は有無ではなくメーカー＋型番で持つ
+
+`Vehicle` は68項目すべてがUIに出ていた一方、装備の項目は**1つも無かった**。
+他の未実装項目と違い「繋がっていない」ではなく「作られていない」。
+
+「付いている / 付いていない」だけでは、買い替え相談も売却査定も整備依頼も成立しない。
+ナビ・ドラレコ・ETC はメーカーと型番を持たせた。
+
+`VehicleFeature` の enum 名は Firestore に保存される。**変更・削除禁止**（追加は安全）。
+
+### 決定3: 公開ドライブログは経路の両端をぼかす
+
+経路は自宅から始まって自宅で終わることが多く、そのまま公開すると
+**住所を書いていなくても自宅が特定できる**。共有機能の前提として先に実装した。
+
+- 始点・終点から半径500m以内の点を落とす（往復でも両端それぞれ判定）
+- 残りが1点なら「そこに居た」が残るので空にする
+- 住所は市区町村まで。政令市の区は残さず**最初の一致**で切る
+  （貪欲だと「京都市中京区寺町通」のように町名を拾う。粗いぶんには害が無い）
+- 非公開時は何もぼかさない（自分の記録から自宅が消えたら使えない）
+- **公開する前に見え方を確認できるプレビュー**を付けた
+
+### 決定4: Web非対応の機能は「押せない理由」を出す
+
+`google_mlkit_text_recognition` は Web 非対応。`TextRecognizer` をコンストラクタで
+生成していたため、Web では生成時点で例外になり原因不明のエラーだけが出ていた。
+遅延生成 ＋ `isSupported` 判定に変え、押せば必ず失敗するボタンは出さない。
+
+### 副次的に直したもの
+
+- `GeoPoint2D.distanceTo` の sin/cos/sqrt/atan2 が自前のテイラー展開だった
+  （「dart:math の import 問題を避けるため」とあったが、dart:math はコアライブラリ）。
+  ぼかし処理がこの距離計算に依存するため `dart:math` に置換
+- 通知の既読はスワイプでしかできず、未読表示は7pxのドットのみ。押せるトグルへ
+- プロフィール編集シートがスクロールできず、欄を足すとはみ出す状態だった
+
+### PR #106 の扱い
+
+`claude/night-20260802` は9コミット遅れ＋コンフリクトで `dirty`。指定ブランチ以外へは
+push できないため、**内容をこのブランチにチェリーピック**した（`google_maps_flutter` 追加、
+`shop_map_utils`、`nearby_shops_map_screen`、テスト16件）。
+`shop_list_screen` の埋め込み表示との衝突は、AppBar が無い場合に本文先頭へ
+地図切替を出す形で解決。
+
+これでドライブログの経路も Google Map で描けるようになった。
+
+### 開発環境
+
+`dart format` が CI と食い違って5回失敗した件の再発防止として、
+**Dart SDK をこの実行環境に導入**した。`--language-version=3.0` を付けると
+CI（Flutter 3.38 同梱の dart_style）と完全に一致する。
+付けないと言語バージョンが解決できず tall style になり、324ファイルが差分扱いになる。
+
+```bash
+dart format --language-version=3.0 --output=none --set-exit-if-changed lib test
+```
+
+### 人手が必要（未実施）
+
+- `firebase deploy --only firestore:rules,firestore:indexes`
+- `node scripts/seed_shops.js` / `node scripts/seed_safety_tips.js`
+  — 未実行のため整備工場・安全運転の画面が空
+- `maintenance_comments` の Firestore ルール定義（現在0件 → コメントが黙って拒否される）
+- グレードカタログの `parent_id` が全16件で未設定 → 88車種すべてで候補0件
+
+## 滞留PR一括トリアージ ＋ CI恒久修正（2026-08-05）
+
+**ブランチ**: `claude/rustcar-pr-triage-ci-rumd73` / **PR**: #109
+**前提**: 個人向けSNS路線 → **B2B（社用車管理）への振り直し**（反応がなければ凍結判断）
+
+### 決定1: CI — ワークフロー停止ではなく恒久修正
+
+`pm_report.yml` は **2026-06-15 の初回から 8/8 全実行が失敗**しており、一度も成功していなかった。
+
+| バグ | 内容 |
+|------|------|
+| 1（main反映済み） | `grep -c` は0件時に「0」を出力しつつ **exit 1**。`$(... \|\| echo "0")` が2行になり `$GITHUB_OUTPUT` が `Invalid format '0'` で落ちる |
+| 2（#109で修正） | `FAIL=$(echo "$FAIL_LINE" \| grep -oE '[0-9]+')` が**テスト全緑時に exit 1** → `bash -e` でステップ失敗。つまり**テストが通ると落ちる** |
+
+- 全 `run` ステップを `set +e` ＋明示的な終了コード判定に統一
+  （品質レポートは「報告」が役目。赤い結果はデータであってワークフローを失敗させる理由にしない）
+- `flutter analyze` / `flutter test` の2回実行をやめ、終了コードを直接使用
+- `github-script` への `${{ }}` 直接展開を廃止し `env:` 経由へ（バッククォート入りコミット件名でJSが壊れる）
+- 本文の12スペースインデントを除去（**レポート全体がコードブロック化していた**）
+
+### 決定2: CI — 毎日の失敗通知の発生源を遮断
+
+`ci.yml` が `claude/**` への push を対象にしており、**65本**の滞留ブランチが
+push の度にフルCI（macos-15 の iOS ビルド含む）を起動していた。これが失敗通知と
+Actions ストレージ超過の発生源。
+
+- push トリガーを **`main` のみ**に限定（**PRイベントでのゲートは維持**）
+- `concurrency` + `cancel-in-progress` で重複run停止
+- APK/iOS 成果物のアップロードを **main 限定**・retention 7→3日
+
+> **main 自体は 2026-03 以降ずっと緑**だった（直近30run: 21成功/9失敗、失敗は全て2〜3月）。
+> 赤かったのは滞留ブランチであって main ではない。
+
+### 決定3: 滞留PR38件 → 9件に整理
+
+判定根拠は `docs/OPEN_PR_TRIAGE_2026-08-05.md`。
+
+| 判定 | 件数 | PR |
+|------|------|----|
+| 🔴 クローズ | **30** | #26 #27 #34 #45 #46 #48 #50 #53 #54 #56 #57 #58 #60 #69 #70 #71 #72 #73 #79 #85 #86 #89 #91 #93 #94 #95 #96 #97 #106 #107 |
+| 🟢 マージ対象 | 3 | #76（車両共有権限＝社用車管理の土台）→ #75（工場裏書き）→ #108（横断UX/Web） |
+| 🟡 B2B転用で保留 | 5 | #35(OCR登録) #90(車両台帳PDF) #88(Webデプロイ) #61(大量データ移行) #98(UI統一集約) |
+
+- クローズ理由は各PRにコメント済み。**ブランチは削除していない**ため再オープンで復帰可能
+- Issue #29/#30 のUI統一は11本が相互競合していたため **#98 に集約**
+- B2Cの受け皿ではなく、main の既存 `fleet_*`（`lib/models/fleet_member.dart`、
+  `lib/providers/fleet_provider.dart`、`lib/screens/fleet/`、`lib/services/fleet_service.dart` ほか）が
+  B2B振り直しの土台になる
+
+### 決定4: 滞留ブランチは削除しない（棚卸しのみ）
+
+`origin/claude/*` は 66本（オープンPR保持 9 / それ以外 57）。実測の結果:
+
+- **main にマージ済みのブランチは 0本**。squash merge のため main のコミットは
+  `feat: ... (#74)` に潰されており、元ブランチは main の祖先にならない。
+  つまり `git branch -d` は全て拒否され、削除するなら `-D`（強制）になる
+- **訂正**: 「ブランチ整理で Actions ストレージを回収」は機構として誤り。
+  ref はストレージをほぼ消費しない。占めているのは**アーティファクト**
+
+実測ストレージ: main 1 run あたり `android-apk-debug` 109.7MB + `ios-build-debug` 85.3MB
+= **約195MB**。これが従来 `claude/**` push 毎にも生成されていた（CI run 総数 742）。
+**#109 で「main限定＋retention 3日」に変更済み**のため今後の生成は停止。
+既存分は7日で自動失効（最新分は 2026-08-11 期限）し、追加操作なしで解放される。
+
+→ 30本のクローズ済みPRに「ブランチは削除しません」とコメント済みでもあるため、**削除は見送り**。
+
+### 次のアクション候補（3件）
+
+1. **#109 をマージ** → CIノイズ源を止めたうえで `#76 → #75 → #108` の順にマージ
+2. **#35 の OCR登録を B2B前提で切り出し再実装**（車検証OCRによる社用車の一括登録）
+3. **pm_report を `workflow_dispatch` で手動実行**し、初めて緑になることを実測で確認
+
+---
+
+## 夜間エージェント実行ログ（2026-08-01）
+
+**ブランチ**: `claude/night-20260801`
+**テスト**: 3509件 全パス（+4件）/ `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **Issue #41 Phase 3 実装（非提携店向け需要通知カード）**
+   - `_DemandNotificationCard` StatefulWidget を `shop_owner_screen.dart` に追加
+   - `!shop.isPartner` の店舗オーナー画面に、需要件数（`ShopDemandService.getDemandCountForShop`）を表示
+   - count > 0 のときのみ表示・count == 0 なら `SizedBox.shrink()`
+   - 「登録」ボタン → `ShopPlanScreen` へ遷移
+   - TDD 4件追加（RED→GREEN確認済み）
+   - `shop_owner_screen_performance_card_test.dart` に `_StubShopDemandService` 登録を追加
+     （非提携店テストで `sl.get<ShopDemandService>()` が未登録エラーになるのを修正）
+
+### 次のアクション候補（3件）
+
+1. **PR を main ブランチへマージ**（`claude/night-20260801` — CI GREEN 確認後）
+2. **Issue #41 Phase 4**: 非提携店オンボーディング画面（`ShopPlanScreen` のフリープラン → パートナー申込フロー）
+3. **蓄積 PR のレビュー・マージ**: 29件超の draft PR を最優先順でレビュー（#74 → #75 の依存順に注意）
+最終更新: 2026-07-31
+
+---
+
+## 夜間エージェント実行ログ（2026-07-31）
+
+**ブランチ**: `claude/night-20260731`
+**PR**: #104 https://github.com/zashii5793/trust-car-platform/pull/104
+**テスト**: 3509件 全パス（+4） / `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **Issue #41 Phase 2 — フリーミアム問い合わせゲート（InquiryScreen）**
+   - `InquiryScreen._submit()` に `!widget.shop.isPartner` ゲートを追加
+   - 非提携店 → `ShopDemandService.recordDemand()` → 需要受付ダイアログ
+   - 提携店 → 従来の月次上限 + 通常問い合わせ送信フロー
+   - テスト: `MockShopDemandService`、`sl.override` パターン、新4テスト追加
+
+2. **AccessoryShowcaseScreen — プルトゥリフレッシュ**
+   - `_TrendList` に `RefreshIndicator` を追加（`onRefresh: _load`）
+
+### 調査済み（変更なし）
+
+- `pm_report.yml` 修正 → PR #103 に実装済み（未マージ）
+- `sampleImageUrl` テスト → `vehicle_spec_service_test.dart:327-409` 実装済み
+- `ShopComparisonScreen` → `home_screen.dart:539` で接続済み
+- FleetMember 総務担当 → `FleetRole.manager` 実装済み
+
+### 次のアクション候補（3件）
+
+1. **PR #103 マージ** — `pm_report.yml` 週次 CI が 6 週以上失敗中
+2. **PR #104 マージ** — Issue #41 Phase 2 フリーミアムゲート
+3. **非提携店向けオンボーディング画面** — `getDemandsForShop()` を使った「N件の問い合わせがありました」表示
+
+---
+
+最終更新: 2026-07-11
+
+---
+
+## 夜間エージェント実行ログ（2026-07-28）
+
+**ブランチ**: `claude/night-20260728`
+**PR**: #98 https://github.com/zashii5793/trust-car-platform/pull/98
+**テスト**: 3505 件全パス / `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **`AppTextField` 拡張**: `fillColor`・`counterText`・`isDense` パラメータを追加
+2. **Issue #29 完了**: PR #91/PR #96 で「対応不可」とされた残存 TextField を全移行
+   - `invoice_result_screen.dart`: `_buildTextField` ヘルパー削除 + 4 箇所 AppTextField 移行
+   - `post_create_screen.dart`: `counterText: ''` 付き AppTextField に移行
+   - `fleet_member_screen.dart`: AlertDialog TextField → AppTextField
+   - `settings_screen.dart`: AlertDialog TextField → AppTextField
+
+### 次のアクション候補（3件）
+
+1. **`pm_report.yml` を修正した #97 をマージ** — 7週連続失敗中。最優先。
+2. **Issue #29 をクローズ** — AppTextField 移行全完了のためコメント＆クローズ。
+3. **`fleet_member_screen_test.dart` / `settings_screen_test.dart` 追加** — 移行したスクリーンのテストがまだない。RED フェーズから開始。
+
+---
+
+## 夜間エージェント実行ログ（2026-07-11）
+
+**ブランチ**: `claude/night-20260711`
+**PR**: #78 https://github.com/zashii5793/trust-car-platform/pull/78
+**テスト**: 3461件 全パス / `flutter analyze lib/` No issues found
+
+### 実施内容
+
+1. **stalled CI 修正**: `claude/auto-improve-fleet-urgency-dedup` の cherry-pick + `dart format` 適用
+2. **Issue #63 実装（priority: high）**: `RecommendationService` + `MaintenanceScheduleService` 連携
+   - EV・水素車へのオイル交換推奨を除外する燃料タイプ別フィルタリング
+   - `reason` フィールドに「次回目安: Xkm（あとYkm）」を追加
+   - TDDテスト13件追加
+   - PR #78 作成済み（CI確認中）
+
+### 次のアクション候補（3件）
+
+1. Issue #63 UI配線 — `HomeScreen` の提案セクションで `reason` を表示
+2. Issue #39 UI配線 — 店舗ダッシュボードに月次ROIを接続
+3. Issue #41 着手 — GoogleMap連動の集客エンジン（#39 UI完了後推奨）
+
+---
+
+最終更新: 2026-06-19
+
+---
+
+## 意思決定ログ（2026-06-19）: 事業性評価の追補と集客モデルの合意・実装着手
+
+ブランチ `claude/charming-brahmagupta-h6bm98` / 評価書 PR #38。
+
+**背景**: オーナーから事業面で4点の提起（業態拡張／GoogleMap風の網羅表示／提携フリーミアム／価格妥当性・初年度キャンペーン）。`docs/BUSINESS_VIABILITY_ASSESSMENT.md` に §7 として追補。
+
+**合意した設計（Agree レベル / GoogleMap連動表示, 評価書 §7.7）**:
+- データ調達: **ハイブリッド**（地図=Google Maps SDK／提携=自前Firestore／非提携=Places API近隣を都度・初期1商圏限定）
+- 見せ方: 地図ピン色分け（提携=ブランド色＋審査済バッジ／非提携=グレー）＋一覧で提携を上位固定
+- 非提携の権限: 閲覧＋地図/電話リンクのみ（質問・予約・実績は提携特典→需要蓄積→プル型営業）
+
+**起票した Issue**:
+- #39 ROI可視化（問い合わせ数の月次通知）= 最優先
+- #40 ShopType にガソリンスタンド追加（業態拡張）
+- #41 GoogleMap連動の網羅表示＋提携フリーミアム（プル型集客エンジン）
+- #42 初期パートナー向けキャンペーン価格＋据え置き特権
+
+**順序の鉄則**: D(#39 ROI可視化) → B/C(#41 集客) → E(#42 キャンペーン)。ROIを見せる前に集客・値引きを先行させない。
+
+**実装（本セッション / #39 のService層）**:
+- `ShopReportService.getMonthlyReport(shopId, {asOf})` を新設（`Result<ShopMonthlyReport, AppError>`）。
+  当月総数・前月総数・前月比（momChange）・当月のstatus内訳を返す最小ROIロジック。
+- `ShopMonthlyReport` モデル新設、`injection.dart` に登録。
+- `firestore.indexes.json` に `inquiries: shopId ASC + createdAt ASC` の複合インデックスを追加
+  （既存 `getMonthlyInquiryCount` の潜在的不足も同時に解消）。
+- テスト `test/services/shop_report_service_test.dart`（totals/status内訳/月・年境界/Edge Cases）。
+- ⚠️ 残作業: 店舗ダッシュボードへのUI配線（Provider→画面）。インデックスは本番 `firebase deploy` が別途必要（要人手）。
+- ⚠️ ローカルに Flutter SDK が無く `flutter test`/`analyze` 未実行。検証は CI（subosito/flutter-action, 3.38.0）に委譲。
+
+---
+
+## 意思決定ログ（2026-06-18）: C2Cパーツ手数料8%機能の凍結
+
+**決定**: ロードマップ項目「2.5 C2Cパーツ手数料8%」を**凍結**。リソースは 2.1〜2.3 に集中。
+
+**背景**:
+- メルカリ/ヤフオク/モノタロウが既存。8%×低単価パーツでは運用コスト割れ。返品・送金・トラブル対応の運用負荷が重い。
+- 在庫連携は未実装（調査で確認）。
+- 当初要望は「良かったパーツをシェアし合ってコメントできる」程度の軽量機能だった。
+
+**調査で判明した事実**: C2Cパーツ売買の中核（8%手数料/ペイアウト計算・出品CRUD・問い合わせ双方向）は
+**実装済み・テスト済み**だった。よって「未着手の中止」ではなく「稼働中コードの導線遮断」として対応。
+
+**実装（本セッション）**:
+- 凍結: `FeatureFlag.c2cPartsMarketplace`（デフォルト `false`）を追加し、
+  - `MarketplaceScreen` の「パーツ」「マイ出品」タブを非表示（工場・業者/問い合わせは残置）
+  - `ProfileScreen` の「マイ出品」メニューを非表示
+  - コード・テスト・Firestoreルールは**残置**（フラグ1つで復活可能）
+- 代替の軽量機能: 既存 `AccessoryShowcase`（パーツ/アクセサリーのシェア）に**コメント機能**を追加
+  - `ShowcaseComment` モデル + `PopularAccessoriesService.{addComment,getComments,deleteComment}`
+  - `accessory_showcases/{id}/comments` サブコレクション + Firestoreルール（投稿者のみ作成/削除）
+  - `ShowcaseDetailScreen`（投稿詳細＋コメントスレッド）。トレンドカードのタップから遷移
+  - 売買・いいね・通知・在庫連携は**スコープ外**（「コメントにとどめる」方針）
+
+**人間タスク**: `firebase deploy --only firestore:rules`（showcase comments ルール反映）
+
+---
+
+## 現在の状態
+
+**ブランチ**: `claude/continue-development-WYZZp`
+**テスト**: 3284件以上（第13弾で+走行距離4件+コミュニティトレンド2件追加）全パス・失敗0件
+**`flutter analyze lib/`**: No issues found
+
+## 人間タスク（テストユーザー配布前に必須）
+
+1. `firebase deploy --only firestore:rules,firestore:indexes` —
+   vehicle_grade_specs / posts可視性 / social_notifications / vehicle_listings
+   のルール強化 + posts複合インデックス3本（同車種フィルタは未デプロイだと500エラー）
+   **今セッション追加**: `community_maintenance_trends` ルール + `safety_tips` 複合インデックス2本
+2. `firebase deploy --only storage` — storage.rules がコードと一致するよう全面整備済み。
+   **本番のConsole編集ルールとの差分を必ず確認してからデプロイ**
+   （旧ルールはリポジトリと乖離している疑い。監査レポート参照）
+3. シードデータ登録（スクリプト実装済み・手順は `docs/HUMAN_TASKS.md` 参照）:
+   - `node scripts/seed_safety_tips.js`（6件）
+   - `node scripts/seed_community_trends.js`（5車種）
+
+---
+
+## 直近セッション（2026-06-11）の成果
+
+### ビジネスモデル検証（PM/UX/QA 3観点並列調査）
+- **結論: モデルは筋が良いが価値導線が3箇所切れていた**
+- BtoB: 4プラン（¥0/¥3,980/¥9,800/¥14,800）+ RevenueCat実装済み（完成度90%）
+- BtoC: プレミアムゲートに漏れ（PDF出力が車両詳細から素通し）
+
+### 価値導線修正（TDD実装）
+1. **PDF出力プレミアムゲート**: `vehicle_detail_screen.dart` のPDFボタンに
+   `UserSubscriptionProvider.canExportPdf` チェック + アップグレード案内ダイアログ
+2. **車検期限の視覚強調**: `core/utils/inspection_urgency.dart` 新設
+   （≤7日 critical / ≤30日 warning）。ダッシュボード「次の車検」チップを
+   緊急度で色分け（Key: `dashboard_inspection_chip_{normal,warning,critical}`）
+3. **整備記録空状態CTA**: タイムライン空状態に「整備記録を追加」ボタン
+   （ドライブタブ除く）→ AddMaintenanceScreen 遷移
+
+### 第2弾（同日実装・全2785件パス）
+1. **問い合わせ月次上限の事前警告**: `InquiryService.countUserInquiriesThisMonth`
+   （fail-open設計）+ 送信前ゲート + プレミアム訴求ダイアログ
+2. **広告枠の透明性強化**: isFeatured は認証済みでも「広告」常時表示
+3. **車検期限OSリマインダー**: `inspection_reminder_service.dart` 新規。
+   満了30/7/1日前にローカル通知（FNV-1a決定的ID、7000-7899予約レンジ、
+   再スケジュール時に置換）。NotificationProvider へコンストラクタ注入
+
+### ビジネスモデル検証メモ（ディーラー顧客囲い込みへの対抗軸）
+- ディーラーは「自社販売車1台」しか見ない → 本アプリは**一家数台を
+  メーカー横断で一元管理**（ディーラー縦割りの間隙）
+- 車検・自賠責の期限管理が**OSリマインダーで自動化**（ディーラーDMは郵送/電話）
+- 問い合わせは**ユーザー主導・比較可能**（ディーラーの言い値ではなく
+  近隣工場の評判を見て気軽に相見積もり）
+- AIパーツ提案は**複数候補+理由提示**でディーラー純正一択を相対化
+
+### 第3弾（同日実装）
+1. **任意保険管理の配線**: `VoluntaryInsurance` モデルは存在したが完全未使用
+   （UIなし・通知なし）だったのを配線。車両編集画面に保険会社名+満期日
+   フィールド追加、RecommendationService にアプリ内通知
+   （`_checkVoluntaryInsuranceExpiryDate`）、OSリマインダー
+   （ID 8000-8899 レンジ）を追加
+2. **通知権限の重大バグ修正**: `requestPermission` は設定画面のトグルでしか
+   呼ばれず、AndroidManifest に `POST_NOTIFICATIONS` 宣言もなかった
+   → Android 13+/iOS で通知が一切届かない状態だった。Manifest宣言追加 +
+   `InspectionReminderService.scheduleForVehicles` 内で権限リクエスト
+   （OSダイアログは一度しか出ないため毎回呼んで安全）
+3. **PdfExportService の Result<T> 化** + mileage_notification_service
+   テスト追加（QAギャップ解消）
+
+### プロダクト戦略メモ（パーツ提案の「多すぎる問題」への回答）
+ユーザー指摘: ドラレコ等はメーカー多数で汎用提案はAmazonレビューに勝てない。
+**方針: 「カタログ網羅」では戦わず「同車種オーナーの実例」で戦う**
+- 差別化の核 = 「同じ車に乗っている人が実際に付けたパーツ + 整備記録」
+  （Amazonにない文脈: 車種適合・取付実例・整備履歴との紐付け）
+- そのために SNS は「車種を軸としたゆるいつながり」設計が必須:
+  - 投稿に車両（maker/model/year）が自動紐付け → 同車種フィードで発見
+  - 整備記録 → ワンタップでSNS共有（「この記録を投稿」）= 実例DB化
+  - パーツ提案画面に「同車種オーナーの装着例」セクション
+- 近隣工場ともゆるいつながり: 工場の施工事例投稿（売り込みではなく実績共有）
+  → ユーザーが実例から工場を発見する導線（「売り込まない」原則と整合）
+
+### 第4弾（法人・リース対応）
+1. **1日前リマインダー廃止**: ユーザー指摘どおり1日前は対応不能で無意味
+   → `reminderDaysBefore = [30, 7]`（IDレンジ: リース6000-6599 /
+   車検7000-7599 / 任意保険8000-8599）
+2. **リース情報（LeaseInfo）**: リース会社・月額・契約期間・メンテパック内容を
+   Vehicleモデルに追加。車両編集画面にセクション追加。
+   リース満了90日前からアプリ内通知（返却/再リース判断は時間がかかるため
+   他期限より早め）+ OSリマインダー
+3. **法人アカウント**: `AppUser.accountType`（personal/business）+ companyName。
+   設定画面に「法人アカウント登録」（会社名入力ダイアログ →
+   `AuthService.updateBusinessProfile`）。
+   ※ updateUserProfile のシグネチャ変更は21モックを壊すため別メソッドに分離
+4. **フリートプラン（`models/fleet_plan.dart`）**: 価格設計
+   - 〜4台無料 / フリート5〜20台 ¥4,980 / ビジネス21〜50台 ¥9,800 / 51台〜個別
+   - `isPromotionalFreePeriod = true`: ローンチ期は全機能無料開放、
+     ホームダッシュボードに5台以上で「現在無料開放中（正式リリース後¥4,980〜）」
+     バナー表示 = メリット実感→有料化の導線
+
+### 第5弾（2026-06-12実装・全2851件パス）
+1. **法人フリート管理**: Vehicle に companyId 追加。FleetService（getCompanyVehicles/
+   getFleetStats/linkVehicleToCompany）。FleetProvider（緊急度ソート・urgencyFilter）。
+   FleetDashboardScreen（台数サマリー・緊急度別カラーコード・フィルタチップ・フリートコード表示）。
+   HomeScreen プロフィールタブに法人ユーザー向け「フリート管理」メニュー追加。
+2. **SNS 同車種フィルタ**: PostService.getFeed に modelName パラメータ追加。
+   PostProvider.filterByVehicleModel/selectedModelName。
+   SnsFeedScreen に「同じ○○ オーナー」フィルタチップ（VehicleProvider から車種自動取得）。
+3. **整備記録→SNS共有**: PostCreateScreen に initialContent/initialVehicleId/initialCategory
+   追加。AddMaintenanceScreen 新規保存後に共有ダイアログ → PostCreateScreen プリフィル遷移。
+
+### 第6弾（2026-06-12実装）
+
+1. **フリートメンバー招待フロー**: `FleetService.joinFleetByCode` 追加。
+   VehicleEditScreen にフリートコード入力フィールド + 「参加」ボタン、
+   参加中は「脱退」ボタン表示。バリデーション（空文字・権限チェック）。
+2. **担当者アサイン**: `FleetService.assignVehicle` 追加。
+   Vehicle モデルに `assigneeId`/`assigneeName` フィールド追加。
+   FleetDashboardScreen の車両カードをタップすると AssignmentSheet が開き担当者名を設定。
+3. **車両詳細リース・任意保険表示**: VehicleDetailScreen に
+   `_VoluntaryInsuranceSection`（保険会社名・満期日カラーコード）、
+   `_LeaseInfoSection`（リース会社・月額・契約期間・メンテパック）追加。
+4. **車種グレード仕様自動入力**: VehicleGrade に乗車定員・車両重量・
+   標準装備・オプション装備フィールド追加（`hasSpecData` getter）。
+   GradeSelectorField 選択時に燃料タイプ・排気量を自動入力 + 仕様プレビューカード表示。
+5. **整備スケジュール自動生成**: `MaintenanceScheduleService` 新規。
+   燃料タイプ別（EV/HV/PHEV/ディーゼル/ガソリン）に整備項目と推奨インターバルを生成。
+   VehicleDetailScreen に `_MaintenanceScheduleSection`（次回推奨km表示）追加。
+   `injection.dart` に ServiceLocator 登録済み。
+
+**テスト**: MaintenanceScheduleService 19件・FleetService +10件追加（合計 2432件+）
+**全テスト**: `+2432 -31`（31件は前セッションから続く既存の失敗）
+
+### 第7弾（2026-06-12実装・コミュニティ仕様データ）
+
+**マスタデータ戦略の決定**: カーセンサー等に公開APIは存在しない。
+外部データ購入ではなく**「ユーザー手動入力 → コミュニティ蓄積」**方式を採用
+（プロダクト戦略「同車種オーナーの実例で戦う」と整合）。
+
+1. **VehicleSpecService 新規**（`vehicle_grade_specs` コレクション）:
+   - specId = `{maker}_{model}_{year}_{grade}`（小文字・スペース→`_`）
+   - fetchSpec: grade選択時にコミュニティデータを取得して自動入力
+   - saveSpec: 車両保存時に貢献。**最初の投稿者データを正**とし、
+     以降は contributorCount++ のみ（データ汚染防止）
+2. **実車写真表示**: `sampleImageUrl` — 最初に写真付きで登録した
+   オーナーの実車写真をグレード選択時に表示。null の場合のみ後続が補完
+   （firestore.rules で強制）
+3. **コミュニティ確認バッジ**: contributorCount >= 3 で
+   `isVerified` → 緑バッジ「X人が確認」。3人未満はグレーテキスト
+4. **フリートCSVエクスポート**: `FleetCsvExportService`
+   （RFC 4180・UTF-8 BOM で Excel 日本語対応）。
+   FleetDashboardScreen → share_plus で共有
+5. **ai_chat_provider テスト16件追加**（カバレッジギャップ解消）
+
+**テスト追加**: vehicle_spec 15件 / fleet_csv 10件 / ai_chat_provider 16件
+**人間タスク**: `firebase deploy --only firestore:rules`（vehicle_grade_specs ルール反映）
+
+### 第8弾（2026-06-12実装・テストユーザー受け入れ準備）
+
+**機能**: OCR→コミュニティ仕様サジェスト（fetchSpecsForModel）/
+パーツ提案「同車種オーナーの装着例」/ フリートCSV整備サマリー
+
+**エキスパート3観点並列監査（QA/セキュリティ/UX）を実施し全P0/High修正**:
+- [P0] オンボーディング→ログイン後に遷移しない致命バグ
+  （pushReplacementがAuthWrapper破棄 → onCompletedコールバック方式）
+- contributorCount水増し防止: contributorIds で1ユーザー1カウント
+  （firestore.rulesでも増分+1・本人追加のみを強制）
+- OCR生テキストのdebugPrint削除（車検証の個人情報がlogcatに残る問題）
+- posts可視性のルール強制（非公開投稿がSDK直クエリで全読み可能だった）
+- storage.rules全面整備（コードの実パスと不一致でリポジトリ管理が形骸化していた）
+- CSV数式インジェクション対策 + 一時ファイル削除
+- 実車写真共有の明示同意制（ナンバー写り込み対策・デフォルト非共有）
+- **既存31件のテスト失敗も解消**（ServiceLocator未登録時のgraceful degradation）
+
+### 第9弾（2026-06-12実装・第8弾残課題解消 + 公開範囲UI）
+
+**エキスパート3観点（QA/セキュリティ/UX）分析レポート実施後、P0課題を全解消。**
+
+1. **写真共有同意チェックボックス（Item 1）**
+   - 車両登録Step1: 写真選択後に `CheckboxListTile` を表示
+   - キー: `photo_consent_checkbox`
+   - 「ナンバーや個人情報が写り込んでいない場合のみ選択」警告文
+   - 写真再選択のたびに同意をリセット（安全設計）
+   - `_askPhotoShareConsent` ダイアログ廃止
+
+2. **車検日未設定プロンプトカード（Item 2）**
+   - `_InspectionSetupCard` をダッシュボードに追加
+   - `inspectionExpiryDate == null` の車両がある場合のみ表示
+   - キー: `inspection_setup_card`
+   - 「登録する」→ VehicleEditScreen 遷移
+   - 汎用テキスト（車種名なし）でウィジェットツリー汚染を回避
+
+3. **フォロワー限定投稿（Item 3）**
+   - `PostService.getUserPosts`: `isViewerFollowing` フラグで `whereIn` クエリ切替
+   - Firestore rules: `exists(/follows/{viewerUid}_{authorUid})` でサーバー強制
+   - **[UX P0解消]** `PostCreateScreen` に `SegmentedButton<PostVisibility>` 追加
+     （全体公開 / フォロワーのみ / 自分のみ）
+   - `sns_feed_screen` の投稿カードに `_VisibilityBadge` 追加（public 以外に表示）
+
+**テスト**: 2963件パス（+5件: 公開範囲セレクターUIテスト）
+**静的解析**: No issues found
+**コミット**: `0a0701f`
+
+### 第10弾（2026-06-12実装・ペルソナ駆動の機能追加 + 総合テスト）
+
+**ユーザー視点ギャップ分析（3エージェント並列調査）の結論**:
+- 実装済み確認: 問い合わせ双方向スレッド / 工場側返信UI / AIパーツ提案（ルールベース・
+  複数候補+理由）/ AIチャット（claude-haiku via Cloud Functions・20回/日）/
+  質問カテゴリ+コメント / 同車種フィルタ / 整備記録→SNS共有
+- ギャップ→実装: 貨物車区分なし / getNearbyShops未配線 / 一括問い合わせなし
+
+1. **VehicleUseCategory（用途区分）**: 貨物車（1・4ナンバー）は毎年車検、
+   自家用乗用は2年。`suggestedNextInspectionDate` で区分別サイクル自動計算。
+   車両編集画面の車検セクションにドロップダウン（Key: `use_category_dropdown`）+
+   毎年車検の警告ノート。null = 自家用乗用車として扱う（後方互換）
+2. **フリート車検一括問い合わせ**: `FleetInquiryComposer`（純粋関数・15テスト）。
+   車検60日以内を抽出→確認ダイアログ→ShopListScreen(selectMode)で工場選択→
+   InquiryScreen プリフィル。貨物車は文面に区分明記（工場が毎年車検と分かる）
+3. **近隣工場の距離表示**: `ShopProvider.sortByDistanceFrom`（dart:math 正確版
+   Haversine）。「近い順」ボタン（位置権限拒否/サービス無効をSnackBar案内）。
+   カードに「現在地から X.Xkm」
+4. **ペルソナ総合テスト**（`test/integration/persona_scenarios_test.dart` 23件）:
+   - Persona A: 個人4台（貨物・リース・車検未登録の混在）
+   - Persona B: 中小企業20台（critical/warning分類・CSV・権限違反・一括問い合わせ）
+   - Persona C: 近所の3工場（得意サービス・評価/レビュー数・距離で比較）
+
+**テスト**: 3021件パス（+58件）/ コミット: `ae8553d`
+
+### 第11弾（2026-06-12実装 — Sprint 13 自律開発）
+
+**注: 第11弾の続き（セッション引き継ぎ後）** 
+
+**報告書**: `docs/PERSONA_TEST_REPORT.md`（ペルソナ別統合テスト）、`docs/MARKETING_APPEAL_REPORT.md`（マーケ専門家分析）を生成。
+
+1. **ShopChain（多店舗チェーン対応）**: `lib/models/shop_chain.dart`、`lib/services/shop_chain_service.dart` 新規。コバック・ジェームス等のフランチャイズチェーンを表現。`Shop`モデルに `chainId/chainName` 追加。`createChain`, `getChain`, `getShopsInChain`, `linkShopToChain`, `unlinkShopFromChain`（オーナーのみ許可） — 16テスト
+
+2. **AccessoryShowcase / PopularAccessoriesService**: ユーザーがドラレコ等のアクセサリー使用実績を投稿し、コミュニティで人気アイテムを集計。`submitShowcase`, `getShowcasesByCategory`, `getPopularTrends`, `getTopAccessories`（カテゴリ横断） — 14テスト
+
+3. **CarPurchaseInquiryService**: 中古車購入相談。`createInquiry`, `getMyInquiries`, `closeInquiry`, `generateSearchLinks`（カーセンサー + Goo-net ディープリンク、API契約不要のURL構築） — 15テスト
+
+4. **SafetyTipService**: 公式機関（JAF/警察庁/国交省/消防庁/ITARDA）限定の安全情報。`SafetyTip.disclaimer` 定数（法的免責必須）、sourceUrl HTTPS必須チェック、isActive フィルタ — 13テスト
+
+**合計テスト**: 3126件 → 3184件（+58件）  
+**コミット**: `13c5b6b`, `dd1db1a`, `e246dbd`  
+**プッシュ済み**: `claude/continue-development-WYZZp`
+
+### 第12弾（Sprint 13 最終 — 車両ライフサイクル + ペルソナ完全網羅）
+
+**背景**: 「社運がかかってる機能だからペルソナを世界レベルで拡充せよ」「廃車・売却・データ保持も対応せよ」の指示を受け実装。
+
+1. **Vehicle ライフサイクル管理**:
+   - `VehicleStatus` enum: active / sold（売却）/ scrapped（廃車）/ leaseReturned（リース返却）/ transferred（譲渡）
+   - `Vehicle` モデルに `status`, `retiredAt`, `retirementNote`, `isDataRetained` フィールド追加
+   - **`VehicleRetirementService`** 新規:
+     - `retireVehicle`: オーナー確認・二重退役防止・reason=active禁止
+     - `restoreVehicle`: 誤操作取り消し（soldを再度activeに戻せる）
+     - `getRetiredVehicles`: 売却済み・廃車済み一覧（whereNotIn使用）
+     - `getActiveVehicles`: アクティブ車両のみ（ガレージ表示用）
+     - `isDataRetained: bool` — ユーザーが「整備記録を残す」か選択できる
+   - 17テスト全パス
+
+2. **FleetMemberService**（フリートRBAC）:
+   - `FleetRole`: owner / manager / staff / viewer の4段階
+   - `addMember`: オーナーのみ招待可
+   - `updateRole`: オーナーのみ変更可
+   - `removeMember`: オーナーまたは本人が脱退可
+   - `canWrite`: manager以上が書き込み可
+   - 33テスト全パス
+
+3. **ShopComparisonService**（工場比較・純粋関数）:
+   - スコア = `rating × ln(reviewCount + 1) - 0.05 × distanceKm`
+   - 対数スコアリングにより少数レビューの高評価工場に偏らない設計
+   - `compare`, `recommend` — Firestore不要の純粋関数
+   - 14テスト全パス
+
+4. **ペルソナシナリオテスト拡張（A〜D → A〜I）**:
+   - Persona E: 新社会人・N-BOX（SafetyTip + PopularAccessories。初回整備low confidence）
+   - Persona F: 売却・廃車ユーザー（VehicleRetirement + データ保持選択）
+   - Persona G: EVオーナー・日産リーフ（オイル交換なし。タイヤ/ブレーキ/ワイパーのみ）
+   - Persona H: 旧車オーナー1994年製Beat（CarPurchaseInquiry部品探し・製造年30年超）
+   - Persona I: SUV購入検討者（CarSensor/Goo-netリンク生成・チャイルドシート人気）
+   - **71件 → 全パス**（既存A〜D含む）
+
+**全テスト**: 3,284件 全パス（+100件）  
+**コミット**: `ed80681`  
+**プッシュ済み**: `claude/continue-development-WYZZp`
+
+### 第13弾（2026-06-13実装 — 車両詳細画面強化・コミュニティ連携）
+
+**概要**: 車両詳細画面への2つのクイックアクション追加 + コミュニティトレンドの完全実装。
+
+1. **車検完了クイックアクション** (`vehicle_detail_screen.dart`):
+   - 車検満了日行に「車検完了」ボタン（Key: `inspection_complete_btn`）
+   - タップ → `_InspectionCompleteDialog`（日付選択 + 走行距離入力）
+   - 完了: `FirebaseService.updateVehicle` + `MaintenanceProvider.addMaintenanceRecord(legalInspection24)`
+   - テスト5件追加
+
+2. **走行距離クイック更新** (`vehicle_detail_screen.dart`):
+   - 走行距離行に「更新する」ボタン（Key: `update_mileage_btn`）
+   - タップ → `_MileageUpdateDialog`（StatefulWidget でコントローラーライフサイクル管理）
+   - アニメーション中の `TextEditingController.dispose` 競合を StatefulWidget 化で解消
+   - テスト4件追加
+
+3. **コミュニティトレンドセクション** (`_CommunityTrendSection`):
+   - 車両詳細画面の統計・AI提案セクション後に配置
+   - `CommunityTrendService.getTrendsForVehicle` で同車種ピアデータ取得
+   - `initState`で`isRegistered`チェック → 未登録時は`_loaded = true`直接セット（async setState競合回避）
+   - `_CommunityInsightRow`: 実施率%・整備タイプ・中央値コストを表示
+   - データなし/サービス未登録時は`SizedBox.shrink()`でグレースフルデグレード
+
+4. **コミュニティトレンド自動投稿** (`add_maintenance_screen.dart`):
+   - 新規整備記録保存成功後に `unawaited(_submitTrendData(record))` でfire-and-forget
+   - 前回同種記録との差分（intervalKm/days）を自動計算して匿名投稿
+   - 全エラー抑制（VehicleProvider未登録・サービス未登録・Firestore失敗すべて無視）
+   - テスト2件追加
+
+5. **シードスクリプト** (`scripts/`):
+   - `seed_safety_tips.js`: 安全情報6件（`--dry-run`/`--emulator`対応）
+   - `seed_community_trends.js`: 5車種データ（プリウス/N-BOX/リーフ/フィット/ヴォクシー）
+
+6. **Firestoreルール・インデックス整備**:
+   - `firestore.rules`: `community_maintenance_trends` ルール追加
+   - `firestore.indexes.json`: `safety_tips` 複合インデックス2本追加
+
+**テスト追加**: +11件（走行距離4 + 車検5 + コミュニティ2）  
+**`flutter analyze lib/`**: No issues found  
+**コミット**: `ce14df6`, `8840216`
+
+### 第14弾（2026-06-13実装・価値導線/通知/保険/フリート）
+
+QA/PM/UX分析を踏まえた自律実装。各タスク単位でコミット。
+
+1. **QAバグ修正**（commit前半）: 走行距離オドメーター逆行ガード・二重送信ガード・
+   保存失敗ハンドリング・トレンド集計null汚染防止
+2. **工場→ユーザー整備明細スレッド連携**: InquiryMaintenancePayload + 純粋変換関数
+   （pullモデル=ユーザー承認制）。工場側「整備明細を送る」/ユーザー側「記録に追加」
+3. **任意保険の入力充実**（個人・法人フリート対応）: VoluntaryInsurance 大幅拡張
+   （契約形態/等級/料率/補償額/車両保険/運転者条件/特約）+ InsuranceEditScreen 新規
+4. **保険満期サマリー露出・テンプレート・フリート保険概況**: expiry_summary /
+   insurance_templates ユーティリティ + 各UI
+5. **AI通知の既読/削除を永続化**: 通知IDを締切日ベースの決定的IDに変更 +
+   NotificationStateStore（SharedPreferences）。再起動後も既読/削除が保持
+6. **法人フリート管理の発見性向上**: ホームのフリートバナーをタップ可能化→
+   FleetDashboard 直接遷移（従来はプロフィール奥のみ）
+
+**注**: 「OCR起点化」「任意保険OSリマインダー」は調査の結果**既に実装済み**だったため
+重複作業せず（OCRは両画面でメインCTA済、保険リマインダーは8000-8599で実装+テスト済）。
+
+**全テスト**: 3355件パス / analyze クリーン / format 準拠
+**主要コミット**: 車検バグ修正〜`ff14e1e`（通知永続化）〜`ec92c02`（フリート導線）
+
+### 残課題（次セッション候補）
+- 装着例セクションの再読み込み対応（現在initState時のみ取得）
+- `isViewerFollowing` サーバーサイド検証（Cloud Function推奨。現在はクライアントのみ）
+- スペック貢献ロジックのテスト: `spec.sampleImageUrl` が既に存在する場合
+- `getUserPosts` ページネーション + フォロワーフィルタの統合テスト
+- 店舗比較画面（2〜3工場を表形式で並べて比較）— ペルソナC調査で未実装と判明
+- フリートメンバー権限モデル（総務担当ロール。現在はオーナーのみ書き込み可）
+- 法人向けウェブ管理画面（工場側の問い合わせ対応をPCブラウザで）— Enterprise プラン向け
+- ShopService の手書きTaylor級数Haversineを dart:math 版に置換（精度改善）
+- `AccessoryShowcase` を `Post` モデルと統合するか分離維持か検討（UI実装時に判断）
+
+---
+
+## 過去セッション（2026-06-10）の成果
+
+### CI 完全修復
+- `dart format lib test`（Dart 3.10.0 一致）
+- `flutter analyze --fatal-infos` 150件 → 0件
+- テスト 2656→2719 件パス
+- CIエミュレータ起動をベストエフォート化（`continue-on-error: true`、Java 17追加）
+
+### lib/ 実バグ修正
+- `AppSpacing.horizontalXxs` 未定義追加（3画面コンパイル不能修正）
+- `InquiryService` / `ShopSubscriptionService`: Firebase lazy初期化（テスト分離）
+- `ShopOwnerScreen.dispose()`: `context.read` クラッシュ修正
+- `VehicleOcrMatcher`: 空文字マッチ誤判定修正
+- `VehicleRegistrationScreen`: PopScope 状態同期・エラー SnackBar
+
+### 新機能（コア機能①「整備履歴の一元管理」強化）
+- `MaintenanceProvider.searchRecords()` + `MaintenanceSortBy`（TDD 25件）
+- `MaintenanceSearchScreen`（FilterChip + 件数/合計表示、TDD 7件）
+- `VehicleDetailScreen` AppBar に検索アイコン追加
+
+### アクセシビリティ
+- `_VehicleEmptyOnboarding`: 装飾アイコン `ExcludeSemantics`、見出し `Semantics(header:true)`
+- `_SummaryItem`: 統合セマンティクスラベル（`$label $value`）
+- 通知双方向スワイプ（Dismissible）TDD 5件
+
+---
+
+## 過去セッション（2026-06-09）の成果サマリー
+
+| カテゴリ | 内容 |
+|---|---|
+| セキュリティ | askCarAi.ts TOCTOU修正（`runTransaction`）・入力長/履歴件数上限 |
+| 機能 | AIチャット履歴永続化（SharedPreferences、最大20件） |
+| UI刷新 | NavigationBar移行・整備タイムライン・AI提案セクション・チャットタイムスタンプ・整備プレビューバナー・通知reason表示・プロフィール統計 |
+| 車両オンボーディング | `_VehicleEmptyOnboarding`（ヒーロー + 3機能 + CTA） |
+
+---
+
+
+## 未解決・人間が対応すべき事項
+
+| 優先度 | タスク |
+|---|---|
+| P1 | PR #20 をレビュー・マージ |
+| P1 | `google-services.json` を Firebase Console からダウンロード → `android/app/` に配置 |
+| P1 | `GoogleService-Info.plist` を Firebase Console からダウンロード → `ios/Runner/` に配置 |
+
+---

@@ -131,8 +131,11 @@ class AppEmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    // 中身が入りきらないと、Flutter は黄と黒の縞（RenderFlex overflow）を
+    // 描く。**文言が1行増えただけで出る**ので、スクロールできる形にして
+    // おく（2026-09-07 実測: 「みんなの投稿」の空状態が 3px 溢れていた）。
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: AppSpacing.paddingScreen,
         child: Column(
           mainAxisSize: MainAxisSize.min,

@@ -195,9 +195,17 @@ class FleetService {
   ///
   /// Used by the fleet CSV export. Queries in chunks of 10 to respect
   /// Firestore's whereIn limit.
+  ///
+  /// [userId] must be the signed-in user: the security rule for
+  /// `maintenance_records` requires `resource.data.userId == request.auth.uid`,
+  /// and a list query that only filters on `vehicleId` cannot satisfy that
+  /// statically, so Firestore rejects the whole query in production.
   Future<Result<Map<String, MaintenanceSummary>, AppError>>
-      getMaintenanceSummaries(List<String> vehicleIds) async {
-    if (vehicleIds.isEmpty) {
+      getMaintenanceSummaries(
+    List<String> vehicleIds, {
+    required String userId,
+  }) async {
+    if (vehicleIds.isEmpty || userId.isEmpty) {
       return const Result.success({});
     }
     try {
@@ -208,7 +216,10 @@ class FleetService {
       for (var i = 0; i < vehicleIds.length; i += 10) {
         final chunk = vehicleIds.sublist(
             i, i + 10 > vehicleIds.length ? vehicleIds.length : i + 10);
-        final snap = await recordsRef.where('vehicleId', whereIn: chunk).get();
+        final snap = await recordsRef
+            .where('userId', isEqualTo: userId)
+            .where('vehicleId', whereIn: chunk)
+            .get();
 
         for (final doc in snap.docs) {
           final data = doc.data();

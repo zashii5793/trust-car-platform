@@ -80,3 +80,21 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # 日本語フォントを同梱する。
+  #
+  # 入れないと、Web は起動後に fonts.gstatic.com から取りに行くため
+  # **最初の3秒ほど日本語が □ で出る**（2026-08-24 実測）。iOS はヒラギノ、
+  # Android は端末の Noto になり、OS ごとに見え方も変わる。
+  #
+  # サイズを抑えるため、Noto Sans JP から
+  # 「JIS第1水準の漢字 + かな + 記号 + 英数 + アプリ内の文字」だけを
+  # 取り出して、ウェイトを 400/700 に固定してある（各 1.3MB）。
+  # 第2水準以降の稀な漢字は fontFamilyFallback で端末のフォントに落ちる。
+  fonts:
+    - family: NotoSansJP
+      fonts:
+        - asset: assets/fonts/NotoSansJP-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/NotoSansJP-Bold.ttf
+          weight: 700
