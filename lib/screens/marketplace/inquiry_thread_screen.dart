@@ -277,8 +277,17 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
+  /// Date and time, because a thread with a shop you keep going back to spans
+  /// months — a bare `10:15` cannot tell June 29th from July 11th. The year is
+  /// added only when it is not the current one, to keep the line short.
+  /// The shop-side screen has always shown `6/29 10:15`; this side had not.
   String _formatTime(DateTime dt) {
-    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    final date = dt.year == DateTime.now().year
+        ? '${dt.month}/${dt.day}'
+        : '${dt.year}/${dt.month}/${dt.day}';
+    return '$date $h:$m';
   }
 }
 

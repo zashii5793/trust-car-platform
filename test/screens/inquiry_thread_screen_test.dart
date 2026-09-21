@@ -246,6 +246,75 @@ void main() {
     });
   });
 
+  // 1年つき合った店とのスレッドは月をまたぐ。時刻だけだと 6/29 の発言と
+  // 7/11 の発言が見分けられない（店舗側の画面は前から「6/29 10:15」と
+  // 出していて、お客様側だけ日付が抜けていた）。
+  group('InquiryThreadScreen — 送信日時', () {
+    testWidgets('日付と時刻の両方が出る', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+      stub.emitMessages([
+        InquiryMessage(
+          id: 'm1',
+          senderId: 'shop-1',
+          isFromShop: true,
+          content: '見積もりをお送りします',
+          sentAt: DateTime(2026, 6, 29, 10, 15),
+        ),
+      ]);
+      await tester.pump();
+
+      expect(find.text('6/29 10:15'), findsOneWidget);
+    });
+
+    testWidgets('別の年のやりとりには年も付く', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+
+      final lastYear = DateTime(DateTime.now().year - 1, 11, 12, 9, 5);
+      stub.emitMessages([
+        InquiryMessage(
+          id: 'm1',
+          senderId: 'shop-1',
+          isFromShop: true,
+          content: 'はじめまして',
+          sentAt: lastYear,
+        ),
+      ]);
+      await tester.pump();
+
+      expect(find.text('${lastYear.year}/11/12 09:05'), findsOneWidget);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('0時台・1桁の分でも桁が崩れない', (tester) async {
+        final stub = _StubInquiryService();
+        await tester.pumpWidget(_buildScreen(
+          inquiry: _makeInquiry(),
+          inquiryStub: stub,
+        ));
+        stub.emitMessages([
+          InquiryMessage(
+            id: 'm1',
+            senderId: 'user-1',
+            isFromShop: false,
+            content: '夜分に失礼します',
+            sentAt: DateTime(2026, 1, 3, 0, 7),
+          ),
+        ]);
+        await tester.pump();
+
+        expect(find.text('1/3 00:07'), findsOneWidget);
+      });
+    });
+  });
+
   group('InquiryThreadScreen — メッセージ表示', () {
     testWidgets('ユーザーのメッセージが表示される', (tester) async {
       final stub = _StubInquiryService();
