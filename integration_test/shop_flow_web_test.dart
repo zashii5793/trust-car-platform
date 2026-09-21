@@ -152,8 +152,90 @@ void main() {
       reason: '店側の問い合わせ一覧が空。画面の文字: ${listTexts.join(' / ')}',
     );
 
-    print('--- 店側の問い合わせ一覧 ---');
-    for (final t in listTexts) {
+    // ---- スレッドを開く（詳細シート） ----
+    //
+    // 未対応の「ロードスターから異音がします（相談）」が先頭に来る。
+    await tester.tap(find.textContaining('ロードスターから異音').first);
+
+    // 待つのはシートにしか無い返信欄の hint。
+    final sheetOpened = await pumpUntil(
+      tester,
+      () => find.text('返信メッセージを入力...').evaluate().isNotEmpty,
+      maxPumps: 400,
+    );
+    await binding.takeScreenshot('shop_05_thread_sheet');
+
+    final sheetTexts = visibleTexts();
+    binding.reportData = {
+      ...?binding.reportData,
+      'sheetTexts': sheetTexts.take(40).toList(),
+    };
+
+    expect(sheetOpened, isTrue,
+        reason: '詳細シートが開かない。画面の文字: ${sheetTexts.join(' / ')}');
+
+    // お客様の相談内容が店側から読めること。
+    expect(
+      sheetTexts.any((t) => t.contains('コトコト')),
+      isTrue,
+      reason: 'お客様のメッセージが店側に出ていない。'
+          '画面の文字: ${sheetTexts.join(' / ')}',
+    );
+
+    // ---- 店舗として返信する ----
+    //
+    // ここが「店とお客様のやりとり」の本丸。**送信は実データで一度も
+    // 確かめられていなかった。** エミュレータのデータは書き換わるので、
+    // 流し直したいときは ./scripts/seed_all.sh。
+    const reply = 'ご連絡ありがとうございます。今週末の土曜9時で空いております。'
+        '足回りを見ますので、1時間ほどお預かりします。';
+
+    final replyField = find.byType(TextField).last;
+    await typeInto(tester, replyField, reply);
+    await binding.takeScreenshot('shop_06_reply_typed');
+
+    final sendButton = find.byIcon(Icons.send);
+    expect(sendButton, findsWidgets, reason: '送信ボタンが無い');
+    await tester.tap(sendButton.last);
+
+    // 送信が**終わる**まで待つ。
+    //
+    // 本文が出ただけだと、まだ送信中（スレッドにスピナーが出て、入力欄に
+    // 文面が残っている）瞬間を撮ってしまう。2026-09-22 にその瞬間を撮って
+    // 「ステータスが変わっていない」と読み違えた。
+    // 店舗の初回返信で 未対応 → 回答済み に変わるので、そこまで待つ。
+    final sent = await pumpUntil(
+      tester,
+      () =>
+          visibleTexts().any((t) => t.contains('今週末の土曜9時')) &&
+          visibleTexts().any((t) => t == '回答済み'),
+      maxPumps: 400,
+    );
+    await binding.takeScreenshot('shop_07_reply_sent');
+
+    final afterTexts = visibleTexts();
+    binding.reportData = {
+      ...?binding.reportData,
+      'afterSendTexts': afterTexts.take(40).toList(),
+    };
+
+    expect(
+      sent,
+      isTrue,
+      reason: '店舗からの返信がスレッドに出ない（送信に失敗している）。'
+          '画面の文字: ${afterTexts.join(' / ')}',
+    );
+
+    // 送ったのにステータスが「未対応」のままだと、店主は送れたか分からない。
+    expect(
+      afterTexts.any((t) => t == '回答済み'),
+      isTrue,
+      reason: '返信後もステータスが変わっていない。'
+          '画面の文字: ${afterTexts.join(' / ')}',
+    );
+
+    print('--- 返信後のスレッド ---');
+    for (final t in afterTexts) {
       print(t);
     }
   });
