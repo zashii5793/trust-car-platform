@@ -520,6 +520,23 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
     result.when(
       success: (_) {
         _replyController.clear();
+
+        // The service moves the inquiry to `replied` on the shop's first
+        // reply (see InquiryService.sendMessage). The sheet holds a local
+        // copy, so without this the chip keeps saying 未対応 after sending —
+        // the shop owner cannot tell their reply went through.
+        //
+        // Mirror only the first reply, like the server does: a later message
+        // must not drag an inProgress thread back to replied.
+        if (_inquiry.repliedAt == null) {
+          setState(() {
+            _inquiry = _inquiry.copyWith(
+              status: InquiryStatus.replied,
+              repliedAt: DateTime.now(),
+            );
+          });
+        }
+
         _scrollToBottom();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('返信を送信しました')),

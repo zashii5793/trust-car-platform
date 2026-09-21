@@ -143,13 +143,39 @@ class _FakeShopProvider extends ShopProvider {
       notifyListeners();
     }
   }
+
+  /// 送信は成功したことにする。サーバ側のステータス遷移（店舗の初回返信で
+  /// pending → replied）は `InquiryService.sendMessage` が行うので、ここでは
+  /// 画面がその遷移を自分の表示に反映できているかだけを見る。
+  @override
+  Future<Result<InquiryMessage, AppError>> sendInquiryMessage({
+    required String inquiryId,
+    required String senderId,
+    required String content,
+    List<String> attachmentUrls = const [],
+    Map<String, dynamic>? maintenancePayload,
+  }) async =>
+      Result.success(InquiryMessage(
+        id: 'msg-sent',
+        senderId: senderId,
+        isFromShop: true,
+        content: content,
+        sentAt: DateTime(2026, 9, 22, 8, 0),
+      ));
+}
+
+class _FakeUser implements User {
+  @override
+  String get uid => 'shop-1';
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 class _FakeAuthProvider extends AuthProvider {
   _FakeAuthProvider() : super(authService: _StubAuthService());
 
   @override
-  User? get firebaseUser => null;
+  User? get firebaseUser => _FakeUser();
 
   @override
   bool get isLoading => false;
@@ -166,6 +192,7 @@ Inquiry _makeInquiry({
   InquiryStatus status = InquiryStatus.pending,
   int unreadCountShop = 0,
   DateTime? updatedAt,
+  DateTime? repliedAt,
 }) {
   final now = updatedAt ?? DateTime(2025, 6, 1, 10, 0);
   return Inquiry(
@@ -179,6 +206,7 @@ Inquiry _makeInquiry({
     unreadCountShop: unreadCountShop,
     createdAt: now,
     updatedAt: now,
+    repliedAt: repliedAt,
   );
 }
 
@@ -357,6 +385,74 @@ void main() {
 
       // No numeric badge should appear
       expect(find.text('0'), findsNothing);
+    });
+  });
+
+  // 返信を送ると、サーバ側では pending → replied に変わる
+  // （InquiryService.sendMessage の「店舗の初回返信」の分岐）。
+  // 画面が持っているのはローカルのコピーなので、**送っただけでは
+  // 「未対応」のままになる。** 実画面で確認して分かった（2026-09-22）。
+  group('ShopInquiryListScreen — 返信後のステータス', () {
+    testWidgets('未対応に返信すると「回答済み」になる', (tester) async {
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [
+              _makeInquiry(subject: '異音の相談', status: InquiryStatus.pending),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('異音の相談'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // '回答済み' はフィルタチップには無いので、シートの表示だけを見ている。
+      expect(find.text('回答済み'), findsNothing);
+
+      await tester.enterText(find.byType(TextField).last, '土曜9時で承ります');
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.send).last);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // シートのメタ行と下部のステータスバーの2か所に出る。
+      expect(
+        find.text('回答済み'),
+        findsWidgets,
+        reason: '返信を送ってもステータスが「未対応」のまま',
+      );
+    });
+
+    testWidgets('すでに店舗が返信していれば、状態は変えない', (tester) async {
+      // 判定は status ではなく `repliedAt`。サーバ側も同じ条件で見ている
+      // （status が inProgress でも、店舗がまだ返していなければ初回返信）。
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [
+              _makeInquiry(
+                subject: '対応中の件',
+                status: InquiryStatus.inProgress,
+                repliedAt: DateTime(2026, 9, 1, 10, 0),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('対応中の件'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.enterText(find.byType(TextField).last, '追加のご案内です');
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.send).last);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // 初回返信ではないので replied には遷移しない（サーバ側の分岐と揃える）。
+      expect(find.text('回答済み'), findsNothing);
+      expect(find.text('対応中'), findsWidgets);
     });
   });
 
