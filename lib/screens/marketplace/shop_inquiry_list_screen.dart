@@ -337,6 +337,10 @@ class _InquiryTile extends StatelessWidget {
     if (diff.inMinutes < 60) return '${diff.inMinutes}分前';
     if (diff.inHours < 24) return '${diff.inHours}時間前';
     if (diff.inDays < 7) return '${diff.inDays}日前';
+    // 年をまたいだやりとりは、月日だけだと去年か今年か分からない。
+    // 1年使う人の一覧には去年のスレッドが普通に並ぶ（今年扱いだと
+    // 未来の日付に見える）。**今年のものだけ年を省く。**
+    if (dt.year != now.year) return '${dt.year}/${dt.month}/${dt.day}';
     return '${dt.month}/${dt.day}';
   }
 }

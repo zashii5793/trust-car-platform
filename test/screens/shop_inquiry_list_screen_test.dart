@@ -165,8 +165,9 @@ Inquiry _makeInquiry({
   String initialMessage = 'テスト問い合わせ本文',
   InquiryStatus status = InquiryStatus.pending,
   int unreadCountShop = 0,
+  DateTime? updatedAt,
 }) {
-  final now = DateTime(2025, 6, 1, 10, 0);
+  final now = updatedAt ?? DateTime(2025, 6, 1, 10, 0);
   return Inquiry(
     id: id,
     userId: 'user-1',
@@ -266,6 +267,38 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('問い合わせはありません'), findsOneWidget);
+    });
+  });
+
+  // 1年つき合った店の一覧には去年のスレッドが並ぶ。月日だけだと
+  // 「11/15」が去年なのか今年なのか分からない（今年なら未来の日付に見える）。
+  group('ShopInquiryListScreen — 日付の出し方', () {
+    testWidgets('今年のやりとりは月日だけ', (tester) async {
+      final thisYear = DateTime(DateTime.now().year, 1, 20, 10, 0);
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [_makeInquiry(updatedAt: thisYear)],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('1/20'), findsOneWidget);
+    });
+
+    testWidgets('去年のやりとりには年が付く', (tester) async {
+      final lastYear = DateTime(DateTime.now().year - 1, 11, 15, 10, 0);
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [_makeInquiry(updatedAt: lastYear)],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('${lastYear.year}/11/15'), findsOneWidget);
     });
   });
 
