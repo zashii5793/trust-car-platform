@@ -176,6 +176,17 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       userDisplayName: user.displayName,
       userPhotoUrl: user.photoURL,
       imageUrls: imageUrls,
+      // 画面では前から車を選べたのに、**選んだ結果を渡していなかった。**
+      // そのため `post.vehicleTag` は誰にも書かれず、「どの車の話か」が
+      // 永久に分からない投稿だけが溜まっていた（2026-09-22 に判明）。
+      vehicleTag: _selectedVehicle == null
+          ? null
+          : PostVehicleTag(
+              vehicleId: _selectedVehicle!.id,
+              makerName: _selectedVehicle!.maker,
+              modelName: _selectedVehicle!.model,
+              year: _selectedVehicle!.year,
+            ),
     );
 
     if (!mounted) return;

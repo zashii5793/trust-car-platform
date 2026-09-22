@@ -76,9 +76,13 @@ class MockPostService implements PostService {
   }) async {
     createCallCount++;
     lastContent = content;
+    lastVehicleTag = vehicleTag;
     return createResult ??
         Result.success(_makePost(id: 'new1', content: content));
   }
+
+  /// 投稿に付いた車両タグ。**Provider が落としていないか**を見る。
+  dynamic lastVehicleTag;
 
   @override
   Future<Result<void, AppError>> likePost({
@@ -452,6 +456,41 @@ void main() {
     });
 
     // ── createPost ────────────────────────────────────────────────────────────
+
+    // 投稿の車両タグは Service も Model も対応しているのに、
+    // **Provider が受け取らず、画面も渡していなかった**（2026-09-22 実測）。
+    // そのため `post.vehicleId` は完全な死にフィールドで、
+    // 「どの車の話か」が永久に分からない投稿だけが溜まっていた。
+    group('createPost — 車両タグ', () {
+      test('車両タグを渡すと、そのまま Service に届く', () async {
+        await provider.createPost(
+          userId: 'u1',
+          content: 'タイヤを替えました',
+          category: PostCategory.maintenance,
+          vehicleTag: const PostVehicleTag(
+            vehicleId: 'veh_1',
+            makerName: 'Toyota',
+            modelName: 'Hiace',
+          ),
+        );
+
+        expect(mockService.lastVehicleTag, isNotNull);
+        expect(
+          (mockService.lastVehicleTag as PostVehicleTag).vehicleId,
+          'veh_1',
+        );
+      });
+
+      test('渡さなければ null のまま（タグ無しの投稿もできる）', () async {
+        await provider.createPost(
+          userId: 'u1',
+          content: 'こんにちは',
+          category: PostCategory.carLife,
+        );
+
+        expect(mockService.lastVehicleTag, isNull);
+      });
+    });
 
     group('createPost', () {
       test('投稿作成に成功するとフィード先頭に追加される', () async {

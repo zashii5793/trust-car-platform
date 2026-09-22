@@ -282,6 +282,18 @@
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
+    // 愛車ページ: この車についての自分の投稿
+    // （`vehicleTag.vehicleId` で読むのはここだけ。makerId / modelName の
+    //   インデックスは同車種のフィード用で、車両1台ぶんは引けない）
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "vehicleTag.vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
     // ユーザー自身の投稿
     {
       "collectionGroup": "posts",

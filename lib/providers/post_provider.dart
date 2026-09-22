@@ -244,6 +244,11 @@ class PostProvider with ChangeNotifier {
     String? userDisplayName,
     String? userPhotoUrl,
     List<String> imageUrls = const [],
+
+    /// どの車の話か。Service も Model も前から対応していたのに、
+    /// **Provider が受け取らず画面も渡していなかった**ので、
+    /// `post.vehicleId` は誰にも書かれない死んだ項目だった。
+    PostVehicleTag? vehicleTag,
   }) async {
     if (content.trim().isEmpty) return false;
 
@@ -260,6 +265,7 @@ class PostProvider with ChangeNotifier {
       userPhotoUrl: userPhotoUrl,
       media:
           imageUrls.map((url) => PostMedia(url: url, type: 'image')).toList(),
+      vehicleTag: vehicleTag,
     );
 
     bool success = false;
