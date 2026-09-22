@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../models/shop_monthly_report.dart';
+import '../../services/pdf_export_service.dart';
+import 'package:printing/printing.dart';
 import '../../models/shop_demand_summary.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
@@ -618,6 +621,33 @@ class _MonthlyReportCard extends StatelessWidget {
 
   const _MonthlyReportCard({required this.provider});
 
+  Future<void> _printMonthlyReport(
+    BuildContext context,
+    ShopMonthlyReport report,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final shopName = provider.myShop?.name ?? '';
+
+    final result = await sl.get<PdfExportService>().generateShopMonthlyReport(
+          shopName: shopName,
+          report: report,
+        );
+
+    await result.when(
+      success: (bytes) async {
+        await Printing.layoutPdf(onLayout: (_) async => bytes);
+      },
+      failure: (err) async {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(err.userMessage),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -649,11 +679,25 @@ class _MonthlyReportCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '今月の問い合わせ',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '今月の問い合わせ',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  // 工場は数字を紙で会議にかける。画面だけでは振り返りに
+                  // 使えないので、印刷とPDF共有の入口を置く。
+                  IconButton(
+                    key: const Key('monthly_report_print_btn'),
+                    icon: const Icon(Icons.print_outlined, size: 20),
+                    tooltip: 'レポートを印刷・共有',
+                    onPressed: () => _printMonthlyReport(context, report),
+                  ),
+                ],
               ),
               AppSpacing.verticalSm,
               Row(
