@@ -1783,3 +1783,157 @@ describe('faq_answers / faq_helpful_votes — 回答と投票', () => {
     await assertSucceeds(deleteDoc(doc(dbFor(ANSWERER), answerPath)));
   });
 });
+
+// ===========================================================================
+// maintenance_records の検証フィールド（「工場裏書き」バッジの根拠）
+//
+// 画面は `record.isVerified` で「工場裏書き」バッジを出している
+// （vehicle_detail_screen.dart:2186）。その根拠は次の2つ:
+//
+//   verificationSource = 'shopVerified'（明示）
+//   inquiryId != null                  → getter が shopImported に導出
+//
+// **どちらもユーザー自身が書けてしまうと、バッジは何も保証しない。**
+// 2026-09-22 時点のルールは `allow update, delete: if isDocumentOwner();`
+// だけで、検証フィールドを一切守っていなかった。
+//
+// 査定に使える記録にするには「工場を通ったものだけが裏書きされる」ことが
+// 要る。ここはその境界を固定するテスト。
+// ===========================================================================
+
+const MR_USER_UID = 'mr_user_001';
+const MR_SHOP_UID = 'mr_shop_002';
+const MR_RECORD_ID = 'mr_record_1';
+const MR_INQUIRY_ID = 'mr_inquiry_1';
+const mrPath = `maintenance_records/${MR_RECORD_ID}`;
+
+function mrDoc(extra = {}) {
+  return {
+    vehicleId: 'veh_1',
+    userId: MR_USER_UID,
+    type: 'oilChange',
+    title: 'エンジンオイル交換',
+    cost: 6000,
+    date: new Date('2026-09-01'),
+    createdAt: new Date('2026-09-01'),
+    ...extra,
+  };
+}
+
+/** ルール無効の管理コンテキストで、当事者付きの問い合わせを置く。 */
+async function seedInquiryFor(uid, shopId = MR_SHOP_UID) {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `inquiries/${MR_INQUIRY_ID}`), {
+      userId: uid,
+      shopId,
+      type: 'estimate',
+      status: 'replied',
+      subject: '車検見積もり',
+      initialMessage: 'お願いします',
+    });
+  });
+}
+
+/** ルール無効で記録を置く。 */
+async function seedRecord(extra = {}) {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), mrPath), mrDoc(extra));
+  });
+}
+
+describe('maintenance_records — 自己申告の記録', () => {
+  test('自分の記録は作れる', async () => {
+    await assertSucceeds(setDoc(doc(dbFor(MR_USER_UID), mrPath), mrDoc()));
+  });
+
+  test('他人名義の記録は作れない', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(MR_USER_UID), mrPath), mrDoc({ userId: 'someone_else' })),
+    );
+  });
+
+  test('自分の記録は直せる（費用の打ち間違いなど）', async () => {
+    await seedRecord();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(MR_USER_UID), mrPath), { cost: 6500 }),
+    );
+  });
+});
+
+describe('maintenance_records — 裏書きの偽装を止める', () => {
+  test('自分で shopVerified を名乗る記録は作れない', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(MR_USER_UID), mrPath),
+        mrDoc({ verificationSource: 'shopVerified' }),
+      ),
+    );
+  });
+
+  test('自分で verifiedByShopId を書いた記録は作れない', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(MR_USER_UID), mrPath),
+        mrDoc({ verifiedByShopId: MR_SHOP_UID, verifiedAt: new Date() }),
+      ),
+    );
+  });
+
+  test('あとから shopVerified に書き換えることはできない', async () => {
+    await seedRecord();
+    await assertFails(
+      updateDoc(doc(dbFor(MR_USER_UID), mrPath), {
+        verificationSource: 'shopVerified',
+      }),
+    );
+  });
+
+  test('あとから verifiedByShopId を足すことはできない', async () => {
+    await seedRecord();
+    await assertFails(
+      updateDoc(doc(dbFor(MR_USER_UID), mrPath), {
+        verifiedByShopId: MR_SHOP_UID,
+      }),
+    );
+  });
+
+  test('当事者でない問い合わせIDを付けて裏書きを装うことはできない', async () => {
+    // 他人のスレッドのIDを借りてくる形。これが通ると inquiryId 由来の
+    // shopImported が自作できてしまう。
+    await seedInquiryFor('someone_else');
+    await assertFails(
+      setDoc(
+        doc(dbFor(MR_USER_UID), mrPath),
+        mrDoc({ inquiryId: MR_INQUIRY_ID }),
+      ),
+    );
+  });
+});
+
+describe('maintenance_records — 工場を通った記録', () => {
+  test('自分が当事者の問い合わせからなら取り込める', async () => {
+    await seedInquiryFor(MR_USER_UID);
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(MR_USER_UID), mrPath),
+        mrDoc({ inquiryId: MR_INQUIRY_ID }),
+      ),
+    );
+  });
+
+  test('取り込んだ記録の出所は、あとから消せない', async () => {
+    await seedInquiryFor(MR_USER_UID);
+    await seedRecord({ inquiryId: MR_INQUIRY_ID });
+
+    // 不都合な記録の出所だけ消して「自己申告」に見せかける、を止める。
+    await assertFails(
+      updateDoc(doc(dbFor(MR_USER_UID), mrPath), { inquiryId: null }),
+    );
+  });
+
+  test('取り込んだ記録でも、削除は本人ができる', async () => {
+    await seedInquiryFor(MR_USER_UID);
+    await seedRecord({ inquiryId: MR_INQUIRY_ID });
+    await assertSucceeds(deleteDoc(doc(dbFor(MR_USER_UID), mrPath)));
+  });
+});
