@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../services/maintenance_csv_export_service.dart';
+import 'dart:io';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../services/vehicle_retirement_service.dart';
 import '../services/maintenance_trend_service.dart';
 import '../core/config/app_config.dart';
@@ -371,6 +375,54 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     }
   }
 
+  /// 整備記録を CSV にして共有する。
+  ///
+  /// PDF は読むもの。買い手や次のオーナーが**自分で扱う**には表が要る。
+  /// 個人向けの出力は PDF だけで、CSV は法人のフリート用しか無かった。
+  Future<void> _exportCsv() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final records = context.read<MaintenanceProvider>().records;
+
+    final result = sl.get<MaintenanceCsvExportService>().buildCsv(
+          vehicle: _vehicle,
+          records: records,
+        );
+
+    await result.when(
+      success: (csv) async {
+        File? file;
+        try {
+          final dir = await getTemporaryDirectory();
+          final now = DateTime.now();
+          final stamp = '${now.year}'
+              '${now.month.toString().padLeft(2, '0')}'
+              '${now.day.toString().padLeft(2, '0')}';
+          file = File('${dir.path}/maintenance_${_vehicle.id}_$stamp.csv');
+          await file.writeAsString(csv);
+
+          await Share.shareXFiles(
+            [XFile(file.path, mimeType: 'text/csv')],
+            subject: '${_vehicle.maker} ${_vehicle.model} の整備記録',
+          );
+        } catch (e) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('CSVの共有に失敗しました: $e')),
+          );
+        } finally {
+          // ナンバーや工場名が入る。共有したあとに平文を残さない。
+          try {
+            if (file != null && await file.exists()) await file.delete();
+          } catch (_) {}
+        }
+      },
+      failure: (err) async {
+        messenger.showSnackBar(
+          SnackBar(content: Text('CSVの作成に失敗しました: ${err.userMessage}')),
+        );
+      },
+    );
+  }
+
   /// 車を手放したことを記録する。
   ///
   /// **記録を残すかどうかは本人に選ばせる。** 既定は「残す」。消すほうを
@@ -581,8 +633,19 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
               tooltip: 'その他',
               onSelected: (value) {
                 if (value == 'retire') _showRetireSheet();
+                if (value == 'csv') _exportCsv();
               },
               itemBuilder: (_) => [
+                const PopupMenuItem(
+                  key: Key('export_csv_menu_item'),
+                  value: 'csv',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.table_view_outlined),
+                    title: Text('整備記録をCSVで出す'),
+                    subtitle: Text('売却時に次のオーナーへ'),
+                  ),
+                ),
                 const PopupMenuItem(
                   key: Key('retire_vehicle_menu_item'),
                   value: 'retire',
