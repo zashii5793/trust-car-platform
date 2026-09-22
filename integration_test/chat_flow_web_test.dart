@@ -236,7 +236,12 @@ void main() {
       () => _visibleTexts().any((t) => t == '工場'),
       maxPumps: 160,
     );
-    await binding.takeScreenshot('flow_07_chat_thread');
+        // 画面遷移のアニメーションが終わるまで待ってから撮る。
+    // 途中を撮ると内容が横にずれ、右端が切れた画像になる。**それを
+    // 「吹き出しがはみ出している」というレイアウト不具合と読み違えた**
+    // （2026-09-22）。
+    await tester.pump(const Duration(seconds: 1));
+await binding.takeScreenshot('flow_07_chat_thread');
 
     final threadTexts = _visibleTexts();
     binding.reportData = {

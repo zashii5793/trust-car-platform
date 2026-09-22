@@ -163,7 +163,12 @@ void main() {
       () => find.text('返信メッセージを入力...').evaluate().isNotEmpty,
       maxPumps: 400,
     );
-    await binding.takeScreenshot('shop_05_thread_sheet');
+        // 画面遷移のアニメーションが終わるまで待ってから撮る。
+    // 途中を撮ると内容が横にずれ、右端が切れた画像になる。**それを
+    // 「吹き出しがはみ出している」というレイアウト不具合と読み違えた**
+    // （2026-09-22）。
+    await tester.pump(const Duration(seconds: 1));
+await binding.takeScreenshot('shop_05_thread_sheet');
 
     final sheetTexts = visibleTexts();
     binding.reportData = {
