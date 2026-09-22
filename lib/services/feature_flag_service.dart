@@ -41,6 +41,7 @@ class FeatureFlagService {
   static const Map<String, FeatureFlag> remoteKeys = {
     'c2c_parts_marketplace': FeatureFlag.c2cPartsMarketplace,
     'premium_features': FeatureFlag.premiumFeatures,
+    'part_recommendations': FeatureFlag.partRecommendations,
   };
 
   /// Fetches remote overrides and applies them onto [AppConfig].

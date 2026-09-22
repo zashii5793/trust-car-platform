@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/config/app_config.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../core/theme/button_text_style.dart';
@@ -432,18 +433,22 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                 );
               },
             ),
-            IconButton(
-              icon: const Icon(Icons.build_circle_outlined),
-              tooltip: 'パーツ提案',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PartRecommendationScreen(vehicle: _vehicle),
-                  ),
-                );
-              },
-            ),
+            // パーツ提案は架空データを出しているため既定で非表示
+            // （FeatureFlag.partRecommendations）。
+            if (isFeatureEnabled(FeatureFlag.partRecommendations))
+              IconButton(
+                icon: const Icon(Icons.build_circle_outlined),
+                tooltip: 'パーツ提案',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          PartRecommendationScreen(vehicle: _vehicle),
+                    ),
+                  );
+                },
+              ),
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: '編集',
