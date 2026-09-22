@@ -91,15 +91,49 @@ service cloud.firestore {
     }
 
     // メンテナンス記録
+    //
+    // 画面は `record.isVerified` で「工場裏書き」バッジを出す。その根拠は
+    //   verificationSource == 'shopVerified'（明示）
+    //   inquiryId != null                    → shopImported に導出
+    // の2つ。**どちらも本人が自由に書けると、バッジは何も保証しない。**
+    // 査定に使える記録にするには、工場を通ったものだけが裏書きされること。
+    //
+    // 方針:
+    //   - verificationSource / verifiedByShopId / verifiedAt は**クライアント
+    //     から書かせない**（将来、工場側から裏書きするときは Cloud Functions で）
+    //   - inquiryId は「自分が当事者の問い合わせ」だけ許す
+    //   - 一度付いた inquiryId は変えさせない（都合の悪い記録の出所だけ
+    //     消して自己申告に見せかける、を防ぐ）
+    //   - 本文（費用・日付・内容）の訂正と削除は本人の自由
+    function hasNoVerificationClaim(data) {
+      return !data.keys().hasAny(
+        ['verificationSource', 'verifiedByShopId', 'verifiedAt']);
+    }
+
+    function inquiryLinkIsHonest(data) {
+      return !data.keys().hasAny(['inquiryId'])
+        || data.inquiryId == null
+        || isInquiryParticipant(data.inquiryId);
+    }
+
     match /maintenance_records/{recordId} {
       // 自分の記録のみ読み取り可能
       allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
 
-      // 作成時は自分のユーザーIDを設定していること
-      allow create: if isCreatingOwnDocument();
+      // 作成時は自分のユーザーIDを設定していること。
+      // あわせて、裏書きを自称していないこと・問い合わせの当事者であること。
+      allow create: if isCreatingOwnDocument()
+        && hasNoVerificationClaim(request.resource.data)
+        && inquiryLinkIsHonest(request.resource.data);
 
-      // 更新・削除は所有者のみ
-      allow update, delete: if isDocumentOwner();
+      // 更新は所有者のみ。検証フィールドと出所は不変。
+      allow update: if isDocumentOwner()
+        && hasNoVerificationClaim(request.resource.data)
+        && request.resource.data.get('inquiryId', null)
+             == resource.data.get('inquiryId', null);
+
+      // 削除は所有者のみ（工場を通った記録でも、消す自由は本人にある）
+      allow delete: if isDocumentOwner();
     }
 
     // 通知データ

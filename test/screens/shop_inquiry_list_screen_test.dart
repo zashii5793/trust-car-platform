@@ -143,13 +143,39 @@ class _FakeShopProvider extends ShopProvider {
       notifyListeners();
     }
   }
+
+  /// 送信は成功したことにする。サーバ側のステータス遷移（店舗の初回返信で
+  /// pending → replied）は `InquiryService.sendMessage` が行うので、ここでは
+  /// 画面がその遷移を自分の表示に反映できているかだけを見る。
+  @override
+  Future<Result<InquiryMessage, AppError>> sendInquiryMessage({
+    required String inquiryId,
+    required String senderId,
+    required String content,
+    List<String> attachmentUrls = const [],
+    Map<String, dynamic>? maintenancePayload,
+  }) async =>
+      Result.success(InquiryMessage(
+        id: 'msg-sent',
+        senderId: senderId,
+        isFromShop: true,
+        content: content,
+        sentAt: DateTime(2026, 9, 22, 8, 0),
+      ));
+}
+
+class _FakeUser implements User {
+  @override
+  String get uid => 'shop-1';
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 class _FakeAuthProvider extends AuthProvider {
   _FakeAuthProvider() : super(authService: _StubAuthService());
 
   @override
-  User? get firebaseUser => null;
+  User? get firebaseUser => _FakeUser();
 
   @override
   bool get isLoading => false;
@@ -165,8 +191,10 @@ Inquiry _makeInquiry({
   String initialMessage = 'テスト問い合わせ本文',
   InquiryStatus status = InquiryStatus.pending,
   int unreadCountShop = 0,
+  DateTime? updatedAt,
+  DateTime? repliedAt,
 }) {
-  final now = DateTime(2025, 6, 1, 10, 0);
+  final now = updatedAt ?? DateTime(2025, 6, 1, 10, 0);
   return Inquiry(
     id: id,
     userId: 'user-1',
@@ -178,6 +206,7 @@ Inquiry _makeInquiry({
     unreadCountShop: unreadCountShop,
     createdAt: now,
     updatedAt: now,
+    repliedAt: repliedAt,
   );
 }
 
@@ -269,6 +298,38 @@ void main() {
     });
   });
 
+  // 1年つき合った店の一覧には去年のスレッドが並ぶ。月日だけだと
+  // 「11/15」が去年なのか今年なのか分からない（今年なら未来の日付に見える）。
+  group('ShopInquiryListScreen — 日付の出し方', () {
+    testWidgets('今年のやりとりは月日だけ', (tester) async {
+      final thisYear = DateTime(DateTime.now().year, 1, 20, 10, 0);
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [_makeInquiry(updatedAt: thisYear)],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('1/20'), findsOneWidget);
+    });
+
+    testWidgets('去年のやりとりには年が付く', (tester) async {
+      final lastYear = DateTime(DateTime.now().year - 1, 11, 15, 10, 0);
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [_makeInquiry(updatedAt: lastYear)],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('${lastYear.year}/11/15'), findsOneWidget);
+    });
+  });
+
   group('ShopInquiryListScreen — Inquiries displayed', () {
     testWidgets('9. shows inquiry subject', (tester) async {
       await tester.pumpWidget(
@@ -324,6 +385,180 @@ void main() {
 
       // No numeric badge should appear
       expect(find.text('0'), findsNothing);
+    });
+  });
+
+  // 返信を送ると、サーバ側では pending → replied に変わる
+  // （InquiryService.sendMessage の「店舗の初回返信」の分岐）。
+  // 画面が持っているのはローカルのコピーなので、**送っただけでは
+  // 「未対応」のままになる。** 実画面で確認して分かった（2026-09-22）。
+  // 整備明細のフォームには**テストが1本も無かった**（2026-09-22 実測。
+  // `detail_*` キーの参照ゼロ）。中身を見ると必須チェックが実質ゼロで、
+  // 費用のパースに失敗しても 0 円で通っていた。
+  //
+  // ここで送られた明細が、そのままお客様の整備記録になる。**0円の記録が
+  // 混ざると、累計費用も整備間隔も狂う。**
+  group('ShopInquiryListScreen — 整備明細のフォーム', () {
+    Future<void> openForm(WidgetTester tester) async {
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [_makeInquiry(subject: '明細テスト')],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text('明細テスト'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.byKey(const Key('send_maintenance_detail_btn')));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+    }
+
+    testWidgets('費用が空なら送れない', (tester) async {
+      await openForm(tester);
+
+      await tester.tap(find.byKey(const Key('detail_submit_btn')));
+      await tester.pumpAndSettle();
+
+      // ダイアログが閉じていない＝送信されていない。
+      expect(find.byKey(const Key('detail_submit_btn')), findsOneWidget);
+      expect(find.textContaining('費用'), findsWidgets);
+    });
+
+    testWidgets('費用に数字以外を入れたら送れない', (tester) async {
+      await openForm(tester);
+
+      await tester.enterText(find.byKey(const Key('detail_cost_field')), 'あああ');
+      await tester.tap(find.byKey(const Key('detail_submit_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('detail_submit_btn')), findsOneWidget);
+    });
+
+    testWidgets('費用を入れれば送れる', (tester) async {
+      await openForm(tester);
+
+      await tester.enterText(
+          find.byKey(const Key('detail_cost_field')), '128000');
+      await tester.tap(find.byKey(const Key('detail_submit_btn')));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // ダイアログが閉じた。
+      expect(find.byKey(const Key('detail_submit_btn')), findsNothing);
+    });
+
+    // 内訳はモデルにも取込側にもあるのに、フォームが集めていなかった。
+    // そのため店から送られた記録は**すべて内訳なし**だった。
+    testWidgets('部品代と工賃を入れられる', (tester) async {
+      await openForm(tester);
+
+      expect(find.byKey(const Key('detail_parts_cost_field')), findsOneWidget);
+      expect(find.byKey(const Key('detail_labor_cost_field')), findsOneWidget);
+    });
+
+    testWidgets('内訳の合計が費用を超えていたら送れない', (tester) async {
+      await openForm(tester);
+
+      await tester.enterText(
+          find.byKey(const Key('detail_cost_field')), '10000');
+      await tester.enterText(
+          find.byKey(const Key('detail_parts_cost_field')), '8000');
+      await tester.enterText(
+          find.byKey(const Key('detail_labor_cost_field')), '5000');
+      await tester.tap(find.byKey(const Key('detail_submit_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('detail_submit_btn')), findsOneWidget);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('内訳が空でも送れる（任意）', (tester) async {
+        await openForm(tester);
+
+        await tester.enterText(
+            find.byKey(const Key('detail_cost_field')), '6000');
+        await tester.tap(find.byKey(const Key('detail_submit_btn')));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.byKey(const Key('detail_submit_btn')), findsNothing);
+      });
+
+      testWidgets('走行距離に桁の多すぎる値を入れたら送れない', (tester) async {
+        await openForm(tester);
+
+        await tester.enterText(
+            find.byKey(const Key('detail_cost_field')), '6000');
+        await tester.enterText(
+            find.byKey(const Key('detail_mileage_field')), '3000000');
+        await tester.tap(find.byKey(const Key('detail_submit_btn')));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('detail_submit_btn')), findsOneWidget);
+      });
+    });
+  });
+
+  group('ShopInquiryListScreen — 返信後のステータス', () {
+    testWidgets('未対応に返信すると「回答済み」になる', (tester) async {
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [
+              _makeInquiry(subject: '異音の相談', status: InquiryStatus.pending),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('異音の相談'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // '回答済み' はフィルタチップには無いので、シートの表示だけを見ている。
+      expect(find.text('回答済み'), findsNothing);
+
+      await tester.enterText(find.byType(TextField).last, '土曜9時で承ります');
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.send).last);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // シートのメタ行と下部のステータスバーの2か所に出る。
+      expect(
+        find.text('回答済み'),
+        findsWidgets,
+        reason: '返信を送ってもステータスが「未対応」のまま',
+      );
+    });
+
+    testWidgets('すでに店舗が返信していれば、状態は変えない', (tester) async {
+      // 判定は status ではなく `repliedAt`。サーバ側も同じ条件で見ている
+      // （status が inProgress でも、店舗がまだ返していなければ初回返信）。
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [
+              _makeInquiry(
+                subject: '対応中の件',
+                status: InquiryStatus.inProgress,
+                repliedAt: DateTime(2026, 9, 1, 10, 0),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('対応中の件'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.enterText(find.byType(TextField).last, '追加のご案内です');
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.send).last);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // 初回返信ではないので replied には遷移しない（サーバ側の分岐と揃える）。
+      expect(find.text('回答済み'), findsNothing);
+      expect(find.text('対応中'), findsWidgets);
     });
   });
 

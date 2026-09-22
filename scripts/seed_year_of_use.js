@@ -841,6 +841,29 @@ async function main() {
     return;
   }
 
+  // 会話は、流し直す前に**いったん空にする**。
+  //
+  // 親は固定IDの merge なので上書きされるが、**サブコレクションは残る。**
+  // アプリから返信すると `messages` にランダムIDの文書が増え、流し直しても
+  // 消えないので、触るたびに会話が伸びていく（実測: 3往復のはずが3通増えて
+  // 親の messageCount と食い違った）。
+  //
+  // 「何度流しても同じ状態に戻る」ことがこのシードの取り柄なので、
+  // ここを消さないと取り柄が無くなる。
+  for (const t of CHAT_THREADS) {
+    const existing = await db
+      .collection('inquiries')
+      .doc(t.id)
+      .collection('messages')
+      .get();
+    if (existing.empty) continue;
+    for (let i = 0; i < existing.docs.length; i += 400) {
+      const batch = db.batch();
+      existing.docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
+
   for (let i = 0; i < entries.length; i += 400) {
     const batch = db.batch();
     entries.slice(i, i + 400).forEach((e) => {

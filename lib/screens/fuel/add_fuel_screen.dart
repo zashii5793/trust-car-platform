@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/utils/odometer.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
@@ -184,6 +185,19 @@ class _AddFuelScreenState extends State<AddFuelScreen> {
                       ? '入れると燃費が出せます'
                       : '前回: ${NumberFormat('#,###').format(last)} km',
                 ),
+                // 前回より小さい・大きすぎる値は、ここで気づかせる。
+                // **止めはしない**（メーター交換で実際に戻ることがある）。
+                // 桁の打ち間違いだけはサービス層で弾く。
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                validator: (value) {
+                  final entered = int.tryParse(value?.trim() ?? '');
+                  if (entered == null) return null; // 任意項目
+                  final check = OdometerCheck.against(
+                    value: entered,
+                    previous: last,
+                  );
+                  return check.hasProblem ? check.message : null;
+                },
               ),
               AppSpacing.verticalMd,
               Card(

@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../models/shop_monthly_report.dart';
+import '../../services/pdf_export_service.dart';
+import 'package:printing/printing.dart';
+import '../../models/shop_demand_summary.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
@@ -617,6 +621,33 @@ class _MonthlyReportCard extends StatelessWidget {
 
   const _MonthlyReportCard({required this.provider});
 
+  Future<void> _printMonthlyReport(
+    BuildContext context,
+    ShopMonthlyReport report,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final shopName = provider.myShop?.name ?? '';
+
+    final result = await sl.get<PdfExportService>().generateShopMonthlyReport(
+          shopName: shopName,
+          report: report,
+        );
+
+    await result.when(
+      success: (bytes) async {
+        await Printing.layoutPdf(onLayout: (_) async => bytes);
+      },
+      failure: (err) async {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(err.userMessage),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -648,11 +679,25 @@ class _MonthlyReportCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '今月の問い合わせ',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '今月の問い合わせ',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  // 工場は数字を紙で会議にかける。画面だけでは振り返りに
+                  // 使えないので、印刷とPDF共有の入口を置く。
+                  IconButton(
+                    key: const Key('monthly_report_print_btn'),
+                    icon: const Icon(Icons.print_outlined, size: 20),
+                    tooltip: 'レポートを印刷・共有',
+                    onPressed: () => _printMonthlyReport(context, report),
+                  ),
+                ],
               ),
               AppSpacing.verticalSm,
               Row(
@@ -856,6 +901,7 @@ class _DemandNotificationCard extends StatefulWidget {
 class _DemandNotificationCardState extends State<_DemandNotificationCard> {
   int _count = 0;
   bool _loaded = false;
+  ShopDemandSummary _summary = const ShopDemandSummary(total: 0, byType: {});
 
   @override
   void initState() {
@@ -869,13 +915,18 @@ class _DemandNotificationCardState extends State<_DemandNotificationCard> {
       if (mounted) setState(() => _loaded = true);
       return;
     }
-    final result = await sl.get<ShopDemandService>().getDemandCountForShop(
+    // 件数だけでは、登録する価値があるか判断できない。何の相談が来て
+    // いるのかまで出す。**本文は出さない**（書いた人のものであり、
+    // 同時に登録する理由でもある）。
+    final result = await sl.get<ShopDemandService>().getDemandsForShop(
           widget.shopId,
           shopOwnerId: widget.shopOwnerId,
         );
     if (!mounted) return;
+    final demands = result.getOrElse(const []);
     setState(() {
-      _count = result.getOrElse(0);
+      _summary = ShopDemandSummary.from(demands);
+      _count = _summary.total;
       _loaded = true;
     });
   }
@@ -909,6 +960,32 @@ class _DemandNotificationCardState extends State<_DemandNotificationCard> {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (_summary.typesByCount.isNotEmpty) ...[
+                  AppSpacing.verticalXs,
+                  Wrap(
+                    key: const Key('demand_type_breakdown'),
+                    spacing: AppSpacing.xs,
+                    runSpacing: 4,
+                    children: _summary.typesByCount.take(3).map((t) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xs,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${t.displayName} ${_summary.byType[t]}件',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: AppColors.info,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
               ],
             ),
           ),

@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import '../services/maintenance_csv_export_service.dart';
+import 'dart:io';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import '../services/vehicle_retirement_service.dart';
+import '../services/maintenance_trend_service.dart';
+import '../core/config/app_config.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../core/theme/button_text_style.dart';
@@ -368,6 +375,169 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     }
   }
 
+  /// 整備記録を CSV にして共有する。
+  ///
+  /// PDF は読むもの。買い手や次のオーナーが**自分で扱う**には表が要る。
+  /// 個人向けの出力は PDF だけで、CSV は法人のフリート用しか無かった。
+  Future<void> _exportCsv() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final records = context.read<MaintenanceProvider>().records;
+
+    final result = sl.get<MaintenanceCsvExportService>().buildCsv(
+          vehicle: _vehicle,
+          records: records,
+        );
+
+    await result.when(
+      success: (csv) async {
+        File? file;
+        try {
+          final dir = await getTemporaryDirectory();
+          final now = DateTime.now();
+          final stamp = '${now.year}'
+              '${now.month.toString().padLeft(2, '0')}'
+              '${now.day.toString().padLeft(2, '0')}';
+          file = File('${dir.path}/maintenance_${_vehicle.id}_$stamp.csv');
+          await file.writeAsString(csv);
+
+          await Share.shareXFiles(
+            [XFile(file.path, mimeType: 'text/csv')],
+            subject: '${_vehicle.maker} ${_vehicle.model} の整備記録',
+          );
+        } catch (e) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('CSVの共有に失敗しました: $e')),
+          );
+        } finally {
+          // ナンバーや工場名が入る。共有したあとに平文を残さない。
+          try {
+            if (file != null && await file.exists()) await file.delete();
+          } catch (_) {}
+        }
+      },
+      failure: (err) async {
+        messenger.showSnackBar(
+          SnackBar(content: Text('CSVの作成に失敗しました: ${err.userMessage}')),
+        );
+      },
+    );
+  }
+
+  /// 車を手放したことを記録する。
+  ///
+  /// **記録を残すかどうかは本人に選ばせる。** 既定は「残す」。消すほうを
+  /// 既定にすると、売ったあとに買い手へ履歴を出せなくなる。
+  Future<void> _showRetireSheet() async {
+    var reason = VehicleStatus.sold;
+    var retainData = true;
+
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              key: const Key('retire_vehicle_sheet'),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('この車を手放す',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    AppSpacing.verticalXs,
+                    Text(
+                      '手放したあとも、記録は残しておけます。',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    AppSpacing.verticalMd,
+                    RadioGroup<VehicleStatus>(
+                      groupValue: reason,
+                      onChanged: (v) =>
+                          setSheetState(() => reason = v ?? reason),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          VehicleStatus.sold,
+                          VehicleStatus.scrapped,
+                          VehicleStatus.transferred,
+                          VehicleStatus.leaseReturned,
+                        ]
+                            .map(
+                              (s) => RadioListTile<VehicleStatus>(
+                                contentPadding: EdgeInsets.zero,
+                                value: s,
+                                title: Text(s.displayName),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    const Divider(),
+                    SwitchListTile(
+                      key: const Key('retire_retain_data_switch'),
+                      contentPadding: EdgeInsets.zero,
+                      value: retainData,
+                      title: const Text('記録を残す'),
+                      subtitle: const Text('売却時に、次のオーナーへ渡せます'),
+                      onChanged: (v) => setSheetState(() => retainData = v),
+                    ),
+                    AppSpacing.verticalMd,
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        key: const Key('retire_confirm_btn'),
+                        onPressed: () => Navigator.pop(sheetContext, true),
+                        child: const Text('手放したことにする'),
+                      ),
+                    ),
+                    AppSpacing.verticalXs,
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(sheetContext, false),
+                        child: const Text('やめる'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final result = await sl.get<VehicleRetirementService>().retireVehicle(
+          vehicleId: _vehicle.id,
+          ownerId: _vehicle.userId,
+          reason: reason,
+          retainData: retainData,
+        );
+
+    if (!mounted) return;
+    result.when(
+      success: (_) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('${reason.displayName}にしました')),
+        );
+        navigator.pop();
+      },
+      failure: (err) => messenger.showSnackBar(
+        SnackBar(
+          content: Text(err.userMessage),
+          backgroundColor: AppColors.error,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -432,22 +602,61 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                 );
               },
             ),
-            IconButton(
-              icon: const Icon(Icons.build_circle_outlined),
-              tooltip: 'パーツ提案',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PartRecommendationScreen(vehicle: _vehicle),
-                  ),
-                );
-              },
-            ),
+            // パーツ提案は架空データを出しているため既定で非表示
+            // （FeatureFlag.partRecommendations）。
+            if (isFeatureEnabled(FeatureFlag.partRecommendations))
+              IconButton(
+                icon: const Icon(Icons.build_circle_outlined),
+                tooltip: 'パーツ提案',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          PartRecommendationScreen(vehicle: _vehicle),
+                    ),
+                  );
+                },
+              ),
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: '編集',
               onPressed: _navigateToEdit,
+            ),
+            // 手放したことを伝える経路。`VehicleRetirementService` は
+            // サービスもテストも揃っているのに、**画面から呼ぶ経路が無かった**。
+            // 売るときに記録を渡せることがこのアプリの値打ちなので、
+            // ここが抜けていると「売るときに効く」話が成り立たない。
+            PopupMenuButton<String>(
+              key: const Key('vehicle_more_menu'),
+              icon: const Icon(Icons.more_vert),
+              tooltip: 'その他',
+              onSelected: (value) {
+                if (value == 'retire') _showRetireSheet();
+                if (value == 'csv') _exportCsv();
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  key: Key('export_csv_menu_item'),
+                  value: 'csv',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.table_view_outlined),
+                    title: Text('整備記録をCSVで出す'),
+                    subtitle: Text('売却時に次のオーナーへ'),
+                  ),
+                ),
+                const PopupMenuItem(
+                  key: Key('retire_vehicle_menu_item'),
+                  value: 'retire',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.outbound_outlined),
+                    title: Text('この車を手放す'),
+                    subtitle: Text('売却・廃車・譲渡'),
+                  ),
+                ),
+              ],
             ),
           ],
           bottom: TabBar(
@@ -700,6 +909,9 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       );
                     },
                   ),
+
+                  // 次の整備の目安（自分の履歴からの予測）
+                  _MaintenanceForecastSection(vehicle: _vehicle),
 
                   // コミュニティトレンドセクション
                   _CommunityTrendSection(vehicle: _vehicle),
@@ -3704,4 +3916,128 @@ class _InspectionActionButtons extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         textStyle: const TextStyle(fontSize: 12),
       );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 次の整備の目安
+//
+// `MaintenanceTrendService` は予測 API（predictedNextDate /
+// predictedNextMileage / confidence）を揃えていたのに、**DI に登録されている
+// だけで画面から一度も呼ばれていなかった**（2026-09-22 実測）。
+//
+// 店から顧客へ「そろそろですよ」と声をかける経路は無い（連絡手段が無い）。
+// だから予測は**本人に見せる**。そろそろだと分かれば、かかりつけに行く。
+// 同じ結果を、個人情報を店に渡さずに得られる。
+//
+// 間隔は2回ぶんの記録が無いと出せないので、それまでは何も言わない。
+// 当てずっぽうを出すと、この画面ごと信用されなくなる。
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MaintenanceForecastSection extends StatelessWidget {
+  const _MaintenanceForecastSection({required this.vehicle});
+
+  final Vehicle vehicle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final records = context.watch<MaintenanceProvider>().records;
+    if (records.length < 2) return const SizedBox.shrink();
+
+    const service = MaintenanceTrendService();
+    final insights = service.sortByUrgency(
+      service
+          .analyzeHistory(records, currentMileage: vehicle.mileage)
+          .where((i) => i.predictedNextDate != null)
+          .toList(),
+    );
+    if (insights.isEmpty) return const SizedBox.shrink();
+
+    final shown = insights.take(3).toList();
+
+    return Padding(
+      key: const Key('maintenance_forecast_section'),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.event_repeat_outlined, size: 18),
+              AppSpacing.horizontalXs,
+              Text('次の整備の目安', style: theme.textTheme.titleSmall),
+            ],
+          ),
+          AppSpacing.verticalXs,
+          Text(
+            'これまでの間隔から出しています。目安なので、状態を見て決めてください。',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          AppSpacing.verticalSm,
+          ...shown.map((i) => _ForecastRow(insight: i)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ForecastRow extends StatelessWidget {
+  const _ForecastRow({required this.insight});
+
+  final MaintenanceTrendInsight insight;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final next = insight.predictedNextDate!;
+    final days = next.difference(DateTime.now()).inDays;
+
+    // 過ぎているものを先に、色を変えて出す。
+    final overdue = days < 0;
+    final label = overdue
+        ? '${-days}日 過ぎています'
+        : days == 0
+            ? '今日ごろ'
+            : 'あと$days日';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              insight.type.displayName,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+          // 記録が少ないうちは、その旨を添える。数字だけ出すと
+          // 根拠より強く見えてしまう。
+          if (insight.confidence == TrendConfidence.low)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              child: Text(
+                '参考',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+              ),
+            ),
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: overdue ? AppColors.warning : AppColors.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

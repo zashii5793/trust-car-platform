@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/config/app_config.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
@@ -639,7 +640,10 @@ class _VehicleTabState extends State<_VehicleTab> {
               // どちらもプロフィールの奥・車両詳細のヘッダーにあって、
               // 1年使っても辿り着かない位置だった（2026-09-08）。
               const _RecentDriveSection(),
-              _RecommendedPartsSection(vehicle: primaryVehicle),
+              // パーツ推薦は架空データを出しているため既定で非表示
+              // （FeatureFlag.partRecommendations）。
+              if (isFeatureEnabled(FeatureFlag.partRecommendations))
+                _RecommendedPartsSection(vehicle: primaryVehicle),
               _RecentMaintenanceSection(vehicle: primaryVehicle),
               const _PopularAccessoriesSection(),
               const _RetiredVehiclesSection(),

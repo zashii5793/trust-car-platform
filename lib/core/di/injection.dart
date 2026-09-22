@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/maintenance_csv_export_service.dart';
 import 'package:flutter/foundation.dart';
 import 'service_locator.dart';
 import '../error/app_error.dart';
@@ -192,6 +193,8 @@ class Injection {
     // Fleet CSV Export Service (vehicle list export for fleet admins)
     locator.registerLazySingleton<FleetCsvExportService>(
         () => const FleetCsvExportService());
+    locator.registerLazySingleton<MaintenanceCsvExportService>(
+        () => const MaintenanceCsvExportService());
 
     // Maintenance Schedule Service (generates standard maintenance schedule)
     locator.registerLazySingleton<MaintenanceScheduleService>(

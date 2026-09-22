@@ -299,6 +299,44 @@ class PostService {
     }
   }
 
+  /// Posts the owner has written about one specific vehicle.
+  ///
+  /// The vehicle tag has been stored since posts shipped, but nothing ever
+  /// read it back by vehicle — `makerId` and `modelName` had queries, the
+  /// vehicle itself did not. So "everything about this car in one place"
+  /// was impossible even though the data was there.
+  ///
+  /// Scoped to [ownerId]'s own posts: this backs the owner's view of their
+  /// own car, and keeping `userId` in the query is also what the security
+  /// rules need to accept it.
+  Future<Result<List<Post>, AppError>> getPostsForVehicle({
+    required String vehicleId,
+    required String ownerId,
+    int limit = 20,
+  }) async {
+    if (vehicleId.trim().isEmpty || ownerId.trim().isEmpty) {
+      return const Result.success([]);
+    }
+
+    try {
+      final snapshot = await _postsRef
+          .where('userId', isEqualTo: ownerId)
+          .where('vehicleTag.vehicleId', isEqualTo: vehicleId)
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
+
+      return Result.success(
+        snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList(),
+      );
+    } catch (e) {
+      return Result.failure(AppError.unknown(
+        'この車の投稿の取得に失敗しました',
+        originalError: e,
+      ));
+    }
+  }
+
   /// Search posts by hashtag
   Future<Result<List<Post>, AppError>> searchByHashtag({
     required String hashtag,

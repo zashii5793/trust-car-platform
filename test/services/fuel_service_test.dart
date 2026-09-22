@@ -126,6 +126,45 @@ void main() {
     });
   });
 
+  // 走行距離は、溜まった記録が信用されるかどうかの土台。
+  // 桁の打ち間違いをそのまま保存すると、燃費も整備間隔も全部狂う。
+  group('add — 走行距離の検査', () {
+    test('桁を打ち間違えた値は保存しない', () async {
+      final result = await service.add(
+        rec(date: DateTime(2026, 8, 1), odometer: 3000000),
+      );
+
+      expect(result.isFailure, isTrue);
+    });
+
+    test('負の走行距離は保存しない', () async {
+      final result = await service.add(
+        rec(date: DateTime(2026, 8, 1), odometer: -1),
+      );
+
+      expect(result.isFailure, isTrue);
+    });
+
+    test('前回より小さくても保存できる（メーター交換がある）', () async {
+      await service.add(rec(date: DateTime(2026, 7, 1), odometer: 30000));
+
+      final result = await service.add(
+        rec(date: DateTime(2026, 8, 1), odometer: 100),
+      );
+
+      // 止めると、実際に起きたことを記録できなくなる。
+      expect(result.isSuccess, isTrue);
+    });
+
+    group('Edge Cases', () {
+      test('走行距離が未入力でも保存できる', () async {
+        final result = await service.add(rec(date: DateTime(2026, 8, 1)));
+
+        expect(result.isSuccess, isTrue);
+      });
+    });
+  });
+
   group('recordsFor', () {
     test('新しい順で返る', () async {
       await service.add(rec(date: DateTime(2026, 6, 1), odometer: 30000));

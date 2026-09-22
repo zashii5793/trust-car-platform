@@ -39,6 +39,51 @@ class UserPlanLimits {
     this.canAccessMaintenanceTrends = false,
   });
 
+  /// How long a new account runs with everything open.
+  ///
+  /// The value of this app comes from records piling up — fuel economy,
+  /// service intervals, next-service predictions all say nothing until there
+  /// is history. The free plan keeps drive logs for 30 days, which throws the
+  /// history away before it becomes worth anything. That is the wrong shape
+  /// for a product whose whole pitch is accumulation.
+  ///
+  /// So the first six months are open, and the conversation about paying
+  /// happens once there is something to lose.
+  static const int graceDays = 180;
+
+  /// Limits actually in force for [plan], allowing for the opening period.
+  ///
+  /// Derived from [accountCreatedAt] alone, so no Cloud Function is needed —
+  /// `planType` and `planExpiresAt` can only be written by Functions under
+  /// the security rules, and those are not deployed yet.
+  static UserPlanLimits effective(
+    UserPlanType plan, {
+    required DateTime? accountCreatedAt,
+    DateTime? now,
+  }) {
+    if (plan == UserPlanType.premium) return UserPlanLimits.forPlan(plan);
+    if (accountCreatedAt == null) return UserPlanLimits.forPlan(plan);
+
+    final elapsed = (now ?? DateTime.now()).difference(accountCreatedAt).inDays;
+    // A negative value means the clock disagrees with the server; treat it as
+    // a brand new account rather than locking someone out.
+    if (elapsed <= graceDays) {
+      return UserPlanLimits.forPlan(UserPlanType.premium);
+    }
+    return UserPlanLimits.forPlan(plan);
+  }
+
+  /// Days left in the opening period. 0 once it is over, or unknown.
+  static int graceRemaining({
+    required DateTime? accountCreatedAt,
+    DateTime? now,
+  }) {
+    if (accountCreatedAt == null) return 0;
+    final elapsed = (now ?? DateTime.now()).difference(accountCreatedAt).inDays;
+    final left = graceDays - elapsed;
+    return left > 0 ? left : 0;
+  }
+
   factory UserPlanLimits.forPlan(UserPlanType plan) {
     switch (plan) {
       case UserPlanType.free:

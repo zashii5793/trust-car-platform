@@ -53,8 +53,13 @@ class MockPostService implements PostService {
     lastContent = content;
     lastCategory = category;
     lastVisibility = visibility;
+    lastVehicleTag = vehicleTag;
     return createResult ?? Result.success(_makePost(content: content));
   }
+
+  /// 選んだ車が投稿に届いているか。届かないと「どの車の話か」が
+  /// 分からない投稿になる。
+  dynamic lastVehicleTag;
 
   @override
   Future<Result<void, AppError>> likePost({
@@ -250,6 +255,20 @@ void main() {
 
       expect(mockService.createCallCount, 1);
       expect(mockService.lastContent, 'テスト投稿です');
+    });
+
+    // 画面では前から車を選べたのに、**選んだ結果を投稿に渡していなかった**
+    // （2026-09-22 実測）。`post.vehicleTag` は誰にも書かれず、
+    // 「どの車の話か」が分からない投稿だけが溜まっていた。
+    testWidgets('車を選んでいなければタグは付かない', (tester) async {
+      await pumpApp(tester, mockService);
+
+      await tester.enterText(find.byType(TextField).first, 'タグ無しの投稿');
+      await tester.pump();
+      await tester.tap(find.text('投稿する'));
+      await tester.pump();
+
+      expect(mockService.lastVehicleTag, isNull);
     });
 
     testWidgets('カテゴリを選択して投稿するとカテゴリが送信される', (tester) async {

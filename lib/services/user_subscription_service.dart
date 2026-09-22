@@ -17,7 +17,16 @@ class UserSubscriptionService {
     return planExpiresAt.isAfter(DateTime.now());
   }
 
-  /// Returns the feature limits for the given plan.
-  UserPlanLimits limitsFor(UserPlanType planType) =>
-      UserPlanLimits.forPlan(planType);
+  /// Returns the feature limits actually in force.
+  ///
+  /// [accountCreatedAt] lets the opening period apply: a new account runs
+  /// with everything open for the first [UserPlanLimits.graceDays] days,
+  /// because nothing this app offers is worth much until records have piled
+  /// up. Pass null when the sign-up date is unknown — the plan's own limits
+  /// then apply.
+  UserPlanLimits limitsFor(
+    UserPlanType planType, {
+    DateTime? accountCreatedAt,
+  }) =>
+      UserPlanLimits.effective(planType, accountCreatedAt: accountCreatedAt);
 }

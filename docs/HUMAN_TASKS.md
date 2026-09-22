@@ -1,6 +1,6 @@
 # 人間が実施すべきタスク一覧
 
-**最終更新**: 2026-09-03
+**最終更新**: 2026-09-22
 **前提**: AIが実装・テスト・コードプッシュまで完了済み。以下は **AIでは代替できない** 操作、および **人間の意思決定が必要な事項** のみ。
 **出荷目標**: 2026年8月ソフトローンチ（逆算計画は `docs/LAUNCH_PLAN.md`）。
 
@@ -36,12 +36,22 @@ No functions found in project trust-car-platform.
 削除する仕組みが本番にありません。AIチャット・課金の同期・コメントの
 モデレーションも同様に動きません。
 
-**止まっている原因は Secret Manager API が無効なこと**で、有効化は
-Console でのクリックが要ります（AI からはできません）。あわせて
-`ANTHROPIC_API_KEY` / `SENDGRID_API_KEY` / `REVENUECAT_WEBHOOK_SECRET` の
-3つを設定する必要があります（値が無いものはダミーでも可）。
+**Secret Manager API はもう有効になっています `[実測: 2026-09-22]`。**
+以前は「Console でのクリックが要る」と書いていましたが、
+`firebase functions:secrets:get ANTHROPIC_API_KEY` の応答が
+**403（API 未使用）から 404（シークレットが無い）に変わっています**。
+3つとも同じで、**Console 作業はもう不要・CLI だけで完結します。**
 
-**所要時間**: 30分（API の反映待ちを含む）
+残っているのは値の設定とデプロイだけです:
+
+```bash
+firebase functions:secrets:set ANTHROPIC_API_KEY        # 値が無ければダミー可
+firebase functions:secrets:set SENDGRID_API_KEY
+firebase functions:secrets:set REVENUECAT_WEBHOOK_SECRET
+firebase deploy --only functions
+```
+
+**所要時間**: 15分（Console 作業が不要になったぶん短縮）
 
 ---
 
@@ -166,15 +176,32 @@ Web は `MAPS_API_KEY` を渡していないため**現状ロード数0**です�
 取り直しが要ります**（登録するのは P0-1 のリリース鍵の SHA-1。この開発機には
 Android SDK が無く、debug の SHA-1 は取れません）。
 
-**手順**:
-1. Firebase Console → Authentication → Sign-in method
-2. 以下を有効化:
-   - **メール / パスワード**（本番にテストユーザーが存在するため、有効化済みの可能性が高い。要確認）
-   - **Google**: SHA-1 フィンガープリントを追加（Android）
-   - **Apple**: iOS のガイドライン4.8対応。`SignInWithAppleButton` は実装済み
-3. 承認済みドメインに本番ドメインを追加（Web版 = `zashii5793.github.io`）
+**メール/パスワードと承認済みドメインは、もう済んでいます `[実測: 2026-09-22]`。**
 
-**所要時間**: 15分
+- 存在しないアカウントで `accounts:signInWithPassword` を叩くと
+  `OPERATION_NOT_ALLOWED` ではなく **`INVALID_LOGIN_CREDENTIALS`** が返る
+  ＝プロバイダは有効
+- `authorizedDomains` に `trust-car-platform.web.app` / `.firebaseapp.com` /
+  `localhost` が入っている。**`zashii5793.github.io` の追加は不要**
+  （GitHub Pages へのデプロイは撤去済み。`TESTUSER_ROLLOUT_2026-09.md` §6）
+
+**残っているのは Google と Apple の2つだけです**:
+
+1. **Google**: リリース鍵の SHA-1 を追加（Android）。
+   ⚠️ **いまは Android の OAuth クライアントが存在しません** `[実測: 2026-09-22]`。
+   `firebase apps:sdkconfig ANDROID` の応答に `client_type: 1` が無く
+   `certificate_hash` が0件。**このままだと Android の Google ログインは
+   必ず `ApiException: 10` で失敗します。** 項目1（キーストア生成）が前提
+2. **Apple**: iOS のガイドライン4.8対応。
+   `ios/Runner/Runner.entitlements` は **2026-09-22 に作成済み**
+   （`com.apple.developer.applesignin` と `aps-environment`。pbxproj の
+   3つの config に配線済み）。
+   ⚠️ **ファイルを置いただけでは動きません。** Apple Developer の App ID で
+   **Sign in with Apple と Push Notifications の capability を有効化**し、
+   Firebase Console の Apple プロバイダに Services ID / キーを登録する必要が
+   あります。ここは人間の作業です
+
+**所要時間**: 15分（Google・Apple のみ）
 
 ---
 
@@ -236,7 +263,14 @@ Remote Config の `premium_features` で後から開けられます（`c2c_parts
 
 ---
 
-### 8. GoogleService-Info.plist が別アプリのもの `[実測: iOS が起動しません]`
+### 8. ~~GoogleService-Info.plist が別アプリのもの~~ **解決済み** `[実測: 2026-09-22]`
+
+> **2026-09-22 に確認、この項目はもう作業対象ではありません。**
+> `ios/Runner/GoogleService-Info.plist` の `BUNDLE_ID` は `jp.trustcar.app`、
+> `API_KEY` は `lib/firebase_options.dart` の ios/macos と一致。
+> `firebase apps:list` に `TrustCar (iOS)`
+> `1:31421119456:ios:5646ac324f34398880c985` が登録済み。
+> 以下は経緯の記録として残します。
 
 > **2026-08-21 に格上げ。** この項目は「新端末ビルド時に再配置が必要」と書いていましたが、
 > **実態は「置いてあるファイルが別アプリのもの」**でした。**P0 相当です。**

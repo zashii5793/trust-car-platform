@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/utils/odometer.dart';
 
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
@@ -38,6 +39,21 @@ class FuelService {
     }
     if (record.cost < 0) {
       return const Result.failure(AppError.validation('金額を入力してください'));
+    }
+
+    // Odometer typos poison everything downstream: fuel economy, service
+    // intervals, and the mileage a buyer looks at. Refuse only what cannot be
+    // real (negative, or past any vehicle on the road) — a reading lower than
+    // last time happens for real when a cluster is swapped, and refusing it
+    // would stop people recording what actually happened.
+    final odometer = record.odometer;
+    if (odometer != null) {
+      final check = OdometerCheck.against(value: odometer, previous: null);
+      if (check.severity.isBlocking) {
+        return Result.failure(
+          AppError.validation(check.message ?? '走行距離をお確かめください'),
+        );
+      }
     }
 
     try {

@@ -103,3 +103,11 @@ firestore-debug.log
 
 # iOS の Google Maps キー（android/local.properties と同じ扱い）
 ios/Flutter/Maps.xcconfig
+
+# 社内限りの検討資料（**このリポジトリは public**）
+#
+# 2026-08-23 に、docs/ 配下の Markdown が Pages で全部公開されていた
+# （事業性評価・運用コスト見積が検索で辿れる状態だった）。docs/_config.yml で
+# Jekyll の対象からは外したが、**リポジトリ自体が公開なので GitHub 上では
+# 誰でも読める。** 事業判断や未修正の弱点を書いたものはここに置く。
+docs/internal/

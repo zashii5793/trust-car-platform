@@ -222,11 +222,35 @@ class MyApp extends StatelessWidget {
             create: (_) => SubscriptionProvider(
                   subscriptionService: sl.get<ShopSubscriptionService>(),
                 )),
-        ChangeNotifierProvider(
-            create: (_) => UserSubscriptionProvider(
+        // プラン状態は AuthProvider が読んだ AppUser から流し込む。
+        //
+        // **2026-09-22 まで `loadFromUser` が lib から一度も呼ばれておらず、**
+        // プランも登録日もアプリ内では空のままだった（＝常に無料扱い）。
+        // ProxyProvider でログイン状態に追随させる。
+        ChangeNotifierProxyProvider<AuthProvider, UserSubscriptionProvider>(
+          create: (_) => UserSubscriptionProvider(
+            service: sl.get<UserSubscriptionService>(),
+            revenueCatService: sl.get<RevenueCatService>(),
+          ),
+          update: (_, auth, subscription) {
+            final provider = subscription ??
+                UserSubscriptionProvider(
                   service: sl.get<UserSubscriptionService>(),
                   revenueCatService: sl.get<RevenueCatService>(),
-                )),
+                );
+            final user = auth.appUser;
+            if (user == null) {
+              provider.clear();
+            } else {
+              provider.loadFromUser(
+                user.planType,
+                user.planExpiresAt,
+                accountCreatedAt: user.createdAt,
+              );
+            }
+            return provider;
+          },
+        ),
         ChangeNotifierProvider(
             create: (_) => PostProvider(
                   postService: sl.get<PostService>(),
