@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/vehicle_retirement_service.dart';
 import '../services/maintenance_trend_service.dart';
 import '../core/config/app_config.dart';
 import 'package:provider/provider.dart';
@@ -370,6 +371,121 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     }
   }
 
+  /// 車を手放したことを記録する。
+  ///
+  /// **記録を残すかどうかは本人に選ばせる。** 既定は「残す」。消すほうを
+  /// 既定にすると、売ったあとに買い手へ履歴を出せなくなる。
+  Future<void> _showRetireSheet() async {
+    var reason = VehicleStatus.sold;
+    var retainData = true;
+
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              key: const Key('retire_vehicle_sheet'),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('この車を手放す',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    AppSpacing.verticalXs,
+                    Text(
+                      '手放したあとも、記録は残しておけます。',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    AppSpacing.verticalMd,
+                    RadioGroup<VehicleStatus>(
+                      groupValue: reason,
+                      onChanged: (v) =>
+                          setSheetState(() => reason = v ?? reason),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          VehicleStatus.sold,
+                          VehicleStatus.scrapped,
+                          VehicleStatus.transferred,
+                          VehicleStatus.leaseReturned,
+                        ]
+                            .map(
+                              (s) => RadioListTile<VehicleStatus>(
+                                contentPadding: EdgeInsets.zero,
+                                value: s,
+                                title: Text(s.displayName),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    const Divider(),
+                    SwitchListTile(
+                      key: const Key('retire_retain_data_switch'),
+                      contentPadding: EdgeInsets.zero,
+                      value: retainData,
+                      title: const Text('記録を残す'),
+                      subtitle: const Text('売却時に、次のオーナーへ渡せます'),
+                      onChanged: (v) => setSheetState(() => retainData = v),
+                    ),
+                    AppSpacing.verticalMd,
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        key: const Key('retire_confirm_btn'),
+                        onPressed: () => Navigator.pop(sheetContext, true),
+                        child: const Text('手放したことにする'),
+                      ),
+                    ),
+                    AppSpacing.verticalXs,
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(sheetContext, false),
+                        child: const Text('やめる'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final result = await sl.get<VehicleRetirementService>().retireVehicle(
+          vehicleId: _vehicle.id,
+          ownerId: _vehicle.userId,
+          reason: reason,
+          retainData: retainData,
+        );
+
+    if (!mounted) return;
+    result.when(
+      success: (_) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('${reason.displayName}にしました')),
+        );
+        navigator.pop();
+      },
+      failure: (err) => messenger.showSnackBar(
+        SnackBar(
+          content: Text(err.userMessage),
+          backgroundColor: AppColors.error,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -454,6 +570,30 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
               icon: const Icon(Icons.edit_outlined),
               tooltip: '編集',
               onPressed: _navigateToEdit,
+            ),
+            // 手放したことを伝える経路。`VehicleRetirementService` は
+            // サービスもテストも揃っているのに、**画面から呼ぶ経路が無かった**。
+            // 売るときに記録を渡せることがこのアプリの値打ちなので、
+            // ここが抜けていると「売るときに効く」話が成り立たない。
+            PopupMenuButton<String>(
+              key: const Key('vehicle_more_menu'),
+              icon: const Icon(Icons.more_vert),
+              tooltip: 'その他',
+              onSelected: (value) {
+                if (value == 'retire') _showRetireSheet();
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  key: Key('retire_vehicle_menu_item'),
+                  value: 'retire',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.outbound_outlined),
+                    title: Text('この車を手放す'),
+                    subtitle: Text('売却・廃車・譲渡'),
+                  ),
+                ),
+              ],
             ),
           ],
           bottom: TabBar(

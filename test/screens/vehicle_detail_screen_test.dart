@@ -954,6 +954,54 @@ void main() {
   // 予測（MaintenanceTrendService）は DI に登録されているだけで、
   // 画面から一度も呼ばれていなかった（2026-09-22 実測）。
   // 次回の目安は、整備の間隔が2回ぶん溜まって初めて言える。
+  // `VehicleRetirementService` はサービスもテストも揃っているのに、
+  // **画面から呼ぶ経路が無かった**（2026-09-22 実測。lib 内の呼び出しゼロ）。
+  // 車を手放したことをアプリに伝えられず、退役一覧に出す方法も無い。
+  //
+  // 売却時に記録を渡せることがこのアプリの値打ちなので、ここが抜けていると
+  // 「売るときに効く」という話が成り立たない。
+  group('車両を手放す', () {
+    testWidgets('メニューから「この車を手放す」を開ける', (tester) async {
+      await _pumpScreen(tester, maintenanceProvider);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byKey(const Key('vehicle_more_menu')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('retire_vehicle_menu_item')), findsOneWidget);
+    });
+
+    testWidgets('手放す理由を選べる', (tester) async {
+      await _pumpScreen(tester, maintenanceProvider);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byKey(const Key('vehicle_more_menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('retire_vehicle_menu_item')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('retire_vehicle_sheet')), findsOneWidget);
+      expect(find.text('売却済み'), findsOneWidget);
+      expect(find.text('廃車済み'), findsOneWidget);
+      expect(find.text('譲渡済み'), findsOneWidget);
+    });
+
+    testWidgets('記録を残すかどうかを選べる（既定は残す）', (tester) async {
+      await _pumpScreen(tester, maintenanceProvider);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byKey(const Key('vehicle_more_menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('retire_vehicle_menu_item')));
+      await tester.pumpAndSettle();
+
+      final toggle = find.byKey(const Key('retire_retain_data_switch'));
+      expect(toggle, findsOneWidget);
+      // 既定で残す。消すほうを既定にすると、売却後に記録を出せなくなる。
+      expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+    });
+  });
+
   group('次の整備の目安', () {
     testWidgets('記録が1件だけなら、まだ何も言わない', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
