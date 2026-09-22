@@ -13,6 +13,7 @@
 //   - Offline banner (ConnectivityProvider.isOffline = true)
 
 import 'package:flutter/material.dart';
+import 'package:trust_car_platform/core/config/app_config.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:trust_car_platform/core/theme/app_theme.dart';
@@ -790,7 +791,32 @@ void main() {
       expect(find.text('10,298 km'), findsOneWidget);
     });
 
-    testWidgets('おすすめパーツが車両カードの下に出る', (tester) async {
+    // パーツ推薦は架空ブランドのデモデータを出しているため、既定で隠して
+    // ある（FeatureFlag.partRecommendations）。実データが入るまでの措置。
+    testWidgets('おすすめパーツは既定では出ない', (tester) async {
+      final sl = ServiceLocator.instance;
+      sl.unregister<PartRecommendationService>();
+      sl.registerLazySingleton<PartRecommendationService>(
+          _YearPartRecommendationService.new);
+
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+
+      await tester.pumpWidget(_buildApp(
+        vehicleProvider: vp,
+        driveLogProvider: driveLogs(),
+        signedIn: true,
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('おすすめパーツ'), findsNothing);
+      expect(find.text('低燃費タイヤ 195/65R15'), findsNothing);
+    });
+
+    testWidgets('フラグを開ければ、車両カードの下に出る', (tester) async {
+      AppConfig.instance.setFeatureFlag(FeatureFlag.partRecommendations, true);
+      addTearDown(() => AppConfig.instance
+          .setFeatureFlag(FeatureFlag.partRecommendations, false));
+
       final sl = ServiceLocator.instance;
       sl.unregister<PartRecommendationService>();
       sl.registerLazySingleton<PartRecommendationService>(
