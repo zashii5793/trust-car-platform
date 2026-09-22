@@ -209,6 +209,7 @@ MaintenanceRecord _testRecord({
   String? description,
   int? mileageAtService,
   VerificationSource? verificationSourceOverride,
+  DateTime? date,
 }) =>
     MaintenanceRecord(
       id: id,
@@ -217,8 +218,8 @@ MaintenanceRecord _testRecord({
       type: type,
       title: title,
       cost: cost,
-      date: DateTime(2024, 3, 15),
-      createdAt: DateTime(2024, 3, 15),
+      date: date ?? DateTime(2024, 3, 15),
+      createdAt: date ?? DateTime(2024, 3, 15),
       shopName: shopName,
       description: description,
       mileageAtService: mileageAtService,
@@ -950,6 +951,52 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // 予測（MaintenanceTrendService）は DI に登録されているだけで、
+  // 画面から一度も呼ばれていなかった（2026-09-22 実測）。
+  // 次回の目安は、整備の間隔が2回ぶん溜まって初めて言える。
+  group('次の整備の目安', () {
+    testWidgets('記録が1件だけなら、まだ何も言わない', (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([
+        _testRecord(id: 'r1', date: DateTime(2026, 1, 10)),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('次の整備の目安'), findsNothing);
+    });
+
+    testWidgets('同じ整備が2回あれば、次の目安を出す', (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([
+        _testRecord(
+          id: 'r1',
+          title: 'オイル交換',
+          date: DateTime(2026, 1, 10),
+          mileageAtService: 10000,
+        ),
+        _testRecord(
+          id: 'r2',
+          title: 'オイル交換',
+          date: DateTime(2026, 7, 10),
+          mileageAtService: 15000,
+        ),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.scrollUntilVisible(
+        find.text('次の整備の目安'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      expect(find.text('次の整備の目安'), findsOneWidget);
+      expect(find.byKey(const Key('maintenance_forecast_section')),
+          findsOneWidget);
+    });
+  });
+
   group('C4 — 工場裏書きバッジ & 検証済みサマリー', () {
     testWidgets('verificationSource=shopVerified のレコードにバッジが表示される',
         (tester) async {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/maintenance_trend_service.dart';
 import '../core/config/app_config.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -705,6 +706,9 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       );
                     },
                   ),
+
+                  // 次の整備の目安（自分の履歴からの予測）
+                  _MaintenanceForecastSection(vehicle: _vehicle),
 
                   // コミュニティトレンドセクション
                   _CommunityTrendSection(vehicle: _vehicle),
@@ -3709,4 +3713,128 @@ class _InspectionActionButtons extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         textStyle: const TextStyle(fontSize: 12),
       );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 次の整備の目安
+//
+// `MaintenanceTrendService` は予測 API（predictedNextDate /
+// predictedNextMileage / confidence）を揃えていたのに、**DI に登録されている
+// だけで画面から一度も呼ばれていなかった**（2026-09-22 実測）。
+//
+// 店から顧客へ「そろそろですよ」と声をかける経路は無い（連絡手段が無い）。
+// だから予測は**本人に見せる**。そろそろだと分かれば、かかりつけに行く。
+// 同じ結果を、個人情報を店に渡さずに得られる。
+//
+// 間隔は2回ぶんの記録が無いと出せないので、それまでは何も言わない。
+// 当てずっぽうを出すと、この画面ごと信用されなくなる。
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MaintenanceForecastSection extends StatelessWidget {
+  const _MaintenanceForecastSection({required this.vehicle});
+
+  final Vehicle vehicle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final records = context.watch<MaintenanceProvider>().records;
+    if (records.length < 2) return const SizedBox.shrink();
+
+    const service = MaintenanceTrendService();
+    final insights = service.sortByUrgency(
+      service
+          .analyzeHistory(records, currentMileage: vehicle.mileage)
+          .where((i) => i.predictedNextDate != null)
+          .toList(),
+    );
+    if (insights.isEmpty) return const SizedBox.shrink();
+
+    final shown = insights.take(3).toList();
+
+    return Padding(
+      key: const Key('maintenance_forecast_section'),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.event_repeat_outlined, size: 18),
+              AppSpacing.horizontalXs,
+              Text('次の整備の目安', style: theme.textTheme.titleSmall),
+            ],
+          ),
+          AppSpacing.verticalXs,
+          Text(
+            'これまでの間隔から出しています。目安なので、状態を見て決めてください。',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          AppSpacing.verticalSm,
+          ...shown.map((i) => _ForecastRow(insight: i)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ForecastRow extends StatelessWidget {
+  const _ForecastRow({required this.insight});
+
+  final MaintenanceTrendInsight insight;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final next = insight.predictedNextDate!;
+    final days = next.difference(DateTime.now()).inDays;
+
+    // 過ぎているものを先に、色を変えて出す。
+    final overdue = days < 0;
+    final label = overdue
+        ? '${-days}日 過ぎています'
+        : days == 0
+            ? '今日ごろ'
+            : 'あと$days日';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              insight.type.displayName,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+          // 記録が少ないうちは、その旨を添える。数字だけ出すと
+          // 根拠より強く見えてしまう。
+          if (insight.confidence == TrendConfidence.low)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              child: Text(
+                '参考',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+              ),
+            ),
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: overdue ? AppColors.warning : AppColors.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
