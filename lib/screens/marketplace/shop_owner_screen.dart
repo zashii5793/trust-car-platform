@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../models/shop_demand_summary.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
@@ -856,6 +857,7 @@ class _DemandNotificationCard extends StatefulWidget {
 class _DemandNotificationCardState extends State<_DemandNotificationCard> {
   int _count = 0;
   bool _loaded = false;
+  ShopDemandSummary _summary = const ShopDemandSummary(total: 0, byType: {});
 
   @override
   void initState() {
@@ -869,13 +871,18 @@ class _DemandNotificationCardState extends State<_DemandNotificationCard> {
       if (mounted) setState(() => _loaded = true);
       return;
     }
-    final result = await sl.get<ShopDemandService>().getDemandCountForShop(
+    // 件数だけでは、登録する価値があるか判断できない。何の相談が来て
+    // いるのかまで出す。**本文は出さない**（書いた人のものであり、
+    // 同時に登録する理由でもある）。
+    final result = await sl.get<ShopDemandService>().getDemandsForShop(
           widget.shopId,
           shopOwnerId: widget.shopOwnerId,
         );
     if (!mounted) return;
+    final demands = result.getOrElse(const []);
     setState(() {
-      _count = result.getOrElse(0);
+      _summary = ShopDemandSummary.from(demands);
+      _count = _summary.total;
       _loaded = true;
     });
   }
@@ -909,6 +916,32 @@ class _DemandNotificationCardState extends State<_DemandNotificationCard> {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (_summary.typesByCount.isNotEmpty) ...[
+                  AppSpacing.verticalXs,
+                  Wrap(
+                    key: const Key('demand_type_breakdown'),
+                    spacing: AppSpacing.xs,
+                    runSpacing: 4,
+                    children: _summary.typesByCount.take(3).map((t) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xs,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${t.displayName} ${_summary.byType[t]}件',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: AppColors.info,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
               ],
             ),
           ),
