@@ -392,6 +392,112 @@ void main() {
   // （InquiryService.sendMessage の「店舗の初回返信」の分岐）。
   // 画面が持っているのはローカルのコピーなので、**送っただけでは
   // 「未対応」のままになる。** 実画面で確認して分かった（2026-09-22）。
+  // 整備明細のフォームには**テストが1本も無かった**（2026-09-22 実測。
+  // `detail_*` キーの参照ゼロ）。中身を見ると必須チェックが実質ゼロで、
+  // 費用のパースに失敗しても 0 円で通っていた。
+  //
+  // ここで送られた明細が、そのままお客様の整備記録になる。**0円の記録が
+  // 混ざると、累計費用も整備間隔も狂う。**
+  group('ShopInquiryListScreen — 整備明細のフォーム', () {
+    Future<void> openForm(WidgetTester tester) async {
+      await tester.pumpWidget(
+        _buildScreen(
+          shopProvider: _FakeShopProvider(
+            inquiries: [_makeInquiry(subject: '明細テスト')],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text('明細テスト'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.byKey(const Key('send_maintenance_detail_btn')));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+    }
+
+    testWidgets('費用が空なら送れない', (tester) async {
+      await openForm(tester);
+
+      await tester.tap(find.byKey(const Key('detail_submit_btn')));
+      await tester.pumpAndSettle();
+
+      // ダイアログが閉じていない＝送信されていない。
+      expect(find.byKey(const Key('detail_submit_btn')), findsOneWidget);
+      expect(find.textContaining('費用'), findsWidgets);
+    });
+
+    testWidgets('費用に数字以外を入れたら送れない', (tester) async {
+      await openForm(tester);
+
+      await tester.enterText(find.byKey(const Key('detail_cost_field')), 'あああ');
+      await tester.tap(find.byKey(const Key('detail_submit_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('detail_submit_btn')), findsOneWidget);
+    });
+
+    testWidgets('費用を入れれば送れる', (tester) async {
+      await openForm(tester);
+
+      await tester.enterText(
+          find.byKey(const Key('detail_cost_field')), '128000');
+      await tester.tap(find.byKey(const Key('detail_submit_btn')));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      // ダイアログが閉じた。
+      expect(find.byKey(const Key('detail_submit_btn')), findsNothing);
+    });
+
+    // 内訳はモデルにも取込側にもあるのに、フォームが集めていなかった。
+    // そのため店から送られた記録は**すべて内訳なし**だった。
+    testWidgets('部品代と工賃を入れられる', (tester) async {
+      await openForm(tester);
+
+      expect(find.byKey(const Key('detail_parts_cost_field')), findsOneWidget);
+      expect(find.byKey(const Key('detail_labor_cost_field')), findsOneWidget);
+    });
+
+    testWidgets('内訳の合計が費用を超えていたら送れない', (tester) async {
+      await openForm(tester);
+
+      await tester.enterText(
+          find.byKey(const Key('detail_cost_field')), '10000');
+      await tester.enterText(
+          find.byKey(const Key('detail_parts_cost_field')), '8000');
+      await tester.enterText(
+          find.byKey(const Key('detail_labor_cost_field')), '5000');
+      await tester.tap(find.byKey(const Key('detail_submit_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('detail_submit_btn')), findsOneWidget);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('内訳が空でも送れる（任意）', (tester) async {
+        await openForm(tester);
+
+        await tester.enterText(
+            find.byKey(const Key('detail_cost_field')), '6000');
+        await tester.tap(find.byKey(const Key('detail_submit_btn')));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.byKey(const Key('detail_submit_btn')), findsNothing);
+      });
+
+      testWidgets('走行距離に桁の多すぎる値を入れたら送れない', (tester) async {
+        await openForm(tester);
+
+        await tester.enterText(
+            find.byKey(const Key('detail_cost_field')), '6000');
+        await tester.enterText(
+            find.byKey(const Key('detail_mileage_field')), '3000000');
+        await tester.tap(find.byKey(const Key('detail_submit_btn')));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('detail_submit_btn')), findsOneWidget);
+      });
+    });
+  });
+
   group('ShopInquiryListScreen — 返信後のステータス', () {
     testWidgets('未対応に返信すると「回答済み」になる', (tester) async {
       await tester.pumpWidget(

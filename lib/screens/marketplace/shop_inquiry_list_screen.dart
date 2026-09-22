@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/utils/odometer.dart';
 import 'package:provider/provider.dart';
 import '../../models/inquiry.dart';
 import '../../models/maintenance_record.dart';
@@ -1170,7 +1171,12 @@ class _MaintenanceDetailForm extends StatefulWidget {
 class _MaintenanceDetailFormState extends State<_MaintenanceDetailForm> {
   final _titleController = TextEditingController();
   final _costController = TextEditingController();
+  // 内訳。モデルにも取込側にもあるのに、フォームが集めていなかったので
+  // 店から送られた記録は**すべて内訳なし**だった。
+  final _partsCostController = TextEditingController();
+  final _laborCostController = TextEditingController();
   final _mileageController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
   MaintenanceType _type = MaintenanceType.carInspection;
   DateTime _date = DateTime.now();
 
@@ -1202,18 +1208,65 @@ class _MaintenanceDetailFormState extends State<_MaintenanceDetailForm> {
     if (picked != null) setState(() => _date = picked);
   }
 
+  /// ここで送った明細は、そのままお客様の整備記録になる。
+  /// **0円や桁違いの記録が混ざると、累計費用も整備間隔も狂う。**
+  /// 以前は `int.tryParse(...) ?? 0` で、パースに失敗しても 0円 で通っていた。
   void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
     final payload = InquiryMaintenancePayload(
       typeKey: _type.name,
       title: _titleController.text.trim().isEmpty
           ? _type.displayName
           : _titleController.text.trim(),
       date: _date,
-      cost: int.tryParse(_costController.text.trim()) ?? 0,
+      cost: int.parse(_costController.text.trim()),
       mileageAtService: int.tryParse(_mileageController.text.trim()),
       shopName: widget.shopName,
+      partsCost: int.tryParse(_partsCostController.text.trim()),
+      laborCost: int.tryParse(_laborCostController.text.trim()),
     );
     Navigator.pop(context, payload);
+  }
+
+  /// 内訳の合計。どちらも未入力なら null。
+  int? get _breakdownTotal {
+    final parts = int.tryParse(_partsCostController.text.trim());
+    final labor = int.tryParse(_laborCostController.text.trim());
+    if (parts == null && labor == null) return null;
+    return (parts ?? 0) + (labor ?? 0);
+  }
+
+  String? _validateCost(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return '費用を入れてください';
+    final parsed = int.tryParse(text);
+    if (parsed == null) return '費用は数字で入れてください';
+    if (parsed < 0) return '費用に負の数は入れられません';
+
+    final breakdown = _breakdownTotal;
+    if (breakdown != null && breakdown > parsed) {
+      return '内訳の合計（$breakdown円）が費用を超えています';
+    }
+    return null;
+  }
+
+  String? _validateBreakdown(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null; // 任意
+    final parsed = int.tryParse(text);
+    if (parsed == null) return '数字で入れてください';
+    if (parsed < 0) return '負の数は入れられません';
+    return null;
+  }
+
+  String? _validateMileage(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null; // 任意
+    final parsed = int.tryParse(text);
+    if (parsed == null) return '走行距離は数字で入れてください';
+    final check = OdometerCheck.against(value: parsed, previous: null);
+    return check.severity.isBlocking ? check.message : null;
   }
 
   @override
@@ -1221,66 +1274,101 @@ class _MaintenanceDetailFormState extends State<_MaintenanceDetailForm> {
     return AlertDialog(
       title: const Text('整備明細を作成'),
       content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            DropdownButtonFormField<MaintenanceType>(
-              key: const Key('detail_type_dropdown'),
-              initialValue: _type,
-              decoration: const InputDecoration(labelText: '整備区分'),
-              items: _types
-                  .map((t) => DropdownMenuItem(
-                        value: t,
-                        child: Text(t.displayName),
-                      ))
-                  .toList(),
-              onChanged: (v) => setState(() => _type = v ?? _type),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              key: const Key('detail_title_field'),
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: '内容（任意）',
-                hintText: '例: 車検整備一式',
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DropdownButtonFormField<MaintenanceType>(
+                key: const Key('detail_type_dropdown'),
+                initialValue: _type,
+                decoration: const InputDecoration(labelText: '整備区分'),
+                items: _types
+                    .map((t) => DropdownMenuItem(
+                          value: t,
+                          child: Text(t.displayName),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _type = v ?? _type),
               ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              key: const Key('detail_cost_field'),
-              controller: _costController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '費用',
-                suffixText: '円',
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                key: const Key('detail_title_field'),
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: '内容（任意）',
+                  hintText: '例: 車検整備一式',
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              key: const Key('detail_mileage_field'),
-              controller: _mileageController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '走行距離（任意）',
-                suffixText: 'km',
+              const SizedBox(height: AppSpacing.sm),
+              TextFormField(
+                key: const Key('detail_cost_field'),
+                controller: _costController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '費用',
+                  suffixText: '円',
+                ),
+                validator: _validateCost,
               ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '実施日: ${_date.year}/${_date.month}/${_date.day}',
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      key: const Key('detail_parts_cost_field'),
+                      controller: _partsCostController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: '部品代（任意）',
+                        suffixText: '円',
+                      ),
+                      validator: _validateBreakdown,
+                    ),
                   ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: TextFormField(
+                      key: const Key('detail_labor_cost_field'),
+                      controller: _laborCostController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: '工賃（任意）',
+                        suffixText: '円',
+                      ),
+                      validator: _validateBreakdown,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextFormField(
+                key: const Key('detail_mileage_field'),
+                controller: _mileageController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '走行距離（任意）',
+                  suffixText: 'km',
                 ),
-                TextButton(
-                  onPressed: _pickDate,
-                  child: const Text('日付を選択'),
-                ),
-              ],
-            ),
-          ],
+                validator: _validateMileage,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '実施日: ${_date.year}/${_date.month}/${_date.day}',
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _pickDate,
+                    child: const Text('日付を選択'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
       actions: [
