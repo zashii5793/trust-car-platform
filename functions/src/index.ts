@@ -196,6 +196,30 @@ export const purgeDeletedAccounts = onSchedule(
         }
         return deleted;
       },
+      deleteSharesOf: async (uid) => {
+        for (;;) {
+          const snap = await db
+            .collection("vehicle_sharing_permissions")
+            .where("ownerId", "==", uid)
+            .limit(200)
+            .get();
+          if (snap.empty) break;
+          const batch = db.batch();
+          for (const doc of snap.docs) {
+            const { shopId, vehicleId } = doc.data() as {
+              shopId?: string;
+              vehicleId?: string;
+            };
+            if (shopId && vehicleId) {
+              batch.delete(
+                db.doc(`shops/${shopId}/shared_vehicles/${vehicleId}`)
+              );
+            }
+            batch.delete(doc.ref);
+          }
+          await batch.commit();
+        }
+      },
       deleteWaypointsFor: async (driveLogIds) => {
         for (const driveLogId of driveLogIds) {
           for (;;) {
