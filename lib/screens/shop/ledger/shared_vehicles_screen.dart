@@ -185,7 +185,7 @@ class _SharedVehicleDetailState extends State<_SharedVehicleDetail> {
       ('電話番号', s.contactPhone),
       ('ナンバー', s.plate),
       ('年式', s.year == null ? null : '${s.year}年'),
-      ('走行距離', s.mileage == null ? null : '${s.mileage}km'),
+      ('走行距離', s.mileage == null ? null : '${ledgerNumber(s.mileage!)}km'),
       (
         '車検満了日',
         s.inspectionExpiry == null ? null : ledgerDate(s.inspectionExpiry!)
@@ -249,10 +249,11 @@ class _SharedVehicleDetailState extends State<_SharedVehicleDetail> {
               title: Text('${ledgerDate(r.date)}  ${r.title}'),
               subtitle: Text([
                 r.type,
-                if (r.mileage != null) '${r.mileage}km',
+                if (r.mileage != null) '${ledgerNumber(r.mileage!)}km',
                 if (r.shopName != null) r.shopName!,
               ].join('・')),
-              trailing: r.cost == null ? null : Text('¥${r.cost}'),
+              trailing:
+                  r.cost == null ? null : Text('¥${ledgerNumber(r.cost!)}'),
             ),
           if (_error != null)
             Text(_error!, style: const TextStyle(color: AppColors.error)),

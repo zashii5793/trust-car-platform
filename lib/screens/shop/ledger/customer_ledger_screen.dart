@@ -250,6 +250,13 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
         ],
         bottom: TabBar(
           controller: _tabs,
+          // AppBar は紺。タブの文字は AppBar に対して見える色にする
+          // （既定の primary だと紺の上に紺で、選んだタブが読めない）。
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: const [
             Tab(text: '顧客'),
             Tab(text: '車検が近い'),
@@ -259,6 +266,8 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
       ),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('ledger_add_customer'),
+        // テーマの形は丸い FAB 用。extended は自分で形を渡さないと丸に潰れる
+        shape: const StadiumBorder(),
         onPressed: _addCustomer,
         icon: const Icon(Icons.person_add_alt_1),
         label: const Text('顧客を追加'),

@@ -29,3 +29,9 @@ String ledgerDigits(String input) {
   }
   return b.toString();
 }
+
+/// 3桁区切り（48,210 など）。
+String ledgerNumber(int v) => v.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+$)'),
+      (m) => '${m[1]},',
+    );

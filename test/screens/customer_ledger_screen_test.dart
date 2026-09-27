@@ -110,7 +110,13 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('顧客24'),
       300,
-      scrollable: find.byType(Scrollable).last,
+      // タブも横にスクロールするので、一覧のスクロールを指定する
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
     );
     expect(find.text('顧客24'), findsOneWidget);
   });

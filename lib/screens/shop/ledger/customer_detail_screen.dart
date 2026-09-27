@@ -245,6 +245,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
           ),
         for (final v in _vehicles)
           Card(
+            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: ListTile(
               onTap: () => _editVehicle(v),
               leading: const Icon(Icons.directions_car),
@@ -252,7 +253,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
               subtitle: Text([
                 if (v.plate != null) v.plate!,
                 if (v.year != null) '${v.year}年式',
-                if (v.lastMileage != null) '${v.lastMileage}km',
+                if (v.lastMileage != null) '${ledgerNumber(v.lastMileage!)}km',
               ].join('・')),
               trailing: v.inspectionExpiry == null
                   ? null
