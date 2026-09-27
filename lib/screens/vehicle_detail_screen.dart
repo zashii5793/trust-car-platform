@@ -14,7 +14,11 @@ import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
 import '../models/drive_log.dart';
 import '../models/app_notification.dart';
+import '../providers/auth_provider.dart';
 import '../providers/maintenance_provider.dart';
+import '../services/shop_service.dart';
+import '../services/vehicle_share_service.dart';
+import 'vehicle/share_to_shop_screen.dart';
 import '../providers/notification_provider.dart';
 import '../providers/user_subscription_provider.dart';
 import '../services/drive_log_service.dart';
@@ -379,6 +383,26 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   ///
   /// PDF は読むもの。買い手や次のオーナーが**自分で扱う**には表が要る。
   /// 個人向けの出力は PDF だけで、CSV は法人のフリート用しか無かった。
+  /// 初めて行く店に、この車のこれまでを渡す（docs/SHOP_CRM_DESIGN_2026-09-27.md §7）。
+  Future<void> _shareToShop() async {
+    final user = context.read<AuthProvider>().firebaseUser;
+    if (user == null) return;
+    final records = context.read<MaintenanceProvider>().records;
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShareToShopScreen(
+          vehicle: _vehicle,
+          records: records,
+          ownerId: user.uid,
+          defaultContactName: user.displayName,
+          service: sl.get<VehicleShareService>(),
+          searchShops: (q) => sl.get<ShopService>().searchShops(q),
+        ),
+      ),
+    );
+  }
+
   Future<void> _exportCsv() async {
     final messenger = ScaffoldMessenger.of(context);
     final records = context.read<MaintenanceProvider>().records;
@@ -634,8 +658,19 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
               onSelected: (value) {
                 if (value == 'retire') _showRetireSheet();
                 if (value == 'csv') _exportCsv();
+                if (value == 'share_shop') _shareToShop();
               },
               itemBuilder: (_) => [
+                const PopupMenuItem(
+                  key: Key('share_shop_menu_item'),
+                  value: 'share_shop',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.storefront_outlined),
+                    title: Text('お店に共有する'),
+                    subtitle: Text('初めて行くお店に、これまでを渡す'),
+                  ),
+                ),
                 const PopupMenuItem(
                   key: Key('export_csv_menu_item'),
                   value: 'csv',

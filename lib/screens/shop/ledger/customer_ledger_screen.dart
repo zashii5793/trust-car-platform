@@ -6,10 +6,12 @@ import '../../../core/constants/colors.dart';
 import '../../../core/constants/spacing.dart';
 import '../../../models/shop_ledger.dart';
 import '../../../services/shop_ledger_service.dart';
+import '../../../services/vehicle_share_service.dart';
 import '../../../widgets/common/loading_indicator.dart';
 import 'customer_detail_screen.dart';
 import 'customer_edit_screen.dart';
 import 'ledger_csv_import_screen.dart';
+import 'shared_vehicles_screen.dart';
 import 'ledger_format.dart';
 import 'ledger_paged_list.dart';
 
@@ -22,6 +24,9 @@ import 'ledger_paged_list.dart';
 /// - **しばらく来ていない**：離れかけているのは誰か
 class CustomerLedgerScreen extends StatefulWidget {
   final ShopLedgerService service;
+
+  /// ユーザーから渡された車の写しを読むため。渡さなければ入口を出さない。
+  final VehicleShareService? shareService;
   final String shopId;
   final String shopName;
 
@@ -31,6 +36,7 @@ class CustomerLedgerScreen extends StatefulWidget {
   const CustomerLedgerScreen({
     super.key,
     required this.service,
+    this.shareService,
     required this.shopId,
     required this.shopName,
     this.today,
@@ -128,6 +134,21 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
     await _openCustomer(created.id);
   }
 
+  Future<void> _openShared() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SharedVehiclesScreen(
+          service: widget.shareService!,
+          ledger: widget.service,
+          shopId: widget.shopId,
+          today: widget.today,
+        ),
+      ),
+    );
+    if (changed == true) _refreshAll();
+  }
+
   Future<void> _importCsv() async {
     final imported = await Navigator.push<bool>(
       context,
@@ -147,6 +168,13 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
       appBar: AppBar(
         title: const Text('顧客台帳'),
         actions: [
+          if (widget.shareService != null)
+            IconButton(
+              key: const Key('ledger_shared_vehicles'),
+              tooltip: '共有された車',
+              icon: const Icon(Icons.inbox_outlined),
+              onPressed: _openShared,
+            ),
           IconButton(
             key: const Key('ledger_import_csv'),
             tooltip: 'CSVから取り込む',

@@ -22,6 +22,7 @@ import '../newsletter/newsletter_list_screen.dart';
 import 'shop_invite_manage_screen.dart';
 import '../../services/shop_invite_service.dart';
 import '../../services/shop_ledger_service.dart';
+import '../../services/vehicle_share_service.dart';
 import '../shop/ledger/customer_ledger_screen.dart';
 
 /// Shop owner hub screen.
@@ -316,6 +317,7 @@ class _RegisteredBody extends StatelessWidget {
               MaterialPageRoute<void>(
                 builder: (_) => CustomerLedgerScreen(
                   service: sl.get<ShopLedgerService>(),
+                  shareService: sl.get<VehicleShareService>(),
                   shopId: shop.id,
                   shopName: shop.name,
                 ),

@@ -2253,3 +2253,108 @@ describe('shops/{id}/members — スタッフ', () => {
     );
   });
 });
+
+// ==================== 店に渡す車の写し ====================
+// docs/SHOP_CRM_DESIGN_2026-09-27.md §7
+
+describe('shops/{id}/shared_vehicles — 車の写し', () => {
+  const OWNER = 'share_owner_1';
+  const VEHICLE = 'share_vehicle_1';
+  const sharePath = `shops/${LEDGER_SHOP_ID}/shared_vehicles/${VEHICLE}`;
+
+  const shareDoc = (overrides = {}) => ({
+    vehicleId: VEHICLE,
+    shopId: LEDGER_SHOP_ID,
+    shopName: 'タカヤモーター',
+    ownerId: OWNER,
+    maker: 'MINI',
+    model: 'クーパー',
+    records: [],
+    includesCosts: false,
+    sharedAt: new Date(),
+    expiresAt: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+    ...overrides,
+  });
+
+  async function seedVehicleAndShop() {
+    await seedLedgerShop();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `vehicles/${VEHICLE}`), {
+        userId: OWNER,
+        maker: 'MINI',
+        model: 'クーパー',
+      });
+    });
+  }
+
+  async function seedShare(overrides = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), sharePath), shareDoc(overrides));
+    });
+  }
+
+  test('本人は自分の車を店に渡せる', async () => {
+    await seedVehicleAndShop();
+    await assertSucceeds(setDoc(doc(dbFor(OWNER), sharePath), shareDoc()));
+  });
+
+  test('他人の車は渡せない', async () => {
+    await seedVehicleAndShop();
+    await assertFails(
+      setDoc(doc(dbFor(LEDGER_OUTSIDER_UID), sharePath),
+        shareDoc({ ownerId: LEDGER_OUTSIDER_UID })),
+    );
+  });
+
+  test('91日を超える期間では渡せない', async () => {
+    await seedVehicleAndShop();
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), sharePath),
+        shareDoc({ expiresAt: new Date(Date.now() + 120 * 24 * 3600 * 1000) })),
+    );
+  });
+
+  test('記録が201件以上なら渡せない', async () => {
+    await seedVehicleAndShop();
+    const records = Array.from({ length: 201 }, () => ({ title: 'x' }));
+    await assertFails(setDoc(doc(dbFor(OWNER), sharePath), shareDoc({ records })));
+  });
+
+  test('店のスタッフは読める・無関係の人は読めない', async () => {
+    await seedVehicleAndShop();
+    await seedShare();
+    await assertSucceeds(getDoc(doc(dbFor(LEDGER_STAFF_UID), sharePath)));
+    await assertFails(getDoc(doc(dbFor(LEDGER_OUTSIDER_UID), sharePath)));
+  });
+
+  test('店は「開いた」「登録した」の印だけ付けられる', async () => {
+    await seedVehicleAndShop();
+    await seedShare();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(LEDGER_STAFF_UID), sharePath), {
+        seenAt: new Date(),
+        importedCustomerId: 'c1',
+      }),
+    );
+  });
+
+  test('店が写しの中身を書き換えることはできない', async () => {
+    await seedVehicleAndShop();
+    await seedShare();
+    await assertFails(
+      updateDoc(doc(dbFor(LEDGER_STAFF_UID), sharePath), { model: '改ざん' }),
+    );
+  });
+
+  test('本人はいつでも取り消せる', async () => {
+    await seedVehicleAndShop();
+    await seedShare();
+    await assertSucceeds(deleteDoc(doc(dbFor(OWNER), sharePath)));
+  });
+
+  test('無関係の人は消せない', async () => {
+    await seedVehicleAndShop();
+    await seedShare();
+    await assertFails(deleteDoc(doc(dbFor(LEDGER_OUTSIDER_UID), sharePath)));
+  });
+});
