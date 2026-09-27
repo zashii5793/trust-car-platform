@@ -38,6 +38,48 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == shopId;
     }
 
+    // 店の持ち主か。docId と uid が一致しない店（シードで入れた店など）もあるので、
+    // isShopOwner と違い店のドキュメントの ownerId を見る。
+    function isShopOwnerOf(shopId) {
+      return isAuthenticated()
+        && get(/databases/$(database)/documents/shops/$(shopId)).data.ownerId
+             == request.auth.uid;
+    }
+
+    // 店のスタッフか（持ち主を含む）。顧客台帳は店のスタッフ全員で使う。
+    // docs/SHOP_CRM_DESIGN_2026-09-27.md §4-1
+    function isShopStaff(shopId) {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/shops/$(shopId)/members/$(request.auth.uid))
+        || isShopOwnerOf(shopId)
+      );
+    }
+
+    function isShortString(v, maxLen) {
+      return v is string && v.size() > 0 && v.size() <= maxLen;
+    }
+
+    // 台帳の顧客。**アプリ利用者とのつながり（linkedUserId）は店が勝手に
+    // 名乗れない。** その人が自分で置いた shop_customers の札が、この店を
+    // 指しているときだけ書ける。
+    function validLedgerCustomer(shopId) {
+      let d = request.resource.data;
+      let linked = d.get('linkedUserId', null);
+      return isShortString(d.name, 100)
+        && d.kind in ['individual', 'corporate']
+        && d.get('isLinked', false) == (linked != null)
+        && (linked == null
+            || get(/databases/$(database)/documents/shop_customers/$(linked)).data.shopId
+                 == shopId);
+    }
+
+    function validLedgerVehicle() {
+      let d = request.resource.data;
+      return isShortString(d.customerId, 200)
+        && isShortString(d.maker, 100)
+        && isShortString(d.model, 100);
+    }
+
     // Whether the caller is a party to an inquiry (the asking user or the shop).
     // Judged on the parent inquiry, not on each message: message-level checks
     // cannot be verified statically for list queries, so the chat screen was
@@ -209,6 +251,32 @@ service cloud.firestore {
       // Only the shop owner can read/write — never exposed to other users
       match /private/{docId} {
         allow read, write: if isShopOwner(shopId);
+      }
+
+      // ==================== 顧客台帳 ====================
+      // docs/SHOP_CRM_DESIGN_2026-09-27.md
+      // 店の中だけで使う。店のスタッフ以外は、中身どころか件数も見えない。
+
+      // スタッフ。追加・変更は持ち主だけ。スタッフは自分で抜けられる。
+      match /members/{memberUid} {
+        allow read: if isShopStaff(shopId);
+        allow create, update: if isShopOwnerOf(shopId)
+          && request.resource.data.role in ['owner', 'staff'];
+        allow delete: if isShopOwnerOf(shopId)
+          || (isAuthenticated() && request.auth.uid == memberUid);
+      }
+
+      match /customers/{customerId} {
+        allow read, delete: if isShopStaff(shopId);
+        allow create, update: if isShopStaff(shopId)
+          && validLedgerCustomer(shopId);
+      }
+
+      // 顧客の車両。顧客の下ではなく店の直下に置く（車検の近い順に、
+      // 顧客をまたいで並べるため）。
+      match /customer_vehicles/{vehicleId} {
+        allow read, delete: if isShopStaff(shopId);
+        allow create, update: if isShopStaff(shopId) && validLedgerVehicle();
       }
 
       // 施工事例サブコレクション（ショッププロフィールの公開情報）

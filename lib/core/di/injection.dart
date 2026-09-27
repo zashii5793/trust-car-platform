@@ -60,6 +60,7 @@ import '../../services/shop_demand_service.dart';
 import '../../services/feedback_service.dart';
 import '../constants/app_info.dart';
 import '../../services/shop_invite_service.dart';
+import '../../services/shop_ledger_service.dart';
 import '../../services/fuel_service.dart';
 
 /// 依存性の登録を行うクラス
@@ -268,6 +269,12 @@ class Injection {
     // 自分でアプリを探して自分で店を見つけるところから始めることになる。
     locator.registerLazySingleton<ShopInviteService>(
       () => ShopInviteService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 店の顧客台帳（docs/SHOP_CRM_DESIGN_2026-09-27.md）。アプリを入れていない
+    // 既存客も載せられるよう、店が自分で書く台帳をユーザーのデータとは別に持つ。
+    locator.registerLazySingleton<ShopLedgerService>(
+      () => ShopLedgerService(firestore: FirebaseFirestore.instance),
     );
 
     // Fuel records (給油は月2〜4回あり、唯一の月単位の接点).
