@@ -2358,3 +2358,52 @@ describe('shops/{id}/shared_vehicles — 車の写し', () => {
     await assertFails(deleteDoc(doc(dbFor(LEDGER_OUTSIDER_UID), sharePath)));
   });
 });
+
+describe('model_cost_reports — 車種別の維持費レポート', () => {
+  const path = 'model_cost_reports/mini__くーぱー';
+
+  test('ログインしていれば読める', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), path), { ownerCount: 5 });
+    });
+    await assertSucceeds(getDoc(doc(dbFor(LEDGER_OUTSIDER_UID), path)));
+  });
+
+  test('未認証では読めない', async () => {
+    await assertFails(getDoc(doc(unauthDb(), path)));
+  });
+
+  test('誰も書けない（数字を作れてしまう）', async () => {
+    await assertFails(setDoc(doc(dbFor(LEDGER_OWNER_UID), path), { ownerCount: 999 }));
+  });
+});
+
+describe('shops/{id}/service_records — 店の整備実績', () => {
+  const path = `shops/${LEDGER_SHOP_ID}/service_records/r1`;
+  const rec = (o = {}) => ({
+    customerVehicleId: 'v1',
+    date: new Date(),
+    totalCost: 55000,
+    type: '車検',
+    ...o,
+  });
+
+  test('スタッフは書ける・読める', async () => {
+    await seedLedgerShop();
+    await assertSucceeds(setDoc(doc(dbFor(LEDGER_STAFF_UID), path), rec()));
+    await assertSucceeds(getDoc(doc(dbFor(LEDGER_STAFF_UID), path)));
+  });
+
+  test('無関係の人は読めない', async () => {
+    await seedLedgerShop();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), path), rec());
+    });
+    await assertFails(getDoc(doc(dbFor(LEDGER_OUTSIDER_UID), path)));
+  });
+
+  test('マイナスの金額は書けない', async () => {
+    await seedLedgerShop();
+    await assertFails(setDoc(doc(dbFor(LEDGER_OWNER_UID), path), rec({ totalCost: -1 })));
+  });
+});

@@ -294,6 +294,17 @@ service cloud.firestore {
         allow create, update: if isShopStaff(shopId) && validLedgerVehicle();
       }
 
+      // 店の整備実績。車種別の維持費レポートの材料になる（店が
+      // allowsStatistics で同意したときだけ）。店のスタッフだけが読み書きする。
+      match /service_records/{recordId} {
+        allow read, delete: if isShopStaff(shopId);
+        allow create, update: if isShopStaff(shopId)
+          && isShortString(request.resource.data.customerVehicleId, 300)
+          && request.resource.data.date is timestamp
+          && request.resource.data.totalCost is number
+          && request.resource.data.totalCost >= 0;
+      }
+
       // ユーザーから渡された車の写し。書くのは本人だけ。店は読むのと、
       // 「開いた」「台帳に登録した」の印を付けることだけができる。
       // 期限切れの写しは毎晩サーバーで消す。
@@ -877,6 +888,13 @@ service cloud.firestore {
     // Aggregated maintenance statistics keyed by "{maker}_{model}".
     // Only pre-aggregated, anonymised values — no individual user data.
     // Read: any authenticated user.  Write: admin SDK only.
+    // 車種別の維持費レポート（docs/SHOP_CRM_DESIGN_2026-09-27.md §8）。
+    // 持ち主5人以上の集計値だけが入る。書くのはサーバー（aggregateModelCosts）だけ。
+    match /model_cost_reports/{reportId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
     match /community_maintenance_trends/{docId} {
       allow read: if isAuthenticated();
       allow write: if false; // admin SDK only — seeded via seed_community_trends.js
