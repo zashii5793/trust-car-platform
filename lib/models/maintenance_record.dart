@@ -606,6 +606,71 @@ class MaintenanceRecord {
   }
 
   // copyWith
+  /// 編集画面で変えた項目だけを差し替え、**それ以外はすべてこの記録から引き継ぐ**。
+  ///
+  /// 以前の編集画面は記録を一から作り直していて、画面に無い項目
+  /// （作業項目・部品・工賃などの内訳、工場との紐づけ、裏書き）を
+  /// 引き継いでいなかった。保存すると内訳が空で上書きされて消え、
+  /// 工場から受け取った記録は出所の印まで「自己申告」に書き換わっていた。
+  ///
+  /// [copyWith] では「空に戻す」（メモを消すなど）ができないので、
+  /// 画面にある項目は null もそのまま受け取る。
+  ///
+  /// 工場から受け取った記録（[isVerified]）は、金額・日付・内容を
+  /// 変えない（ルールでも拒否される）。メモと部品番号などは変えてよい。
+  MaintenanceRecord withEdits({
+    required MaintenanceType type,
+    required String title,
+    required String? description,
+    required int cost,
+    required String? shopName,
+    required DateTime date,
+    required int? mileageAtService,
+    required String? partNumber,
+    required String? partManufacturer,
+    required String? tireSize,
+    required String? tirePosition,
+  }) {
+    final locked = isVerified;
+    return MaintenanceRecord(
+      id: id,
+      vehicleId: vehicleId,
+      userId: userId,
+      type: locked ? this.type : type,
+      title: locked ? this.title : title,
+      description: description,
+      cost: locked ? this.cost : cost,
+      shopName: locked ? this.shopName : shopName,
+      date: locked ? this.date : date,
+      mileageAtService: locked ? this.mileageAtService : mileageAtService,
+      imageUrls: imageUrls,
+      createdAt: createdAt,
+      partNumber: partNumber,
+      partManufacturer: partManufacturer,
+      nextReplacementMileage: nextReplacementMileage,
+      nextReplacementDate: nextReplacementDate,
+      staffId: staffId,
+      staffName: staffName,
+      inspectionResult: inspectionResult,
+      certificateUpdated: certificateUpdated,
+      safetyStandardsCertificate: safetyStandardsCertificate,
+      workItems: workItems,
+      parts: parts,
+      partsCost: partsCost,
+      laborCost: laborCost,
+      miscCost: miscCost,
+      taxAmount: taxAmount,
+      discountAmount: discountAmount,
+      tireSize: tireSize,
+      tirePosition: tirePosition,
+      tireTreadDepth: tireTreadDepth,
+      inquiryId: inquiryId,
+      verificationSourceOverride: _verificationSourceOverride,
+      verifiedByShopId: verifiedByShopId,
+      verifiedAt: verifiedAt,
+    );
+  }
+
   MaintenanceRecord copyWith({
     String? id,
     String? vehicleId,

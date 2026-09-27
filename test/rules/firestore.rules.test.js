@@ -2407,3 +2407,108 @@ describe('shops/{id}/service_records — 店の整備実績', () => {
     await assertFails(setDoc(doc(dbFor(LEDGER_OWNER_UID), path), rec({ totalCost: -1 })));
   });
 });
+
+// ==================== アプリが実際に書く形 ====================
+// MaintenanceRecord.toMap() は verificationSource を**常に**書く
+// （自己申告なら 'selfReported'、問い合わせ経由なら 'shopImported'）。
+// 2026-09-22 のルールは「この項目を持っていたら拒否」だったため、
+// デプロイするとアプリからの追加・編集がすべて拒否されるところだった。
+
+describe('maintenance_records — アプリが実際に書く形', () => {
+  const appDoc = (extra = {}) =>
+    mrDoc({ verificationSource: 'selfReported', workItems: [], parts: [], ...extra });
+
+  test('自己申告の記録を、アプリの形のまま追加できる', async () => {
+    await assertSucceeds(setDoc(doc(dbFor(MR_USER_UID), mrPath), appDoc()));
+  });
+
+  test('問い合わせ経由の記録を、アプリの形のまま取り込める', async () => {
+    await seedInquiryFor(MR_USER_UID);
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(MR_USER_UID), mrPath),
+        appDoc({ inquiryId: MR_INQUIRY_ID, verificationSource: 'shopImported' }),
+      ),
+    );
+  });
+
+  test('問い合わせ無しで shopImported を名乗ることはできない', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(MR_USER_UID), mrPath), appDoc({ verificationSource: 'shopImported' })),
+    );
+  });
+
+  test('自己申告の記録は、アプリの形のまま直せる（費用も）', async () => {
+    await seedRecord({ verificationSource: 'selfReported' });
+    await assertSucceeds(
+      setDoc(doc(dbFor(MR_USER_UID), mrPath), appDoc({ cost: 7000 })),
+    );
+  });
+
+  test('項目の無い古い記録も、アプリの形で直せる', async () => {
+    await seedRecord();
+    await assertSucceeds(
+      setDoc(doc(dbFor(MR_USER_UID), mrPath), appDoc({ cost: 7000 })),
+    );
+  });
+
+  test('自己申告の記録を、あとから shopImported に書き換えることはできない', async () => {
+    await seedRecord({ verificationSource: 'selfReported' });
+    await assertFails(
+      updateDoc(doc(dbFor(MR_USER_UID), mrPath), { verificationSource: 'shopImported' }),
+    );
+  });
+
+  describe('工場から受け取った記録', () => {
+    const imported = () => ({
+      inquiryId: MR_INQUIRY_ID,
+      verificationSource: 'shopImported',
+      workItems: [{ name: 'オイル交換', laborCost: 2000 }],
+      parts: [],
+      laborCost: 2000,
+    });
+
+    test('金額は書き換えられない（出所の印を残したまま中身を変えさせない）', async () => {
+      await seedInquiryFor(MR_USER_UID);
+      await seedRecord(imported());
+      await assertFails(updateDoc(doc(dbFor(MR_USER_UID), mrPath), { cost: 1 }));
+    });
+
+    test('日付・内容・内訳も書き換えられない', async () => {
+      await seedInquiryFor(MR_USER_UID);
+      await seedRecord(imported());
+      for (const change of [
+        { date: new Date('2020-01-01') },
+        { title: '別の作業' },
+        { workItems: [] },
+        { laborCost: 0 },
+        { mileageAtService: 1 },
+      ]) {
+        await assertFails(updateDoc(doc(dbFor(MR_USER_UID), mrPath), change));
+      }
+    });
+
+    test('メモと写真は足せる', async () => {
+      await seedInquiryFor(MR_USER_UID);
+      await seedRecord(imported());
+      await assertSucceeds(
+        updateDoc(doc(dbFor(MR_USER_UID), mrPath), {
+          description: '次回はタイヤも見てもらう',
+          imageUrls: ['https://example.com/a.jpg'],
+        }),
+      );
+    });
+
+    test('工場の印（shopVerified）が付いた記録も、金額は書き換えられない', async () => {
+      await seedRecord({
+        verificationSource: 'shopVerified',
+        verifiedByShopId: MR_SHOP_UID,
+        verifiedAt: new Date(),
+      });
+      await assertFails(updateDoc(doc(dbFor(MR_USER_UID), mrPath), { cost: 1 }));
+      await assertSucceeds(
+        updateDoc(doc(dbFor(MR_USER_UID), mrPath), { description: 'メモ' }),
+      );
+    });
+  });
+});

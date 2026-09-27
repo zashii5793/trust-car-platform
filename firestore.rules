@@ -161,10 +161,47 @@ service cloud.firestore {
     //   - inquiryId は「自分が当事者の問い合わせ」だけ許す
     //   - 一度付いた inquiryId は変えさせない（都合の悪い記録の出所だけ
     //     消して自己申告に見せかける、を防ぐ）
-    //   - 本文（費用・日付・内容）の訂正と削除は本人の自由
-    function hasNoVerificationClaim(data) {
-      return !data.keys().hasAny(
-        ['verificationSource', 'verifiedByShopId', 'verifiedAt']);
+    //   - 自己申告の記録の本文（費用・日付・内容）の訂正は本人の自由。
+    //     工場から受け取った記録は、中身を変えさせない（2026-09-27）
+    //   - 削除はどちらも本人の自由
+
+    // アプリ（MaintenanceRecord.toMap）は verificationSource を常に書く。
+    // 自己申告なら 'selfReported'、問い合わせ経由なら 'shopImported'。
+    // **正直な申告は通し、工場の裏書き（shopVerified）の自称だけを止める。**
+    // 2026-09-22 版はこの項目があるだけで拒否しており、デプロイすると
+    // アプリからの追加・編集がすべて拒否されるところだった。
+    function verificationClaimIsHonest(data) {
+      let src = data.get('verificationSource', 'selfReported');
+      return !data.keys().hasAny(['verifiedByShopId', 'verifiedAt'])
+        && (src == 'selfReported'
+            || (src == 'shopImported' && data.get('inquiryId', null) != null));
+    }
+
+    // 裏書きの状態は、本人の更新で変えられない（サーバーだけが書く）。
+    function verificationUnchanged() {
+      return request.resource.data.get('verificationSource', 'selfReported')
+          == resource.data.get('verificationSource', 'selfReported')
+        && request.resource.data.get('verifiedByShopId', null)
+          == resource.data.get('verifiedByShopId', null)
+        && request.resource.data.get('verifiedAt', null)
+          == resource.data.get('verifiedAt', null);
+    }
+
+    // 工場から受け取った記録（問い合わせ経由・工場の裏書き）は、
+    // 金額・日付・内容・内訳を本人が変えられない。**出所の印を残したまま
+    // 中身だけ変えられると、「工場を通った記録」の信用が成り立たない。**
+    // メモ・写真・次回交換の目安は本人のものなので変えてよい。
+    function shopContentUnchanged() {
+      let fromShop = resource.data.get('inquiryId', null) != null
+        || resource.data.get('verificationSource', 'selfReported') != 'selfReported';
+      return !fromShop
+        || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'vehicleId', 'type', 'title', 'cost', 'date', 'mileageAtService',
+          'shopName', 'workItems', 'parts', 'partsCost', 'laborCost',
+          'miscCost', 'taxAmount', 'discountAmount', 'staffId', 'staffName',
+          'inspectionResult', 'certificateUpdated',
+          'safetyStandardsCertificate'
+        ]);
     }
 
     function inquiryLinkIsHonest(data) {
@@ -180,14 +217,15 @@ service cloud.firestore {
       // 作成時は自分のユーザーIDを設定していること。
       // あわせて、裏書きを自称していないこと・問い合わせの当事者であること。
       allow create: if isCreatingOwnDocument()
-        && hasNoVerificationClaim(request.resource.data)
+        && verificationClaimIsHonest(request.resource.data)
         && inquiryLinkIsHonest(request.resource.data);
 
-      // 更新は所有者のみ。検証フィールドと出所は不変。
+      // 更新は所有者のみ。検証フィールドと出所は不変。工場の記録は中身も不変。
       allow update: if isDocumentOwner()
-        && hasNoVerificationClaim(request.resource.data)
+        && verificationUnchanged()
         && request.resource.data.get('inquiryId', null)
-             == resource.data.get('inquiryId', null);
+             == resource.data.get('inquiryId', null)
+        && shopContentUnchanged();
 
       // 削除は所有者のみ（工場を通った記録でも、消す自由は本人にある）
       allow delete: if isDocumentOwner();
