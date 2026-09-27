@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
 import '../models/shop_ledger.dart';
+import 'ledger_csv_import.dart';
 
 /// 一覧の1ページ分。
 ///
@@ -475,6 +476,171 @@ class ShopLedgerService {
   }
 
   // ---------------------------------------------------------------------------
+  // CSV 取込
+  // ---------------------------------------------------------------------------
+
+  /// 読み解いた CSV（[plan]）を台帳に書き込む。
+  ///
+  /// - **やり直しても二重にならない**。顧客番号・車両番号（無ければ名前＋電話・
+  ///   ナンバー）からIDを決め、同じIDなら上書きする
+  /// - **店が手で入れた情報は消さない**。メモ・アプリとのつながり・登録日は
+  ///   取込で触らない（merge で書く）
+  /// - 顧客の要約値（台数・次の車検・最終来店）は、既にある車両と合わせて
+  ///   計算し直す
+  ///
+  /// 既存の顧客と車両を1回ずつ全件読む。取込は店が最初に1回やる作業なので、
+  /// 読み取りの回数よりも、上書きの判断を正しくすることを優先している。
+  Future<Result<LedgerImportResult, AppError>> importPlan({
+    required String shopId,
+    required LedgerImportPlan plan,
+    void Function(int done, int total)? onProgress,
+  }) async {
+    try {
+      final existingCustomers = {
+        for (final d in (await _customers(shopId).get()).docs) d.id: d.data(),
+      };
+      final existingVehicles = <String, LedgerVehicle>{
+        for (final d in (await _vehicles(shopId).get()).docs)
+          d.id: LedgerVehicle.fromMap(d.id, d.data()),
+      };
+
+      // 顧客ごとの既存車両。顧客のたびに全車両をなめると、
+      // 4,000人×10,000台で4,000万回のループになる。
+      final vehiclesByCustomer = <String, Map<String, LedgerVehicle>>{};
+      for (final v in existingVehicles.values) {
+        vehiclesByCustomer.putIfAbsent(v.customerId, () => {})[v.id] = v;
+      }
+      // 車が別の顧客へ移った（名義変更など）ときに、移る前の顧客の
+      // 要約値も直すため、どこから移ったかを覚えておく。
+      final movedFrom = <String>{};
+
+      final now = _now();
+      final nowTs = Timestamp.fromDate(now);
+      final writes =
+          <(DocumentReference<Map<String, dynamic>>, Map<String, dynamic>)>[];
+      var created = 0;
+      var updated = 0;
+      var vehicleCount = 0;
+
+      for (final c in plan.customers) {
+        final cid = idForExternal('c', c.stableExternalId);
+        final isNew = !existingCustomers.containsKey(cid);
+        isNew ? created++ : updated++;
+
+        // この顧客の車両: 既にあるもの（取込で上書きされないもの）＋今回の分
+        final vehicles = vehiclesByCustomer.putIfAbsent(cid, () => {});
+        for (final iv in c.vehicles) {
+          final vid = idForExternal('v', iv.stableExternalId(c.key));
+          final before = existingVehicles[vid];
+          final vehicle = LedgerVehicle(
+            id: vid,
+            customerId: cid,
+            customerName: c.name,
+            plate: iv.plate,
+            maker: iv.maker,
+            model: iv.model,
+            year: iv.year,
+            modelCode: iv.modelCode,
+            vin: iv.vin,
+            inspectionExpiry: iv.inspectionExpiry,
+            lastVisitAt: iv.lastVisitAt,
+            lastMileage: iv.mileage,
+            externalId: iv.externalId ?? iv.stableExternalId(c.key),
+            createdAt: before?.createdAt ?? now,
+            updatedAt: now,
+          );
+          if (before != null && before.customerId != cid) {
+            vehiclesByCustomer[before.customerId]?.remove(vid);
+            movedFrom.add(before.customerId);
+          }
+          vehicles[vid] = vehicle;
+          existingVehicles[vid] = vehicle;
+          writes.add((_vehicles(shopId).doc(vid), vehicle.toMap()));
+          vehicleCount++;
+        }
+
+        final summary = LedgerCustomerSummary.of(vehicles.values, today: now);
+        final probe = LedgerCustomer(
+          id: cid,
+          kind: c.kind,
+          name: c.name,
+          nameKana: c.nameKana,
+          createdAt: now,
+          updatedAt: now,
+        );
+        final data = <String, dynamic>{
+          'kind': c.kind.name,
+          'name': c.name,
+          'nameKana': c.nameKana,
+          'searchKey': probe.searchKey,
+          'contactPerson': c.contactPerson,
+          'phone': c.phone,
+          'email': c.email,
+          'postalCode': c.postalCode,
+          'address': c.address,
+          'externalId': c.stableExternalId,
+          'vehicleCount': summary.vehicleCount,
+          'nextInspectionAt': summary.nextInspectionAt == null
+              ? null
+              : Timestamp.fromDate(summary.nextInspectionAt!),
+          'lastVisitAt': summary.lastVisitAt == null
+              ? null
+              : Timestamp.fromDate(summary.lastVisitAt!),
+          'updatedAt': nowTs,
+          if (isNew) ...{
+            'createdAt': nowTs,
+            'source': LedgerSource.csv.name,
+            'linkedUserId': null,
+            'isLinked': false,
+          },
+        };
+        writes.add((_customers(shopId).doc(cid), data));
+      }
+
+      for (final cid in movedFrom) {
+        if (!existingCustomers.containsKey(cid)) continue;
+        final summary = LedgerCustomerSummary.of(
+          vehiclesByCustomer[cid]?.values ?? const [],
+          today: now,
+        );
+        writes.add((
+          _customers(shopId).doc(cid),
+          {
+            'vehicleCount': summary.vehicleCount,
+            'nextInspectionAt': summary.nextInspectionAt == null
+                ? null
+                : Timestamp.fromDate(summary.nextInspectionAt!),
+            'lastVisitAt': summary.lastVisitAt == null
+                ? null
+                : Timestamp.fromDate(summary.lastVisitAt!),
+            'updatedAt': nowTs,
+          },
+        ));
+      }
+
+      var done = 0;
+      onProgress?.call(0, writes.length);
+      for (var i = 0; i < writes.length; i += _batchLimit) {
+        final batch = _firestore.batch();
+        for (final (ref, data) in writes.skip(i).take(_batchLimit)) {
+          batch.set(ref, data, SetOptions(merge: true));
+        }
+        await batch.commit();
+        done = (i + _batchLimit).clamp(0, writes.length);
+        onProgress?.call(done, writes.length);
+      }
+
+      return Result.success(LedgerImportResult(
+        createdCustomers: created,
+        updatedCustomers: updated,
+        vehicles: vehicleCount,
+      ));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // 内部
   // ---------------------------------------------------------------------------
 
@@ -533,4 +699,17 @@ class ShopLedgerService {
       hasMore: hasMore,
     );
   }
+}
+
+/// 取込の結果。
+class LedgerImportResult {
+  final int createdCustomers;
+  final int updatedCustomers;
+  final int vehicles;
+
+  const LedgerImportResult({
+    required this.createdCustomers,
+    required this.updatedCustomers,
+    required this.vehicles,
+  });
 }

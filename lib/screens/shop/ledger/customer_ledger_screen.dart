@@ -9,6 +9,7 @@ import '../../../services/shop_ledger_service.dart';
 import '../../../widgets/common/loading_indicator.dart';
 import 'customer_detail_screen.dart';
 import 'customer_edit_screen.dart';
+import 'ledger_csv_import_screen.dart';
 import 'ledger_format.dart';
 import 'ledger_paged_list.dart';
 
@@ -127,11 +128,32 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
     await _openCustomer(created.id);
   }
 
+  Future<void> _importCsv() async {
+    final imported = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LedgerCsvImportScreen(
+          service: widget.service,
+          shopId: widget.shopId,
+        ),
+      ),
+    );
+    if (imported == true) _refreshAll();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('顧客台帳'),
+        actions: [
+          IconButton(
+            key: const Key('ledger_import_csv'),
+            tooltip: 'CSVから取り込む',
+            icon: const Icon(Icons.upload_file),
+            onPressed: _importCsv,
+          ),
+        ],
         bottom: TabBar(
           controller: _tabs,
           tabs: const [
@@ -226,7 +248,8 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
           ? AppEmptyState(
               icon: Icons.people_outline,
               title: 'まだ顧客が登録されていません',
-              description: '右下の「顧客を追加」から登録できます。',
+              description: '整備管理ソフトの名簿があれば、右上の取込ボタンから'
+                  'CSV でまとめて入れられます。1人ずつなら右下の「顧客を追加」から。',
               buttonLabel: '顧客を追加',
               onButtonPressed: _addCustomer,
             )

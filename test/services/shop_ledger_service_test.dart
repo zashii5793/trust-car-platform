@@ -2,6 +2,7 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/models/shop_ledger.dart';
+import 'package:trust_car_platform/services/ledger_csv_import.dart';
 import 'package:trust_car_platform/services/shop_ledger_service.dart';
 
 /// 店の顧客台帳。
@@ -464,6 +465,186 @@ void main() {
         final r =
             await service.deleteCustomer(shopId: shopId, customerId: 'nope');
         expect(r.isSuccess, isTrue);
+      });
+    });
+  });
+
+  group('importPlan — CSV 取込', () {
+    const header = [
+      '顧客番号',
+      '顧客名',
+      'フリガナ',
+      '登録番号',
+      'メーカー',
+      '車名',
+      '車検満了日',
+      '最終入庫日'
+    ];
+    final cols = guessColumns(header);
+
+    LedgerImportPlan plan(List<List<String>> rows) =>
+        buildImportPlan(rows, cols);
+
+    test('顧客と車両が台帳に入り、要約値も計算される', () async {
+      final r = await service.importPlan(
+        shopId: shopId,
+        plan: plan([
+          [
+            'C001',
+            'サンプル運輸',
+            'サンプルウンユ',
+            '品川400さ1',
+            'トヨタ',
+            'ハイエース',
+            '2027/1/10',
+            '2026/3/1'
+          ],
+          [
+            'C001',
+            'サンプル運輸',
+            'サンプルウンユ',
+            '品川400さ2',
+            'トヨタ',
+            'ハイエース',
+            '2026/11/5',
+            '2026/6/1'
+          ],
+        ]),
+      );
+      final result = r.valueOrNull!;
+      expect(result.createdCustomers, 1);
+      expect(result.vehicles, 2);
+
+      final page = (await service.listCustomers(shopId: shopId)).valueOrNull!;
+      final c = page.items.single;
+      expect(c.vehicleCount, 2);
+      expect(c.nextInspectionAt, DateTime(2026, 11, 5));
+      expect(c.lastVisitAt, DateTime(2026, 6, 1));
+      expect(c.source, LedgerSource.csv);
+    });
+
+    test('同じ CSV を2回取り込んでも、二重にならない', () async {
+      final rows = [
+        ['C001', '山田', 'ヤマダ', '品川300あ1234', 'MINI', 'クーパー', '', ''],
+      ];
+      await service.importPlan(shopId: shopId, plan: plan(rows));
+      final second =
+          (await service.importPlan(shopId: shopId, plan: plan(rows)))
+              .valueOrNull!;
+      expect(second.createdCustomers, 0);
+      expect(second.updatedCustomers, 1);
+
+      final customers =
+          await firestore.collection('shops/$shopId/customers').get();
+      final vehicles =
+          await firestore.collection('shops/$shopId/customer_vehicles').get();
+      expect(customers.docs, hasLength(1));
+      expect(vehicles.docs, hasLength(1));
+    });
+
+    test('取り直しても、店が手で入れたメモ・アプリとのつながり・登録日は消えない', () async {
+      final rows = [
+        ['C001', '山田', 'ヤマダ', '', 'MINI', 'クーパー', '', ''],
+      ];
+      await service.importPlan(shopId: shopId, plan: plan(rows));
+      final id = ShopLedgerService.idForExternal('c', 'C001');
+      await firestore.doc('shops/$shopId/customers/$id').update({
+        'note': '奥様が窓口',
+        'linkedUserId': 'app-user-1',
+        'isLinked': true,
+      });
+
+      final later = ShopLedgerService(
+        firestore: firestore,
+        now: () => DateTime(2027, 1, 1),
+      );
+      await later.importPlan(shopId: shopId, plan: plan(rows));
+
+      final c = (await service.getCustomer(shopId: shopId, customerId: id))
+          .valueOrNull!;
+      expect(c.note, '奥様が窓口');
+      expect(c.linkedUserId, 'app-user-1');
+      expect(c.createdAt, today);
+      expect(c.updatedAt, DateTime(2027, 1, 1));
+    });
+
+    test('取込の前から手で足してあった車両は残り、台数に数えられる', () async {
+      await service.importPlan(
+        shopId: shopId,
+        plan: plan([
+          ['C001', '山田', 'ヤマダ', '品川300あ1', 'MINI', 'クーパー', '', ''],
+        ]),
+      );
+      final id = ShopLedgerService.idForExternal('c', 'C001');
+      await service.saveVehicle(
+        shopId: shopId,
+        customerId: id,
+        maker: 'ホンダ',
+        model: 'スーパーカブ',
+      );
+      await service.importPlan(
+        shopId: shopId,
+        plan: plan([
+          ['C001', '山田', 'ヤマダ', '品川300あ1', 'MINI', 'クーパー', '', ''],
+        ]),
+      );
+      final c = (await service.getCustomer(shopId: shopId, customerId: id))
+          .valueOrNull!;
+      expect(c.vehicleCount, 2);
+    });
+
+    test('車が別の顧客に移ったら、移る前の顧客の台数も減る', () async {
+      await service.importPlan(
+        shopId: shopId,
+        plan: plan([
+          ['C001', '父', 'チチ', '品川300あ1', 'トヨタ', 'プリウス', '', ''],
+        ]),
+      );
+      await service.importPlan(
+        shopId: shopId,
+        plan: plan([
+          ['C002', '子', 'コ', '品川300あ1', 'トヨタ', 'プリウス', '', ''],
+        ]),
+      );
+      final father = (await service.getCustomer(
+        shopId: shopId,
+        customerId: ShopLedgerService.idForExternal('c', 'C001'),
+      ))
+          .valueOrNull!;
+      final child = (await service.getCustomer(
+        shopId: shopId,
+        customerId: ShopLedgerService.idForExternal('c', 'C002'),
+      ))
+          .valueOrNull!;
+      expect(father.vehicleCount, 0);
+      expect(child.vehicleCount, 1);
+    });
+
+    test('1バッチ（400件）を超える取込でも全部入り、進み具合が届く', () async {
+      final rows = [
+        for (var i = 0; i < 450; i++)
+          ['C$i', '顧客$i', 'コキャク', '', '', '', '', ''],
+      ];
+      final progress = <int>[];
+      final r = await service.importPlan(
+        shopId: shopId,
+        plan: plan(rows),
+        onProgress: (done, total) => progress.add(done),
+      );
+      expect(r.valueOrNull!.createdCustomers, 450);
+      final counts = (await service.counts(shopId)).valueOrNull!;
+      expect(counts.total, 450);
+      expect(progress.first, 0);
+      expect(progress.last, 450);
+    });
+
+    group('Edge Cases', () {
+      test('空の計画なら何もしない', () async {
+        final r = await service.importPlan(
+          shopId: shopId,
+          plan: plan(const []),
+        );
+        expect(r.valueOrNull!.createdCustomers, 0);
       });
     });
   });
