@@ -234,7 +234,8 @@ void main() {
           ownerId: 'user1',
         );
 
-        final result = await service.getPermittedShops(vehicleId: 'v1', ownerId: 'user1');
+        final result =
+            await service.getPermittedShops(vehicleId: 'v1', ownerId: 'user1');
         expect(result.isSuccess, isTrue);
         expect(result.valueOrNull!, containsAll(['shop1', 'shop2']));
       });
@@ -252,7 +253,8 @@ void main() {
       });
 
       test('正常系: 許可なしは空リスト', () async {
-        final result = await service.getPermittedShops(vehicleId: 'v1', ownerId: 'user1');
+        final result =
+            await service.getPermittedShops(vehicleId: 'v1', ownerId: 'user1');
         expect(result.valueOrNull, isEmpty);
       });
     });

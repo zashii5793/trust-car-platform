@@ -21,6 +21,8 @@ import 'shop_registration_screen.dart';
 import '../newsletter/newsletter_list_screen.dart';
 import 'shop_invite_manage_screen.dart';
 import '../../services/shop_invite_service.dart';
+import '../../services/shop_ledger_service.dart';
+import '../shop/ledger/customer_ledger_screen.dart';
 
 /// Shop owner hub screen.
 ///
@@ -304,6 +306,27 @@ class _RegisteredBody extends StatelessWidget {
           AppSpacing.verticalMd,
           // Monthly inquiry report (ROI visibility)
           _MonthlyReportCard(provider: provider),
+          AppSpacing.verticalMd,
+          // 顧客台帳（docs/SHOP_CRM_DESIGN_2026-09-27.md）。
+          // アプリを入れていない既存客も含めて、店が自分で管理する名簿。
+          FilledButton.icon(
+            key: const Key('customer_ledger_btn'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => CustomerLedgerScreen(
+                  service: sl.get<ShopLedgerService>(),
+                  shopId: shop.id,
+                  shopName: shop.name,
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.contacts_outlined),
+            label: const Text('顧客台帳'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(AppSpacing.tapTargetMin),
+            ),
+          ),
           AppSpacing.verticalMd,
           // お客様に配るコード
           // docs/BUSINESS_MODEL_RETHINK_2026-08-27.md §4 —

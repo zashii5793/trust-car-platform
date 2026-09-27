@@ -288,7 +288,7 @@ class LedgerCustomer {
   ///
   /// **名前（漢字）では前方一致が役に立たない**（「山田」で引きたい人と
   /// 「やまだ」で引きたい人がいる）ので、フリガナを優先する。
-  String get searchKey => LedgerSearch.nameKey(nameKana ?? name);
+  String get searchKey => LedgerSearch.nameKey(_nonEmpty(nameKana) ?? name);
 
   /// 並べ替え用のキー。検索キーと同じだが、意味が違うので分けて持つ。
   String get sortKey => searchKey;

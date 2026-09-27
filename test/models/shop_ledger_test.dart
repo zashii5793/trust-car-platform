@@ -127,6 +127,19 @@ void main() {
       expect(c.searchKey, 'やまだたろう');
     });
 
+    test('フリガナが空欄なら、名前から検索キーを作る', () {
+      // 画面のフォームは、未入力でも空文字を渡してくる
+      final c = LedgerCustomer(
+        id: 'c1',
+        kind: LedgerCustomerKind.individual,
+        name: 'タカヤ',
+        nameKana: '',
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+      );
+      expect(c.searchKey, 'たかや');
+    });
+
     test('toMap → fromMap で同じ内容に戻る', () {
       final c = LedgerCustomer(
         id: 'c1',
