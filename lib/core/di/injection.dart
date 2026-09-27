@@ -63,6 +63,7 @@ import '../../services/shop_invite_service.dart';
 import '../../services/shop_ledger_service.dart';
 import '../../services/vehicle_share_service.dart';
 import '../../services/model_cost_report_service.dart';
+import '../../services/vehicle_profile_service.dart';
 import '../../services/fuel_service.dart';
 
 /// 依存性の登録を行うクラス
@@ -287,6 +288,11 @@ class Injection {
     // 車種別の維持費レポート（同 §8。書くのはサーバーの aggregateModelCosts）。
     locator.registerLazySingleton<ModelCostReportService>(
       () => ModelCostReportService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 愛車ページ（公開）。車を主役に、公開の投稿・パーツ・ドライブを集める。
+    locator.registerLazySingleton<VehicleProfileService>(
+      () => VehicleProfileService(firestore: FirebaseFirestore.instance),
     );
 
     // Fuel records (給油は月2〜4回あり、唯一の月単位の接点).

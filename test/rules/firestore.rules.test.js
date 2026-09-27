@@ -2512,3 +2512,69 @@ describe('maintenance_records — アプリが実際に書く形', () => {
     });
   });
 });
+
+describe('vehicle_profiles — 愛車ページ', () => {
+  const OWNER = 'vp_owner';
+  const VID = 'vp_vehicle';
+  const path = `vehicle_profiles/${VID}`;
+  const profile = (o = {}) => ({
+    vehicleId: VID,
+    ownerId: OWNER,
+    ownerName: 'みにお',
+    maker: 'MINI',
+    model: 'クーパー',
+    isPublic: true,
+    showsMaintenance: false,
+    maintenance: [],
+    updatedAt: new Date(),
+    ...o,
+  });
+  async function seedVehicle() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `vehicles/${VID}`), { userId: OWNER, maker: 'MINI', model: 'クーパー' });
+    });
+  }
+  async function seedProfile(o = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), path), profile(o));
+    });
+  }
+
+  test('本人は自分の車のページを作れる', async () => {
+    await seedVehicle();
+    await assertSucceeds(setDoc(doc(dbFor(OWNER), path), profile()));
+  });
+
+  test('他人の車のページは作れない', async () => {
+    await seedVehicle();
+    await assertFails(setDoc(doc(dbFor(OTHER_UID), path), profile({ ownerId: OTHER_UID })));
+  });
+
+  test('走行距離やナンバーは載せられない', async () => {
+    await seedVehicle();
+    await assertFails(setDoc(doc(dbFor(OWNER), path), profile({ mileage: 48000 })));
+    await assertFails(setDoc(doc(dbFor(OWNER), path), profile({ licensePlate: '品川300あ1' })));
+  });
+
+  test('整備を出さないと決めたのに、中身を載せることはできない', async () => {
+    await seedVehicle();
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), path), profile({ maintenance: [{ type: '車検', count: 1 }] })),
+    );
+  });
+
+  test('公開していれば他人も読める。非公開なら本人だけ', async () => {
+    await seedVehicle();
+    await seedProfile();
+    await assertSucceeds(getDoc(doc(dbFor(OTHER_UID), path)));
+    await seedProfile({ isPublic: false });
+    await assertFails(getDoc(doc(dbFor(OTHER_UID), path)));
+    await assertSucceeds(getDoc(doc(dbFor(OWNER), path)));
+  });
+
+  test('他人は消せない', async () => {
+    await seedVehicle();
+    await seedProfile();
+    await assertFails(deleteDoc(doc(dbFor(OTHER_UID), path)));
+  });
+});

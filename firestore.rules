@@ -926,6 +926,32 @@ service cloud.firestore {
     // Aggregated maintenance statistics keyed by "{maker}_{model}".
     // Only pre-aggregated, anonymised values — no individual user data.
     // Read: any authenticated user.  Write: admin SDK only.
+    // 愛車ページ（公開）。車両そのものは非公開のまま、本人が公開を選んだ
+    // ときだけ、見せてよいものを写す。走行距離・ナンバー・車検満了日・金額は
+    // 持たせない（keys().hasOnly で縛る）。整備を出さないと決めたときは、
+    // 中身も空でなければならない。
+    match /vehicle_profiles/{vehicleId} {
+      allow read: if isAuthenticated() && (
+        resource.data.isPublic == true
+        || resource.data.ownerId == request.auth.uid
+      );
+      allow create, update: if isAuthenticated()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.vehicleId == vehicleId
+        && get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.userId
+             == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+             'vehicleId', 'ownerId', 'ownerName', 'maker', 'model', 'year',
+             'grade', 'nickname', 'bio', 'imageUrl', 'isPublic',
+             'showsMaintenance', 'maintenance', 'updatedAt'])
+        && request.resource.data.isPublic is bool
+        && request.resource.data.maintenance is list
+        && (request.resource.data.showsMaintenance == true
+            || request.resource.data.maintenance.size() == 0);
+      allow delete: if isAuthenticated()
+        && resource.data.ownerId == request.auth.uid;
+    }
+
     // 車種別の維持費レポート（docs/SHOP_CRM_DESIGN_2026-09-27.md §8）。
     // 持ち主5人以上の集計値だけが入る。書くのはサーバー（aggregateModelCosts）だけ。
     match /model_cost_reports/{reportId} {

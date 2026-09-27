@@ -1,6 +1,19 @@
 {
   "indexes": [
 
+    // 愛車ページ: 持ち主の、その車の、公開の投稿を新しい順に
+    // （lib/services/vehicle_profile_service.dart _posts）
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "vehicleTag.vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+
     // =========================================================
     // vehicles
     // =========================================================

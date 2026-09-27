@@ -19,6 +19,9 @@ import '../providers/maintenance_provider.dart';
 import '../services/shop_service.dart';
 import '../services/vehicle_share_service.dart';
 import 'vehicle/share_to_shop_screen.dart';
+import 'vehicle/vehicle_profile_screen.dart';
+import '../services/vehicle_profile_service.dart';
+import '../models/vehicle_profile.dart';
 import '../providers/notification_provider.dart';
 import '../providers/user_subscription_provider.dart';
 import '../services/drive_log_service.dart';
@@ -386,6 +389,50 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   ///
   /// PDF は読むもの。買い手や次のオーナーが**自分で扱う**には表が要る。
   /// 個人向けの出力は PDF だけで、CSV は法人のフリート用しか無かった。
+  /// 愛車ページ。まだ無ければ作る画面、あれば表示（右上から編集）。
+  Future<void> _openProfile() async {
+    final user = context.read<AuthProvider>().firebaseUser;
+    if (user == null) return;
+    final service = sl.get<VehicleProfileService>();
+    final records = context.read<MaintenanceProvider>().records;
+    final navigator = Navigator.of(context);
+
+    Future<VehicleProfile?> edit(VehicleProfile? existing) =>
+        navigator.push<VehicleProfile>(
+          MaterialPageRoute(
+            builder: (_) => VehicleProfileEditScreen(
+              service: service,
+              vehicle: _vehicle,
+              ownerId: user.uid,
+              ownerName: user.displayName ?? 'オーナー',
+              records: records,
+              existing: existing,
+            ),
+          ),
+        );
+
+    var profile = (await service.get(_vehicle.id)).valueOrNull;
+    profile ??= await edit(null);
+    if (profile == null || !mounted) return;
+
+    var current = profile;
+    await navigator.push<void>(
+      MaterialPageRoute(
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setLocal) => VehicleProfileScreen(
+            key: ValueKey(current.updatedAt),
+            service: service,
+            profile: current,
+            onEdit: () async {
+              final updated = await edit(current);
+              if (updated != null) setLocal(() => current = updated);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 初めて行く店に、この車のこれまでを渡す（docs/SHOP_CRM_DESIGN_2026-09-27.md §7）。
   Future<void> _shareToShop() async {
     final user = context.read<AuthProvider>().firebaseUser;
@@ -662,8 +709,19 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                 if (value == 'retire') _showRetireSheet();
                 if (value == 'csv') _exportCsv();
                 if (value == 'share_shop') _shareToShop();
+                if (value == 'profile') _openProfile();
               },
               itemBuilder: (_) => [
+                const PopupMenuItem(
+                  key: Key('vehicle_profile_menu_item'),
+                  value: 'profile',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.badge_outlined),
+                    title: Text('愛車ページ'),
+                    subtitle: Text('この車を主役にしたページ'),
+                  ),
+                ),
                 const PopupMenuItem(
                   key: Key('share_shop_menu_item'),
                   value: 'share_shop',

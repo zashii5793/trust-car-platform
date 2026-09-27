@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../providers/post_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/post.dart';
+import '../../widgets/sns/post_vehicle_chip.dart';
 import '../../models/comment.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
@@ -458,6 +459,11 @@ class _PostDetailBody extends StatelessWidget {
               style: theme.textTheme.bodyLarge,
             ),
           ),
+          if (post.vehicleTag?.displayName != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: PostVehicleChip(tag: post.vehicleTag),
+            ),
 
           // ---- ハッシュタグ ----
           if (post.hashtags.isNotEmpty) ...[
