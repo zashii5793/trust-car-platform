@@ -67,11 +67,13 @@ function twoYears(vehicleKey: string, scale = 1): CostEvent[] {
 }
 
 describe("normalizeKey", () => {
-  it("全角・半角、大文字・小文字、空白、カタカナ・ひらがなを揃える", () => {
-    expect(normalizeKey("ＭＩＮＩ")).toBe("mini");
-    expect(normalizeKey("Mini ")).toBe("mini");
-    expect(normalizeKey("クーパー")).toBe(normalizeKey("くーぱー"));
-    expect(normalizeKey("N-BOX / カスタム")).toBe("n-box_かすたむ");
+  // アプリ側（test/models/model_cost_report_test.dart）も同じ表を読む。
+  // ずれると、アプリが引くIDとここで書くIDが食い違う。
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const vectors: [string, string][] = require("./model_cost_key_vectors.json");
+
+  it.each(vectors)("%j → %j", (input, expected) => {
+    expect(normalizeKey(input)).toBe(expected);
   });
 });
 

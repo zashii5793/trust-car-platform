@@ -41,6 +41,9 @@ import 'maintenance_stats_screen.dart';
 import 'maintenance_search_screen.dart';
 import '../services/firebase_service.dart';
 import '../services/community_trend_service.dart';
+import '../models/model_cost_report.dart';
+import '../services/model_cost_report_service.dart';
+import 'vehicle/model_cost_report_screen.dart';
 import '../core/timeline/mileage_milestone.dart';
 import '../models/year_in_review.dart';
 import 'year_in_review_screen.dart';
@@ -917,6 +920,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
 
                   // この1年のふりかえり
                   _YearInReviewCard(vehicle: _vehicle),
+                  _ModelCostCard(vehicle: _vehicle),
 
                   // 整備記録の査定価値バナー
                   _MaintenanceValueBanner(vehicle: _vehicle),
@@ -3613,6 +3617,100 @@ class _CommunityTrendSection extends StatefulWidget {
   State<_CommunityTrendSection> createState() => _CommunityTrendSectionState();
 }
 
+/// 同じ車種の維持費（docs/SHOP_CRM_DESIGN_2026-09-27.md §8）への入口。
+///
+/// **自分の記録が溜まっていなくても、初日から出せる**数字。使い始めの
+/// 半年で「このアプリで何が分かるのか」に答える場所として置く。
+class _ModelCostCard extends StatefulWidget {
+  final Vehicle vehicle;
+
+  const _ModelCostCard({required this.vehicle});
+
+  @override
+  State<_ModelCostCard> createState() => _ModelCostCardState();
+}
+
+class _ModelCostCardState extends State<_ModelCostCard> {
+  ModelCostReport? _report;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!sl.isRegistered<ModelCostReportService>()) return;
+    final r = await sl.get<ModelCostReportService>().forVehicle(
+          maker: widget.vehicle.maker,
+          model: widget.vehicle.model,
+        );
+    if (!mounted) return;
+    setState(() {
+      _report = r.valueOrNull;
+      _loaded = r.isSuccess;
+    });
+  }
+
+  void _browse() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ModelCostBrowseScreen(
+          service: sl.get<ModelCostReportService>(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const SizedBox.shrink();
+    final r = _report;
+    final theme = Theme.of(context);
+    final fmt = NumberFormat('#,###');
+
+    final String subtitle;
+    if (r == null) {
+      subtitle = 'この車種はまだ集計できる人数（持ち主5人）に届いていません';
+    } else if (r.annualEstimate == null) {
+      subtitle = '${r.title}・持ち主${r.ownerCount}人の記録から';
+    } else {
+      subtitle = '${r.isMakerLevel ? '${r.maker}全体で' : ''}'
+          '年 約${fmt.format(r.annualEstimate)}円・持ち主${r.ownerCount}人の記録から';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: ListTile(
+          key: const Key('model_cost_entry'),
+          leading: const Icon(Icons.bar_chart, color: AppColors.primary),
+          title: const Text('同じ車種の維持費'),
+          subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: r == null
+              ? _browse
+              : () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => ModelCostReportScreen(
+                        report: r,
+                        onBrowseOthers: _browse,
+                      ),
+                    ),
+                  ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 「この1年のふりかえり」への入口。
 ///
 /// docs/HABIT_DESIGN.md 打ち手2。1年で整備記録は数十件溜まるのに、それを
@@ -3640,6 +3738,23 @@ class _YearInReviewCardState extends State<_YearInReviewCard> {
   }
 
   Future<void> _fetchPeerCost() async {
+    // 実際の記録から集計した車種別レポートを先に見る。比べる相手は
+    // 「ふりかえり」と同じく整備記録の費用なので、燃料は足さない。
+    // メーカー全体の数字とは比べない（別の車と比べることになる）。
+    if (sl.isRegistered<ModelCostReportService>()) {
+      final report = await sl.get<ModelCostReportService>().forVehicle(
+            maker: widget.vehicle.maker,
+            model: widget.vehicle.model,
+          );
+      final r = report.valueOrNull;
+      final maint = r?.maintenanceAnnual;
+      if (r != null && !r.isMakerLevel && maint != null) {
+        if (!mounted) return;
+        setState(() => _peerAnnualCost =
+            maint.median + (r.inspectionPerEvent?.median ?? 0) ~/ 2);
+        return;
+      }
+    }
     if (!sl.isRegistered<CommunityTrendService>()) return;
     final result = await sl.get<CommunityTrendService>().getTrendsForVehicle(
           maker: widget.vehicle.maker,

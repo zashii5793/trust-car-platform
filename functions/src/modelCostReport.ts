@@ -93,20 +93,81 @@ export interface ModelCostReport {
   sources: { app: number; shop: number };
 }
 
-/// 表記の揺れを揃えたキー（全角/半角・大文字/小文字・空白・カタカナ/ひらがな）。
+/// 表記の揺れを揃えたキー。
+///
+/// **アプリ側（lib/models/model_cost_report.dart の modelCostKey）と
+/// 1文字も違わない規則にしてある。** ずれると、アプリが引くIDと
+/// サーバーが書いたIDが食い違い、レポートがあるのに「まだありません」と出る。
+/// そのため String.normalize("NFKC") は使わない（Dart に同じものが無い）。
+///
+/// - 半角カナ → 全角カナ（濁点・半濁点の結合を含む）
+/// - 全角英数記号 → 半角
+/// - カタカナ → ひらがな
+/// - 空白（半角・全角・タブ・改行）を取り除く
+/// - 英字は小文字
+/// - / は _ に（Firestore のドキュメントIDに使えない）
 export function normalizeKey(s: string): string {
-  const nfkc = s.normalize("NFKC").toLowerCase().replace(/\s+/g, "");
+  const full = halfwidthKanaToFullwidth(s);
   let out = "";
-  for (const ch of nfkc) {
-    const code = ch.codePointAt(0)!;
-    // カタカナ → ひらがな
-    out +=
-      code >= 0x30a1 && code <= 0x30f6
-        ? String.fromCodePoint(code - 0x60)
-        : ch;
+  for (const ch of full) {
+    let code = ch.codePointAt(0)!;
+    if (code >= 0xff01 && code <= 0xff5e) code -= 0xfee0;
+    if (code >= 0x30a1 && code <= 0x30f6) code -= 0x60;
+    if (code === 0x20 || code === 0x3000 || code === 0x09 ||
+        code === 0x0a || code === 0x0d) {
+      continue;
+    }
+    out += String.fromCodePoint(code);
   }
-  // Firestore のドキュメントIDに / は使えない
-  return out.replace(/\//g, "_");
+  return out.toLowerCase().replace(/\//g, "_");
+}
+
+const HALF_KANA: Record<string, string> = {
+  "ｦ": "ヲ", "ｧ": "ァ", "ｨ": "ィ", "ｩ": "ゥ", "ｪ": "ェ", "ｫ": "ォ",
+  "ｬ": "ャ", "ｭ": "ュ", "ｮ": "ョ", "ｯ": "ッ", "ｰ": "ー",
+  "ｱ": "ア", "ｲ": "イ", "ｳ": "ウ", "ｴ": "エ", "ｵ": "オ",
+  "ｶ": "カ", "ｷ": "キ", "ｸ": "ク", "ｹ": "ケ", "ｺ": "コ",
+  "ｻ": "サ", "ｼ": "シ", "ｽ": "ス", "ｾ": "セ", "ｿ": "ソ",
+  "ﾀ": "タ", "ﾁ": "チ", "ﾂ": "ツ", "ﾃ": "テ", "ﾄ": "ト",
+  "ﾅ": "ナ", "ﾆ": "ニ", "ﾇ": "ヌ", "ﾈ": "ネ", "ﾉ": "ノ",
+  "ﾊ": "ハ", "ﾋ": "ヒ", "ﾌ": "フ", "ﾍ": "ヘ", "ﾎ": "ホ",
+  "ﾏ": "マ", "ﾐ": "ミ", "ﾑ": "ム", "ﾒ": "メ", "ﾓ": "モ",
+  "ﾔ": "ヤ", "ﾕ": "ユ", "ﾖ": "ヨ",
+  "ﾗ": "ラ", "ﾘ": "リ", "ﾙ": "ル", "ﾚ": "レ", "ﾛ": "ロ",
+  "ﾜ": "ワ", "ﾝ": "ン",
+};
+const DAKUTEN: Record<string, string> = {
+  "カ": "ガ", "キ": "ギ", "ク": "グ", "ケ": "ゲ", "コ": "ゴ",
+  "サ": "ザ", "シ": "ジ", "ス": "ズ", "セ": "ゼ", "ソ": "ゾ",
+  "タ": "ダ", "チ": "ヂ", "ツ": "ヅ", "テ": "デ", "ト": "ド",
+  "ハ": "バ", "ヒ": "ビ", "フ": "ブ", "ヘ": "ベ", "ホ": "ボ",
+  "ウ": "ヴ",
+};
+const HANDAKUTEN: Record<string, string> = {
+  "ハ": "パ", "ヒ": "ピ", "フ": "プ", "ヘ": "ペ", "ホ": "ポ",
+};
+
+function halfwidthKanaToFullwidth(input: string): string {
+  const chars = [...input];
+  let out = "";
+  for (let i = 0; i < chars.length; i++) {
+    const full = HALF_KANA[chars[i]];
+    if (full === undefined) {
+      out += chars[i];
+      continue;
+    }
+    const next = chars[i + 1];
+    if (next === "ﾞ" && DAKUTEN[full]) {
+      out += DAKUTEN[full];
+      i++;
+    } else if (next === "ﾟ" && HANDAKUTEN[full]) {
+      out += HANDAKUTEN[full];
+      i++;
+    } else {
+      out += full;
+    }
+  }
+  return out;
 }
 
 /// アプリの整備種別（MaintenanceType.name）と、店の実績の種別を分類する。
