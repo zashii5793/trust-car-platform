@@ -818,8 +818,14 @@ service cloud.firestore {
         resource.data.shopId == request.auth.uid
       );
 
-      // List queries (getPermittedShops / getPermittedVehicles) require auth.
-      allow list: if isAuthenticated();
+      // 一覧は当事者に絞ったクエリだけ通す。
+      // 以前は認証だけで通していたため、誰がどの店に車両を共有したかを
+      // 誰でも列挙できた。getPermittedShops は ownerId、
+      // getPermittedVehicles は shopId で絞ってから問い合わせる。
+      allow list: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.shopId == request.auth.uid
+      );
 
       // Grant: caller must be the vehicle owner.
       allow create: if isAuthenticated() &&
@@ -918,7 +924,15 @@ service cloud.firestore {
       );
 
       // 店側が自分の顧客を数えるためのクエリ。shopId で絞ったものだけ通す。
-      allow list: if isAuthenticated();
+      // 以前は認証だけで通していたため、どの店の顧客名簿でも読めた。
+      // 条件を満たさない問い合わせ（shopId を付けない・他店の shopId）は
+      // クエリごと拒否される。
+      allow list: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid
+        || (resource.data.shopId is string
+            && get(/databases/$(database)/documents/shops/$(resource.data.shopId))
+                 .data.ownerId == request.auth.uid)
+      );
 
       // 書けるのは本人だけ。店が勝手に顧客を増やせないようにする。
       //

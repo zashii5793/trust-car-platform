@@ -365,6 +365,44 @@ describe('vehicle_sharing_permissions — get', () => {
   });
 });
 
+describe('vehicle_sharing_permissions — list（一覧）', () => {
+  test('車両オーナーは自分の許可を一覧できる', async () => {
+    await seedPermission();
+    const q = query(
+      collection(dbFor(VEHICLE_OWNER_UID), 'vehicle_sharing_permissions'),
+      where('ownerId', '==', VEHICLE_OWNER_UID),
+      where('vehicleId', '==', VEHICLE_ID),
+    );
+    await assertSucceeds(getDocs(q));
+  });
+
+  test('店は自分宛ての許可を一覧できる', async () => {
+    await seedPermission();
+    const q = query(
+      collection(dbFor(SHOP_OWNER_UID), 'vehicle_sharing_permissions'),
+      where('shopId', '==', SHOP_OWNER_UID),
+      where('isActive', '==', true),
+    );
+    await assertSucceeds(getDocs(q));
+  });
+
+  test('絞り込みなしの一覧は拒否される（誰が共有したかを列挙させない）', async () => {
+    await seedPermission();
+    await assertFails(
+      getDocs(collection(dbFor(UNRELATED_UID), 'vehicle_sharing_permissions')),
+    );
+  });
+
+  test('他店の shopId では一覧できない', async () => {
+    await seedPermission();
+    const q = query(
+      collection(dbFor(UNRELATED_UID), 'vehicle_sharing_permissions'),
+      where('shopId', '==', SHOP_OWNER_UID),
+    );
+    await assertFails(getDocs(q));
+  });
+});
+
 describe('vehicle_sharing_permissions — create（許可付与）', () => {
   test('車両オーナーは許可を付与できる', async () => {
     await assertSucceeds(
@@ -1343,6 +1381,38 @@ describe('shop_customers（かかりつけ）', () => {
       await setDoc(doc(ctx.firestore(), linkPath), linkDoc(INVITE_CUSTOMER_UID));
     });
     await assertFails(deleteDoc(doc(dbFor(INVITE_SHOP_OWNER_UID), linkPath)));
+  });
+
+  test('店は自分の shopId で顧客を一覧できる', async () => {
+    await seedInvite();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), linkDoc(INVITE_CUSTOMER_UID));
+    });
+    const q = query(
+      collection(dbFor(INVITE_SHOP_OWNER_UID), 'shop_customers'),
+      where('shopId', '==', INVITE_SHOP_ID),
+    );
+    await assertSucceeds(getDocs(q));
+  });
+
+  test('他店の顧客名簿は一覧できない', async () => {
+    await seedInvite();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), linkDoc(INVITE_CUSTOMER_UID));
+    });
+    const q = query(
+      collection(dbFor(OTHER_UID), 'shop_customers'),
+      where('shopId', '==', INVITE_SHOP_ID),
+    );
+    await assertFails(getDocs(q));
+  });
+
+  test('絞り込みなしで全店の顧客を一覧することはできない', async () => {
+    await seedInvite();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), linkDoc(INVITE_CUSTOMER_UID));
+    });
+    await assertFails(getDocs(collection(dbFor(OTHER_UID), 'shop_customers')));
   });
 
   // 車検満了日の共有（案A）。
