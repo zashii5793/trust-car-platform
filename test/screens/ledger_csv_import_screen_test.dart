@@ -414,4 +414,46 @@ void main() {
       expect(find.byKey(const Key('csv_import_error')), findsNothing);
     });
   });
+
+  group('整備履歴', () {
+    testWidgets('名簿のあとに伝票を取り込むと、台帳の車に紐づいて入る', (tester) async {
+      // 先に名簿
+      await pump(tester, const PickedCsvFile('顧客.csv', _cp932Csv));
+      await tester.tap(find.byKey(const Key('csv_pick')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('csv_import_run')));
+      await tester.pumpAndSettle();
+
+      // 次に整備履歴（UTF-8）
+      const history = '伝票番号,作業日,登録番号,作業内容,合計金額\n'
+          'S1,2026/3/1,品川400さ1,車検,"120,000"\n'
+          'S2,2026/4/1,品川300あ1234,オイル交換,5500\n'
+          'S3,2026/4/2,品川999ん9,オイル交換,5500\n';
+      await tester.pumpWidget(const SizedBox());
+      await pump(tester, PickedCsvFile('履歴.csv', utf8.encode(history)));
+
+      await tester.tap(find.text('整備履歴'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('csv_pick')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('csv_history_summary'))).data,
+        '伝票 3件 を取り込みます。',
+      );
+
+      await tester.tap(find.byKey(const Key('csv_history_run')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('csv_history_result'))).data,
+        '伝票 2件',
+      );
+      // 台帳に無いナンバーの伝票は、何行目かを出す
+      expect(find.textContaining('4行目'), findsOneWidget);
+
+      final recs = await fs.collection('shops/$_shopId/service_records').get();
+      expect(recs.docs, hasLength(2));
+    });
+  });
 }

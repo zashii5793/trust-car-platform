@@ -149,6 +149,60 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
     if (changed == true) _refreshAll();
   }
 
+  /// 整備実績を、車種別の維持費レポートの匿名の集計に使ってよいか。
+  ///
+  /// **既定は協力しない。** 店の実績は店のもので、同意なしに集計に入れない。
+  Future<void> _openStatistics() async {
+    final current = await widget.service.allowsStatistics(widget.shopId);
+    if (!mounted) return;
+    var value = current.valueOrNull ?? false;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('車種別レポートへの協力'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '取り込んだ整備履歴を、「この車種は年にいくらかかるか」の'
+                '集計に使います。お客さんの名前・連絡先・ナンバーは使いません。'
+                '持ち主が5人に満たない数字は出しません。',
+              ),
+              AppSpacing.verticalSm,
+              SwitchListTile(
+                key: const Key('ledger_stats_switch'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('匿名の集計に協力する'),
+                value: value,
+                onChanged: (v) async {
+                  final r = await widget.service.setAllowsStatistics(
+                    shopId: widget.shopId,
+                    value: v,
+                  );
+                  if (r.isSuccess) {
+                    setLocal(() => value = v);
+                  } else if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(content: Text('切り替えられるのは店主のアカウントだけです')),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('閉じる'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _importCsv() async {
     final imported = await Navigator.push<bool>(
       context,
@@ -180,6 +234,18 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
             tooltip: 'CSVから取り込む',
             icon: const Icon(Icons.upload_file),
             onPressed: _importCsv,
+          ),
+          PopupMenuButton<String>(
+            key: const Key('ledger_more'),
+            onSelected: (v) {
+              if (v == 'stats') _openStatistics();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'stats',
+                child: Text('車種別レポートへの協力'),
+              ),
+            ],
           ),
         ],
         bottom: TabBar(

@@ -517,3 +517,148 @@ class _CustomerBuilder {
         vehicles: List.unmodifiable(vehicles),
       );
 }
+
+// ---------------------------------------------------------------------------
+// 整備履歴（伝票）の取込
+// ---------------------------------------------------------------------------
+
+/// 整備履歴の CSV で取り込める項目。1行＝伝票1枚（作業1回）。
+enum LedgerHistoryField {
+  date('作業日'),
+  slipNumber('伝票番号'),
+  customerExternalId('顧客番号'),
+  vehicleExternalId('車両番号'),
+  plate('登録番号'),
+  type('作業内容'),
+  total('金額'),
+  mileage('走行距離');
+
+  final String label;
+  const LedgerHistoryField(this.label);
+
+  List<String> get aliases => switch (this) {
+        date => ['作業日', '入庫日', '伝票日付', '売上日', '日付', '作業完了日', '納車日'],
+        slipNumber => ['伝票番号', '伝票no', '売上番号', '作業番号', '受付番号'],
+        customerExternalId => ['顧客番号', '顧客コード', 'お客様コード', 'お客様番号', '得意先コード'],
+        vehicleExternalId => ['車両番号', '車両コード', '管理番号', '車両管理番号'],
+        plate => ['登録番号', 'ナンバー', '車番', '自動車登録番号'],
+        type => ['作業内容', '作業区分', '整備区分', '区分', '作業名', '内容', '件名'],
+        total => ['合計金額', '請求金額', '税込金額', '売上金額', '合計', '金額', '税込合計'],
+        mileage => ['走行距離', '入庫時走行距離', 'km'],
+      };
+}
+
+Map<LedgerHistoryField, int> guessHistoryColumns(List<String> header) {
+  final normalized = header.map(_normalizeHeader).toList();
+  final result = <LedgerHistoryField, int>{};
+  final used = <int>{};
+  for (final exact in [true, false]) {
+    for (final f in LedgerHistoryField.values) {
+      if (result.containsKey(f)) continue;
+      for (final alias in f.aliases.map(_normalizeHeader)) {
+        final idx = _indexWhere(normalized, used, (h) {
+          if (exact) return h == alias;
+          return alias.length >= 2 && h.contains(alias);
+        });
+        if (idx != null) {
+          result[f] = idx;
+          used.add(idx);
+          break;
+        }
+      }
+    }
+  }
+  return result;
+}
+
+/// 整備履歴の1行。どの車かは、書き込むときに台帳と突き合わせて決める。
+class LedgerHistoryRow {
+  final int line;
+  final DateTime date;
+  final String? slipNumber;
+  final String? customerExternalId;
+  final String? vehicleExternalId;
+  final String? plate;
+  final String type;
+  final int total;
+  final int? mileage;
+
+  const LedgerHistoryRow({
+    required this.line,
+    required this.date,
+    required this.slipNumber,
+    required this.customerExternalId,
+    required this.vehicleExternalId,
+    required this.plate,
+    required this.type,
+    required this.total,
+    required this.mileage,
+  });
+}
+
+class LedgerHistoryPlan {
+  final List<LedgerHistoryRow> rows;
+  final List<LedgerImportProblem> problems;
+  final int rowCount;
+
+  const LedgerHistoryPlan({
+    required this.rows,
+    required this.problems,
+    required this.rowCount,
+  });
+}
+
+LedgerHistoryPlan buildHistoryPlan(
+  List<List<String>> rows,
+  Map<LedgerHistoryField, int> columns,
+) {
+  final out = <LedgerHistoryRow>[];
+  final problems = <LedgerImportProblem>[];
+
+  String? cell(List<String> row, LedgerHistoryField f) {
+    final idx = columns[f];
+    if (idx == null || idx >= row.length) return null;
+    final v = row[idx].trim();
+    return v.isEmpty ? null : v;
+  }
+
+  for (var r = 0; r < rows.length; r++) {
+    final row = rows[r];
+    final line = r + 2;
+    final rawDate = cell(row, LedgerHistoryField.date);
+    final date = parseLedgerDate(rawDate);
+    if (date == null) {
+      problems.add(LedgerImportProblem(
+          line, rawDate == null ? '作業日が空です' : '作業日「$rawDate」を日付として読めません'));
+      continue;
+    }
+    final rawTotal = cell(row, LedgerHistoryField.total);
+    final total = _parseInt(rawTotal?.replaceAll(RegExp(r'[円¥￥\\]'), ''));
+    if (total == null || total < 0) {
+      problems.add(LedgerImportProblem(
+          line, rawTotal == null ? '金額が空です' : '金額「$rawTotal」を数字として読めません'));
+      continue;
+    }
+    final customerExt = cell(row, LedgerHistoryField.customerExternalId);
+    final vehicleExt = cell(row, LedgerHistoryField.vehicleExternalId);
+    final plate = cell(row, LedgerHistoryField.plate);
+    if (customerExt == null && vehicleExt == null && plate == null) {
+      problems.add(
+          LedgerImportProblem(line, 'どの車の作業か分かりません（顧客番号・車両番号・登録番号のどれかが要ります）'));
+      continue;
+    }
+    out.add(LedgerHistoryRow(
+      line: line,
+      date: date,
+      slipNumber: cell(row, LedgerHistoryField.slipNumber),
+      customerExternalId: customerExt,
+      vehicleExternalId: vehicleExt,
+      plate: plate,
+      type: cell(row, LedgerHistoryField.type) ?? '整備',
+      total: total,
+      mileage: _parseInt(cell(row, LedgerHistoryField.mileage)),
+    ));
+  }
+  return LedgerHistoryPlan(
+      rows: out, problems: problems, rowCount: rows.length);
+}

@@ -18,6 +18,15 @@ class PickedCsvFile {
 
 typedef CsvFilePicker = Future<PickedCsvFile?> Function();
 
+/// 何を取り込むか。
+enum LedgerImportKind {
+  roster('顧客名簿'),
+  history('整備履歴');
+
+  final String label;
+  const LedgerImportKind(this.label);
+}
+
 Future<PickedCsvFile?> _pickWithFilePicker() async {
   final result = await FilePicker.pickFiles(
     type: FileType.custom,
@@ -63,14 +72,19 @@ class _LedgerCsvImportScreenState extends State<LedgerCsvImportScreen> {
   List<String> _header = const [];
   List<List<String>> _rows = const [];
   Map<LedgerImportField, int> _columns = {};
+  Map<LedgerHistoryField, int> _historyColumns = {};
+  LedgerImportKind _kind = LedgerImportKind.roster;
   String? _error;
 
   bool _importing = false;
   int _done = 0;
   int _total = 0;
   LedgerImportResult? _result;
+  LedgerHistoryResult? _historyResult;
 
   LedgerImportPlan get _plan => buildImportPlan(_rows, _columns);
+  LedgerHistoryPlan get _historyPlan =>
+      buildHistoryPlan(_rows, _historyColumns);
 
   Future<void> _pick() async {
     setState(() => _error = null);
@@ -99,8 +113,44 @@ class _LedgerCsvImportScreenState extends State<LedgerCsvImportScreen> {
       _header = table.first;
       _rows = table.sublist(1);
       _columns = guessColumns(_header);
+      _historyColumns = guessHistoryColumns(_header);
       _result = null;
+      _historyResult = null;
     });
+  }
+
+  Future<void> _importHistory() async {
+    final plan = _historyPlan;
+    setState(() {
+      _importing = true;
+      _done = 0;
+      _total = 0;
+      _error = null;
+    });
+    final result = await widget.service.importHistory(
+      shopId: widget.shopId,
+      plan: plan,
+      onProgress: (done, total) {
+        if (mounted) {
+          setState(() {
+            _done = done;
+            _total = total;
+          });
+        }
+      },
+    );
+    if (!mounted) return;
+    result.when(
+      success: (r) => setState(() {
+        _historyResult = r;
+        _importing = false;
+      }),
+      failure: (e) => setState(() {
+        _error = '取り込みに失敗しました: ${e.userMessage}\n'
+            'もう一度取り込んでも二重にはなりません。';
+        _importing = false;
+      }),
+    );
   }
 
   Future<void> _import() async {
@@ -151,13 +201,35 @@ class _LedgerCsvImportScreenState extends State<LedgerCsvImportScreen> {
                 result: _result!,
                 onDone: () => Navigator.pop(context, true),
               )
+            else if (_historyResult != null)
+              _HistoryResultCard(
+                result: _historyResult!,
+                onDone: () => Navigator.pop(context, true),
+              )
             else ...[
+              SegmentedButton<LedgerImportKind>(
+                key: const Key('csv_import_kind'),
+                segments: [
+                  for (final k in LedgerImportKind.values)
+                    ButtonSegment(value: k, label: Text(k.label)),
+                ],
+                selected: {_kind},
+                onSelectionChanged:
+                    _importing ? null : (s) => setState(() => _kind = s.first),
+              ),
+              AppSpacing.verticalMd,
               _stepFile(context),
               if (_decoded != null) ...[
                 AppSpacing.verticalMd,
-                _stepColumns(context),
-                AppSpacing.verticalMd,
-                _stepPreview(context),
+                if (_kind == LedgerImportKind.roster) ...[
+                  _stepColumns(context),
+                  AppSpacing.verticalMd,
+                  _stepPreview(context),
+                ] else ...[
+                  _stepHistoryColumns(context),
+                  AppSpacing.verticalMd,
+                  _stepHistoryPreview(context),
+                ],
               ],
             ],
             if (_error != null) ...[
@@ -183,9 +255,13 @@ class _LedgerCsvImportScreenState extends State<LedgerCsvImportScreen> {
         children: [
           Text('1. ファイルを選ぶ', style: theme.textTheme.titleMedium),
           AppSpacing.verticalXs,
-          const Text(
-            '整備管理ソフトから書き出した CSV を選んでください。'
-            '1行に車1台の形を想定しています（同じ顧客番号の行は1人にまとめます）。',
+          Text(
+            _kind == LedgerImportKind.roster
+                ? '整備管理ソフトから書き出した顧客・車両の CSV を選んでください。'
+                    '1行に車1台の形を想定しています（同じ顧客番号の行は1人にまとめます）。'
+                : '整備管理ソフトから書き出した作業履歴（伝票）の CSV を選んでください。'
+                    '1行に伝票1枚の形を想定しています。先に顧客名簿を取り込んでおくと、'
+                    'どの車の作業かを顧客番号・車両番号・ナンバーで突き合わせます。',
           ),
           AppSpacing.verticalSm,
           OutlinedButton.icon(
@@ -287,6 +363,99 @@ class _LedgerCsvImportScreenState extends State<LedgerCsvImportScreen> {
     );
   }
 
+  Widget _stepHistoryColumns(BuildContext context) {
+    final theme = Theme.of(context);
+    final sample = _rows.first;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('2. 列の対応を確かめる', style: theme.textTheme.titleMedium),
+          AppSpacing.verticalXs,
+          const Text('作業日と金額、それにどの車かが分かる列（顧客番号・車両番号・'
+              '登録番号のどれか）が要ります。'),
+          AppSpacing.verticalSm,
+          for (final field in LedgerHistoryField.values)
+            _ColumnRow(
+              key: Key('csv_hcol_${field.name}'),
+              label: field == LedgerHistoryField.date ||
+                      field == LedgerHistoryField.total
+                  ? '${field.label} *'
+                  : field.label,
+              header: _header,
+              value: _historyColumns[field],
+              sample: sample,
+              enabled: !_importing,
+              onChanged: (v) => setState(() {
+                _historyColumns.removeWhere((_, idx) => idx == v);
+                if (v == null) {
+                  _historyColumns.remove(field);
+                } else {
+                  _historyColumns[field] = v;
+                }
+              }),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepHistoryPreview(BuildContext context) {
+    final theme = Theme.of(context);
+    final ready = _historyColumns.containsKey(LedgerHistoryField.date) &&
+        _historyColumns.containsKey(LedgerHistoryField.total);
+    final plan = ready ? _historyPlan : null;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('3. 取り込む', style: theme.textTheme.titleMedium),
+          AppSpacing.verticalXs,
+          if (plan == null)
+            const Text('「作業日」と「金額」の列を選んでください。')
+          else ...[
+            Text(
+              '伝票 ${plan.rows.length}件 を取り込みます。',
+              key: const Key('csv_history_summary'),
+              style: theme.textTheme.bodyLarge
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const Text('同じ伝票番号（無ければ同じ車・日付・内容・金額）は上書きします。'
+                '台帳に無い車の伝票は取り込まず、あとで一覧にします。'),
+            if (plan.problems.isNotEmpty) ...[
+              AppSpacing.verticalSm,
+              Text(
+                '読めなかった行が ${plan.problems.length} 件あります',
+                style: const TextStyle(color: AppColors.warning),
+              ),
+              for (final p in plan.problems.take(20))
+                Text('${p.line}行目: ${p.message}',
+                    style: theme.textTheme.bodySmall),
+            ],
+          ],
+          AppSpacing.verticalMd,
+          if (_importing) ...[
+            LinearProgressIndicator(
+              value: _total == 0 ? null : _done / _total,
+            ),
+            AppSpacing.verticalXs,
+            Text('取り込んでいます… $_done / $_total'),
+          ] else
+            FilledButton.icon(
+              key: const Key('csv_history_run'),
+              onPressed:
+                  (plan == null || plan.rows.isEmpty) ? null : _importHistory,
+              icon: const Icon(Icons.download_done),
+              label: const Text('取り込む'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(AppSpacing.tapTargetMin),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _stepPreview(BuildContext context) {
     final theme = Theme.of(context);
     final hasName = _columns.containsKey(LedgerImportField.customerName);
@@ -376,6 +545,112 @@ class _ResultCard extends StatelessWidget {
             '更新 ${result.updatedCustomers}人・車両 ${result.vehicles}台',
             key: const Key('csv_import_result'),
           ),
+          AppSpacing.verticalMd,
+          FilledButton(
+            key: const Key('csv_import_done'),
+            onPressed: onDone,
+            child: const Text('台帳に戻る'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ColumnRow extends StatelessWidget {
+  final String label;
+  final List<String> header;
+  final int? value;
+  final List<String> sample;
+  final bool enabled;
+  final ValueChanged<int?> onChanged;
+
+  const _ColumnRow({
+    super.key,
+    required this.label,
+    required this.header,
+    required this.value,
+    required this.sample,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final v = value;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          SizedBox(width: 96, child: Text(label)),
+          Expanded(
+            child: DropdownButton<int?>(
+              isExpanded: true,
+              value: v,
+              items: [
+                const DropdownMenuItem(value: null, child: Text('（使わない）')),
+                for (var i = 0; i < header.length; i++)
+                  DropdownMenuItem(
+                    value: i,
+                    child: Text(
+                      header[i].isEmpty ? '（${i + 1}列目）' : header[i],
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: enabled ? onChanged : null,
+            ),
+          ),
+          AppSpacing.horizontalXs,
+          SizedBox(
+            width: 96,
+            child: Text(
+              v != null && v < sample.length ? sample[v] : '',
+              style: Theme.of(context).textTheme.bodySmall,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryResultCard extends StatelessWidget {
+  final LedgerHistoryResult result;
+  final VoidCallback onDone;
+
+  const _HistoryResultCard({required this.result, required this.onDone});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.check_circle, color: AppColors.success),
+              AppSpacing.horizontalXs,
+              Text('取り込みました', style: theme.textTheme.titleMedium),
+            ],
+          ),
+          AppSpacing.verticalSm,
+          Text(
+            '伝票 ${result.records}件',
+            key: const Key('csv_history_result'),
+          ),
+          if (result.problems.isNotEmpty) ...[
+            AppSpacing.verticalSm,
+            Text(
+              '台帳の車と突き合わせられなかった行が ${result.problems.length} 件あります',
+              style: const TextStyle(color: AppColors.warning),
+            ),
+            for (final p in result.problems.take(30))
+              Text('${p.line}行目: ${p.message}',
+                  style: theme.textTheme.bodySmall),
+          ],
           AppSpacing.verticalMd,
           FilledButton(
             key: const Key('csv_import_done'),

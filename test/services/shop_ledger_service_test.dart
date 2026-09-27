@@ -648,4 +648,164 @@ void main() {
       });
     });
   });
+
+  group('importHistory — 整備履歴の取込', () {
+    const rosterHeader = [
+      '顧客番号',
+      '顧客名',
+      'フリガナ',
+      '車両番号',
+      '登録番号',
+      'メーカー',
+      '車名',
+      '車検満了日',
+      '最終入庫日'
+    ];
+    const historyHeader = [
+      '伝票番号',
+      '作業日',
+      '顧客番号',
+      '車両番号',
+      '登録番号',
+      '作業内容',
+      '合計金額',
+      '走行距離'
+    ];
+
+    Future<void> importRoster(List<List<String>> rows) async {
+      await service.importPlan(
+        shopId: shopId,
+        plan: buildImportPlan(rows, guessColumns(rosterHeader)),
+      );
+    }
+
+    LedgerHistoryPlan history(List<List<String>> rows) =>
+        buildHistoryPlan(rows, guessHistoryColumns(historyHeader));
+
+    setUp(() async {
+      await importRoster([
+        [
+          'C001',
+          '山田',
+          'ヤマダ',
+          'V1',
+          '品川300あ1234',
+          'MINI',
+          'クーパー',
+          '',
+          '2024/1/1'
+        ],
+        ['C002', 'サンプル運輸', 'サンプル', 'V2', '品川400さ1', 'トヨタ', 'ハイエース', '', ''],
+        ['C002', 'サンプル運輸', 'サンプル', 'V3', '品川400さ2', 'トヨタ', 'ハイエース', '', ''],
+      ]);
+    });
+
+    test('車両番号・ナンバー・顧客番号（1台だけ）で車を決めて書く', () async {
+      final r = (await service.importHistory(
+        shopId: shopId,
+        plan: history([
+          ['S1', '2026/3/1', '', 'V1', '', '車検', '120,000', '45000'],
+          ['S2', '2026/4/1', '', '', '品川 400 さ 1', 'オイル交換', '¥5,500', ''],
+          ['S3', '2026/5/1', 'C001', '', '', '12か月点検', '15000円', ''],
+        ]),
+      ))
+          .valueOrNull!;
+      expect(r.records, 3);
+      expect(r.problems, isEmpty);
+
+      final recs =
+          await firestore.collection('shops/$shopId/service_records').get();
+      final byType = {
+        for (final d in recs.docs) d.data()['type']: d.data(),
+      };
+      expect(byType['車検']!['totalCost'], 120000);
+      expect(byType['車検']!['model'], 'クーパー');
+      expect(byType['オイル交換']!['totalCost'], 5500);
+      expect(byType['12か月点検']!['totalCost'], 15000);
+    });
+
+    test('最終来店日と走行距離が、伝票の日付で新しくなる', () async {
+      await service.importHistory(
+        shopId: shopId,
+        plan: history([
+          ['S1', '2026/3/1', '', 'V1', '', '車検', '120000', '45000'],
+          ['S0', '2025/3/1', '', 'V1', '', '点検', '10000', '40000'],
+        ]),
+      );
+      final id = ShopLedgerService.idForExternal('c', 'C001');
+      final c = (await service.getCustomer(shopId: shopId, customerId: id))
+          .valueOrNull!;
+      expect(c.lastVisitAt, DateTime(2026, 3, 1));
+      final v = (await service.vehiclesOf(shopId: shopId, customerId: id))
+          .valueOrNull!
+          .single;
+      expect(v.lastMileage, 45000);
+    });
+
+    test('古い伝票では、最終来店日を戻さない', () async {
+      await service.importHistory(
+        shopId: shopId,
+        plan: history([
+          ['S0', '2023/3/1', '', 'V1', '', '点検', '10000', ''],
+        ]),
+      );
+      final c = (await service.getCustomer(
+        shopId: shopId,
+        customerId: ShopLedgerService.idForExternal('c', 'C001'),
+      ))
+          .valueOrNull!;
+      // 名簿の最終入庫日（2024/1/1）のまま
+      expect(c.lastVisitAt, DateTime(2024, 1, 1));
+    });
+
+    test('同じ伝票を2回取り込んでも二重にならない（伝票番号が無くても）', () async {
+      final noSlip = buildHistoryPlan(
+        [
+          ['2026/3/1', 'V1', '車検', '120000'],
+        ],
+        guessHistoryColumns(['作業日', '車両番号', '作業内容', '合計金額']),
+      );
+      await service.importHistory(shopId: shopId, plan: noSlip);
+      await service.importHistory(shopId: shopId, plan: noSlip);
+      final recs =
+          await firestore.collection('shops/$shopId/service_records').get();
+      expect(recs.docs, hasLength(1));
+    });
+
+    group('Edge Cases', () {
+      test('台帳に無い車の伝票は書かず、何行目かを返す', () async {
+        final r = (await service.importHistory(
+          shopId: shopId,
+          plan: history([
+            ['S9', '2026/3/1', 'C999', '', '', '車検', '100000', ''],
+          ]),
+        ))
+            .valueOrNull!;
+        expect(r.records, 0);
+        expect(r.problems.single.line, 2);
+        expect(r.problems.single.message, contains('先に顧客名簿'));
+      });
+
+      test('顧客番号だけで、その顧客に車が複数あれば決めない', () async {
+        final r = (await service.importHistory(
+          shopId: shopId,
+          plan: history([
+            ['S9', '2026/3/1', 'C002', '', '', '車検', '100000', ''],
+          ]),
+        ))
+            .valueOrNull!;
+        expect(r.records, 0);
+        expect(r.problems.single.message, contains('2台'));
+      });
+    });
+  });
+
+  group('allowsStatistics', () {
+    test('既定は同意なし。切り替えられる', () async {
+      await firestore.collection('shops').doc(shopId).set({'name': '店'});
+      expect((await service.allowsStatistics(shopId)).valueOrNull, isFalse);
+      await service.setAllowsStatistics(shopId: shopId, value: true);
+      expect((await service.allowsStatistics(shopId)).valueOrNull, isTrue);
+    });
+  });
 }

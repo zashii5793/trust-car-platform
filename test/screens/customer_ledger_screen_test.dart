@@ -213,4 +213,24 @@ void main() {
       '1',
     );
   });
+
+  testWidgets('車種別レポートへの協力は、既定でオフ。オンにすると店に記録される', (tester) async {
+    await fs.collection('shops').doc(_shopId).set({'name': 'テスト工場'});
+    await tester.pumpWidget(_build(service));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('ledger_more')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('車種別レポートへの協力'));
+    await tester.pumpAndSettle();
+
+    final sw = find.byKey(const Key('ledger_stats_switch'));
+    expect(tester.widget<SwitchListTile>(sw).value, isFalse);
+    await tester.tap(sw);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(sw).value, isTrue);
+
+    final shop = await fs.collection('shops').doc(_shopId).get();
+    expect(shop.data()!['allowsStatistics'], isTrue);
+  });
 }

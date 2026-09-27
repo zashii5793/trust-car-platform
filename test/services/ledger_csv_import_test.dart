@@ -274,4 +274,41 @@ void main() {
       });
     });
   });
+
+  group('buildHistoryPlan', () {
+    final cols = guessHistoryColumns(['伝票日付', '顧客コード', '作業区分', '税込金額']);
+
+    test('列名の揺れを当て、金額の書き方の揺れを読む', () {
+      final plan = buildHistoryPlan([
+        ['R8.3.1', 'C001', '車検', '¥120,000'],
+        ['2026/4/1', 'C001', 'オイル交換', '5,500円'],
+        ['2026/5/1', 'C001', '', '\\3,000'], // Shift_JIS の円記号は \ になる
+      ], cols);
+      expect(plan.problems, isEmpty);
+      expect(plan.rows.map((r) => r.total), [120000, 5500, 3000]);
+      expect(plan.rows.first.date, DateTime(2026, 3, 1));
+      // 作業内容が空なら「整備」
+      expect(plan.rows.last.type, '整備');
+    });
+
+    group('Edge Cases', () {
+      test('日付・金額が読めない行、車の手がかりが無い行は、理由つきで外す', () {
+        final plan = buildHistoryPlan([
+          ['', 'C001', '車検', '100'],
+          ['2026/2/30', 'C001', '車検', '100'],
+          ['2026/3/1', 'C001', '車検', 'サービス'],
+          ['2026/3/1', '', '車検', '100'],
+        ], cols);
+        expect(plan.rows, isEmpty);
+        expect(plan.problems.map((p) => p.line), [2, 3, 4, 5]);
+      });
+
+      test('マイナスの金額（返品・値引き伝票）は取り込まない', () {
+        final plan = buildHistoryPlan([
+          ['2026/3/1', 'C001', '値引き', '-1,000'],
+        ], cols);
+        expect(plan.rows, isEmpty);
+      });
+    });
+  });
 }

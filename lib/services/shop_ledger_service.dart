@@ -641,6 +641,204 @@ class ShopLedgerService {
   }
 
   // ---------------------------------------------------------------------------
+  // 整備履歴（伝票）の取込
+  // ---------------------------------------------------------------------------
+
+  CollectionReference<Map<String, dynamic>> _records(String shopId) =>
+      _firestore.collection('shops').doc(shopId).collection('service_records');
+
+  /// 整備履歴を `shops/{shopId}/service_records` に書き込む。
+  ///
+  /// どの車の作業かは、台帳と突き合わせて決める（車両番号 → ナンバー →
+  /// 顧客番号の順）。**先に顧客名簿を取り込んでおく**必要がある。
+  /// 決められない行は書かずに、何行目かを添えて返す。
+  ///
+  /// 伝票番号があればそれで、無ければ「車・日付・内容・金額」で同じ伝票と
+  /// みなす。やり直しても二重にならない。
+  ///
+  /// 車ごとの最終来店日・走行距離と、顧客の要約値も作り直す
+  /// （「しばらく来ていない」の判定がこれで正しくなる）。
+  Future<Result<LedgerHistoryResult, AppError>> importHistory({
+    required String shopId,
+    required LedgerHistoryPlan plan,
+    void Function(int done, int total)? onProgress,
+  }) async {
+    try {
+      final vehicles = <String, LedgerVehicle>{
+        for (final d in (await _vehicles(shopId).get()).docs)
+          d.id: LedgerVehicle.fromMap(d.id, d.data()),
+      };
+      final customerIdByExt = <String, String>{};
+      for (final d in (await _customers(shopId).get()).docs) {
+        final ext = d.data()['externalId'] as String?;
+        if (ext != null) customerIdByExt[ext] = d.id;
+      }
+      final byExt = <String, LedgerVehicle>{};
+      final byPlate = <String, LedgerVehicle>{};
+      final byCustomer = <String, List<LedgerVehicle>>{};
+      for (final v in vehicles.values) {
+        if (v.externalId != null) byExt[v.externalId!] = v;
+        if (v.plate != null) byPlate[LedgerSearch.plateKey(v.plate!)] = v;
+        byCustomer.putIfAbsent(v.customerId, () => []).add(v);
+      }
+
+      final problems = <LedgerImportProblem>[];
+      final writes =
+          <(DocumentReference<Map<String, dynamic>>, Map<String, dynamic>)>[];
+      final latest = <String, LedgerHistoryRow>{};
+      final now = Timestamp.fromDate(_now());
+      final recordIds = <String>{};
+
+      for (final row in plan.rows) {
+        LedgerVehicle? v;
+        if (row.vehicleExternalId != null) v = byExt[row.vehicleExternalId!];
+        if (v == null && row.plate != null) {
+          v = byPlate[LedgerSearch.plateKey(row.plate!)];
+        }
+        if (v == null && row.customerExternalId != null) {
+          final cid = customerIdByExt[row.customerExternalId!];
+          final list = cid == null ? null : byCustomer[cid];
+          if (list != null && list.length == 1) {
+            v = list.single;
+          } else if (list != null && list.length > 1) {
+            problems.add(LedgerImportProblem(row.line,
+                '顧客番号「${row.customerExternalId}」の車が${list.length}台あり、どの車か決められません（登録番号か車両番号の列を入れてください）'));
+            continue;
+          }
+        }
+        if (v == null) {
+          problems.add(LedgerImportProblem(
+              row.line, '台帳にこの車が見つかりません（先に顧客名簿を取り込んでください）'));
+          continue;
+        }
+
+        final key = row.slipNumber ??
+            '${v.id}|${row.date.millisecondsSinceEpoch}|${row.type}|${row.total}';
+        final recordId = idForExternal('r', key);
+        recordIds.add(recordId);
+        writes.add((
+          _records(shopId).doc(recordId),
+          {
+            'customerId': v.customerId,
+            'customerVehicleId': v.id,
+            'date': Timestamp.fromDate(row.date),
+            'type': row.type,
+            'totalCost': row.total,
+            'mileage': row.mileage,
+            // 車種レポートの集計で車両を引き直さずに済むよう写しておく
+            'maker': v.maker,
+            'model': v.model,
+            'year': v.year,
+            'externalId': row.slipNumber,
+            'source': LedgerSource.csv.name,
+            'updatedAt': now,
+          },
+        ));
+        final prev = latest[v.id];
+        if (prev == null || row.date.isAfter(prev.date)) latest[v.id] = row;
+      }
+
+      // 車ごとの最終来店・走行距離
+      final touchedCustomers = <String>{};
+      for (final entry in latest.entries) {
+        final v = vehicles[entry.key]!;
+        final row = entry.value;
+        if (v.lastVisitAt != null && !row.date.isAfter(v.lastVisitAt!)) {
+          continue;
+        }
+        final updated = LedgerVehicle.fromMap(v.id, {
+          ...v.toMap(),
+          'lastVisitAt': Timestamp.fromDate(row.date),
+          if (row.mileage != null) 'lastMileage': row.mileage,
+        });
+        vehicles[v.id] = updated;
+        writes.add((
+          _vehicles(shopId).doc(v.id),
+          {
+            'lastVisitAt': Timestamp.fromDate(row.date),
+            if (row.mileage != null) 'lastMileage': row.mileage,
+            'updatedAt': now,
+          },
+        ));
+        touchedCustomers.add(v.customerId);
+      }
+
+      // 顧客の要約値
+      final byCustomerNow = <String, List<LedgerVehicle>>{};
+      for (final v in vehicles.values) {
+        byCustomerNow.putIfAbsent(v.customerId, () => []).add(v);
+      }
+      for (final cid in touchedCustomers) {
+        final summary = LedgerCustomerSummary.of(
+          byCustomerNow[cid] ?? const [],
+          today: _now(),
+        );
+        writes.add((
+          _customers(shopId).doc(cid),
+          {
+            'vehicleCount': summary.vehicleCount,
+            'nextInspectionAt': summary.nextInspectionAt == null
+                ? null
+                : Timestamp.fromDate(summary.nextInspectionAt!),
+            'lastVisitAt': summary.lastVisitAt == null
+                ? null
+                : Timestamp.fromDate(summary.lastVisitAt!),
+            'updatedAt': now,
+          },
+        ));
+      }
+
+      onProgress?.call(0, writes.length);
+      for (var i = 0; i < writes.length; i += _batchLimit) {
+        final batch = _firestore.batch();
+        for (final (ref, data) in writes.skip(i).take(_batchLimit)) {
+          batch.set(ref, data, SetOptions(merge: true));
+        }
+        await batch.commit();
+        onProgress?.call(
+            (i + _batchLimit).clamp(0, writes.length), writes.length);
+      }
+
+      return Result.success(LedgerHistoryResult(
+        records: recordIds.length,
+        problems: problems,
+      ));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 統計への協力
+  // ---------------------------------------------------------------------------
+
+  /// 整備実績を、車種別の維持費レポートの匿名の集計に使ってよいか。
+  Future<Result<bool, AppError>> allowsStatistics(String shopId) async {
+    try {
+      final doc = await _firestore.collection('shops').doc(shopId).get();
+      return Result.success(doc.data()?['allowsStatistics'] == true);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// 同意を切り替える。**書けるのは店主だけ**（shops のルール）。
+  Future<Result<void, AppError>> setAllowsStatistics({
+    required String shopId,
+    required bool value,
+  }) async {
+    try {
+      await _firestore.collection('shops').doc(shopId).update({
+        'allowsStatistics': value,
+        'allowsStatisticsUpdatedAt': Timestamp.fromDate(_now()),
+      });
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // 内部
   // ---------------------------------------------------------------------------
 
@@ -712,4 +910,15 @@ class LedgerImportResult {
     required this.updatedCustomers,
     required this.vehicles,
   });
+}
+
+/// 整備履歴の取込の結果。
+class LedgerHistoryResult {
+  /// 書き込んだ伝票の件数。
+  final int records;
+
+  /// 台帳の車と突き合わせられなかった行。
+  final List<LedgerImportProblem> problems;
+
+  const LedgerHistoryResult({required this.records, required this.problems});
 }
