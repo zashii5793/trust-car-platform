@@ -127,7 +127,7 @@ App Store Connect → アプリ → バージョン → 「Expedited Review」�
   flutter pub upgrade --dry-run
   ```
 - [ ] Firestore セキュリティルールの見直し
-- [ ] 不活性ユーザーへのデータ保持ポリシー確認（退会後30日ルール）
+- [ ] 退会データの削除が毎晩動いているか確認（猶予なし。`purgeDeletedAccounts` のログ）
 
 ### リリース毎
 
@@ -162,7 +162,7 @@ gcloud firestore import gs://trust-car-platform-backup/20260301 \
 
 | データ種別 | 保持期間 | 削除方法 |
 |-----------|---------|---------|
-| 退会ユーザーデータ | 退会後30日 | Firebase Functions scheduled job |
+| 退会ユーザーデータ | 退会の翌日まで（猶予なし・2026-09-03 決定） | `purgeDeletedAccounts`（毎日 03:17） |
 | バックアップデータ | 最大90日 | GCS ライフサイクルポリシー |
 | Crashlyticsログ | 90日（Firebase自動） | 自動 |
 | Analyticsデータ | 14ヶ月（Firebase自動） | 自動 |
@@ -306,7 +306,7 @@ Firebase Console → プロジェクトの設定 → 使用量と請求
 
 | 機能 | Cloud Functions の役割 |
 |------|----------------------|
-| 退会後30日削除 | `scheduled` Function（毎日実行） |
+| 退会データの削除（猶予なし） | `purgeDeletedAccounts`（毎日 03:17） |
 | BtoB 成果報酬計算 | `onWrite` トリガー |
 | プッシュ通知の一括送信 | FCM Admin SDK 呼び出し |
 | 課金処理（Phase 7） | Webhook 受信（Stripe等） |
