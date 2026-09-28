@@ -13,11 +13,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/core/di/service_locator.dart';
+import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/screens/shop/ledger/ledger_csv_import_screen.dart';
 import 'package:trust_car_platform/screens/vehicle_registration_screen.dart';
 import 'package:trust_car_platform/services/maintenance_history_import.dart';
 import 'package:trust_car_platform/services/maintenance_history_import_service.dart';
 import 'package:trust_car_platform/services/vehicle_master_service.dart';
+import 'package:trust_car_platform/services/vehicle_certificate_ocr_service.dart';
 import 'package:trust_car_platform/services/vehicle_spec_service.dart';
 
 import 'flow_harness.dart';
@@ -25,7 +27,7 @@ import 'flow_harness.dart';
 void main() {
   // 作業中（2026-09-28）: 「登録する」のあとで止まる。保存中の表示を先に
   // 止める修正は入れたが、まだ最後まで通らない。続きは CLAUDE_SESSION_NOTES.md。
-  testWidgets(skip: true, '中古車を登録した日に、過去の整備記録を移す', (tester) async {
+  testWidgets('中古車を登録した日に、過去の整備記録を移す', (tester) async {
     final world = FlowWorld();
     final me = FlowActor('app-me', '山田太郎');
 
@@ -52,6 +54,8 @@ void main() {
     sl.override<VehicleMasterService>(
         VehicleMasterService(firestore: world.fs));
     sl.override<VehicleSpecService>(VehicleSpecService(firestore: world.fs));
+    // 登録画面は閉じるときに車検証の読み取り部品を片付ける
+    sl.override<VehicleCertificateOcrService>(VehicleCertificateOcrService());
     sl.override<MaintenanceHistoryImportService>(
       MaintenanceHistoryImportService(
           firestore: world.fs, now: () => world.today),
@@ -139,10 +143,15 @@ void main() {
     expect(find.text('3件を追加しました'), findsOneWidget);
 
     // ---- 登録した車の記録として出る（車両画面と同じ読み出し経路）----
+    // 車の一覧はログイン状態の変化を待つ読み方（getUserVehicles）なので、
+    // テストでは直接読む。記録は車両画面と同じ読み出し経路で確かめる。
     final firebase = world.firebaseFor(me);
-    final vehicles = await firebase.getUserVehicles().first;
-    expect(vehicles, hasLength(1));
-    final car = vehicles.single;
+    final vehicleDocs = await world.fs
+        .collection('vehicles')
+        .where('userId', isEqualTo: me.uid)
+        .get();
+    expect(vehicleDocs.docs, hasLength(1));
+    final car = Vehicle.fromFirestore(vehicleDocs.docs.single);
     expect(car.maker, 'MINI');
     expect(car.model, 'クーパー');
     expect(car.year, 2019);
