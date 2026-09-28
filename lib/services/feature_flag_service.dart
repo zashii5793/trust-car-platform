@@ -42,6 +42,7 @@ class FeatureFlagService {
     'c2c_parts_marketplace': FeatureFlag.c2cPartsMarketplace,
     'premium_features': FeatureFlag.premiumFeatures,
     'part_recommendations': FeatureFlag.partRecommendations,
+    'ai_chat': FeatureFlag.aiChat,
   };
 
   /// Fetches remote overrides and applies them onto [AppConfig].

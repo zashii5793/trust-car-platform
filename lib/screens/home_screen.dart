@@ -199,19 +199,22 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    // AIチャットボタン（全タブ共通）
-    actions.add(
-      IconButton(
-        icon: const Icon(Icons.smart_toy_outlined),
-        tooltip: 'AIに聞く',
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const AiChatScreen()),
-          );
-        },
-      ),
-    );
+    // AIチャットボタン（全タブ共通）。販売版では既定で出さない
+    // （本番に Functions が入り、費用の上限が決まるまで）。
+    if (isFeatureEnabled(FeatureFlag.aiChat)) {
+      actions.add(
+        IconButton(
+          icon: const Icon(Icons.smart_toy_outlined),
+          tooltip: 'AIに聞く',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AiChatScreen()),
+            );
+          },
+        ),
+      );
+    }
 
     // 通知のベルは全タブ共通。タブから外した分、どこからでも届くようにする。
     actions.add(
