@@ -2578,3 +2578,103 @@ describe('vehicle_profiles — 愛車ページ', () => {
     await assertFails(deleteDoc(doc(dbFor(OTHER_UID), path)));
   });
 });
+
+describe('スタッフの招待と参加', () => {
+  const CODE = 'ABC234';
+  const invitePath = `shop_staff_invites/${CODE}`;
+  const NEW_STAFF = 'new_staff_9';
+  const memberPath = `shops/${LEDGER_SHOP_ID}/members/${NEW_STAFF}`;
+  const linkPath = `shop_staff/${NEW_STAFF}`;
+  const inFuture = () => new Date(Date.now() + 3 * 24 * 3600 * 1000);
+
+  async function seedStaffInvite(o = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), invitePath), {
+        shopId: LEDGER_SHOP_ID,
+        shopName: 'タカヤモーター',
+        expiresAt: inFuture(),
+        usedBy: null,
+        ...o,
+      });
+    });
+  }
+
+  async function join(uid) {
+    const db = dbFor(uid);
+    const { writeBatch } = require('firebase/firestore');
+    const batch = writeBatch(db);
+    batch.update(doc(db, invitePath), { usedBy: uid, usedAt: new Date() });
+    batch.set(doc(db, `shops/${LEDGER_SHOP_ID}/members/${uid}`), {
+      role: 'staff', displayName: 'スタッフ', inviteCode: CODE, addedAt: new Date(),
+    });
+    batch.set(doc(db, `shop_staff/${uid}`), { shopId: LEDGER_SHOP_ID, shopName: 'タカヤモーター' });
+    return batch.commit();
+  }
+
+  test('店主はコードを発行できる。スタッフは発行できない', async () => {
+    await seedLedgerShop();
+    const data = { shopId: LEDGER_SHOP_ID, shopName: 'x', expiresAt: inFuture(), usedBy: null };
+    await assertSucceeds(setDoc(doc(dbFor(LEDGER_OWNER_UID), invitePath), data));
+    await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), 'shop_staff_invites/XYZ789'), data));
+  });
+
+  test('コードを入れると、名簿と札が一度に書ける', async () => {
+    await seedLedgerShop();
+    await seedStaffInvite();
+    await assertSucceeds(join(NEW_STAFF));
+    // 入ったあとは台帳が読める
+    await assertSucceeds(getDocs(collection(dbFor(NEW_STAFF), `shops/${LEDGER_SHOP_ID}/customers`)));
+  });
+
+  test('使用済みのコードでは入れない', async () => {
+    await seedLedgerShop();
+    await seedStaffInvite({ usedBy: 'someone' });
+    await assertFails(join(NEW_STAFF));
+  });
+
+  test('期限切れのコードでは入れない', async () => {
+    await seedLedgerShop();
+    await seedStaffInvite({ expiresAt: new Date(Date.now() - 1000) });
+    await assertFails(join(NEW_STAFF));
+  });
+
+  test('コードなしで自分を名簿に載せることはできない', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      setDoc(doc(dbFor(NEW_STAFF), memberPath), { role: 'staff', inviteCode: 'NOPE00' }),
+    );
+  });
+
+  test('コードで入っても owner にはなれない', async () => {
+    await seedLedgerShop();
+    await seedStaffInvite();
+    const db = dbFor(NEW_STAFF);
+    const { writeBatch } = require('firebase/firestore');
+    const batch = writeBatch(db);
+    batch.update(doc(db, invitePath), { usedBy: NEW_STAFF, usedAt: new Date() });
+    batch.set(doc(db, memberPath), { role: 'owner', inviteCode: CODE });
+    await assertFails(batch.commit());
+  });
+
+  test('名簿に載っていないのに札だけ作ることはできない', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      setDoc(doc(dbFor(NEW_STAFF), linkPath), { shopId: LEDGER_SHOP_ID, shopName: 'x' }),
+    );
+  });
+
+  test('店主はスタッフの札を消せる（外すとき）', async () => {
+    await seedLedgerShop();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), { shopId: LEDGER_SHOP_ID });
+    });
+    await assertSucceeds(deleteDoc(doc(dbFor(LEDGER_OWNER_UID), linkPath)));
+  });
+
+  test('他人の札は読めない', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), { shopId: LEDGER_SHOP_ID });
+    });
+    await assertFails(getDoc(doc(dbFor(OTHER_UID), linkPath)));
+  });
+});
