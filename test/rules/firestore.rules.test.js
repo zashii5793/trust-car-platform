@@ -2803,3 +2803,74 @@ describe('vehicle_follows — 愛車ページのフォロー', () => {
       w('modelKey', '==', 'くーぱー'))));
   });
 });
+
+describe('スタッフも明細を送れる（2026-09-28）', () => {
+  const SHOP = 'shop_owner_staffsend';
+  const STAFF = 'staff_send_1';
+  const APP_USER = 'app_user_staffsend';
+  const inqPath = 'inquiries/staff_i1';
+
+  async function seed() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `shops/${SHOP}`), { name: '店', ownerId: SHOP });
+      await setDoc(doc(db, `shops/${SHOP}/members/${STAFF}`), { role: 'staff' });
+      await setDoc(doc(db, `shop_customers/${APP_USER}`), { shopId: SHOP, userId: APP_USER });
+    });
+  }
+  const inquiry = () => ({
+    userId: APP_USER, shopId: SHOP, type: 'general', status: 'pending',
+    subject: '整備明細のお届け', initialMessage: 'x', openedByShop: true,
+    createdAt: new Date(), updatedAt: new Date(),
+  });
+
+  test('スタッフは、つながったお客さんへのスレッドを開ける', async () => {
+    await seed();
+    await assertSucceeds(setDoc(doc(dbFor(STAFF), inqPath), inquiry()));
+  });
+
+  test('スタッフは明細のメッセージを送れ、読める', async () => {
+    await seed();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), inqPath), inquiry());
+    });
+    await assertSucceeds(setDoc(doc(dbFor(STAFF), `${inqPath}/messages/m1`), {
+      senderId: STAFF, isFromShop: true, content: '明細', sentAt: new Date(), isRead: false,
+    }));
+    await assertSucceeds(getDocs(collection(dbFor(STAFF), `${inqPath}/messages`)));
+    await assertSucceeds(getDoc(doc(dbFor(STAFF), inqPath)));
+  });
+
+  test('スタッフは札を読め、つながった顧客を探せる', async () => {
+    await seed();
+    await assertSucceeds(getDoc(doc(dbFor(STAFF), `shop_customers/${APP_USER}`)));
+    const { query: q, where: w } = require('firebase/firestore');
+    await assertSucceeds(getDocs(q(collection(dbFor(STAFF), 'shop_customers'), w('shopId', '==', SHOP))));
+  });
+
+  test('スタッフは顧客専用コードを発行できる', async () => {
+    await seed();
+    await assertSucceeds(setDoc(doc(dbFor(STAFF), 'shop_invites/STF234'), {
+      shopId: SHOP, shopName: '店', shopOwnerId: SHOP, usedCount: 0, isActive: true,
+      createdAt: new Date(), customerId: 'c1',
+    }));
+  });
+
+  test('店と無関係の人は、スレッドも札も触れない', async () => {
+    await seed();
+    await assertFails(setDoc(doc(dbFor(OTHER_UID), inqPath), inquiry()));
+    await assertFails(getDoc(doc(dbFor(OTHER_UID), `shop_customers/${APP_USER}`)));
+  });
+
+  test('スタッフが問い合わせを使って、自分の記録に工場の印を付けることはできない', async () => {
+    await seed();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), inqPath), inquiry());
+    });
+    await assertFails(setDoc(doc(dbFor(STAFF), 'maintenance_records/fake'), {
+      vehicleId: 'v', userId: STAFF, type: 'oilChange', title: 'x', cost: 1,
+      date: new Date(), createdAt: new Date(),
+      inquiryId: 'staff_i1', verificationSource: 'shopImported',
+    }));
+  });
+});

@@ -22,8 +22,8 @@ class CustomerDetailScreen extends StatefulWidget {
   final String customerId;
   final DateTime? today;
 
-  /// アプリとつなぐ・整備明細を送るための部品。店主が開いたときだけ渡す
-  /// （札とスレッドのルールが店主の uid で判定するため、スタッフには出さない）。
+  /// アプリとつなぐ・整備明細を送るための部品。店主もスタッフも使える
+  /// （2026-09-28 にルールを店単位の判定に広げた）。[ownerUid] は店主の uid。
   final LedgerLinkService? linkService;
   final ShopInviteService? inviteService;
   final String? shopName;

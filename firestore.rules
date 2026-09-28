@@ -106,6 +106,14 @@ service cloud.firestore {
             || request.auth.uid == inquiry.shopId);
     }
 
+    // 問い合わせの宛先の店のスタッフか。**整備記録の出所の判定
+    // （inquiryLinkIsHonest）には使わない。** スタッフが自分の記録に
+    // 工場の印を付けられてしまうため、あちらは当事者（利用者・店主）のまま。
+    function isInquiryShopStaff(inquiryId) {
+      return isShopStaff(
+        get(/databases/$(database)/documents/inquiries/$(inquiryId)).data.shopId);
+    }
+
     // ユーザードキュメント
     match /users/{userId} {
       // 自分のデータのみ読み取り可能
@@ -414,10 +422,13 @@ service cloud.firestore {
 
     // 問い合わせデータ (BtoB Marketplace)
     match /inquiries/{inquiryId} {
-      // ショップオーナー（shopId）とユーザー本人（userId）が読み取り可能
+      // ショップオーナー（shopId）とユーザー本人（userId）が読み取り可能。
+      // 店側は店主だけでなく、その店のスタッフも（2026-09-28。顧客台帳を
+      // 店主ひとりで回さないため、明細の送付もスタッフができる）。
       allow read: if isAuthenticated()
         && (request.auth.uid == resource.data.userId
-            || request.auth.uid == resource.data.shopId);
+            || request.auth.uid == resource.data.shopId
+            || isShopStaff(resource.data.shopId));
 
       // 認証済みユーザーが作成可能（自分の userId を設定していること）
       allow create: if isAuthenticated()
@@ -427,15 +438,16 @@ service cloud.firestore {
       // 送るため）。**そのお客さんの札がこの店を指しているときだけ。**
       // 見知らぬ人に店から話しかけることはできない。
       allow create: if isAuthenticated()
-        && request.resource.data.shopId == request.auth.uid
+        && isShopStaff(request.resource.data.shopId)
         && request.resource.data.get('openedByShop', false) == true
         && get(/databases/$(database)/documents/shop_customers/$(request.resource.data.userId)).data.shopId
-             == request.auth.uid;
+             == request.resource.data.shopId;
 
       // 更新はオーナーまたはユーザー本人（既読フラグ等の更新用）
       allow update: if isAuthenticated()
         && (request.auth.uid == resource.data.userId
-            || request.auth.uid == resource.data.shopId);
+            || request.auth.uid == resource.data.shopId
+            || isShopStaff(resource.data.shopId));
 
       // 削除は本人のみ
       allow delete: if isAuthenticated()
@@ -446,14 +458,17 @@ service cloud.firestore {
         // 閲覧は会話の当事者（問い合わせ元ユーザー / 宛先ショップ）のみ。
         // 判定は親 inquiry で行う。メッセージ側の senderId / receiverId を見ると
         // list クエリを静的に検証できず、チャットが常に空になる。
-        allow read: if isInquiryParticipant(inquiryId);
+        allow read: if isInquiryParticipant(inquiryId)
+          || isInquiryShopStaff(inquiryId);
 
-        // 作成は当事者かつ送信者が自分であること
-        allow create: if isInquiryParticipant(inquiryId)
+        // 作成は当事者（または宛先の店のスタッフ）かつ送信者が自分であること
+        allow create: if (isInquiryParticipant(inquiryId)
+            || isInquiryShopStaff(inquiryId))
           && request.resource.data.senderId == request.auth.uid;
 
         // 更新は既読フラグのみ。自分が送っていないメッセージ（＝受信したもの）に限る。
-        allow update: if isInquiryParticipant(inquiryId)
+        allow update: if (isInquiryParticipant(inquiryId)
+            || isInquiryShopStaff(inquiryId))
           && resource.data.senderId != request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'readAt']);
 
@@ -1129,7 +1144,8 @@ service cloud.firestore {
 
       // 発行できるのは店主だけ。自分のIDを shopOwnerId に書くことを強制する。
       allow create: if isAuthenticated()
-        && request.resource.data.shopOwnerId == request.auth.uid
+        && (request.resource.data.shopOwnerId == request.auth.uid
+            || isShopStaff(request.resource.data.shopId))
         && request.resource.data.usedCount == 0
         && request.resource.data.isActive == true;
 
@@ -1181,8 +1197,7 @@ service cloud.firestore {
       allow get: if isAuthenticated() && (
         request.auth.uid == userId
         || (resource.data.shopId != null
-            && get(/databases/$(database)/documents/shops/$(resource.data.shopId))
-                 .data.ownerId == request.auth.uid)
+            && isShopStaff(resource.data.shopId))
       );
 
       // 店側が自分の顧客を数えるためのクエリ。shopId で絞ったものだけ通す。
@@ -1192,8 +1207,7 @@ service cloud.firestore {
       allow list: if isAuthenticated() && (
         resource.data.userId == request.auth.uid
         || (resource.data.shopId is string
-            && get(/databases/$(database)/documents/shops/$(resource.data.shopId))
-                 .data.ownerId == request.auth.uid)
+            && isShopStaff(resource.data.shopId))
       );
 
       // 書けるのは本人だけ。店が勝手に顧客を増やせないようにする。

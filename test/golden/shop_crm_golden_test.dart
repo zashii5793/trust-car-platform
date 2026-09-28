@@ -21,9 +21,11 @@ import 'package:trust_car_platform/screens/shop/ledger/customer_detail_screen.da
 import 'package:trust_car_platform/screens/shop/ledger/customer_ledger_screen.dart';
 import 'package:trust_car_platform/screens/shop/ledger/ledger_csv_import_screen.dart';
 import 'package:trust_car_platform/screens/shop/ledger/shared_vehicles_screen.dart';
+import 'package:trust_car_platform/screens/vehicle/invoice_photo_import_screen.dart';
 import 'package:trust_car_platform/screens/vehicle/maintenance_history_import_screen.dart';
 import 'package:trust_car_platform/screens/vehicle/model_cost_report_screen.dart';
 import 'package:trust_car_platform/screens/vehicle/share_to_shop_screen.dart';
+import 'package:trust_car_platform/services/invoice_ocr_service.dart';
 import 'package:trust_car_platform/services/ledger_csv_import.dart';
 import 'package:trust_car_platform/services/maintenance_history_import.dart';
 import 'package:trust_car_platform/services/maintenance_history_import_service.dart';
@@ -251,6 +253,38 @@ void main() {
         'history_import',
         size: const Size(390, 1500),
         before: () => tester.tap(find.byKey(const Key('history_pick'))),
+      );
+    });
+
+    testWidgets('請求書の写真から移す（読み取ったあと）', (tester) async {
+      final photos = <String, InvoiceData>{
+        '/p/IMG_0412.jpg': InvoiceData(
+          date: DateTime(2025, 4, 2),
+          totalAmount: 132000,
+          shopName: 'タカヤモーター',
+          items: [InvoiceItem(name: '車検整備一式')],
+        ),
+        '/p/IMG_0588.jpg': InvoiceData(
+          date: DateTime(2025, 10, 1),
+          items: [InvoiceItem(name: 'エンジンオイル交換')],
+        ),
+      };
+      await shoot(
+        tester,
+        InvoicePhotoImportScreen(
+          vehicle: _vehicle(),
+          userId: 'u1',
+          service: MaintenanceHistoryImportService(
+            firestore: FakeFirebaseFirestore(),
+            now: () => _today,
+          ),
+          pickPhotos: () async => photos.keys.toList(),
+          readInvoice: (p) async => Result.success(photos[p]!),
+          today: _today,
+        ),
+        'invoice_photo_import',
+        size: const Size(390, 1000),
+        before: () => tester.tap(find.byKey(const Key('invoice_pick'))),
       );
     });
 

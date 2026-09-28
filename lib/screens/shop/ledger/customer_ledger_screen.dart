@@ -39,6 +39,9 @@ class CustomerLedgerScreen extends StatefulWidget {
   /// 顧客とアプリの利用者をつなぎ、整備明細を送るため（店主だけ）。
   final LedgerLinkService? linkService;
   final ShopInviteService? inviteService;
+
+  /// CSV 取込でファイルを選ぶ関数。テスト（操作の流れを通すもの）で差し替える。
+  final CsvFilePicker? csvPicker;
   final String shopId;
   final String shopName;
 
@@ -53,6 +56,7 @@ class CustomerLedgerScreen extends StatefulWidget {
     this.ownerUid,
     this.linkService,
     this.inviteService,
+    this.csvPicker,
     required this.shopId,
     required this.shopName,
     this.today,
@@ -244,6 +248,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
         builder: (_) => LedgerCsvImportScreen(
           service: widget.service,
           shopId: widget.shopId,
+          pickFile: widget.csvPicker ?? pickCsvWithFilePicker,
         ),
       ),
     );

@@ -1180,6 +1180,12 @@ class _StaffEntryCardState extends State<_StaffEntryCard> {
         builder: (_) => CustomerLedgerScreen(
           service: sl.get<ShopLedgerService>(),
           shareService: sl.get<VehicleShareService>(),
+          // スタッフも、お客さんとアプリをつなぎ、明細を送れる（2026-09-28）。
+          // 店のドキュメントIDは店主の uid なので、店主の uid = shopId。
+          // スタッフの管理（staffService）は店主だけなので渡さない。
+          linkService: sl.get<LedgerLinkService>(),
+          inviteService: sl.get<ShopInviteService>(),
+          ownerUid: link.shopId,
           shopId: link.shopId,
           shopName: link.shopName,
         ),

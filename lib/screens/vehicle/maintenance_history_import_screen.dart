@@ -11,7 +11,9 @@ import '../../core/encoding/csv_text_decoder.dart';
 import '../../models/vehicle.dart';
 import '../../services/ledger_csv_import.dart';
 import '../../services/maintenance_history_import.dart';
+import '../../services/invoice_ocr_service.dart';
 import '../../services/maintenance_history_import_service.dart';
+import 'invoice_photo_import_screen.dart';
 import '../../widgets/common/app_card.dart';
 import '../shop/ledger/ledger_csv_import_screen.dart'
     show CsvFilePicker, PickedCsvFile, pickCsvWithFilePicker;
@@ -188,6 +190,38 @@ class _MaintenanceHistoryImportScreenState
               ),
             )
           else ...[
+            // 写真から読むのは端末の中（ML Kit）なので、スマートフォンだけ
+            if (InvoiceOcrService.isSupported) ...[
+              Card(
+                child: ListTile(
+                  key: const Key('history_from_photos'),
+                  leading: const Icon(Icons.photo_camera_outlined,
+                      color: AppColors.primary),
+                  title: const Text('請求書の写真から移す'),
+                  subtitle: const Text('手元に請求書があれば、写真を選ぶだけ'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    final done = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => InvoicePhotoImportScreen(
+                          vehicle: widget.vehicle,
+                          userId: widget.userId,
+                          service: widget.service,
+                          today: widget.today,
+                        ),
+                      ),
+                    );
+                    if (done == true && context.mounted) {
+                      Navigator.pop(context, true);
+                    }
+                  },
+                ),
+              ),
+              AppSpacing.verticalSm,
+              const Text('または、記入用フォーマットで：'),
+              AppSpacing.verticalSm,
+            ],
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

@@ -6,6 +6,32 @@
 
 ---
 
+## 操作の流れを通すテスト（test/flows/）（2026-09-28〜29）
+
+**ブランチ**: `claude/staff-and-invoice-import`（PR #215）
+
+「ユーザー操作を通しで確かめる層が無い」という指摘で、主要な流れ3〜5本を
+本物の画面・本物のサービス・メモリ上の Firestore で通す層を作り始めた。
+PR ごとの CI（flutter test）で回る。土台は `test/flows/flow_harness.dart`。
+
+- [x] 店が名簿を入れ、お客さんとつながり、明細を届ける（`shop_delivers_detail_flow_test.dart`）
+  → **つなぎ目の不具合を発見・修正**: 店から開いたスレッドには車の ID が無く、
+  お客さんが「記録に追加」できなかった
+- [x] 中古車を登録した日に過去記録を移す（`used_car_first_day_flow_test.dart`）
+  → **不具合を発見・修正**: 「移しますか？」の裏で保存中の表示が回り続けていた。
+  それまでの通しテストは登録を最後まで保存したことが無かった
+- [x] 初めて行く店に共有する → 店が台帳に登録（`share_to_new_shop_flow_test.dart`）
+- [x] スタッフが参加して台帳から明細を送る（`staff_joins_flow_test.dart`）
+
+注意（書き方）: 読み取り専用の入力欄はカーソルが点滅し続けるので、押したあとは
+pumpAndSettle ではなく pump(時間) で進める。ログイン状態を待つ読み方
+（getUserVehicles）はテストの外側では待ち続けるので、確認は Firestore を直接読む。
+
+次: デプロイ（#212 → #213 → #215 の順にマージ、
+ルール・索引 → シークレット → Functions）。デプロイは本番なので一手ずつ確認を取る。
+
+---
+
 ## 続き: 過去記録の移管・スタッフ・台帳から明細・愛車ページのフォロー（2026-09-28）
 
 **ブランチ**: `claude/shop-staff-and-feed`（`claude/model-cost-report` = PR #212 の上に積んである）
