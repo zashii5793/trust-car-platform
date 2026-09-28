@@ -22,11 +22,15 @@ class VehicleProfileScreen extends StatefulWidget {
   /// 本人が見ているとき、編集への入口を出すために渡す。
   final VoidCallback? onEdit;
 
+  /// 見ている人。持ち主でなければフォローのボタンを出す。
+  final String? viewerUid;
+
   const VehicleProfileScreen({
     super.key,
     required this.service,
     required this.profile,
     this.onEdit,
+    this.viewerUid,
   });
 
   @override
@@ -35,6 +39,15 @@ class VehicleProfileScreen extends StatefulWidget {
 
 class _VehicleProfileScreenState extends State<VehicleProfileScreen> {
   VehicleProfileContents? _contents;
+  List<VehicleProfile> _sameModel = const [];
+  int _followers = 0;
+  bool _following = false;
+  bool _busy = false;
+
+  bool get _canFollow =>
+      widget.viewerUid != null &&
+      widget.viewerUid != widget.profile.ownerId &&
+      widget.profile.isPublic;
 
   @override
   void initState() {
@@ -43,9 +56,54 @@ class _VehicleProfileScreenState extends State<VehicleProfileScreen> {
   }
 
   Future<void> _load() async {
-    final c = await widget.service.contents(widget.profile);
+    final p = widget.profile;
+    final results = await Future.wait([
+      widget.service.contents(p),
+      widget.service.sameModel(p),
+      widget.service.followerCount(p.vehicleId),
+      if (_canFollow)
+        widget.service
+            .isFollowing(uid: widget.viewerUid!, vehicleId: p.vehicleId)
+      else
+        Future.value(false),
+    ]);
     if (!mounted) return;
-    setState(() => _contents = c);
+    setState(() {
+      _contents = results[0] as VehicleProfileContents;
+      _sameModel = results[1] as List<VehicleProfile>;
+      _followers = results[2] as int;
+      _following = results[3] as bool;
+    });
+  }
+
+  Future<void> _toggleFollow() async {
+    setState(() => _busy = true);
+    final r = _following
+        ? await widget.service.unfollow(
+            uid: widget.viewerUid!, vehicleId: widget.profile.vehicleId)
+        : await widget.service
+            .follow(uid: widget.viewerUid!, profile: widget.profile);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (r.isSuccess) {
+        _following = !_following;
+        _followers += _following ? 1 : -1;
+      }
+    });
+  }
+
+  void _openOther(VehicleProfile other) {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => VehicleProfileScreen(
+          service: widget.service,
+          profile: other,
+          viewerUid: widget.viewerUid,
+        ),
+      ),
+    );
   }
 
   @override
@@ -91,11 +149,28 @@ class _VehicleProfileScreenState extends State<VehicleProfileScreen> {
                     Text(p.specLine, style: theme.textTheme.bodyMedium),
                     Text('オーナー: ${p.ownerName}',
                         style: theme.textTheme.bodySmall),
+                    Text('フォロワー $_followers人',
+                        key: const Key('vehicle_profile_followers'),
+                        style: theme.textTheme.bodySmall),
                   ],
                 ),
               ),
             ],
           ),
+          if (_canFollow) ...[
+            AppSpacing.verticalSm,
+            _following
+                ? OutlinedButton(
+                    key: const Key('vehicle_profile_follow'),
+                    onPressed: _busy ? null : _toggleFollow,
+                    child: const Text('フォロー中'),
+                  )
+                : FilledButton(
+                    key: const Key('vehicle_profile_follow'),
+                    onPressed: _busy ? null : _toggleFollow,
+                    child: const Text('フォローする'),
+                  ),
+          ],
           if (!p.isPublic) ...[
             AppSpacing.verticalSm,
             const Text(
@@ -194,6 +269,21 @@ class _VehicleProfileScreenState extends State<VehicleProfileScreen> {
                   ),
                 ),
             ],
+          ],
+          if (_sameModel.isNotEmpty) ...[
+            AppSpacing.verticalLg,
+            Text('同じ車種の愛車ページ（${_sameModel.length}）',
+                style: theme.textTheme.titleMedium),
+            for (final o in _sameModel)
+              ListTile(
+                key: Key('same_model_${o.vehicleId}'),
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.directions_car_outlined),
+                title: Text(o.title),
+                subtitle: Text('${o.specLine}・${o.ownerName}'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _openOther(o),
+              ),
           ],
           AppSpacing.verticalXl,
         ],

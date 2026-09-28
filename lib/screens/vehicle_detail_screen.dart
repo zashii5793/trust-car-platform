@@ -440,6 +440,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
             key: ValueKey(current.updatedAt),
             service: service,
             profile: current,
+            viewerUid: user.uid,
             onEdit: () async {
               final updated = await edit(current);
               if (updated != null) setLocal(() => current = updated);

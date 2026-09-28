@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'maintenance_record.dart';
+import 'model_cost_report.dart';
 
 /// 愛車ページ（公開）。`vehicle_profiles/{vehicleId}`
 ///
@@ -82,6 +83,9 @@ class VehicleProfile {
             ? maintenance.map((m) => m.toMap()).toList()
             : <Map<String, dynamic>>[],
         'updatedAt': Timestamp.fromDate(updatedAt),
+        // 同じ車種の愛車ページを引くためのキー（表記の揺れを揃えたもの）
+        'makerKey': modelCostKey(maker),
+        'modelKey': modelCostKey(model),
       };
 
   factory VehicleProfile.fromMap(Map<String, dynamic> m) => VehicleProfile(

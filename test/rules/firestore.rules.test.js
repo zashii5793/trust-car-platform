@@ -2751,3 +2751,55 @@ describe('台帳の顧客とアプリの利用者をつなぐ', () => {
     await assertFails(setDoc(doc(dbFor(SHOP), 'inquiries/i1'), inquiry()));
   });
 });
+
+describe('vehicle_follows — 愛車ページのフォロー', () => {
+  const OWNER = 'vf_owner';
+  const VID = 'vf_vehicle';
+  const FAN = 'vf_fan';
+  async function seedProfile(isPublic = true) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `vehicle_profiles/${VID}`), {
+        vehicleId: VID, ownerId: OWNER, isPublic, maintenance: [],
+      });
+    });
+  }
+  const follow = (uid) => ({ uid, vehicleId: VID, ownerId: OWNER, createdAt: new Date() });
+
+  test('公開中のページはフォローできる', async () => {
+    await seedProfile();
+    await assertSucceeds(setDoc(doc(dbFor(FAN), `vehicle_follows/${FAN}_${VID}`), follow(FAN)));
+  });
+
+  test('非公開のページはフォローできない', async () => {
+    await seedProfile(false);
+    await assertFails(setDoc(doc(dbFor(FAN), `vehicle_follows/${FAN}_${VID}`), follow(FAN)));
+  });
+
+  test('自分の車はフォローできない', async () => {
+    await seedProfile();
+    await assertFails(setDoc(doc(dbFor(OWNER), `vehicle_follows/${OWNER}_${VID}`), follow(OWNER)));
+  });
+
+  test('他人の名前でフォローすることはできない', async () => {
+    await seedProfile();
+    await assertFails(setDoc(doc(dbFor(OTHER_UID), `vehicle_follows/${FAN}_${VID}`), follow(FAN)));
+  });
+
+  test('やめられるのは本人だけ', async () => {
+    await seedProfile();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `vehicle_follows/${FAN}_${VID}`), follow(FAN));
+    });
+    await assertFails(deleteDoc(doc(dbFor(OTHER_UID), `vehicle_follows/${FAN}_${VID}`)));
+    await assertSucceeds(deleteDoc(doc(dbFor(FAN), `vehicle_follows/${FAN}_${VID}`)));
+  });
+
+  test('同じ車種の公開ページを一覧できる（非公開は条件に入れないと拒否）', async () => {
+    await seedProfile();
+    const { query: q, where: w } = require('firebase/firestore');
+    await assertSucceeds(getDocs(q(collection(dbFor(FAN), 'vehicle_profiles'),
+      w('isPublic', '==', true), w('modelKey', '==', 'くーぱー'))));
+    await assertFails(getDocs(q(collection(dbFor(FAN), 'vehicle_profiles'),
+      w('modelKey', '==', 'くーぱー'))));
+  });
+});

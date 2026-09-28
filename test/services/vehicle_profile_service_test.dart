@@ -207,4 +207,72 @@ void main() {
       });
     });
   });
+
+  group('フォロー・同じ車種', () {
+    Vehicle other(String id, String owner, {String model = 'クーパー'}) => Vehicle(
+          id: id,
+          userId: owner,
+          maker: 'MINI',
+          model: model,
+          year: 2020,
+          grade: '',
+          mileage: 0,
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        );
+
+    Future<VehicleProfile> publish(Vehicle v, {bool isPublic = true}) async =>
+        (await service.save(
+          ownerId: v.userId,
+          ownerName: v.userId,
+          vehicle: v,
+          isPublic: isPublic,
+          showsMaintenance: false,
+        ))
+            .valueOrNull!;
+
+    test('フォローすると人数が増え、やめると減る', () async {
+      final p = await publish(vehicle);
+      await service.follow(uid: 'fan1', profile: p);
+      await service.follow(uid: 'fan2', profile: p);
+      expect(await service.followerCount('v1'), 2);
+      expect(await service.isFollowing(uid: 'fan1', vehicleId: 'v1'), isTrue);
+      await service.unfollow(uid: 'fan1', vehicleId: 'v1');
+      expect(await service.followerCount('v1'), 1);
+      expect(await service.isFollowing(uid: 'fan1', vehicleId: 'v1'), isFalse);
+    });
+
+    test('同じ車種の公開ページだけ。自分と非公開と別の車種は出さない', () async {
+      final mine = await publish(vehicle);
+      await publish(other('v2', 'u2'));
+      await publish(other('v3', 'u3'), isPublic: false);
+      await publish(other('v4', 'u4', model: 'クラブマン'));
+      // 表記が揺れていても同じ車種
+      await publish(other('v5', 'u5', model: 'ｸｰﾊﾟｰ'));
+      final list = await service.sameModel(mine);
+      expect(list.map((p) => p.vehicleId).toSet(), {'v2', 'v5'});
+    });
+
+    test('フォロー中の公開ページを返す（非公開になったものは出さない）', () async {
+      final a = await publish(other('v2', 'u2'));
+      final b = await publish(other('v3', 'u3'));
+      await service.follow(uid: 'fan', profile: a);
+      await service.follow(uid: 'fan', profile: b);
+      await publish(other('v3', 'u3'), isPublic: false);
+      final list = await service.followed('fan');
+      expect(list.map((p) => p.vehicleId), ['v2']);
+    });
+
+    group('Edge Cases', () {
+      test('自分の車はフォローできない', () async {
+        final p = await publish(vehicle);
+        final r = await service.follow(uid: 'u1', profile: p);
+        expect(r.isFailure, isTrue);
+      });
+
+      test('何もフォローしていなければ空', () async {
+        expect(await service.followed('nobody'), isEmpty);
+      });
+    });
+  });
 }

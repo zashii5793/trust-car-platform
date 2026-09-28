@@ -188,4 +188,115 @@ class VehicleProfileService {
     }
     return out;
   }
+
+  // ---------------------------------------------------------------------------
+  // フォロー・同じ車種
+  // ---------------------------------------------------------------------------
+
+  CollectionReference<Map<String, dynamic>> get _follows =>
+      _firestore.collection('vehicle_follows');
+
+  static String _followId(String uid, String vehicleId) => '${uid}_$vehicleId';
+
+  Future<Result<void, AppError>> follow({
+    required String uid,
+    required VehicleProfile profile,
+  }) async {
+    if (uid == profile.ownerId) {
+      return const Result.failure(AppError.validation('自分の車はフォローできません'));
+    }
+    try {
+      await _follows.doc(_followId(uid, profile.vehicleId)).set({
+        'uid': uid,
+        'vehicleId': profile.vehicleId,
+        'ownerId': profile.ownerId,
+        'createdAt': Timestamp.fromDate(_now()),
+      });
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  Future<Result<void, AppError>> unfollow({
+    required String uid,
+    required String vehicleId,
+  }) async {
+    try {
+      await _follows.doc(_followId(uid, vehicleId)).delete();
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  Future<bool> isFollowing({
+    required String uid,
+    required String vehicleId,
+  }) async {
+    try {
+      return (await _follows.doc(_followId(uid, vehicleId)).get()).exists;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// フォロワーの人数。**数えるだけで、全員分は読まない。**
+  Future<int> followerCount(String vehicleId) async {
+    try {
+      final agg =
+          await _follows.where('vehicleId', isEqualTo: vehicleId).count().get();
+      return agg.count ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// 同じ車種の、公開している愛車ページ（自分のページは除く）。
+  Future<List<VehicleProfile>> sameModel(VehicleProfile p,
+      {int limit = 20}) async {
+    try {
+      final data = p.toMap();
+      final snap = await _firestore
+          .collection(collection)
+          .where('isPublic', isEqualTo: true)
+          .where('makerKey', isEqualTo: data['makerKey'])
+          .where('modelKey', isEqualTo: data['modelKey'])
+          .limit(limit + 1)
+          .get();
+      return _each(snap.docs, (d) => VehicleProfile.fromMap(d.data()))
+          .where((x) => x.vehicleId != p.vehicleId)
+          .take(limit)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// フォローしている愛車ページ（公開中のものだけ・新しくフォローした順）。
+  Future<List<VehicleProfile>> followed(String uid, {int limit = 30}) async {
+    try {
+      final follows =
+          await _follows.where('uid', isEqualTo: uid).limit(limit).get();
+      final ids = follows.docs
+          .map((d) => d.data()['vehicleId'] as String?)
+          .whereType<String>()
+          .toList();
+      if (ids.isEmpty) return const [];
+      final out = <VehicleProfile>[];
+      // whereIn は30件まで
+      for (var i = 0; i < ids.length; i += 30) {
+        final chunk = ids.skip(i).take(30).toList();
+        final snap = await _firestore
+            .collection(collection)
+            .where('isPublic', isEqualTo: true)
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+        out.addAll(_each(snap.docs, (d) => VehicleProfile.fromMap(d.data())));
+      }
+      return out;
+    } catch (_) {
+      return const [];
+    }
+  }
 }

@@ -962,7 +962,8 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
              'vehicleId', 'ownerId', 'ownerName', 'maker', 'model', 'year',
              'grade', 'nickname', 'bio', 'imageUrl', 'isPublic',
-             'showsMaintenance', 'maintenance', 'updatedAt'])
+             'showsMaintenance', 'maintenance', 'updatedAt', 'makerKey',
+             'modelKey'])
         && request.resource.data.isPublic is bool
         && request.resource.data.maintenance is list
         && (request.resource.data.showsMaintenance == true
@@ -999,6 +1000,20 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && (
         request.auth.uid == uid || isShopOwnerOf(resource.data.shopId)
       );
+    }
+
+    // 愛車ページのフォロー。人のフォロー（follows）と同じ扱い。
+    // フォローできるのは公開中のページだけ・自分の車は除く。
+    match /vehicle_follows/{followId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && request.resource.data.uid == request.auth.uid
+        && followId == request.auth.uid + '_' + request.resource.data.vehicleId
+        && get(/databases/$(database)/documents/vehicle_profiles/$(request.resource.data.vehicleId)).data.isPublic == true
+        && get(/databases/$(database)/documents/vehicle_profiles/$(request.resource.data.vehicleId)).data.ownerId
+             != request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow update: if false;
     }
 
     // 車種別の維持費レポート（docs/SHOP_CRM_DESIGN_2026-09-27.md §8）。

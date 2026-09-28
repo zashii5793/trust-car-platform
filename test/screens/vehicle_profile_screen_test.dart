@@ -201,4 +201,42 @@ void main() {
       expect(find.text('この車の愛車ページは公開されていません'), findsOneWidget);
     });
   });
+
+  group('フォロー', () {
+    testWidgets('他人のページならフォローでき、人数が増える', (tester) async {
+      final p = (await service.save(
+        ownerId: 'u1',
+        ownerName: 'みにお',
+        vehicle: _vehicle,
+        isPublic: true,
+        showsMaintenance: false,
+      ))
+          .valueOrNull!;
+      await pump(
+        tester,
+        VehicleProfileScreen(service: service, profile: p, viewerUid: 'fan'),
+      );
+      expect(find.text('フォロワー 0人'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('vehicle_profile_follow')));
+      await tester.pumpAndSettle();
+      expect(find.text('フォロー中'), findsOneWidget);
+      expect(find.text('フォロワー 1人'), findsOneWidget);
+    });
+
+    testWidgets('自分のページにはフォローのボタンを出さない', (tester) async {
+      final p = (await service.save(
+        ownerId: 'u1',
+        ownerName: 'みにお',
+        vehicle: _vehicle,
+        isPublic: true,
+        showsMaintenance: false,
+      ))
+          .valueOrNull!;
+      await pump(
+        tester,
+        VehicleProfileScreen(service: service, profile: p, viewerUid: 'u1'),
+      );
+      expect(find.byKey(const Key('vehicle_profile_follow')), findsNothing);
+    });
+  });
 }
