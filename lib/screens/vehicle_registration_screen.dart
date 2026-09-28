@@ -1,3 +1,5 @@
+import 'shop/ledger/ledger_csv_import_screen.dart'
+    show CsvFilePicker, pickCsvWithFilePicker;
 import '../providers/auth_provider.dart';
 import '../services/maintenance_history_import_service.dart';
 import 'vehicle/maintenance_history_import_screen.dart';
@@ -31,7 +33,11 @@ import 'vehicle_certificate_result_screen.dart';
 import 'vehicle/vehicle_ocr_matcher.dart';
 
 class VehicleRegistrationScreen extends StatefulWidget {
-  const VehicleRegistrationScreen({super.key});
+  /// 登録の直後に過去の整備記録を移すとき、ファイルを選ぶ関数。
+  /// 操作の流れを通すテストで差し替える。
+  final CsvFilePicker? historyCsvPicker;
+
+  const VehicleRegistrationScreen({super.key, this.historyCsvPicker});
 
   @override
   State<VehicleRegistrationScreen> createState() =>
@@ -629,6 +635,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         showSuccessSnackBar(context, '車両を登録しました');
         final newId = provider.lastAddedVehicleId;
         if (newId != null && isLikelyUsedVehicle(vehicle, DateTime.now())) {
+          // 保存は終わっている。聞いている間も「保存中」を回し続けないよう、
+          // 先に止める（止めるのが答えた後だと、ダイアログの裏で回り続ける）
+          setState(() => _isLoading = false);
           await _offerHistoryImport(vehicle.copyWith(id: newId));
           return;
         }
@@ -678,6 +687,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
             vehicle: vehicle,
             userId: user.uid,
             service: sl.get<MaintenanceHistoryImportService>(),
+            pickFile: widget.historyCsvPicker ?? pickCsvWithFilePicker,
           ),
         ),
       );
