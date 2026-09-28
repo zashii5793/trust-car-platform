@@ -2678,3 +2678,76 @@ describe('スタッフの招待と参加', () => {
     await assertFails(getDoc(doc(dbFor(OTHER_UID), linkPath)));
   });
 });
+
+describe('台帳の顧客とアプリの利用者をつなぐ', () => {
+  const SHOP = 'shop_owner_link';
+  const APP_USER = 'app_user_link';
+  const CODE = 'CUS234';
+  const linkPath = `shop_customers/${APP_USER}`;
+
+  async function seed({ customerId = 'c1' } = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `shops/${SHOP}`), { name: '店', ownerId: SHOP });
+      await setDoc(doc(db, `shop_invites/${CODE}`), {
+        shopId: SHOP, shopName: '店', shopOwnerId: SHOP,
+        isActive: true, usedCount: 0, createdAt: new Date(), customerId,
+      });
+    });
+  }
+  const link = (o = {}) => ({
+    shopId: SHOP, shopName: '店', userId: APP_USER, linkedAt: new Date(),
+    customerId: 'c1', inviteCode: CODE, ...o,
+  });
+
+  test('その顧客宛ての招待を使えば、札に顧客IDを書ける', async () => {
+    await seed();
+    await assertSucceeds(setDoc(doc(dbFor(APP_USER), linkPath), link()));
+  });
+
+  test('招待と違う顧客IDを名乗ることはできない（別人の明細を受け取らせない）', async () => {
+    await seed();
+    await assertFails(setDoc(doc(dbFor(APP_USER), linkPath), link({ customerId: 'c999' })));
+  });
+
+  test('招待コードなしに顧客IDだけ書くことはできない', async () => {
+    await seed();
+    await assertFails(
+      setDoc(doc(dbFor(APP_USER), linkPath), link({ inviteCode: null })),
+    );
+  });
+
+  test('顧客IDの無い札は、これまでどおり作れる', async () => {
+    await seed();
+    await assertSucceeds(
+      setDoc(doc(dbFor(APP_USER), linkPath), link({ customerId: null, inviteCode: null })),
+    );
+  });
+
+  const inquiry = (o = {}) => ({
+    userId: APP_USER, shopId: SHOP, type: 'general', status: 'pending',
+    subject: '整備明細のお届け', initialMessage: 'x', openedByShop: true,
+    createdAt: new Date(), updatedAt: new Date(), ...o,
+  });
+
+  test('つながったお客さんには、店からスレッドを開ける', async () => {
+    await seed();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), link());
+    });
+    await assertSucceeds(setDoc(doc(dbFor(SHOP), 'inquiries/i1'), inquiry()));
+  });
+
+  test('つながっていない人には、店から話しかけられない', async () => {
+    await seed();
+    await assertFails(setDoc(doc(dbFor(SHOP), 'inquiries/i1'), inquiry()));
+  });
+
+  test('他店のお客さんには、店から話しかけられない', async () => {
+    await seed();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), link({ shopId: 'other_shop' }));
+    });
+    await assertFails(setDoc(doc(dbFor(SHOP), 'inquiries/i1'), inquiry()));
+  });
+});

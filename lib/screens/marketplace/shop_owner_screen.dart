@@ -24,6 +24,7 @@ import '../../services/shop_invite_service.dart';
 import '../../services/shop_ledger_service.dart';
 import '../../services/vehicle_share_service.dart';
 import '../../services/shop_staff_service.dart';
+import '../../services/ledger_link_service.dart';
 import '../shop/ledger/staff_screens.dart';
 import '../shop/ledger/customer_ledger_screen.dart';
 
@@ -325,6 +326,8 @@ class _RegisteredBody extends StatelessWidget {
                   shareService: sl.get<VehicleShareService>(),
                   staffService: sl.get<ShopStaffService>(),
                   ownerUid: shop.ownerId,
+                  linkService: sl.get<LedgerLinkService>(),
+                  inviteService: sl.get<ShopInviteService>(),
                   shopId: shop.id,
                   shopName: shop.name,
                 ),

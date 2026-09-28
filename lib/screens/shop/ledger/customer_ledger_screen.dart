@@ -8,6 +8,8 @@ import '../../../models/shop_ledger.dart';
 import '../../../services/shop_ledger_service.dart';
 import '../../../services/vehicle_share_service.dart';
 import '../../../services/shop_staff_service.dart';
+import '../../../services/ledger_link_service.dart';
+import '../../../services/shop_invite_service.dart';
 import '../../../widgets/common/loading_indicator.dart';
 import 'customer_detail_screen.dart';
 import 'customer_edit_screen.dart';
@@ -33,6 +35,10 @@ class CustomerLedgerScreen extends StatefulWidget {
   /// 店主が開いたときだけ渡す（スタッフの管理・統計協力の切り替えは店主だけ）。
   final ShopStaffService? staffService;
   final String? ownerUid;
+
+  /// 顧客とアプリの利用者をつなぎ、整備明細を送るため（店主だけ）。
+  final LedgerLinkService? linkService;
+  final ShopInviteService? inviteService;
   final String shopId;
   final String shopName;
 
@@ -45,6 +51,8 @@ class CustomerLedgerScreen extends StatefulWidget {
     this.shareService,
     this.staffService,
     this.ownerUid,
+    this.linkService,
+    this.inviteService,
     required this.shopId,
     required this.shopName,
     this.today,
@@ -121,6 +129,10 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
           shopId: widget.shopId,
           customerId: customerId,
           today: widget.today,
+          linkService: widget.linkService,
+          inviteService: widget.inviteService,
+          shopName: widget.shopName,
+          ownerUid: widget.ownerUid,
         ),
       ),
     );
