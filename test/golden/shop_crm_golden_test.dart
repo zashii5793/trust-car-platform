@@ -20,6 +20,7 @@ import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/screens/shop/ledger/customer_detail_screen.dart';
 import 'package:trust_car_platform/screens/shop/ledger/customer_ledger_screen.dart';
 import 'package:trust_car_platform/screens/shop/ledger/ledger_csv_import_screen.dart';
+import 'package:trust_car_platform/screens/shop/ledger/loss_report_screen.dart';
 import 'package:trust_car_platform/screens/shop/ledger/shared_vehicles_screen.dart';
 import 'package:trust_car_platform/screens/vehicle/invoice_photo_import_screen.dart';
 import 'package:trust_car_platform/screens/vehicle/maintenance_history_import_screen.dart';
@@ -165,6 +166,35 @@ void main() {
           today: _today,
         ),
         'ledger_customer_detail',
+      );
+    });
+
+    testWidgets('車検の取りこぼし', (tester) async {
+      final fs = FakeFirebaseFirestore();
+      final service = await _seededLedger(fs);
+      await service.importHistory(
+        shopId: _shopId,
+        plan: buildHistoryPlan([
+          ['S1', '2026/3/20', '品川400さ1', '車検', '120000'],
+        ], guessHistoryColumns(['伝票番号', '作業日', '登録番号', '作業内容', '合計金額'])),
+      );
+      // 満了日を過去にずらした状態を作る（名簿の満了日は先の日付なので）
+      final vehicles =
+          await fs.collection('shops/$_shopId/customer_vehicles').get();
+      final expiries = [
+        DateTime(2026, 4, 10),
+        DateTime(2026, 6, 5),
+        DateTime(2026, 8, 20)
+      ];
+      for (var i = 0; i < 3 && i < vehicles.docs.length; i++) {
+        await vehicles.docs[i].reference
+            .update({'inspectionExpiry': expiries[i]});
+      }
+      await shoot(
+        tester,
+        LossReportScreen(service: service, shopId: _shopId),
+        'loss_report',
+        size: const Size(390, 1300),
       );
     });
 

@@ -11,6 +11,7 @@ import '../../../services/shop_staff_service.dart';
 import '../../../services/ledger_link_service.dart';
 import '../../../services/shop_audit_service.dart';
 import 'audit_log_screen.dart';
+import 'loss_report_screen.dart';
 import '../../../services/shop_invite_service.dart';
 import '../../../widgets/common/loading_indicator.dart';
 import 'customer_detail_screen.dart';
@@ -169,6 +170,19 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
     await _openCustomer(created.id);
   }
 
+  Future<void> _openLoss() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LossReportScreen(
+          service: widget.service,
+          shopId: widget.shopId,
+          onOpenCustomer: _openCustomer,
+        ),
+      ),
+    );
+  }
+
   Future<void> _openAudit() async {
     await Navigator.push<void>(
       context,
@@ -286,6 +300,12 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
       appBar: AppBar(
         title: const Text('顧客台帳'),
         actions: [
+          IconButton(
+            key: const Key('ledger_loss'),
+            tooltip: '車検の取りこぼし',
+            icon: const Icon(Icons.trending_down),
+            onPressed: _openLoss,
+          ),
           if (widget.shareService != null)
             IconButton(
               key: const Key('ledger_shared_vehicles'),
