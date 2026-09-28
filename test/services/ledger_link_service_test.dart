@@ -159,7 +159,7 @@ void main() {
       expect(find.byKey(const Key('customer_send_detail')), findsOneWidget);
     });
 
-    testWidgets('部品を渡さない（スタッフが開いた）ときは、どちらも出さない', (tester) async {
+    testWidgets('部品を渡さない（共有された車から開いたなど）ときは、どちらも出さない', (tester) async {
       final c = await customer();
       await tester.pumpWidget(MaterialApp(
         home: CustomerDetailScreen(
