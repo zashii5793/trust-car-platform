@@ -520,9 +520,17 @@ HUMAN_TASKS が以前「常時位置情報の審査が厳しい」と書いて�
 
 ---
 
-### 13. Firebase App Check の有効化 `[コード検証済: 未導入]`
+### 13. Firebase App Check の有効化 `[2026-09-29: アプリ側は導入済み（監視だけ）]`
 
-**状態**: `firebase_app_check` は依存にも実装にも入っていません。
+**状態**: アプリ側は入れました（`lib/core/security/app_check_setup.dart`。起動時に有効化、
+開発中はデバッグ用、Web はサイトキーがあるときだけ）。**Console で「強制」にしない限り、
+誰も弾かれません。** 残りは Console の作業です:
+
+- Android: Play Integrity を登録（リリース鍵の SHA-256 が要る＝P0-1 の後）
+- iOS: App Attest（と DeviceCheck）を登録
+- 数週間「正規のリクエストの割合」を見てから、Firestore → Storage の順に強制へ
+
+以下は導入前に書いた手順（参考）:
 
 Bot・不正アクセスから Firestore を保護します。本番運用では推奨ですが、**導入すると全リクエストに
 アテステーションが必要になる**ため、設定漏れがあるとアプリが動かなくなります。ソフトローンチ後、

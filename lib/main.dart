@@ -1,3 +1,4 @@
+import 'core/security/app_check_setup.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -108,6 +109,9 @@ void main() async {
       cacheSizeBytes: 100 * 1024 * 1024, // 100MB
     );
   }
+
+  // App Check（監視だけ。弾くかどうかは Console で決める）
+  await activateAppCheck(useEmulator: useEmulatorSuite);
 
   // Initialize Crashlytics (only in release mode)
   await _initializeCrashlytics();
