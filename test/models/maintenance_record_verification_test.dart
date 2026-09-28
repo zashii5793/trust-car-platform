@@ -129,4 +129,62 @@ void main() {
       });
     });
   });
+
+  group('withEdits（編集画面の保存）', () {
+    MaintenanceRecord base({String? inquiryId}) => MaintenanceRecord(
+          id: 'r1',
+          vehicleId: 'v1',
+          userId: 'u1',
+          type: MaintenanceType.carInspection,
+          title: '車検',
+          cost: 120000,
+          date: DateTime(2026, 3, 1),
+          createdAt: DateTime(2026, 3, 1),
+          workItems: const [WorkItem(name: '点検', laborCost: 30000)],
+          partsCost: 20000,
+          inquiryId: inquiryId,
+          imageUrls: const ['a.jpg'],
+        );
+
+    MaintenanceRecord edit(MaintenanceRecord r, {int cost = 1, String? memo}) =>
+        r.withEdits(
+          type: MaintenanceType.oilChange,
+          title: '書き換え',
+          description: memo,
+          cost: cost,
+          shopName: null,
+          date: DateTime(2020),
+          mileageAtService: null,
+          partNumber: null,
+          partManufacturer: null,
+          tireSize: null,
+          tirePosition: null,
+        );
+
+    test('自己申告なら、画面の値で置き換え、画面に無い項目は引き継ぐ', () {
+      final e = edit(base(), cost: 5000, memo: 'メモ');
+      expect(e.cost, 5000);
+      expect(e.title, '書き換え');
+      expect(e.description, 'メモ');
+      expect(e.workItems.single.name, '点検');
+      expect(e.partsCost, 20000);
+      expect(e.imageUrls, ['a.jpg']);
+      expect(e.createdAt, DateTime(2026, 3, 1));
+    });
+
+    test('工場から受け取った記録は、金額・日付・内容を変えない（メモは変える）', () {
+      final e = edit(base(inquiryId: 'inq'), cost: 1, memo: 'メモ');
+      expect(e.cost, 120000);
+      expect(e.title, '車検');
+      expect(e.date, DateTime(2026, 3, 1));
+      expect(e.type, MaintenanceType.carInspection);
+      expect(e.description, 'メモ');
+      expect(e.verificationSource, VerificationSource.shopImported);
+    });
+
+    test('メモを空に戻せる（copyWith ではできない）', () {
+      final r = base().copyWith(description: '前のメモ');
+      expect(edit(r, memo: null).description, isNull);
+    });
+  });
 }

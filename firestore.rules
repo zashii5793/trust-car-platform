@@ -38,6 +38,63 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == shopId;
     }
 
+    // 店の持ち主か。docId と uid が一致しない店（シードで入れた店など）もあるので、
+    // isShopOwner と違い店のドキュメントの ownerId を見る。
+    function isShopOwnerOf(shopId) {
+      return isAuthenticated()
+        && get(/databases/$(database)/documents/shops/$(shopId)).data.ownerId
+             == request.auth.uid;
+    }
+
+    // 店のスタッフか（持ち主を含む）。顧客台帳は店のスタッフ全員で使う。
+    // docs/SHOP_CRM_DESIGN_2026-09-27.md §4-1
+    function isShopStaff(shopId) {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/shops/$(shopId)/members/$(request.auth.uid))
+        || isShopOwnerOf(shopId)
+      );
+    }
+
+    function isShortString(v, maxLen) {
+      return v is string && v.size() > 0 && v.size() <= maxLen;
+    }
+
+    // 台帳の顧客。**アプリ利用者とのつながり（linkedUserId）は店が勝手に
+    // 名乗れない。** その人が自分で置いた shop_customers の札が、この店を
+    // 指しているときだけ書ける。
+    function validLedgerCustomer(shopId) {
+      let d = request.resource.data;
+      let linked = d.get('linkedUserId', null);
+      return isShortString(d.name, 100)
+        && d.kind in ['individual', 'corporate']
+        && d.get('isLinked', false) == (linked != null)
+        && (linked == null
+            || get(/databases/$(database)/documents/shop_customers/$(linked)).data.shopId
+                 == shopId);
+    }
+
+    // ユーザーが店に渡す車の写し（docs/SHOP_CRM_DESIGN_2026-09-27.md §7）。
+    // 自分の車だけ・記録は200件まで・期間は90日まで。
+    function validVehicleShare(shopId, vehicleId) {
+      let d = request.resource.data;
+      return d.ownerId == request.auth.uid
+        && d.vehicleId == vehicleId
+        && d.shopId == shopId
+        && get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.userId
+             == request.auth.uid
+        && exists(/databases/$(database)/documents/shops/$(shopId))
+        && d.records is list && d.records.size() <= 200
+        && d.expiresAt is timestamp
+        && d.expiresAt <= request.time + duration.value(91, 'd');
+    }
+
+    function validLedgerVehicle() {
+      let d = request.resource.data;
+      return isShortString(d.customerId, 200)
+        && isShortString(d.maker, 100)
+        && isShortString(d.model, 100);
+    }
+
     // Whether the caller is a party to an inquiry (the asking user or the shop).
     // Judged on the parent inquiry, not on each message: message-level checks
     // cannot be verified statically for list queries, so the chat screen was
@@ -104,10 +161,47 @@ service cloud.firestore {
     //   - inquiryId は「自分が当事者の問い合わせ」だけ許す
     //   - 一度付いた inquiryId は変えさせない（都合の悪い記録の出所だけ
     //     消して自己申告に見せかける、を防ぐ）
-    //   - 本文（費用・日付・内容）の訂正と削除は本人の自由
-    function hasNoVerificationClaim(data) {
-      return !data.keys().hasAny(
-        ['verificationSource', 'verifiedByShopId', 'verifiedAt']);
+    //   - 自己申告の記録の本文（費用・日付・内容）の訂正は本人の自由。
+    //     工場から受け取った記録は、中身を変えさせない（2026-09-27）
+    //   - 削除はどちらも本人の自由
+
+    // アプリ（MaintenanceRecord.toMap）は verificationSource を常に書く。
+    // 自己申告なら 'selfReported'、問い合わせ経由なら 'shopImported'。
+    // **正直な申告は通し、工場の裏書き（shopVerified）の自称だけを止める。**
+    // 2026-09-22 版はこの項目があるだけで拒否しており、デプロイすると
+    // アプリからの追加・編集がすべて拒否されるところだった。
+    function verificationClaimIsHonest(data) {
+      let src = data.get('verificationSource', 'selfReported');
+      return !data.keys().hasAny(['verifiedByShopId', 'verifiedAt'])
+        && (src == 'selfReported'
+            || (src == 'shopImported' && data.get('inquiryId', null) != null));
+    }
+
+    // 裏書きの状態は、本人の更新で変えられない（サーバーだけが書く）。
+    function verificationUnchanged() {
+      return request.resource.data.get('verificationSource', 'selfReported')
+          == resource.data.get('verificationSource', 'selfReported')
+        && request.resource.data.get('verifiedByShopId', null)
+          == resource.data.get('verifiedByShopId', null)
+        && request.resource.data.get('verifiedAt', null)
+          == resource.data.get('verifiedAt', null);
+    }
+
+    // 工場から受け取った記録（問い合わせ経由・工場の裏書き）は、
+    // 金額・日付・内容・内訳を本人が変えられない。**出所の印を残したまま
+    // 中身だけ変えられると、「工場を通った記録」の信用が成り立たない。**
+    // メモ・写真・次回交換の目安は本人のものなので変えてよい。
+    function shopContentUnchanged() {
+      let fromShop = resource.data.get('inquiryId', null) != null
+        || resource.data.get('verificationSource', 'selfReported') != 'selfReported';
+      return !fromShop
+        || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'vehicleId', 'type', 'title', 'cost', 'date', 'mileageAtService',
+          'shopName', 'workItems', 'parts', 'partsCost', 'laborCost',
+          'miscCost', 'taxAmount', 'discountAmount', 'staffId', 'staffName',
+          'inspectionResult', 'certificateUpdated',
+          'safetyStandardsCertificate'
+        ]);
     }
 
     function inquiryLinkIsHonest(data) {
@@ -123,14 +217,15 @@ service cloud.firestore {
       // 作成時は自分のユーザーIDを設定していること。
       // あわせて、裏書きを自称していないこと・問い合わせの当事者であること。
       allow create: if isCreatingOwnDocument()
-        && hasNoVerificationClaim(request.resource.data)
+        && verificationClaimIsHonest(request.resource.data)
         && inquiryLinkIsHonest(request.resource.data);
 
-      // 更新は所有者のみ。検証フィールドと出所は不変。
+      // 更新は所有者のみ。検証フィールドと出所は不変。工場の記録は中身も不変。
       allow update: if isDocumentOwner()
-        && hasNoVerificationClaim(request.resource.data)
+        && verificationUnchanged()
         && request.resource.data.get('inquiryId', null)
-             == resource.data.get('inquiryId', null);
+             == resource.data.get('inquiryId', null)
+        && shopContentUnchanged();
 
       // 削除は所有者のみ（工場を通った記録でも、消す自由は本人にある）
       allow delete: if isDocumentOwner();
@@ -209,6 +304,64 @@ service cloud.firestore {
       // Only the shop owner can read/write — never exposed to other users
       match /private/{docId} {
         allow read, write: if isShopOwner(shopId);
+      }
+
+      // ==================== 顧客台帳 ====================
+      // docs/SHOP_CRM_DESIGN_2026-09-27.md
+      // 店の中だけで使う。店のスタッフ以外は、中身どころか件数も見えない。
+
+      // スタッフ。追加・変更は持ち主だけ。スタッフは自分で抜けられる。
+      match /members/{memberUid} {
+        allow read: if isShopStaff(shopId);
+        allow create, update: if isShopOwnerOf(shopId)
+          && request.resource.data.role in ['owner', 'staff'];
+        allow delete: if isShopOwnerOf(shopId)
+          || (isAuthenticated() && request.auth.uid == memberUid);
+      }
+
+      match /customers/{customerId} {
+        allow read, delete: if isShopStaff(shopId);
+        allow create, update: if isShopStaff(shopId)
+          && validLedgerCustomer(shopId);
+      }
+
+      // 顧客の車両。顧客の下ではなく店の直下に置く（車検の近い順に、
+      // 顧客をまたいで並べるため）。
+      match /customer_vehicles/{vehicleId} {
+        allow read, delete: if isShopStaff(shopId);
+        allow create, update: if isShopStaff(shopId) && validLedgerVehicle();
+      }
+
+      // 店の整備実績。車種別の維持費レポートの材料になる（店が
+      // allowsStatistics で同意したときだけ）。店のスタッフだけが読み書きする。
+      match /service_records/{recordId} {
+        allow read, delete: if isShopStaff(shopId);
+        allow create, update: if isShopStaff(shopId)
+          && isShortString(request.resource.data.customerVehicleId, 300)
+          && request.resource.data.date is timestamp
+          && request.resource.data.totalCost is number
+          && request.resource.data.totalCost >= 0;
+      }
+
+      // ユーザーから渡された車の写し。書くのは本人だけ。店は読むのと、
+      // 「開いた」「台帳に登録した」の印を付けることだけができる。
+      // 期限切れの写しは毎晩サーバーで消す。
+      match /shared_vehicles/{vehicleId} {
+        allow read: if isAuthenticated() && (
+          resource.data.ownerId == request.auth.uid || isShopStaff(shopId)
+        );
+        allow create: if isAuthenticated()
+          && validVehicleShare(shopId, vehicleId);
+        allow update: if isAuthenticated() && (
+          (resource.data.ownerId == request.auth.uid
+            && validVehicleShare(shopId, vehicleId))
+          || (isShopStaff(shopId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['seenAt', 'importedCustomerId']))
+        );
+        allow delete: if isAuthenticated() && (
+          resource.data.ownerId == request.auth.uid || isShopStaff(shopId)
+        );
       }
 
       // 施工事例サブコレクション（ショッププロフィールの公開情報）
@@ -773,6 +926,39 @@ service cloud.firestore {
     // Aggregated maintenance statistics keyed by "{maker}_{model}".
     // Only pre-aggregated, anonymised values — no individual user data.
     // Read: any authenticated user.  Write: admin SDK only.
+    // 愛車ページ（公開）。車両そのものは非公開のまま、本人が公開を選んだ
+    // ときだけ、見せてよいものを写す。走行距離・ナンバー・車検満了日・金額は
+    // 持たせない（keys().hasOnly で縛る）。整備を出さないと決めたときは、
+    // 中身も空でなければならない。
+    match /vehicle_profiles/{vehicleId} {
+      allow read: if isAuthenticated() && (
+        resource.data.isPublic == true
+        || resource.data.ownerId == request.auth.uid
+      );
+      allow create, update: if isAuthenticated()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.vehicleId == vehicleId
+        && get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.userId
+             == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+             'vehicleId', 'ownerId', 'ownerName', 'maker', 'model', 'year',
+             'grade', 'nickname', 'bio', 'imageUrl', 'isPublic',
+             'showsMaintenance', 'maintenance', 'updatedAt'])
+        && request.resource.data.isPublic is bool
+        && request.resource.data.maintenance is list
+        && (request.resource.data.showsMaintenance == true
+            || request.resource.data.maintenance.size() == 0);
+      allow delete: if isAuthenticated()
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+    // 車種別の維持費レポート（docs/SHOP_CRM_DESIGN_2026-09-27.md §8）。
+    // 持ち主5人以上の集計値だけが入る。書くのはサーバー（aggregateModelCosts）だけ。
+    match /model_cost_reports/{reportId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
     match /community_maintenance_trends/{docId} {
       allow read: if isAuthenticated();
       allow write: if false; // admin SDK only — seeded via seed_community_trends.js
@@ -818,8 +1004,14 @@ service cloud.firestore {
         resource.data.shopId == request.auth.uid
       );
 
-      // List queries (getPermittedShops / getPermittedVehicles) require auth.
-      allow list: if isAuthenticated();
+      // 一覧は当事者に絞ったクエリだけ通す。
+      // 以前は認証だけで通していたため、誰がどの店に車両を共有したかを
+      // 誰でも列挙できた。getPermittedShops は ownerId、
+      // getPermittedVehicles は shopId で絞ってから問い合わせる。
+      allow list: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.shopId == request.auth.uid
+      );
 
       // Grant: caller must be the vehicle owner.
       allow create: if isAuthenticated() &&
@@ -918,7 +1110,15 @@ service cloud.firestore {
       );
 
       // 店側が自分の顧客を数えるためのクエリ。shopId で絞ったものだけ通す。
-      allow list: if isAuthenticated();
+      // 以前は認証だけで通していたため、どの店の顧客名簿でも読めた。
+      // 条件を満たさない問い合わせ（shopId を付けない・他店の shopId）は
+      // クエリごと拒否される。
+      allow list: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid
+        || (resource.data.shopId is string
+            && get(/databases/$(database)/documents/shops/$(resource.data.shopId))
+                 .data.ownerId == request.auth.uid)
+      );
 
       // 書けるのは本人だけ。店が勝手に顧客を増やせないようにする。
       //

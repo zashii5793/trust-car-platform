@@ -365,6 +365,44 @@ describe('vehicle_sharing_permissions — get', () => {
   });
 });
 
+describe('vehicle_sharing_permissions — list（一覧）', () => {
+  test('車両オーナーは自分の許可を一覧できる', async () => {
+    await seedPermission();
+    const q = query(
+      collection(dbFor(VEHICLE_OWNER_UID), 'vehicle_sharing_permissions'),
+      where('ownerId', '==', VEHICLE_OWNER_UID),
+      where('vehicleId', '==', VEHICLE_ID),
+    );
+    await assertSucceeds(getDocs(q));
+  });
+
+  test('店は自分宛ての許可を一覧できる', async () => {
+    await seedPermission();
+    const q = query(
+      collection(dbFor(SHOP_OWNER_UID), 'vehicle_sharing_permissions'),
+      where('shopId', '==', SHOP_OWNER_UID),
+      where('isActive', '==', true),
+    );
+    await assertSucceeds(getDocs(q));
+  });
+
+  test('絞り込みなしの一覧は拒否される（誰が共有したかを列挙させない）', async () => {
+    await seedPermission();
+    await assertFails(
+      getDocs(collection(dbFor(UNRELATED_UID), 'vehicle_sharing_permissions')),
+    );
+  });
+
+  test('他店の shopId では一覧できない', async () => {
+    await seedPermission();
+    const q = query(
+      collection(dbFor(UNRELATED_UID), 'vehicle_sharing_permissions'),
+      where('shopId', '==', SHOP_OWNER_UID),
+    );
+    await assertFails(getDocs(q));
+  });
+});
+
 describe('vehicle_sharing_permissions — create（許可付与）', () => {
   test('車両オーナーは許可を付与できる', async () => {
     await assertSucceeds(
@@ -1345,6 +1383,38 @@ describe('shop_customers（かかりつけ）', () => {
     await assertFails(deleteDoc(doc(dbFor(INVITE_SHOP_OWNER_UID), linkPath)));
   });
 
+  test('店は自分の shopId で顧客を一覧できる', async () => {
+    await seedInvite();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), linkDoc(INVITE_CUSTOMER_UID));
+    });
+    const q = query(
+      collection(dbFor(INVITE_SHOP_OWNER_UID), 'shop_customers'),
+      where('shopId', '==', INVITE_SHOP_ID),
+    );
+    await assertSucceeds(getDocs(q));
+  });
+
+  test('他店の顧客名簿は一覧できない', async () => {
+    await seedInvite();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), linkDoc(INVITE_CUSTOMER_UID));
+    });
+    const q = query(
+      collection(dbFor(OTHER_UID), 'shop_customers'),
+      where('shopId', '==', INVITE_SHOP_ID),
+    );
+    await assertFails(getDocs(q));
+  });
+
+  test('絞り込みなしで全店の顧客を一覧することはできない', async () => {
+    await seedInvite();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), linkDoc(INVITE_CUSTOMER_UID));
+    });
+    await assertFails(getDocs(collection(dbFor(OTHER_UID), 'shop_customers')));
+  });
+
   // 車検満了日の共有（案A）。
   // docs/BUSINESS_MODEL_RETHINK_2026-08-27.md §6-2。
   // 店に vehicles を開けず、顧客が満了日だけを置く形にしてある。
@@ -1935,5 +2005,576 @@ describe('maintenance_records — 工場を通った記録', () => {
     await seedInquiryFor(MR_USER_UID);
     await seedRecord({ inquiryId: MR_INQUIRY_ID });
     await assertSucceeds(deleteDoc(doc(dbFor(MR_USER_UID), mrPath)));
+  });
+});
+
+// ==================== 店の顧客台帳 ====================
+// docs/SHOP_CRM_DESIGN_2026-09-27.md
+// 店のスタッフだけが読み書きできる。ここが緩むと、何千人分の名簿が漏れる。
+
+const LEDGER_SHOP_ID = 'takaya_ledger';
+const LEDGER_OWNER_UID = 'ledger_owner_1';
+const LEDGER_STAFF_UID = 'ledger_staff_2';
+const LEDGER_OUTSIDER_UID = 'ledger_outsider_3';
+const LEDGER_APP_USER_UID = 'ledger_app_user_4';
+const ledgerCustomerPath = `shops/${LEDGER_SHOP_ID}/customers/c1`;
+const ledgerVehiclePath = `shops/${LEDGER_SHOP_ID}/customer_vehicles/v1`;
+
+const ledgerCustomer = (overrides = {}) => ({
+  kind: 'individual',
+  name: '山田太郎',
+  searchKey: 'やまだたろう',
+  isLinked: false,
+  linkedUserId: null,
+  vehicleCount: 0,
+  ...overrides,
+});
+
+const ledgerVehicle = (overrides = {}) => ({
+  customerId: 'c1',
+  customerName: '山田太郎',
+  maker: 'MINI',
+  model: 'クーパー',
+  ...overrides,
+});
+
+async function seedLedgerShop() {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    // シードの店は docId が店主の uid ではない（タカヤがそう）
+    await setDoc(doc(db, `shops/${LEDGER_SHOP_ID}`), {
+      name: 'タカヤモーター',
+      ownerId: LEDGER_OWNER_UID,
+    });
+    await setDoc(doc(db, `shops/${LEDGER_SHOP_ID}/members/${LEDGER_STAFF_UID}`), {
+      role: 'staff',
+    });
+  });
+}
+
+async function seedLedgerCustomer(overrides = {}) {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), ledgerCustomerPath), ledgerCustomer(overrides));
+  });
+}
+
+describe('shops/{id}/customers — 顧客台帳', () => {
+  test('店主は顧客を登録できる（docId が uid でない店でも）', async () => {
+    await seedLedgerShop();
+    await assertSucceeds(
+      setDoc(doc(dbFor(LEDGER_OWNER_UID), ledgerCustomerPath), ledgerCustomer()),
+    );
+  });
+
+  test('スタッフも登録・閲覧できる', async () => {
+    await seedLedgerShop();
+    await assertSucceeds(
+      setDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerCustomerPath), ledgerCustomer()),
+    );
+    await assertSucceeds(getDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerCustomerPath)));
+  });
+
+  test('店と無関係の人は読めない', async () => {
+    await seedLedgerShop();
+    await seedLedgerCustomer();
+    await assertFails(getDoc(doc(dbFor(LEDGER_OUTSIDER_UID), ledgerCustomerPath)));
+  });
+
+  test('店と無関係の人は一覧も件数も取れない', async () => {
+    await seedLedgerShop();
+    await seedLedgerCustomer();
+    await assertFails(
+      getDocs(collection(dbFor(LEDGER_OUTSIDER_UID), `shops/${LEDGER_SHOP_ID}/customers`)),
+    );
+  });
+
+  test('スタッフは一覧できる', async () => {
+    await seedLedgerShop();
+    await seedLedgerCustomer();
+    await assertSucceeds(
+      getDocs(collection(dbFor(LEDGER_STAFF_UID), `shops/${LEDGER_SHOP_ID}/customers`)),
+    );
+  });
+
+  test('未認証では読めない', async () => {
+    await seedLedgerShop();
+    await seedLedgerCustomer();
+    await assertFails(getDoc(doc(unauthDb(), ledgerCustomerPath)));
+  });
+
+  test('無関係の人は書けない', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      setDoc(doc(dbFor(LEDGER_OUTSIDER_UID), ledgerCustomerPath), ledgerCustomer()),
+    );
+  });
+
+  test('名前が空の顧客は登録できない', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      setDoc(doc(dbFor(LEDGER_OWNER_UID), ledgerCustomerPath), ledgerCustomer({ name: '' })),
+    );
+  });
+
+  test('知らない区分は登録できない', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      setDoc(doc(dbFor(LEDGER_OWNER_UID), ledgerCustomerPath), ledgerCustomer({ kind: 'vip' })),
+    );
+  });
+
+  test('アプリ利用者とのつながりを、店が勝手に名乗ることはできない', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      setDoc(
+        doc(dbFor(LEDGER_OWNER_UID), ledgerCustomerPath),
+        ledgerCustomer({ linkedUserId: LEDGER_APP_USER_UID, isLinked: true }),
+      ),
+    );
+  });
+
+  test('その人がこの店のかかりつけ札を置いていれば、つなげられる', async () => {
+    await seedLedgerShop();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `shop_customers/${LEDGER_APP_USER_UID}`), {
+        shopId: LEDGER_SHOP_ID,
+        userId: LEDGER_APP_USER_UID,
+      });
+    });
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(LEDGER_OWNER_UID), ledgerCustomerPath),
+        ledgerCustomer({ linkedUserId: LEDGER_APP_USER_UID, isLinked: true }),
+      ),
+    );
+  });
+
+  test('他店の札では、つなげられない', async () => {
+    await seedLedgerShop();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `shop_customers/${LEDGER_APP_USER_UID}`), {
+        shopId: 'other_shop',
+        userId: LEDGER_APP_USER_UID,
+      });
+    });
+    await assertFails(
+      setDoc(
+        doc(dbFor(LEDGER_OWNER_UID), ledgerCustomerPath),
+        ledgerCustomer({ linkedUserId: LEDGER_APP_USER_UID, isLinked: true }),
+      ),
+    );
+  });
+
+  test('isLinked だけ立てて、つながっているように見せることはできない', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      setDoc(
+        doc(dbFor(LEDGER_OWNER_UID), ledgerCustomerPath),
+        ledgerCustomer({ isLinked: true }),
+      ),
+    );
+  });
+
+  test('スタッフは顧客を消せる。無関係の人は消せない', async () => {
+    await seedLedgerShop();
+    await seedLedgerCustomer();
+    await assertFails(deleteDoc(doc(dbFor(LEDGER_OUTSIDER_UID), ledgerCustomerPath)));
+    await assertSucceeds(deleteDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerCustomerPath)));
+  });
+});
+
+describe('shops/{id}/customer_vehicles — 台帳の車両', () => {
+  test('スタッフは車両を登録・一覧できる', async () => {
+    await seedLedgerShop();
+    await assertSucceeds(
+      setDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), ledgerVehicle()),
+    );
+    await assertSucceeds(
+      getDocs(collection(dbFor(LEDGER_STAFF_UID), `shops/${LEDGER_SHOP_ID}/customer_vehicles`)),
+    );
+  });
+
+  test('無関係の人は読めない', async () => {
+    await seedLedgerShop();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), ledgerVehiclePath), ledgerVehicle());
+    });
+    await assertFails(getDoc(doc(dbFor(LEDGER_OUTSIDER_UID), ledgerVehiclePath)));
+  });
+
+  test('車種が空の車両は登録できない', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      setDoc(doc(dbFor(LEDGER_OWNER_UID), ledgerVehiclePath), ledgerVehicle({ model: '' })),
+    );
+  });
+});
+
+describe('shops/{id}/members — スタッフ', () => {
+  const staffPath = (uid) => `shops/${LEDGER_SHOP_ID}/members/${uid}`;
+
+  test('店主はスタッフを追加できる', async () => {
+    await seedLedgerShop();
+    await assertSucceeds(
+      setDoc(doc(dbFor(LEDGER_OWNER_UID), staffPath('new_staff')), { role: 'staff' }),
+    );
+  });
+
+  test('スタッフは他のスタッフを追加できない（店主だけ）', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      setDoc(doc(dbFor(LEDGER_STAFF_UID), staffPath('new_staff')), { role: 'staff' }),
+    );
+  });
+
+  test('自分で自分をスタッフにすることはできない', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      setDoc(doc(dbFor(LEDGER_OUTSIDER_UID), staffPath(LEDGER_OUTSIDER_UID)), { role: 'staff' }),
+    );
+  });
+
+  test('知らない役割は付けられない', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      setDoc(doc(dbFor(LEDGER_OWNER_UID), staffPath('new_staff')), { role: 'admin' }),
+    );
+  });
+
+  test('スタッフは自分で抜けられる', async () => {
+    await seedLedgerShop();
+    await assertSucceeds(deleteDoc(doc(dbFor(LEDGER_STAFF_UID), staffPath(LEDGER_STAFF_UID))));
+  });
+
+  test('無関係の人はスタッフ一覧を見られない', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      getDocs(collection(dbFor(LEDGER_OUTSIDER_UID), `shops/${LEDGER_SHOP_ID}/members`)),
+    );
+  });
+});
+
+// ==================== 店に渡す車の写し ====================
+// docs/SHOP_CRM_DESIGN_2026-09-27.md §7
+
+describe('shops/{id}/shared_vehicles — 車の写し', () => {
+  const OWNER = 'share_owner_1';
+  const VEHICLE = 'share_vehicle_1';
+  const sharePath = `shops/${LEDGER_SHOP_ID}/shared_vehicles/${VEHICLE}`;
+
+  const shareDoc = (overrides = {}) => ({
+    vehicleId: VEHICLE,
+    shopId: LEDGER_SHOP_ID,
+    shopName: 'タカヤモーター',
+    ownerId: OWNER,
+    maker: 'MINI',
+    model: 'クーパー',
+    records: [],
+    includesCosts: false,
+    sharedAt: new Date(),
+    expiresAt: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+    ...overrides,
+  });
+
+  async function seedVehicleAndShop() {
+    await seedLedgerShop();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `vehicles/${VEHICLE}`), {
+        userId: OWNER,
+        maker: 'MINI',
+        model: 'クーパー',
+      });
+    });
+  }
+
+  async function seedShare(overrides = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), sharePath), shareDoc(overrides));
+    });
+  }
+
+  test('本人は自分の車を店に渡せる', async () => {
+    await seedVehicleAndShop();
+    await assertSucceeds(setDoc(doc(dbFor(OWNER), sharePath), shareDoc()));
+  });
+
+  test('他人の車は渡せない', async () => {
+    await seedVehicleAndShop();
+    await assertFails(
+      setDoc(doc(dbFor(LEDGER_OUTSIDER_UID), sharePath),
+        shareDoc({ ownerId: LEDGER_OUTSIDER_UID })),
+    );
+  });
+
+  test('91日を超える期間では渡せない', async () => {
+    await seedVehicleAndShop();
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), sharePath),
+        shareDoc({ expiresAt: new Date(Date.now() + 120 * 24 * 3600 * 1000) })),
+    );
+  });
+
+  test('記録が201件以上なら渡せない', async () => {
+    await seedVehicleAndShop();
+    const records = Array.from({ length: 201 }, () => ({ title: 'x' }));
+    await assertFails(setDoc(doc(dbFor(OWNER), sharePath), shareDoc({ records })));
+  });
+
+  test('店のスタッフは読める・無関係の人は読めない', async () => {
+    await seedVehicleAndShop();
+    await seedShare();
+    await assertSucceeds(getDoc(doc(dbFor(LEDGER_STAFF_UID), sharePath)));
+    await assertFails(getDoc(doc(dbFor(LEDGER_OUTSIDER_UID), sharePath)));
+  });
+
+  test('店は「開いた」「登録した」の印だけ付けられる', async () => {
+    await seedVehicleAndShop();
+    await seedShare();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(LEDGER_STAFF_UID), sharePath), {
+        seenAt: new Date(),
+        importedCustomerId: 'c1',
+      }),
+    );
+  });
+
+  test('店が写しの中身を書き換えることはできない', async () => {
+    await seedVehicleAndShop();
+    await seedShare();
+    await assertFails(
+      updateDoc(doc(dbFor(LEDGER_STAFF_UID), sharePath), { model: '改ざん' }),
+    );
+  });
+
+  test('本人はいつでも取り消せる', async () => {
+    await seedVehicleAndShop();
+    await seedShare();
+    await assertSucceeds(deleteDoc(doc(dbFor(OWNER), sharePath)));
+  });
+
+  test('無関係の人は消せない', async () => {
+    await seedVehicleAndShop();
+    await seedShare();
+    await assertFails(deleteDoc(doc(dbFor(LEDGER_OUTSIDER_UID), sharePath)));
+  });
+});
+
+describe('model_cost_reports — 車種別の維持費レポート', () => {
+  const path = 'model_cost_reports/mini__くーぱー';
+
+  test('ログインしていれば読める', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), path), { ownerCount: 5 });
+    });
+    await assertSucceeds(getDoc(doc(dbFor(LEDGER_OUTSIDER_UID), path)));
+  });
+
+  test('未認証では読めない', async () => {
+    await assertFails(getDoc(doc(unauthDb(), path)));
+  });
+
+  test('誰も書けない（数字を作れてしまう）', async () => {
+    await assertFails(setDoc(doc(dbFor(LEDGER_OWNER_UID), path), { ownerCount: 999 }));
+  });
+});
+
+describe('shops/{id}/service_records — 店の整備実績', () => {
+  const path = `shops/${LEDGER_SHOP_ID}/service_records/r1`;
+  const rec = (o = {}) => ({
+    customerVehicleId: 'v1',
+    date: new Date(),
+    totalCost: 55000,
+    type: '車検',
+    ...o,
+  });
+
+  test('スタッフは書ける・読める', async () => {
+    await seedLedgerShop();
+    await assertSucceeds(setDoc(doc(dbFor(LEDGER_STAFF_UID), path), rec()));
+    await assertSucceeds(getDoc(doc(dbFor(LEDGER_STAFF_UID), path)));
+  });
+
+  test('無関係の人は読めない', async () => {
+    await seedLedgerShop();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), path), rec());
+    });
+    await assertFails(getDoc(doc(dbFor(LEDGER_OUTSIDER_UID), path)));
+  });
+
+  test('マイナスの金額は書けない', async () => {
+    await seedLedgerShop();
+    await assertFails(setDoc(doc(dbFor(LEDGER_OWNER_UID), path), rec({ totalCost: -1 })));
+  });
+});
+
+// ==================== アプリが実際に書く形 ====================
+// MaintenanceRecord.toMap() は verificationSource を**常に**書く
+// （自己申告なら 'selfReported'、問い合わせ経由なら 'shopImported'）。
+// 2026-09-22 のルールは「この項目を持っていたら拒否」だったため、
+// デプロイするとアプリからの追加・編集がすべて拒否されるところだった。
+
+describe('maintenance_records — アプリが実際に書く形', () => {
+  const appDoc = (extra = {}) =>
+    mrDoc({ verificationSource: 'selfReported', workItems: [], parts: [], ...extra });
+
+  test('自己申告の記録を、アプリの形のまま追加できる', async () => {
+    await assertSucceeds(setDoc(doc(dbFor(MR_USER_UID), mrPath), appDoc()));
+  });
+
+  test('問い合わせ経由の記録を、アプリの形のまま取り込める', async () => {
+    await seedInquiryFor(MR_USER_UID);
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(MR_USER_UID), mrPath),
+        appDoc({ inquiryId: MR_INQUIRY_ID, verificationSource: 'shopImported' }),
+      ),
+    );
+  });
+
+  test('問い合わせ無しで shopImported を名乗ることはできない', async () => {
+    await assertFails(
+      setDoc(doc(dbFor(MR_USER_UID), mrPath), appDoc({ verificationSource: 'shopImported' })),
+    );
+  });
+
+  test('自己申告の記録は、アプリの形のまま直せる（費用も）', async () => {
+    await seedRecord({ verificationSource: 'selfReported' });
+    await assertSucceeds(
+      setDoc(doc(dbFor(MR_USER_UID), mrPath), appDoc({ cost: 7000 })),
+    );
+  });
+
+  test('項目の無い古い記録も、アプリの形で直せる', async () => {
+    await seedRecord();
+    await assertSucceeds(
+      setDoc(doc(dbFor(MR_USER_UID), mrPath), appDoc({ cost: 7000 })),
+    );
+  });
+
+  test('自己申告の記録を、あとから shopImported に書き換えることはできない', async () => {
+    await seedRecord({ verificationSource: 'selfReported' });
+    await assertFails(
+      updateDoc(doc(dbFor(MR_USER_UID), mrPath), { verificationSource: 'shopImported' }),
+    );
+  });
+
+  describe('工場から受け取った記録', () => {
+    const imported = () => ({
+      inquiryId: MR_INQUIRY_ID,
+      verificationSource: 'shopImported',
+      workItems: [{ name: 'オイル交換', laborCost: 2000 }],
+      parts: [],
+      laborCost: 2000,
+    });
+
+    test('金額は書き換えられない（出所の印を残したまま中身を変えさせない）', async () => {
+      await seedInquiryFor(MR_USER_UID);
+      await seedRecord(imported());
+      await assertFails(updateDoc(doc(dbFor(MR_USER_UID), mrPath), { cost: 1 }));
+    });
+
+    test('日付・内容・内訳も書き換えられない', async () => {
+      await seedInquiryFor(MR_USER_UID);
+      await seedRecord(imported());
+      for (const change of [
+        { date: new Date('2020-01-01') },
+        { title: '別の作業' },
+        { workItems: [] },
+        { laborCost: 0 },
+        { mileageAtService: 1 },
+      ]) {
+        await assertFails(updateDoc(doc(dbFor(MR_USER_UID), mrPath), change));
+      }
+    });
+
+    test('メモと写真は足せる', async () => {
+      await seedInquiryFor(MR_USER_UID);
+      await seedRecord(imported());
+      await assertSucceeds(
+        updateDoc(doc(dbFor(MR_USER_UID), mrPath), {
+          description: '次回はタイヤも見てもらう',
+          imageUrls: ['https://example.com/a.jpg'],
+        }),
+      );
+    });
+
+    test('工場の印（shopVerified）が付いた記録も、金額は書き換えられない', async () => {
+      await seedRecord({
+        verificationSource: 'shopVerified',
+        verifiedByShopId: MR_SHOP_UID,
+        verifiedAt: new Date(),
+      });
+      await assertFails(updateDoc(doc(dbFor(MR_USER_UID), mrPath), { cost: 1 }));
+      await assertSucceeds(
+        updateDoc(doc(dbFor(MR_USER_UID), mrPath), { description: 'メモ' }),
+      );
+    });
+  });
+});
+
+describe('vehicle_profiles — 愛車ページ', () => {
+  const OWNER = 'vp_owner';
+  const VID = 'vp_vehicle';
+  const path = `vehicle_profiles/${VID}`;
+  const profile = (o = {}) => ({
+    vehicleId: VID,
+    ownerId: OWNER,
+    ownerName: 'みにお',
+    maker: 'MINI',
+    model: 'クーパー',
+    isPublic: true,
+    showsMaintenance: false,
+    maintenance: [],
+    updatedAt: new Date(),
+    ...o,
+  });
+  async function seedVehicle() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `vehicles/${VID}`), { userId: OWNER, maker: 'MINI', model: 'クーパー' });
+    });
+  }
+  async function seedProfile(o = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), path), profile(o));
+    });
+  }
+
+  test('本人は自分の車のページを作れる', async () => {
+    await seedVehicle();
+    await assertSucceeds(setDoc(doc(dbFor(OWNER), path), profile()));
+  });
+
+  test('他人の車のページは作れない', async () => {
+    await seedVehicle();
+    await assertFails(setDoc(doc(dbFor(OTHER_UID), path), profile({ ownerId: OTHER_UID })));
+  });
+
+  test('走行距離やナンバーは載せられない', async () => {
+    await seedVehicle();
+    await assertFails(setDoc(doc(dbFor(OWNER), path), profile({ mileage: 48000 })));
+    await assertFails(setDoc(doc(dbFor(OWNER), path), profile({ licensePlate: '品川300あ1' })));
+  });
+
+  test('整備を出さないと決めたのに、中身を載せることはできない', async () => {
+    await seedVehicle();
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), path), profile({ maintenance: [{ type: '車検', count: 1 }] })),
+    );
+  });
+
+  test('公開していれば他人も読める。非公開なら本人だけ', async () => {
+    await seedVehicle();
+    await seedProfile();
+    await assertSucceeds(getDoc(doc(dbFor(OTHER_UID), path)));
+    await seedProfile({ isPublic: false });
+    await assertFails(getDoc(doc(dbFor(OTHER_UID), path)));
+    await assertSucceeds(getDoc(doc(dbFor(OWNER), path)));
+  });
+
+  test('他人は消せない', async () => {
+    await seedVehicle();
+    await seedProfile();
+    await assertFails(deleteDoc(doc(dbFor(OTHER_UID), path)));
   });
 });

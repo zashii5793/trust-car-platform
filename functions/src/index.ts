@@ -27,6 +27,12 @@ import type { ShopSubscriptionUpdate } from "./types";
 export { onNewsletterSend } from "./sendNewsletter";
 export { askCarAi } from "./askCarAi";
 import {
+  buildAllReports,
+  classifyType,
+  type CostEvent,
+  type CostVehicle,
+} from "./modelCostReport";
+import {
   handleScheduledPurge,
   isDue,
   type DeletionMarker,
@@ -196,6 +202,30 @@ export const purgeDeletedAccounts = onSchedule(
         }
         return deleted;
       },
+      deleteSharesOf: async (uid) => {
+        for (;;) {
+          const snap = await db
+            .collection("vehicle_sharing_permissions")
+            .where("ownerId", "==", uid)
+            .limit(200)
+            .get();
+          if (snap.empty) break;
+          const batch = db.batch();
+          for (const doc of snap.docs) {
+            const { shopId, vehicleId } = doc.data() as {
+              shopId?: string;
+              vehicleId?: string;
+            };
+            if (shopId && vehicleId) {
+              batch.delete(
+                db.doc(`shops/${shopId}/shared_vehicles/${vehicleId}`)
+              );
+            }
+            batch.delete(doc.ref);
+          }
+          await batch.commit();
+        }
+      },
       deleteWaypointsFor: async (driveLogIds) => {
         for (const driveLogId of driveLogIds) {
           for (;;) {
@@ -235,3 +265,176 @@ export const purgeDeletedAccounts = onSchedule(
   }
 );
 
+function millis(v: unknown): number | undefined {
+  if (v && typeof (v as { toMillis?: unknown }).toMillis === "function") {
+    return (v as { toMillis(): number }).toMillis();
+  }
+  if (typeof v === "number") return v;
+  return undefined;
+}
+
+function num(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+/**
+ * Scheduled Cloud Function — 車種別の維持費レポート（docs/SHOP_CRM_DESIGN_2026-09-27.md §8）。
+ *
+ * 毎晩、アプリ利用者の整備・給油記録と、統計への利用に同意した店
+ * （shops.allowsStatistics == true）の整備実績から、車種ごとの維持費を
+ * 集計して model_cost_reports に書く。持ち主が5人に満たない車種は
+ * 書かず、前回まで出ていたものは消す。
+ *
+ * 全件を読み直す作り。記録が数十万件になったら差分集計に変える
+ * （目安: 8万件で読み取り約 $0.05/晩）。
+ */
+export const aggregateModelCosts = onSchedule(
+  { schedule: "every day 04:07", timeZone: "Asia/Tokyo",
+    region: "asia-northeast1", timeoutSeconds: 540, memory: "1GiB" },
+  async () => {
+    const db = admin.firestore();
+    const now = Date.now();
+    const vehicles: CostVehicle[] = [];
+    const events: CostEvent[] = [];
+
+    // 1. アプリ利用者
+    const appVehicles = await db.collection("vehicles").get();
+    const known = new Set<string>();
+    for (const d of appVehicles.docs) {
+      const v = d.data();
+      if (!v.userId || !v.maker || !v.model) continue;
+      known.add(d.id);
+      vehicles.push({
+        key: `u:${d.id}`,
+        ownerKey: `u:${v.userId}`,
+        maker: String(v.maker),
+        model: String(v.model),
+        year: typeof v.year === "number" && v.year > 1900 ? v.year : undefined,
+        retiredAt: millis(v.retiredAt),
+        source: "app",
+      });
+    }
+    for (const d of (await db.collection("maintenance_records").get()).docs) {
+      const r = d.data();
+      const date = millis(r.date);
+      if (!known.has(r.vehicleId) || date === undefined) continue;
+      const type = String(r.type ?? "");
+      events.push({
+        vehicleKey: `u:${r.vehicleId}`,
+        date,
+        cost: num(r.cost),
+        kind: classifyType(type),
+        type: String(r.title || type),
+      });
+    }
+    for (const d of (await db.collection("fuel_records").get()).docs) {
+      const r = d.data();
+      const date = millis(r.date);
+      if (!known.has(r.vehicleId) || date === undefined) continue;
+      events.push({
+        vehicleKey: `u:${r.vehicleId}`,
+        date,
+        cost: num(r.cost),
+        kind: "fuel",
+        type: "給油",
+      });
+    }
+
+    // 2. 統計への利用に同意した店の整備実績
+    const shops = await db
+      .collection("shops")
+      .where("allowsStatistics", "==", true)
+      .get();
+    for (const shop of shops.docs) {
+      const shopVehicles = await shop.ref.collection("customer_vehicles").get();
+      const shopKnown = new Set<string>();
+      for (const d of shopVehicles.docs) {
+        const v = d.data();
+        if (!v.maker || !v.model || !v.customerId) continue;
+        shopKnown.add(d.id);
+        vehicles.push({
+          key: `s:${shop.id}:${d.id}`,
+          ownerKey: `s:${shop.id}:${v.customerId}`,
+          maker: String(v.maker),
+          model: String(v.model),
+          year: typeof v.year === "number" && v.year > 1900 ? v.year : undefined,
+          source: "shop",
+        });
+      }
+      for (const d of (await shop.ref.collection("service_records").get()).docs) {
+        const r = d.data();
+        const date = millis(r.date);
+        if (!shopKnown.has(r.customerVehicleId) || date === undefined) continue;
+        const type = String(r.type ?? "");
+        events.push({
+          vehicleKey: `s:${shop.id}:${r.customerVehicleId}`,
+          date,
+          cost: num(r.totalCost),
+          kind: classifyType(type),
+          type: type || "整備",
+        });
+      }
+    }
+
+    const reports = buildAllReports(vehicles, events, now);
+    const col = db.collection("model_cost_reports");
+    const keep = new Set(reports.map((r) => r.id));
+    const updatedAt = admin.firestore.Timestamp.fromMillis(now);
+
+    for (let i = 0; i < reports.length; i += 400) {
+      const batch = db.batch();
+      for (const r of reports.slice(i, i + 400)) {
+        batch.set(col.doc(r.id), { ...r, updatedAt });
+      }
+      await batch.commit();
+    }
+    // 持ち主が足りなくなった車種は消す（古い数字を出し続けない）
+    const existing = await col.listDocuments();
+    const stale = existing.filter((ref) => !keep.has(ref.id));
+    for (let i = 0; i < stale.length; i += 400) {
+      const batch = db.batch();
+      stale.slice(i, i + 400).forEach((ref) => batch.delete(ref));
+      await batch.commit();
+    }
+
+    console.log(
+      `Model cost reports: ${reports.length} written, ${stale.length} removed ` +
+        `(${vehicles.length} vehicles, ${events.length} events, ` +
+        `${shops.size} shops)`
+    );
+  }
+);
+
+/**
+ * Scheduled Cloud Function — 期限の過ぎた「車の写し」を消す。
+ *
+ * ユーザーが店に渡す写し（shops/{id}/shared_vehicles）は期限つき。
+ * 画面では期限切れを出していないが、期限を約束している以上、
+ * データも残さない。索引（vehicle_sharing_permissions）も一緒に消す。
+ */
+export const purgeExpiredShares = onSchedule(
+  { schedule: "every day 03:37", timeZone: "Asia/Tokyo",
+    region: "asia-northeast1" },
+  async () => {
+    const db = admin.firestore();
+    const now = admin.firestore.Timestamp.now();
+    let removed = 0;
+    for (const shop of (await db.collection("shops").get()).docs) {
+      const expired = await shop.ref
+        .collection("shared_vehicles")
+        .where("expiresAt", "<=", now)
+        .get();
+      if (expired.empty) continue;
+      const batch = db.batch();
+      for (const d of expired.docs) {
+        batch.delete(d.ref);
+        batch.delete(
+          db.doc(`vehicle_sharing_permissions/${d.id}_${shop.id}`)
+        );
+        removed++;
+      }
+      await batch.commit();
+    }
+    console.log(`Expired vehicle shares: ${removed} removed`);
+  }
+);

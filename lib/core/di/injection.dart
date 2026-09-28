@@ -60,6 +60,10 @@ import '../../services/shop_demand_service.dart';
 import '../../services/feedback_service.dart';
 import '../constants/app_info.dart';
 import '../../services/shop_invite_service.dart';
+import '../../services/shop_ledger_service.dart';
+import '../../services/vehicle_share_service.dart';
+import '../../services/model_cost_report_service.dart';
+import '../../services/vehicle_profile_service.dart';
 import '../../services/fuel_service.dart';
 
 /// 依存性の登録を行うクラス
@@ -268,6 +272,27 @@ class Injection {
     // 自分でアプリを探して自分で店を見つけるところから始めることになる。
     locator.registerLazySingleton<ShopInviteService>(
       () => ShopInviteService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 店の顧客台帳（docs/SHOP_CRM_DESIGN_2026-09-27.md）。アプリを入れていない
+    // 既存客も載せられるよう、店が自分で書く台帳をユーザーのデータとは別に持つ。
+    locator.registerLazySingleton<ShopLedgerService>(
+      () => ShopLedgerService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 初めて行く店に「この車のこれまで」を写しで渡す（同 §7）。
+    locator.registerLazySingleton<VehicleShareService>(
+      () => VehicleShareService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 車種別の維持費レポート（同 §8。書くのはサーバーの aggregateModelCosts）。
+    locator.registerLazySingleton<ModelCostReportService>(
+      () => ModelCostReportService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 愛車ページ（公開）。車を主役に、公開の投稿・パーツ・ドライブを集める。
+    locator.registerLazySingleton<VehicleProfileService>(
+      () => VehicleProfileService(firestore: FirebaseFirestore.instance),
     );
 
     // Fuel records (給油は月2〜4回あり、唯一の月単位の接点).

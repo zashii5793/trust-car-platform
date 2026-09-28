@@ -14,7 +14,14 @@ import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
 import '../models/drive_log.dart';
 import '../models/app_notification.dart';
+import '../providers/auth_provider.dart';
 import '../providers/maintenance_provider.dart';
+import '../services/shop_service.dart';
+import '../services/vehicle_share_service.dart';
+import 'vehicle/share_to_shop_screen.dart';
+import 'vehicle/vehicle_profile_screen.dart';
+import '../services/vehicle_profile_service.dart';
+import '../models/vehicle_profile.dart';
 import '../providers/notification_provider.dart';
 import '../providers/user_subscription_provider.dart';
 import '../services/drive_log_service.dart';
@@ -37,6 +44,9 @@ import 'maintenance_stats_screen.dart';
 import 'maintenance_search_screen.dart';
 import '../services/firebase_service.dart';
 import '../services/community_trend_service.dart';
+import '../models/model_cost_report.dart';
+import '../services/model_cost_report_service.dart';
+import 'vehicle/model_cost_report_screen.dart';
 import '../core/timeline/mileage_milestone.dart';
 import '../models/year_in_review.dart';
 import 'year_in_review_screen.dart';
@@ -379,6 +389,70 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   ///
   /// PDF は読むもの。買い手や次のオーナーが**自分で扱う**には表が要る。
   /// 個人向けの出力は PDF だけで、CSV は法人のフリート用しか無かった。
+  /// 愛車ページ。まだ無ければ作る画面、あれば表示（右上から編集）。
+  Future<void> _openProfile() async {
+    final user = context.read<AuthProvider>().firebaseUser;
+    if (user == null) return;
+    final service = sl.get<VehicleProfileService>();
+    final records = context.read<MaintenanceProvider>().records;
+    final navigator = Navigator.of(context);
+
+    Future<VehicleProfile?> edit(VehicleProfile? existing) =>
+        navigator.push<VehicleProfile>(
+          MaterialPageRoute(
+            builder: (_) => VehicleProfileEditScreen(
+              service: service,
+              vehicle: _vehicle,
+              ownerId: user.uid,
+              ownerName: user.displayName ?? 'オーナー',
+              records: records,
+              existing: existing,
+            ),
+          ),
+        );
+
+    var profile = (await service.get(_vehicle.id)).valueOrNull;
+    profile ??= await edit(null);
+    if (profile == null || !mounted) return;
+
+    var current = profile;
+    await navigator.push<void>(
+      MaterialPageRoute(
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setLocal) => VehicleProfileScreen(
+            key: ValueKey(current.updatedAt),
+            service: service,
+            profile: current,
+            onEdit: () async {
+              final updated = await edit(current);
+              if (updated != null) setLocal(() => current = updated);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 初めて行く店に、この車のこれまでを渡す（docs/SHOP_CRM_DESIGN_2026-09-27.md §7）。
+  Future<void> _shareToShop() async {
+    final user = context.read<AuthProvider>().firebaseUser;
+    if (user == null) return;
+    final records = context.read<MaintenanceProvider>().records;
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShareToShopScreen(
+          vehicle: _vehicle,
+          records: records,
+          ownerId: user.uid,
+          defaultContactName: user.displayName,
+          service: sl.get<VehicleShareService>(),
+          searchShops: (q) => sl.get<ShopService>().searchShops(q),
+        ),
+      ),
+    );
+  }
+
   Future<void> _exportCsv() async {
     final messenger = ScaffoldMessenger.of(context);
     final records = context.read<MaintenanceProvider>().records;
@@ -634,8 +708,30 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
               onSelected: (value) {
                 if (value == 'retire') _showRetireSheet();
                 if (value == 'csv') _exportCsv();
+                if (value == 'share_shop') _shareToShop();
+                if (value == 'profile') _openProfile();
               },
               itemBuilder: (_) => [
+                const PopupMenuItem(
+                  key: Key('vehicle_profile_menu_item'),
+                  value: 'profile',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.badge_outlined),
+                    title: Text('愛車ページ'),
+                    subtitle: Text('この車を主役にしたページ'),
+                  ),
+                ),
+                const PopupMenuItem(
+                  key: Key('share_shop_menu_item'),
+                  value: 'share_shop',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.storefront_outlined),
+                    title: Text('お店に共有する'),
+                    subtitle: Text('初めて行くお店に、これまでを渡す'),
+                  ),
+                ),
                 const PopupMenuItem(
                   key: Key('export_csv_menu_item'),
                   value: 'csv',
@@ -882,6 +978,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
 
                   // この1年のふりかえり
                   _YearInReviewCard(vehicle: _vehicle),
+                  _ModelCostCard(vehicle: _vehicle),
 
                   // 整備記録の査定価値バナー
                   _MaintenanceValueBanner(vehicle: _vehicle),
@@ -3578,6 +3675,100 @@ class _CommunityTrendSection extends StatefulWidget {
   State<_CommunityTrendSection> createState() => _CommunityTrendSectionState();
 }
 
+/// 同じ車種の維持費（docs/SHOP_CRM_DESIGN_2026-09-27.md §8）への入口。
+///
+/// **自分の記録が溜まっていなくても、初日から出せる**数字。使い始めの
+/// 半年で「このアプリで何が分かるのか」に答える場所として置く。
+class _ModelCostCard extends StatefulWidget {
+  final Vehicle vehicle;
+
+  const _ModelCostCard({required this.vehicle});
+
+  @override
+  State<_ModelCostCard> createState() => _ModelCostCardState();
+}
+
+class _ModelCostCardState extends State<_ModelCostCard> {
+  ModelCostReport? _report;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!sl.isRegistered<ModelCostReportService>()) return;
+    final r = await sl.get<ModelCostReportService>().forVehicle(
+          maker: widget.vehicle.maker,
+          model: widget.vehicle.model,
+        );
+    if (!mounted) return;
+    setState(() {
+      _report = r.valueOrNull;
+      _loaded = r.isSuccess;
+    });
+  }
+
+  void _browse() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ModelCostBrowseScreen(
+          service: sl.get<ModelCostReportService>(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const SizedBox.shrink();
+    final r = _report;
+    final theme = Theme.of(context);
+    final fmt = NumberFormat('#,###');
+
+    final String subtitle;
+    if (r == null) {
+      subtitle = 'この車種はまだ集計できる人数（持ち主5人）に届いていません';
+    } else if (r.annualEstimate == null) {
+      subtitle = '${r.title}・持ち主${r.ownerCount}人の記録から';
+    } else {
+      subtitle = '${r.isMakerLevel ? '${r.maker}全体で' : ''}'
+          '年 約${fmt.format(r.annualEstimate)}円・持ち主${r.ownerCount}人の記録から';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: ListTile(
+          key: const Key('model_cost_entry'),
+          leading: const Icon(Icons.bar_chart, color: AppColors.primary),
+          title: const Text('同じ車種の維持費'),
+          subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: r == null
+              ? _browse
+              : () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => ModelCostReportScreen(
+                        report: r,
+                        onBrowseOthers: _browse,
+                      ),
+                    ),
+                  ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 「この1年のふりかえり」への入口。
 ///
 /// docs/HABIT_DESIGN.md 打ち手2。1年で整備記録は数十件溜まるのに、それを
@@ -3605,6 +3796,23 @@ class _YearInReviewCardState extends State<_YearInReviewCard> {
   }
 
   Future<void> _fetchPeerCost() async {
+    // 実際の記録から集計した車種別レポートを先に見る。比べる相手は
+    // 「ふりかえり」と同じく整備記録の費用なので、燃料は足さない。
+    // メーカー全体の数字とは比べない（別の車と比べることになる）。
+    if (sl.isRegistered<ModelCostReportService>()) {
+      final report = await sl.get<ModelCostReportService>().forVehicle(
+            maker: widget.vehicle.maker,
+            model: widget.vehicle.model,
+          );
+      final r = report.valueOrNull;
+      final maint = r?.maintenanceAnnual;
+      if (r != null && !r.isMakerLevel && maint != null) {
+        if (!mounted) return;
+        setState(() => _peerAnnualCost =
+            maint.median + (r.inspectionPerEvent?.median ?? 0) ~/ 2);
+        return;
+      }
+    }
     if (!sl.isRegistered<CommunityTrendService>()) return;
     final result = await sl.get<CommunityTrendService>().getTrendsForVehicle(
           maker: widget.vehicle.maker,

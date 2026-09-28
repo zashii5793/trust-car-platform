@@ -9,6 +9,7 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/image_viewer.dart';
+import '../../widgets/sns/post_vehicle_chip.dart';
 import 'post_create_screen.dart';
 import 'post_detail_screen.dart';
 
@@ -662,6 +663,10 @@ class _PostContent extends StatelessWidget {
           post.content,
           style: theme.textTheme.bodyMedium,
         ),
+        if (post.vehicleTag?.displayName != null) ...[
+          const SizedBox(height: 6),
+          PostVehicleChip(tag: post.vehicleTag),
+        ],
         if (post.hashtags.isNotEmpty) ...[
           const SizedBox(height: 6),
           Wrap(
