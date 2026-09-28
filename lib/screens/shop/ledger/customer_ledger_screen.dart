@@ -39,6 +39,9 @@ class CustomerLedgerScreen extends StatefulWidget {
   final ShopStaffService? staffService;
   final String? ownerUid;
 
+  /// 店主の名前（引き継いだあと、スタッフ名簿に前の店主として載せる）。
+  final String ownerName;
+
   /// 顧客とアプリの利用者をつなぎ、整備明細を送るため（店主だけ）。
   final LedgerLinkService? linkService;
   final ShopInviteService? inviteService;
@@ -61,6 +64,7 @@ class CustomerLedgerScreen extends StatefulWidget {
     this.shareService,
     this.staffService,
     this.ownerUid,
+    this.ownerName = '',
     this.linkService,
     this.inviteService,
     this.csvPicker,
@@ -204,6 +208,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
           shopId: widget.shopId,
           shopName: widget.shopName,
           ownerUid: widget.ownerUid!,
+          ownerName: widget.ownerName,
         ),
       ),
     );

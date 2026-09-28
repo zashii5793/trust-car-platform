@@ -332,6 +332,10 @@ const permPath = `vehicle_sharing_permissions/${permDocId}`;
 
 async function seedPermission(overrides = {}) {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    // 店のドキュメント（本番では必ずある）。店主かどうかは ownerId で決まる
+    await setDoc(doc(ctx.firestore(), `shops/${SHOP_OWNER_UID}`), {
+      name: '工場', ownerId: SHOP_OWNER_UID,
+    });
     await setDoc(doc(ctx.firestore(), permPath), {
       vehicleId: VEHICLE_ID,
       shopId: SHOP_OWNER_UID,
@@ -850,6 +854,9 @@ const messagesPath = `${inquiryPath}/messages`;
 // 問い合わせ本体とショップからの返信メッセージを配置する。
 async function seedInquiryThread() {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `shops/${SHOP_UID}`), {
+      name: '工場', ownerId: SHOP_UID,
+    });
     await setDoc(doc(ctx.firestore(), inquiryPath), {
       userId: OWNER_UID,
       shopId: SHOP_UID,
@@ -1266,6 +1273,11 @@ async function seedInvite(overrides = {}) {
 
 describe('shop_invites', () => {
   test('店主は自分の招待を作れる', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `shops/${INVITE_SHOP_ID}`), {
+        name: 'タカヤモーター', ownerId: INVITE_SHOP_OWNER_UID,
+      });
+    });
     await assertSucceeds(
       setDoc(doc(dbFor(INVITE_SHOP_OWNER_UID), invitePath), inviteDoc()),
     );
@@ -1600,6 +1612,9 @@ describe('shop_inquiry_demands — 店舗オーナーの一覧', () => {
   async function seedDemands() {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
+      await setDoc(doc(db, `shops/${DEMAND_SHOP_ID}`), {
+        name: '店', ownerId: DEMAND_OWNER_UID,
+      });
       await setDoc(doc(db, 'shop_inquiry_demands/d1'), {
         shopId: DEMAND_SHOP_ID,
         shopOwnerId: DEMAND_OWNER_UID,
@@ -1619,10 +1634,21 @@ describe('shop_inquiry_demands — 店舗オーナーの一覧', () => {
     });
   }
 
-  test('shopId だけで絞った旧クエリは、オーナーでも弾かれる', async () => {
+  // 2026-09-29: 店主かどうかは、需要データに写した shopOwnerId ではなく
+  // 店の ownerId で決める（引き継ぎ後に前の店主が読めないように）。
+  test('shopId だけで絞っても、いまの店主なら読める', async () => {
     await seedDemands();
     const q = query(
       collection(dbFor(DEMAND_OWNER_UID), 'shop_inquiry_demands'),
+      where('shopId', '==', DEMAND_SHOP_ID),
+    );
+    await assertSucceeds(getDocs(q));
+  });
+
+  test('店主でない人は shopId で絞っても読めない', async () => {
+    await seedDemands();
+    const q = query(
+      collection(dbFor(OTHER_UID), 'shop_inquiry_demands'),
       where('shopId', '==', DEMAND_SHOP_ID),
     );
     await assertFails(getDocs(q));
@@ -2919,5 +2945,121 @@ describe('shops/{id}/audit_logs — 操作の記録', () => {
   test('決まった項目以外は書けない', async () => {
     await seedLedgerShop();
     await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), path), log(LEDGER_STAFF_UID, { extra: 1 })));
+  });
+});
+
+// ==================== 店主の引き継ぎ（2026-09-29） ====================
+// 店のドキュメントIDは最初の店主の uid のまま。引き継いだあとは、
+// **ドキュメントIDと同じ uid の前の店主**が店主として振る舞えてはいけない。
+
+describe('店主の引き継ぎ', () => {
+  const OLD = 'old_owner';   // = 店のドキュメントID
+  const NEW = 'new_owner';
+  const SHOP_PATH = `shops/${OLD}`;
+
+  async function seedTransferred() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, SHOP_PATH), { name: '店', ownerId: NEW });
+      await setDoc(doc(db, `${SHOP_PATH}/members/${NEW}`), { role: 'owner' });
+      await setDoc(doc(db, 'inquiries/tr1'), {
+        userId: 'cust', shopId: OLD, type: 'general', status: 'pending',
+        subject: 'x', initialMessage: 'x',
+      });
+      await setDoc(doc(db, `${SHOP_PATH}/private/p1`), { revenue: 1 });
+    });
+  }
+
+  test('店主は、スタッフ名簿に載っている人にだけ店を渡せる', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, SHOP_PATH), { name: '店', ownerId: OLD });
+      await setDoc(doc(db, `${SHOP_PATH}/members/${NEW}`), { role: 'staff' });
+    });
+    await assertFails(updateDoc(doc(dbFor(OLD), SHOP_PATH), { ownerId: 'stranger' }));
+    await assertSucceeds(updateDoc(doc(dbFor(OLD), SHOP_PATH), { ownerId: NEW }));
+  });
+
+  test('引き継いだあと、前の店主は問い合わせ・非公開の情報を読めない', async () => {
+    await seedTransferred();
+    await assertFails(getDoc(doc(dbFor(OLD), 'inquiries/tr1')));
+    await assertFails(getDoc(doc(dbFor(OLD), `${SHOP_PATH}/private/p1`)));
+  });
+
+  test('引き継いだあと、新しい店主は読める', async () => {
+    await seedTransferred();
+    await assertSucceeds(getDoc(doc(dbFor(NEW), 'inquiries/tr1')));
+    await assertSucceeds(getDoc(doc(dbFor(NEW), `${SHOP_PATH}/private/p1`)));
+  });
+
+  test('引き継いだあと、前の店主は店として招待・メニュー・ニュースレターを出せない', async () => {
+    await seedTransferred();
+    await assertFails(setDoc(doc(dbFor(OLD), 'shop_invites/OLD234'), {
+      shopId: OLD, shopName: '店', shopOwnerId: OLD, usedCount: 0, isActive: true,
+      createdAt: new Date(),
+    }));
+    await assertFails(setDoc(doc(dbFor(OLD), 'service_menus/m1'), { shopId: OLD, name: '車検' }));
+    await assertFails(setDoc(doc(dbFor(OLD), 'newsletters/n1'), {
+      authorId: OLD, status: 'draft', title: 'x',
+    }));
+  });
+
+  test('新しい店主は、店として招待・メニュー・ニュースレターを出せる', async () => {
+    await seedTransferred();
+    await assertSucceeds(setDoc(doc(dbFor(NEW), 'shop_invites/NEW234'), {
+      shopId: OLD, shopName: '店', shopOwnerId: NEW, usedCount: 0, isActive: true,
+      createdAt: new Date(),
+    }));
+    await assertSucceeds(setDoc(doc(dbFor(NEW), 'service_menus/m2'), { shopId: OLD, name: '車検' }));
+    await assertSucceeds(setDoc(doc(dbFor(NEW), 'newsletters/n2'), {
+      authorId: OLD, status: 'draft', title: 'x',
+    }));
+  });
+
+  test('個人のニュースレター（店でない書き手）は、これまでどおり本人だけ', async () => {
+    await assertSucceeds(setDoc(doc(dbFor('person1'), 'newsletters/n3'), {
+      authorId: 'person1', status: 'draft', title: 'x',
+    }));
+    await assertFails(setDoc(doc(dbFor('person2'), 'newsletters/n4'), {
+      authorId: 'person1', status: 'draft', title: 'x',
+    }));
+  });
+});
+
+
+describe('店主の引き継ぎ（アプリが実際に書く形）', () => {
+  const OLD = 'old_owner2';
+  const NEW = 'new_owner2';
+  const SHOP_PATH = `shops/${OLD}`;
+
+  async function seed() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, SHOP_PATH), { name: '店', ownerId: OLD });
+      await setDoc(doc(db, `${SHOP_PATH}/members/${NEW}`), { role: 'staff', displayName: '佐藤' });
+      await setDoc(doc(db, `shop_staff/${NEW}`), { shopId: OLD, shopName: '店' });
+    });
+  }
+
+  function transfer(uid) {
+    const { writeBatch } = require('firebase/firestore');
+    const db = dbFor(uid);
+    const b = writeBatch(db);
+    b.update(doc(db, SHOP_PATH), { ownerId: NEW, updatedAt: new Date() });
+    b.update(doc(db, `${SHOP_PATH}/members/${NEW}`), { role: 'owner' });
+    b.set(doc(db, `${SHOP_PATH}/members/${OLD}`), { role: 'staff', displayName: '前', addedAt: new Date() });
+    b.set(doc(db, `shop_staff/${OLD}`), { shopId: OLD, shopName: '店' });
+    b.delete(doc(db, `shop_staff/${NEW}`));
+    return b.commit();
+  }
+
+  test('店主は、1回の書き込みで引き継げる', async () => {
+    await seed();
+    await assertSucceeds(transfer(OLD));
+  });
+
+  test('スタッフが勝手に引き継ぎを書くことはできない', async () => {
+    await seed();
+    await assertFails(transfer(NEW));
   });
 });

@@ -23,6 +23,7 @@ import 'shop_invite_manage_screen.dart';
 import '../../services/shop_invite_service.dart';
 import '../../services/shop_ledger_service.dart';
 import '../../services/vehicle_share_service.dart';
+import '../../services/shop_service.dart';
 import '../../services/shop_staff_service.dart';
 import '../../services/ledger_link_service.dart';
 import '../../services/shop_audit_service.dart';
@@ -327,6 +328,9 @@ class _RegisteredBody extends StatelessWidget {
                   shareService: sl.get<VehicleShareService>(),
                   staffService: sl.get<ShopStaffService>(),
                   ownerUid: shop.ownerId,
+                  ownerName:
+                      context.read<AuthProvider>().firebaseUser?.displayName ??
+                          '',
                   linkService: sl.get<LedgerLinkService>(),
                   inviteService: sl.get<ShopInviteService>(),
                   onAudit: _auditFor(context, shop.id),
@@ -1176,19 +1180,26 @@ class _StaffEntryCardState extends State<_StaffEntryCard> {
     });
   }
 
-  void _openLedger(StaffShopLink link) {
-    Navigator.push(
+  Future<void> _openLedger(StaffShopLink link) async {
+    // いまの店主の uid。店主を引き継げるようにしたので（2026-09-29）、
+    // 店のドキュメントID（＝最初の店主の uid）とは限らない。
+    var ownerUid = link.shopId;
+    if (sl.isRegistered<ShopService>()) {
+      final shop = await sl.get<ShopService>().getShop(link.shopId);
+      ownerUid = shop.valueOrNull?.ownerId ?? link.shopId;
+    }
+    if (!mounted) return;
+    await Navigator.push(
       context,
       MaterialPageRoute<void>(
         builder: (_) => CustomerLedgerScreen(
           service: sl.get<ShopLedgerService>(),
           shareService: sl.get<VehicleShareService>(),
           // スタッフも、お客さんとアプリをつなぎ、明細を送れる（2026-09-28）。
-          // 店のドキュメントIDは店主の uid なので、店主の uid = shopId。
           // スタッフの管理（staffService）は店主だけなので渡さない。
           linkService: sl.get<LedgerLinkService>(),
           inviteService: sl.get<ShopInviteService>(),
-          ownerUid: link.shopId,
+          ownerUid: ownerUid,
           onAudit: _auditFor(context, link.shopId),
           shopId: link.shopId,
           shopName: link.shopName,

@@ -15,12 +15,16 @@ class StaffManageScreen extends StatefulWidget {
   final String shopName;
   final String ownerUid;
 
+  /// いまの店主の名前（引き継いだあと、スタッフ名簿に載せるため）。
+  final String ownerName;
+
   const StaffManageScreen({
     super.key,
     required this.service,
     required this.shopId,
     required this.shopName,
     required this.ownerUid,
+    this.ownerName = '',
   });
 
   @override
@@ -94,6 +98,48 @@ class _StaffManageScreenState extends State<StaffManageScreen> {
       return;
     }
     await _load();
+  }
+
+  Future<void> _transfer(ShopStaffMember m) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${m.displayName} さんに店主を引き継ぎますか？'),
+        content: const Text('引き継ぐと、あなたはスタッフになります。スタッフの管理・'
+            '操作の記録・統計への協力の切り替えは、新しい店主だけができます。'
+            '台帳・整備履歴・問い合わせは、そのまま残ります。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('やめる'),
+          ),
+          TextButton(
+            key: const Key('staff_transfer_confirm'),
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('引き継ぐ'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final r = await widget.service.transferOwnership(
+      shopId: widget.shopId,
+      shopName: widget.shopName,
+      fromUid: widget.ownerUid,
+      fromName: widget.ownerName,
+      toUid: m.uid,
+    );
+    if (!mounted) return;
+    if (r.isFailure) {
+      setState(() => _error = r.errorOrNull!.userMessage);
+      return;
+    }
+    // 自分はもう店主ではない。最初の画面まで戻って読み直してもらう
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${m.displayName} さんに店主を引き継ぎました')),
+    );
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
@@ -170,10 +216,17 @@ class _StaffManageScreenState extends State<StaffManageScreen> {
                 ].join('・')),
                 trailing: m.isOwner || m.uid == widget.ownerUid
                     ? null
-                    : TextButton(
-                        key: Key('staff_remove_${m.uid}'),
-                        onPressed: () => _remove(m),
-                        child: const Text('外す'),
+                    : PopupMenuButton<String>(
+                        key: Key('staff_menu_${m.uid}'),
+                        onSelected: (v) {
+                          if (v == 'remove') _remove(m);
+                          if (v == 'transfer') _transfer(m);
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                              value: 'transfer', child: Text('店主を引き継ぐ')),
+                          PopupMenuItem(value: 'remove', child: Text('外す')),
+                        ],
                       ),
               ),
           if (_error != null)
