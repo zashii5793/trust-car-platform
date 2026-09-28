@@ -2874,3 +2874,50 @@ describe('スタッフも明細を送れる（2026-09-28）', () => {
     }));
   });
 });
+
+describe('shops/{id}/audit_logs — 操作の記録', () => {
+  const path = `shops/${LEDGER_SHOP_ID}/audit_logs/l1`;
+  const log = (uid, o = {}) => ({
+    actorUid: uid, actorName: 'x', action: 'viewCustomer', targetId: 'c1', at: new Date(), ...o,
+  });
+  async function seedLog() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), path), log(LEDGER_STAFF_UID));
+    });
+  }
+
+  test('スタッフは自分の名前で記録できる', async () => {
+    await seedLedgerShop();
+    await assertSucceeds(setDoc(doc(dbFor(LEDGER_STAFF_UID), path), log(LEDGER_STAFF_UID)));
+  });
+
+  test('他人の名前では記録できない', async () => {
+    await seedLedgerShop();
+    await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), path), log(LEDGER_OWNER_UID)));
+  });
+
+  test('店と無関係の人は記録できない', async () => {
+    await seedLedgerShop();
+    await assertFails(setDoc(doc(dbFor(LEDGER_OUTSIDER_UID), path), log(LEDGER_OUTSIDER_UID)));
+  });
+
+  test('読めるのは店主だけ（スタッフは読めない）', async () => {
+    await seedLedgerShop();
+    await seedLog();
+    await assertSucceeds(getDoc(doc(dbFor(LEDGER_OWNER_UID), path)));
+    await assertFails(getDoc(doc(dbFor(LEDGER_STAFF_UID), path)));
+  });
+
+  test('店主でも書き換え・削除はできない', async () => {
+    await seedLedgerShop();
+    await seedLog();
+    await assertFails(updateDoc(doc(dbFor(LEDGER_OWNER_UID), path), { action: 'x' }));
+    await assertFails(deleteDoc(doc(dbFor(LEDGER_OWNER_UID), path)));
+    await assertFails(deleteDoc(doc(dbFor(LEDGER_STAFF_UID), path)));
+  });
+
+  test('決まった項目以外は書けない', async () => {
+    await seedLedgerShop();
+    await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), path), log(LEDGER_STAFF_UID, { extra: 1 })));
+  });
+});

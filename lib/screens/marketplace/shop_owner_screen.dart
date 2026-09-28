@@ -25,6 +25,7 @@ import '../../services/shop_ledger_service.dart';
 import '../../services/vehicle_share_service.dart';
 import '../../services/shop_staff_service.dart';
 import '../../services/ledger_link_service.dart';
+import '../../services/shop_audit_service.dart';
 import '../shop/ledger/staff_screens.dart';
 import '../shop/ledger/customer_ledger_screen.dart';
 
@@ -328,6 +329,8 @@ class _RegisteredBody extends StatelessWidget {
                   ownerUid: shop.ownerId,
                   linkService: sl.get<LedgerLinkService>(),
                   inviteService: sl.get<ShopInviteService>(),
+                  onAudit: _auditFor(context, shop.id),
+                  auditService: sl.get<ShopAuditService>(),
                   shopId: shop.id,
                   shopName: shop.name,
                 ),
@@ -1186,6 +1189,7 @@ class _StaffEntryCardState extends State<_StaffEntryCard> {
           linkService: sl.get<LedgerLinkService>(),
           inviteService: sl.get<ShopInviteService>(),
           ownerUid: link.shopId,
+          onAudit: _auditFor(context, link.shopId),
           shopId: link.shopId,
           shopName: link.shopName,
         ),
@@ -1226,4 +1230,16 @@ class _StaffEntryCardState extends State<_StaffEntryCard> {
       ),
     );
   }
+}
+
+/// ログイン中の人として、この店の操作を記録する関数。
+AuditRecorder? _auditFor(BuildContext context, String shopId) {
+  if (!sl.isRegistered<ShopAuditService>()) return null;
+  final user = context.read<AuthProvider>().firebaseUser;
+  if (user == null) return null;
+  return sl.get<ShopAuditService>().recorderFor(
+        shopId: shopId,
+        actorUid: user.uid,
+        actorName: user.displayName ?? user.email ?? 'スタッフ',
+      );
 }

@@ -350,6 +350,21 @@ service cloud.firestore {
         allow create, update: if isShopStaff(shopId) && validLedgerVehicle();
       }
 
+      // 操作の記録（誰がいつ顧客を見た・書いたか）。2026-09-29。
+      // 書けるのはスタッフ（店主を含む）で、自分の名前でだけ。読めるのは店主だけ。
+      // **後から書き換え・削除はできない**（都合の悪い記録を消させない）。
+      match /audit_logs/{logId} {
+        allow read: if isShopOwnerOf(shopId);
+        allow create: if isShopStaff(shopId)
+          && request.resource.data.actorUid == request.auth.uid
+          && request.resource.data.action is string
+          && request.resource.data.at is timestamp
+          && request.resource.data.keys().hasOnly([
+               'actorUid', 'actorName', 'action', 'targetId', 'targetLabel',
+               'detail', 'at']);
+        allow update, delete: if false;
+      }
+
       // 店の整備実績。車種別の維持費レポートの材料になる（店が
       // allowsStatistics で同意したときだけ）。店のスタッフだけが読み書きする。
       match /service_records/{recordId} {

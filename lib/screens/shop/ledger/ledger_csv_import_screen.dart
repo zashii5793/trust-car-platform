@@ -6,6 +6,7 @@ import '../../../core/constants/spacing.dart';
 import '../../../core/encoding/csv_text_decoder.dart';
 import '../../../services/ledger_csv_import.dart';
 import '../../../services/shop_ledger_service.dart';
+import '../../../services/shop_audit_service.dart';
 import '../../../widgets/common/app_card.dart';
 
 /// 選んだファイル。テストでファイル選択を差し替えられるように分けてある。
@@ -55,12 +56,14 @@ class LedgerCsvImportScreen extends StatefulWidget {
   final ShopLedgerService service;
   final String shopId;
   final CsvFilePicker pickFile;
+  final AuditRecorder? onAudit;
 
   const LedgerCsvImportScreen({
     super.key,
     required this.service,
     required this.shopId,
     this.pickFile = pickCsvWithFilePicker,
+    this.onAudit,
   });
 
   @override
@@ -142,10 +145,14 @@ class _LedgerCsvImportScreenState extends State<LedgerCsvImportScreen> {
     );
     if (!mounted) return;
     result.when(
-      success: (r) => setState(() {
-        _historyResult = r;
-        _importing = false;
-      }),
+      success: (r) {
+        widget.onAudit?.call(ShopAuditAction.importHistory,
+            detail: '$_fileName・伝票${r.records}件');
+        setState(() {
+          _historyResult = r;
+          _importing = false;
+        });
+      },
       failure: (e) => setState(() {
         _error = '取り込みに失敗しました: ${e.userMessage}\n'
             'もう一度取り込んでも二重にはなりません。';
@@ -176,10 +183,15 @@ class _LedgerCsvImportScreenState extends State<LedgerCsvImportScreen> {
     );
     if (!mounted) return;
     result.when(
-      success: (r) => setState(() {
-        _result = r;
-        _importing = false;
-      }),
+      success: (r) {
+        widget.onAudit?.call(ShopAuditAction.importRoster,
+            detail: '$_fileName・新規${r.createdCustomers}人・更新'
+                '${r.updatedCustomers}人・車両${r.vehicles}台');
+        setState(() {
+          _result = r;
+          _importing = false;
+        });
+      },
       failure: (e) => setState(() {
         _error = '取り込みに失敗しました: ${e.userMessage}\n'
             'もう一度取り込んでも二重にはなりません。';
