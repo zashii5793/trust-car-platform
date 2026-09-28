@@ -23,6 +23,9 @@ import 'shop_invite_manage_screen.dart';
 import '../../services/shop_invite_service.dart';
 import '../../services/shop_ledger_service.dart';
 import '../../services/vehicle_share_service.dart';
+import '../../services/shop_staff_service.dart';
+import '../../services/ledger_link_service.dart';
+import '../shop/ledger/staff_screens.dart';
 import '../shop/ledger/customer_ledger_screen.dart';
 
 /// Shop owner hub screen.
@@ -203,6 +206,9 @@ class _UnregisteredBody extends StatelessWidget {
             ),
           ),
           AppSpacing.verticalLg,
+          if (sl.isRegistered<ShopStaffService>())
+            _StaffEntryCard(service: sl.get<ShopStaffService>()),
+          AppSpacing.verticalLg,
         ],
       ),
     );
@@ -318,6 +324,10 @@ class _RegisteredBody extends StatelessWidget {
                 builder: (_) => CustomerLedgerScreen(
                   service: sl.get<ShopLedgerService>(),
                   shareService: sl.get<VehicleShareService>(),
+                  staffService: sl.get<ShopStaffService>(),
+                  ownerUid: shop.ownerId,
+                  linkService: sl.get<LedgerLinkService>(),
+                  inviteService: sl.get<ShopInviteService>(),
                   shopId: shop.id,
                   shopName: shop.name,
                 ),
@@ -1124,6 +1134,89 @@ class _PlanBadge extends StatelessWidget {
           fontWeight: FontWeight.bold,
           color: color,
         ),
+      ),
+    );
+  }
+}
+
+/// 店を持っていない人のうち、店のスタッフのための入口。
+///
+/// スタッフは自分の店を持たない（店のドキュメントIDは店主の uid）ので、
+/// ここで「どの店のスタッフか」を引いて、その店の顧客台帳へ案内する。
+class _StaffEntryCard extends StatefulWidget {
+  final ShopStaffService service;
+
+  const _StaffEntryCard({required this.service});
+
+  @override
+  State<_StaffEntryCard> createState() => _StaffEntryCardState();
+}
+
+class _StaffEntryCardState extends State<_StaffEntryCard> {
+  StaffShopLink? _link;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final uid = context.read<AuthProvider>().firebaseUser?.uid;
+    if (uid == null) return;
+    final r = await widget.service.myShop(uid);
+    if (!mounted) return;
+    setState(() {
+      _link = r.valueOrNull;
+      _loaded = true;
+    });
+  }
+
+  void _openLedger(StaffShopLink link) {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => CustomerLedgerScreen(
+          service: sl.get<ShopLedgerService>(),
+          shareService: sl.get<VehicleShareService>(),
+          shopId: link.shopId,
+          shopName: link.shopName,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _join() async {
+    final user = context.read<AuthProvider>().firebaseUser;
+    if (user == null) return;
+    final link = await Navigator.push<StaffShopLink>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StaffJoinScreen(
+          service: widget.service,
+          uid: user.uid,
+          displayName: user.displayName ?? 'スタッフ',
+        ),
+      ),
+    );
+    if (link == null || !mounted) return;
+    setState(() => _link = link);
+    _openLedger(link);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const SizedBox.shrink();
+    final link = _link;
+    return Card(
+      child: ListTile(
+        key: const Key('staff_entry'),
+        leading: const Icon(Icons.badge_outlined),
+        title: Text(link == null ? '店のスタッフの方' : '${link.shopName} のスタッフ'),
+        subtitle: Text(link == null ? '店主から受け取ったコードで参加できます' : '顧客台帳を開く'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: link == null ? _join : () => _openLedger(link),
       ),
     );
   }

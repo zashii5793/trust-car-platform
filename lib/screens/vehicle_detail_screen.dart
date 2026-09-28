@@ -20,6 +20,8 @@ import '../services/shop_service.dart';
 import '../services/vehicle_share_service.dart';
 import 'vehicle/share_to_shop_screen.dart';
 import 'vehicle/vehicle_profile_screen.dart';
+import 'vehicle/maintenance_history_import_screen.dart';
+import '../services/maintenance_history_import_service.dart';
 import '../services/vehicle_profile_service.dart';
 import '../models/vehicle_profile.dart';
 import '../providers/notification_provider.dart';
@@ -389,6 +391,21 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   ///
   /// PDF は読むもの。買い手や次のオーナーが**自分で扱う**には表が要る。
   /// 個人向けの出力は PDF だけで、CSV は法人のフリート用しか無かった。
+  Future<void> _importHistory() async {
+    final user = context.read<AuthProvider>().firebaseUser;
+    if (user == null) return;
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MaintenanceHistoryImportScreen(
+          vehicle: _vehicle,
+          userId: user.uid,
+          service: sl.get<MaintenanceHistoryImportService>(),
+        ),
+      ),
+    );
+  }
+
   /// 愛車ページ。まだ無ければ作る画面、あれば表示（右上から編集）。
   Future<void> _openProfile() async {
     final user = context.read<AuthProvider>().firebaseUser;
@@ -423,6 +440,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
             key: ValueKey(current.updatedAt),
             service: service,
             profile: current,
+            viewerUid: user.uid,
             onEdit: () async {
               final updated = await edit(current);
               if (updated != null) setLocal(() => current = updated);
@@ -710,8 +728,19 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                 if (value == 'csv') _exportCsv();
                 if (value == 'share_shop') _shareToShop();
                 if (value == 'profile') _openProfile();
+                if (value == 'history_import') _importHistory();
               },
               itemBuilder: (_) => [
+                const PopupMenuItem(
+                  key: Key('history_import_menu_item'),
+                  value: 'history_import',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.history_edu_outlined),
+                    title: Text('過去の整備記録を移す'),
+                    subtitle: Text('整備記録簿・請求書からまとめて'),
+                  ),
+                ),
                 const PopupMenuItem(
                   key: Key('vehicle_profile_menu_item'),
                   value: 'profile',

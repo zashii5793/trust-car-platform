@@ -64,6 +64,9 @@ import '../../services/shop_ledger_service.dart';
 import '../../services/vehicle_share_service.dart';
 import '../../services/model_cost_report_service.dart';
 import '../../services/vehicle_profile_service.dart';
+import '../../services/maintenance_history_import_service.dart';
+import '../../services/shop_staff_service.dart';
+import '../../services/ledger_link_service.dart';
 import '../../services/fuel_service.dart';
 
 /// 依存性の登録を行うクラス
@@ -293,6 +296,22 @@ class Injection {
     // 愛車ページ（公開）。車を主役に、公開の投稿・パーツ・ドライブを集める。
     locator.registerLazySingleton<VehicleProfileService>(
       () => VehicleProfileService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 車両登録時に、過去の整備記録・請求書の内容をまとめて移す。
+    locator.registerLazySingleton<MaintenanceHistoryImportService>(
+      () => MaintenanceHistoryImportService(
+          firestore: FirebaseFirestore.instance),
+    );
+
+    // 店のスタッフ（招待コードで参加）。顧客台帳を店主ひとりで回さないため。
+    locator.registerLazySingleton<ShopStaffService>(
+      () => ShopStaffService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 台帳の顧客とアプリの利用者をつなぎ、整備明細を送る。
+    locator.registerLazySingleton<LedgerLinkService>(
+      () => LedgerLinkService(firestore: FirebaseFirestore.instance),
     );
 
     // Fuel records (給油は月2〜4回あり、唯一の月単位の接点).

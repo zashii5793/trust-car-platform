@@ -21,9 +21,12 @@ import 'package:trust_car_platform/screens/shop/ledger/customer_detail_screen.da
 import 'package:trust_car_platform/screens/shop/ledger/customer_ledger_screen.dart';
 import 'package:trust_car_platform/screens/shop/ledger/ledger_csv_import_screen.dart';
 import 'package:trust_car_platform/screens/shop/ledger/shared_vehicles_screen.dart';
+import 'package:trust_car_platform/screens/vehicle/maintenance_history_import_screen.dart';
 import 'package:trust_car_platform/screens/vehicle/model_cost_report_screen.dart';
 import 'package:trust_car_platform/screens/vehicle/share_to_shop_screen.dart';
 import 'package:trust_car_platform/services/ledger_csv_import.dart';
+import 'package:trust_car_platform/services/maintenance_history_import.dart';
+import 'package:trust_car_platform/services/maintenance_history_import_service.dart';
 import 'package:trust_car_platform/services/shop_ledger_service.dart';
 import 'package:trust_car_platform/services/vehicle_share_service.dart';
 
@@ -222,6 +225,32 @@ void main() {
         ),
         'share_to_shop',
         size: const Size(390, 1500),
+      );
+    });
+
+    testWidgets('過去の整備記録を移す（ファイルを選んだあと）', (tester) async {
+      final csv = '${historyTemplateCsv()}'
+          '2023/4/10,車検,24か月点検・車検,128000,42000,タカヤモーター,\r\n'
+          'R5.10.2,オイル交換,,8800,45500,,\r\n'
+          '2024/1/20,タイヤ交換,スタッドレス4本,92000,,,\r\n'
+          '2024/13/1,点検,,5000,,,\r\n';
+      await shoot(
+        tester,
+        MaintenanceHistoryImportScreen(
+          vehicle: _vehicle(),
+          userId: 'u1',
+          service: MaintenanceHistoryImportService(
+            firestore: FakeFirebaseFirestore(),
+            now: () => _today,
+          ),
+          pickFile: () async =>
+              PickedCsvFile('整備記録_記入済み.csv', utf8.encode(csv)),
+          shareTemplate: (_) async {},
+          today: _today,
+        ),
+        'history_import',
+        size: const Size(390, 1500),
+        before: () => tester.tap(find.byKey(const Key('history_pick'))),
       );
     });
 

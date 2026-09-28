@@ -9,6 +9,9 @@ import '../../../widgets/common/loading_indicator.dart';
 import 'customer_edit_screen.dart';
 import 'ledger_format.dart';
 import 'ledger_vehicle_edit_screen.dart';
+import '../../../services/ledger_link_service.dart';
+import '../../../services/shop_invite_service.dart';
+import '../../marketplace/shop_inquiry_list_screen.dart';
 
 /// 顧客1件の詳細。車両の追加・編集もここから行う。
 ///
@@ -19,12 +22,23 @@ class CustomerDetailScreen extends StatefulWidget {
   final String customerId;
   final DateTime? today;
 
+  /// アプリとつなぐ・整備明細を送るための部品。店主が開いたときだけ渡す
+  /// （札とスレッドのルールが店主の uid で判定するため、スタッフには出さない）。
+  final LedgerLinkService? linkService;
+  final ShopInviteService? inviteService;
+  final String? shopName;
+  final String? ownerUid;
+
   const CustomerDetailScreen({
     super.key,
     required this.service,
     required this.shopId,
     required this.customerId,
     this.today,
+    this.linkService,
+    this.inviteService,
+    this.shopName,
+    this.ownerUid,
   });
 
   @override
@@ -46,7 +60,20 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     _load();
   }
 
+  bool get _canLink =>
+      widget.linkService != null &&
+      widget.inviteService != null &&
+      widget.ownerUid != null;
+
   Future<void> _load() async {
+    // この顧客宛てのコードが使われていれば、先につないでおく
+    if (_canLink) {
+      final linked = await widget.linkService!.syncLink(
+        shopId: widget.shopId,
+        customerId: widget.customerId,
+      );
+      if (linked.valueOrNull != null) _changed = true;
+    }
     final customer = await widget.service.getCustomer(
       shopId: widget.shopId,
       customerId: widget.customerId,
@@ -95,6 +122,69 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     if (saved != true) return;
     _changed = true;
     await _load();
+  }
+
+  /// この顧客専用の招待コードを出す（1回限り・30日間）。
+  Future<void> _issueInvite() async {
+    final r = await widget.inviteService!.createInvite(
+      shopId: widget.shopId,
+      shopName: widget.shopName ?? '',
+      shopOwnerId: widget.ownerUid!,
+      maxUses: 1,
+      expiresAt: (widget.today ?? DateTime.now()).add(const Duration(days: 30)),
+      customerId: widget.customerId,
+    );
+    if (!mounted) return;
+    await r.when(
+      success: (invite) => showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('このお客さん専用のコード'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SelectableText(
+                invite.code,
+                key: const Key('customer_invite_code'),
+                style: Theme.of(ctx).textTheme.displaySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 6,
+                    ),
+              ),
+              AppSpacing.verticalSm,
+              const Text('お客さんにアプリの「お店のコードを入れる」で入れてもらって'
+                  'ください。入れると、この台帳に「アプリ利用中」と付き、'
+                  '整備明細をアプリに送れるようになります。1回限り・30日間有効です。'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('閉じる'),
+            ),
+          ],
+        ),
+      ),
+      failure: (e) async => ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.userMessage))),
+    );
+  }
+
+  /// つながったお客さんに整備明細を送る（問い合わせのスレッドから）。
+  Future<void> _sendDetail() async {
+    final c = _customer;
+    if (c?.linkedUserId == null) return;
+    final r = await widget.linkService!.openThread(
+      shopId: widget.shopId,
+      shopName: widget.shopName ?? '',
+      userId: c!.linkedUserId!,
+    );
+    if (!mounted) return;
+    await r.when(
+      success: (inquiry) => openShopInquiryThread(context, inquiry),
+      failure: (e) async => ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.userMessage))),
+    );
   }
 
   Future<void> _delete() async {
@@ -222,6 +312,23 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
             ],
           ),
         ),
+        if (_canLink) ...[
+          AppSpacing.verticalMd,
+          if (c.isLinked)
+            FilledButton.icon(
+              key: const Key('customer_send_detail'),
+              onPressed: _sendDetail,
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: const Text('整備明細をアプリに送る'),
+            )
+          else
+            OutlinedButton.icon(
+              key: const Key('customer_issue_invite'),
+              onPressed: _issueInvite,
+              icon: const Icon(Icons.qr_code_2),
+              label: const Text('アプリとつなぐ（専用コードを出す）'),
+            ),
+        ],
         AppSpacing.verticalLg,
         Row(
           children: [

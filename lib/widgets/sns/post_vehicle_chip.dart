@@ -18,7 +18,15 @@ class PostVehicleChip extends StatelessWidget {
   /// テストで差し替えるため。null なら ServiceLocator から取る。
   final VehicleProfileService? service;
 
-  const PostVehicleChip({super.key, required this.tag, this.service});
+  /// 見ている人（フォローのボタンを出すため）。
+  final String? viewerUid;
+
+  const PostVehicleChip({
+    super.key,
+    required this.tag,
+    this.service,
+    this.viewerUid,
+  });
 
   Future<void> _open(BuildContext context, String vehicleId) async {
     final svc = service ??
@@ -38,7 +46,11 @@ class PostVehicleChip extends StatelessWidget {
     }
     await navigator.push(
       MaterialPageRoute<void>(
-        builder: (_) => VehicleProfileScreen(service: svc, profile: profile),
+        builder: (_) => VehicleProfileScreen(
+          service: svc,
+          profile: profile,
+          viewerUid: viewerUid,
+        ),
       ),
     );
   }

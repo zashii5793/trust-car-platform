@@ -10,6 +10,7 @@ import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/image_viewer.dart';
 import '../../widgets/sns/post_vehicle_chip.dart';
+import '../../widgets/sns/followed_vehicles_bar.dart';
 import 'post_create_screen.dart';
 import 'post_detail_screen.dart';
 
@@ -57,6 +58,7 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
       body: Column(
         children: [
           _CategoryFilterBar(),
+          const FollowedVehiclesBar(),
           _VehicleModelFilterBar(),
           const _SortBar(),
           Expanded(
@@ -665,7 +667,10 @@ class _PostContent extends StatelessWidget {
         ),
         if (post.vehicleTag?.displayName != null) ...[
           const SizedBox(height: 6),
-          PostVehicleChip(tag: post.vehicleTag),
+          PostVehicleChip(
+            tag: post.vehicleTag,
+            viewerUid: context.read<AuthProvider>().firebaseUser?.uid,
+          ),
         ],
         if (post.hashtags.isNotEmpty) ...[
           const SizedBox(height: 6),

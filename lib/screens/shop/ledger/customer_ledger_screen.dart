@@ -7,11 +7,15 @@ import '../../../core/constants/spacing.dart';
 import '../../../models/shop_ledger.dart';
 import '../../../services/shop_ledger_service.dart';
 import '../../../services/vehicle_share_service.dart';
+import '../../../services/shop_staff_service.dart';
+import '../../../services/ledger_link_service.dart';
+import '../../../services/shop_invite_service.dart';
 import '../../../widgets/common/loading_indicator.dart';
 import 'customer_detail_screen.dart';
 import 'customer_edit_screen.dart';
 import 'ledger_csv_import_screen.dart';
 import 'shared_vehicles_screen.dart';
+import 'staff_screens.dart';
 import 'ledger_format.dart';
 import 'ledger_paged_list.dart';
 
@@ -27,6 +31,14 @@ class CustomerLedgerScreen extends StatefulWidget {
 
   /// ユーザーから渡された車の写しを読むため。渡さなければ入口を出さない。
   final VehicleShareService? shareService;
+
+  /// 店主が開いたときだけ渡す（スタッフの管理・統計協力の切り替えは店主だけ）。
+  final ShopStaffService? staffService;
+  final String? ownerUid;
+
+  /// 顧客とアプリの利用者をつなぎ、整備明細を送るため（店主だけ）。
+  final LedgerLinkService? linkService;
+  final ShopInviteService? inviteService;
   final String shopId;
   final String shopName;
 
@@ -37,6 +49,10 @@ class CustomerLedgerScreen extends StatefulWidget {
     super.key,
     required this.service,
     this.shareService,
+    this.staffService,
+    this.ownerUid,
+    this.linkService,
+    this.inviteService,
     required this.shopId,
     required this.shopName,
     this.today,
@@ -113,6 +129,10 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
           shopId: widget.shopId,
           customerId: customerId,
           today: widget.today,
+          linkService: widget.linkService,
+          inviteService: widget.inviteService,
+          shopName: widget.shopName,
+          ownerUid: widget.ownerUid,
         ),
       ),
     );
@@ -132,6 +152,20 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
     if (created == null || !mounted) return;
     _refreshAll();
     await _openCustomer(created.id);
+  }
+
+  Future<void> _openStaff() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StaffManageScreen(
+          service: widget.staffService!,
+          shopId: widget.shopId,
+          shopName: widget.shopName,
+          ownerUid: widget.ownerUid!,
+        ),
+      ),
+    );
   }
 
   Future<void> _openShared() async {
@@ -239,9 +273,12 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
             key: const Key('ledger_more'),
             onSelected: (v) {
               if (v == 'stats') _openStatistics();
+              if (v == 'staff') _openStaff();
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
+            itemBuilder: (_) => [
+              if (widget.staffService != null && widget.ownerUid != null)
+                const PopupMenuItem(value: 'staff', child: Text('スタッフ')),
+              const PopupMenuItem(
                 value: 'stats',
                 child: Text('車種別レポートへの協力'),
               ),

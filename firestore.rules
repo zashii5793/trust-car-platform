@@ -315,6 +315,16 @@ service cloud.firestore {
         allow read: if isShopStaff(shopId);
         allow create, update: if isShopOwnerOf(shopId)
           && request.resource.data.role in ['owner', 'staff'];
+        // スタッフ本人が招待コードで入る。同じバッチでコードを自分の使用済みに
+        // するので、書いたあとの状態（getAfter）で確かめる。役割は staff だけ。
+        allow create: if isAuthenticated()
+          && request.auth.uid == memberUid
+          && request.resource.data.role == 'staff'
+          && request.resource.data.inviteCode is string
+          && getAfter(/databases/$(database)/documents/shop_staff_invites/$(request.resource.data.inviteCode)).data.shopId
+               == shopId
+          && getAfter(/databases/$(database)/documents/shop_staff_invites/$(request.resource.data.inviteCode)).data.usedBy
+               == request.auth.uid;
         allow delete: if isShopOwnerOf(shopId)
           || (isAuthenticated() && request.auth.uid == memberUid);
       }
@@ -412,6 +422,15 @@ service cloud.firestore {
       // 認証済みユーザーが作成可能（自分の userId を設定していること）
       allow create: if isAuthenticated()
         && request.resource.data.userId == request.auth.uid;
+
+      // 店から、つながったお客さんへスレッドを開く（顧客台帳から整備明細を
+      // 送るため）。**そのお客さんの札がこの店を指しているときだけ。**
+      // 見知らぬ人に店から話しかけることはできない。
+      allow create: if isAuthenticated()
+        && request.resource.data.shopId == request.auth.uid
+        && request.resource.data.get('openedByShop', false) == true
+        && get(/databases/$(database)/documents/shop_customers/$(request.resource.data.userId)).data.shopId
+             == request.auth.uid;
 
       // 更新はオーナーまたはユーザー本人（既読フラグ等の更新用）
       allow update: if isAuthenticated()
@@ -943,13 +962,58 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
              'vehicleId', 'ownerId', 'ownerName', 'maker', 'model', 'year',
              'grade', 'nickname', 'bio', 'imageUrl', 'isPublic',
-             'showsMaintenance', 'maintenance', 'updatedAt'])
+             'showsMaintenance', 'maintenance', 'updatedAt', 'makerKey',
+             'modelKey'])
         && request.resource.data.isPublic is bool
         && request.resource.data.maintenance is list
         && (request.resource.data.showsMaintenance == true
             || request.resource.data.maintenance.size() == 0);
       allow delete: if isAuthenticated()
         && resource.data.ownerId == request.auth.uid;
+    }
+
+    // スタッフ用の招待コード。コードを知っていれば読める（引き換えに必要）。
+    // 発行は店主だけ。使うのは1回だけ・期限内だけ・自分の名前でだけ。
+    match /shop_staff_invites/{code} {
+      allow get: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && isShopOwnerOf(request.resource.data.shopId)
+        && request.resource.data.usedBy == null
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt <= request.time + duration.value(8, 'd');
+      allow update: if isAuthenticated()
+        && resource.data.usedBy == null
+        && resource.data.expiresAt > request.time
+        && request.resource.data.usedBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['usedBy', 'usedAt']);
+      allow delete: if isAuthenticated() && isShopOwnerOf(resource.data.shopId);
+    }
+
+    // スタッフの札（自分はどの店のスタッフか）。本人が名簿に載っているときだけ
+    // 作れる。消すのは本人か、その店の店主。
+    match /shop_staff/{uid} {
+      allow read: if isAuthenticated() && request.auth.uid == uid;
+      allow create, update: if isAuthenticated()
+        && request.auth.uid == uid
+        && existsAfter(/databases/$(database)/documents/shops/$(request.resource.data.shopId)/members/$(uid));
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == uid || isShopOwnerOf(resource.data.shopId)
+      );
+    }
+
+    // 愛車ページのフォロー。人のフォロー（follows）と同じ扱い。
+    // フォローできるのは公開中のページだけ・自分の車は除く。
+    match /vehicle_follows/{followId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && request.resource.data.uid == request.auth.uid
+        && followId == request.auth.uid + '_' + request.resource.data.vehicleId
+        && get(/databases/$(database)/documents/vehicle_profiles/$(request.resource.data.vehicleId)).data.isPublic == true
+        && get(/databases/$(database)/documents/vehicle_profiles/$(request.resource.data.vehicleId)).data.ownerId
+             != request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow update: if false;
     }
 
     // 車種別の維持費レポート（docs/SHOP_CRM_DESIGN_2026-09-27.md §8）。
@@ -1094,7 +1158,19 @@ service cloud.firestore {
                   && d.vehicleCount >= 0
                   && d.vehicleCount <= 99))
         && (!('sharesInspectionExpiry' in d.keys())
-              || d.sharesInspectionExpiry is bool);
+              || d.sharesInspectionExpiry is bool)
+        && ledgerCustomerClaimIsHonest(d);
+    }
+
+    // 札に「台帳のどの顧客か」を書けるのは、その顧客に宛てた招待を
+    // 使ったときだけ。**他人の顧客IDを名乗れると、別人の整備明細が届く。**
+    function ledgerCustomerClaimIsHonest(d) {
+      return d.get('customerId', null) == null
+        || (d.get('inviteCode', null) is string
+            && get(/databases/$(database)/documents/shop_invites/$(d.inviteCode)).data.get('customerId', null)
+                 == d.customerId
+            && get(/databases/$(database)/documents/shop_invites/$(d.inviteCode)).data.shopId
+                 == d.shopId);
     }
 
     // 顧客と店の紐づけ（かかりつけ）

@@ -2578,3 +2578,228 @@ describe('vehicle_profiles — 愛車ページ', () => {
     await assertFails(deleteDoc(doc(dbFor(OTHER_UID), path)));
   });
 });
+
+describe('スタッフの招待と参加', () => {
+  const CODE = 'ABC234';
+  const invitePath = `shop_staff_invites/${CODE}`;
+  const NEW_STAFF = 'new_staff_9';
+  const memberPath = `shops/${LEDGER_SHOP_ID}/members/${NEW_STAFF}`;
+  const linkPath = `shop_staff/${NEW_STAFF}`;
+  const inFuture = () => new Date(Date.now() + 3 * 24 * 3600 * 1000);
+
+  async function seedStaffInvite(o = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), invitePath), {
+        shopId: LEDGER_SHOP_ID,
+        shopName: 'タカヤモーター',
+        expiresAt: inFuture(),
+        usedBy: null,
+        ...o,
+      });
+    });
+  }
+
+  async function join(uid) {
+    const db = dbFor(uid);
+    const { writeBatch } = require('firebase/firestore');
+    const batch = writeBatch(db);
+    batch.update(doc(db, invitePath), { usedBy: uid, usedAt: new Date() });
+    batch.set(doc(db, `shops/${LEDGER_SHOP_ID}/members/${uid}`), {
+      role: 'staff', displayName: 'スタッフ', inviteCode: CODE, addedAt: new Date(),
+    });
+    batch.set(doc(db, `shop_staff/${uid}`), { shopId: LEDGER_SHOP_ID, shopName: 'タカヤモーター' });
+    return batch.commit();
+  }
+
+  test('店主はコードを発行できる。スタッフは発行できない', async () => {
+    await seedLedgerShop();
+    const data = { shopId: LEDGER_SHOP_ID, shopName: 'x', expiresAt: inFuture(), usedBy: null };
+    await assertSucceeds(setDoc(doc(dbFor(LEDGER_OWNER_UID), invitePath), data));
+    await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), 'shop_staff_invites/XYZ789'), data));
+  });
+
+  test('コードを入れると、名簿と札が一度に書ける', async () => {
+    await seedLedgerShop();
+    await seedStaffInvite();
+    await assertSucceeds(join(NEW_STAFF));
+    // 入ったあとは台帳が読める
+    await assertSucceeds(getDocs(collection(dbFor(NEW_STAFF), `shops/${LEDGER_SHOP_ID}/customers`)));
+  });
+
+  test('使用済みのコードでは入れない', async () => {
+    await seedLedgerShop();
+    await seedStaffInvite({ usedBy: 'someone' });
+    await assertFails(join(NEW_STAFF));
+  });
+
+  test('期限切れのコードでは入れない', async () => {
+    await seedLedgerShop();
+    await seedStaffInvite({ expiresAt: new Date(Date.now() - 1000) });
+    await assertFails(join(NEW_STAFF));
+  });
+
+  test('コードなしで自分を名簿に載せることはできない', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      setDoc(doc(dbFor(NEW_STAFF), memberPath), { role: 'staff', inviteCode: 'NOPE00' }),
+    );
+  });
+
+  test('コードで入っても owner にはなれない', async () => {
+    await seedLedgerShop();
+    await seedStaffInvite();
+    const db = dbFor(NEW_STAFF);
+    const { writeBatch } = require('firebase/firestore');
+    const batch = writeBatch(db);
+    batch.update(doc(db, invitePath), { usedBy: NEW_STAFF, usedAt: new Date() });
+    batch.set(doc(db, memberPath), { role: 'owner', inviteCode: CODE });
+    await assertFails(batch.commit());
+  });
+
+  test('名簿に載っていないのに札だけ作ることはできない', async () => {
+    await seedLedgerShop();
+    await assertFails(
+      setDoc(doc(dbFor(NEW_STAFF), linkPath), { shopId: LEDGER_SHOP_ID, shopName: 'x' }),
+    );
+  });
+
+  test('店主はスタッフの札を消せる（外すとき）', async () => {
+    await seedLedgerShop();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), { shopId: LEDGER_SHOP_ID });
+    });
+    await assertSucceeds(deleteDoc(doc(dbFor(LEDGER_OWNER_UID), linkPath)));
+  });
+
+  test('他人の札は読めない', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), { shopId: LEDGER_SHOP_ID });
+    });
+    await assertFails(getDoc(doc(dbFor(OTHER_UID), linkPath)));
+  });
+});
+
+describe('台帳の顧客とアプリの利用者をつなぐ', () => {
+  const SHOP = 'shop_owner_link';
+  const APP_USER = 'app_user_link';
+  const CODE = 'CUS234';
+  const linkPath = `shop_customers/${APP_USER}`;
+
+  async function seed({ customerId = 'c1' } = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `shops/${SHOP}`), { name: '店', ownerId: SHOP });
+      await setDoc(doc(db, `shop_invites/${CODE}`), {
+        shopId: SHOP, shopName: '店', shopOwnerId: SHOP,
+        isActive: true, usedCount: 0, createdAt: new Date(), customerId,
+      });
+    });
+  }
+  const link = (o = {}) => ({
+    shopId: SHOP, shopName: '店', userId: APP_USER, linkedAt: new Date(),
+    customerId: 'c1', inviteCode: CODE, ...o,
+  });
+
+  test('その顧客宛ての招待を使えば、札に顧客IDを書ける', async () => {
+    await seed();
+    await assertSucceeds(setDoc(doc(dbFor(APP_USER), linkPath), link()));
+  });
+
+  test('招待と違う顧客IDを名乗ることはできない（別人の明細を受け取らせない）', async () => {
+    await seed();
+    await assertFails(setDoc(doc(dbFor(APP_USER), linkPath), link({ customerId: 'c999' })));
+  });
+
+  test('招待コードなしに顧客IDだけ書くことはできない', async () => {
+    await seed();
+    await assertFails(
+      setDoc(doc(dbFor(APP_USER), linkPath), link({ inviteCode: null })),
+    );
+  });
+
+  test('顧客IDの無い札は、これまでどおり作れる', async () => {
+    await seed();
+    await assertSucceeds(
+      setDoc(doc(dbFor(APP_USER), linkPath), link({ customerId: null, inviteCode: null })),
+    );
+  });
+
+  const inquiry = (o = {}) => ({
+    userId: APP_USER, shopId: SHOP, type: 'general', status: 'pending',
+    subject: '整備明細のお届け', initialMessage: 'x', openedByShop: true,
+    createdAt: new Date(), updatedAt: new Date(), ...o,
+  });
+
+  test('つながったお客さんには、店からスレッドを開ける', async () => {
+    await seed();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), link());
+    });
+    await assertSucceeds(setDoc(doc(dbFor(SHOP), 'inquiries/i1'), inquiry()));
+  });
+
+  test('つながっていない人には、店から話しかけられない', async () => {
+    await seed();
+    await assertFails(setDoc(doc(dbFor(SHOP), 'inquiries/i1'), inquiry()));
+  });
+
+  test('他店のお客さんには、店から話しかけられない', async () => {
+    await seed();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), linkPath), link({ shopId: 'other_shop' }));
+    });
+    await assertFails(setDoc(doc(dbFor(SHOP), 'inquiries/i1'), inquiry()));
+  });
+});
+
+describe('vehicle_follows — 愛車ページのフォロー', () => {
+  const OWNER = 'vf_owner';
+  const VID = 'vf_vehicle';
+  const FAN = 'vf_fan';
+  async function seedProfile(isPublic = true) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `vehicle_profiles/${VID}`), {
+        vehicleId: VID, ownerId: OWNER, isPublic, maintenance: [],
+      });
+    });
+  }
+  const follow = (uid) => ({ uid, vehicleId: VID, ownerId: OWNER, createdAt: new Date() });
+
+  test('公開中のページはフォローできる', async () => {
+    await seedProfile();
+    await assertSucceeds(setDoc(doc(dbFor(FAN), `vehicle_follows/${FAN}_${VID}`), follow(FAN)));
+  });
+
+  test('非公開のページはフォローできない', async () => {
+    await seedProfile(false);
+    await assertFails(setDoc(doc(dbFor(FAN), `vehicle_follows/${FAN}_${VID}`), follow(FAN)));
+  });
+
+  test('自分の車はフォローできない', async () => {
+    await seedProfile();
+    await assertFails(setDoc(doc(dbFor(OWNER), `vehicle_follows/${OWNER}_${VID}`), follow(OWNER)));
+  });
+
+  test('他人の名前でフォローすることはできない', async () => {
+    await seedProfile();
+    await assertFails(setDoc(doc(dbFor(OTHER_UID), `vehicle_follows/${FAN}_${VID}`), follow(FAN)));
+  });
+
+  test('やめられるのは本人だけ', async () => {
+    await seedProfile();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `vehicle_follows/${FAN}_${VID}`), follow(FAN));
+    });
+    await assertFails(deleteDoc(doc(dbFor(OTHER_UID), `vehicle_follows/${FAN}_${VID}`)));
+    await assertSucceeds(deleteDoc(doc(dbFor(FAN), `vehicle_follows/${FAN}_${VID}`)));
+  });
+
+  test('同じ車種の公開ページを一覧できる（非公開は条件に入れないと拒否）', async () => {
+    await seedProfile();
+    const { query: q, where: w } = require('firebase/firestore');
+    await assertSucceeds(getDocs(q(collection(dbFor(FAN), 'vehicle_profiles'),
+      w('isPublic', '==', true), w('modelKey', '==', 'くーぱー'))));
+    await assertFails(getDocs(q(collection(dbFor(FAN), 'vehicle_profiles'),
+      w('modelKey', '==', 'くーぱー'))));
+  });
+});

@@ -462,7 +462,10 @@ class _PostDetailBody extends StatelessWidget {
           if (post.vehicleTag?.displayName != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: PostVehicleChip(tag: post.vehicleTag),
+              child: PostVehicleChip(
+                tag: post.vehicleTag,
+                viewerUid: context.read<AuthProvider>().firebaseUser?.uid,
+              ),
             ),
 
           // ---- ハッシュタグ ----

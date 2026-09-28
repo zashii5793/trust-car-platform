@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:provider/provider.dart';
 import 'package:trust_car_platform/screens/sns/post_create_screen.dart';
 import 'package:trust_car_platform/providers/post_provider.dart';
@@ -454,6 +455,32 @@ void main() {
 
         expect(mockService.lastVisibility, PostVisibility.public);
       });
+    });
+  });
+
+  group('vehicleTagFor', () {
+    Vehicle v(String maker) => Vehicle(
+          id: 'v1',
+          userId: 'u1',
+          maker: maker,
+          model: 'プリウス',
+          year: 2020,
+          grade: '',
+          mileage: 0,
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        );
+
+    test('makerId も書く（フィードはメーカーを makerId で絞る）', () {
+      final tag = vehicleTagFor(v('トヨタ'));
+      expect(tag.vehicleId, 'v1');
+      expect(tag.makerId, 'toyota');
+      expect(tag.makerName, 'トヨタ');
+      expect(tag.modelName, 'プリウス');
+    });
+
+    test('カタログに無いメーカーは名前をそのまま makerId にする', () {
+      expect(vehicleTagFor(v('MINI')).makerId, 'MINI');
     });
   });
 }

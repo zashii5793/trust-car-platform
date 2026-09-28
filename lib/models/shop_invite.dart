@@ -27,6 +27,13 @@ class ShopInvite {
   /// 使える上限。null なら無制限（カウンターに置くQR向け）。
   final int? maxUses;
 
+  /// 顧客台帳の顧客に宛てた招待なら、その顧客のID。
+  ///
+  /// 引き換えると、お客さんの札（shop_customers）にこの値が入り、店は
+  /// 「台帳のこの人がアプリを使い始めた」と分かる（札には名前が無いので、
+  /// これが無いと誰が誰か分からない）。
+  final String? customerId;
+
   const ShopInvite({
     required this.code,
     required this.shopId,
@@ -37,6 +44,7 @@ class ShopInvite {
     required this.usedCount,
     this.expiresAt,
     this.maxUses,
+    this.customerId,
   });
 
   /// [userId] がこの招待を使えるか。使えるなら null、使えないなら理由を返す。
@@ -69,6 +77,7 @@ class ShopInvite {
       'isActive': isActive,
       'usedCount': usedCount,
       if (maxUses != null) 'maxUses': maxUses,
+      if (customerId != null) 'customerId': customerId,
     };
   }
 
@@ -94,6 +103,7 @@ class ShopInvite {
       isActive: map['isActive'] as bool? ?? false,
       usedCount: (map['usedCount'] as num?)?.toInt() ?? 0,
       maxUses: (map['maxUses'] as num?)?.toInt(),
+      customerId: map['customerId'] as String?,
     );
   }
 }

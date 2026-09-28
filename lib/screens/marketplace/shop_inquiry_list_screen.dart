@@ -164,6 +164,24 @@ class _ShopInquiryListScreenState extends State<ShopInquiryListScreen> {
   }
 }
 
+/// 店側の問い合わせスレッドを開く。顧客台帳から整備明細を送るときにも使う
+/// （明細の作成・送信はこのシートにある）。
+Future<void> openShopInquiryThread(BuildContext context, Inquiry inquiry) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (sheetCtx) => _InquiryDetailSheet(
+      inquiry: inquiry,
+      shopProvider: context.read<ShopProvider>(),
+      senderId:
+          context.read<AuthProvider>().firebaseUser?.uid ?? inquiry.shopId,
+    ),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Filter chip row
 // ---------------------------------------------------------------------------

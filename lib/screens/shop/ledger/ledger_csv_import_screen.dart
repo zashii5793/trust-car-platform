@@ -27,7 +27,8 @@ enum LedgerImportKind {
   const LedgerImportKind(this.label);
 }
 
-Future<PickedCsvFile?> _pickWithFilePicker() async {
+/// file_picker で CSV を1つ選ぶ。店の取込と、利用者の過去記録の移管で使う。
+Future<PickedCsvFile?> pickCsvWithFilePicker() async {
   final result = await FilePicker.pickFiles(
     type: FileType.custom,
     allowedExtensions: const ['csv', 'txt'],
@@ -59,7 +60,7 @@ class LedgerCsvImportScreen extends StatefulWidget {
     super.key,
     required this.service,
     required this.shopId,
-    this.pickFile = _pickWithFilePicker,
+    this.pickFile = pickCsvWithFilePicker,
   });
 
   @override

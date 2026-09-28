@@ -1,3 +1,6 @@
+import '../providers/auth_provider.dart';
+import '../services/maintenance_history_import_service.dart';
+import 'vehicle/maintenance_history_import_screen.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -624,6 +627,11 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         }
         if (!mounted) return;
         showSuccessSnackBar(context, '車両を登録しました');
+        final newId = provider.lastAddedVehicleId;
+        if (newId != null && isLikelyUsedVehicle(vehicle, DateTime.now())) {
+          await _offerHistoryImport(vehicle.copyWith(id: newId));
+          return;
+        }
         Navigator.pop(context);
       } else {
         showErrorSnackBar(context, provider.errorMessage ?? '登録に失敗しました');
@@ -632,6 +640,49 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       if (mounted) showErrorSnackBar(context, '登録に失敗しました: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// 新車でなさそうなら、過去の整備記録を移すかを聞く。
+  ///
+  /// 中古車は、新車でない限り必ず過去の整備記録・請求書がある。
+  /// 登録の日に入れてもらえれば、ふりかえりも車種別の維持費も初日から効く。
+  Future<void> _offerHistoryImport(Vehicle vehicle) async {
+    final user = context.read<AuthProvider>().firebaseUser;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('過去の整備記録を移しますか？'),
+        content: const Text('整備記録簿や請求書の内容を、記入用のフォーマットで'
+            'まとめて移せます。あとから車両の画面のメニューでも移せます。'),
+        actions: [
+          TextButton(
+            key: const Key('history_offer_later'),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('あとで'),
+          ),
+          FilledButton(
+            key: const Key('history_offer_go'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('移す'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (go == true && user != null) {
+      await Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => MaintenanceHistoryImportScreen(
+            vehicle: vehicle,
+            userId: user.uid,
+            service: sl.get<MaintenanceHistoryImportService>(),
+          ),
+        ),
+      );
+    } else {
+      Navigator.pop(context);
     }
   }
 
@@ -1937,3 +1988,10 @@ class _AddPhotoTile extends StatelessWidget {
     );
   }
 }
+
+/// 新車でなさそうか。年式が今年より前、または走行距離が1,000kmを超える。
+///
+/// 過去の整備記録を移すかを聞く目安。外れても「あとで」で閉じられるので、
+/// 迷ったら聞く側に倒している。
+bool isLikelyUsedVehicle(Vehicle vehicle, DateTime today) =>
+    (vehicle.year > 0 && vehicle.year < today.year) || vehicle.mileage > 1000;
