@@ -5,6 +5,7 @@ import '../../../core/constants/spacing.dart';
 import '../../../models/vehicle_share.dart';
 import '../../../services/shop_ledger_service.dart';
 import '../../../services/vehicle_share_service.dart';
+import '../../../services/shop_audit_service.dart';
 import '../../../widgets/common/app_card.dart';
 import '../../../widgets/common/loading_indicator.dart';
 import 'customer_detail_screen.dart';
@@ -19,6 +20,7 @@ class SharedVehiclesScreen extends StatefulWidget {
   final ShopLedgerService ledger;
   final String shopId;
   final DateTime? today;
+  final AuditRecorder? onAudit;
 
   const SharedVehiclesScreen({
     super.key,
@@ -26,6 +28,7 @@ class SharedVehiclesScreen extends StatefulWidget {
     required this.ledger,
     required this.shopId,
     this.today,
+    this.onAudit,
   });
 
   @override
@@ -62,6 +65,7 @@ class _SharedVehiclesScreenState extends State<SharedVehiclesScreen> {
           service: widget.service,
           ledger: widget.ledger,
           today: widget.today,
+          onAudit: widget.onAudit,
         ),
       ),
     );
@@ -128,12 +132,14 @@ class _SharedVehicleDetail extends StatefulWidget {
   final VehicleShareService service;
   final ShopLedgerService ledger;
   final DateTime? today;
+  final AuditRecorder? onAudit;
 
   const _SharedVehicleDetail({
     required this.share,
     required this.service,
     required this.ledger,
     this.today,
+    this.onAudit,
   });
 
   @override
@@ -156,6 +162,10 @@ class _SharedVehicleDetailState extends State<_SharedVehicleDetail> {
     if (!mounted) return;
     await r.when(
       success: (customerId) async {
+        widget.onAudit?.call(ShopAuditAction.importShared,
+            targetId: customerId,
+            targetLabel: widget.share.contactName,
+            detail: widget.share.displayName);
         await Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -164,6 +174,7 @@ class _SharedVehicleDetailState extends State<_SharedVehicleDetail> {
               shopId: widget.share.shopId,
               customerId: customerId,
               today: widget.today,
+              onAudit: widget.onAudit,
             ),
           ),
           result: true,

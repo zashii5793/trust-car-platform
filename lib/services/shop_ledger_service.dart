@@ -809,6 +809,111 @@ class ShopLedgerService {
   }
 
   // ---------------------------------------------------------------------------
+  // 取りこぼし（2026-09-29 プロダクト評価 #1）
+  // ---------------------------------------------------------------------------
+
+  /// 車検の入庫とみなす整備履歴の種類（整備管理ソフトの作業区分の言い方）。
+  static bool isInspectionWork(String type) {
+    final t = LedgerSearch.nameKey(type);
+    return t.contains('車検') ||
+        t.contains('継続検査') ||
+        t.contains('carinspection');
+  }
+
+  /// 取りこぼしの集計。
+  ///
+  /// - 対象: いまの満了日が、直近 [months] か月のうちに過ぎた車
+  /// - 入庫済み: 満了日の [leadDays] 日前から今日までに、車検の整備履歴がある
+  /// - 取りこぼし: それが無い
+  ///
+  /// **名簿を取り直すと満了日が2年先に進み、その車は過去の月から外れる**
+  /// （分母と分子の両方から抜けるので、率はほとんど動かない）。
+  ///
+  /// 最後に整備履歴を取り込んだのが [staleDays] 日より前（または一度も
+  /// 無い）なら [LossReport.isStale] を立てる。取込が止まっていると、
+  /// 入庫したのに記録が無い車が取りこぼしに見えるため、画面は率を出さない。
+  Future<Result<LossReport, AppError>> lossReport({
+    required String shopId,
+    int months = 12,
+    int leadDays = 60,
+    int staleDays = 30,
+  }) async {
+    try {
+      final now = _now();
+      final today = DateTime(now.year, now.month, now.day);
+      final from = DateTime(today.year, today.month - months + 1, 1);
+
+      final vehicleSnap = await _vehicles(shopId)
+          .where('inspectionExpiry',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(from))
+          .where('inspectionExpiry', isLessThan: Timestamp.fromDate(today))
+          .get();
+      final vehicles = vehicleSnap.docs
+          .map((d) => LedgerVehicle.fromMap(d.id, d.data()))
+          .toList();
+
+      final recordSnap = await _records(shopId)
+          .where('date',
+              isGreaterThanOrEqualTo:
+                  Timestamp.fromDate(from.subtract(Duration(days: leadDays))))
+          .get();
+      final inspectionsByVehicle = <String, List<DateTime>>{};
+      for (final d in recordSnap.docs) {
+        final data = d.data();
+        final vid = data['customerVehicleId'] as String?;
+        final date = (data['date'] as Timestamp?)?.toDate();
+        if (vid == null || date == null) continue;
+        if (!isInspectionWork(data['type'] as String? ?? '')) continue;
+        inspectionsByVehicle.putIfAbsent(vid, () => []).add(date);
+      }
+
+      final lastImportSnap = await _records(shopId)
+          .orderBy('updatedAt', descending: true)
+          .limit(1)
+          .get();
+      final lastImportAt = lastImportSnap.docs.isEmpty
+          ? null
+          : (lastImportSnap.docs.first.data()['updatedAt'] as Timestamp?)
+              ?.toDate();
+
+      final byMonth = <String, LossMonth>{};
+      for (var i = 0; i < months; i++) {
+        final m = DateTime(from.year, from.month + i, 1);
+        byMonth[_monthKey(m)] = LossMonth(month: m);
+      }
+      final lost = <LedgerVehicle>[];
+      for (final v in vehicles) {
+        final expiry = v.inspectionExpiry!;
+        final windowStart = expiry.subtract(Duration(days: leadDays));
+        final returned = (inspectionsByVehicle[v.id] ?? const [])
+            .any((d) => !d.isBefore(windowStart));
+        final month = byMonth[_monthKey(expiry)];
+        if (month == null) continue;
+        if (returned) {
+          month.returned++;
+        } else {
+          month.lost++;
+          lost.add(v);
+        }
+      }
+      lost.sort((a, b) => b.inspectionExpiry!.compareTo(a.inspectionExpiry!));
+
+      final stale = lastImportAt == null ||
+          today.difference(lastImportAt).inDays > staleDays;
+      return Result.success(LossReport(
+        months: byMonth.values.toList(),
+        lostVehicles: lost,
+        lastImportAt: lastImportAt,
+        isStale: stale,
+      ));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  static String _monthKey(DateTime d) => '${d.year}-${d.month}';
+
+  // ---------------------------------------------------------------------------
   // 統計への協力
   // ---------------------------------------------------------------------------
 
@@ -921,4 +1026,41 @@ class LedgerHistoryResult {
   final List<LedgerImportProblem> problems;
 
   const LedgerHistoryResult({required this.records, required this.problems});
+}
+
+/// 満了した月ひとつぶんの取りこぼし。
+class LossMonth {
+  final DateTime month;
+  int returned = 0;
+  int lost = 0;
+
+  LossMonth({required this.month});
+
+  int get expired => returned + lost;
+
+  /// 取りこぼし率（0〜1）。満了した車が無ければ null。
+  double? get rate => expired == 0 ? null : lost / expired;
+}
+
+/// 取りこぼしの集計結果。
+class LossReport {
+  final List<LossMonth> months;
+
+  /// 取りこぼした車（満了日の新しい順）。声をかける相手。
+  final List<LedgerVehicle> lostVehicles;
+  final DateTime? lastImportAt;
+
+  /// 整備履歴の取込が古い（または一度も無い）。率を出さない。
+  final bool isStale;
+
+  const LossReport({
+    required this.months,
+    required this.lostVehicles,
+    required this.lastImportAt,
+    required this.isStale,
+  });
+
+  int get expired => months.fold(0, (a, m) => a + m.expired);
+  int get lost => months.fold(0, (a, m) => a + m.lost);
+  double? get rate => expired == 0 ? null : lost / expired;
 }

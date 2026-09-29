@@ -109,10 +109,10 @@ class ShopDemandService {
     if (invalid != null) return Result.failure(invalid);
 
     try {
-      final snapshot = await _demands
-          .where('shopId', isEqualTo: shopId)
-          .where('shopOwnerId', isEqualTo: shopOwnerId)
-          .get();
+      // 2026-09-29: 店主かどうかは、需要データに写した shopOwnerId ではなく
+      // 店の ownerId で判定するようにルールを変えた。shopOwnerId で絞ると、
+      // 店主を引き継いだあとの新しい店主には0件に見えるので、店のIDだけで絞る。
+      final snapshot = await _demands.where('shopId', isEqualTo: shopId).get();
       return Result.success(snapshot.docs.length);
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
@@ -131,9 +131,9 @@ class ShopDemandService {
     if (invalid != null) return Result.failure(invalid);
 
     try {
+      // 店のIDだけで絞る（getDemandCountForShop と同じ理由・2026-09-29）
       final snapshot = await _demands
           .where('shopId', isEqualTo: shopId)
-          .where('shopOwnerId', isEqualTo: shopOwnerId)
           .orderBy('createdAt', descending: true)
           .get();
       final demands = snapshot.docs

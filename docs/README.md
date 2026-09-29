@@ -1,3 +1,39 @@
+# TrustCar — 資料の入口
+
+> **最初にここを読んでください。** 2026-09-29 に入口として書き直しました。
+> この下の「初期の企画」は 2026 年前半のもので、今の優先順位とは違います。
+
+## まず読む3本
+
+| 資料 | 何が分かるか |
+|---|---|
+| [`FEATURE_SPEC.md`](FEATURE_SPEC.md) の「事業の芯」 | 誰が払い、何の数字が良くなるか。KPI。販売版の構成 |
+| [`HUMAN_TASKS.md`](HUMAN_TASKS.md) | 人間がやること（デプロイ・ストア・規約）と順番 |
+| [`../CLAUDE_SESSION_NOTES.md`](../CLAUDE_SESSION_NOTES.md) | いま何をしていて、次に何をするか |
+
+## 目的別
+
+| 目的 | 資料 |
+|---|---|
+| 店の顧客台帳・共有・車種レポートの設計 | [`SHOP_CRM_DESIGN_2026-09-27.md`](SHOP_CRM_DESIGN_2026-09-27.md) |
+| アーキテクチャ・コードの読み方 | [`ARCHITECTURE.md`](ARCHITECTURE.md)、[`../CLAUDE.md`](../CLAUDE.md) |
+| デザイン | [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) |
+| 習慣化（使い続けてもらう設計） | [`HABIT_DESIGN.md`](HABIT_DESIGN.md) |
+| 運用・障害対応 | [`MAINTENANCE_RUNBOOK.md`](MAINTENANCE_RUNBOOK.md)、[`FUNCTIONS_DEPLOY.md`](FUNCTIONS_DEPLOY.md) |
+| テスト（単体・ルール・流れ・ペルソナ・ゴールデン） | [`TEST_DATA_GUIDE.md`](TEST_DATA_GUIDE.md)、[`PERSONA_SCENARIO_GUIDE.md`](PERSONA_SCENARIO_GUIDE.md)、`test/flows/`（操作の流れ） |
+| テストユーザーへの配布 | [`TESTUSER_ROLLOUT_2026-09.md`](TESTUSER_ROLLOUT_2026-09.md)、[`TESTUSER_GUIDE.md`](TESTUSER_GUIDE.md) |
+| 事業の数字・評価（金額を含むもの） | 非公開リポジトリ（[`INTERNAL_DOCS.md`](INTERNAL_DOCS.md) に置き場所） |
+| 日付つきの検討・監査 | `*_2026-MM-DD.md`（その日時点の記録。古いものは `archive/`） |
+
+## 課題と進み具合
+
+- 課題: GitHub Issues（`claude-task`・`priority: high`・`bug` のラベル）
+- 週次の PM レポート: GitHub Actions `pm_report.yml` が Issue に出す
+
+---
+
+# 初期の企画（2026年前半）
+
 # クルマ統合管理 & AIレコメンドアプリ
 
 **クルマを安心・安全に、楽しく管理**

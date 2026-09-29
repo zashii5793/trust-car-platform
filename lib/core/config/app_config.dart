@@ -13,6 +13,13 @@ const bool kEnablePartRecommendations =
 const bool kEnableC2cParts =
     bool.fromEnvironment('ENABLE_C2C_PARTS', defaultValue: false);
 
+/// AI チャット。Anthropic API を Cloud Functions 経由で呼ぶので、本番に
+/// Functions とキーが入り、費用の上限を決めるまで既定で隠す（販売版の構成・
+/// docs/FEATURE_SPEC.md「事業の芯」）。`--dart-define=ENABLE_AI_CHAT=true`、
+/// 本番は Remote Config の `ai_chat`。
+const bool kEnableAiChat =
+    bool.fromEnvironment('ENABLE_AI_CHAT', defaultValue: false);
+
 /// アプリケーション設定
 ///
 /// 環境変数、Feature Flags、設定値を一元管理
@@ -68,6 +75,7 @@ class AppConfig {
     // Flip it per run with --dart-define, or in production via Remote Config
     // key `part_recommendations`.
     FeatureFlag.partRecommendations: kEnablePartRecommendations,
+    FeatureFlag.aiChat: kEnableAiChat,
   };
 
   // 設定値
@@ -221,6 +229,9 @@ enum FeatureFlag {
   // マーケットプレイス
   // C2Cパーツ売買（手数料8%）。事業判断で凍結中（デフォルト無効）。
   c2cPartsMarketplace,
+
+  // AI チャット。Functions と費用の上限が決まるまで既定で無効（販売版の構成）。
+  aiChat,
 
   // パーツ推薦。いま出ているのは scripts/seed_parts.js が入れる
   // 架空ブランドのデモデータ（demo_part_*）なので、既定で無効。

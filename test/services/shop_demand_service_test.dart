@@ -177,19 +177,19 @@ void main() {
       expect(result.valueOrNull, 0);
     });
 
-    // firestore.rules は resource.data.shopOwnerId == request.auth.uid を
-    // 要求する。クエリ側にも shopOwnerId 条件が無いと本番では list ごと
-    // 弾かれるため、他オーナー名義の需要は結果に含まれないことを固定する。
-    test('shopOwnerId が異なる需要はカウントしない（ルール整合）', () async {
+    // 2026-09-29: 店主かどうかは店の ownerId で判定するようにルールを変えた
+    // （需要データに写した shopOwnerId では判定しない）。店主を引き継ぐと、
+    // 前の店主の uid が写った需要が残るが、それも店への需要なので数える。
+    test('店主が替わる前の需要も、その店への需要として数える', () async {
       await _seedDemand(fakeFs, shopId: 's1', userId: 'u1');
       await _seedDemand(fakeFs,
-          shopId: 's1', userId: 'u2', shopOwnerId: 'someone_else');
+          shopId: 's1', userId: 'u2', shopOwnerId: 'previous_owner');
 
       final result =
           await sut.getDemandCountForShop('s1', shopOwnerId: 'owner1');
 
       expect(result.isSuccess, isTrue);
-      expect(result.valueOrNull, 1);
+      expect(result.valueOrNull, 2);
     });
   });
 

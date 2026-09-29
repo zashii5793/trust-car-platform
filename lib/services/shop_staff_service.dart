@@ -225,4 +225,52 @@ class ShopStaffService {
       return Result.failure(mapFirebaseError(e));
     }
   }
+
+  /// 店主を、スタッフの1人に引き継ぐ（2026-09-29）。
+  ///
+  /// 店のドキュメントIDは最初の店主の uid のまま変えない（台帳・履歴・
+  /// 問い合わせ・課金がこのIDにぶら下がっているため）。替えるのは ownerId と
+  /// スタッフ名簿の役割だけ。**前の店主はスタッフとして残す**（すぐに締め
+  /// 出さない。新しい店主があとで外せる）。
+  ///
+  /// 1回のバッチで書く（途中で止まると店主が2人・0人になるため）。
+  Future<Result<void, AppError>> transferOwnership({
+    required String shopId,
+    required String shopName,
+    required String fromUid,
+    required String fromName,
+    required String toUid,
+  }) async {
+    if (fromUid == toUid) {
+      return const Result.failure(AppError.validation('自分には引き継げません'));
+    }
+    try {
+      final to = await _members(shopId).doc(toUid).get();
+      if (!to.exists) {
+        return const Result.failure(
+          AppError.validation('引き継げるのは、この店のスタッフだけです'),
+        );
+      }
+      final now = Timestamp.fromDate(_now());
+      final batch = _firestore.batch();
+      batch.update(_firestore.collection('shops').doc(shopId), {
+        'ownerId': toUid,
+        'updatedAt': now,
+      });
+      batch.update(_members(shopId).doc(toUid), {'role': 'owner'});
+      batch.set(_members(shopId).doc(fromUid), {
+        'role': 'staff',
+        'displayName': fromName.trim().isEmpty ? '前の店主' : fromName,
+        'addedAt': now,
+      });
+      // 前の店主は、掲載管理の「スタッフの方」の入口から台帳を開けるように
+      batch.set(_link(fromUid), {'shopId': shopId, 'shopName': shopName});
+      // 新しい店主は、自分の店として開くので、スタッフの札は要らない
+      batch.delete(_link(toUid));
+      await batch.commit();
+      return const Result.success(null);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
 }

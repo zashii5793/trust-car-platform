@@ -11,6 +11,7 @@ import 'ledger_format.dart';
 import 'ledger_vehicle_edit_screen.dart';
 import '../../../services/ledger_link_service.dart';
 import '../../../services/shop_invite_service.dart';
+import '../../../services/shop_audit_service.dart';
 import '../../marketplace/shop_inquiry_list_screen.dart';
 
 /// 顧客1件の詳細。車両の追加・編集もここから行う。
@@ -29,6 +30,9 @@ class CustomerDetailScreen extends StatefulWidget {
   final String? shopName;
   final String? ownerUid;
 
+  /// 操作の記録（誰がいつこの顧客を見た・書いたか）。
+  final AuditRecorder? onAudit;
+
   const CustomerDetailScreen({
     super.key,
     required this.service,
@@ -39,6 +43,7 @@ class CustomerDetailScreen extends StatefulWidget {
     this.inviteService,
     this.shopName,
     this.ownerUid,
+    this.onAudit,
   });
 
   @override
@@ -83,6 +88,11 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
       customerId: widget.customerId,
     );
     if (!mounted) return;
+    final c = customer.valueOrNull;
+    if (c != null && _customer == null) {
+      widget.onAudit?.call(ShopAuditAction.viewCustomer,
+          targetId: c.id, targetLabel: c.name);
+    }
     setState(() {
       _customer = customer.valueOrNull;
       _vehicles = vehicles.valueOrNull ?? const [];
@@ -104,6 +114,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     );
     if (updated == null) return;
     _changed = true;
+    widget.onAudit?.call(ShopAuditAction.updateCustomer,
+        targetId: updated.id, targetLabel: updated.name);
     await _load();
   }
 
@@ -121,6 +133,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     );
     if (saved != true) return;
     _changed = true;
+    widget.onAudit?.call(ShopAuditAction.saveVehicle,
+        targetId: widget.customerId,
+        targetLabel: _customer?.name,
+        detail: vehicle == null ? '追加' : '${vehicle.displayName} を編集・削除');
     await _load();
   }
 
@@ -135,6 +151,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
       customerId: widget.customerId,
     );
     if (!mounted) return;
+    if (r.isSuccess) {
+      widget.onAudit?.call(ShopAuditAction.issueCustomerInvite,
+          targetId: widget.customerId, targetLabel: _customer?.name);
+    }
     await r.when(
       success: (invite) => showDialog<void>(
         context: context,
@@ -180,6 +200,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
       userId: c!.linkedUserId!,
     );
     if (!mounted) return;
+    if (r.isSuccess) {
+      widget.onAudit?.call(ShopAuditAction.sendDetail,
+          targetId: c.id, targetLabel: c.name, detail: 'スレッドを開いた');
+    }
     await r.when(
       success: (inquiry) => openShopInquiryThread(context, inquiry),
       failure: (e) async => ScaffoldMessenger.of(context)
@@ -219,6 +243,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     );
     if (!mounted) return;
     if (result.isSuccess) {
+      widget.onAudit?.call(ShopAuditAction.deleteCustomer,
+          targetId: customer.id, targetLabel: customer.name);
       Navigator.pop(context, true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

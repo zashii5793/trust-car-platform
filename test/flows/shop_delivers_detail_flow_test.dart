@@ -18,7 +18,9 @@ import 'package:trust_car_platform/screens/marketplace/inquiry_thread_screen.dar
 import 'package:trust_car_platform/screens/settings/shop_invite_screen.dart';
 import 'package:trust_car_platform/screens/shop/ledger/customer_ledger_screen.dart';
 import 'package:trust_car_platform/screens/shop/ledger/ledger_csv_import_screen.dart';
+import 'package:trust_car_platform/screens/shop/ledger/audit_log_screen.dart';
 import 'package:trust_car_platform/services/ledger_link_service.dart';
+import 'package:trust_car_platform/services/shop_audit_service.dart';
 import 'package:trust_car_platform/services/shop_invite_service.dart';
 import 'package:trust_car_platform/services/shop_ledger_service.dart';
 
@@ -36,7 +38,11 @@ void main() {
     await world.createShop(owner, 'タカヤモーター');
     final car = await world.createVehicle(yamada);
 
+    final audit = ShopAuditService(firestore: world.fs, now: () => world.today);
     Widget ledger() => CustomerLedgerScreen(
+          onAudit: audit.recorderFor(
+              shopId: owner.uid, actorUid: owner.uid, actorName: owner.name),
+          auditService: audit,
           service:
               ShopLedgerService(firestore: world.fs, now: () => world.today),
           linkService:
@@ -126,5 +132,12 @@ void main() {
     expect(records.single.cost, 128000);
     expect(records.single.isVerified, isTrue);
     expect(records.single.inquiryId, inquiry.id);
+
+    // ---- 店主: 操作の記録に、取込・閲覧・コード発行・明細送付が残っている ----
+    await world.pumpAs(
+        tester, owner, AuditLogScreen(service: audit, shopId: owner.uid));
+    for (final label in ['名簿を取り込んだ', '顧客を見た', '顧客専用のコードを出した', '整備明細を送った']) {
+      expect(find.textContaining(label), findsWidgets, reason: label);
+    }
   });
 }

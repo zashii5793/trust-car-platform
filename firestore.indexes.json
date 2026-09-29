@@ -1,6 +1,16 @@
 {
   "indexes": [
 
+    // 操作の記録: ある顧客に関するものを新しい順に（shop_audit_service.dart）
+    {
+      "collectionGroup": "audit_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "targetId", "order": "ASCENDING" },
+        { "fieldPath": "at", "order": "DESCENDING" }
+      ]
+    },
+
     // 愛車ページ: 持ち主の、その車の、公開の投稿を新しい順に
     // （lib/services/vehicle_profile_service.dart _posts）
     {

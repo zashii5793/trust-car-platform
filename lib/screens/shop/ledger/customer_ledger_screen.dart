@@ -9,6 +9,9 @@ import '../../../services/shop_ledger_service.dart';
 import '../../../services/vehicle_share_service.dart';
 import '../../../services/shop_staff_service.dart';
 import '../../../services/ledger_link_service.dart';
+import '../../../services/shop_audit_service.dart';
+import 'audit_log_screen.dart';
+import 'loss_report_screen.dart';
 import '../../../services/shop_invite_service.dart';
 import '../../../widgets/common/loading_indicator.dart';
 import 'customer_detail_screen.dart';
@@ -36,12 +39,19 @@ class CustomerLedgerScreen extends StatefulWidget {
   final ShopStaffService? staffService;
   final String? ownerUid;
 
+  /// 店主の名前（引き継いだあと、スタッフ名簿に前の店主として載せる）。
+  final String ownerName;
+
   /// 顧客とアプリの利用者をつなぎ、整備明細を送るため（店主だけ）。
   final LedgerLinkService? linkService;
   final ShopInviteService? inviteService;
 
   /// CSV 取込でファイルを選ぶ関数。テスト（操作の流れを通すもの）で差し替える。
   final CsvFilePicker? csvPicker;
+
+  /// 操作の記録。[auditService] は店主が記録を見るため（店主のときだけ渡す）。
+  final AuditRecorder? onAudit;
+  final ShopAuditService? auditService;
   final String shopId;
   final String shopName;
 
@@ -54,9 +64,12 @@ class CustomerLedgerScreen extends StatefulWidget {
     this.shareService,
     this.staffService,
     this.ownerUid,
+    this.ownerName = '',
     this.linkService,
     this.inviteService,
     this.csvPicker,
+    this.onAudit,
+    this.auditService,
     required this.shopId,
     required this.shopName,
     this.today,
@@ -137,6 +150,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
           inviteService: widget.inviteService,
           shopName: widget.shopName,
           ownerUid: widget.ownerUid,
+          onAudit: widget.onAudit,
         ),
       ),
     );
@@ -154,8 +168,35 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
       ),
     );
     if (created == null || !mounted) return;
+    widget.onAudit?.call(ShopAuditAction.createCustomer,
+        targetId: created.id, targetLabel: created.name);
     _refreshAll();
     await _openCustomer(created.id);
+  }
+
+  Future<void> _openLoss() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LossReportScreen(
+          service: widget.service,
+          shopId: widget.shopId,
+          onOpenCustomer: _openCustomer,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAudit() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AuditLogScreen(
+          service: widget.auditService!,
+          shopId: widget.shopId,
+        ),
+      ),
+    );
   }
 
   Future<void> _openStaff() async {
@@ -167,6 +208,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
           shopId: widget.shopId,
           shopName: widget.shopName,
           ownerUid: widget.ownerUid!,
+          ownerName: widget.ownerName,
         ),
       ),
     );
@@ -181,6 +223,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
           ledger: widget.service,
           shopId: widget.shopId,
           today: widget.today,
+          onAudit: widget.onAudit,
         ),
       ),
     );
@@ -249,6 +292,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
           service: widget.service,
           shopId: widget.shopId,
           pickFile: widget.csvPicker ?? pickCsvWithFilePicker,
+          onAudit: widget.onAudit,
         ),
       ),
     );
@@ -261,6 +305,12 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
       appBar: AppBar(
         title: const Text('顧客台帳'),
         actions: [
+          IconButton(
+            key: const Key('ledger_loss'),
+            tooltip: '車検の取りこぼし',
+            icon: const Icon(Icons.trending_down),
+            onPressed: _openLoss,
+          ),
           if (widget.shareService != null)
             IconButton(
               key: const Key('ledger_shared_vehicles'),
@@ -279,10 +329,13 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
             onSelected: (v) {
               if (v == 'stats') _openStatistics();
               if (v == 'staff') _openStaff();
+              if (v == 'audit') _openAudit();
             },
             itemBuilder: (_) => [
               if (widget.staffService != null && widget.ownerUid != null)
                 const PopupMenuItem(value: 'staff', child: Text('スタッフ')),
+              if (widget.auditService != null)
+                const PopupMenuItem(value: 'audit', child: Text('操作の記録')),
               const PopupMenuItem(
                 value: 'stats',
                 child: Text('車種別レポートへの協力'),
