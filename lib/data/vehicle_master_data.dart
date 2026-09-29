@@ -115,6 +115,147 @@ class VehicleMasterData {
       'country': 'JP',
       'displayOrder': 14,
     },
+    // 輸入車。車種は「その他」だけ置き、名前は自由入力してもらう。
+    {
+      'id': 'mercedes',
+      'name': 'メルセデス・ベンツ',
+      'nameEn': 'Mercedes-Benz',
+      'country': 'DE',
+      'displayOrder': 20,
+    },
+    {
+      'id': 'bmw',
+      'name': 'BMW',
+      'nameEn': 'BMW',
+      'country': 'DE',
+      'displayOrder': 21,
+    },
+    {
+      'id': 'mini',
+      'name': 'MINI',
+      'nameEn': 'MINI',
+      'country': 'GB',
+      'displayOrder': 22,
+    },
+    {
+      'id': 'volkswagen',
+      'name': 'フォルクスワーゲン',
+      'nameEn': 'Volkswagen',
+      'country': 'DE',
+      'displayOrder': 23,
+    },
+    {
+      'id': 'audi',
+      'name': 'アウディ',
+      'nameEn': 'Audi',
+      'country': 'DE',
+      'displayOrder': 24,
+    },
+    {
+      'id': 'porsche',
+      'name': 'ポルシェ',
+      'nameEn': 'Porsche',
+      'country': 'DE',
+      'displayOrder': 25,
+    },
+    {
+      'id': 'volvo',
+      'name': 'ボルボ',
+      'nameEn': 'Volvo',
+      'country': 'SE',
+      'displayOrder': 26,
+    },
+    {
+      'id': 'peugeot',
+      'name': 'プジョー',
+      'nameEn': 'Peugeot',
+      'country': 'FR',
+      'displayOrder': 27,
+    },
+    {
+      'id': 'jeep',
+      'name': 'ジープ',
+      'nameEn': 'Jeep',
+      'country': 'US',
+      'displayOrder': 28,
+    },
+    {
+      'id': 'landrover',
+      'name': 'ランドローバー',
+      'nameEn': 'Land Rover',
+      'country': 'GB',
+      'displayOrder': 29,
+    },
+    {
+      'id': 'fiat',
+      'name': 'フィアット',
+      'nameEn': 'Fiat',
+      'country': 'IT',
+      'displayOrder': 30,
+    },
+    {
+      'id': 'renault',
+      'name': 'ルノー',
+      'nameEn': 'Renault',
+      'country': 'FR',
+      'displayOrder': 31,
+    },
+    {
+      'id': 'citroen',
+      'name': 'シトロエン',
+      'nameEn': 'Citroën',
+      'country': 'FR',
+      'displayOrder': 32,
+    },
+    {
+      'id': 'tesla',
+      'name': 'テスラ',
+      'nameEn': 'Tesla',
+      'country': 'US',
+      'displayOrder': 33,
+    },
+    {
+      'id': 'ferrari',
+      'name': 'フェラーリ',
+      'nameEn': 'Ferrari',
+      'country': 'IT',
+      'displayOrder': 34,
+    },
+    {
+      'id': 'lamborghini',
+      'name': 'ランボルギーニ',
+      'nameEn': 'Lamborghini',
+      'country': 'IT',
+      'displayOrder': 35,
+    },
+    {
+      'id': 'jaguar',
+      'name': 'ジャガー',
+      'nameEn': 'Jaguar',
+      'country': 'GB',
+      'displayOrder': 36,
+    },
+    {
+      'id': 'abarth',
+      'name': 'アバルト',
+      'nameEn': 'Abarth',
+      'country': 'IT',
+      'displayOrder': 37,
+    },
+    {
+      'id': 'byd',
+      'name': 'BYD',
+      'nameEn': 'BYD',
+      'country': 'CN',
+      'displayOrder': 38,
+    },
+    {
+      'id': 'hyundai',
+      'name': 'ヒョンデ',
+      'nameEn': 'Hyundai',
+      'country': 'KR',
+      'displayOrder': 39,
+    },
     {
       'id': 'other',
       'name': 'その他',
@@ -3535,6 +3676,186 @@ class VehicleMasterData {
       },
       {
         'id': 'ud_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'mercedes': [
+      {
+        'id': 'mercedes_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'bmw': [
+      {
+        'id': 'bmw_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'mini': [
+      {
+        'id': 'mini_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'volkswagen': [
+      {
+        'id': 'volkswagen_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'audi': [
+      {
+        'id': 'audi_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'porsche': [
+      {
+        'id': 'porsche_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'volvo': [
+      {
+        'id': 'volvo_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'peugeot': [
+      {
+        'id': 'peugeot_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'jeep': [
+      {
+        'id': 'jeep_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'landrover': [
+      {
+        'id': 'landrover_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'fiat': [
+      {
+        'id': 'fiat_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'renault': [
+      {
+        'id': 'renault_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'citroen': [
+      {
+        'id': 'citroen_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'tesla': [
+      {
+        'id': 'tesla_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'ferrari': [
+      {
+        'id': 'ferrari_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'lamborghini': [
+      {
+        'id': 'lamborghini_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'jaguar': [
+      {
+        'id': 'jaguar_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'abarth': [
+      {
+        'id': 'abarth_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'byd': [
+      {
+        'id': 'byd_other',
+        'name': 'その他',
+        'nameEn': 'Other',
+        'bodyType': 'other',
+        'displayOrder': 999
+      },
+    ],
+    'hyundai': [
+      {
+        'id': 'hyundai_other',
         'name': 'その他',
         'nameEn': 'Other',
         'bodyType': 'other',

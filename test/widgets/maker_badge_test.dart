@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/core/constants/maker_brand.dart';
@@ -45,13 +47,14 @@ void main() {
 
     group('Edge Cases', () {
       test('知らないメーカーIDでも落ちない', () {
-        final brand = MakerBrand.of('bmw');
+        final brand = MakerBrand.of('caterham');
 
         expect(brand.mark.isNotEmpty, isTrue);
       });
 
       test('知らないIDでも同じIDなら毎回同じ色になる', () {
-        expect(MakerBrand.of('bmw').color, MakerBrand.of('bmw').color);
+        expect(
+            MakerBrand.of('caterham').color, MakerBrand.of('caterham').color);
       });
 
       test('空文字でも落ちない', () {
@@ -71,6 +74,26 @@ void main() {
           );
         }
       });
+    });
+  });
+
+  /// ロゴは各社の公式サイトから取った画像を同梱している（Issue #214）。
+  /// 一覧に足したのに画像を置き忘れると、そのメーカーだけ空の丸になる。
+  group('MakerBrand.logoAsset', () {
+    test('「その他」以外の全メーカーにロゴ画像がある', () {
+      for (final maker in VehicleMasterData.makers) {
+        final id = maker['id'] as String;
+        if (id == 'other') continue;
+
+        final asset = MakerBrand.logoAsset(id);
+        expect(asset, isNotNull, reason: '$id にロゴが無い');
+        expect(File(asset!).existsSync(), isTrue, reason: '$asset が無い');
+      }
+    });
+
+    test('知らないメーカーにはロゴが無い', () {
+      expect(MakerBrand.logoAsset('caterham'), isNull);
+      expect(MakerBrand.logoAsset('other'), isNull);
     });
   });
 
@@ -108,12 +131,12 @@ void main() {
       /// 自由入力メーカーは名前しか無い。id が引けなくても
       /// **バッジは必ず出す**（ここで落ちるとカードごと壊れる）。
       test('知らないメーカー名は名前をそのまま返す', () {
-        expect(MakerBrand.idFromName('ポルシェ'), 'ポルシェ');
+        expect(MakerBrand.idFromName('ケータハム'), 'ケータハム');
       });
 
       test('知らないメーカー名でも同じ名前なら毎回同じ色になる', () {
-        final a = MakerBrand.of(MakerBrand.idFromName('ポルシェ'));
-        final b = MakerBrand.of(MakerBrand.idFromName('ポルシェ'));
+        final a = MakerBrand.of(MakerBrand.idFromName('ケータハム'));
+        final b = MakerBrand.of(MakerBrand.idFromName('ケータハム'));
 
         expect(a.color, b.color);
       });
@@ -128,10 +151,25 @@ void main() {
   group('MakerBadge', () {
     Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
-    testWidgets('マークが表示される', (tester) async {
+    Finder logoOf(String makerId) => find.byWidgetPredicate((w) =>
+        w is Image &&
+        w.image is AssetImage &&
+        (w.image as AssetImage).assetName == MakerBrand.logoAsset(makerId));
+
+    testWidgets('ロゴがあるメーカーはロゴ画像を出す', (tester) async {
       await tester.pumpWidget(wrap(const MakerBadge(makerId: 'toyota')));
 
-      expect(find.text(MakerBrand.of('toyota').mark), findsOneWidget);
+      expect(logoOf('toyota'), findsOneWidget);
+      expect(find.text(MakerBrand.of('toyota').mark), findsNothing);
+    });
+
+    testWidgets('ロゴが無いメーカーはマークを出す', (tester) async {
+      await tester.pumpWidget(
+        wrap(const MakerBadge(makerId: 'custom_1', makerName: 'ケータハム')),
+      );
+
+      expect(find.byType(Image), findsNothing);
+      expect(find.text(MakerBrand.of('ケータハム').mark), findsOneWidget);
     });
 
     testWidgets('読み上げ用にメーカー名を持つ', (tester) async {
@@ -161,8 +199,8 @@ void main() {
         wrap(
           const Column(
             children: [
-              MakerBadge(makerId: 'custom_1000', makerName: 'ポルシェ'),
-              MakerBadge(makerId: 'custom_2000', makerName: 'ポルシェ'),
+              MakerBadge(makerId: 'custom_1000', makerName: 'ケータハム'),
+              MakerBadge(makerId: 'custom_2000', makerName: 'ケータハム'),
             ],
           ),
         ),
@@ -186,22 +224,22 @@ void main() {
         wrap(const MakerBadge(makerId: 'custom_1000', makerName: 'トヨタ')),
       );
 
-      expect(find.text(MakerBrand.of('toyota').mark), findsOneWidget);
+      expect(logoOf('toyota'), findsOneWidget);
     });
 
     /// 保存済み車両は makerId を持たず和名しか無い。
     testWidgets('メーカー名からでも組み立てられる', (tester) async {
       await tester.pumpWidget(wrap(MakerBadge.fromName('トヨタ')));
 
-      expect(find.text(MakerBrand.of('toyota').mark), findsOneWidget);
+      expect(logoOf('toyota'), findsOneWidget);
       expect(find.bySemanticsLabel('トヨタ'), findsOneWidget);
     });
 
     testWidgets('カタログに無いメーカー名でも表示できる', (tester) async {
-      await tester.pumpWidget(wrap(MakerBadge.fromName('ポルシェ')));
+      await tester.pumpWidget(wrap(MakerBadge.fromName('ケータハム')));
 
       expect(find.byType(MakerBadge), findsOneWidget);
-      expect(find.bySemanticsLabel('ポルシェ'), findsOneWidget);
+      expect(find.bySemanticsLabel('ケータハム'), findsOneWidget);
     });
 
     /// 選択中は枠を出す。枠のぶんだけ大きくなると、一覧の行が
@@ -229,7 +267,7 @@ void main() {
 
     group('Edge Cases', () {
       testWidgets('知らないメーカーでも表示できる', (tester) async {
-        await tester.pumpWidget(wrap(const MakerBadge(makerId: 'porsche')));
+        await tester.pumpWidget(wrap(const MakerBadge(makerId: 'caterham')));
 
         expect(find.byType(MakerBadge), findsOneWidget);
       });
