@@ -1,0 +1,124 @@
+name: E2E (Web)
+
+# 実際の画面を操作して、店側と利用者側の通しの流れを確かめる。
+#
+# 単体テスト（4,800件超）はすべて画面の部品単位で、アプリ全体を起動して
+# ログインから操作まで通すものが CI に無かった
+# （docs/MAINTENANCE_OPS_REVIEW_2026-09-30.md 項目3）。
+# integration_test/ の通しテストは、これまで手元でしか回していなかった。
+#
+# エミュレータ（auth / firestore / storage）にシードを入れ、Chrome で動かす。
+# 本番の Firebase には一切触れない（USE_EMULATOR=true）。
+#
+# 1本あたり 5〜8分かかるので、PR ごとではなく main への push と毎晩に回す。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'integration_test/**'
+      - 'firestore.rules'
+      - 'storage.rules'
+      - 'scripts/seed_*.js'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/e2e_web.yml'
+  # このワークフロー自体を変える PR でだけ回す（PR ごとに回すと重い）
+  pull_request:
+    paths:
+      - '.github/workflows/e2e_web.yml'
+  schedule:
+    # 毎日 03:30 JST
+    - cron: '30 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          # 店主: ログイン → 掲載管理 → 問い合わせ一覧 → 返信
+          - shop_flow_web_test
+          # 利用者: ログイン → ホーム → 店とのチャット
+          - chat_flow_web_test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Java (for emulators)
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Install seed dependencies
+        working-directory: scripts
+        run: npm ci
+
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      # シードは projectId を trust-car-platform で書く。エミュレータも同じ ID で立てる
+      # （エミュレータなので本番には届かない）
+      - name: Start Firebase emulators
+        run: |
+          firebase emulators:start --only auth,firestore,storage --project trust-car-platform > emulators.log 2>&1 &
+          npx --yes wait-on tcp:127.0.0.1:8080 tcp:127.0.0.1:9099 tcp:127.0.0.1:9199 --timeout 120000
+
+      - name: Seed test data
+        run: ./scripts/seed_all.sh
+
+      # ubuntu-latest には Chrome と、それに合う chromedriver が入っている
+      - name: Start chromedriver
+        run: |
+          "$CHROMEWEBDRIVER/chromedriver" --port=4444 > chromedriver.log 2>&1 &
+          npx --yes wait-on tcp:127.0.0.1:4444 --timeout 30000
+
+      - name: Run ${{ matrix.target }}
+        run: |
+          flutter drive \
+            --driver=test_driver/integration_test.dart \
+            --target=integration_test/${{ matrix.target }}.dart \
+            -d web-server --browser-name=chrome --profile \
+            --dart-define=USE_EMULATOR=true
+
+      - name: Upload screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.target }}
+          path: |
+            docs/screenshots/shop_*.png
+            docs/screenshots/chat_*.png
+            emulators.log
+            chromedriver.log
+          retention-days: 14
+          if-no-files-found: ignore
