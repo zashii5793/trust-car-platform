@@ -17,6 +17,8 @@ import 'invoice_photo_import_screen.dart';
 import '../../widgets/common/app_card.dart';
 import '../shop/ledger/ledger_csv_import_screen.dart'
     show CsvFilePicker, PickedCsvFile, pickCsvWithFilePicker;
+import '../../core/utils/first_week_tracker.dart';
+import '../../services/analytics_service.dart' show FirstWeekStep;
 
 /// 記入用フォーマットを渡す関数。テストで差し替える。
 typedef TemplateSharer = Future<void> Function(String csv);
@@ -134,10 +136,13 @@ class _MaintenanceHistoryImportScreenState
     );
     if (!mounted) return;
     r.when(
-      success: (res) => setState(() {
-        _result = res;
-        _importing = false;
-      }),
+      success: (res) {
+        trackFirstWeekStep(FirstWeekStep.pastRecordsImported);
+        setState(() {
+          _result = res;
+          _importing = false;
+        });
+      },
       failure: (e) => setState(() {
         _error = '取り込みに失敗しました: ${e.userMessage}\n'
             'もう一度取り込んでも二重にはなりません。';

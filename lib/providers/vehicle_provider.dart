@@ -132,6 +132,7 @@ class VehicleProvider with ChangeNotifier {
       success: (id) {
         _lastAddedVehicleId = id;
         _analytics?.trackVehicleAdded();
+        _analytics?.trackFirstWeekStep(FirstWeekStep.vehicleAdded);
         _isLoading = false;
         notifyListeners();
         return true;
