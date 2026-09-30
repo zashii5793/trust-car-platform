@@ -138,9 +138,18 @@ void main() {
       await tester.pumpWidget(_buildScreen());
       await tester.pump();
 
-      expect(find.text('¥3,980'), findsOneWidget);
       expect(find.text('¥9,800'), findsOneWidget);
-      expect(find.text('¥14,800'), findsOneWidget);
+      expect(find.text('¥29,800'), findsOneWidget);
+      // 掲載管理の画面・特商法と食い違っていた旧価格が残っていない
+      expect(find.text('¥3,980'), findsNothing);
+      expect(find.text('¥14,800'), findsNothing);
+    });
+
+    testWidgets('エンタープライズは個別見積もりと表示する', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pump();
+
+      expect(find.text('個別見積もり'), findsOneWidget);
     });
 
     testWidgets('shows 無料 label for free plan', (tester) async {

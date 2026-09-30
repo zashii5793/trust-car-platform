@@ -227,11 +227,19 @@ void main() {
       expect(ShopPlanType.enterprise.displayName, 'エンタープライズ');
     });
 
+    // 2026-09-30: 掲載管理の画面の金額に揃えた。エンタープライズは個別見積もり
     test('monthlyPrice is null for free and set for paid tiers', () {
       expect(ShopPlanType.free.monthlyPrice, isNull);
-      expect(ShopPlanType.standard.monthlyPrice, 3980);
-      expect(ShopPlanType.premium.monthlyPrice, 9800);
-      expect(ShopPlanType.enterprise.monthlyPrice, 14800);
+      expect(ShopPlanType.standard.monthlyPrice, 9800);
+      expect(ShopPlanType.premium.monthlyPrice, 29800);
+    });
+
+    test('エンタープライズは個別見積もりで、月額を持たない', () {
+      expect(ShopPlanType.enterprise.monthlyPrice, isNull);
+      expect(ShopPlanType.enterprise.isCustomQuote, isTrue);
+      expect(ShopPlanType.free.isCustomQuote, isFalse);
+      expect(ShopPlanType.standard.isCustomQuote, isFalse);
+      expect(ShopPlanType.premium.isCustomQuote, isFalse);
     });
   });
 

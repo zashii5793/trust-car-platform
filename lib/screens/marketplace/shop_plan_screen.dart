@@ -231,7 +231,7 @@ class _PlanCard extends StatelessWidget {
                       )
                     else
                       Text(
-                        '無料',
+                        planType.isCustomQuote ? '個別見積もり' : '無料',
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
