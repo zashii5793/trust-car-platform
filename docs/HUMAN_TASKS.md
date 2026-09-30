@@ -29,26 +29,61 @@
   GitHub Secrets 4つ。SHA-1 / SHA-256 を Firebase に登録し、`google-services.json` を取り直した
   （Android の OAuth クライアントができた＝P0-4 の Google 側は解消）
 
-**残り**
-1. **Remote Config の既定値を反映**: `firebase deploy --only remoteconfig`
-   （`ai_chat` / `part_recommendations` は既定オフ）
-2. 鍵ファイルとパスワードを、Mac の外（パスワードマネージャ等）に退避したか確認
-3. **タカヤの店主アカウントを作る**（下記「タカヤの店主アカウント」）→
-   台帳の右上メニューで「車種別レポートへの協力」をオン
-4. 本番の `vehicle_masters` が投入済みなら、`node scripts/import_vehicle_master.js` で
-   輸入車20社を入れ直す（PR #218 はマージ済み）
+- Remote Config は本番とテンプレートが一致していた（4つとも `false`・反映済み）
 
-### タカヤの店主アカウント `[2026-09-29]`
+**残り（2026-09-30 時点・この順で）**
 
-- 店主の uid は **店の文書IDと同じ `shop_takaya_motor_okayama`** でなければならない
-  （アプリもルールも `request.auth.uid == shopId` で店主を判定する）。
-  アプリの新規登録では uid を選べないので、Admin SDK で作る
+| # | やること | 手順 | 所要 |
+|---|---|---|---|
+| 1 | リリース鍵を Mac の外に退避 | `~/trustcar-release.keystore` とパスワードをパスワードマネージャ等へ | 5分 |
+| 2 | タカヤの店主アカウントを作る | 下記「タカヤの店主アカウント」 | 15分 |
+| 3 | 料金の食い違いを決める | 下記「掲載管理の料金表示」 | 判断 |
+| 4 | 特商法を公開する | `web/tokushoho.html` と `docs/web/tokushoho.html` の最終更新日を公開日に。販売事業者（今は ZAXEL合同会社）で良いか確認 | 10分 |
+| 5 | 輸入車をマスタに入れる（要る場合） | 本番の `vehicle_masters` が投入済みなら `node scripts/import_vehicle_master.js`（サービスアカウントキーが要る） | 10分 |
+| 6 | Apple の設定 | P0-4（Sign in with Apple）・P1-5（証明書）・P1-6（APNs キー） | 2〜3時間 |
+| 7 | Maps のキー | P0-3 | 30分 |
+| 8 | 実機テスト | P1-9（`docs/DEVICE_TEST_CHECKLIST.md`）。最初に車検証 OCR の満了日と Android の Google ログイン | 1日 |
+| 9 | App Check の登録 | P2-13（Android は SHA-256 登録済み。Play Integrity を有効化） | 1時間＋監視 |
+| 10 | ストア申請 | P3-16・17。Play は初回アップロード時に **Play App Signing を有効化** | 各2〜3時間 |
+
+RevenueCat（P1-7）は、店舗プランを請求書払いにしたので当面は不要（10店舗程度でクレジット決済を足すときに）。
+
+### タカヤの店主アカウント `[2026-09-30]`
+
+**アプリだけで作れる。管理者の権限もスクリプトも要らない。**
+店主の判定は「店の文書の `ownerId` が自分の uid か」（`firestore.rules` の
+`isShopOwnerOf`、アプリの `ShopService.getMyShop`）なので、店主本人がアプリで
+店を登録すれば、そのまま店主になる。
+
+1. 店主が使うメールアドレスを決める（店の共用アドレスより、店主個人のものが良い。
+   パスワードの再設定メールが届くアドレスにする）
+2. アプリ（またはウェブ版 https://trust-car-platform.web.app ）で、そのメールアドレスで新規登録
+3. 下のタブの「マーケット」→ 右上の **お店のアイコン（店舗を掲載する）** → **「無料で掲載を始める」**
+4. 店舗名「タカヤモーター株式会社」、業種、電話番号・住所などを入れて **保存**
+5. 掲載管理の画面が出たら完了。「顧客台帳」を開き、右上メニューの
+   **「車種別レポートへの協力」をオン**
+6. 顧客に配る招待コードを作る（掲載管理 → 招待コード）
+
+**注意**
+- 本番に、シードで入れたタカヤの店（`shops/shop_takaya_motor_okayama`）があると、
+  店が2つ並ぶ。あるかどうかは未確認。あれば、古い方を消すか、そちらに ownerId を
+  付け替える（どちらも Admin SDK が要る。サービスアカウントキーを用意して AI に依頼）
 - `scripts/seed_shop_owner.js` は**本番に使わない**（`example.com` と共通パスワード・
-  ペルソナを顧客につなぐ、テスト用の作り）
-- 要るもの: ログインに使うメールアドレス／`gcloud auth application-default login`
-  （本番に書く権限）／作ってよいという明示の OK
+  テスト用のペルソナを顧客につなぐ作り）
 
-### GCP の請求アラート `[2026-09-29]`
+### 掲載管理の料金表示 `[2026-09-30]`
+
+アプリの掲載管理の画面（`lib/screens/marketplace/shop_owner_screen.dart`）と、
+特商法の表示で料金が食い違っている。**どちらに揃えるかを決める**（AI が直す）。
+
+| | アプリの掲載管理 | 特商法（`web/tokushoho.html`） |
+|---|---|---|
+| 無料 | 0円 | フリー 無料 |
+| 中 | 9,800円 / 月 | スタンダード 3,980円 / 月 |
+| 上 | 29,800円 / 月 | プレミアム 9,800円 / 月 |
+| 最上 | （無し） | エンタープライズ 14,800円 / 月 |
+
+### GCP の請求アラート `[完了: 2026-09-30]`
 
 1. https://console.cloud.google.com/billing で、`trust-car-platform` の請求先アカウントを選ぶ
 2. 左メニュー「予算とアラート」→「予算を作成」
@@ -96,7 +131,7 @@
 
 ## P0 — リリースブロッカー
 
-### 0. Cloud Functions が本番に1つも無い `[実測: 2026-09-06]`
+### 0. Cloud Functions が本番に1つも無い `[完了: 2026-09-30。7つとも本番で稼働]`
 
 **手順: `docs/FUNCTIONS_DEPLOY.md`**
 
@@ -131,7 +166,7 @@ firebase deploy --only functions
 
 ---
 
-### 1. Android リリース署名の設定 `[実測: android/key.properties が存在しません]`
+### 1. Android リリース署名の設定 `[完了: 2026-09-30。鍵・key.properties・GitHub Secrets・SHA 登録。CI の release APK で署名一致を確認]`
 
 **状態**: **コード側は対応済み。残るのはキーストアの生成だけです。**
 
