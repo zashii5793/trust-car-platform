@@ -30,7 +30,7 @@
   （Android の OAuth クライアントができた＝P0-4 の Google 側は解消）
 
 - Remote Config は本番とテンプレートが一致していた（4つとも `false`・反映済み）
-- **タカヤの店主アカウントを登録**（`h.ishizashi@takaya.co.jp`・店主本人がアプリで登録）
+- **タカヤの店主アカウントを登録**（店主本人のメールアドレスで、本人がアプリから登録。アドレスは公開リポジトリに書かない）
 - 判断: 店舗プランの料金は**掲載管理の画面の金額**に揃える
   （フリー 無料 / スタンダード 9,800円 / プレミアム 29,800円 / エンタープライズ 個別見積もり）。
   アプリのプラン画面・特商法を合わせて直した
@@ -54,7 +54,7 @@ RevenueCat（P1-7）は、店舗プランを請求書払いにしたので当面
 
 ### 顧客台帳で協力をオンにする `[2026-09-30]`
 
-タカヤの店主アカウント（`h.ishizashi@takaya.co.jp`）でログインした状態で:
+タカヤの店主アカウントでログインした状態で:
 
 1. 下のタブの **「マーケット」** を開く
 2. 右上の **お店のアイコン**（店舗を掲載する）を押す → **「掲載管理」** の画面になる
@@ -231,7 +231,7 @@ storeFile=/Users/<ユーザー名>/trustcar-release.keystore
 
 **デプロイ手順チェックリスト**（2026-09-03 実施済み）:
 - [x] ローカル検証: `cd test/rules && npm install && npm test` — 148件パス
-- [x] `firebase login`（`hideki.ishizashi@gmail.com`）
+- [x] `firebase login`（プロジェクトのオーナーのアカウント）
 - [x] ドライラン: `firebase deploy --only firestore:rules --dry-run` — コンパイル成功
 - [x] 本番反映: `firebase deploy --only firestore:rules` — released
 - [x] 本番反映: `firebase deploy --only firestore:indexes` — deployed
