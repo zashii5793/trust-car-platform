@@ -5,6 +5,8 @@ import 'service_locator.dart';
 import '../error/app_error.dart';
 import '../logging/logging_service.dart';
 import '../logging/logging_service_impl.dart';
+import '../logging/browser_user_agent.dart';
+import '../logging/web_error_reporter.dart';
 import '../performance/performance_service.dart';
 import '../performance/performance_service_impl.dart';
 import '../../services/firebase_service.dart';
@@ -92,6 +94,20 @@ class Injection {
     setAppErrorLogger((appError, {tag, stackTrace}) {
       loggingService.logAppError(appError, tag: tag, stackTrace: stackTrace);
     });
+
+    // ウェブ版の不具合の送り先（Crashlytics は Web 非対応のため Firestore へ）。
+    // 起動の途中で落ちたものも拾えるよう、ログの直後に登録する。
+    // フックの取り付けは main.dart（ウェブのリリース版だけ）。
+    // uid は送るときに引く（AuthService はこのあとで登録される）。
+    locator.registerLazySingleton<WebErrorReporter>(
+      () => WebErrorReporter(
+        firestore: FirebaseFirestore.instance,
+        buildId: AppInfo.buildId,
+        currentUrl: () => Uri.base,
+        userAgent: browserUserAgent,
+        currentUid: () => locator.tryGet<AuthService>()?.currentUser?.uid,
+      ),
+    );
 
     // Performance Service (register after LoggingService)
     locator.registerLazySingleton<PerformanceService>(
