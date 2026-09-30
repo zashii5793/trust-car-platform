@@ -20,17 +20,17 @@
 //    13. 連絡先 section header visible
 //    14. 所在地 section header visible
 //    15. サービス section header visible
-//    16. プラン選択 section header visible
+//    16. プランと料金 section header visible
 //   ServiceCategory chips:
 //    17. All 12 ServiceCategory chips rendered
 //    18. Tapping chip selects it
 //    19. Tapping selected chip deselects it
-//   Plan selection:
+//   Plan（表示だけ。2026-09-30 から選べない。有料プランは請求書払いで申し込む）:
 //    20. Free plan card shows '0円'
 //    21. Standard plan card shows '9,800円 / 月'
 //    22. Premium plan card shows '29,800円 / 月'
-//    23. Default selection is Free plan
-//    24. Tapping Standard selects it
+//    23. New shop starts on Free (現在のプラン)
+//    24. Tapping Standard does not change the saved plan
 //   Submit button state:
 //    25. Bottom '保存する' button enabled when not submitting
 //    26. Bottom '保存中...' label while submitting (isSubmitting=true)
@@ -39,7 +39,7 @@
 //   Edit mode pre-fill:
 //    29. Edit mode pre-fills shop name
 //    30. Edit mode pre-fills description
-//    31. Edit mode pre-fills plan type
+//    31. Edit mode shows the current plan type
 //    32. Edit mode pre-fills selected services
 //   Submit flow:
 //    33. Successful save calls saveMyShop with entered name
@@ -354,9 +354,9 @@ void main() {
       await tester.scrollUntilVisible(find.text('サービス'), 100,
           scrollable: find.byType(Scrollable).first);
       expect(find.text('サービス'), findsOneWidget);
-      await tester.scrollUntilVisible(find.text('プラン選択'), 100,
+      await tester.scrollUntilVisible(find.text('プランと料金'), 100,
           scrollable: find.byType(Scrollable).first);
-      expect(find.text('プラン選択'), findsOneWidget);
+      expect(find.text('プランと料金'), findsOneWidget);
     });
   });
 
@@ -432,7 +432,7 @@ void main() {
     });
   });
 
-  group('ShopRegistrationScreen — Plan selection', () {
+  group('ShopRegistrationScreen — Plan（表示だけ）', () {
     testWidgets('20. Free plan card shows 0円', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
@@ -460,40 +460,52 @@ void main() {
       expect(find.text('29,800円 / 月'), findsOneWidget);
     });
 
-    testWidgets('23. default selection is Free plan', (tester) async {
+    testWidgets('23. 新しい店はフリーで始まる（現在のプラン）', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 2400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       await tester.scrollUntilVisible(find.text('Free'), 200,
           scrollable: find.byType(Scrollable).first);
 
-      // Free plan should have radio_button_checked icon
-      final freePlanCard = find.ancestor(
-        of: find.text('Free'),
-        matching: find.byType(GestureDetector),
-      );
-      expect(freePlanCard, findsWidgets);
-
-      // The Free plan has radio_button_checked; Standard and Premium have radio_button_off
       expect(
-        find.byIcon(Icons.radio_button_checked),
+        find.descendant(
+          of: find.byKey(const Key('registration_plan_free')),
+          matching: find.text('現在のプラン'),
+        ),
         findsOneWidget,
       );
+      // 選ぶ画面ではない（ラジオボタンを出さない）
+      expect(find.byIcon(Icons.radio_button_checked), findsNothing);
+      expect(find.byIcon(Icons.radio_button_off), findsNothing);
     });
 
-    testWidgets('24. tapping Standard plan selects it', (tester) async {
-      await tester.pumpWidget(_buildScreen());
+    testWidgets('24. Standard をタップしても、保存するプランはフリーのまま', (tester) async {
+      final provider = _FakeShopProvider(saveShouldSucceed: true);
+      await tester.pumpWidget(_buildScreen(shopProvider: provider));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
+      await tester.enterText(find.byType(TextFormField).first, '新規テスト工場');
       await tester.scrollUntilVisible(find.text('Standard'), 200,
           scrollable: find.byType(Scrollable).first);
       await tester.tap(find.text('Standard'));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      // Now Standard should be selected (radio_button_checked near 'Standard')
-      // and Free should be deselected
-      expect(find.byIcon(Icons.radio_button_checked), findsOneWidget);
-      expect(find.byIcon(Icons.radio_button_off), findsNWidgets(2));
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(provider.lastSavedShop?.planType, ShopPlanType.free);
+    });
+
+    testWidgets('有料プランは掲載のあと請求書払いで申し込むと案内する', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      final note = find.textContaining('請求書払いで申し込めます');
+      await tester.scrollUntilVisible(note, 200,
+          scrollable: find.byType(Scrollable).first);
+      expect(note, findsOneWidget);
     });
   });
 
@@ -589,7 +601,8 @@ void main() {
       expect(find.text('熟練スタッフが丁寧に整備します'), findsOneWidget);
     });
 
-    testWidgets('31. edit mode pre-fills plan type (Standard)', (tester) async {
+    testWidgets('31. edit mode shows the current plan (Standard)',
+        (tester) async {
       // Plan cards are lazily built in a ListView; use a tall surface so all
       // three cards (Free/Standard/Premium) are rendered.
       await tester.binding.setSurfaceSize(const Size(800, 2400));
@@ -603,10 +616,34 @@ void main() {
       await tester.scrollUntilVisible(find.text('Standard'), 200,
           scrollable: find.byType(Scrollable).first);
 
-      // Standard should be selected (radio_button_checked near it)
-      expect(find.byIcon(Icons.radio_button_checked), findsOneWidget);
-      // The other two plans are not selected
-      expect(find.byIcon(Icons.radio_button_off), findsNWidgets(2));
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('registration_plan_standard')),
+          matching: find.text('現在のプラン'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('現在のプラン'), findsOneWidget);
+    });
+
+    testWidgets('31b. 有料プランの店を直しても、プランの値はそのまま渡す', (tester) async {
+      final provider = _FakeShopProvider(saveShouldSucceed: true);
+      final shop = _makeExistingShop(planType: ShopPlanType.premium).copyWith(
+        subscriptionStatus: ShopSubscriptionStatus.active,
+        planExpiresAt: DateTime(2027, 1, 1),
+      );
+      await tester.pumpWidget(
+        _buildScreen(shopProvider: provider, existingShop: shop),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      final saved = provider.lastSavedShop!;
+      expect(saved.planType, ShopPlanType.premium);
+      expect(saved.subscriptionStatus, ShopSubscriptionStatus.active);
+      expect(saved.planExpiresAt, DateTime(2027, 1, 1));
     });
 
     testWidgets('32. edit mode pre-fills selected services', (tester) async {

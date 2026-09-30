@@ -149,8 +149,10 @@ class _UnregisteredBody extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           AppSpacing.verticalXl,
+          // 料金を見せるだけ。有料プランは掲載のあと、プラン画面から
+          // 請求書払いで申し込む（2026-09-30）
           Text(
-            'プランを選択',
+            'プランと料金',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -191,6 +193,14 @@ class _UnregisteredBody extends StatelessWidget {
               '月次分析レポート',
             ],
             isHighlighted: false,
+          ),
+          AppSpacing.verticalSm,
+          Text(
+            '掲載はフリープランから始まります。有料プランは、掲載のあと'
+            '請求書払い（銀行振込）で申し込めます。',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           AppSpacing.verticalXl,
           FilledButton.icon(
@@ -427,6 +437,8 @@ class _RegisteredBody extends StatelessWidget {
               shopOwnerId: shop.ownerId ??
                   context.read<AuthProvider>().firebaseUser?.uid ??
                   '',
+              currentPlan: shop.planType,
+              shopName: shop.name,
             ),
           ],
           // Free plan upgrade banner
@@ -930,9 +942,16 @@ class _DemandNotificationCard extends StatefulWidget {
   /// shop_inquiry_demands; without it the list query is denied in production.
   final String shopOwnerId;
 
+  /// プラン画面に渡す、いまのプランと店名（申し込みの currentPlan は、
+  /// ルールで店のドキュメントの planType と一致していないと通らない）。
+  final ShopPlanType currentPlan;
+  final String shopName;
+
   const _DemandNotificationCard({
     required this.shopId,
     required this.shopOwnerId,
+    required this.currentPlan,
+    required this.shopName,
   });
 
   @override
@@ -1038,7 +1057,8 @@ class _DemandNotificationCardState extends State<_DemandNotificationCard> {
               MaterialPageRoute(
                 builder: (_) => ShopPlanScreen(
                   shopId: widget.shopId,
-                  currentPlan: ShopPlanType.free,
+                  currentPlan: widget.currentPlan,
+                  shopName: widget.shopName,
                 ),
               ),
             ),
@@ -1096,6 +1116,7 @@ class _UpgradeBanner extends StatelessWidget {
                 builder: (_) => ShopPlanScreen(
                   shopId: shop.id,
                   currentPlan: shop.planType,
+                  shopName: shop.name,
                 ),
               ),
             ),
