@@ -2234,6 +2234,63 @@ describe('shops/{id}/customer_vehicles — 台帳の車両', () => {
       setDoc(doc(dbFor(LEDGER_OWNER_UID), ledgerVehiclePath), ledgerVehicle({ model: '' })),
     );
   });
+
+  // 車検案内の宛名を書き出したときに、案内した日を付ける（2026-09-30）
+  describe('案内した日', () => {
+    async function seedVehicle() {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), ledgerVehiclePath), ledgerVehicle());
+      });
+    }
+
+    test('スタッフは案内した日を付けられる', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertSucceeds(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          inspectionNoticeAt: new Date('2026-09-30'),
+          inspectionNoticeExpiry: new Date('2026-11-05'),
+        }),
+      );
+    });
+
+    test('満了日の無い車には、満了日なし（null）で付けられる', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertSucceeds(
+        updateDoc(doc(dbFor(LEDGER_OWNER_UID), ledgerVehiclePath), {
+          inspectionNoticeAt: new Date('2026-09-30'),
+          inspectionNoticeExpiry: null,
+        }),
+      );
+    });
+
+    test('店の外の人は付けられない', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertFails(
+        updateDoc(doc(dbFor(LEDGER_OUTSIDER_UID), ledgerVehiclePath), {
+          inspectionNoticeAt: new Date('2026-09-30'),
+        }),
+      );
+    });
+
+    test('日付でない値は入れられない', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertFails(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          inspectionNoticeAt: '2026-09-30',
+        }),
+      );
+      await assertFails(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          inspectionNoticeAt: new Date('2026-09-30'),
+          inspectionNoticeExpiry: 'いつか',
+        }),
+      );
+    });
+  });
 });
 
 describe('shops/{id}/members — スタッフ', () => {
