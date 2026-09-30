@@ -31,8 +31,8 @@ APP_PATHS=(lib web pubspec.yaml pubspec.lock assets)
 problems=0
 report=""
 line() { report+="$1"$'\n'; }
-fail() { problems=$((problems + 1)); line "- ❌ $1"; }
-ok() { line "- ✅ $1"; }
+fail() { problems=$((problems + 1)); line "- [NG] $1"; }
+ok() { line "- [OK] $1"; }
 
 status_of() { curl -s -o /dev/null -m 30 -w '%{http_code}' "$1"; }
 
