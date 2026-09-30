@@ -83,6 +83,12 @@ jobs:
         working-directory: scripts
         run: npm ci
 
+      # seed_all.sh の最後の確認（scripts/verify_personas.js）が、ルールのテスト用の
+      # クライアント SDK（test/rules/node_modules/firebase）を使う
+      - name: Install rules-test dependencies (used by verify_personas.js)
+        working-directory: test/rules
+        run: npm ci
+
       - name: Get Flutter dependencies
         run: flutter pub get
 
