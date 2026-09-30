@@ -37,6 +37,8 @@ import 'services/inquiry_service.dart';
 import 'services/shop_report_service.dart';
 import 'services/shop_subscription_service.dart';
 import 'providers/subscription_provider.dart';
+import 'providers/shop_plan_request_provider.dart';
+import 'services/shop_plan_request_service.dart';
 import 'providers/user_subscription_provider.dart';
 import 'services/revenue_cat_service.dart';
 import 'services/user_subscription_service.dart';
@@ -225,6 +227,11 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
             create: (_) => SubscriptionProvider(
                   subscriptionService: sl.get<ShopSubscriptionService>(),
+                )),
+        // 店舗プランの申し込み（請求書払い）。プラン画面が使う。
+        ChangeNotifierProvider(
+            create: (_) => ShopPlanRequestProvider(
+                  service: sl.get<ShopPlanRequestService>(),
                 )),
         // プラン状態は AuthProvider が読んだ AppUser から流し込む。
         //

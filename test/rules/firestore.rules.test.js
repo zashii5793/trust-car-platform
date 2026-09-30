@@ -3063,3 +3063,227 @@ describe('店主の引き継ぎ（アプリが実際に書く形）', () => {
     await assertFails(transfer(NEW));
   });
 });
+
+// ==================== 店舗プランの申し込み（請求書払い・2026-09-30） ====================
+// 店舗プランは当面、請求書払い（銀行振込）。アプリは申し込みを置くだけで、
+// プランの切り替え（planType・subscriptionStatus）は運営者がサーバ側で行う。
+
+describe('shops/{id}/plan_requests — 請求書払いの申し込み', () => {
+  const { serverTimestamp, addDoc } = require('firebase/firestore');
+  const SHOP = 'plan_shop';
+  const OWNER = 'plan_owner';
+  const STAFF = 'plan_staff';
+  const OTHER_SHOP_OWNER = 'plan_other_owner';
+  const reqPath = `shops/${SHOP}/plan_requests/r1`;
+
+  const planRequest = (o = {}) => ({
+    plan: 'standard',
+    currentPlan: 'free',
+    requesterUid: OWNER,
+    contactEmail: 'shop@example.com',
+    billingName: '株式会社タカヤモーター',
+    status: 'pending',
+    createdAt: serverTimestamp(),
+    ...o,
+  });
+
+  async function seed({ planType = 'free' } = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `shops/${SHOP}`), {
+        name: '店',
+        ownerId: OWNER,
+        planType,
+        subscriptionStatus: planType === 'free' ? 'free' : 'active',
+      });
+      await setDoc(doc(db, `shops/${SHOP}/members/${STAFF}`), { role: 'staff' });
+      await setDoc(doc(db, `shops/${OTHER_SHOP_OWNER}`), { name: '他店', ownerId: OTHER_SHOP_OWNER });
+    });
+  }
+
+  async function seedRequest() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), reqPath), { ...planRequest(), createdAt: new Date() });
+    });
+  }
+
+  test('店主は受付中の申し込みを作れる', async () => {
+    await seed();
+    await assertSucceeds(setDoc(doc(dbFor(OWNER), reqPath), planRequest()));
+  });
+
+  test('アプリが書く形（add・ご要望つき）で作れる', async () => {
+    await seed();
+    await assertSucceeds(addDoc(collection(dbFor(OWNER), `shops/${SHOP}/plan_requests`),
+      planRequest({ note: '来月からお願いします' })));
+  });
+
+  test('エンタープライズの見積もり相談・フリーへの変更も同じ形で作れる', async () => {
+    await seed({ planType: 'standard' });
+    await assertSucceeds(setDoc(doc(dbFor(OWNER), reqPath),
+      planRequest({ plan: 'enterprise', currentPlan: 'standard' })));
+    await assertSucceeds(setDoc(doc(dbFor(OWNER), `shops/${SHOP}/plan_requests/r2`),
+      planRequest({ plan: 'free', currentPlan: 'standard' })));
+  });
+
+  test('スタッフは申し込めない（契約は店主が結ぶ）', async () => {
+    await seed();
+    await assertFails(setDoc(doc(dbFor(STAFF), reqPath), planRequest({ requesterUid: STAFF })));
+  });
+
+  test('他店の店主は申し込めない', async () => {
+    await seed();
+    await assertFails(setDoc(doc(dbFor(OTHER_SHOP_OWNER), reqPath),
+      planRequest({ requesterUid: OTHER_SHOP_OWNER })));
+  });
+
+  test('未ログインでは申し込めない', async () => {
+    await seed();
+    await assertFails(setDoc(doc(unauthDb(), reqPath), planRequest()));
+  });
+
+  test('申込者を他人の名前にはできない', async () => {
+    await seed();
+    await assertFails(setDoc(doc(dbFor(OWNER), reqPath), planRequest({ requesterUid: STAFF })));
+  });
+
+  test('受付中（pending）以外の状態では作れない', async () => {
+    await seed();
+    for (const status of ['completed', 'approved', 'cancelled']) {
+      await assertFails(setDoc(doc(dbFor(OWNER), reqPath), planRequest({ status })));
+    }
+  });
+
+  test('申込日時はサーバの時刻だけ', async () => {
+    await seed();
+    await assertFails(setDoc(doc(dbFor(OWNER), reqPath),
+      planRequest({ createdAt: new Date('2020-01-01') })));
+  });
+
+  test('知らないプラン・いまと同じプランは申し込めない', async () => {
+    await seed();
+    await assertFails(setDoc(doc(dbFor(OWNER), reqPath), planRequest({ plan: 'platinum' })));
+    await assertFails(setDoc(doc(dbFor(OWNER), reqPath), planRequest({ plan: 'free' })));
+  });
+
+  test('いまのプラン（currentPlan）は店のドキュメントと一致していること', async () => {
+    await seed({ planType: 'standard' });
+    await assertFails(setDoc(doc(dbFor(OWNER), reqPath),
+      planRequest({ plan: 'premium', currentPlan: 'free' })));
+  });
+
+  test('メールアドレス・宛名の形を確かめる', async () => {
+    await seed();
+    await assertFails(setDoc(doc(dbFor(OWNER), reqPath), planRequest({ contactEmail: 'shop' })));
+    await assertFails(setDoc(doc(dbFor(OWNER), reqPath), planRequest({ contactEmail: '' })));
+    await assertFails(setDoc(doc(dbFor(OWNER), reqPath), planRequest({ billingName: '' })));
+    await assertFails(setDoc(doc(dbFor(OWNER), reqPath), planRequest({ billingName: 'あ'.repeat(101) })));
+    await assertSucceeds(setDoc(doc(dbFor(OWNER), reqPath), planRequest({ billingName: 'あ'.repeat(100) })));
+  });
+
+  test('ご要望は1000文字まで', async () => {
+    await seed();
+    await assertFails(setDoc(doc(dbFor(OWNER), reqPath), planRequest({ note: 'あ'.repeat(1001) })));
+  });
+
+  test('決まった項目以外は書けない（プランの有効化などを混ぜられない）', async () => {
+    await seed();
+    await assertFails(setDoc(doc(dbFor(OWNER), reqPath), planRequest({ subscriptionStatus: 'active' })));
+  });
+
+  test('店主は自分の店の申し込みを読める（1件・一覧）', async () => {
+    await seed();
+    await seedRequest();
+    await assertSucceeds(getDoc(doc(dbFor(OWNER), reqPath)));
+    await assertSucceeds(getDocs(query(
+      collection(dbFor(OWNER), `shops/${SHOP}/plan_requests`),
+      where('status', '==', 'pending'),
+    )));
+  });
+
+  test('スタッフ・他店・未ログインは読めない', async () => {
+    await seed();
+    await seedRequest();
+    await assertFails(getDoc(doc(dbFor(STAFF), reqPath)));
+    await assertFails(getDoc(doc(dbFor(OTHER_SHOP_OWNER), reqPath)));
+    await assertFails(getDocs(collection(dbFor(OTHER_SHOP_OWNER), `shops/${SHOP}/plan_requests`)));
+    await assertFails(getDoc(doc(unauthDb(), reqPath)));
+  });
+
+  test('作ったあとは店主でも書き換え・削除できない', async () => {
+    await seed();
+    await seedRequest();
+    await assertFails(updateDoc(doc(dbFor(OWNER), reqPath), { status: 'completed' }));
+    await assertFails(updateDoc(doc(dbFor(OWNER), reqPath), { plan: 'premium' }));
+    await assertFails(setDoc(doc(dbFor(OWNER), reqPath), planRequest({ plan: 'premium' })));
+    await assertFails(deleteDoc(doc(dbFor(OWNER), reqPath)));
+  });
+});
+
+describe('shops — プランは店主でも書けない（請求書払いの切り替えは運営者）', () => {
+  const OWNER = 'billing_owner';
+  const SHOP_PATH = `shops/${OWNER}`;
+
+  async function seedShop(o = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), SHOP_PATH), {
+        name: '店',
+        ownerId: OWNER,
+        planType: 'free',
+        subscriptionStatus: 'free',
+        planExpiresAt: null,
+        ...o,
+      });
+    });
+  }
+
+  test('店主は店の名前などはこれまでどおり直せる', async () => {
+    await seedShop();
+    await assertSucceeds(updateDoc(doc(dbFor(OWNER), SHOP_PATH), { name: '新しい店名' }));
+  });
+
+  test('店主でも planType を書き換えられない', async () => {
+    await seedShop();
+    await assertFails(updateDoc(doc(dbFor(OWNER), SHOP_PATH), { planType: 'premium' }));
+  });
+
+  test('店主でも planExpiresAt・subscriptionStatus を書き換えられない', async () => {
+    await seedShop();
+    await assertFails(updateDoc(doc(dbFor(OWNER), SHOP_PATH), { planExpiresAt: new Date('2030-01-01') }));
+    await assertFails(updateDoc(doc(dbFor(OWNER), SHOP_PATH), { subscriptionStatus: 'active' }));
+  });
+
+  test('有料プランの店でも、プランの値を変えなければ他の項目は直せる', async () => {
+    await seedShop({ planType: 'premium', subscriptionStatus: 'active' });
+    await assertSucceeds(updateDoc(doc(dbFor(OWNER), SHOP_PATH), {
+      name: '新しい店名', planType: 'premium', subscriptionStatus: 'active',
+    }));
+  });
+
+  test('作るときに有料プラン・有効を名乗れない', async () => {
+    const db = dbFor(OWNER);
+    await assertFails(setDoc(doc(db, SHOP_PATH), { name: '店', ownerId: OWNER, planType: 'premium' }));
+    await assertFails(setDoc(doc(db, SHOP_PATH), {
+      name: '店', ownerId: OWNER, planType: 'free', subscriptionStatus: 'active',
+    }));
+    await assertFails(setDoc(doc(db, SHOP_PATH), {
+      name: '店', ownerId: OWNER, planType: 'free', planExpiresAt: new Date('2030-01-01'),
+    }));
+  });
+
+  test('アプリが書く形（フリー・期限なし）なら作れる', async () => {
+    await assertSucceeds(setDoc(doc(dbFor(OWNER), SHOP_PATH), {
+      name: '店',
+      ownerId: OWNER,
+      planType: 'free',
+      subscriptionStatus: 'free',
+      planExpiresAt: null,
+      revenueCatUserId: null,
+      trialStartedAt: null,
+    }));
+  });
+
+  test('プランの項目を書かずに作っても良い（既定はフリー）', async () => {
+    await assertSucceeds(setDoc(doc(dbFor(OWNER), SHOP_PATH), { name: '店', ownerId: OWNER }));
+  });
+});
