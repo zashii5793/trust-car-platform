@@ -1,0 +1,72 @@
+name: Prod Watch
+
+# 本番が動いているか・main から取り残されていないかを毎日外から確かめ、
+# 問題があれば Issue で知らせる（GitHub の通知メールがオーナーに届く）。
+#
+# 2026-09-30 に、ウェブ版が5週間古いまま・Functions がほぼ無いまま、誰も気づかなかった。
+# 詳しくは scripts/prod_watch.sh と docs/MAINTENANCE_OPS_REVIEW_2026-09-30.md 項目9。
+#
+# 認証は使わない（外から読むだけ）。Issue を立てる権限だけ持つ。
+
+on:
+  schedule:
+    # 毎日 09:00 JST
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: prod-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Watch production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # 公開中の版から main までの差を数えるので、履歴を全部取る
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Run checks
+        id: watch
+        run: |
+          set +e
+          ./scripts/prod_watch.sh > report.md
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+          cat report.md
+
+      # 問題があれば、開いている見張りの Issue にコメントする（無ければ立てる）。
+      # 毎日新しい Issue を立てると埋もれるので、1本にまとめる。
+      - name: Report problems as an issue
+        if: steps.watch.outputs.status != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          label="prod-watch"
+          gh label create "$label" --color B60205 --description "本番の見張りが見つけた問題" 2>/dev/null || true
+          number="$(gh issue list --label "$label" --state open --limit 1 --json number --jq '.[0].number')"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body-file report.md
+          else
+            gh issue create --title "本番の見張り: 問題あり" --label "$label" --body-file report.md
+          fi
+
+      # 直ったら、開いている見張りの Issue を閉じる
+      - name: Close the issue when everything is fine
+        if: steps.watch.outputs.status == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          number="$(gh issue list --label prod-watch --state open --limit 1 --json number --jq '.[0].number')"
+          if [ -n "$number" ]; then
+            gh issue close "$number" --comment "すべて正常に戻りました。$(date -u +%Y-%m-%dT%H:%MZ)"
+          fi
