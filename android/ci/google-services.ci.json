@@ -4,20 +4,51 @@
     "project_id": "trust-car-platform",
     "storage_bucket": "trust-car-platform.firebasestorage.app"
   },
-  "client": [{
-    "client_info": {
-      "mobilesdk_app_id": "1:31421119456:android:145b8b79b1d9e7cf80c985",
-      "android_client_info": { "package_name": "jp.trustcar.app" }
-    },
-    "oauth_client": [{
-      "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
-      "client_type": 3
-    }],
-    "api_key": [{ "current_key": "AIzaSyDwjPzpdQqXFl4be7oE3n-yzcl6hoLv_Uw" }],
-    "services": { "appinvite_service": { "other_platform_oauth_client": [{
-      "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
-      "client_type": 3
-    }] } }
-  }],
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:31421119456:android:145b8b79b1d9e7cf80c985",
+        "android_client_info": {
+          "package_name": "jp.trustcar.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "31421119456-pvv9k46i944bkuiulmhbva16k9pr9l54.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "jp.trustcar.app",
+            "certificate_hash": "12adf947b1ae24c2eaf2235e5143fd5e23154fd0"
+          }
+        },
+        {
+          "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwjPzpdQqXFl4be7oE3n-yzcl6hoLv_Uw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "31421119456-an2a0g6k3fd504bulg4enbulion41qj8.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "jp.trustcar.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
   "configuration_version": "1"
 }
