@@ -78,3 +78,5 @@ echo
 echo "公開しました: https://trust-car-platform.web.app（ビルド識別子: $BUILD_ID）"
 echo "規約:         https://trust-car-platform.web.app/terms.html"
 echo "プライバシー: https://trust-car-platform.web.app/privacy.html"
+echo
+echo "忘れずに: docs/RELEASES.md の一番上に1行足す（ウェブ / $BUILD_ID / 内容）"
