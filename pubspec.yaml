@@ -82,6 +82,10 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  # メーカーのロゴ（各社の公式サイトから取得。Issue #214）
+  assets:
+    - assets/images/makers/
+
   # 日本語フォントを同梱する。
   #
   # 入れないと、Web は起動後に fonts.gstatic.com から取りに行くため

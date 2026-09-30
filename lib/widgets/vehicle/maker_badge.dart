@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/maker_brand.dart';
 
-/// A colored mark standing in for a maker logo.
+/// A maker logo in a circle.
 ///
 /// メーカー一覧は「灰色の丸に和名の1文字目」だった。「ト」「ホ」「日」「マ」が
 /// 灰色で並ぶだけで、見分けも付かないし、そもそも安っぽい（2026-08-25 の指摘）。
 ///
-/// 実ロゴは商標なので同梱できない。色とマークで代用する。
-/// 平面の塗り潰しだとまだ素っ気ないので、上を明るくしたグラデーションと
-/// 内側のハイライト、控えめな落ち影で立体感を出している。
+/// カタログのメーカー（国産・輸入車）は、白い丸の中に各社のロゴを出す（Issue #214）。
+/// ロゴが無いメーカーと画像が読めなかったときは、色とマークで代用する。
+/// 平面の塗り潰しだと素っ気ないので、上を明るくしたグラデーションと
+/// 控えめな落ち影で立体感を出している。
 class MakerBadge extends StatelessWidget {
   final String makerId;
 
@@ -64,6 +65,7 @@ class MakerBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final brand = MakerBrand.of(_colorKey);
+    final logo = MakerBrand.logoAsset(_colorKey);
     final label = (makerName ?? '').trim();
 
     // 選択枠は外側に足すのではなく内側に食い込ませる。外形が変わると
@@ -88,42 +90,81 @@ class MakerBadge extends StatelessWidget {
           ),
           child: Padding(
             padding: EdgeInsets.all(isSelected ? ringWidth * 0.7 : 0),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [_lighten(brand.color), brand.color],
-                ),
-                // 影は塗り色を薄めたもの。黒い影だとどのメーカーも
-                // 同じにくすんで、色で見分ける利点が消える。
-                boxShadow: [
-                  BoxShadow(
-                    color: brand.color.withValues(alpha: 0.35),
-                    blurRadius: size * 0.12,
-                    offset: Offset(0, size * 0.05),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: ExcludeSemantics(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: size * 0.15),
-                      child: Text(
-                        brand.mark,
-                        style: TextStyle(
-                          color: brand.onColor,
-                          fontSize: size * 0.42,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                          height: 1.0,
-                        ),
-                      ),
-                    ),
-                  ),
+            child: logo == null
+                ? _markCircle(brand)
+                : _logoCircle(context, logo, brand),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 白い丸にロゴ。読めなかったときは色とマークに戻す。
+  Widget _logoCircle(BuildContext context, String asset, MakerBrand brand) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        // 白地の画面でも丸の輪郭が見えるように、薄い線と影を付ける。
+        border: Border.all(color: const Color(0x1F000000), width: 0.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0x1F000000),
+            blurRadius: size * 0.12,
+            offset: Offset(0, size * 0.05),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: Padding(
+          padding: EdgeInsets.all(size * 0.12),
+          child: ExcludeSemantics(
+            child: Image.asset(
+              asset,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.medium,
+              errorBuilder: (context, error, stackTrace) => _markCircle(brand),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 色とマークの丸（ロゴが無いメーカー用）。
+  Widget _markCircle(MakerBrand brand) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_lighten(brand.color), brand.color],
+        ),
+        // 影は塗り色を薄めたもの。黒い影だとどのメーカーも
+        // 同じにくすんで、色で見分ける利点が消える。
+        boxShadow: [
+          BoxShadow(
+            color: brand.color.withValues(alpha: 0.35),
+            blurRadius: size * 0.12,
+            offset: Offset(0, size * 0.05),
+          ),
+        ],
+      ),
+      child: Center(
+        child: ExcludeSemantics(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: size * 0.15),
+              child: Text(
+                brand.mark,
+                style: TextStyle(
+                  color: brand.onColor,
+                  fontSize: size * 0.42,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  height: 1.0,
                 ),
               ),
             ),

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// How one maker is shown when there is no logo to show.
+/// How one maker is shown.
 ///
-/// 実ロゴは商標なので同梱できない。代わりに、メーカーごとに決まった色と
-/// 短いマークを与えて見分けられるようにする。**実ロゴの再現ではない。**
+/// カタログのメーカー（国産・輸入車）は公式サイトから取ったロゴを出す（[logoAsset]）。
+/// ロゴが無いメーカー（自由入力の輸入車など）と、画像が読めなかったときは、
+/// メーカーごとに決まった色と短いマークのバッジで代用する。
 ///
 /// 色は「隣り合っても見分けられること」を優先している。国産メーカーは赤を
 /// 使う会社が多く、各社のブランド色をそのまま当てると赤が3つ並んで用を
@@ -38,6 +39,27 @@ class MakerBrand {
     'hino': MakerBrand(color: Color(0xFF2E7D32), mark: 'HI'),
     'fuso': MakerBrand(color: Color(0xFF455A64), mark: 'F'),
     'ud': MakerBrand(color: Color(0xFF827717), mark: 'UD'),
+    // 輸入車
+    'mercedes': MakerBrand(color: Color(0xFF37474F), mark: 'MB'),
+    'bmw': MakerBrand(color: Color(0xFF0277BD), mark: 'B'),
+    'mini': MakerBrand(color: Color(0xFF424242), mark: 'MN'),
+    'volkswagen': MakerBrand(color: Color(0xFF0D47A1), mark: 'VW'),
+    'audi': MakerBrand(color: Color(0xFF616161), mark: 'A'),
+    'porsche': MakerBrand(color: Color(0xFFA1887F), mark: 'P'),
+    'volvo': MakerBrand(color: Color(0xFF1A237E), mark: 'V'),
+    'peugeot': MakerBrand(color: Color(0xFF263238), mark: 'PG'),
+    'jeep': MakerBrand(color: Color(0xFF558B2F), mark: 'J'),
+    'landrover': MakerBrand(color: Color(0xFF1B5E20), mark: 'LR'),
+    'fiat': MakerBrand(color: Color(0xFFC62828), mark: 'FI'),
+    'renault': MakerBrand(color: Color(0xFFFBC02D), mark: 'R'),
+    'citroen': MakerBrand(color: Color(0xFF8E24AA), mark: 'C'),
+    'tesla': MakerBrand(color: Color(0xFFD32F2F), mark: 'TE'),
+    'ferrari': MakerBrand(color: Color(0xFFFFD600), mark: 'FE'),
+    'lamborghini': MakerBrand(color: Color(0xFFBF9000), mark: 'LA'),
+    'jaguar': MakerBrand(color: Color(0xFF004D40), mark: 'JA'),
+    'abarth': MakerBrand(color: Color(0xFFFF5252), mark: 'AB'),
+    'byd': MakerBrand(color: Color(0xFF4E342E), mark: 'BY'),
+    'hyundai': MakerBrand(color: Color(0xFF002C5F), mark: 'HY'),
     'other': MakerBrand(color: Color(0xFF9E9E9E), mark: '＋'),
   };
 
@@ -97,9 +119,102 @@ class MakerBrand {
     'udトラックス': 'ud',
     'ud trucks': 'ud',
     'ud': 'ud',
+    // 輸入車
+    'メルセデス・ベンツ': 'mercedes',
+    'mercedes-benz': 'mercedes',
+    'mercedes': 'mercedes',
+    'メルセデス': 'mercedes',
+    'ベンツ': 'mercedes',
+    'mercedes benz': 'mercedes',
+    'benz': 'mercedes',
+    'bmw': 'bmw',
+    'mini': 'mini',
+    'ミニ': 'mini',
+    'フォルクスワーゲン': 'volkswagen',
+    'volkswagen': 'volkswagen',
+    'vw': 'volkswagen',
+    'ワーゲン': 'volkswagen',
+    'アウディ': 'audi',
+    'audi': 'audi',
+    'ポルシェ': 'porsche',
+    'porsche': 'porsche',
+    'ボルボ': 'volvo',
+    'volvo': 'volvo',
+    'プジョー': 'peugeot',
+    'peugeot': 'peugeot',
+    'ジープ': 'jeep',
+    'jeep': 'jeep',
+    'ランドローバー': 'landrover',
+    'land rover': 'landrover',
+    'landrover': 'landrover',
+    'ランド・ローバー': 'landrover',
+    'フィアット': 'fiat',
+    'fiat': 'fiat',
+    'ルノー': 'renault',
+    'renault': 'renault',
+    'シトロエン': 'citroen',
+    'citroën': 'citroen',
+    'citroen': 'citroen',
+    'テスラ': 'tesla',
+    'tesla': 'tesla',
+    'フェラーリ': 'ferrari',
+    'ferrari': 'ferrari',
+    'ランボルギーニ': 'lamborghini',
+    'lamborghini': 'lamborghini',
+    'ジャガー': 'jaguar',
+    'jaguar': 'jaguar',
+    'アバルト': 'abarth',
+    'abarth': 'abarth',
+    'byd': 'byd',
+    'ヒョンデ': 'hyundai',
+    'hyundai': 'hyundai',
+    'ヒュンダイ': 'hyundai',
     'その他': 'other',
     'other': 'other',
   };
+
+  /// ロゴ画像があるメーカー（国産14社・輸入車20社）。画像は `assets/images/makers/<id>.png`
+  /// （256px 角・白地。各社の公式サイトから取得。Issue #214）。
+  static const Set<String> _logoIds = {
+    'toyota',
+    'honda',
+    'nissan',
+    'mazda',
+    'subaru',
+    'suzuki',
+    'daihatsu',
+    'mitsubishi',
+    'lexus',
+    'mitsuoka',
+    'isuzu',
+    'hino',
+    'fuso',
+    'ud',
+    'mercedes',
+    'bmw',
+    'mini',
+    'volkswagen',
+    'audi',
+    'porsche',
+    'volvo',
+    'peugeot',
+    'jeep',
+    'landrover',
+    'fiat',
+    'renault',
+    'citroen',
+    'tesla',
+    'ferrari',
+    'lamborghini',
+    'jaguar',
+    'abarth',
+    'byd',
+    'hyundai',
+  };
+
+  /// ロゴ画像のパス。無ければ null（色とマークのバッジを出す）。
+  static String? logoAsset(String makerId) =>
+      _logoIds.contains(makerId) ? 'assets/images/makers/$makerId.png' : null;
 
   /// Whether [makerId] is in the catalog (色とマークが決め打ちされている)。
   static bool isKnown(String makerId) => _brands.containsKey(makerId);

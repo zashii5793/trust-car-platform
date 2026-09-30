@@ -480,7 +480,7 @@ void main() {
     });
 
     test('カタログに無いメーカーは名前をそのまま makerId にする', () {
-      expect(vehicleTagFor(v('MINI')).makerId, 'MINI');
+      expect(vehicleTagFor(v('ケータハム')).makerId, 'ケータハム');
     });
   });
 }
