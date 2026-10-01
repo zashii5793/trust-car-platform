@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// ウェブ版で起きた不具合1件分（`client_errors` に書く中身）。
 ///
 /// Crashlytics は Web 非対応なので、ウェブ版の不具合は Firestore に直接残す。
-/// `client_errors` は**未ログインでも書ける**場所なので、ここで作る中身は
+/// `client_errors` はログイン中の誰でも書ける場所（2026-10-01 からログイン必須）なので、ここで作る中身は
 /// ルール（firestore.rules の `client_errors`）の上限に必ず収める。
 ///
 /// **個人情報を持ち込まない。** 入力値・メール・電話・住所は入れない：

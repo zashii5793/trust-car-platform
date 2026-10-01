@@ -1221,7 +1221,7 @@ service cloud.firestore {
                                'userAgent', 'uid', 'platform', 'createdAt',
                                'expireAt'])
         && d.keys().hasAll(['message', 'stack', 'source', 'buildId', 'path',
-                            'platform', 'createdAt', 'expireAt'])
+                            'uid', 'platform', 'createdAt', 'expireAt'])
         && d.message is string && d.message.size() > 0 && d.message.size() <= 500
         && d.stack is string && d.stack.size() <= 4000
         && d.source in ['flutter', 'platform', 'zone']
@@ -1229,9 +1229,9 @@ service cloud.firestore {
         && d.path is string && d.path.size() > 0 && d.path.size() <= 200
         && (d.get('userAgent', null) == null
             || (d.userAgent is string && d.userAgent.size() <= 300))
-        // uid は書くなら本人のものだけ（他人の uid を名乗らせない）
-        && (d.get('uid', null) == null
-            || (request.auth != null && d.uid == request.auth.uid))
+        // ログイン中の本人だけ（2026-10-01 オーナー判断。いたずらの書き込みを防ぐ）
+        && request.auth != null
+        && d.uid == request.auth.uid
         && d.platform == 'web'
         && d.createdAt == request.time
         // 端末の時計のずれを見込んで、今から 120 日以内まで（アプリは 90 日後を書く）

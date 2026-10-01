@@ -1224,8 +1224,9 @@ describe('feedback — read / update / delete', () => {
 // ---------------------------------------------------------------------------
 // client_errors — ウェブ版の不具合（Crashlytics の代わり）
 //
-// 作成は未ログインでも可（ログイン前に落ちるエラーも拾うため）。その代わり
-// 項目・型・長さを厳しく決め、何でも置ける場所にしない。読むのは運営者だけ。
+// 作成はログイン中の本人だけ（2026-10-01 オーナー判断。いたずらの書き込みを防ぐため、
+// ログイン前に落ちるエラーは拾わない）。項目・型・長さも厳しく決め、
+// 何でも置ける場所にしない。読むのは運営者だけ。
 // ---------------------------------------------------------------------------
 
 const clientErrorPath = 'client_errors/ce_1';
@@ -1239,7 +1240,7 @@ function clientErrorDoc(overrides = {}) {
     buildId: 'a1b2c3d',
     path: '/',
     userAgent: 'Mozilla/5.0',
-    uid: null,
+    uid: OWNER_UID,
     platform: 'web',
     createdAt: serverTimestamp(),
     expireAt: Timestamp.fromMillis(Date.now() + 90 * DAY_MS),
@@ -1257,9 +1258,9 @@ async function seedClientError() {
 }
 
 describe('client_errors — create', () => {
-  test('未ログインでも作成できる（uid は null）', async () => {
-    await assertSucceeds(
-      setDoc(doc(unauthDb(), clientErrorPath), clientErrorDoc()),
+  test('未ログインでは作成できない', async () => {
+    await assertFails(
+      setDoc(doc(unauthDb(), clientErrorPath), clientErrorDoc({ uid: null })),
     );
   });
 
@@ -1272,11 +1273,16 @@ describe('client_errors — create', () => {
     );
   });
 
-  test('userAgent と uid を省いても作成できる', async () => {
+  test('userAgent は省ける', async () => {
     const d = clientErrorDoc();
     delete d.userAgent;
+    await assertSucceeds(setDoc(doc(dbFor(OWNER_UID), clientErrorPath), d));
+  });
+
+  test('ログイン中でも uid を省くと拒否される', async () => {
+    const d = clientErrorDoc();
     delete d.uid;
-    await assertSucceeds(setDoc(doc(unauthDb(), clientErrorPath), d));
+    await assertFails(setDoc(doc(dbFor(OWNER_UID), clientErrorPath), d));
   });
 
   test('他人の uid を名乗ると拒否される', async () => {
@@ -1300,7 +1306,7 @@ describe('client_errors — create', () => {
   test('余計な項目（email など）があると拒否される', async () => {
     await assertFails(
       setDoc(
-        doc(unauthDb(), clientErrorPath),
+        doc(dbFor(OWNER_UID), clientErrorPath),
         clientErrorDoc({ email: 'a@b.jp' }),
       ),
     );
@@ -1309,19 +1315,19 @@ describe('client_errors — create', () => {
   test('必須の項目（message）が無いと拒否される', async () => {
     const d = clientErrorDoc();
     delete d.message;
-    await assertFails(setDoc(doc(unauthDb(), clientErrorPath), d));
+    await assertFails(setDoc(doc(dbFor(OWNER_UID), clientErrorPath), d));
   });
 
   test('空のメッセージは拒否される', async () => {
     await assertFails(
-      setDoc(doc(unauthDb(), clientErrorPath), clientErrorDoc({ message: '' })),
+      setDoc(doc(dbFor(OWNER_UID), clientErrorPath), clientErrorDoc({ message: '' })),
     );
   });
 
   test('500文字を超えるメッセージは拒否される', async () => {
     await assertFails(
       setDoc(
-        doc(unauthDb(), clientErrorPath),
+        doc(dbFor(OWNER_UID), clientErrorPath),
         clientErrorDoc({ message: 'あ'.repeat(501) }),
       ),
     );
@@ -1330,7 +1336,7 @@ describe('client_errors — create', () => {
   test('500文字ちょうどのメッセージは通る', async () => {
     await assertSucceeds(
       setDoc(
-        doc(unauthDb(), clientErrorPath),
+        doc(dbFor(OWNER_UID), clientErrorPath),
         clientErrorDoc({ message: 'あ'.repeat(500) }),
       ),
     );
@@ -1339,7 +1345,7 @@ describe('client_errors — create', () => {
   test('4000文字を超えるスタックは拒否される', async () => {
     await assertFails(
       setDoc(
-        doc(unauthDb(), clientErrorPath),
+        doc(dbFor(OWNER_UID), clientErrorPath),
         clientErrorDoc({ stack: 'x'.repeat(4001) }),
       ),
     );
@@ -1348,19 +1354,19 @@ describe('client_errors — create', () => {
   test('長すぎる userAgent・path・buildId は拒否される', async () => {
     await assertFails(
       setDoc(
-        doc(unauthDb(), clientErrorPath),
+        doc(dbFor(OWNER_UID), clientErrorPath),
         clientErrorDoc({ userAgent: 'u'.repeat(301) }),
       ),
     );
     await assertFails(
       setDoc(
-        doc(unauthDb(), clientErrorPath),
+        doc(dbFor(OWNER_UID), clientErrorPath),
         clientErrorDoc({ path: '/' + 'p'.repeat(200) }),
       ),
     );
     await assertFails(
       setDoc(
-        doc(unauthDb(), clientErrorPath),
+        doc(dbFor(OWNER_UID), clientErrorPath),
         clientErrorDoc({ buildId: 'b'.repeat(41) }),
       ),
     );
@@ -1369,7 +1375,7 @@ describe('client_errors — create', () => {
   test('決められていない source は拒否される', async () => {
     await assertFails(
       setDoc(
-        doc(unauthDb(), clientErrorPath),
+        doc(dbFor(OWNER_UID), clientErrorPath),
         clientErrorDoc({ source: 'manual' }),
       ),
     );
@@ -1378,7 +1384,7 @@ describe('client_errors — create', () => {
   test('platform が web 以外は拒否される', async () => {
     await assertFails(
       setDoc(
-        doc(unauthDb(), clientErrorPath),
+        doc(dbFor(OWNER_UID), clientErrorPath),
         clientErrorDoc({ platform: 'android' }),
       ),
     );
@@ -1387,7 +1393,7 @@ describe('client_errors — create', () => {
   test('createdAt がサーバ時刻でないと拒否される', async () => {
     await assertFails(
       setDoc(
-        doc(unauthDb(), clientErrorPath),
+        doc(dbFor(OWNER_UID), clientErrorPath),
         clientErrorDoc({ createdAt: new Date('2020-01-01') }),
       ),
     );
@@ -1396,13 +1402,13 @@ describe('client_errors — create', () => {
   test('expireAt が過去・遠すぎる未来・無しは拒否される', async () => {
     await assertFails(
       setDoc(
-        doc(unauthDb(), clientErrorPath),
+        doc(dbFor(OWNER_UID), clientErrorPath),
         clientErrorDoc({ expireAt: Timestamp.fromMillis(Date.now() - DAY_MS) }),
       ),
     );
     await assertFails(
       setDoc(
-        doc(unauthDb(), clientErrorPath),
+        doc(dbFor(OWNER_UID), clientErrorPath),
         clientErrorDoc({
           expireAt: Timestamp.fromMillis(Date.now() + 365 * DAY_MS),
         }),
@@ -1410,12 +1416,12 @@ describe('client_errors — create', () => {
     );
     const d = clientErrorDoc();
     delete d.expireAt;
-    await assertFails(setDoc(doc(unauthDb(), clientErrorPath), d));
+    await assertFails(setDoc(doc(dbFor(OWNER_UID), clientErrorPath), d));
   });
 
   test('message が文字列でないと拒否される', async () => {
     await assertFails(
-      setDoc(doc(unauthDb(), clientErrorPath), clientErrorDoc({ message: 123 })),
+      setDoc(doc(dbFor(OWNER_UID), clientErrorPath), clientErrorDoc({ message: 123 })),
     );
   });
 });

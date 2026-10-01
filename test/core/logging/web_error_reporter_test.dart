@@ -39,7 +39,8 @@ void main() {
 
   setUp(() {
     firestore = FakeFirebaseFirestore();
-    uid = null;
+    // 送れるのはログイン中だけ（2026-10-01）。既定はログイン中にしておく
+    uid = 'user1';
     reporter = create();
   });
 
@@ -68,9 +69,17 @@ void main() {
       expect((await stored()).single['uid'], 'user1');
     });
 
-    test('未ログインでも送れる（uid は null）', () async {
-      await reporter.report('boom', null);
-      expect((await stored()).single['uid'], isNull);
+    // 2026-10-01 オーナー判断: ログイン必須（ルールも同じ）。送っても弾かれるだけなので、
+    // 送らず、1回の起動の上限（10件）にも数えない
+    test('未ログインなら送らず、上限にも数えない', () async {
+      uid = null;
+      final result = await reporter.report('boom', null);
+      expect(result.valueOrNull, isFalse);
+      expect(await stored(), isEmpty);
+      expect(reporter.attemptCount, 0);
+
+      uid = 'user1';
+      expect((await reporter.report('boom', null)).valueOrNull, isTrue);
     });
 
     test('発生源を指定できる', () async {
@@ -129,11 +138,11 @@ void main() {
       expect(reporter.attemptCount, 2);
     });
 
-    test('uid の取得が例外を投げても送れる', () async {
+    test('uid の取得が例外を投げたら送らない（落ちない）', () async {
       reporter = create(currentUid: () => throw StateError('auth not ready'));
       final result = await reporter.report('boom', null);
-      expect(result.valueOrNull, isTrue);
-      expect((await stored()).single['uid'], isNull);
+      expect(result.valueOrNull, isFalse);
+      expect(await stored(), isEmpty);
     });
 
     test('userAgent の取得が例外を投げても送れる', () async {

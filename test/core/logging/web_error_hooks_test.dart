@@ -24,7 +24,7 @@ void main() {
       buildId: 'test',
       currentUrl: () => Uri.parse('https://x.example/'),
       userAgent: () => null,
-      currentUid: () => null,
+      currentUid: () => 'user1',
     );
     savedFlutterHandler = FlutterError.onError;
     savedPlatformHandler = PlatformDispatcher.instance.onError;
