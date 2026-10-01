@@ -7,8 +7,10 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/models/model_cost_report.dart';
 import 'package:trust_car_platform/screens/vehicle/model_cost_report_screen.dart';
+import 'package:trust_car_platform/services/analytics_service.dart';
 import 'package:trust_car_platform/services/model_cost_report_service.dart';
 
 ModelCostReport _report({
@@ -53,6 +55,31 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
 }
 
 void main() {
+  /// 利用者の最初の7日（改善 #6）。開いたら1回だけ送る（build のたびに送らない）。
+  group('ModelCostReportScreen の最初の7日', () {
+    testWidgets('開いたときに model_cost_viewed を1回だけ送る', (tester) async {
+      final sent = <String>[];
+      sl.registerSingleton<AnalyticsService>(AnalyticsService.forTesting(
+        onLog: (name, params) {
+          if (name == 'first_week_step') sent.add(params!['step'] as String);
+        },
+      ));
+      addTearDown(() => sl.unregister<AnalyticsService>());
+
+      await _pump(tester, ModelCostReportScreen(report: _report()));
+      // 画面を描き直しても増えない
+      await tester.pump();
+      await tester.pump();
+
+      expect(sent, ['model_cost_viewed']);
+    });
+
+    testWidgets('AnalyticsService が無くても画面は開ける', (tester) async {
+      await _pump(tester, ModelCostReportScreen(report: _report()));
+      expect(find.text('維持費レポート'), findsOneWidget);
+    });
+  });
+
   group('ModelCostReportScreen', () {
     testWidgets('目安・内訳・年数ごと・よくある整備が出る', (tester) async {
       await _pump(tester, ModelCostReportScreen(report: _report()));

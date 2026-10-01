@@ -7,6 +7,8 @@ import '../../models/model_cost_report.dart';
 import '../../services/model_cost_report_service.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
+import '../../core/utils/first_week_tracker.dart';
+import '../../services/analytics_service.dart' show FirstWeekStep;
 
 final _yen = NumberFormat('#,###');
 
@@ -16,7 +18,7 @@ String _money(int v) => '${_yen.format(v)}円';
 ///
 /// 「この車に乗ると、年にいくらかかるか」を、同じ車に乗っている人の
 /// 実際の記録から出す。**自分の記録が溜まっていなくても、初日から見られる。**
-class ModelCostReportScreen extends StatelessWidget {
+class ModelCostReportScreen extends StatefulWidget {
   final ModelCostReport report;
 
   /// ほかの車種を探す画面へ。渡さなければボタンを出さない。
@@ -29,8 +31,21 @@ class ModelCostReportScreen extends StatelessWidget {
   });
 
   @override
+  State<ModelCostReportScreen> createState() => _ModelCostReportScreenState();
+}
+
+class _ModelCostReportScreenState extends State<ModelCostReportScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // 開いたときに1回だけ（build は何度も走る）
+    trackFirstWeekStep(FirstWeekStep.modelCostViewed);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final r = report;
+    final r = widget.report;
+    final onBrowseOthers = widget.onBrowseOthers;
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('維持費レポート')),

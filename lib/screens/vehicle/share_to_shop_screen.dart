@@ -12,6 +12,8 @@ import '../../models/vehicle.dart';
 import '../../models/vehicle_share.dart';
 import '../../services/vehicle_share_service.dart';
 import '../../widgets/common/app_card.dart';
+import '../../core/utils/first_week_tracker.dart';
+import '../../services/analytics_service.dart' show FirstWeekStep;
 
 /// 店を名前で探す関数。テストで差し替えられるように外から渡す。
 typedef ShopSearch = Future<Result<List<Shop>, AppError>> Function(String q);
@@ -151,6 +153,7 @@ class _ShareToShopScreenState extends State<ShareToShopScreen> {
     if (!mounted) return;
     r.when(
       success: (_) {
+        trackFirstWeekStep(FirstWeekStep.shopLinked);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${shop.name} に渡しました')),
         );
