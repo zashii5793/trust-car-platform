@@ -190,6 +190,40 @@ jobs:
         working-directory: test/rules
         run: npm test
 
+  # Cloud Functions のビルドとテスト。
+  #
+  # 2026-09-30 まで CI に入っておらず、98件のテストは手元でしか回っていなかった
+  # （docs/MAINTENANCE_OPS_REVIEW_2026-09-30.md 項目1）。本番には 7つの Functions
+  # （退会後の削除・課金の同期・AI チャットなど）が動いているので、ここで止める。
+  functions-test:
+    name: Cloud Functions Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # functions/package.json の engines と揃える（本番のランタイムも 22）
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install dependencies
+        working-directory: functions
+        run: npm ci
+
+      # tsc が通らないと deploy の predeploy で落ちる。先にここで見る
+      - name: Build (tsc)
+        working-directory: functions
+        run: npm run build
+
+      - name: Run tests
+        working-directory: functions
+        run: npm test
+
   build-android:
     name: Build Android
     runs-on: ubuntu-latest

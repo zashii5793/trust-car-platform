@@ -58,6 +58,10 @@ firebase emulators:start --only auth,firestore
 firebase deploy --only firestore:rules,firestore:indexes
 ```
 
+**本番に何かを反映したら、その日のうちに `docs/RELEASES.md` の一番上へ1行足す。**
+（2026-09-30 に、ウェブ版が5週間古いまま・Functions が0個のまま誰も気づかなかった。
+「main に入った ＝ 本番に出た」ではない）
+
 ## アーキテクチャ方針（変更禁止）
 
 ```
