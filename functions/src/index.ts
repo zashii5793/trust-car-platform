@@ -4,6 +4,9 @@
 //   onRevenueCatWebhook — HTTP endpoint called by RevenueCat after subscription events.
 //   askCarAi           — HTTPS proxy for Anthropic API (API key never leaves the server).
 //   onPlanRequestCreated — 店舗プランの申し込みを運営者にメールで知らせる。
+//   unsubscribeNewsletter — メールの配信停止リンク（トークン）で購読を止める。
+//   onMaintenanceRecordWritten / onVehicleWrittenForFleetSummary
+//                        — 法人向けの整備集計（fleet_maintenance_summaries）を作り直す。
 //
 // Deploy:
 //   firebase deploy --only functions
@@ -17,7 +20,10 @@
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import {
+  onDocumentCreated,
+  onDocumentWritten,
+} from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { handleWebhook } from "./webhook";
 import {
@@ -32,6 +38,17 @@ import {
   type PlanRequestData,
 } from "./notifyPlanRequest";
 import type { ShopSubscriptionUpdate } from "./types";
+import { handleUnsubscribe } from "./unsubscribeNewsletter";
+import {
+  SUMMARY_COLLECTION,
+  affectedVehicleIds,
+  recomputeSummary,
+  vehicleChangeNeedsRecompute,
+  type FleetMaintenanceSummary,
+  type RecordForSummary,
+  type SummaryDeps,
+  type VehicleForSummary,
+} from "./fleetMaintenanceSummary";
 export { onNewsletterSend } from "./sendNewsletter";
 export { askCarAi } from "./askCarAi";
 import {
@@ -532,5 +549,108 @@ export const purgeExpiredShares = onSchedule(
       await batch.commit();
     }
     console.log(`Expired vehicle shares: ${removed} removed`);
+  }
+);
+
+/**
+ * HTTPS Cloud Function — メールの配信停止リンクでの購読停止（Issue #192）。
+ *
+ * リンクから来る人はログインしていないので、クライアントから
+ * newsletter_subscriptions をトークンで引けない（ルールで証明できない）。
+ * 認証は求めず、トークンの一致だけで止める。処理の中身は unsubscribeNewsletter.ts。
+ *
+ * Request: POST { token: string }
+ * Response: 200 { ok: true } / 400・404 { error } / 405 / 500
+ */
+export const unsubscribeNewsletter = onRequest(
+  { region: "asia-northeast1", cors: true },
+  async (req, res) => {
+    const db = admin.firestore();
+    const col = db.collection("newsletter_subscriptions");
+    const result = await handleUnsubscribe(req.method, req.body, {
+      findByToken: async (token) => {
+        const snap = await col
+          .where("unsubscribeToken", "==", token)
+          .limit(1)
+          .get();
+        return snap.empty ? null : snap.docs[0].id;
+      },
+      markUnsubscribed: async (id) => {
+        await col.doc(id).update({
+          isSubscribed: false,
+          updatedAt: admin.firestore.Timestamp.now(),
+        });
+      },
+    });
+    res.status(result.status).json(result.body);
+  }
+);
+
+/** 法人向けの整備集計で使う Firestore の読み書き。 */
+function fleetSummaryDeps(): SummaryDeps {
+  const db = admin.firestore();
+  return {
+    loadVehicle: async (vehicleId) => {
+      const snap = await db.collection("vehicles").doc(vehicleId).get();
+      return snap.exists ? (snap.data() as VehicleForSummary) : null;
+    },
+    loadRecords: async (vehicleId) => {
+      const snap = await db
+        .collection("maintenance_records")
+        .where("vehicleId", "==", vehicleId)
+        .get();
+      return snap.docs.map((d) => d.data() as RecordForSummary);
+    },
+    writeSummary: async (vehicleId, s: FleetMaintenanceSummary) => {
+      await db.collection(SUMMARY_COLLECTION).doc(vehicleId).set({
+        vehicleId: s.vehicleId,
+        ownerId: s.ownerId,
+        lastMaintenanceDate:
+          s.lastMaintenanceDateMs === null
+            ? null
+            : admin.firestore.Timestamp.fromMillis(s.lastMaintenanceDateMs),
+        totalCost: s.totalCost,
+        recordCount: s.recordCount,
+        updatedAt: admin.firestore.Timestamp.now(),
+      });
+    },
+    deleteSummary: async (vehicleId) => {
+      await db.collection(SUMMARY_COLLECTION).doc(vehicleId).delete();
+    },
+  };
+}
+
+/**
+ * Firestore-triggered Cloud Function — 整備記録が書かれたら、その車の
+ * 法人向け集計（fleet_maintenance_summaries/{vehicleId}）を作り直す（Issue #192）。
+ *
+ * 毎回その車の記録を全部読み直す（1台あたりの記録は多くて数百件）。
+ * 差分で足し引きしないのは、再試行・重複配信で数字がずれないようにするため。
+ */
+export const onMaintenanceRecordWritten = onDocumentWritten(
+  { document: "maintenance_records/{recordId}", region: "asia-northeast1" },
+  async (event) => {
+    const before = event.data?.before?.data() as RecordForSummary | undefined;
+    const after = event.data?.after?.data() as RecordForSummary | undefined;
+    const deps = fleetSummaryDeps();
+    for (const vehicleId of affectedVehicleIds(before, after)) {
+      await recomputeSummary(vehicleId, deps);
+    }
+  }
+);
+
+/**
+ * Firestore-triggered Cloud Function — 車の持ち主・法人が変わった・車が
+ * 消されたら、その車の集計を作り直す（Issue #192）。
+ *
+ * 法人に入る前からある記録も、入った時点で集計に載る。
+ */
+export const onVehicleWrittenForFleetSummary = onDocumentWritten(
+  { document: "vehicles/{vehicleId}", region: "asia-northeast1" },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!vehicleChangeNeedsRecompute(before, after)) return;
+    await recomputeSummary(event.params.vehicleId, fleetSummaryDeps());
   }
 );

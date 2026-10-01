@@ -30,6 +30,9 @@ const {
   getDocs,
   query,
   where,
+  orderBy,
+  limit,
+  documentId,
   serverTimestamp,
   Timestamp,
 } = require('firebase/firestore');
@@ -3585,5 +3588,430 @@ describe('shops — プランは店主でも書けない（請求書払いの切
 
   test('プランの項目を書かずに作っても良い（既定はフリー）', async () => {
     await assertSucceeds(setDoc(doc(dbFor(OWNER), SHOP_PATH), { name: '店', ownerId: OWNER }));
+  });
+});
+
+// ===========================================================================
+// Issue #192 — 本番ルールで弾かれるクエリ（残り）
+//
+// fake_cloud_firestore はルールを評価しないので、Dart の単体テストは緑の
+// まま本番で permission-denied になる。ここで「アプリと同じ形のクエリ」を
+// 本物のルール越しに投げて固定する。
+// ===========================================================================
+
+describe('fleet_maintenance_summaries — 法人の整備集計（Issue #192）', () => {
+  // 法人（フリート）の管理者 = vehicles.companyId に書かれた uid
+  // （fleet_service.dart / vehicles のルールと同じ定義）
+  const ADMIN = 'fleet_admin_uid';
+  const MEMBER = 'fleet_member_uid';
+  const OTHER_ADMIN = 'other_fleet_admin_uid';
+  const STRANGER = 'fleet_stranger_uid';
+  const MEMBER_CAR = 'fleet_car_member';
+  const OTHER_FLEET_CAR = 'fleet_car_other_company';
+  const PRIVATE_CAR = 'fleet_car_private';
+
+  function summary(vehicleId, ownerId, extra = {}) {
+    return {
+      vehicleId,
+      ownerId,
+      lastMaintenanceDate: new Date('2026-09-01'),
+      totalCost: 12000,
+      recordCount: 2,
+      updatedAt: new Date('2026-09-02'),
+      ...extra,
+    };
+  }
+
+  async function seedFleet() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      // メンバーの車（ADMIN の法人に入っている）
+      await setDoc(doc(db, `vehicles/${MEMBER_CAR}`), {
+        userId: MEMBER, companyId: ADMIN, maker: 'トヨタ', model: 'ハイエース',
+      });
+      // 別の法人の車
+      await setDoc(doc(db, `vehicles/${OTHER_FLEET_CAR}`), {
+        userId: 'other_member_uid', companyId: OTHER_ADMIN, maker: '日産', model: 'キャラバン',
+      });
+      // どの法人にも入っていない個人の車
+      await setDoc(doc(db, `vehicles/${PRIVATE_CAR}`), {
+        userId: MEMBER, companyId: null, maker: 'ホンダ', model: 'N-BOX',
+      });
+      // 生の整備記録（メモ・店名など、集計に要らない項目を含む）
+      await setDoc(doc(db, 'maintenance_records/fleet_mr_1'), {
+        userId: MEMBER, vehicleId: MEMBER_CAR, type: 'oilChange',
+        title: 'オイル交換', cost: 5000, date: new Date('2026-08-01'),
+        notes: '私的なメモ', shopName: '近所の店',
+      });
+      await setDoc(doc(db, `fleet_maintenance_summaries/${MEMBER_CAR}`),
+        summary(MEMBER_CAR, MEMBER));
+      await setDoc(doc(db, `fleet_maintenance_summaries/${OTHER_FLEET_CAR}`),
+        summary(OTHER_FLEET_CAR, 'other_member_uid'));
+      await setDoc(doc(db, `fleet_maintenance_summaries/${PRIVATE_CAR}`),
+        summary(PRIVATE_CAR, MEMBER));
+    });
+  }
+
+  function summariesIn(uid, ids) {
+    return getDocs(query(
+      collection(dbFor(uid), 'fleet_maintenance_summaries'),
+      where(documentId(), 'in', ids),
+    ));
+  }
+
+  // --- 以前の形（maintenance_records を直接引く）は本番で通らない ---
+
+  test('以前の形: 管理者が vehicleId だけで maintenance_records を引くと拒否される', async () => {
+    await seedFleet();
+    await assertFails(getDocs(query(
+      collection(dbFor(ADMIN), 'maintenance_records'),
+      where('vehicleId', 'in', [MEMBER_CAR]),
+    )));
+  });
+
+  test('以前の形: 管理者がメンバーの userId で maintenance_records を引いても拒否される（生の記録は本人だけ）', async () => {
+    await seedFleet();
+    await assertFails(getDocs(query(
+      collection(dbFor(ADMIN), 'maintenance_records'),
+      where('userId', '==', MEMBER),
+      where('vehicleId', 'in', [MEMBER_CAR]),
+    )));
+  });
+
+  test('以前の形: 管理者自身の userId で引くと通るが、メンバーの車の記録は0件', async () => {
+    await seedFleet();
+    const snap = await assertSucceeds(getDocs(query(
+      collection(dbFor(ADMIN), 'maintenance_records'),
+      where('userId', '==', ADMIN),
+      where('vehicleId', 'in', [MEMBER_CAR]),
+    )));
+    expect(snap.size).toBe(0);
+  });
+
+  // --- 新しい形: 集計文書を documentId in で引く（FleetService と同じ） ---
+
+  test('管理者は、自分の法人の車の集計を documentId in で読める', async () => {
+    await seedFleet();
+    const snap = await assertSucceeds(summariesIn(ADMIN, [MEMBER_CAR]));
+    expect(snap.size).toBe(1);
+    expect(snap.docs[0].data().totalCost).toBe(12000);
+  });
+
+  test('管理者は、自分の法人の車の集計を1件ずつ読める', async () => {
+    await seedFleet();
+    await assertSucceeds(getDoc(doc(dbFor(ADMIN), `fleet_maintenance_summaries/${MEMBER_CAR}`)));
+  });
+
+  test('車の持ち主は、自分の車の集計を読める', async () => {
+    await seedFleet();
+    await assertSucceeds(summariesIn(MEMBER, [MEMBER_CAR, PRIVATE_CAR]));
+  });
+
+  test('管理者でも、別の法人の車の集計は読めない', async () => {
+    await seedFleet();
+    await assertFails(getDoc(doc(dbFor(ADMIN), `fleet_maintenance_summaries/${OTHER_FLEET_CAR}`)));
+    await assertFails(summariesIn(ADMIN, [OTHER_FLEET_CAR]));
+  });
+
+  test('管理者でも、法人に入っていない（メンバー個人の）車の集計は読めない', async () => {
+    await seedFleet();
+    await assertFails(getDoc(doc(dbFor(ADMIN), `fleet_maintenance_summaries/${PRIVATE_CAR}`)));
+  });
+
+  test('自分の法人の車に他の車を混ぜたクエリは、全体が拒否される', async () => {
+    await seedFleet();
+    await assertFails(summariesIn(ADMIN, [MEMBER_CAR, OTHER_FLEET_CAR]));
+    await assertFails(summariesIn(ADMIN, [MEMBER_CAR, PRIVATE_CAR]));
+  });
+
+  test('法人と無関係な人・未認証は読めない', async () => {
+    await seedFleet();
+    await assertFails(getDoc(doc(dbFor(STRANGER), `fleet_maintenance_summaries/${MEMBER_CAR}`)));
+    await assertFails(summariesIn(STRANGER, [MEMBER_CAR]));
+    await assertFails(getDoc(doc(unauthDb(), `fleet_maintenance_summaries/${MEMBER_CAR}`)));
+  });
+
+  test('別の法人の管理者は読めない', async () => {
+    await seedFleet();
+    await assertFails(getDoc(doc(dbFor(OTHER_ADMIN), `fleet_maintenance_summaries/${MEMBER_CAR}`)));
+  });
+
+  test('車が法人を抜けたら、元の管理者はすぐ読めなくなる', async () => {
+    await seedFleet();
+    await updateDoc(doc(dbFor(MEMBER), `vehicles/${MEMBER_CAR}`), {
+      companyId: null, updatedAt: new Date(),
+    });
+    await assertFails(getDoc(doc(dbFor(ADMIN), `fleet_maintenance_summaries/${MEMBER_CAR}`)));
+    // 持ち主は引き続き読める
+    await assertSucceeds(getDoc(doc(dbFor(MEMBER), `fleet_maintenance_summaries/${MEMBER_CAR}`)));
+  });
+
+  test('集計がまだ無い法人の車は、拒否されず「無い」が返る', async () => {
+    await seedFleet();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'vehicles/fleet_car_new'), {
+        userId: MEMBER, companyId: ADMIN, maker: 'スズキ', model: 'エブリイ',
+      });
+    });
+    const snap = await assertSucceeds(
+      getDoc(doc(dbFor(ADMIN), 'fleet_maintenance_summaries/fleet_car_new')));
+    expect(snap.exists()).toBe(false);
+  });
+
+  test('車の文書が無い集計は、管理者を名乗っても読めない', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'fleet_maintenance_summaries/ghost_car'),
+        summary('ghost_car', MEMBER));
+    });
+    await assertFails(getDoc(doc(dbFor(ADMIN), 'fleet_maintenance_summaries/ghost_car')));
+  });
+
+  test('集計はクライアントから書けない（持ち主・管理者とも）', async () => {
+    await seedFleet();
+    for (const uid of [MEMBER, ADMIN]) {
+      const ref = doc(dbFor(uid), `fleet_maintenance_summaries/${MEMBER_CAR}`);
+      await assertFails(setDoc(ref, summary(MEMBER_CAR, MEMBER, { totalCost: 1 })));
+      await assertFails(updateDoc(ref, { totalCost: 1 }));
+      await assertFails(deleteDoc(ref));
+    }
+    await assertFails(setDoc(doc(dbFor(MEMBER), 'fleet_maintenance_summaries/new_car'),
+      summary('new_car', MEMBER)));
+  });
+
+  test('集計ができても、管理者はメンバーの生の整備記録を読めない', async () => {
+    await seedFleet();
+    await assertFails(getDoc(doc(dbFor(ADMIN), 'maintenance_records/fleet_mr_1')));
+  });
+});
+
+describe('newsletter_subscriptions — トークンでの配信停止（Issue #192）', () => {
+  const SUBSCRIBER = 'nl_subscriber_uid';
+  const TOKEN = 'tok_0123456789abcdef0123456789abcdef';
+
+  async function seedSubscription() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `newsletter_subscriptions/${SUBSCRIBER}`), {
+        userId: SUBSCRIBER,
+        email: 'sub@example.com',
+        isSubscribed: true,
+        subscribedCategories: ['news'],
+        unsubscribeToken: TOKEN,
+      });
+    });
+  }
+
+  // 以前の NewsletterService.unsubscribeByToken の形。メールのリンクから
+  // 来る人はログインしていない（または別の人）ので、ルールで通せない。
+  // → Cloud Function（unsubscribeNewsletter）に移した。
+  test('以前の形: 未認証でトークン一致を引くと拒否される', async () => {
+    await seedSubscription();
+    await assertFails(getDocs(query(
+      collection(unauthDb(), 'newsletter_subscriptions'),
+      where('unsubscribeToken', '==', TOKEN),
+      limit(1),
+    )));
+  });
+
+  test('以前の形: 他人がトークン一致を引いても拒否される', async () => {
+    await seedSubscription();
+    await assertFails(getDocs(query(
+      collection(dbFor(OTHER_UID), 'newsletter_subscriptions'),
+      where('unsubscribeToken', '==', TOKEN),
+      limit(1),
+    )));
+  });
+
+  test('トークンを知っていても、他人・未認証は購読を書き換えられない', async () => {
+    await seedSubscription();
+    const path = `newsletter_subscriptions/${SUBSCRIBER}`;
+    await assertFails(updateDoc(doc(unauthDb(), path), { isSubscribed: false }));
+    await assertFails(updateDoc(doc(dbFor(OTHER_UID), path), { isSubscribed: false }));
+  });
+
+  test('本人は自分の購読を読める・止められる（設定画面の経路は従来どおり）', async () => {
+    await seedSubscription();
+    const path = `newsletter_subscriptions/${SUBSCRIBER}`;
+    await assertSucceeds(getDoc(doc(dbFor(SUBSCRIBER), path)));
+    await assertSucceeds(updateDoc(doc(dbFor(SUBSCRIBER), path), {
+      userId: SUBSCRIBER, isSubscribed: false,
+    }));
+  });
+});
+
+describe('posts — ユーザーの投稿一覧（PostService.getUserPosts, Issue #192）', () => {
+  const AUTHOR = 'posts_author_uid';
+  const FOLLOWER = 'posts_follower_uid';
+  const STRANGER = 'posts_stranger_uid';
+
+  async function seedPosts({ follow = true } = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      const base = { userId: AUTHOR, content: '投稿', likeCount: 0 };
+      await setDoc(doc(db, 'posts/p_public'), {
+        ...base, visibility: 'public', createdAt: new Date('2026-09-03'),
+      });
+      await setDoc(doc(db, 'posts/p_followers'), {
+        ...base, visibility: 'followers', createdAt: new Date('2026-09-02'),
+      });
+      await setDoc(doc(db, 'posts/p_private'), {
+        ...base, visibility: 'private', createdAt: new Date('2026-09-01'),
+      });
+      if (follow) {
+        await setDoc(doc(db, `follows/${FOLLOWER}_${AUTHOR}`), {
+          followerId: FOLLOWER, followingId: AUTHOR,
+        });
+      }
+    });
+  }
+
+  function userPosts(uid, visibilities) {
+    const parts = [where('userId', '==', AUTHOR)];
+    if (visibilities.length === 1) {
+      parts.push(where('visibility', '==', visibilities[0]));
+    } else if (visibilities.length > 1) {
+      parts.push(where('visibility', 'in', visibilities));
+    }
+    return getDocs(query(
+      collection(dbFor(uid), 'posts'),
+      ...parts,
+      orderBy('createdAt', 'desc'),
+      limit(20),
+    ));
+  }
+
+  test('本人は可視性を問わず自分の一覧を読める', async () => {
+    await seedPosts();
+    const snap = await assertSucceeds(userPosts(AUTHOR, []));
+    expect(snap.size).toBe(3);
+  });
+
+  test('他人向け（public だけ）は、フォローしていなくても読める', async () => {
+    await seedPosts({ follow: false });
+    const snap = await assertSucceeds(userPosts(STRANGER, ['public']));
+    expect(snap.size).toBe(1);
+  });
+
+  // Issue #192 では「exists() 依存なので list を証明できない」と机上で挙げて
+  // いたが、エミュレータで実測すると通る。クエリが userId を == で固定して
+  // いるので、ルールの exists() のパスがクエリから決まるため。
+  test('フォロワー向け（public + followers の in）は、フォロー中なら通る', async () => {
+    await seedPosts();
+    const snap = await assertSucceeds(userPosts(FOLLOWER, ['public', 'followers']));
+    expect(snap.size).toBe(2);
+  });
+
+  test('フォローしていない人が public + followers の in を投げると拒否される', async () => {
+    await seedPosts({ follow: false });
+    await assertFails(userPosts(STRANGER, ['public', 'followers']));
+  });
+
+  test('フォローを外したら、フォロワー向けの一覧は拒否される', async () => {
+    await seedPosts();
+    await deleteDoc(doc(dbFor(FOLLOWER), `follows/${FOLLOWER}_${AUTHOR}`));
+    await assertFails(userPosts(FOLLOWER, ['public', 'followers']));
+    // public だけなら引き続き読める
+    await assertSucceeds(userPosts(FOLLOWER, ['public']));
+  });
+
+  test('フォロー中でも private は読めない', async () => {
+    await seedPosts();
+    await assertFails(userPosts(FOLLOWER, ['public', 'followers', 'private']));
+  });
+
+  test('フォローしていない人の followers 指定は拒否される', async () => {
+    await seedPosts({ follow: false });
+    await assertFails(userPosts(STRANGER, ['followers']));
+  });
+
+  test('他人は userId だけで絞った一覧を読めない', async () => {
+    await seedPosts();
+    await assertFails(userPosts(STRANGER, []));
+  });
+});
+
+describe('spots — お気に入りスポット（DriveLogService.getUserFavoriteSpots, Issue #192）', () => {
+  const VIEWER = 'spots_viewer_uid';
+  const CREATOR = 'spots_creator_uid';
+
+  async function seedSpots() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'spots/s_public'), {
+        userId: CREATOR, name: '公開スポット', isPublic: true,
+      });
+      await setDoc(doc(db, 'spots/s_mine_private'), {
+        userId: VIEWER, name: '自分の非公開スポット', isPublic: false,
+      });
+      await setDoc(doc(db, 'spots/s_other_private'), {
+        userId: CREATOR, name: '後から非公開にされたスポット', isPublic: false,
+      });
+    });
+  }
+
+  function spotsIn(uid, ids) {
+    return getDocs(query(
+      collection(dbFor(uid), 'spots'),
+      where(documentId(), 'in', ids),
+    ));
+  }
+
+  test('他人の公開スポットと自分の非公開スポットは、documentId in でまとめて読める', async () => {
+    await seedSpots();
+    const snap = await assertSucceeds(spotsIn(VIEWER, ['s_public', 's_mine_private']));
+    expect(snap.size).toBe(2);
+  });
+
+  // 以前の形（documentId in だけ）。お気に入りの1件が後から非公開にされると
+  // お気に入り一覧そのものが permission-denied になる。
+  test('以前の形: 後から非公開にされたスポットが混ざると、クエリ全体が拒否される', async () => {
+    await seedSpots();
+    await assertFails(spotsIn(VIEWER, ['s_public', 's_other_private']));
+  });
+
+  test('以前の形: 消されたスポットの ID が混ざっても、クエリ全体が拒否される', async () => {
+    await seedSpots();
+    // documentId in は文書ごとに評価され、無い文書では resource が null に
+    // なってルールが評価エラーになる。お気に入りのスポットが消されるだけで
+    // お気に入り一覧そのものが開けなくなっていた。
+    await assertFails(spotsIn(VIEWER, ['s_public', 's_deleted']));
+  });
+
+  test('isPublic == true を足しても、documentId in は文書ごとに評価されるので救えない', async () => {
+    await seedSpots();
+    await assertFails(getDocs(query(
+      collection(dbFor(VIEWER), 'spots'),
+      where(documentId(), 'in', ['s_public', 's_other_private']),
+      where('isPublic', '==', true),
+    )));
+  });
+
+  // 新しい形（DriveLogService.getUserFavoriteSpots）: 1件ずつ get する。
+  // 読めない1件（非公開にされた・消された）は、その1件だけが拒否される。
+  test('新しい形: 1件ずつなら、読めるものは読め、読めないものだけが拒否される', async () => {
+    await seedSpots();
+    const db = dbFor(VIEWER);
+    await assertSucceeds(getDoc(doc(db, 'spots/s_public')));
+    await assertSucceeds(getDoc(doc(db, 'spots/s_mine_private')));
+    await assertFails(getDoc(doc(db, 'spots/s_other_private')));
+    // 消されたスポットは「無い」ではなく拒否になる（resource が null のため）
+    await assertFails(getDoc(doc(db, 'spots/s_deleted')));
+  });
+
+  test('他人を名乗って userId で絞っても、非公開スポットは読めない', async () => {
+    await seedSpots();
+    await assertFails(getDocs(query(
+      collection(dbFor(VIEWER), 'spots'),
+      where(documentId(), 'in', ['s_other_private']),
+      where('userId', '==', CREATOR),
+    )));
+  });
+
+  test('未認証は公開スポットも読めない', async () => {
+    await seedSpots();
+    await assertFails(getDocs(query(
+      collection(unauthDb(), 'spots'),
+      where(documentId(), 'in', ['s_public']),
+      where('isPublic', '==', true),
+    )));
   });
 });
