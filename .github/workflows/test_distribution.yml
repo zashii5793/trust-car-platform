@@ -133,14 +133,14 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Download web build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: trustcar-test-web
           path: build/web
 
       - name: Download APK
         if: ${{ inputs.include_apk }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: trustcar-test-apk
           path: ${{ runner.temp }}/apk
@@ -226,7 +226,7 @@ jobs:
           node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(!j.client_email||!j.private_key){throw new Error("client_email / private_key がありません")}; console.log("service account:", j.client_email)' "$RUNNER_TEMP/firebase-sa.json"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
 
