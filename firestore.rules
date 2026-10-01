@@ -304,6 +304,24 @@ service cloud.firestore {
       allow delete: if isDocumentOwner();
     }
 
+    // 法人（フリート）向けの整備集計（Issue #192）
+    //
+    // 法人の管理者（vehicles.companyId == 管理者の uid）が、メンバーの車の
+    // 整備の「最終日・合計費用・件数」だけを見るための文書。ID は vehicleId。
+    // 生の maintenance_records（メモ・店名・写真など）は本人だけのまま。
+    //
+    //   - 書くのは Cloud Functions（onMaintenanceRecordWritten / Admin SDK）だけ
+    //   - 管理者かどうかは、集計に写した値ではなく**いまの車の文書**で決める。
+    //     車が法人を抜けた（companyId を外した）時点で読めなくなる
+    //   - 車の持ち主は自分の車の集計を読める（ownerId も車の文書で確かめる）
+    match /fleet_maintenance_summaries/{vehicleId} {
+      allow read: if isAuthenticated()
+        && exists(/databases/$(database)/documents/vehicles/$(vehicleId))
+        && (get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.get('companyId', '') == request.auth.uid
+            || get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.userId == request.auth.uid);
+      allow write: if false;
+    }
+
     // 通知データ
     match /notifications/{notificationId} {
       // 自分の通知のみ読み取り可能

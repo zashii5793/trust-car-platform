@@ -253,6 +253,13 @@ class PostService {
   /// includes both 'public' and 'followers' posts.  When false (default), only
   /// 'public' posts are returned to non-owners.  The Firestore security rule
   /// enforces the same constraint server-side via an `exists(follows/...)` check.
+  ///
+  /// Issue #192 で「exists() 依存なので list を証明できない」と疑っていたが、
+  /// エミュレータで実測すると通る（userId を == で固定しているので、
+  /// exists() のパスがクエリから決まる）。test/rules/firestore.rules.test.js の
+  /// 「posts — ユーザーの投稿一覧」で固定してある。**userId の == を外すと
+  /// 拒否される**ので、この形を崩さないこと。フォローしていないのに
+  /// [isViewerFollowing] を true にすると一覧ごと拒否される。
   Future<Result<List<Post>, AppError>> getUserPosts({
     required String userId,
     required String viewerId,
