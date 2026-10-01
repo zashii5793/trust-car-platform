@@ -18,6 +18,9 @@ class ModelCostReportService {
 
   /// この車種のレポート。車種で人数が足りなければメーカー全体のものを返す。
   /// どちらも無ければ null（**推定で埋めない**）。
+  ///
+  /// 持ち主が [modelCostMinOwners] に満たないレポートは、在っても無いものとして
+  /// 扱う（サーバーは書かない決まりだが、アプリでも重ねて確かめる）。
   Future<Result<ModelCostReport?, AppError>> forVehicle({
     required String maker,
     required String model,
@@ -29,13 +32,15 @@ class ModelCostReportService {
         final doc = await _col.doc(id).get();
         final data = doc.data();
         if (doc.exists && data != null) {
-          return Result.success(ModelCostReport.fromMap(doc.id, data));
+          final report = ModelCostReport.fromMap(doc.id, data);
+          if (report.isPublishable) return Result.success(report);
         }
       }
       final makerDoc = await _col.doc(modelCostKey(maker)).get();
       final makerData = makerDoc.data();
       if (makerDoc.exists && makerData != null) {
-        return Result.success(ModelCostReport.fromMap(makerDoc.id, makerData));
+        final report = ModelCostReport.fromMap(makerDoc.id, makerData);
+        if (report.isPublishable) return Result.success(report);
       }
       return const Result.success(null);
     } catch (e) {
@@ -46,6 +51,7 @@ class ModelCostReportService {
   /// 見られる車種の一覧（持ち主の多い順）。買う前に調べる人のため。
   ///
   /// レポートは車種の数だけしかないので、上位だけを読み、絞り込みは画面側で行う。
+  /// 持ち主が [modelCostMinOwners] に満たないものは返さない。
   Future<Result<List<ModelCostReport>, AppError>> listAvailable({
     int limit = 200,
   }) async {
@@ -54,6 +60,7 @@ class ModelCostReportService {
           await _col.orderBy('ownerCount', descending: true).limit(limit).get();
       return Result.success(snap.docs
           .map((d) => ModelCostReport.fromMap(d.id, d.data()))
+          .where((r) => r.isPublishable)
           .toList());
     } catch (e) {
       return Result.failure(mapFirebaseError(e));

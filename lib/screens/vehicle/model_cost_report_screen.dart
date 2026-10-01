@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../models/car_purchase_inquiry.dart';
 import '../../models/model_cost_report.dart';
+import '../../services/car_purchase_inquiry_service.dart';
 import '../../services/model_cost_report_service.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
@@ -24,10 +27,17 @@ class ModelCostReportScreen extends StatefulWidget {
   /// ほかの車種を探す画面へ。渡さなければボタンを出さない。
   final VoidCallback? onBrowseOthers;
 
+  /// 中古車検索（カーセンサー / Goo-net）へのリンクを出すか。
+  ///
+  /// 車種を選んで調べている人（買う前の人）向け。自分の車の詳細から開いた
+  /// ときは出さない（もう持っている車種を探させても意味が薄い）。
+  final bool showUsedCarSearch;
+
   const ModelCostReportScreen({
     super.key,
     required this.report,
     this.onBrowseOthers,
+    this.showUsedCarSearch = false,
   });
 
   @override
@@ -122,6 +132,10 @@ class _ModelCostReportScreenState extends State<ModelCostReportScreen> {
                 '${r.updatedAt!.year}/${r.updatedAt!.month}/${r.updatedAt!.day} 時点',
             ].join(''),
           ),
+          if (widget.showUsedCarSearch) ...[
+            AppSpacing.verticalMd,
+            _UsedCarSearchLinks(report: r),
+          ],
           if (onBrowseOthers != null) ...[
             AppSpacing.verticalMd,
             OutlinedButton.icon(
@@ -292,7 +306,210 @@ class _Note extends StatelessWidget {
   }
 }
 
+Future<void> _openExternal(String url) async {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return;
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+}
+
+/// この車種の中古車を探すリンク（Issue #208「中古車検索リンクの隣に置く」）。
+///
+/// URL は CarPurchaseInquiryService と同じ規則で作る。メーカー全体の
+/// レポートなら、メーカーだけで探す。
+class _UsedCarSearchLinks extends StatelessWidget {
+  final ModelCostReport report;
+
+  const _UsedCarSearchLinks({required this.report});
+
+  @override
+  Widget build(BuildContext context) {
+    final links = CarPurchaseInquiryService.searchLinksFor(
+      CarPurchaseCondition(maker: report.maker, model: report.model),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          report.model == null ? '${report.maker}の中古車を探す' : 'この車種の中古車を探す',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        AppSpacing.verticalXs,
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
+          children: [
+            for (var i = 0; i < links.length; i++)
+              OutlinedButton.icon(
+                key: Key('model_cost_used_car_$i'),
+                onPressed: () => _openExternal(links[i].url),
+                icon: const Icon(Icons.open_in_new, size: AppSpacing.iconSm),
+                label: Text(links[i].siteName),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// 車種を並べて比べる（Issue #208）。
+///
+/// 一覧で選んだ2〜3車種の目安と内訳を横に並べる。出せない項目は「—」で、
+/// **0円で埋めない**。持ち主が5人に満たないレポートは並べない。
+class ModelCostCompareScreen extends StatefulWidget {
+  final List<ModelCostReport> reports;
+
+  const ModelCostCompareScreen({super.key, required this.reports});
+
+  @override
+  State<ModelCostCompareScreen> createState() => _ModelCostCompareScreenState();
+}
+
+class _ModelCostCompareScreenState extends State<ModelCostCompareScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // 比べる画面も維持費を見たことになる（レポート画面と同じ扱い）
+    trackFirstWeekStep(FirstWeekStep.modelCostViewed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // 同じ車種を2回並べない（ID が同じものは最初の1つだけ）
+    final seen = <String>{};
+    final reports =
+        widget.reports.where((r) => r.isPublishable && seen.add(r.id)).toList();
+    String cell(int? v) => v == null ? '—' : _money(v);
+
+    final rows = <(String, String, List<String>)>[
+      (
+        '1年あたりの目安',
+        '整備＋車検＋燃料',
+        [for (final r in reports) cell(r.annualEstimate)],
+      ),
+      (
+        '整備・修理',
+        '年あたり',
+        [for (final r in reports) cell(r.maintenanceAnnual?.median)],
+      ),
+      (
+        '車検',
+        '1回あたり',
+        [for (final r in reports) cell(r.inspectionPerEvent?.median)],
+      ),
+      (
+        '燃料',
+        '年あたり',
+        [for (final r in reports) cell(r.fuelAnnual?.median)],
+      ),
+      (
+        '記録した持ち主',
+        '',
+        [for (final r in reports) '${r.ownerCount}人'],
+      ),
+    ];
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('維持費を比べる')),
+      body: ListView(
+        padding: AppSpacing.paddingScreen,
+        children: [
+          Table(
+            key: const Key('model_cost_compare_table'),
+            columnWidths: {
+              0: const FlexColumnWidth(1.2),
+              for (var i = 0; i < reports.length; i++)
+                i + 1: const FlexColumnWidth(),
+            },
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            border: TableBorder(
+              horizontalInside: BorderSide(color: theme.dividerColor),
+            ),
+            children: [
+              TableRow(
+                children: [
+                  const SizedBox.shrink(),
+                  for (final r in reports)
+                    InkWell(
+                      key: Key('model_cost_compare_open_${r.id}'),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => ModelCostReportScreen(
+                            report: r,
+                            showUsedCarSearch: true,
+                          ),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.sm,
+                          horizontal: AppSpacing.xxs,
+                        ),
+                        child: Text(
+                          r.title,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              for (final (label, unit, values) in rows)
+                TableRow(
+                  children: [
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(label, style: theme.textTheme.bodyMedium),
+                          if (unit.isNotEmpty)
+                            Text(unit, style: theme.textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                    for (final v in values)
+                      Text(
+                        v,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+          AppSpacing.verticalMd,
+          _Note(
+            icon: Icons.fact_check_outlined,
+            text: [
+              '同じ車に乗っている人の実際の記録から出した中央値です。'
+                  '税金・保険・駐車場は入っていません。',
+              '「—」は、記録している持ち主が5人に満たないなどで出せない項目です。',
+              if (reports.any((r) => r.isMakerLevel))
+                '（メーカー全体）は、車種で5人に届かないためメーカー全体の数字です。',
+              '車種名を押すと、くわしいレポートと中古車の検索が見られます。',
+            ].join(''),
+          ),
+          AppSpacing.verticalXl,
+        ],
+      ),
+    );
+  }
+}
+
 /// 見られる車種の一覧。**買う前に調べる**ための入口。
+///
+/// 車を登録していない人（ホームの最初の画面）と、メニューからも開ける。
+/// チェックを入れた車種を並べて比べられる（[ModelCostCompareScreen]）。
 class ModelCostBrowseScreen extends StatefulWidget {
   final ModelCostReportService service;
 
@@ -303,8 +520,37 @@ class ModelCostBrowseScreen extends StatefulWidget {
 }
 
 class _ModelCostBrowseScreenState extends State<ModelCostBrowseScreen> {
+  /// 一度に比べられる車種の数（スマホの幅で読める列数）。
+  static const int maxCompare = 3;
+
   List<ModelCostReport>? _all;
   String _filter = '';
+
+  /// 比べるために選んだ車種のID（選んだ順）。
+  final List<String> _selected = [];
+
+  void _toggle(String id) {
+    setState(() {
+      if (_selected.contains(id)) {
+        _selected.remove(id);
+      } else if (_selected.length < maxCompare) {
+        _selected.add(id);
+      }
+    });
+  }
+
+  void _compare() {
+    final all = _all ?? const <ModelCostReport>[];
+    final reports = [
+      for (final id in _selected) ...all.where((r) => r.id == id),
+    ];
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ModelCostCompareScreen(reports: reports),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -333,6 +579,23 @@ class _ModelCostBrowseScreenState extends State<ModelCostBrowseScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('車種ごとの維持費')),
+      bottomNavigationBar: _selected.isEmpty
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: AppSpacing.paddingScreen,
+                child: ElevatedButton.icon(
+                  key: const Key('model_cost_compare'),
+                  onPressed: _selected.length >= 2 ? _compare : null,
+                  icon: const Icon(Icons.compare_arrows),
+                  label: Text(
+                    _selected.length >= 2
+                        ? '${_selected.length}車種を比べる'
+                        : 'もう1車種選ぶと比べられます',
+                  ),
+                ),
+              ),
+            ),
       body: all == null
           ? const AppLoadingCenter()
           : Column(
@@ -350,6 +613,16 @@ class _ModelCostBrowseScreenState extends State<ModelCostBrowseScreen> {
                     ),
                   ),
                 ),
+                if (all.length >= 2)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                    ),
+                    child: Text(
+                      'チェックを入れると、$maxCompare車種まで並べて比べられます',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
                 Expanded(
                   child: shown.isEmpty
                       ? AppEmptyState(
@@ -367,6 +640,14 @@ class _ModelCostBrowseScreenState extends State<ModelCostBrowseScreen> {
                             for (final r in shown)
                               ListTile(
                                 key: Key('model_cost_${r.id}'),
+                                leading: Checkbox(
+                                  key: Key('model_cost_select_${r.id}'),
+                                  value: _selected.contains(r.id),
+                                  onChanged: _selected.contains(r.id) ||
+                                          _selected.length < maxCompare
+                                      ? (_) => _toggle(r.id)
+                                      : null,
+                                ),
                                 title: Text(r.title),
                                 subtitle: Text('持ち主 ${r.ownerCount}人'),
                                 trailing: Text(
@@ -377,8 +658,10 @@ class _ModelCostBrowseScreenState extends State<ModelCostBrowseScreen> {
                                 onTap: () => Navigator.push(
                                   context,
                                   MaterialPageRoute<void>(
-                                    builder: (_) =>
-                                        ModelCostReportScreen(report: r),
+                                    builder: (_) => ModelCostReportScreen(
+                                      report: r,
+                                      showUsedCarSearch: true,
+                                    ),
                                   ),
                                 ),
                               ),
