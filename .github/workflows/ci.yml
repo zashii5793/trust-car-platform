@@ -65,6 +65,13 @@ jobs:
       - name: Analyze code
         run: flutter analyze --fatal-infos
 
+      # expect などの確かめが1つも無い test / testWidgets を止める（Issue #203）。
+      # 2026-09-20 に、手順がすべて if で囲われた通しテストが「All tests passed」の
+      # ままログイン画面を撮っていた。落ちないテストは確かめた気にさせるぶん害がある。
+      # 既存のものは直してあるので、1件でも見つかれば新しく足されたもの。
+      - name: Check tests have assertions
+        run: dart run tool/check_test_assertions.dart test integration_test
+
       # Unit tests do not need the Firebase emulators — run them first so
       # the required gate is fast and independent of emulator availability.
       # flutter test streams results in completion order, so a failure that

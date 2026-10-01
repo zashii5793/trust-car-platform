@@ -319,7 +319,18 @@ void main() {
       });
 
       test('消えた写しに既読を付けても落ちない', () async {
-        await service.markSeen(shopId: shopId, vehicleId: 'gone');
+        await expectLater(
+          service.markSeen(shopId: shopId, vehicleId: 'gone'),
+          completes,
+        );
+        // 既読を付けるついでに、消えた写しを作り直していないこと
+        final gone = await fs
+            .collection('shops')
+            .doc(shopId)
+            .collection('shared_vehicles')
+            .doc('gone')
+            .get();
+        expect(gone.exists, isFalse);
       });
     });
   });
