@@ -70,6 +70,11 @@ fi
 echo "ビルド識別子: $BUILD_ID"
 flutter build web --release --dart-define="APP_BUILD_ID=$BUILD_ID"
 
+# 公開した版の目印。毎日の監視（.github/workflows/prod_watch.yml）が読んで、
+# main より古いまま放置されていないかを確かめる。2026-09-30 に、ウェブ版が
+# 5週間古いまま誰も気づかなかったため（docs/MAINTENANCE_OPS_REVIEW_2026-09-30.md）。
+printf '{"commit":"%s","builtAt":"%s"}\n' "$BUILD_ID" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > build/web/build_info.json
+
 echo
 echo "=== 3/3 公開 ==="
 firebase deploy --only hosting --project trust-car-platform
