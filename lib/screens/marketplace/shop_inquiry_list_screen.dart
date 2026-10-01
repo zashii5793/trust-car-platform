@@ -585,7 +585,7 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
     final result = await widget.shopProvider.sendInquiryMessage(
       inquiryId: _inquiry.id,
       senderId: widget.senderId,
-      content: '整備明細をお送りします。「記録に追加」から保存できます。',
+      content: maintenanceDetailMessage,
       maintenancePayload: payload.toMap(),
     );
     if (!mounted) return;

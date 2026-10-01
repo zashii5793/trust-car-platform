@@ -664,6 +664,13 @@ class _HistoryResultCard extends StatelessWidget {
               Text('${p.line}行目: ${p.message}',
                   style: theme.textTheme.bodySmall),
           ],
+          AppSpacing.verticalSm,
+          Text(
+            'アプリを使っているお客さんの分は、台帳の「送っていない明細」から'
+            '整備明細をまとめて送れます。',
+            key: const Key('csv_history_send_hint'),
+            style: theme.textTheme.bodySmall,
+          ),
           AppSpacing.verticalMd,
           FilledButton(
             key: const Key('csv_import_done'),
