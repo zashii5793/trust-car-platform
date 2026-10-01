@@ -410,9 +410,10 @@ class ShopLedgerService {
 
       final existing = await ref.get();
       final now = _now();
-      final createdAt = existing.exists
-          ? LedgerVehicle.fromMap(ref.id, existing.data()!).createdAt
-          : now;
+      final before = existing.exists
+          ? LedgerVehicle.fromMap(ref.id, existing.data()!)
+          : null;
+      final createdAt = before?.createdAt ?? now;
 
       final vehicle = LedgerVehicle(
         id: ref.id,
@@ -428,6 +429,9 @@ class ShopLedgerService {
         lastVisitAt: lastVisitAt,
         lastMileage: lastMileage,
         externalId: ext,
+        // 丸ごと書き直すので、案内した日は前のものを引き継ぐ（消さない）
+        inspectionNoticeAt: before?.inspectionNoticeAt,
+        inspectionNoticeExpiry: before?.inspectionNoticeExpiry,
         createdAt: createdAt,
         updatedAt: now,
       );
@@ -523,14 +527,27 @@ class ShopLedgerService {
       var vehicleCount = 0;
 
       for (final c in plan.customers) {
-        final cid = idForExternal('c', c.stableExternalId);
+        // 台帳の書き出しは、顧客番号の無い（手で登録した）顧客の番号の欄に
+        // 台帳のIDを入れる。そのIDの顧客が顧客番号なしで既にいれば、
+        // その人に書き戻す（取り込み直すたびに同じ人が増えないように）。
+        final byDocId = c.externalId != null &&
+            existingCustomers[c.externalId!] != null &&
+            existingCustomers[c.externalId!]!['externalId'] == null;
+        final cid =
+            byDocId ? c.externalId! : idForExternal('c', c.stableExternalId);
         final isNew = !existingCustomers.containsKey(cid);
         isNew ? created++ : updated++;
 
         // この顧客の車両: 既にあるもの（取込で上書きされないもの）＋今回の分
         final vehicles = vehiclesByCustomer.putIfAbsent(cid, () => {});
         for (final iv in c.vehicles) {
-          final vid = idForExternal('v', iv.stableExternalId(c.key));
+          // 顧客と同じ。車両番号の欄に台帳のIDが入っていれば、その車に書き戻す
+          final vehicleByDocId = iv.externalId != null &&
+              existingVehicles[iv.externalId!] != null &&
+              existingVehicles[iv.externalId!]!.externalId == null;
+          final vid = vehicleByDocId
+              ? iv.externalId!
+              : idForExternal('v', iv.stableExternalId(c.key));
           final before = existingVehicles[vid];
           final vehicle = LedgerVehicle(
             id: vid,
@@ -545,7 +562,9 @@ class ShopLedgerService {
             inspectionExpiry: iv.inspectionExpiry,
             lastVisitAt: iv.lastVisitAt,
             lastMileage: iv.mileage,
-            externalId: iv.externalId ?? iv.stableExternalId(c.key),
+            externalId: vehicleByDocId
+                ? null
+                : iv.externalId ?? iv.stableExternalId(c.key),
             createdAt: before?.createdAt ?? now,
             updatedAt: now,
           );
@@ -578,7 +597,8 @@ class ShopLedgerService {
           'email': c.email,
           'postalCode': c.postalCode,
           'address': c.address,
-          'externalId': c.stableExternalId,
+          // 台帳のIDで書き戻した顧客は、顧客番号なしのまま
+          if (!byDocId) 'externalId': c.stableExternalId,
           'vehicleCount': summary.vehicleCount,
           'nextInspectionAt': summary.nextInspectionAt == null
               ? null
@@ -809,6 +829,137 @@ class ShopLedgerService {
   }
 
   // ---------------------------------------------------------------------------
+  // 書き出し（2026-09-29 プロダクト評価 #8・#2）
+  // ---------------------------------------------------------------------------
+
+  /// 台帳の全件（顧客と車両）。CSV にするのは `buildLedgerCsv`。
+  ///
+  /// **やめるときに名簿を持ち出せる**ための読み取り。顧客と車両を1回ずつ
+  /// 全件読む（取込と同じ）。4,000人の店で、読み取りは1万件ほどになる。
+  Future<Result<LedgerExportData, AppError>> exportAll({
+    required String shopId,
+  }) async {
+    try {
+      final results = await Future.wait([
+        _customers(shopId).get(),
+        _vehicles(shopId).get(),
+      ]);
+      return Result.success(LedgerExportData(
+        customers: results[0]
+            .docs
+            .map((d) => LedgerCustomer.fromMap(d.id, d.data()))
+            .toList(),
+        vehicles: results[1]
+            .docs
+            .map((d) => LedgerVehicle.fromMap(d.id, d.data()))
+            .toList(),
+      ));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// 車検案内（はがき・DM）の宛名。満了日が [from]〜[to]（両端の日を含む）の車。
+  ///
+  /// - [excludeNoticed]: いまの満了日について案内済みの車は除く（二度出さない）
+  /// - [excludeLinked]: アプリを使っている客は除く（アプリに案内が届く）
+  /// - **住所の無い客は除く**（はがきが出せない）。除いた台数は返す
+  ///
+  /// 顧客は、対象の車の持ち主だけを1件ずつ読む。
+  Future<Result<InspectionNoticeList, AppError>> inspectionNoticeTargets({
+    required String shopId,
+    required DateTime from,
+    required DateTime to,
+    bool excludeNoticed = true,
+    bool excludeLinked = true,
+  }) async {
+    final start = DateTime(from.year, from.month, from.day);
+    final end = DateTime(to.year, to.month, to.day + 1);
+    if (!end.isAfter(start)) {
+      return const Result.success(InspectionNoticeList.empty);
+    }
+    try {
+      final snap = await _vehicles(shopId)
+          .where('inspectionExpiry',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('inspectionExpiry', isLessThan: Timestamp.fromDate(end))
+          .orderBy('inspectionExpiry')
+          .get();
+      final vehicles =
+          snap.docs.map((d) => LedgerVehicle.fromMap(d.id, d.data())).toList();
+
+      final ids = vehicles.map((v) => v.customerId).toSet().toList();
+      final docs =
+          await Future.wait(ids.map((id) => _customers(shopId).doc(id).get()));
+      final customers = <String, LedgerCustomer>{
+        for (final d in docs)
+          if (d.exists && d.data() != null)
+            d.id: LedgerCustomer.fromMap(d.id, d.data()!),
+      };
+
+      final targets = <InspectionNoticeTarget>[];
+      var noticed = 0;
+      var linked = 0;
+      var withoutAddress = 0;
+      for (final v in vehicles) {
+        final c = customers[v.customerId];
+        if (c == null) continue; // 持ち主のいない車には出せない
+        if (excludeNoticed && v.isNoticedForCurrentExpiry) {
+          noticed++;
+          continue;
+        }
+        if (excludeLinked && c.isLinked) {
+          linked++;
+          continue;
+        }
+        if ((c.address ?? '').trim().isEmpty) {
+          withoutAddress++;
+          continue;
+        }
+        targets.add(InspectionNoticeTarget(customer: c, vehicle: v));
+      }
+      return Result.success(InspectionNoticeList(
+        targets: targets,
+        alreadyNoticed: noticed,
+        linked: linked,
+        withoutAddress: withoutAddress,
+      ));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// 車検の案内を出した（宛名を書き出した）ことを、車ごとに記録する。
+  ///
+  /// 案内した日と、そのときの満了日を書く。満了日が進めば、次の案内の
+  /// 対象に戻る。書いた台数を返す。消された車があれば失敗する
+  /// （その回のバッチは書かれない）。
+  Future<Result<int, AppError>> markInspectionNoticed({
+    required String shopId,
+    required List<LedgerVehicle> vehicles,
+  }) async {
+    if (vehicles.isEmpty) return const Result.success(0);
+    try {
+      final now = Timestamp.fromDate(_now());
+      for (var i = 0; i < vehicles.length; i += _batchLimit) {
+        final batch = _firestore.batch();
+        for (final v in vehicles.skip(i).take(_batchLimit)) {
+          batch.update(_vehicles(shopId).doc(v.id), {
+            'inspectionNoticeAt': now,
+            'inspectionNoticeExpiry': v.inspectionExpiry == null
+                ? null
+                : Timestamp.fromDate(v.inspectionExpiry!),
+          });
+        }
+        await batch.commit();
+      }
+      return Result.success(vehicles.length);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // 取りこぼし（2026-09-29 プロダクト評価 #1）
   // ---------------------------------------------------------------------------
 
@@ -1015,6 +1166,37 @@ class LedgerImportResult {
     required this.updatedCustomers,
     required this.vehicles,
   });
+}
+
+/// 台帳の全件（書き出し用）。
+class LedgerExportData {
+  final List<LedgerCustomer> customers;
+  final List<LedgerVehicle> vehicles;
+
+  const LedgerExportData({required this.customers, required this.vehicles});
+}
+
+/// 車検案内の宛名と、除いた車の台数（画面で「なぜ少ないか」を見せるため）。
+class InspectionNoticeList {
+  final List<InspectionNoticeTarget> targets;
+
+  /// いまの満了日について、もう案内を出した車。
+  final int alreadyNoticed;
+
+  /// アプリを使っている客の車。
+  final int linked;
+
+  /// 住所の無い客の車。
+  final int withoutAddress;
+
+  const InspectionNoticeList({
+    required this.targets,
+    this.alreadyNoticed = 0,
+    this.linked = 0,
+    this.withoutAddress = 0,
+  });
+
+  static const empty = InspectionNoticeList(targets: []);
 }
 
 /// 整備履歴の取込の結果。

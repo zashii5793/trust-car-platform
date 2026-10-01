@@ -158,6 +158,19 @@ List<List<String>> parseCsv(String input) {
   return rows;
 }
 
+/// 書き出しで式よけに付けた `'` を外す（`'=...` `'+81...` → `=...` `+81...`）。
+///
+/// 台帳の書き出し（`ledger_csv_export.dart`）は、`=` `+` `-` `@` で始まる値の
+/// 先頭に `'` を付ける。外さないと、取り込み直すたびに `'` が増えていく。
+String unguardCsvFormula(String value) {
+  if (value.length >= 2 &&
+      value[0] == "'" &&
+      ['=', '+', '-', '@'].contains(value[1])) {
+    return value.substring(1);
+  }
+  return value;
+}
+
 String _normalizeHeader(String h) =>
     LedgerSearch.nameKey(h).replaceAll(RegExp(r'[()（）・\-_./:：]'), '');
 
@@ -390,7 +403,7 @@ LedgerImportPlan buildImportPlan(
   String? cell(List<String> row, LedgerImportField f) {
     final idx = columns[f];
     if (idx == null || idx >= row.length) return null;
-    final v = row[idx].trim();
+    final v = unguardCsvFormula(row[idx].trim());
     return v.isEmpty ? null : v;
   }
 

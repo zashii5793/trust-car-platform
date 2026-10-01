@@ -13,10 +13,12 @@ import '../../../services/shop_audit_service.dart';
 import 'audit_log_screen.dart';
 import 'loss_report_screen.dart';
 import '../../../services/shop_invite_service.dart';
+import '../../../services/ledger_csv_export.dart';
 import '../../../widgets/common/loading_indicator.dart';
 import 'customer_detail_screen.dart';
 import 'customer_edit_screen.dart';
 import 'ledger_csv_import_screen.dart';
+import 'ledger_csv_share.dart';
 import 'shared_vehicles_screen.dart';
 import 'staff_screens.dart';
 import 'ledger_format.dart';
@@ -49,6 +51,9 @@ class CustomerLedgerScreen extends StatefulWidget {
   /// CSV 取込でファイルを選ぶ関数。テスト（操作の流れを通すもの）で差し替える。
   final CsvFilePicker? csvPicker;
 
+  /// 書き出した CSV を渡す関数。テストで差し替える。
+  final CsvSharer? csvSharer;
+
   /// 操作の記録。[auditService] は店主が記録を見るため（店主のときだけ渡す）。
   final AuditRecorder? onAudit;
   final ShopAuditService? auditService;
@@ -68,6 +73,7 @@ class CustomerLedgerScreen extends StatefulWidget {
     this.linkService,
     this.inviteService,
     this.csvPicker,
+    this.csvSharer,
     this.onAudit,
     this.auditService,
     required this.shopId,
@@ -91,6 +97,9 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
 
   /// 登録・編集・削除のあとに、一覧を先頭から読み直すための番号。
   int _revision = 0;
+
+  /// 書き出しの途中（全件を読んでいる間）。
+  bool _exporting = false;
 
   DateTime get _today => widget.today ?? DateTime.now();
 
@@ -299,6 +308,155 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
     if (imported == true) _refreshAll();
   }
 
+  CsvSharer get _share => widget.csvSharer ?? shareLedgerCsv;
+
+  /// 全件の書き出しは店主だけ（店主のときだけ [staffService] が渡される）。
+  /// スタッフが辞めるときに名簿ごと持って行けないように。
+  bool get _canExportAll =>
+      widget.staffService != null && widget.ownerUid != null;
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  /// 台帳の全件を CSV で書き出す（2026-09-29 プロダクト評価 #8）。
+  ///
+  /// やめるときに名簿を持ち出せるように。書き出した CSV は、そのまま
+  /// 「CSVから取り込む」で取り込み直せる。
+  Future<void> _exportAll() async {
+    final total = _counts?.total;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('台帳を書き出す'),
+        content: Text(
+          '${total == null ? '全員' : '顧客$total人'}分の名前・住所・電話番号・車両を、'
+          'CSV ファイルにして渡します。\n\n'
+          'お客さんの個人情報です。書き出したことは操作の記録に残ります。'
+          '渡した先で漏れないよう、扱いに気をつけてください。\n\n'
+          'このファイルは「CSVから取り込む」でそのまま取り込み直せます。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('やめる'),
+          ),
+          FilledButton(
+            key: const Key('ledger_export_all_confirm'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('書き出す'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _exporting = true);
+    final result = await widget.service.exportAll(shopId: widget.shopId);
+    if (!mounted) return;
+    setState(() => _exporting = false);
+
+    final data = result.valueOrNull;
+    if (data == null) {
+      _snack('書き出せませんでした: ${result.errorOrNull?.userMessage ?? ''}');
+      return;
+    }
+
+    final csv =
+        buildLedgerCsv(customers: data.customers, vehicles: data.vehicles);
+    final detail = '顧客${data.customers.length}人・車両${data.vehicles.length}台';
+    // 渡す前に記録する。共有の途中で落ちても、持ち出した記録は残す
+    widget.onAudit?.call(ShopAuditAction.exportLedger, detail: detail);
+    try {
+      await _share(
+        csv: csv,
+        fileName: '顧客台帳_${ledgerFileStamp(_today)}.csv',
+        subject: '${widget.shopName} 顧客台帳',
+      );
+    } catch (e) {
+      _snack('CSVの共有に失敗しました: $e');
+    }
+  }
+
+  /// 車検案内（はがき・DM）の宛名を書き出す（2026-09-29 プロダクト評価 #2）。
+  ///
+  /// アプリを入れていないお客さんには、はがきで案内するしかない。
+  /// 印刷・発送の業者に渡す CSV を作り、書き出した車に「案内した日」を付ける
+  /// （同じ満了日の案内を二度出さない）。
+  Future<void> _exportNotice() async {
+    final options = await showDialog<_NoticeOptions>(
+      context: context,
+      builder: (_) => const _NoticeDialog(),
+    );
+    if (options == null || !mounted) return;
+
+    final from = DateTime(_today.year, _today.month, _today.day);
+    final to = DateTime(from.year, from.month + options.months, from.day);
+    setState(() => _exporting = true);
+    final result = await widget.service.inspectionNoticeTargets(
+      shopId: widget.shopId,
+      from: from,
+      to: to,
+      excludeNoticed: options.excludeNoticed,
+      excludeLinked: options.excludeLinked,
+    );
+    if (!mounted) return;
+    setState(() => _exporting = false);
+
+    final list = result.valueOrNull;
+    if (list == null) {
+      _snack('書き出せませんでした: ${result.errorOrNull?.userMessage ?? ''}');
+      return;
+    }
+
+    final skipped = [
+      if (list.alreadyNoticed > 0) '案内済みの${list.alreadyNoticed}台',
+      if (list.linked > 0) 'アプリ利用中の${list.linked}台',
+      if (list.withoutAddress > 0) '住所の無い${list.withoutAddress}台',
+    ];
+    final skippedNote = skipped.isEmpty ? '' : '（${skipped.join('・')}は除きました）';
+
+    if (list.targets.isEmpty) {
+      _snack('満了日が${ledgerDate(from)}〜${ledgerDate(to)}の、'
+          '対象の車はありません$skippedNote');
+      return;
+    }
+
+    final n = list.targets.length;
+    final csv = buildInspectionNoticeCsv(list.targets);
+    widget.onAudit?.call(
+      ShopAuditAction.exportInspectionNotice,
+      detail: '満了日 ${ledgerDate(from)}〜${ledgerDate(to)}・$n台',
+    );
+
+    final bool handedOver;
+    try {
+      handedOver = await _share(
+        csv: csv,
+        fileName: '車検案内_${ledgerFileStamp(_today)}.csv',
+        subject: '${widget.shopName} 車検案内の宛名',
+      );
+    } catch (e) {
+      _snack('CSVの共有に失敗しました: $e');
+      return;
+    }
+    // 共有を取り消したら、案内した日は付けない（まだ誰にも渡っていない）
+    if (!handedOver) return;
+
+    final marked = await widget.service.markInspectionNoticed(
+      shopId: widget.shopId,
+      vehicles: [for (final t in list.targets) t.vehicle],
+    );
+    if (marked.isFailure) {
+      _snack('$n台分を書き出しましたが、案内した日を記録できませんでした');
+      return;
+    }
+    _snack('$n台分を書き出し、案内した日を記録しました$skippedNote');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -330,12 +488,25 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
               if (v == 'stats') _openStatistics();
               if (v == 'staff') _openStaff();
               if (v == 'audit') _openAudit();
+              if (v == 'export_all') _exportAll();
+              if (v == 'export_notice') _exportNotice();
             },
             itemBuilder: (_) => [
               if (widget.staffService != null && widget.ownerUid != null)
                 const PopupMenuItem(value: 'staff', child: Text('スタッフ')),
               if (widget.auditService != null)
                 const PopupMenuItem(value: 'audit', child: Text('操作の記録')),
+              PopupMenuItem(
+                value: 'export_notice',
+                enabled: !_exporting,
+                child: const Text('車検案内の宛名を書き出す'),
+              ),
+              if (_canExportAll)
+                PopupMenuItem(
+                  value: 'export_all',
+                  enabled: !_exporting,
+                  child: const Text('台帳を書き出す（CSV）'),
+                ),
               const PopupMenuItem(
                 value: 'stats',
                 child: Text('車種別レポートへの協力'),
@@ -370,6 +541,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
       body: Column(
         children: [
           _CountsBar(counts: _counts),
+          if (_exporting) const LinearProgressIndicator(),
           Expanded(
             child: TabBarView(
               controller: _tabs,
@@ -542,6 +714,102 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
         buttonLabel: '車検が近い車を見る',
         onButtonPressed: () => _tabs.animateTo(1),
       ),
+    );
+  }
+}
+
+/// 車検案内の書き出しの条件。
+class _NoticeOptions {
+  final int months;
+  final bool excludeNoticed;
+  final bool excludeLinked;
+
+  const _NoticeOptions({
+    required this.months,
+    required this.excludeNoticed,
+    required this.excludeLinked,
+  });
+}
+
+/// 車検案内の書き出しの条件を選ぶ。
+///
+/// 既定は「2か月以内・案内済みは除く・アプリの人は除く」。車検の案内は
+/// 1〜2か月前に出すのが普通で、アプリの人にはアプリで案内が届く。
+class _NoticeDialog extends StatefulWidget {
+  const _NoticeDialog();
+
+  @override
+  State<_NoticeDialog> createState() => _NoticeDialogState();
+}
+
+class _NoticeDialogState extends State<_NoticeDialog> {
+  int _months = 2;
+  bool _excludeNoticed = true;
+  bool _excludeLinked = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('車検案内の宛名を書き出す'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('はがき・DM の業者に渡す CSV（氏名・住所・電話・車名・'
+                '登録番号・満了日）を作ります。書き出した車には、今日を'
+                '「案内した日」として記録します。'),
+            AppSpacing.verticalSm,
+            const Text('満了日が今日から'),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final m in const [1, 2, 3])
+                  ChoiceChip(
+                    key: Key('ledger_notice_months_$m'),
+                    label: Text('$mか月以内'),
+                    selected: _months == m,
+                    onSelected: (_) => setState(() => _months = m),
+                  ),
+              ],
+            ),
+            SwitchListTile(
+              key: const Key('ledger_notice_exclude_noticed'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('この満了日で案内済みの車は除く'),
+              value: _excludeNoticed,
+              onChanged: (v) => setState(() => _excludeNoticed = v),
+            ),
+            SwitchListTile(
+              key: const Key('ledger_notice_exclude_linked'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('アプリを使っているお客さんは除く'),
+              subtitle: const Text('アプリに案内が届くため'),
+              value: _excludeLinked,
+              onChanged: (v) => setState(() => _excludeLinked = v),
+            ),
+            const Text('住所の無いお客さんは、はがきが出せないので除きます。'),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('やめる'),
+        ),
+        FilledButton(
+          key: const Key('ledger_notice_export'),
+          onPressed: () => Navigator.pop(
+            context,
+            _NoticeOptions(
+              months: _months,
+              excludeNoticed: _excludeNoticed,
+              excludeLinked: _excludeLinked,
+            ),
+          ),
+          child: const Text('書き出す'),
+        ),
+      ],
     );
   }
 }

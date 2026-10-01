@@ -95,7 +95,13 @@ service cloud.firestore {
       let d = request.resource.data;
       return isShortString(d.customerId, 200)
         && isShortString(d.maker, 100)
-        && isShortString(d.model, 100);
+        && isShortString(d.model, 100)
+        // 車検の案内を出した日と、そのときの満了日（2026-09-30）。
+        // 「案内済み」の判定に使うので、日付以外は入れさせない。
+        && (d.get('inspectionNoticeAt', null) == null
+            || d.inspectionNoticeAt is timestamp)
+        && (d.get('inspectionNoticeExpiry', null) == null
+            || d.inspectionNoticeExpiry is timestamp);
     }
 
     // 店舗プランの申し込み（shops/{shopId}/plan_requests）。

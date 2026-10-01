@@ -404,6 +404,13 @@ class LedgerVehicle {
   final DateTime? lastVisitAt;
   final int? lastMileage;
   final String? externalId;
+
+  /// 車検の案内（はがき・DM の宛名）を書き出した日。
+  final DateTime? inspectionNoticeAt;
+
+  /// そのとき案内した満了日。**車検を通して満了日が進んだら、次の案内の
+  /// 対象に戻す**ために、案内した日と別に持つ。
+  final DateTime? inspectionNoticeExpiry;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -421,11 +428,21 @@ class LedgerVehicle {
     this.lastVisitAt,
     this.lastMileage,
     this.externalId,
+    this.inspectionNoticeAt,
+    this.inspectionNoticeExpiry,
     required this.createdAt,
     required this.updatedAt,
   });
 
   String get displayName => '$maker $model'.trim();
+
+  /// いまの満了日について、もう案内を出したか。
+  bool get isNoticedForCurrentExpiry {
+    final a = inspectionExpiry;
+    final b = inspectionNoticeExpiry;
+    if (a == null || b == null || inspectionNoticeAt == null) return false;
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
 
   Map<String, dynamic> toMap() => {
         'customerId': customerId,
@@ -445,6 +462,12 @@ class LedgerVehicle {
             lastVisitAt != null ? Timestamp.fromDate(lastVisitAt!) : null,
         'lastMileage': lastMileage,
         'externalId': _nonEmpty(externalId),
+        // 案内した日は、無いときは書かない。名簿の取込は merge で書くので、
+        // null を書くと案内した日が消えてしまう。
+        if (inspectionNoticeAt != null)
+          'inspectionNoticeAt': Timestamp.fromDate(inspectionNoticeAt!),
+        if (inspectionNoticeExpiry != null)
+          'inspectionNoticeExpiry': Timestamp.fromDate(inspectionNoticeExpiry!),
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': Timestamp.fromDate(updatedAt),
       };
@@ -464,12 +487,22 @@ class LedgerVehicle {
       lastVisitAt: _date(m['lastVisitAt']),
       lastMileage: (m['lastMileage'] as num?)?.toInt(),
       externalId: m['externalId'] as String?,
+      inspectionNoticeAt: _date(m['inspectionNoticeAt']),
+      inspectionNoticeExpiry: _date(m['inspectionNoticeExpiry']),
       createdAt:
           _date(m['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
       updatedAt:
           _date(m['updatedAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
+}
+
+/// 車検案内の宛名1件（車1台と、その持ち主）。
+class InspectionNoticeTarget {
+  final LedgerCustomer customer;
+  final LedgerVehicle vehicle;
+
+  const InspectionNoticeTarget({required this.customer, required this.vehicle});
 }
 
 /// 顧客の要約値を、持っている車両から計算し直す。

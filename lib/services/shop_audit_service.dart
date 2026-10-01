@@ -16,7 +16,11 @@ enum ShopAuditAction {
   importHistory('整備履歴を取り込んだ'),
   issueCustomerInvite('顧客専用のコードを出した'),
   sendDetail('整備明細を送った'),
-  importShared('共有された車を登録した');
+  importShared('共有された車を登録した'),
+
+  /// 書き出しは個人情報の持ち出し。**誰がいつ何件持ち出したか**を残す。
+  exportLedger('台帳を書き出した'),
+  exportInspectionNotice('車検案内の宛名を書き出した');
 
   final String label;
   const ShopAuditAction(this.label);
