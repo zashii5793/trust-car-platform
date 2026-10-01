@@ -233,14 +233,22 @@ void main() {
       expect(find.textContaining('請求書による銀行振込'), findsOneWidget);
     });
 
-    testWidgets('無料トライアル・アプリ内課金の表記は出さない', (tester) async {
+    // 2026-10-01 オーナー判断: 初回の申し込みは30日間無料（規約 第11条・特商法と同じ文言）
+    testWidgets('初回の申し込みは30日間無料と出す', (tester) async {
+      _useTallSurface(tester);
+      await tester.pumpWidget(_buildScreen());
+      await tester.pump();
+
+      expect(find.text(ShopPlanScreen.trialNotice), findsOneWidget);
+      expect(ShopPlanScreen.trialNotice, contains('30日間'));
+    });
+
+    testWidgets('アプリ内課金の表記は出さない', (tester) async {
       _useTallSurface(tester);
       await tester.pumpWidget(_buildScreen());
       await tester.pump();
 
       // 特商法・利用規約（請求書払い）と矛盾する表記
-      expect(find.textContaining('無料トライアル'), findsNothing);
-      expect(find.textContaining('30日間'), findsNothing);
       expect(find.textContaining('App Store'), findsNothing);
       expect(find.text('購入を復元'), findsNothing);
     });

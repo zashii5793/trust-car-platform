@@ -43,6 +43,10 @@ class ShopPlanScreen extends StatefulWidget {
     this.shopName,
   });
 
+  /// 試用期間の案内（2026-10-01 オーナー判断）。利用規約 第11条・特商法と同じ中身にする。
+  static const String trialNotice = '有料プランは、初回のお申し込みに限り30日間無料でお試しいただけます。'
+      'ご請求は31日目からです。';
+
   @override
   State<ShopPlanScreen> createState() => _ShopPlanScreenState();
 }
@@ -82,14 +86,24 @@ class _ShopPlanScreenState extends State<ShopPlanScreen> {
               style: Theme.of(context).textTheme.headlineSmall,
               textAlign: TextAlign.center,
             ),
-            // 「30日間の無料トライアル」は 2026-09-30 に外した。特商法・利用規約
-            // （請求書払い）に試用期間の定めがなく、約束できないため。
+            // 試用期間は 2026-09-30 にいったん外し、2026-10-01 のオーナー判断で
+            // 30日として戻した（利用規約 第11条・特商法に定めを書いた）。
+            // アプリ内課金のときはストア側の設定が要るので出さない。
             if (!useIap) ...[
               AppSpacing.verticalXs,
               Text(
                 'お支払いは請求書払い（銀行振込）です',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              AppSpacing.verticalXs,
+              Text(
+                ShopPlanScreen.trialNotice,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
                     ),
                 textAlign: TextAlign.center,
               ),

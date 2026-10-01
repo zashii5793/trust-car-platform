@@ -102,11 +102,12 @@ void main() {
       expect(find.text('車検案内の宛名を書き出す'), findsOneWidget);
     });
 
-    testWidgets('スタッフのメニューには、車検案内だけが出る（全件は店主だけ）', (tester) async {
+    // 2026-10-01 オーナー判断: 全件の書き出しはスタッフも使える（操作の記録には残る）
+    testWidgets('スタッフのメニューにも、全件と車検案内の両方が出る', (tester) async {
       await tester.pumpWidget(build(owner: false));
       await tester.pumpAndSettle();
       await openMenu(tester);
-      expect(find.text('台帳を書き出す（CSV）'), findsNothing);
+      expect(find.text('台帳を書き出す（CSV）'), findsOneWidget);
       expect(find.text('車検案内の宛名を書き出す'), findsOneWidget);
     });
 

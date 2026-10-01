@@ -73,6 +73,11 @@ class WebErrorReporter {
     try {
       if (_attempts >= _maxReports) return const Result.success(false);
 
+      // ログイン中だけ送る（2026-10-01 オーナー判断。ルールもログイン必須）。
+      // 送っても弾かれるだけなので、送らず、上限にも数えない。
+      final uid = _safe(_currentUid);
+      if (uid == null || uid.isEmpty) return const Result.success(false);
+
       final entry = ClientErrorReport.from(
         error: error,
         stackTrace: stackTrace,
@@ -80,7 +85,7 @@ class WebErrorReporter {
         buildId: _buildId,
         url: _safe(_currentUrl) ?? Uri(path: '/'),
         userAgent: _safe(_userAgent),
-        uid: _safe(_currentUid),
+        uid: uid,
       );
 
       if (!_seenMessages.add(entry.message)) {

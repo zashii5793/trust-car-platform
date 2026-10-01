@@ -310,11 +310,6 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
 
   CsvSharer get _share => widget.csvSharer ?? shareLedgerCsv;
 
-  /// 全件の書き出しは店主だけ（店主のときだけ [staffService] が渡される）。
-  /// スタッフが辞めるときに名簿ごと持って行けないように。
-  bool get _canExportAll =>
-      widget.staffService != null && widget.ownerUid != null;
-
   void _snack(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -501,12 +496,14 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
                 enabled: !_exporting,
                 child: const Text('車検案内の宛名を書き出す'),
               ),
-              if (_canExportAll)
-                PopupMenuItem(
-                  value: 'export_all',
-                  enabled: !_exporting,
-                  child: const Text('台帳を書き出す（CSV）'),
-                ),
+              // 全件の書き出しは店のスタッフ全員が使える（2026-10-01 オーナー判断）。
+              // ルール上スタッフは台帳を全件読めるので、画面で止めても守りにならない。
+              // 代わりに、誰がいつ書き出したかを操作の記録に残す。
+              PopupMenuItem(
+                value: 'export_all',
+                enabled: !_exporting,
+                child: const Text('台帳を書き出す（CSV）'),
+              ),
               const PopupMenuItem(
                 value: 'stats',
                 child: Text('車種別レポートへの協力'),
