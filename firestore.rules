@@ -1202,6 +1202,43 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
+    // ウェブ版の不具合（Crashlytics は Web 非対応なので、ここに集める）。
+    //
+    // **作成は未ログインでも可。** ログイン画面より前に落ちるエラーも拾いたい。
+    // その代わり、項目・型・長さを厳しく決める（何でも置ける場所にしない）。
+    // 上限は lib/core/logging/client_error_report.dart と揃えること。
+    // 読み取り・更新・削除はクライアントからは禁止（見るのは運営者が Console か
+    // Admin SDK で）。古いものは expireAt の TTL ポリシーで消す。
+    function validClientError() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['message', 'stack', 'source', 'buildId', 'path',
+                               'userAgent', 'uid', 'platform', 'createdAt',
+                               'expireAt'])
+        && d.keys().hasAll(['message', 'stack', 'source', 'buildId', 'path',
+                            'platform', 'createdAt', 'expireAt'])
+        && d.message is string && d.message.size() > 0 && d.message.size() <= 500
+        && d.stack is string && d.stack.size() <= 4000
+        && d.source in ['flutter', 'platform', 'zone']
+        && d.buildId is string && d.buildId.size() > 0 && d.buildId.size() <= 40
+        && d.path is string && d.path.size() > 0 && d.path.size() <= 200
+        && (d.get('userAgent', null) == null
+            || (d.userAgent is string && d.userAgent.size() <= 300))
+        // uid は書くなら本人のものだけ（他人の uid を名乗らせない）
+        && (d.get('uid', null) == null
+            || (request.auth != null && d.uid == request.auth.uid))
+        && d.platform == 'web'
+        && d.createdAt == request.time
+        // 端末の時計のずれを見込んで、今から 120 日以内まで（アプリは 90 日後を書く）
+        && d.expireAt is timestamp
+        && d.expireAt > request.time
+        && d.expireAt <= request.time + duration.value(120, 'd');
+    }
+
+    match /client_errors/{errorId} {
+      allow create: if validClientError();
+      allow read, update, delete: if false;
+    }
+
     // 招待コード（店が自分の顧客に配る）
     //
     // ドキュメントIDがコードそのもの。**コードを知っている人だけが読める**形に

@@ -30,6 +30,8 @@ const {
   getDocs,
   query,
   where,
+  serverTimestamp,
+  Timestamp,
 } = require('firebase/firestore');
 
 // 既定は本番と同じ projectId。ローカルの Emulator にシードデータを入れたまま
@@ -1216,6 +1218,241 @@ describe('feedback — read / update / delete', () => {
   test('本人でも削除できない', async () => {
     await seedFeedback();
     await assertFails(deleteDoc(doc(dbFor(OWNER_UID), feedbackPath)));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// client_errors — ウェブ版の不具合（Crashlytics の代わり）
+//
+// 作成は未ログインでも可（ログイン前に落ちるエラーも拾うため）。その代わり
+// 項目・型・長さを厳しく決め、何でも置ける場所にしない。読むのは運営者だけ。
+// ---------------------------------------------------------------------------
+
+const clientErrorPath = 'client_errors/ce_1';
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function clientErrorDoc(overrides = {}) {
+  return {
+    message: 'Bad state: 壊れた',
+    stack: '#0 main (main.dart.js:1:2345)',
+    source: 'flutter',
+    buildId: 'a1b2c3d',
+    path: '/',
+    userAgent: 'Mozilla/5.0',
+    uid: null,
+    platform: 'web',
+    createdAt: serverTimestamp(),
+    expireAt: Timestamp.fromMillis(Date.now() + 90 * DAY_MS),
+    ...overrides,
+  };
+}
+
+async function seedClientError() {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(
+      doc(ctx.firestore(), clientErrorPath),
+      clientErrorDoc({ createdAt: new Date() }),
+    );
+  });
+}
+
+describe('client_errors — create', () => {
+  test('未ログインでも作成できる（uid は null）', async () => {
+    await assertSucceeds(
+      setDoc(doc(unauthDb(), clientErrorPath), clientErrorDoc()),
+    );
+  });
+
+  test('ログイン中は自分の uid を付けて作成できる', async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(OWNER_UID), clientErrorPath),
+        clientErrorDoc({ uid: OWNER_UID }),
+      ),
+    );
+  });
+
+  test('userAgent と uid を省いても作成できる', async () => {
+    const d = clientErrorDoc();
+    delete d.userAgent;
+    delete d.uid;
+    await assertSucceeds(setDoc(doc(unauthDb(), clientErrorPath), d));
+  });
+
+  test('他人の uid を名乗ると拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(OTHER_UID), clientErrorPath),
+        clientErrorDoc({ uid: OWNER_UID }),
+      ),
+    );
+  });
+
+  test('未ログインで uid を名乗ると拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(unauthDb(), clientErrorPath),
+        clientErrorDoc({ uid: OWNER_UID }),
+      ),
+    );
+  });
+
+  test('余計な項目（email など）があると拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(unauthDb(), clientErrorPath),
+        clientErrorDoc({ email: 'a@b.jp' }),
+      ),
+    );
+  });
+
+  test('必須の項目（message）が無いと拒否される', async () => {
+    const d = clientErrorDoc();
+    delete d.message;
+    await assertFails(setDoc(doc(unauthDb(), clientErrorPath), d));
+  });
+
+  test('空のメッセージは拒否される', async () => {
+    await assertFails(
+      setDoc(doc(unauthDb(), clientErrorPath), clientErrorDoc({ message: '' })),
+    );
+  });
+
+  test('500文字を超えるメッセージは拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(unauthDb(), clientErrorPath),
+        clientErrorDoc({ message: 'あ'.repeat(501) }),
+      ),
+    );
+  });
+
+  test('500文字ちょうどのメッセージは通る', async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(unauthDb(), clientErrorPath),
+        clientErrorDoc({ message: 'あ'.repeat(500) }),
+      ),
+    );
+  });
+
+  test('4000文字を超えるスタックは拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(unauthDb(), clientErrorPath),
+        clientErrorDoc({ stack: 'x'.repeat(4001) }),
+      ),
+    );
+  });
+
+  test('長すぎる userAgent・path・buildId は拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(unauthDb(), clientErrorPath),
+        clientErrorDoc({ userAgent: 'u'.repeat(301) }),
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(unauthDb(), clientErrorPath),
+        clientErrorDoc({ path: '/' + 'p'.repeat(200) }),
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(unauthDb(), clientErrorPath),
+        clientErrorDoc({ buildId: 'b'.repeat(41) }),
+      ),
+    );
+  });
+
+  test('決められていない source は拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(unauthDb(), clientErrorPath),
+        clientErrorDoc({ source: 'manual' }),
+      ),
+    );
+  });
+
+  test('platform が web 以外は拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(unauthDb(), clientErrorPath),
+        clientErrorDoc({ platform: 'android' }),
+      ),
+    );
+  });
+
+  test('createdAt がサーバ時刻でないと拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(unauthDb(), clientErrorPath),
+        clientErrorDoc({ createdAt: new Date('2020-01-01') }),
+      ),
+    );
+  });
+
+  test('expireAt が過去・遠すぎる未来・無しは拒否される', async () => {
+    await assertFails(
+      setDoc(
+        doc(unauthDb(), clientErrorPath),
+        clientErrorDoc({ expireAt: Timestamp.fromMillis(Date.now() - DAY_MS) }),
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(unauthDb(), clientErrorPath),
+        clientErrorDoc({
+          expireAt: Timestamp.fromMillis(Date.now() + 365 * DAY_MS),
+        }),
+      ),
+    );
+    const d = clientErrorDoc();
+    delete d.expireAt;
+    await assertFails(setDoc(doc(unauthDb(), clientErrorPath), d));
+  });
+
+  test('message が文字列でないと拒否される', async () => {
+    await assertFails(
+      setDoc(doc(unauthDb(), clientErrorPath), clientErrorDoc({ message: 123 })),
+    );
+  });
+});
+
+describe('client_errors — read / update / delete', () => {
+  test('書いた本人でも読めない（運営者専用）', async () => {
+    await seedClientError();
+    await assertFails(getDoc(doc(dbFor(OWNER_UID), clientErrorPath)));
+    await assertFails(getDoc(doc(unauthDb(), clientErrorPath)));
+  });
+
+  test('一覧も取れない', async () => {
+    await seedClientError();
+    await assertFails(getDocs(collection(dbFor(OWNER_UID), 'client_errors')));
+  });
+
+  test('更新できない', async () => {
+    await seedClientError();
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER_UID), clientErrorPath), { message: '書き換え' }),
+    );
+    await assertFails(
+      updateDoc(doc(unauthDb(), clientErrorPath), { message: '書き換え' }),
+    );
+  });
+
+  test('削除できない', async () => {
+    await seedClientError();
+    await assertFails(deleteDoc(doc(dbFor(OWNER_UID), clientErrorPath)));
+    await assertFails(deleteDoc(doc(unauthDb(), clientErrorPath)));
+  });
+
+  test('既にある ID への上書き（set）もできない', async () => {
+    await seedClientError();
+    await assertFails(
+      setDoc(doc(unauthDb(), clientErrorPath), clientErrorDoc()),
+    );
   });
 });
 
