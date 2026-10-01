@@ -3,6 +3,7 @@
 // Exports:
 //   onRevenueCatWebhook — HTTP endpoint called by RevenueCat after subscription events.
 //   askCarAi           — HTTPS proxy for Anthropic API (API key never leaves the server).
+//   onPlanRequestCreated — 店舗プランの申し込みを運営者にメールで知らせる。
 //
 // Deploy:
 //   firebase deploy --only functions
@@ -10,6 +11,8 @@
 // Environment secrets:
 //   REVENUECAT_WEBHOOK_SECRET  — set via: firebase functions:secrets:set REVENUECAT_WEBHOOK_SECRET
 //   ANTHROPIC_API_KEY          — set via: firebase functions:secrets:set ANTHROPIC_API_KEY
+//   SENDGRID_API_KEY           — set via: firebase functions:secrets:set SENDGRID_API_KEY
+//   OPERATOR_EMAIL             — 運営者の宛先。set via: firebase functions:secrets:set OPERATOR_EMAIL
 
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
@@ -23,6 +26,11 @@ import {
   type ModerationTarget,
   type ModerationUpdate,
 } from "./moderateComments";
+import {
+  handlePlanRequestCreated,
+  type OperatorMail,
+  type PlanRequestData,
+} from "./notifyPlanRequest";
 import type { ShopSubscriptionUpdate } from "./types";
 export { onNewsletterSend } from "./sendNewsletter";
 export { askCarAi } from "./askCarAi";
@@ -153,6 +161,94 @@ export const onCommentReportCreated = onDocumentCreated(
       // the function; the report doc is still retained for manual moderation.
       console.error("Comment moderation failed:", err);
     }
+  }
+);
+
+const sendgridApiKey = defineSecret("SENDGRID_API_KEY");
+// 運営者の宛先。公開リポジトリに書かないため Secret Manager に置く
+const operatorEmail = defineSecret("OPERATOR_EMAIL");
+
+/**
+ * Firestore-triggered Cloud Function — 店舗プランの申し込みの通知。
+ *
+ * 店主が shops/{shopId}/plan_requests/{requestId} を作ったら、運営者に
+ * SendGrid でメールを送る。処理の中身は notifyPlanRequest.ts。
+ *
+ * 二重送信の防止: 送る前に申し込みの文書へ operatorNotification を
+ * トランザクションで書き、既にあれば送らない（再試行・重複配信の両方に効く）。
+ * retry: true なので、SendGrid の一時的な失敗は Cloud Functions が再試行する。
+ */
+export const onPlanRequestCreated = onDocumentCreated(
+  {
+    document: "shops/{shopId}/plan_requests/{requestId}",
+    region: "asia-northeast1",
+    secrets: [sendgridApiKey, operatorEmail],
+    retry: true,
+  },
+  async (event) => {
+    const { shopId, requestId } = event.params;
+    const db = admin.firestore();
+    const ref = db.doc(`shops/${shopId}/plan_requests/${requestId}`);
+
+    await handlePlanRequestCreated(
+      {
+        shopId,
+        requestId,
+        eventId: event.id,
+        eventTime: new Date(event.time),
+        data: event.data?.data() as PlanRequestData | undefined,
+      },
+      {
+        operatorEmail: () => operatorEmail.value(),
+        loadShopName: async (id) => {
+          const shop = await db.collection("shops").doc(id).get();
+          const name = shop.data()?.name;
+          return typeof name === "string" ? name : null;
+        },
+        claim: (eventId) =>
+          db.runTransaction(async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists || snap.get("operatorNotification") != null) {
+              return "already" as const;
+            }
+            tx.update(ref, {
+              operatorNotification: {
+                state: "sending",
+                eventId,
+                claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+            });
+            return "claimed" as const;
+          }),
+        release: async () => {
+          await ref.update({
+            operatorNotification: admin.firestore.FieldValue.delete(),
+          });
+        },
+        markSent: async () => {
+          await ref.update({
+            "operatorNotification.state": "sent",
+            "operatorNotification.sentAt":
+              admin.firestore.FieldValue.serverTimestamp(),
+          });
+        },
+        markFailed: async (message) => {
+          await ref.update({
+            "operatorNotification.state": "failed",
+            "operatorNotification.error": message,
+            "operatorNotification.failedAt":
+              admin.firestore.FieldValue.serverTimestamp(),
+          });
+        },
+        send: async (mail: OperatorMail) => {
+          // sendNewsletter.ts と同じく @sendgrid/mail を使う
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const sgMail = require("@sendgrid/mail");
+          sgMail.setApiKey(sendgridApiKey.value());
+          await sgMail.send(mail);
+        },
+      }
+    );
   }
 );
 
