@@ -27,21 +27,27 @@ main には顧客台帳などが入っていたのに、ウェブ版には入っ
 | Remote Config | `firebase deploy --only remoteconfig`（`remoteconfig.template.json`） |
 | Android / iOS | ストアへの提出（まだ一度も無い） |
 
-## 今どこに何が出ているか（2026-09-30 時点）
+## 今どこに何が出ているか（2026-10-01 時点）
 
 | 対象 | 本番の版 | 反映日 |
 | --- | --- | --- |
-| ウェブ | `562a0155` | 2026-09-30 |
+| ウェブ | `4b01c936` | 2026-10-01 |
 | Functions（7つ） | `0dc5ce50` | 2026-09-30 |
-| Firestore のルール・索引 | `e3478bca` | 2026-09-29 |
+| Firestore のルール | `4b01c936` | 2026-10-01 |
+| Firestore の索引 | `e3478bca` | 2026-09-29 |
 | Storage のルール | 不明（後から記録） | 2026-09-06 |
-| Remote Config | テンプレートと一致（4フラグとも `false`） | 2026-09-03 |
+| Remote Config | `4b01c936`（5フラグとも `false`） | 2026-10-01 |
 | Android / iOS | 未公開 | — |
 
 ## 記録（新しい順）
 
 | 日付 | 対象 | コミット | 内容 | 誰 |
 | --- | --- | --- | --- | --- |
+| 2026-10-01 | GitHub（main） | — | ブランチ保護：PR 必須（承認0）・CI 4つ必須（Analyze & Test／Rules／Functions／Build Android）・force push と削除を禁止 | AI |
+| 2026-10-01 | Firestore（DB 設定） | — | 削除保護を有効、Point-in-Time Recovery を有効（最古の復元点 2026-10-01T00:52Z） | AI |
+| 2026-10-01 | ウェブ | `4b01c936` | PR #224〜#233 を反映。請求書払いの申し込み・台帳の CSV 書き出し・最初の7日の記録・ウェブのエラー収集。版の目印 `build_info.json` が付いた（見張りで main と差なしを確認） | AI |
+| 2026-10-01 | Remote Config | `4b01c936` | `shop_in_app_purchase`（false）を追加 | AI |
+| 2026-10-01 | Firestore のルール | `4b01c936` | **店主が `planType` を書き換えて支払いなしで有料になれた穴を塞いだ**（#232）・`plan_requests`・`client_errors`・台帳の案内日（ルールのテスト 340件パス後） | AI |
 | 2026-09-30 | ウェブ | `562a0155` | 8/24 以来の再公開。顧客台帳・メーカーのロゴ・輸入車20社・店舗プランの料金（9,800円 / 29,800円 / 個別見積もり）・特商法の更新 | AI |
 | 2026-09-30 | Functions（ビルドイメージ） | — | `asia-northeast1` に自動削除のポリシー（1日）を設定 | AI |
 | 2026-09-30 | Functions | `0dc5ce50` | 初めての本格デプロイ。`purgeDeletedAccounts`・`purgeExpiredShares`・`askCarAi`・`onRevenueCatWebhook`・`onNewsletterSend`・`onCommentReportCreated` を新規作成（後の2つは権限の反映待ちで1回失敗し、約5分後に再デプロイで成功）。`aggregateModelCosts` は既にあったため変更なし | AI |
