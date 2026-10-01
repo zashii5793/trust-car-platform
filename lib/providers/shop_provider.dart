@@ -11,6 +11,7 @@ import '../services/shop_report_service.dart';
 import '../services/analytics_service.dart';
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
+import '../core/utils/shop_map_utils.dart' show ShopGeoPoint;
 
 /// BtoBマーケットプレイス プロバイダー
 ///
@@ -182,9 +183,18 @@ class ShopProvider with ChangeNotifier {
   /// 現在地からの距離（km）。距離ソート未実行/位置情報なしの店舗は null。
   double? distanceForShop(String shopId) => _shopDistancesKm[shopId];
 
+  ShopGeoPoint? _distanceOrigin;
+
+  /// 最後に距離ソートに使った現在地。未取得なら null。
+  ///
+  /// 地図の中心に使う（Issue #43）。距離は一覧ごとに計算し直すため
+  /// loadShops で消すが、現在地そのものは一覧が変わっても変わらないので残す。
+  ShopGeoPoint? get distanceOrigin => _distanceOrigin;
+
   /// 現在地から近い順に [shops] を並べ替える。
   /// 位置情報のない店舗は末尾に並ぶ。
   void sortByDistanceFrom(double latitude, double longitude) {
+    _distanceOrigin = (latitude: latitude, longitude: longitude);
     _shopDistancesKm = {
       for (final shop in _shops)
         if (shop.location != null)
