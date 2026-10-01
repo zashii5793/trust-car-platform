@@ -873,29 +873,12 @@ class ShopLedgerService {
     bool excludeNoticed = true,
     bool excludeLinked = true,
   }) async {
-    final start = DateTime(from.year, from.month, from.day);
-    final end = DateTime(to.year, to.month, to.day + 1);
-    if (!end.isAfter(start)) {
-      return const Result.success(InspectionNoticeList.empty);
-    }
     try {
-      final snap = await _vehicles(shopId)
-          .where('inspectionExpiry',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-          .where('inspectionExpiry', isLessThan: Timestamp.fromDate(end))
-          .orderBy('inspectionExpiry')
-          .get();
-      final vehicles =
-          snap.docs.map((d) => LedgerVehicle.fromMap(d.id, d.data())).toList();
-
-      final ids = vehicles.map((v) => v.customerId).toSet().toList();
-      final docs =
-          await Future.wait(ids.map((id) => _customers(shopId).doc(id).get()));
-      final customers = <String, LedgerCustomer>{
-        for (final d in docs)
-          if (d.exists && d.data() != null)
-            d.id: LedgerCustomer.fromMap(d.id, d.data()!),
-      };
+      final candidates = await _noticeCandidates(shopId, from, to);
+      if (candidates == null) {
+        return const Result.success(InspectionNoticeList.empty);
+      }
+      final (vehicles, customers) = candidates;
 
       final targets = <InspectionNoticeTarget>[];
       var noticed = 0;
@@ -927,6 +910,81 @@ class ShopLedgerService {
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
     }
+  }
+
+  /// アプリに車検案内（プッシュ）を送れる車。満了日が [from]〜[to]（両端の日を含む）で、
+  /// 持ち主がアプリとつながっている（[LedgerCustomer.isLinked]）車だけ。
+  ///
+  /// はがき（[inspectionNoticeTargets]）と同じ期間・同じ「案内済み」の判定を使う。
+  /// 住所は要らない。いまの満了日で案内済みの車は**いつも**除く（アプリへの
+  /// 二重送信はサーバー側でも止めるが、先に数を見せるため）。
+  ///
+  /// 利用者が通知を切っているか・端末が登録されているかは、店からは見えない
+  /// （users は本人しか読めない）。そこは送ったあとの結果で分かる。
+  Future<Result<InspectionNoticeList, AppError>> appInspectionNoticeTargets({
+    required String shopId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    try {
+      final candidates = await _noticeCandidates(shopId, from, to);
+      if (candidates == null) {
+        return const Result.success(InspectionNoticeList.empty);
+      }
+      final (vehicles, customers) = candidates;
+
+      final targets = <InspectionNoticeTarget>[];
+      var noticed = 0;
+      var notLinked = 0;
+      for (final v in vehicles) {
+        final c = customers[v.customerId];
+        if (c == null) continue; // 持ち主のいない車には出せない
+        if (v.isNoticedForCurrentExpiry) {
+          noticed++;
+          continue;
+        }
+        if (!c.isLinked) {
+          notLinked++;
+          continue;
+        }
+        targets.add(InspectionNoticeTarget(customer: c, vehicle: v));
+      }
+      return Result.success(InspectionNoticeList(
+        targets: targets,
+        alreadyNoticed: noticed,
+        notLinked: notLinked,
+      ));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// 満了日が [from]〜[to]（両端の日を含む）の車（近い順）と、その持ち主。
+  /// 期間が空なら null。顧客は、対象の車の持ち主だけを1件ずつ読む。
+  Future<(List<LedgerVehicle>, Map<String, LedgerCustomer>)?> _noticeCandidates(
+      String shopId, DateTime from, DateTime to) async {
+    final start = DateTime(from.year, from.month, from.day);
+    final end = DateTime(to.year, to.month, to.day + 1);
+    if (!end.isAfter(start)) return null;
+
+    final snap = await _vehicles(shopId)
+        .where('inspectionExpiry',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('inspectionExpiry', isLessThan: Timestamp.fromDate(end))
+        .orderBy('inspectionExpiry')
+        .get();
+    final vehicles =
+        snap.docs.map((d) => LedgerVehicle.fromMap(d.id, d.data())).toList();
+
+    final ids = vehicles.map((v) => v.customerId).toSet().toList();
+    final docs =
+        await Future.wait(ids.map((id) => _customers(shopId).doc(id).get()));
+    final customers = <String, LedgerCustomer>{
+      for (final d in docs)
+        if (d.exists && d.data() != null)
+          d.id: LedgerCustomer.fromMap(d.id, d.data()!),
+    };
+    return (vehicles, customers);
   }
 
   /// 車検の案内を出した（宛名を書き出した）ことを、車ごとに記録する。
@@ -1189,11 +1247,15 @@ class InspectionNoticeList {
   /// 住所の無い客の車。
   final int withoutAddress;
 
+  /// アプリとつながっていない客の車（アプリへの案内のとき）。
+  final int notLinked;
+
   const InspectionNoticeList({
     required this.targets,
     this.alreadyNoticed = 0,
     this.linked = 0,
     this.withoutAddress = 0,
+    this.notLinked = 0,
   });
 
   static const empty = InspectionNoticeList(targets: []);

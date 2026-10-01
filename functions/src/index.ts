@@ -4,6 +4,10 @@
 //   onRevenueCatWebhook — HTTP endpoint called by RevenueCat after subscription events.
 //   askCarAi           — HTTPS proxy for Anthropic API (API key never leaves the server).
 //   onPlanRequestCreated — 店舗プランの申し込みを運営者にメールで知らせる。
+//   onInspectionNoticeCreated — 店からアプリ利用者へ車検案内のプッシュを送る。
+//   unsubscribeNewsletter — メールの配信停止リンク（トークン）で購読を止める。
+//   onMaintenanceRecordWritten / onVehicleWrittenForFleetSummary
+//                        — 法人向けの整備集計（fleet_maintenance_summaries）を作り直す。
 //
 // Deploy:
 //   firebase deploy --only functions
@@ -17,7 +21,10 @@
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import {
+  onDocumentCreated,
+  onDocumentWritten,
+} from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { handleWebhook } from "./webhook";
 import {
@@ -31,7 +38,26 @@ import {
   type OperatorMail,
   type PlanRequestData,
 } from "./notifyPlanRequest";
+import {
+  handleInspectionNoticeCreated,
+  invalidTokensFrom,
+  isNoticedForCurrentExpiry,
+  type LedgerVehicleData,
+  type NoticeRequestData,
+  type VehicleClaim,
+} from "./inspectionNotice";
 import type { ShopSubscriptionUpdate } from "./types";
+import { handleUnsubscribe } from "./unsubscribeNewsletter";
+import {
+  SUMMARY_COLLECTION,
+  affectedVehicleIds,
+  recomputeSummary,
+  vehicleChangeNeedsRecompute,
+  type FleetMaintenanceSummary,
+  type RecordForSummary,
+  type SummaryDeps,
+  type VehicleForSummary,
+} from "./fleetMaintenanceSummary";
 export { onNewsletterSend } from "./sendNewsletter";
 export { askCarAi } from "./askCarAi";
 import {
@@ -246,6 +272,142 @@ export const onPlanRequestCreated = onDocumentCreated(
           const sgMail = require("@sendgrid/mail");
           sgMail.setApiKey(sendgridApiKey.value());
           await sgMail.send(mail);
+        },
+      }
+    );
+  }
+);
+
+/**
+ * Firestore-triggered Cloud Function — 店からアプリ利用者への車検案内（プッシュ）。
+ *
+ * 店のスタッフが shops/{shopId}/inspection_notices/{noticeId} を置いたら、
+ * 車ごとに台帳のつながり・利用者の通知設定・案内済みかを確かめて FCM で送り、
+ * 送れた車に「案内した日」を付ける。処理の中身は inspectionNotice.ts。
+ *
+ * retry は付けない。車ごとに「案内した日」を先に付けてから送るので、
+ * 途中で落ちても二重には送らない（届かなかった車は案内した日を戻す）。
+ * 失敗は依頼の文書の status: failed で画面に出る。
+ */
+export const onInspectionNoticeCreated = onDocumentCreated(
+  {
+    document: "shops/{shopId}/inspection_notices/{noticeId}",
+    region: "asia-northeast1",
+  },
+  async (event) => {
+    const { shopId, noticeId } = event.params;
+    const db = admin.firestore();
+    const shopRef = db.collection("shops").doc(shopId);
+    const ref = shopRef.collection("inspection_notices").doc(noticeId);
+    const vehicleRef = (id: string) =>
+      shopRef.collection("customer_vehicles").doc(id);
+
+    await handleInspectionNoticeCreated(
+      {
+        shopId,
+        noticeId,
+        eventId: event.id,
+        data: event.data?.data() as NoticeRequestData | undefined,
+      },
+      {
+        claimRequest: (eventId) =>
+          db.runTransaction(async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists || snap.get("delivery") != null) {
+              return "already" as const;
+            }
+            tx.update(ref, {
+              delivery: {
+                state: "sending",
+                eventId,
+                claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+            });
+            return "claimed" as const;
+          }),
+        loadShopName: async () => {
+          const name = (await shopRef.get()).data()?.name;
+          return typeof name === "string" ? name : null;
+        },
+        loadVehicle: async (id) => {
+          const snap = await vehicleRef(id).get();
+          return snap.exists ? (snap.data() as LedgerVehicleData) : null;
+        },
+        loadCustomer: async (id) => {
+          const snap = await shopRef.collection("customers").doc(id).get();
+          return snap.exists ? (snap.data() ?? null) : null;
+        },
+        loadLinkShopId: async (uid) => {
+          const shop = (await db.collection("shop_customers").doc(uid).get())
+            .data()?.shopId;
+          return typeof shop === "string" ? shop : null;
+        },
+        loadUser: async (uid) => {
+          const snap = await db.collection("users").doc(uid).get();
+          return snap.exists ? (snap.data() ?? null) : null;
+        },
+        claimVehicles: (ids, now) =>
+          db.runTransaction(async (tx) => {
+            const snaps = await Promise.all(ids.map((id) => tx.get(vehicleRef(id))));
+            const claims: VehicleClaim[] = [];
+            for (const snap of snaps) {
+              if (!snap.exists) continue;
+              const v = snap.data() as LedgerVehicleData;
+              if (isNoticedForCurrentExpiry(v) || !v.inspectionExpiry) continue;
+              claims.push({
+                id: snap.id,
+                prevNoticeAt: v.inspectionNoticeAt ?? null,
+                prevNoticeExpiry: v.inspectionNoticeExpiry ?? null,
+              });
+              tx.update(snap.ref, {
+                inspectionNoticeAt: admin.firestore.Timestamp.fromDate(now),
+                inspectionNoticeExpiry: v.inspectionExpiry,
+              });
+            }
+            return claims;
+          }),
+        releaseVehicles: async (claims) => {
+          const batch = db.batch();
+          for (const c of claims) {
+            batch.update(vehicleRef(c.id), {
+              inspectionNoticeAt:
+                c.prevNoticeAt ?? admin.firestore.FieldValue.delete(),
+              inspectionNoticeExpiry:
+                c.prevNoticeExpiry ?? admin.firestore.FieldValue.delete(),
+            });
+          }
+          await batch.commit();
+        },
+        send: async (tokens, message) => {
+          const res = await admin.messaging().sendEachForMulticast({
+            tokens,
+            notification: { title: message.title, body: message.body },
+            data: message.data,
+            android: {
+              priority: "high",
+              // アプリが作る通知チャンネル（push_notification_service.dart）
+              notification: { channelId: "trust_car_high_importance" },
+            },
+            apns: { payload: { aps: { sound: "default" } } },
+          });
+          return {
+            successCount: res.successCount,
+            invalidTokens: invalidTokensFrom(tokens, res.responses),
+          };
+        },
+        removeTokens: async (uid, tokens) => {
+          await db.collection("users").doc(uid).update({
+            fcmTokens: admin.firestore.FieldValue.arrayRemove(...tokens),
+          });
+        },
+        writeResult: async (status, result, error) => {
+          await ref.update({
+            status,
+            result,
+            processedAt: admin.firestore.FieldValue.serverTimestamp(),
+            "delivery.state": "finished",
+            ...(error ? { error } : {}),
+          });
         },
       }
     );
@@ -532,5 +694,108 @@ export const purgeExpiredShares = onSchedule(
       await batch.commit();
     }
     console.log(`Expired vehicle shares: ${removed} removed`);
+  }
+);
+
+/**
+ * HTTPS Cloud Function — メールの配信停止リンクでの購読停止（Issue #192）。
+ *
+ * リンクから来る人はログインしていないので、クライアントから
+ * newsletter_subscriptions をトークンで引けない（ルールで証明できない）。
+ * 認証は求めず、トークンの一致だけで止める。処理の中身は unsubscribeNewsletter.ts。
+ *
+ * Request: POST { token: string }
+ * Response: 200 { ok: true } / 400・404 { error } / 405 / 500
+ */
+export const unsubscribeNewsletter = onRequest(
+  { region: "asia-northeast1", cors: true },
+  async (req, res) => {
+    const db = admin.firestore();
+    const col = db.collection("newsletter_subscriptions");
+    const result = await handleUnsubscribe(req.method, req.body, {
+      findByToken: async (token) => {
+        const snap = await col
+          .where("unsubscribeToken", "==", token)
+          .limit(1)
+          .get();
+        return snap.empty ? null : snap.docs[0].id;
+      },
+      markUnsubscribed: async (id) => {
+        await col.doc(id).update({
+          isSubscribed: false,
+          updatedAt: admin.firestore.Timestamp.now(),
+        });
+      },
+    });
+    res.status(result.status).json(result.body);
+  }
+);
+
+/** 法人向けの整備集計で使う Firestore の読み書き。 */
+function fleetSummaryDeps(): SummaryDeps {
+  const db = admin.firestore();
+  return {
+    loadVehicle: async (vehicleId) => {
+      const snap = await db.collection("vehicles").doc(vehicleId).get();
+      return snap.exists ? (snap.data() as VehicleForSummary) : null;
+    },
+    loadRecords: async (vehicleId) => {
+      const snap = await db
+        .collection("maintenance_records")
+        .where("vehicleId", "==", vehicleId)
+        .get();
+      return snap.docs.map((d) => d.data() as RecordForSummary);
+    },
+    writeSummary: async (vehicleId, s: FleetMaintenanceSummary) => {
+      await db.collection(SUMMARY_COLLECTION).doc(vehicleId).set({
+        vehicleId: s.vehicleId,
+        ownerId: s.ownerId,
+        lastMaintenanceDate:
+          s.lastMaintenanceDateMs === null
+            ? null
+            : admin.firestore.Timestamp.fromMillis(s.lastMaintenanceDateMs),
+        totalCost: s.totalCost,
+        recordCount: s.recordCount,
+        updatedAt: admin.firestore.Timestamp.now(),
+      });
+    },
+    deleteSummary: async (vehicleId) => {
+      await db.collection(SUMMARY_COLLECTION).doc(vehicleId).delete();
+    },
+  };
+}
+
+/**
+ * Firestore-triggered Cloud Function — 整備記録が書かれたら、その車の
+ * 法人向け集計（fleet_maintenance_summaries/{vehicleId}）を作り直す（Issue #192）。
+ *
+ * 毎回その車の記録を全部読み直す（1台あたりの記録は多くて数百件）。
+ * 差分で足し引きしないのは、再試行・重複配信で数字がずれないようにするため。
+ */
+export const onMaintenanceRecordWritten = onDocumentWritten(
+  { document: "maintenance_records/{recordId}", region: "asia-northeast1" },
+  async (event) => {
+    const before = event.data?.before?.data() as RecordForSummary | undefined;
+    const after = event.data?.after?.data() as RecordForSummary | undefined;
+    const deps = fleetSummaryDeps();
+    for (const vehicleId of affectedVehicleIds(before, after)) {
+      await recomputeSummary(vehicleId, deps);
+    }
+  }
+);
+
+/**
+ * Firestore-triggered Cloud Function — 車の持ち主・法人が変わった・車が
+ * 消されたら、その車の集計を作り直す（Issue #192）。
+ *
+ * 法人に入る前からある記録も、入った時点で集計に載る。
+ */
+export const onVehicleWrittenForFleetSummary = onDocumentWritten(
+  { document: "vehicles/{vehicleId}", region: "asia-northeast1" },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!vehicleChangeNeedsRecompute(before, after)) return;
+    await recomputeSummary(event.params.vehicleId, fleetSummaryDeps());
   }
 );

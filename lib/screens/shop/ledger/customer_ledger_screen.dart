@@ -4,16 +4,19 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/spacing.dart';
+import '../../../models/inspection_push_request.dart';
 import '../../../models/shop_ledger.dart';
 import '../../../services/shop_ledger_service.dart';
 import '../../../services/vehicle_share_service.dart';
 import '../../../services/shop_staff_service.dart';
+import '../../../services/detail_delivery_service.dart';
 import '../../../services/ledger_link_service.dart';
 import '../../../services/shop_audit_service.dart';
 import 'audit_log_screen.dart';
 import 'loss_report_screen.dart';
 import '../../../services/shop_invite_service.dart';
 import '../../../services/ledger_csv_export.dart';
+import '../../../services/inspection_push_service.dart';
 import '../../../widgets/common/loading_indicator.dart';
 import 'customer_detail_screen.dart';
 import 'customer_edit_screen.dart';
@@ -21,6 +24,7 @@ import 'ledger_csv_import_screen.dart';
 import 'ledger_csv_share.dart';
 import 'shared_vehicles_screen.dart';
 import 'staff_screens.dart';
+import 'unsent_details_screen.dart';
 import 'ledger_format.dart';
 import 'ledger_paged_list.dart';
 
@@ -48,11 +52,21 @@ class CustomerLedgerScreen extends StatefulWidget {
   final LedgerLinkService? linkService;
   final ShopInviteService? inviteService;
 
+  /// 取り込んだ伝票から、アプリ利用客への整備明細をまとめて送るため。
+  /// [currentUid] は送る人（いまログインしている店主・スタッフ）。
+  /// どちらかが無ければ「送っていない明細」の入口を出さない。
+  final DetailDeliveryService? deliveryService;
+  final String? currentUid;
+
   /// CSV 取込でファイルを選ぶ関数。テスト（操作の流れを通すもの）で差し替える。
   final CsvFilePicker? csvPicker;
 
   /// 書き出した CSV を渡す関数。テストで差し替える。
   final CsvSharer? csvSharer;
+
+  /// アプリを使っているお客さんに車検案内（プッシュ）を送るため。
+  /// [currentUid]（依頼する人。整備明細の送付と同じ値）と両方そろったときだけ入口を出す。
+  final InspectionPushService? pushService;
 
   /// 操作の記録。[auditService] は店主が記録を見るため（店主のときだけ渡す）。
   final AuditRecorder? onAudit;
@@ -72,8 +86,11 @@ class CustomerLedgerScreen extends StatefulWidget {
     this.ownerName = '',
     this.linkService,
     this.inviteService,
+    this.deliveryService,
+    this.currentUid,
     this.csvPicker,
     this.csvSharer,
+    this.pushService,
     this.onAudit,
     this.auditService,
     required this.shopId,
@@ -191,6 +208,21 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
           service: widget.service,
           shopId: widget.shopId,
           onOpenCustomer: _openCustomer,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openUnsentDetails() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UnsentDetailsScreen(
+          service: widget.deliveryService!,
+          shopId: widget.shopId,
+          shopName: widget.shopName,
+          senderUid: widget.currentUid!,
+          onAudit: widget.onAudit,
         ),
       ),
     );
@@ -452,6 +484,105 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
     _snack('$n台分を書き出し、案内した日を記録しました$skippedNote');
   }
 
+  bool get _canSendAppNotice =>
+      widget.pushService != null && (widget.currentUid ?? '').isNotEmpty;
+
+  /// アプリを使っているお客さんに、車検案内をプッシュで送る
+  /// （2026-09-29 プロダクト評価 #2 の「アプリ有り」の側）。
+  ///
+  /// はがきと同じ「車検が近い」の期間で、台帳とアプリがつながっている
+  /// お客さんの車を選ぶ。送るのはサーバー（Cloud Functions）で、送れた車には
+  /// はがきと同じ「案内した日」が付く（同じ満了日の案内を二度出さない）。
+  Future<void> _sendAppNotice() async {
+    final push = widget.pushService;
+    final uid = widget.currentUid;
+    if (push == null || uid == null) return;
+
+    final months = await showDialog<int>(
+      context: context,
+      builder: (_) => const _AppNoticeDialog(),
+    );
+    if (months == null || !mounted) return;
+
+    final from = DateTime(_today.year, _today.month, _today.day);
+    final to = DateTime(from.year, from.month + months, from.day);
+    setState(() => _exporting = true);
+    final result = await widget.service.appInspectionNoticeTargets(
+      shopId: widget.shopId,
+      from: from,
+      to: to,
+    );
+    if (!mounted) return;
+    setState(() => _exporting = false);
+
+    final list = result.valueOrNull;
+    if (list == null) {
+      _snack('対象の車を読めませんでした: ${result.errorOrNull?.userMessage ?? ''}');
+      return;
+    }
+    final skipped = [
+      if (list.alreadyNoticed > 0) '案内済みの${list.alreadyNoticed}台',
+      if (list.notLinked > 0) 'アプリを使っていない${list.notLinked}台',
+    ];
+    final skippedNote = skipped.isEmpty ? '' : '（${skipped.join('・')}は除きます）';
+    if (list.targets.isEmpty) {
+      _snack('満了日が${ledgerDate(from)}〜${ledgerDate(to)}の、'
+          'アプリを使っているお客さんの車はありません$skippedNote');
+      return;
+    }
+
+    final n = list.targets.length;
+    final people = list.targets.map((t) => t.customer.id).toSet().length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('アプリに車検案内を送る'),
+        content: Text(
+          '満了日が${ledgerDate(from)}〜${ledgerDate(to)}の$n台'
+          '（$people人）の持ち主のアプリに、車検の案内を通知します。'
+          '$skippedNote\n\n'
+          '通知を切っているお客さんには届きません。届いた車には、今日を'
+          '「案内した日」として記録します。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('やめる'),
+          ),
+          FilledButton(
+            key: const Key('ledger_app_notice_confirm'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('送る'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    final sent = await push.request(
+      shopId: widget.shopId,
+      requesterUid: uid,
+      vehicleIds: [for (final t in list.targets) t.vehicle.id],
+    );
+    if (!mounted) return;
+    final noticeId = sent.valueOrNull;
+    if (noticeId == null) {
+      _snack('送れませんでした: ${sent.errorOrNull?.userMessage ?? ''}');
+      return;
+    }
+    widget.onAudit?.call(
+      ShopAuditAction.sendInspectionPush,
+      detail: '満了日 ${ledgerDate(from)}〜${ledgerDate(to)}・$n台',
+    );
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _AppNoticeProgressDialog(
+        stream: push.watch(shopId: widget.shopId, noticeId: noticeId),
+        requested: n,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -464,6 +595,13 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
             icon: const Icon(Icons.trending_down),
             onPressed: _openLoss,
           ),
+          if (widget.deliveryService != null && widget.currentUid != null)
+            IconButton(
+              key: const Key('ledger_unsent_details'),
+              tooltip: '送っていない明細',
+              icon: const Icon(Icons.outbox_outlined),
+              onPressed: _openUnsentDetails,
+            ),
           if (widget.shareService != null)
             IconButton(
               key: const Key('ledger_shared_vehicles'),
@@ -485,12 +623,19 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
               if (v == 'audit') _openAudit();
               if (v == 'export_all') _exportAll();
               if (v == 'export_notice') _exportNotice();
+              if (v == 'app_notice') _sendAppNotice();
             },
             itemBuilder: (_) => [
               if (widget.staffService != null && widget.ownerUid != null)
                 const PopupMenuItem(value: 'staff', child: Text('スタッフ')),
               if (widget.auditService != null)
                 const PopupMenuItem(value: 'audit', child: Text('操作の記録')),
+              if (_canSendAppNotice)
+                PopupMenuItem(
+                  value: 'app_notice',
+                  enabled: !_exporting,
+                  child: const Text('アプリに車検案内を送る'),
+                ),
               PopupMenuItem(
                 value: 'export_notice',
                 enabled: !_exporting,
@@ -807,6 +952,123 @@ class _NoticeDialogState extends State<_NoticeDialog> {
           child: const Text('書き出す'),
         ),
       ],
+    );
+  }
+}
+
+/// アプリへの車検案内の期間を選ぶ。既定は2か月（はがきと同じ）。
+class _AppNoticeDialog extends StatefulWidget {
+  const _AppNoticeDialog();
+
+  @override
+  State<_AppNoticeDialog> createState() => _AppNoticeDialogState();
+}
+
+class _AppNoticeDialogState extends State<_AppNoticeDialog> {
+  int _months = 2;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('アプリに車検案内を送る'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('台帳とアプリがつながっているお客さんに、車検が近いことを'
+                'プッシュ通知で知らせます。この満了日で案内済みの車には送りません。'),
+            AppSpacing.verticalSm,
+            const Text('満了日が今日から'),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final m in const [1, 2, 3])
+                  ChoiceChip(
+                    key: Key('ledger_app_notice_months_$m'),
+                    label: Text('$mか月以内'),
+                    selected: _months == m,
+                    onSelected: (_) => setState(() => _months = m),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('やめる'),
+        ),
+        FilledButton(
+          key: const Key('ledger_app_notice_next'),
+          onPressed: () => Navigator.pop(context, _months),
+          child: const Text('対象を確かめる'),
+        ),
+      ],
+    );
+  }
+}
+
+/// 送った結果を待って見せる。送るのはサーバーなので、閉じても送信は続く。
+class _AppNoticeProgressDialog extends StatelessWidget {
+  final Stream<InspectionPushRequest> stream;
+  final int requested;
+
+  const _AppNoticeProgressDialog({
+    required this.stream,
+    required this.requested,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<InspectionPushRequest>(
+      stream: stream,
+      builder: (context, snap) {
+        final req = snap.data;
+        final Widget content;
+        if (req == null || !req.isFinished) {
+          content = const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(),
+              AppSpacing.verticalSm,
+              Text('送っています。閉じても送信は続きます。'),
+            ],
+          );
+        } else if (req.status == InspectionPushStatus.failed) {
+          content = const Text(
+            '送信の途中で失敗しました。時間をおいて、もう一度送ってください'
+            '（届いた車には案内した日が付いているので、二重には届きません）。',
+            key: Key('ledger_app_notice_failed'),
+          );
+        } else {
+          final r = req.result ?? const InspectionPushResult();
+          final notes = r.skippedNotes;
+          final lines = [
+            '$requested台のうち${r.sent}台に案内を送りました。',
+            if (notes.isNotEmpty) '届かなかった車: ${notes.join('・')}',
+            if (r.pushOff + r.noDevice > 0)
+              '届かなかったお客さんには、はがきの宛名の書き出しで'
+                  '「アプリを使っているお客さんは除く」を外すと案内できます。',
+          ];
+          content = Text(
+            lines.join('\n\n'),
+            key: const Key('ledger_app_notice_result'),
+          );
+        }
+        return AlertDialog(
+          title: const Text('アプリに車検案内を送る'),
+          content: content,
+          actions: [
+            TextButton(
+              key: const Key('ledger_app_notice_close'),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('閉じる'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

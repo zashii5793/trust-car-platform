@@ -1,5 +1,9 @@
 import '../models/maintenance_record.dart';
 
+/// 店が整備明細を送るときのメッセージ本文。スレッドから1件ずつ送るときも、
+/// 台帳の「送っていない明細」からまとめて送るときも、同じ文にする。
+const String maintenanceDetailMessage = '整備明細をお送りします。「記録に追加」から保存できます。';
+
 /// Structured maintenance detail that a repair shop attaches to an inquiry
 /// reply. The user can pull it into their own maintenance records with one tap.
 ///

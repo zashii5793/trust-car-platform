@@ -5,6 +5,9 @@ class FirestoreCollections {
 
   static const String vehicles = 'vehicles';
   static const String maintenanceRecords = 'maintenance_records';
+
+  /// 法人向けの整備集計（ID は vehicleId）。Cloud Functions だけが書く。
+  static const String fleetMaintenanceSummaries = 'fleet_maintenance_summaries';
   static const String documents = 'documents';
   static const String invoices = 'invoices';
   static const String posts = 'posts';

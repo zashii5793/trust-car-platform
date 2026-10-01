@@ -992,11 +992,18 @@ class DriveLogService {
     }
   }
 
-  /// Get user's favorite spots
+  /// Get user's favorite spots, newest favorite first.
+  ///
+  /// スポットは1件ずつ get する（Issue #192）。documentId の whereIn は
+  /// 文書ごとにルールが評価され、お気に入りの1件が後から非公開にされた・
+  /// 消されただけで、一覧全体が permission-denied になっていた（消された
+  /// 文書も resource が null でルールが評価エラーになり、拒否扱い）。
+  /// 読めない1件は黙って抜かし、残りを返す。
   Future<Result<List<DriveSpot>, AppError>> getUserFavoriteSpots({
     required String userId,
     int limit = 50,
   }) async {
+    if (userId.isEmpty || limit <= 0) return Result.success([]);
     try {
       final favoriteSnapshot = await _spotFavoritesRef
           .where('userId', isEqualTo: userId)
@@ -1004,28 +1011,32 @@ class DriveLogService {
           .limit(limit)
           .get();
 
-      final spotIds = favoriteSnapshot.docs
-          .map((doc) => doc.data()['spotId'] as String)
-          .toList();
-
-      if (spotIds.isEmpty) {
-        return Result.success([]);
+      final spotIds = <String>[];
+      for (final doc in favoriteSnapshot.docs) {
+        final id = doc.data()['spotId'];
+        if (id is String && id.isNotEmpty && !spotIds.contains(id)) {
+          spotIds.add(id);
+        }
       }
+      if (spotIds.isEmpty) return Result.success([]);
 
-      // Fetch spots (Firestore limits whereIn to 10 items)
-      final spots = <DriveSpot>[];
-      for (var i = 0; i < spotIds.length; i += 10) {
-        final chunk = spotIds.skip(i).take(10).toList();
-        final spotSnapshot =
-            await _spotsRef.where(FieldPath.documentId, whereIn: chunk).get();
-        spots.addAll(
-          spotSnapshot.docs.map((doc) => DriveSpot.fromMap(doc.data(), doc.id)),
-        );
-      }
-
-      return Result.success(spots);
+      final spots = await Future.wait(spotIds.map(_getReadableSpot));
+      return Result.success(spots.whereType<DriveSpot>().toList());
     } catch (e) {
       return Result.failure(AppError.unknown('An error occurred'));
+    }
+  }
+
+  /// 1件のスポット。無い・読めない（非公開にされた）ときは null。
+  /// それ以外の失敗（通信など）はそのまま投げる。
+  Future<DriveSpot?> _getReadableSpot(String spotId) async {
+    try {
+      final doc = await _spotsRef.doc(spotId).get();
+      final data = doc.data();
+      return data == null ? null : DriveSpot.fromMap(data, doc.id);
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') return null;
+      rethrow;
     }
   }
 

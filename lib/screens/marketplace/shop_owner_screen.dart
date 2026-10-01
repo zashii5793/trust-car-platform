@@ -25,8 +25,10 @@ import '../../services/shop_ledger_service.dart';
 import '../../services/vehicle_share_service.dart';
 import '../../services/shop_service.dart';
 import '../../services/shop_staff_service.dart';
+import '../../services/detail_delivery_service.dart';
 import '../../services/ledger_link_service.dart';
 import '../../services/shop_audit_service.dart';
+import '../../services/inspection_push_service.dart';
 import '../shop/ledger/staff_screens.dart';
 import '../shop/ledger/customer_ledger_screen.dart';
 
@@ -343,8 +345,14 @@ class _RegisteredBody extends StatelessWidget {
                           '',
                   linkService: sl.get<LedgerLinkService>(),
                   inviteService: sl.get<ShopInviteService>(),
+                  // 登録の無い環境（テスト）では入口を出さないだけにする
+                  deliveryService: sl.isRegistered<DetailDeliveryService>()
+                      ? sl.get<DetailDeliveryService>()
+                      : null,
+                  currentUid: context.read<AuthProvider>().firebaseUser?.uid,
                   onAudit: _auditFor(context, shop.id),
                   auditService: sl.get<ShopAuditService>(),
+                  pushService: sl.tryGet<InspectionPushService>(),
                   shopId: shop.id,
                   shopName: shop.name,
                 ),
@@ -1223,8 +1231,15 @@ class _StaffEntryCardState extends State<_StaffEntryCard> {
           // スタッフの管理（staffService）は店主だけなので渡さない。
           linkService: sl.get<LedgerLinkService>(),
           inviteService: sl.get<ShopInviteService>(),
+          // 登録の無い環境（テスト）では入口を出さないだけにする
+          deliveryService: sl.isRegistered<DetailDeliveryService>()
+              ? sl.get<DetailDeliveryService>()
+              : null,
+          currentUid: context.read<AuthProvider>().firebaseUser?.uid,
           ownerUid: ownerUid,
           onAudit: _auditFor(context, link.shopId),
+          // スタッフも車検案内を送れる（はがきの書き出しと同じ）
+          pushService: sl.tryGet<InspectionPushService>(),
           shopId: link.shopId,
           shopName: link.shopName,
         ),

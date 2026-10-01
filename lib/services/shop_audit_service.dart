@@ -20,7 +20,10 @@ enum ShopAuditAction {
 
   /// 書き出しは個人情報の持ち出し。**誰がいつ何件持ち出したか**を残す。
   exportLedger('台帳を書き出した'),
-  exportInspectionNotice('車検案内の宛名を書き出した');
+  exportInspectionNotice('車検案内の宛名を書き出した'),
+
+  /// アプリを使っているお客さんへの車検案内（プッシュ）を依頼した。
+  sendInspectionPush('アプリに車検案内を送った');
 
   final String label;
   const ShopAuditAction(this.label);

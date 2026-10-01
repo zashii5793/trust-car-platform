@@ -14,8 +14,13 @@
 //  11. NewsletterService.updateSubscription — persists preferences
 //  12. Edge Cases: empty authorId, non-existent newsletter
 
+import 'dart:convert';
+
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/models/newsletter.dart';
 import 'package:trust_car_platform/services/newsletter_service.dart';
 
@@ -415,6 +420,130 @@ void main() {
             .doc('user-unsub')
             .get();
         expect(doc.data()?['isSubscribed'], isFalse);
+      });
+    });
+
+    // Issue #192: トークンでの配信停止は Cloud Function（unsubscribeNewsletter）
+    // に移した。クライアントから newsletter_subscriptions をトークンで引くと、
+    // 本番のルールで必ず拒否される。
+    group('unsubscribeByToken', () {
+      const base = 'https://example.test';
+      const token = 'abcdefghijABCDEFGHIJ0123456789xy';
+      final requests = <http.Request>[];
+
+      NewsletterService withServer(int status, [String body = '{}']) {
+        requests.clear();
+        return NewsletterService(
+          firestore: db,
+          functionsBaseUrl: base,
+          httpClient: MockClient((req) async {
+            requests.add(req);
+            return http.Response(body, status);
+          }),
+        );
+      }
+
+      test('Cloud Function にトークンを POST し、200 なら成功', () async {
+        final s = withServer(200, '{"ok":true}');
+
+        final result = await s.unsubscribeByToken(token);
+
+        expect(result.isSuccess, isTrue);
+        expect(requests, hasLength(1));
+        expect(requests.single.method, 'POST');
+        expect(requests.single.url.toString(), '$base/unsubscribeNewsletter');
+        expect(jsonDecode(requests.single.body), {'token': token});
+      });
+
+      test('Firestore を直接は触らない（ルールで拒否されるため）', () async {
+        await db.collection('newsletter_subscriptions').doc('u1').set({
+          'userId': 'u1',
+          'isSubscribed': true,
+          'unsubscribeToken': token,
+        });
+        final s = withServer(200, '{"ok":true}');
+
+        await s.unsubscribeByToken(token);
+
+        final doc =
+            await db.collection('newsletter_subscriptions').doc('u1').get();
+        expect(doc.data()?['isSubscribed'], isTrue);
+      });
+
+      test('404（一致する購読なし）→ NotFoundError', () async {
+        final s = withServer(404, '{"error":"invalid"}');
+
+        final result = await s.unsubscribeByToken(token);
+
+        expect(result.errorOrNull, isA<NotFoundError>());
+      });
+
+      group('Edge Cases', () {
+        test('空のトークン → ValidationError で、通信しない', () async {
+          final s = withServer(200);
+
+          final result = await s.unsubscribeByToken('');
+          final spaces = await s.unsubscribeByToken('   ');
+
+          expect(result.errorOrNull, isA<ValidationError>());
+          expect(spaces.errorOrNull, isA<ValidationError>());
+          expect(requests, isEmpty);
+        });
+
+        test('前後の空白は落として送る', () async {
+          final s = withServer(200);
+
+          await s.unsubscribeByToken('  $token\n');
+
+          expect(jsonDecode(requests.single.body), {'token': token});
+        });
+
+        test('400（形が不正なトークン）→ NotFoundError', () async {
+          final s = withServer(400);
+          final result = await s.unsubscribeByToken('short');
+          expect(result.errorOrNull, isA<NotFoundError>());
+        });
+
+        test('500 → ServerError（statusCode 付き）', () async {
+          final s = withServer(500);
+
+          final result = await s.unsubscribeByToken(token);
+
+          final error = result.errorOrNull;
+          expect(error, isA<ServerError>());
+          expect((error as ServerError).statusCode, 500);
+        });
+
+        test('通信エラー → NetworkError', () async {
+          final s = NewsletterService(
+            firestore: db,
+            functionsBaseUrl: base,
+            httpClient: MockClient((_) async {
+              throw http.ClientException('offline');
+            }),
+          );
+
+          final result = await s.unsubscribeByToken(token);
+
+          expect(result.errorOrNull, isA<NetworkError>());
+        });
+
+        test('Functions の URL が未設定 → ServerError で、通信しない', () async {
+          var called = false;
+          final s = NewsletterService(
+            firestore: db,
+            functionsBaseUrl: '',
+            httpClient: MockClient((_) async {
+              called = true;
+              return http.Response('{}', 200);
+            }),
+          );
+
+          final result = await s.unsubscribeByToken(token);
+
+          expect(result.errorOrNull, isA<ServerError>());
+          expect(called, isFalse);
+        });
       });
     });
   });

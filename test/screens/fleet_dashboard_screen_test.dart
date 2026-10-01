@@ -70,10 +70,7 @@ class _StubFleetService implements FleetService {
 
   @override
   Future<Result<Map<String, MaintenanceSummary>, AppError>>
-      getMaintenanceSummaries(
-    List<String> vehicleIds, {
-    required String userId,
-  }) async =>
+      getMaintenanceSummaries(List<String> vehicleIds) async =>
           const Result.success({});
 }
 

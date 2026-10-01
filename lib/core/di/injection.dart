@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../../services/maintenance_csv_export_service.dart';
 import 'package:flutter/foundation.dart';
 import 'service_locator.dart';
@@ -69,9 +70,12 @@ import '../../services/model_cost_report_service.dart';
 import '../../services/vehicle_profile_service.dart';
 import '../../services/maintenance_history_import_service.dart';
 import '../../services/shop_staff_service.dart';
+import '../../services/detail_delivery_service.dart';
 import '../../services/ledger_link_service.dart';
 import '../../services/shop_audit_service.dart';
 import '../../services/fuel_service.dart';
+import '../../services/fcm_token_service.dart';
+import '../../services/inspection_push_service.dart';
 
 /// 依存性の登録を行うクラス
 ///
@@ -335,9 +339,35 @@ class Injection {
       () => LedgerLinkService(firestore: FirebaseFirestore.instance),
     );
 
+    // 取り込んだ伝票から、アプリ利用客への整備明細をまとめて送る
+    // （2026-09-29 プロダクト評価 #4）。送り方は上の1件ずつの送付と同じ。
+    locator.registerLazySingleton<DetailDeliveryService>(
+      () => DetailDeliveryService(
+        firestore: FirebaseFirestore.instance,
+        linkService: locator.get<LedgerLinkService>(),
+        inquiryService: locator.get<InquiryService>(),
+      ),
+    );
+
     // 店側の操作の記録（誰がいつ顧客を見た・書いたか）。
     locator.registerLazySingleton<ShopAuditService>(
       () => ShopAuditService(firestore: FirebaseFirestore.instance),
+    );
+
+    // アプリを使っているお客さんへの車検案内（プッシュ）。店が依頼を置き、
+    // 送るのは Cloud Functions（onInspectionNoticeCreated）。
+    locator.registerLazySingleton<InspectionPushService>(
+      () => InspectionPushService(firestore: FirebaseFirestore.instance),
+    );
+
+    // この端末のプッシュの宛先を users/{uid}.fcmTokens に登録する（モバイルだけ。
+    // ウェブでは取り出さない）。FirebaseMessaging は取り出したときに初めて触る。
+    locator.registerLazySingleton<FcmTokenService>(
+      () => FcmTokenService(
+        firestore: FirebaseFirestore.instance,
+        getToken: () => FirebaseMessaging.instance.getToken(),
+        onTokenRefresh: () => FirebaseMessaging.instance.onTokenRefresh,
+      ),
     );
 
     // Fuel records (給油は月2〜4回あり、唯一の月単位の接点).
