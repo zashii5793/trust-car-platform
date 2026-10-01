@@ -20,6 +20,14 @@ const bool kEnableC2cParts =
 const bool kEnableAiChat =
     bool.fromEnvironment('ENABLE_AI_CHAT', defaultValue: false);
 
+/// 店舗プランのアプリ内課金（RevenueCat）。2026-09-29 のオーナー判断で、
+/// 店舗プランは当面、請求書払い（銀行振込）。10店舗程度になってクレジット
+/// 決済を足すときに戻せるよう、購入処理は消さずに既定で隠す。
+/// `--dart-define=ENABLE_SHOP_IAP=true`、本番は Remote Config の
+/// `shop_in_app_purchase`。
+const bool kEnableShopInAppPurchase =
+    bool.fromEnvironment('ENABLE_SHOP_IAP', defaultValue: false);
+
 /// アプリケーション設定
 ///
 /// 環境変数、Feature Flags、設定値を一元管理
@@ -76,6 +84,8 @@ class AppConfig {
     // key `part_recommendations`.
     FeatureFlag.partRecommendations: kEnablePartRecommendations,
     FeatureFlag.aiChat: kEnableAiChat,
+    // 店舗プランのアプリ内課金。既定は請求書払いの申し込み（shop_plan_screen）。
+    FeatureFlag.shopInAppPurchase: kEnableShopInAppPurchase,
   };
 
   // 設定値
@@ -237,6 +247,10 @@ enum FeatureFlag {
   // 架空ブランドのデモデータ（demo_part_*）なので、既定で無効。
   // 実データの調達が済んだら Remote Config の `part_recommendations` で開ける。
   partRecommendations,
+
+  // 店舗プランのアプリ内課金（RevenueCat）。当面は請求書払いなので既定で無効。
+  // クレジット決済を足すときに Remote Config の `shop_in_app_purchase` で開ける。
+  shopInAppPurchase,
 }
 
 /// AppConfig のショートカット

@@ -358,11 +358,21 @@ void main() {
       expect(find.text('無料で掲載を始める'), findsOneWidget);
     });
 
-    testWidgets('プランを選択 section heading is shown', (tester) async {
+    testWidgets('プランと料金 section heading is shown', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('プランを選択'), findsOneWidget);
+      expect(find.text('プランと料金'), findsOneWidget);
+    });
+
+    testWidgets('有料プランは掲載のあと請求書払いで申し込むと案内する', (tester) async {
+      await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      final note = find.textContaining('請求書払い（銀行振込）で申し込めます');
+      await tester.scrollUntilVisible(note, 200,
+          scrollable: find.byType(Scrollable).first);
+      expect(note, findsOneWidget);
     });
 
     testWidgets('Free plan shows features', (tester) async {

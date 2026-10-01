@@ -98,6 +98,27 @@ service cloud.firestore {
         && isShortString(d.model, 100);
     }
 
+    // 店舗プランの申し込み（shops/{shopId}/plan_requests）。
+    // lib/services/shop_plan_request_service.dart と同じ形だけを受け付ける。
+    function validPlanRequest(shopId) {
+      let d = request.resource.data;
+      let shopPlan = get(/databases/$(database)/documents/shops/$(shopId)).data
+          .get('planType', 'free');
+      return d.keys().hasOnly([
+               'plan', 'currentPlan', 'requesterUid', 'contactEmail',
+               'billingName', 'note', 'status', 'createdAt'])
+        && d.plan in ['free', 'standard', 'premium', 'enterprise']
+        && d.currentPlan == shopPlan
+        && d.plan != d.currentPlan
+        && d.requesterUid == request.auth.uid
+        && isShortString(d.contactEmail, 254)
+        && d.contactEmail.matches('^[^\\s@]+@[^\\s@]+[.][^\\s@]+$')
+        && isShortString(d.billingName, 100)
+        && (!('note' in d) || (d.note is string && d.note.size() <= 1000))
+        && d.status == 'pending'
+        && d.createdAt == request.time;
+    }
+
     // Whether the caller is a party to an inquiry (the asking user or the shop).
     // Judged on the parent inquiry, not on each message: message-level checks
     // cannot be verified statically for list queries, so the chat screen was
@@ -305,16 +326,26 @@ service cloud.firestore {
       // 認証済みユーザーなら誰でも閲覧可能（アクティブな店舗）
       allow read: if isAuthenticated();
 
-      // 新規作成: docId == uid、かつ ownerId フィールドも uid と一致
+      // 新規作成: docId == uid、かつ ownerId フィールドも uid と一致。
+      // 2026-09-30: 作るときもプランはフリーだけ（有料プラン・有効を名乗って
+      // 作れてしまっていた）。有料プランは plan_requests で申し込む。
       allow create: if isAuthenticated()
         && shopId == request.auth.uid
-        && request.resource.data.ownerId == request.auth.uid;
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.get('planType', 'free') == 'free'
+        && request.resource.data.get('subscriptionStatus', 'free') == 'free'
+        && request.resource.data.get('planExpiresAt', null) == null
+        && request.resource.data.get('revenueCatUserId', null) == null
+        && request.resource.data.get('trialStartedAt', null) == null;
 
-      // 通常更新: オーナー本人のみ（subscriptionStatus / planType は除外 — Cloud Functions経由）
+      // 通常更新: オーナー本人のみ。プランの項目は書けない（運営者がサーバ側で
+      // 切り替える）。2026-09-30 まで planType・planExpiresAt が漏れていて、
+      // 店主が自分でプランを上げられた。
       allow update: if isAuthenticated()
         && resource.data.ownerId == request.auth.uid
         && !request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(['subscriptionStatus', 'revenueCatUserId', 'trialStartedAt'])
+            .hasAny(['planType', 'planExpiresAt', 'subscriptionStatus',
+                     'revenueCatUserId', 'trialStartedAt'])
         // 店主の引き継ぎ（2026-09-29）: ownerId を替えるなら、相手はこの店の
         // スタッフ名簿に載っている人だけ（見知らぬ人に店を渡さない）
         && (request.resource.data.ownerId == resource.data.ownerId
@@ -323,6 +354,18 @@ service cloud.firestore {
       // 削除: オーナー本人のみ
       allow delete: if isAuthenticated()
         && resource.data.ownerId == request.auth.uid;
+
+      // ==================== 店舗プランの申し込み（請求書払い） ====================
+      // 2026-09-29: 店舗プランは当面、請求書払い（銀行振込）。アプリは申し込みを
+      // 置くだけで、プランの切り替えは入金を確かめてから運営者がサーバ側で行う。
+      // - 申し込めるのは店主だけ（契約を結ぶのは店主）。自分の名前で、受付中として
+      // - 読めるのも店主だけ（宛名・連絡先が入る）
+      // - **作ったあとは書き換え・削除できない**（状態は運営者が Admin SDK で変える）
+      match /plan_requests/{requestId} {
+        allow read: if isShopOwnerOf(shopId);
+        allow create: if isShopOwnerOf(shopId) && validPlanRequest(shopId);
+        allow update, delete: if false;
+      }
 
       // Shop private sub-collection: analytics, revenue, sensitive ops data
       // Only the shop owner can read/write — never exposed to other users

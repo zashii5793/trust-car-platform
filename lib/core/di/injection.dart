@@ -30,6 +30,7 @@ import '../../services/drive_log_service.dart';
 import '../../services/part_listing_service.dart';
 import '../../services/shop_report_service.dart';
 import '../../services/shop_subscription_service.dart';
+import '../../services/shop_plan_request_service.dart';
 import '../../services/revenue_cat_service.dart';
 import '../../services/analytics_service.dart';
 import '../../services/user_subscription_service.dart';
@@ -154,6 +155,9 @@ class Injection {
     );
     locator.registerLazySingleton<ShopReportService>(() => ShopReportService());
     locator.registerLazySingleton<RevenueCatService>(() => RevenueCatService());
+    // 店舗プランの申し込み（請求書払い・2026-09-30）
+    locator.registerLazySingleton<ShopPlanRequestService>(
+        () => ShopPlanRequestService());
 
     // SNS/Community Services
     locator.registerLazySingleton<PostService>(() => PostService());

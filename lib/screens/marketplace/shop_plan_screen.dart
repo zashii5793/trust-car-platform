@@ -1,31 +1,72 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/config/app_config.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/di/service_locator.dart';
+import '../../core/error/app_error.dart';
 import '../../models/shop.dart';
+import '../../models/shop_plan_request.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/shop_plan_request_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../services/revenue_cat_service.dart';
+import '../../services/shop_plan_request_service.dart';
 import '../../services/shop_subscription_service.dart';
 import '../../widgets/common/loading_indicator.dart';
 
-/// BtoB shop plan upgrade screen.
+/// 店舗プランをアプリ内課金（RevenueCat）で売るか。
+///
+/// 2026-09-29 のオーナー判断で、店舗プランは当面、請求書払い（銀行振込）。
+/// 既定は false で、有料プランは「請求書払いで申し込む」流れになる
+/// （shops/{shopId}/plan_requests）。10店舗程度になってクレジット決済を
+/// 足すときに、Remote Config の `shop_in_app_purchase` で戻せるよう、
+/// 購入処理は消さずに残してある。
+bool get _useInAppPurchase => isFeatureEnabled(FeatureFlag.shopInAppPurchase);
+
+/// BtoB shop plan screen.
 ///
 /// Displays all 4 plan tiers with pricing and features.
-/// Purchase flow requires RevenueCat integration (Phase 7 Week 2).
-class ShopPlanScreen extends StatelessWidget {
+/// 既定は請求書払いの申し込み。プランの切り替え（planType・
+/// subscriptionStatus）は、入金を確かめてから運営者がサーバ側で行う。
+class ShopPlanScreen extends StatefulWidget {
   final String shopId;
   final ShopPlanType currentPlan;
+
+  /// 請求書の宛名の初期値（店名）。
+  final String? shopName;
 
   const ShopPlanScreen({
     super.key,
     required this.shopId,
     required this.currentPlan,
+    this.shopName,
   });
 
   @override
+  State<ShopPlanScreen> createState() => _ShopPlanScreenState();
+}
+
+class _ShopPlanScreenState extends State<ShopPlanScreen> {
+  @override
+  void initState() {
+    super.initState();
+    if (!_useInAppPurchase) {
+      // 受付中の申し込みがあれば、画面の上に出す
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<ShopPlanRequestProvider>().loadPending(widget.shopId);
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final useIap = _useInAppPurchase;
+    final mutedStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('プランを選択'),
@@ -41,57 +82,123 @@ class ShopPlanScreen extends StatelessWidget {
               style: Theme.of(context).textTheme.headlineSmall,
               textAlign: TextAlign.center,
             ),
-            AppSpacing.verticalXs,
-            Text(
-              '30日間の無料トライアルから始められます',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-              textAlign: TextAlign.center,
-            ),
+            // 「30日間の無料トライアル」は 2026-09-30 に外した。特商法・利用規約
+            // （請求書払い）に試用期間の定めがなく、約束できないため。
+            if (!useIap) ...[
+              AppSpacing.verticalXs,
+              Text(
+                'お支払いは請求書払い（銀行振込）です',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              AppSpacing.verticalMd,
+              _PendingRequestBanner(shopId: widget.shopId),
+            ],
             AppSpacing.verticalXxl,
-            _PlanCard(
-              planType: ShopPlanType.free,
-              currentPlan: currentPlan,
-              shopId: shopId,
-            ),
-            AppSpacing.verticalMd,
-            _PlanCard(
-              planType: ShopPlanType.standard,
-              currentPlan: currentPlan,
-              shopId: shopId,
-              isRecommended: currentPlan == ShopPlanType.free,
-            ),
-            AppSpacing.verticalMd,
-            _PlanCard(
-              planType: ShopPlanType.premium,
-              currentPlan: currentPlan,
-              shopId: shopId,
-            ),
-            AppSpacing.verticalMd,
-            _PlanCard(
-              planType: ShopPlanType.enterprise,
-              currentPlan: currentPlan,
-              shopId: shopId,
-            ),
+            for (final plan in ShopPlanType.values) ...[
+              if (plan != ShopPlanType.free) AppSpacing.verticalMd,
+              _PlanCard(
+                planType: plan,
+                currentPlan: widget.currentPlan,
+                shopId: widget.shopId,
+                shopName: widget.shopName,
+                isRecommended: plan == ShopPlanType.standard &&
+                    widget.currentPlan == ShopPlanType.free,
+              ),
+            ],
             AppSpacing.verticalXxl,
-            Text(
-              '※ 課金はApp Store / Google Playを通じて処理されます。\n'
-              'サブスクリプションはいつでもキャンセルできます。',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-            AppSpacing.verticalSm,
-            // App Store ガイドライン 3.1.1: サブスクは購入復元の導線が必須
-            const _RestorePurchasesButton(),
+            if (useIap) ...[
+              Text(
+                '※ 課金はApp Store / Google Playを通じて処理されます。\n'
+                'サブスクリプションはいつでもキャンセルできます。',
+                style: mutedStyle,
+                textAlign: TextAlign.center,
+              ),
+              AppSpacing.verticalSm,
+              // App Store ガイドライン 3.1.1: サブスクは購入復元の導線が必須
+              const _RestorePurchasesButton(),
+            ] else
+              Text(
+                '※ 店舗プランのお支払いは、毎月お送りする請求書による銀行振込です'
+                '（振込手数料はご負担ください）。\n'
+                'プランは、担当が申し込みを確かめ、入金を確認してから切り替わります。\n'
+                '解約・プランの変更も、この画面から申し込めます。',
+                style: mutedStyle,
+                textAlign: TextAlign.center,
+              ),
             AppSpacing.verticalLg,
           ],
         ),
       ),
     );
   }
+}
+
+/// 受付中の申し込みの表示。
+class _PendingRequestBanner extends StatelessWidget {
+  final String shopId;
+
+  const _PendingRequestBanner({required this.shopId});
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = context.watch<ShopPlanRequestProvider>().pending;
+    if (pending == null || pending.shopId != shopId) {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    return Container(
+      key: const Key('plan_request_pending'),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.mark_email_read_outlined, color: AppColors.info),
+          AppSpacing.horizontalSm,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  pending.isQuote
+                      ? '${pending.plan.displayName}の見積もりのご相談を受け付けています'
+                      : '${pending.plan.displayName}の申し込みを受け付けています',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                AppSpacing.verticalXxs,
+                Text(
+                  _acceptedMessage(pending),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 受け付けたあとの案内文。
+String _acceptedMessage(ShopPlanRequest req) {
+  if (req.isQuote) {
+    return '担当から個別にお見積もりをお送りします。';
+  }
+  if (req.plan.index < req.currentPlan.index) {
+    return '担当が確認し、プランの変更についてご連絡します。';
+  }
+  return '担当から請求書をお送りします。プランは入金の確認後に切り替わります。';
 }
 
 /// 「購入を復元」ボタン。
@@ -158,12 +265,14 @@ class _PlanCard extends StatelessWidget {
   final ShopPlanType planType;
   final ShopPlanType currentPlan;
   final String shopId;
+  final String? shopName;
   final bool isRecommended;
 
   const _PlanCard({
     required this.planType,
     required this.currentPlan,
     required this.shopId,
+    this.shopName,
     this.isRecommended = false,
   });
 
@@ -218,7 +327,7 @@ class _PlanCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            '¥${_formatPrice(planType.monthlyPrice!)}',
+                            '¥${_formatYen(planType.monthlyPrice!)}',
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
@@ -289,6 +398,7 @@ class _PlanCard extends StatelessWidget {
                     isCurrent: isCurrent,
                     isDowngrade: isDowngrade,
                     shopId: shopId,
+                    shopName: shopName,
                     currentPlan: currentPlan,
                   ),
                 ),
@@ -323,13 +433,6 @@ class _PlanCard extends StatelessWidget {
           ),
       ],
     );
-  }
-
-  String _formatPrice(int price) {
-    return price.toString().replaceAllMapped(
-          RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-          (m) => '${m[1]},',
-        );
   }
 }
 
@@ -377,6 +480,7 @@ class _PlanButton extends StatefulWidget {
   final bool isCurrent;
   final bool isDowngrade;
   final String shopId;
+  final String? shopName;
 
   const _PlanButton({
     required this.planType,
@@ -384,6 +488,7 @@ class _PlanButton extends StatefulWidget {
     required this.isCurrent,
     required this.isDowngrade,
     required this.shopId,
+    this.shopName,
   });
 
   @override
@@ -398,6 +503,11 @@ class _PlanButtonState extends State<_PlanButton> {
       return;
     }
 
+    if (!_useInAppPurchase) {
+      await _openInvoiceRequest();
+      return;
+    }
+
     if (widget.planType == ShopPlanType.free &&
         widget.currentPlan != ShopPlanType.free) {
       await _confirmDowngrade();
@@ -406,6 +516,46 @@ class _PlanButtonState extends State<_PlanButton> {
 
     await _startPurchase();
   }
+
+  // ---------------------------------------------------------------------------
+  // 請求書払いの申し込み（既定）
+  // ---------------------------------------------------------------------------
+
+  Future<void> _openInvoiceRequest() async {
+    final accepted = await showModalBottomSheet<ShopPlanRequest>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _PlanRequestSheet(
+        shopId: widget.shopId,
+        plan: widget.planType,
+        currentPlan: widget.currentPlan,
+        shopName: widget.shopName,
+      ),
+    );
+    if (accepted == null || !mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(accepted.isQuote ? 'ご相談を受け付けました' : '申し込みを受け付けました'),
+        content: Text(
+          '${_acceptedMessage(accepted)}\n'
+          'ご連絡は ${accepted.contactEmail} にお送りします。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // アプリ内課金（FeatureFlag.shopInAppPurchase を開けたときだけ）
+  // ---------------------------------------------------------------------------
 
   Future<void> _confirmDowngrade() async {
     final confirmed = await showDialog<bool>(
@@ -493,6 +643,11 @@ class _PlanButtonState extends State<_PlanButton> {
     }
   }
 
+  String get _upgradeLabel {
+    if (_useInAppPurchase) return 'アップグレード';
+    return widget.planType.isCustomQuote ? '見積もりを相談する' : '請求書払いで申し込む';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.isCurrent) {
@@ -526,10 +681,204 @@ class _PlanButtonState extends State<_PlanButton> {
 
     return ElevatedButton(
       onPressed: _handleTap,
-      child: widget.planType == ShopPlanType.standard ||
-              widget.planType == ShopPlanType.premium
-          ? const Text('30日間無料で始める')
-          : const Text('アップグレード'),
+      child: Text(_upgradeLabel),
     );
   }
+}
+
+/// 請求書払いの申し込みフォーム（ボトムシート）。
+///
+/// 受け付けたら、その申し込みを返して閉じる。
+class _PlanRequestSheet extends StatefulWidget {
+  final String shopId;
+  final ShopPlanType plan;
+  final ShopPlanType currentPlan;
+  final String? shopName;
+
+  const _PlanRequestSheet({
+    required this.shopId,
+    required this.plan,
+    required this.currentPlan,
+    this.shopName,
+  });
+
+  @override
+  State<_PlanRequestSheet> createState() => _PlanRequestSheetState();
+}
+
+class _PlanRequestSheetState extends State<_PlanRequestSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _billingNameController;
+  late final TextEditingController _emailController;
+  final _noteController = TextEditingController();
+
+  bool get _isQuote => widget.plan.isCustomQuote;
+  bool get _isDowngrade => widget.plan.index < widget.currentPlan.index;
+
+  @override
+  void initState() {
+    super.initState();
+    _billingNameController = TextEditingController(text: widget.shopName ?? '');
+    _emailController = TextEditingController(
+      text: context.read<AuthProvider>().firebaseUser?.email ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _billingNameController.dispose();
+    _emailController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  String get _title {
+    final name = widget.plan.displayName;
+    if (_isQuote) return '$nameの見積もりを相談する';
+    if (_isDowngrade) return '$nameへの変更を申し込む';
+    return '$nameを請求書払いで申し込む';
+  }
+
+  String get _summary {
+    final price = widget.plan.monthlyPrice;
+    final lines = <String>[
+      if (_isQuote)
+        '料金は、店舗数やご利用の内容に合わせて個別にお見積もりします。'
+      else if (price != null)
+        '月額 ¥${_formatYen(price)}（税込）・請求書払い（銀行振込）'
+      else
+        'フリープランは無料です。',
+      // 利用規約 第11条6: 解約後も満了日までは有料プランの機能を使える
+      if (_isDowngrade) '契約期間の満了日まで、いまのプランの機能をお使いいただけます。',
+    ];
+    return lines.join('\n');
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final uid = context.read<AuthProvider>().firebaseUser?.uid ?? '';
+    if (uid.isEmpty) {
+      showErrorSnackBar(context, 'ログインしてください');
+      return;
+    }
+
+    final provider = context.read<ShopPlanRequestProvider>();
+    final ok = await provider.submit(
+      shopId: widget.shopId,
+      requesterUid: uid,
+      plan: widget.plan,
+      currentPlan: widget.currentPlan,
+      contactEmail: _emailController.text,
+      billingName: _billingNameController.text,
+      note: _noteController.text,
+    );
+    if (!mounted) return;
+
+    if (ok) {
+      Navigator.of(context).pop(provider.pending);
+    } else {
+      showErrorSnackBar(
+        context,
+        provider.error is PermissionError
+            ? 'プランを申し込めるのは店主だけです'
+            : '申し込みを送れませんでした。時間をおいてもう一度お試しください',
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isSubmitting = context.watch<ShopPlanRequestProvider>().isSubmitting;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: AppSpacing.md,
+        right: AppSpacing.md,
+        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.md,
+      ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                _title,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              AppSpacing.verticalSm,
+              Text(_summary, style: theme.textTheme.bodyMedium),
+              AppSpacing.verticalLg,
+              TextFormField(
+                key: const Key('plan_request_billing_name'),
+                controller: _billingNameController,
+                decoration: const InputDecoration(
+                  labelText: '請求書の宛名',
+                  hintText: '例: 株式会社タカヤモーター',
+                ),
+                maxLength: ShopPlanRequestService.maxBillingNameLength,
+                textInputAction: TextInputAction.next,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? '請求書の宛名を入力してください' : null,
+              ),
+              AppSpacing.verticalSm,
+              TextFormField(
+                key: const Key('plan_request_email'),
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: '連絡先メールアドレス',
+                  helperText: '請求書・お見積もりはこのアドレスにお送りします',
+                ),
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                validator: (v) => ShopPlanRequestService.isValidEmail(v ?? '')
+                    ? null
+                    : 'メールアドレスを確認してください',
+              ),
+              AppSpacing.verticalSm,
+              TextFormField(
+                key: const Key('plan_request_note'),
+                controller: _noteController,
+                decoration: InputDecoration(
+                  labelText: 'ご要望（任意）',
+                  hintText: _isQuote ? '店舗数・ご希望の開始時期など' : 'ご希望の開始時期など',
+                ),
+                maxLines: 3,
+                maxLength: ShopPlanRequestService.maxNoteLength,
+              ),
+              AppSpacing.verticalMd,
+              FilledButton(
+                key: const Key('plan_request_submit'),
+                onPressed: isSubmitting ? null : _submit,
+                style: FilledButton.styleFrom(
+                  minimumSize:
+                      const Size.fromHeight(AppSpacing.tapTargetRecommended),
+                ),
+                child: Text(
+                  isSubmitting ? '送信中...' : (_isQuote ? '相談を送る' : '申し込む'),
+                ),
+              ),
+              TextButton(
+                onPressed:
+                    isSubmitting ? null : () => Navigator.of(context).pop(),
+                child: const Text('キャンセル'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _formatYen(int price) {
+  return price.toString().replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+        (m) => '${m[1]},',
+      );
 }

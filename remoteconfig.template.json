@@ -27,11 +27,18 @@
       },
       "valueType": "BOOLEAN",
       "description": "AI チャットを出すかどうか。本番に Functions（askCarAi）と ANTHROPIC_API_KEY が入り、費用の上限を決めてから true にする。"
+    },
+    "shop_in_app_purchase": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "valueType": "BOOLEAN",
+      "description": "店舗プランをアプリ内課金（RevenueCat）で売るかどうか。false は請求書払いの申し込み（2026-09-29 のオーナー判断）。クレジット決済を足すときに、RevenueCat と各ストアの商品を用意してから true にする。"
     }
   },
   "parameterGroups": {},
   "conditions": [],
   "version": {
-    "description": "part_recommendations と ai_chat を追加（どちらも false）"
+    "description": "shop_in_app_purchase を追加（false。店舗プランは請求書払い）"
   }
 }

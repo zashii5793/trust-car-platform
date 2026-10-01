@@ -43,6 +43,7 @@ class FeatureFlagService {
     'premium_features': FeatureFlag.premiumFeatures,
     'part_recommendations': FeatureFlag.partRecommendations,
     'ai_chat': FeatureFlag.aiChat,
+    'shop_in_app_purchase': FeatureFlag.shopInAppPurchase,
   };
 
   /// Fetches remote overrides and applies them onto [AppConfig].

@@ -35,9 +35,11 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
 
   late ShopType _selectedType;
   late Set<ServiceCategory> _selectedServices;
-  late ShopPlanType _selectedPlan;
 
   bool get _isEditMode => widget.existingShop != null;
+
+  ShopPlanType get _currentPlan =>
+      widget.existingShop?.planType ?? ShopPlanType.free;
 
   @override
   void initState() {
@@ -53,7 +55,6 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
     _addressController = TextEditingController(text: s?.address ?? '');
     _selectedType = s?.type ?? ShopType.maintenanceShop;
     _selectedServices = s != null ? Set.from(s.services) : {};
-    _selectedPlan = s?.planType ?? ShopPlanType.free;
   }
 
   @override
@@ -104,7 +105,14 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
             ? null
             : _addressController.text.trim(),
         services: _selectedServices.toList(),
-        planType: _selectedPlan,
+        // プランはこの画面では変えない（2026-09-30。請求書払いで申し込み、
+        // 運営者が切り替える）。いまの値をそのまま渡す。新しい店はフリー。
+        planType: widget.existingShop?.planType ?? ShopPlanType.free,
+        planExpiresAt: widget.existingShop?.planExpiresAt,
+        subscriptionStatus: widget.existingShop?.subscriptionStatus ??
+            ShopSubscriptionStatus.free,
+        revenueCatUserId: widget.existingShop?.revenueCatUserId,
+        trialStartedAt: widget.existingShop?.trialStartedAt,
         ownerId: uid,
         imageUrls: widget.existingShop?.imageUrls ?? [],
         supportedMakerIds: widget.existingShop?.supportedMakerIds ?? [],
@@ -310,8 +318,12 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
                 ),
                 AppSpacing.verticalXl,
 
-                // Section 5: Plan
-                _SectionHeader(title: 'プラン選択'),
+                // Section 5: Plan（表示だけ）
+                //
+                // 2026-09-30 まではここで有料プランを選べ、planType をそのまま
+                // 書いていた（＝支払いなしでプランが上がる）。店舗プランは
+                // 請求書払いなので、ここでは料金を見せるだけにする。
+                _SectionHeader(title: 'プランと料金'),
                 AppSpacing.verticalSm,
                 _PlanCard(
                   plan: ShopPlanType.free,
@@ -320,9 +332,7 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
                     '基本情報を掲載',
                     '問い合わせ受付',
                   ],
-                  selected: _selectedPlan == ShopPlanType.free,
-                  onTap: () =>
-                      setState(() => _selectedPlan = ShopPlanType.free),
+                  isCurrent: _currentPlan == ShopPlanType.free,
                 ),
                 AppSpacing.verticalSm,
                 _PlanCard(
@@ -333,9 +343,7 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
                     'フィーチャー表示',
                     '優先検索表示',
                   ],
-                  selected: _selectedPlan == ShopPlanType.standard,
-                  onTap: () =>
-                      setState(() => _selectedPlan = ShopPlanType.standard),
+                  isCurrent: _currentPlan == ShopPlanType.standard,
                 ),
                 AppSpacing.verticalSm,
                 _PlanCard(
@@ -347,9 +355,17 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
                     '専任サポート担当',
                     '月次分析レポート',
                   ],
-                  selected: _selectedPlan == ShopPlanType.premium,
-                  onTap: () =>
-                      setState(() => _selectedPlan = ShopPlanType.premium),
+                  isCurrent: _currentPlan == ShopPlanType.premium,
+                ),
+                AppSpacing.verticalSm,
+                Text(
+                  _isEditMode
+                      ? 'プランの変更は、掲載管理の画面から請求書払いで申し込めます。'
+                      : '掲載はフリープランから始まります。有料プランは、掲載のあと'
+                          '掲載管理の画面から請求書払いで申し込めます。',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                 ),
                 AppSpacing.verticalXl,
 
@@ -491,90 +507,89 @@ class _ServiceMultiSelect extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Plan selection card
+// Plan card（表示だけ）
 // ---------------------------------------------------------------------------
 
 class _PlanCard extends StatelessWidget {
   final ShopPlanType plan;
   final String price;
   final List<String> features;
-  final bool selected;
-  final VoidCallback onTap;
+  final bool isCurrent;
 
   const _PlanCard({
     required this.plan,
     required this.price,
     required this.features,
-    required this.selected,
-    required this.onTap,
+    required this.isCurrent,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: AppCard(
-        backgroundColor:
-            selected ? AppColors.primary.withValues(alpha: 0.06) : null,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                _planIcon,
-                AppSpacing.horizontalSm,
-                Text(
-                  _planLabel,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: selected ? AppColors.primary : null,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  price,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color:
-                        selected ? AppColors.primary : AppColors.textSecondary,
-                  ),
-                ),
-                AppSpacing.horizontalSm,
-                Icon(
-                  selected
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_off,
-                  color: selected ? AppColors.primary : AppColors.textTertiary,
-                ),
-              ],
-            ),
-            AppSpacing.verticalSm,
-            ...features.map(
-              (f) => Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.xxs),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.check_circle_outline,
-                      size: AppSpacing.iconSm,
-                      color:
-                          selected ? AppColors.primary : AppColors.textTertiary,
-                    ),
-                    AppSpacing.horizontalXs,
-                    Text(
-                      f,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: selected ? null : AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+    return AppCard(
+      key: Key('registration_plan_${plan.name}'),
+      backgroundColor:
+          isCurrent ? AppColors.primary.withValues(alpha: 0.06) : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _planIcon,
+              AppSpacing.horizontalSm,
+              Text(
+                _planLabel,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isCurrent ? AppColors.primary : null,
                 ),
               ),
+              if (isCurrent) ...[
+                AppSpacing.horizontalSm,
+                Text(
+                  '現在のプラン',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const Spacer(),
+              Text(
+                price,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color:
+                      isCurrent ? AppColors.primary : AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          AppSpacing.verticalSm,
+          ...features.map(
+            (f) => Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xxs),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.check_circle_outline,
+                    size: AppSpacing.iconSm,
+                    color:
+                        isCurrent ? AppColors.primary : AppColors.textTertiary,
+                  ),
+                  AppSpacing.horizontalXs,
+                  Text(
+                    f,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: isCurrent ? null : AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
