@@ -73,14 +73,18 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final uid = context.read<AuthProvider>().firebaseUser?.uid;
+    final user = context.read<AuthProvider>().firebaseUser;
+    final uid = user?.uid;
     if (uid == null) return;
 
     final provider = context.read<ShopProvider>();
 
     final success = await provider.saveMyShop(
       Shop(
-        id: widget.existingShop?.id ?? uid,
+        // 新しい店は id を空で渡し、自動IDで作る（2026-10-01、
+        // docs/SHOP_ID_DECOUPLING_DESIGN.md 段階1）。店のIDを店主の uid に
+        // しない。直すときは、いまの店のIDのまま
+        id: widget.existingShop?.id ?? provider.myShop?.id ?? '',
         name: _nameController.text.trim(),
         type: _selectedType,
         description: _descriptionController.text.trim().isEmpty
@@ -125,6 +129,7 @@ class _ShopRegistrationScreenState extends State<ShopRegistrationScreen> {
         createdAt: widget.existingShop?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),
       ),
+      ownerName: user?.displayName,
     );
 
     if (!mounted) return;

@@ -593,15 +593,19 @@ class ShopProvider with ChangeNotifier {
 
   /// Create or update the current user's shop
   ///
+  /// 新しく作るときは [shop] の id を空にすると自動IDで作る
+  /// （[ShopService.createMyShop]）。[ownerName] はスタッフ名簿に載せる
+  /// 店主の名前。
+  ///
   /// Returns true on success, false on failure.
-  Future<bool> saveMyShop(Shop shop) async {
+  Future<bool> saveMyShop(Shop shop, {String? ownerName}) async {
     _isSubmitting = true;
     _submitError = null;
     notifyListeners();
 
     // Determine create or update based on existing _myShop
     final Result<Shop, AppError> result = _myShop == null
-        ? await _shopService.createMyShop(shop)
+        ? await _shopService.createMyShop(shop, ownerName: ownerName)
         : await _shopService.updateMyShop(shop);
 
     bool success = false;

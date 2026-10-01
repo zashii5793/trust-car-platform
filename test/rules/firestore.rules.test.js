@@ -3587,3 +3587,274 @@ describe('shops — プランは店主でも書けない（請求書払いの切
     await assertSucceeds(setDoc(doc(dbFor(OWNER), SHOP_PATH), { name: '店', ownerId: OWNER }));
   });
 });
+
+// ==================== 店のIDと店主を切り離す（段階1・2026-10-01） ====================
+// docs/SHOP_ID_DECOUPLING_DESIGN.md
+// - 新しい店は自動ID（英数字20文字）で作れる。作った人が ownerId・名簿の owner
+// - これまでの形（店のID ＝ 店主の uid）の店は、今までどおり作れて動く
+// - 好きなIDでは作れない（他人の uid・意味のある文字列・利用者のいるID）
+describe('shops — 店のIDと店主を切り離す（段階1）', () => {
+  const { writeBatch } = require('firebase/firestore');
+  const OWNER = 'decouple_owner';
+  const STAFF = 'decouple_staff';
+  const STRANGER = 'decouple_stranger';
+  const AUTO_ID = 'Ab3dEfGh1jKlMn0pQrSt'; // 自動IDの形（20文字）
+  const AUTO_PATH = `shops/${AUTO_ID}`;
+  const LEGACY_PATH = `shops/${OWNER}`;
+
+  // ShopService.createMyShop が書く形（プランはフリー）
+  const appShop = (o = {}) => ({
+    name: 'タカヤモーター 2号店',
+    type: 'maintenanceShop',
+    ownerId: OWNER,
+    isActive: true,
+    planType: 'free',
+    subscriptionStatus: 'free',
+    planExpiresAt: null,
+    revenueCatUserId: null,
+    trialStartedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...o,
+  });
+
+  // アプリが新しい店を作るバッチ（店 + 名簿の owner）
+  function createWithOwner(uid, shopPath, { memberUid = uid, role = 'owner', ownerId = uid } = {}) {
+    const db = dbFor(uid);
+    const b = writeBatch(db);
+    b.set(doc(db, shopPath), appShop({ ownerId }));
+    b.set(doc(db, `${shopPath}/members/${memberUid}`), {
+      role, displayName: '店主', addedAt: new Date(),
+    });
+    return b.commit();
+  }
+
+  async function seedAutoShop() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, AUTO_PATH), { name: '店', ownerId: OWNER });
+      await setDoc(doc(db, `${AUTO_PATH}/members/${OWNER}`), { role: 'owner', displayName: '店主' });
+      await setDoc(doc(db, `${AUTO_PATH}/members/${STAFF}`), { role: 'staff', displayName: '佐藤' });
+      await setDoc(doc(db, `shop_staff/${STAFF}`), { shopId: AUTO_ID, shopName: '店' });
+      await setDoc(doc(db, `${AUTO_PATH}/private/p1`), { revenue: 1 });
+      await setDoc(doc(db, 'inquiries/dq1'), {
+        userId: 'cust', shopId: AUTO_ID, type: 'general', status: 'pending',
+        subject: 'x', initialMessage: 'x',
+      });
+    });
+  }
+
+  describe('作る', () => {
+    test('これまでの形（ID ＝ 自分の uid）で、今までどおり作れる', async () => {
+      await assertSucceeds(setDoc(doc(dbFor(OWNER), LEGACY_PATH), appShop()));
+    });
+
+    test('自動IDの形で作れる', async () => {
+      await assertSucceeds(setDoc(doc(dbFor(OWNER), AUTO_PATH), appShop()));
+    });
+
+    test('アプリが書く形（店 + 名簿の owner を1回のバッチ）で作れる', async () => {
+      await assertSucceeds(createWithOwner(OWNER, AUTO_PATH));
+      // 作った人は店主として名簿・台帳を読める
+      await assertSucceeds(getDocs(collection(dbFor(OWNER), `${AUTO_PATH}/members`)));
+      await assertSucceeds(getDocs(collection(dbFor(OWNER), `${AUTO_PATH}/customers`)));
+    });
+
+    test('これまでの形でも、店 + 名簿の owner を1回のバッチで作れる', async () => {
+      await assertSucceeds(createWithOwner(OWNER, LEGACY_PATH));
+    });
+
+    test('自動IDでも、ownerId に他人を書いては作れない', async () => {
+      await assertFails(setDoc(doc(dbFor(OWNER), AUTO_PATH), appShop({ ownerId: STRANGER })));
+    });
+
+    test('自動IDでも、有料プランを名乗っては作れない', async () => {
+      await assertFails(setDoc(doc(dbFor(OWNER), AUTO_PATH), appShop({ planType: 'premium' })));
+      await assertFails(setDoc(doc(dbFor(OWNER), AUTO_PATH), appShop({ subscriptionStatus: 'active' })));
+    });
+
+    test('未ログインでは作れない', async () => {
+      await assertFails(setDoc(doc(unauthDb(), AUTO_PATH), appShop()));
+    });
+
+    test('すでにある店（自動ID）を、作るふりをして上書きできない', async () => {
+      await seedAutoShop();
+      await assertFails(setDoc(doc(dbFor(STRANGER), AUTO_PATH), appShop({ ownerId: STRANGER })));
+    });
+
+    describe('Edge Cases — 好きなIDでは作れない', () => {
+      test('他人の uid をIDにして作れない', async () => {
+        await assertFails(setDoc(doc(dbFor(STRANGER), LEGACY_PATH), appShop({ ownerId: STRANGER })));
+      });
+
+      test('意味のある文字列・記号入りのIDでは作れない', async () => {
+        await assertFails(setDoc(doc(dbFor(OWNER), 'shops/takaya-motor'), appShop()));
+        await assertFails(setDoc(doc(dbFor(OWNER), 'shops/Ab3dEfGh1jKlMn0pQr_t'), appShop()));
+      });
+
+      test('19文字・21文字のIDでは作れない', async () => {
+        await assertFails(setDoc(doc(dbFor(OWNER), `shops/${AUTO_ID.slice(1)}`), appShop()));
+        await assertFails(setDoc(doc(dbFor(OWNER), `shops/${AUTO_ID}x`), appShop()));
+      });
+
+      test('利用者（users/{id}）がいるIDでは、自動IDの形でも作れない', async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          await setDoc(doc(ctx.firestore(), `users/${AUTO_ID}`), { displayName: '別の人' });
+        });
+        await assertFails(setDoc(doc(dbFor(OWNER), AUTO_PATH), appShop()));
+      });
+    });
+  });
+
+  describe('名簿の owner', () => {
+    test('作るバッチでも、他人を owner として載せられない', async () => {
+      await assertFails(createWithOwner(OWNER, AUTO_PATH, { memberUid: STRANGER }));
+    });
+
+    test('作るバッチでも、owner・staff 以外の役割では載せられない', async () => {
+      await assertFails(createWithOwner(OWNER, AUTO_PATH, { role: 'admin' }));
+    });
+
+    test('他人の店に、自分を owner として載せられない', async () => {
+      await seedAutoShop();
+      await assertFails(setDoc(doc(dbFor(STRANGER), `${AUTO_PATH}/members/${STRANGER}`), {
+        role: 'owner', displayName: '乗っ取り',
+      }));
+    });
+
+    test('スタッフは、自分の役割を owner に書き換えられない', async () => {
+      await seedAutoShop();
+      await assertFails(updateDoc(doc(dbFor(STAFF), `${AUTO_PATH}/members/${STAFF}`), { role: 'owner' }));
+    });
+
+    test('店がまだ無いのに、名簿だけ owner として書けない', async () => {
+      await assertFails(setDoc(doc(dbFor(OWNER), `${AUTO_PATH}/members/${OWNER}`), {
+        role: 'owner', displayName: '店主',
+      }));
+    });
+  });
+
+  describe('自動IDの店でも、これまでと同じ流れが通る', () => {
+    test('店主は問い合わせ・非公開の情報を読める。他人は読めない', async () => {
+      await seedAutoShop();
+      await assertSucceeds(getDoc(doc(dbFor(OWNER), 'inquiries/dq1')));
+      await assertSucceeds(getDoc(doc(dbFor(OWNER), `${AUTO_PATH}/private/p1`)));
+      await assertFails(getDoc(doc(dbFor(STRANGER), 'inquiries/dq1')));
+      await assertFails(getDoc(doc(dbFor(STRANGER), `${AUTO_PATH}/private/p1`)));
+    });
+
+    test('店主は店を直せる・他人は直せない', async () => {
+      await seedAutoShop();
+      await assertSucceeds(updateDoc(doc(dbFor(OWNER), AUTO_PATH), { name: '新しい店名' }));
+      await assertFails(updateDoc(doc(dbFor(STRANGER), AUTO_PATH), { name: '乗っ取り' }));
+    });
+
+    test('スタッフは顧客台帳を読み書きできる。他人はできない', async () => {
+      await seedAutoShop();
+      await assertSucceeds(setDoc(doc(dbFor(STAFF), `${AUTO_PATH}/customers/c1`), ledgerCustomer()));
+      await assertSucceeds(getDocs(collection(dbFor(OWNER), `${AUTO_PATH}/customers`)));
+      await assertFails(getDocs(collection(dbFor(STRANGER), `${AUTO_PATH}/customers`)));
+    });
+
+    test('店主はスタッフ用のコードを発行でき、スタッフはそれで入れる', async () => {
+      await seedAutoShop();
+      const code = 'DEC234';
+      await assertSucceeds(setDoc(doc(dbFor(OWNER), `shop_staff_invites/${code}`), {
+        shopId: AUTO_ID, shopName: '店', expiresAt: new Date(Date.now() + 86400000), usedBy: null,
+      }));
+      const NEW = 'decouple_new_staff';
+      const db = dbFor(NEW);
+      const b = writeBatch(db);
+      b.update(doc(db, `shop_staff_invites/${code}`), { usedBy: NEW, usedAt: new Date() });
+      b.set(doc(db, `${AUTO_PATH}/members/${NEW}`), {
+        role: 'staff', displayName: '新人', inviteCode: code, addedAt: new Date(),
+      });
+      b.set(doc(db, `shop_staff/${NEW}`), { shopId: AUTO_ID, shopName: '店' });
+      await assertSucceeds(b.commit());
+      await assertSucceeds(getDocs(collection(dbFor(NEW), `${AUTO_PATH}/customers`)));
+    });
+
+    function transfer(uid) {
+      const db = dbFor(uid);
+      const b = writeBatch(db);
+      b.update(doc(db, AUTO_PATH), { ownerId: STAFF, updatedAt: new Date() });
+      b.update(doc(db, `${AUTO_PATH}/members/${STAFF}`), { role: 'owner' });
+      b.set(doc(db, `${AUTO_PATH}/members/${OWNER}`), { role: 'staff', displayName: '前', addedAt: new Date() });
+      b.set(doc(db, `shop_staff/${OWNER}`), { shopId: AUTO_ID, shopName: '店' });
+      b.delete(doc(db, `shop_staff/${STAFF}`));
+      return b.commit();
+    }
+
+    test('店主はスタッフに引き継げる（アプリが書く形）。スタッフが勝手には書けない', async () => {
+      await seedAutoShop();
+      await assertFails(transfer(STAFF));
+      await assertSucceeds(transfer(OWNER));
+      // 引き継いだあと、新しい店主は読めて、前の店主は非公開の情報を読めない
+      await assertSucceeds(getDoc(doc(dbFor(STAFF), `${AUTO_PATH}/private/p1`)));
+      await assertFails(getDoc(doc(dbFor(OWNER), `${AUTO_PATH}/private/p1`)));
+    });
+
+    test('店として招待・メニュー・ニュースレターを出せるのは店主だけ', async () => {
+      await seedAutoShop();
+      await assertSucceeds(setDoc(doc(dbFor(OWNER), 'service_menus/dm1'), { shopId: AUTO_ID, name: '車検' }));
+      await assertSucceeds(setDoc(doc(dbFor(OWNER), 'newsletters/dn1'), {
+        authorId: AUTO_ID, status: 'draft', title: 'x',
+      }));
+      await assertFails(setDoc(doc(dbFor(STRANGER), 'service_menus/dm2'), { shopId: AUTO_ID, name: '車検' }));
+      await assertFails(setDoc(doc(dbFor(STRANGER), 'newsletters/dn2'), {
+        authorId: AUTO_ID, status: 'draft', title: 'x',
+      }));
+    });
+
+    test('店主は請求書払いを申し込める。スタッフは申し込めない', async () => {
+      await seedAutoShop();
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await updateDoc(doc(ctx.firestore(), AUTO_PATH), { planType: 'free', subscriptionStatus: 'free' });
+      });
+      const req = (uid) => ({
+        plan: 'standard', currentPlan: 'free', requesterUid: uid,
+        contactEmail: 'shop@example.com', billingName: '株式会社タカヤモーター',
+        status: 'pending', createdAt: serverTimestamp(),
+      });
+      await assertSucceeds(setDoc(doc(dbFor(OWNER), `${AUTO_PATH}/plan_requests/r1`), req(OWNER)));
+      await assertFails(setDoc(doc(dbFor(STAFF), `${AUTO_PATH}/plan_requests/r2`), req(STAFF)));
+    });
+  });
+
+  describe('これまでの形の店は、名簿に owner が無くても今までどおり', () => {
+    // 本番のタカヤモーター: ID ＝ 店主の uid、名簿に owner の行は無い
+    async function seedLegacy() {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, LEGACY_PATH), { name: 'タカヤモーター', ownerId: OWNER });
+        await setDoc(doc(db, `${LEGACY_PATH}/private/p1`), { revenue: 1 });
+      });
+    }
+
+    test('店主は店を直せて、非公開の情報・台帳・名簿を読める', async () => {
+      await seedLegacy();
+      await assertSucceeds(updateDoc(doc(dbFor(OWNER), LEGACY_PATH), { name: 'タカヤモーター本店' }));
+      await assertSucceeds(getDoc(doc(dbFor(OWNER), `${LEGACY_PATH}/private/p1`)));
+      await assertSucceeds(getDocs(collection(dbFor(OWNER), `${LEGACY_PATH}/customers`)));
+      await assertSucceeds(getDocs(collection(dbFor(OWNER), `${LEGACY_PATH}/members`)));
+    });
+
+    test('店主はあとから名簿に自分を owner として載せられる（段階2の準備）', async () => {
+      await seedLegacy();
+      await assertSucceeds(setDoc(doc(dbFor(OWNER), `${LEGACY_PATH}/members/${OWNER}`), {
+        role: 'owner', displayName: '店主',
+      }));
+    });
+
+    test('他人は直せない・読めない', async () => {
+      await seedLegacy();
+      await assertFails(updateDoc(doc(dbFor(STRANGER), LEGACY_PATH), { name: '乗っ取り' }));
+      await assertFails(getDoc(doc(dbFor(STRANGER), `${LEGACY_PATH}/private/p1`)));
+    });
+
+    test('ownerId で自分の店を探すクエリ（getMyShop）が通る', async () => {
+      await seedLegacy();
+      await assertSucceeds(getDocs(query(collection(dbFor(OWNER), 'shops'), where('ownerId', '==', OWNER))));
+    });
+  });
+});

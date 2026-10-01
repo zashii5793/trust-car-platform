@@ -1169,8 +1169,9 @@ class _PlanBadge extends StatelessWidget {
 
 /// 店を持っていない人のうち、店のスタッフのための入口。
 ///
-/// スタッフは自分の店を持たない（店のドキュメントIDは店主の uid）ので、
-/// ここで「どの店のスタッフか」を引いて、その店の顧客台帳へ案内する。
+/// スタッフは自分の店を持たない（店主は店の ownerId で決まり、スタッフの
+/// uid からは店が引けない）ので、ここで「どの店のスタッフか」
+/// （`shop_staff/{uid}`）を引いて、その店の顧客台帳へ案内する。
 class _StaffEntryCard extends StatefulWidget {
   final ShopStaffService service;
 
@@ -1202,12 +1203,14 @@ class _StaffEntryCardState extends State<_StaffEntryCard> {
   }
 
   Future<void> _openLedger(StaffShopLink link) async {
-    // いまの店主の uid。店主を引き継げるようにしたので（2026-09-29）、
-    // 店のドキュメントID（＝最初の店主の uid）とは限らない。
-    var ownerUid = link.shopId;
+    // いまの店主の uid。店の ownerId から引く。店のドキュメントIDは
+    // 店主の uid とは限らない（2026-09-29 店主の引き継ぎ、2026-10-01 から
+    // 新しい店は自動ID）。引けなければ null（店のIDを店主の uid として
+    // 使うと、自動IDの店で招待に間違った店主が書かれるため）。
+    String? ownerUid;
     if (sl.isRegistered<ShopService>()) {
       final shop = await sl.get<ShopService>().getShop(link.shopId);
-      ownerUid = shop.valueOrNull?.ownerId ?? link.shopId;
+      ownerUid = shop.valueOrNull?.ownerId;
     }
     if (!mounted) return;
     await Navigator.push(

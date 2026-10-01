@@ -471,7 +471,7 @@ class _InquiryDetailSheet extends StatefulWidget {
   /// showModalBottomSheet's builder.
   final ShopProvider shopProvider;
 
-  /// Firebase UID of the shop owner — used as senderId when sending replies.
+  /// ログイン中の人（店主またはスタッフ）の uid。返信の senderId になる。
   final String senderId;
 
   const _InquiryDetailSheet({
