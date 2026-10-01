@@ -46,6 +46,10 @@ export const USER_OWNED_COLLECTIONS: readonly string[] = [
   "fleet_members",
   "social_notifications",
   "user_part_listings",
+  // 2026-09-27 追加。どちらも userId を持つのに、ここに無かったため
+  // 退会しても残っていた（給油の履歴と、かかりつけ店の札）。
+  "fuel_records",
+  "shop_customers",
 ];
 
 /// Storage prefixes that hold a user's uploaded files.
@@ -79,6 +83,10 @@ export interface PurgeDeps {
   /// Deletes all docs in [collection] where field `userId` == uid.
   /// Returns the ids of the deleted documents.
   deleteByUserId(collection: string, uid: string): Promise<string[]>;
+  /// Deletes the vehicle copies the user handed to shops
+  /// (`shops/{shopId}/shared_vehicles/{vehicleId}`) and their index
+  /// (`vehicle_sharing_permissions`, keyed by ownerId rather than userId).
+  deleteSharesOf(uid: string): Promise<void>;
   /// Deletes waypoints belonging to the given drive logs.
   deleteWaypointsFor(driveLogIds: string[]): Promise<void>;
   /// Deletes the `users/{uid}` document.
@@ -112,6 +120,9 @@ export async function handleScheduledPurge(
 
   for (const uid of uids) {
     try {
+      // Before the vehicles: the copies live under the shops, and the index
+      // is the only way to find them.
+      await deps.deleteSharesOf(uid);
       let driveLogIds: string[] = [];
       for (const collection of USER_OWNED_COLLECTIONS) {
         const deletedIds = await deps.deleteByUserId(collection, uid);

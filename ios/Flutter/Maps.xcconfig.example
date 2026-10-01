@@ -1,0 +1,8 @@
+// Google Maps のキー。このファイルを Maps.xcconfig にコピーして値を入れる。
+//
+// Maps.xcconfig は .gitignore 対象。Android の android/local.properties と
+// 同じ位置づけで、鍵そのものはコミットしない。
+//
+// 値が無いときは AppDelegate が provideAPIKey を呼ばず、地図は
+// MapsConfig.isConfigured のガードで出さない（アプリは動く）。
+MAPS_API_KEY = 

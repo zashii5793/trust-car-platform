@@ -180,13 +180,24 @@ class DriveLogService {
   }
 
   /// Add waypoint to a drive
+  ///
+  /// **userId を必ず書く。** `firestore.rules` の `drive_waypoints` は
+  /// `request.resource.data.userId == request.auth.uid` を create の条件に
+  /// している。書いていなかったため、本番では経路が1点も保存されていなかった
+  /// （2026-09-08 に発見）。位置情報なので、ルールを緩める方向では直さない。
   Future<Result<void, AppError>> addWaypoint({
     required String driveLogId,
+    required String userId,
     required DriveWaypoint waypoint,
   }) async {
+    if (userId.trim().isEmpty) {
+      return const Result.failure(AppError.auth('記録するにはログインが必要です'));
+    }
+
     try {
       await _waypointsRef.add({
         'driveLogId': driveLogId,
+        'userId': userId,
         ...waypoint.toMap(),
       });
 
@@ -197,10 +208,18 @@ class DriveLogService {
   }
 
   /// Get waypoints for a drive
+  ///
+  /// 読み取りも userId で絞る。ルールが所有者を要求するため、driveLogId
+  /// だけのクエリは本番で permission-denied になる。
   Future<Result<List<DriveWaypoint>, AppError>> getWaypoints(
-      String driveLogId) async {
+    String driveLogId, {
+    required String userId,
+  }) async {
+    if (userId.trim().isEmpty) return const Result.success([]);
+
     try {
       final snapshot = await _waypointsRef
+          .where('userId', isEqualTo: userId)
           .where('driveLogId', isEqualTo: driveLogId)
           .orderBy('timestamp')
           .get();
@@ -231,16 +250,31 @@ class DriveLogService {
   }
 
   /// Get user's drive logs
+  ///
+  /// 続きを読むときは [startAfterId] に**いま持っている最後の1件のID**を渡す。
+  /// 件数を増やして取り直す形だと、20 → 40 → 60 … と読み直すことになり、
+  /// 1年ぶん（200件近く）を末尾までたどると読み取りが1,000件を超える
+  /// （2026-09-08 に実データで確認）。
   Future<Result<List<DriveLog>, AppError>> getUserDriveLogs({
     required String userId,
     int limit = 20,
     DocumentSnapshot? startAfter,
+    String? startAfterId,
   }) async {
     try {
       var query = _driveLogsRef
           .where('userId', isEqualTo: userId)
           .orderBy('startTime', descending: true)
           .limit(limit);
+
+      if (startAfter == null &&
+          startAfterId != null &&
+          startAfterId.isNotEmpty) {
+        final cursorDoc = await _driveLogsRef.doc(startAfterId).get();
+        if (cursorDoc.exists) {
+          startAfter = cursorDoc;
+        }
+      }
 
       if (startAfter != null) {
         query = query.startAfterDocument(startAfter);
@@ -254,6 +288,46 @@ class DriveLogService {
       return Result.success(logs);
     } catch (e) {
       return Result.failure(AppError.unknown('An error occurred'));
+    }
+  }
+
+  /// 走った回数と距離の合計を、ドキュメントを読まずに取る。
+  ///
+  /// ホームの「たびの記録」は、これまで **読み込んだ1ページ分（20件）の合計**
+  /// を「合計」として出していた。1年で 200 件近く記録する使い方だと、実際の
+  /// 1/10 の距離が「合計」として並ぶ。かといって全件を読むと、ホームを開く
+  /// たびに 200 ドキュメントぶんの読み取りが走る。
+  ///
+  /// 集計クエリ（count / sum）なら、返るのは数字だけで済む。
+  Future<Result<DriveLogSummary, AppError>> summaryForUser({
+    required String userId,
+    DateTime? since,
+  }) async {
+    if (userId.trim().isEmpty) {
+      return const Result.success(DriveLogSummary.empty);
+    }
+
+    try {
+      Query<Map<String, dynamic>> query =
+          _driveLogsRef.where('userId', isEqualTo: userId);
+      if (since != null) {
+        query = query.where(
+          'startTime',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(since),
+        );
+      }
+
+      final snapshot =
+          await query.aggregate(sum('statistics.totalDistance')).get();
+
+      return Result.success(
+        DriveLogSummary(
+          count: snapshot.count ?? 0,
+          totalDistanceKm: snapshot.getSum('statistics.totalDistance') ?? 0,
+        ),
+      );
+    } catch (e) {
+      return Result.failure(AppError.unknown('たびの記録の集計に失敗しました'));
     }
   }
 
@@ -386,8 +460,10 @@ class DriveLogService {
       }
 
       // Delete waypoints
-      final waypointSnapshot =
-          await _waypointsRef.where('driveLogId', isEqualTo: driveLogId).get();
+      final waypointSnapshot = await _waypointsRef
+          .where('userId', isEqualTo: userId)
+          .where('driveLogId', isEqualTo: driveLogId)
+          .get();
       for (final waypointDoc in waypointSnapshot.docs) {
         await waypointDoc.reference.delete();
       }

@@ -465,6 +465,10 @@ class _SubmitShowcaseSheetState extends State<_SubmitShowcaseSheet> {
   int _rating = 4;
   bool _isSaving = false;
 
+  /// どの車に付けたか。以前は常に1台目に紐づけていて、2台目の車の
+  /// パーツが1台目の愛車ページに並んでいた。null なら1台目。
+  String? _vehicleId;
+
   @override
   void dispose() {
     _itemNameController.dispose();
@@ -480,7 +484,8 @@ class _SubmitShowcaseSheetState extends State<_SubmitShowcaseSheet> {
 
     final uid = context.read<AuthProvider>().appUser?.id ?? '';
     final vehicles = context.read<VehicleProvider>().vehicles;
-    final vehicleId = vehicles.isNotEmpty ? vehicles.first.id : null;
+    final vehicleId =
+        _vehicleId ?? (vehicles.isNotEmpty ? vehicles.first.id : null);
 
     final priceText = _priceController.text.trim();
     final price = priceText.isEmpty ? null : int.tryParse(priceText);
@@ -574,6 +579,33 @@ class _SubmitShowcaseSheetState extends State<_SubmitShowcaseSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
+
+            // どの車に付けたか（2台以上あるときだけ聞く）
+            Builder(builder: (context) {
+              final vehicles = context.watch<VehicleProvider>().vehicles;
+              if (vehicles.length < 2) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: InputDecorator(
+                  decoration: const InputDecoration(labelText: 'どの車に付けたか'),
+                  child: DropdownButton<String>(
+                    key: const Key('showcase_vehicle_dropdown'),
+                    value: _vehicleId ?? vehicles.first.id,
+                    isDense: true,
+                    underline: const SizedBox.shrink(),
+                    isExpanded: true,
+                    items: [
+                      for (final v in vehicles)
+                        DropdownMenuItem(
+                          value: v.id,
+                          child: Text(v.displayName),
+                        ),
+                    ],
+                    onChanged: (id) => setState(() => _vehicleId = id),
+                  ),
+                ),
+              );
+            }),
 
             // Item name
             TextFormField(

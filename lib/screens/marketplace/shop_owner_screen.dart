@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../models/shop_monthly_report.dart';
+import '../../services/pdf_export_service.dart';
+import 'package:printing/printing.dart';
+import '../../models/shop_demand_summary.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
@@ -17,6 +21,14 @@ import 'shop_registration_screen.dart';
 import '../newsletter/newsletter_list_screen.dart';
 import 'shop_invite_manage_screen.dart';
 import '../../services/shop_invite_service.dart';
+import '../../services/shop_ledger_service.dart';
+import '../../services/vehicle_share_service.dart';
+import '../../services/shop_service.dart';
+import '../../services/shop_staff_service.dart';
+import '../../services/ledger_link_service.dart';
+import '../../services/shop_audit_service.dart';
+import '../shop/ledger/staff_screens.dart';
+import '../shop/ledger/customer_ledger_screen.dart';
 
 /// Shop owner hub screen.
 ///
@@ -137,8 +149,10 @@ class _UnregisteredBody extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           AppSpacing.verticalXl,
+          // 料金を見せるだけ。有料プランは掲載のあと、プラン画面から
+          // 請求書払いで申し込む（2026-09-30）
           Text(
-            'プランを選択',
+            'プランと料金',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -180,6 +194,14 @@ class _UnregisteredBody extends StatelessWidget {
             ],
             isHighlighted: false,
           ),
+          AppSpacing.verticalSm,
+          Text(
+            '掲載はフリープランから始まります。有料プランは、掲載のあと'
+            '請求書払い（銀行振込）で申し込めます。',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           AppSpacing.verticalXl,
           FilledButton.icon(
             onPressed: () => Navigator.push(
@@ -195,6 +217,9 @@ class _UnregisteredBody extends StatelessWidget {
                   const Size.fromHeight(AppSpacing.tapTargetRecommended),
             ),
           ),
+          AppSpacing.verticalLg,
+          if (sl.isRegistered<ShopStaffService>())
+            _StaffEntryCard(service: sl.get<ShopStaffService>()),
           AppSpacing.verticalLg,
         ],
       ),
@@ -301,6 +326,37 @@ class _RegisteredBody extends StatelessWidget {
           // Monthly inquiry report (ROI visibility)
           _MonthlyReportCard(provider: provider),
           AppSpacing.verticalMd,
+          // 顧客台帳（docs/SHOP_CRM_DESIGN_2026-09-27.md）。
+          // アプリを入れていない既存客も含めて、店が自分で管理する名簿。
+          FilledButton.icon(
+            key: const Key('customer_ledger_btn'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => CustomerLedgerScreen(
+                  service: sl.get<ShopLedgerService>(),
+                  shareService: sl.get<VehicleShareService>(),
+                  staffService: sl.get<ShopStaffService>(),
+                  ownerUid: shop.ownerId,
+                  ownerName:
+                      context.read<AuthProvider>().firebaseUser?.displayName ??
+                          '',
+                  linkService: sl.get<LedgerLinkService>(),
+                  inviteService: sl.get<ShopInviteService>(),
+                  onAudit: _auditFor(context, shop.id),
+                  auditService: sl.get<ShopAuditService>(),
+                  shopId: shop.id,
+                  shopName: shop.name,
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.contacts_outlined),
+            label: const Text('顧客台帳'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(AppSpacing.tapTargetMin),
+            ),
+          ),
+          AppSpacing.verticalMd,
           // お客様に配るコード
           // docs/BUSINESS_MODEL_RETHINK_2026-08-27.md §4 —
           // 顧客側の入力画面だけあっても、渡すものが無ければ誰も使えない。
@@ -374,7 +430,16 @@ class _RegisteredBody extends StatelessWidget {
           // Non-partner demand notification (pull hook toward upgrade)
           if (!shop.isPartner) ...[
             AppSpacing.verticalMd,
-            _DemandNotificationCard(shopId: shop.id),
+            _DemandNotificationCard(
+              shopId: shop.id,
+              // The rules require shopOwnerId in the query. Fall back to the
+              // signed-in uid: this screen is always the owner's own shop.
+              shopOwnerId: shop.ownerId ??
+                  context.read<AuthProvider>().firebaseUser?.uid ??
+                  '',
+              currentPlan: shop.planType,
+              shopName: shop.name,
+            ),
           ],
           // Free plan upgrade banner
           if (isFree) ...[
@@ -610,6 +675,33 @@ class _MonthlyReportCard extends StatelessWidget {
 
   const _MonthlyReportCard({required this.provider});
 
+  Future<void> _printMonthlyReport(
+    BuildContext context,
+    ShopMonthlyReport report,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final shopName = provider.myShop?.name ?? '';
+
+    final result = await sl.get<PdfExportService>().generateShopMonthlyReport(
+          shopName: shopName,
+          report: report,
+        );
+
+    await result.when(
+      success: (bytes) async {
+        await Printing.layoutPdf(onLayout: (_) async => bytes);
+      },
+      failure: (err) async {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(err.userMessage),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -641,11 +733,25 @@ class _MonthlyReportCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '今月の問い合わせ',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '今月の問い合わせ',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  // 工場は数字を紙で会議にかける。画面だけでは振り返りに
+                  // 使えないので、印刷とPDF共有の入口を置く。
+                  IconButton(
+                    key: const Key('monthly_report_print_btn'),
+                    icon: const Icon(Icons.print_outlined, size: 20),
+                    tooltip: 'レポートを印刷・共有',
+                    onPressed: () => _printMonthlyReport(context, report),
+                  ),
+                ],
               ),
               AppSpacing.verticalSm,
               Row(
@@ -832,7 +938,21 @@ class _InquiryCountBadge extends StatelessWidget {
 class _DemandNotificationCard extends StatefulWidget {
   final String shopId;
 
-  const _DemandNotificationCard({required this.shopId});
+  /// The signed-in owner's uid. Required by the Firestore rules for
+  /// shop_inquiry_demands; without it the list query is denied in production.
+  final String shopOwnerId;
+
+  /// プラン画面に渡す、いまのプランと店名（申し込みの currentPlan は、
+  /// ルールで店のドキュメントの planType と一致していないと通らない）。
+  final ShopPlanType currentPlan;
+  final String shopName;
+
+  const _DemandNotificationCard({
+    required this.shopId,
+    required this.shopOwnerId,
+    required this.currentPlan,
+    required this.shopName,
+  });
 
   @override
   State<_DemandNotificationCard> createState() =>
@@ -842,6 +962,7 @@ class _DemandNotificationCard extends StatefulWidget {
 class _DemandNotificationCardState extends State<_DemandNotificationCard> {
   int _count = 0;
   bool _loaded = false;
+  ShopDemandSummary _summary = const ShopDemandSummary(total: 0, byType: {});
 
   @override
   void initState() {
@@ -850,11 +971,23 @@ class _DemandNotificationCardState extends State<_DemandNotificationCard> {
   }
 
   Future<void> _fetchCount() async {
-    final result =
-        await sl.get<ShopDemandService>().getDemandCountForShop(widget.shopId);
+    if (widget.shopOwnerId.isEmpty) {
+      // No owner uid → the rules-compliant query cannot be formed. Stay hidden.
+      if (mounted) setState(() => _loaded = true);
+      return;
+    }
+    // 件数だけでは、登録する価値があるか判断できない。何の相談が来て
+    // いるのかまで出す。**本文は出さない**（書いた人のものであり、
+    // 同時に登録する理由でもある）。
+    final result = await sl.get<ShopDemandService>().getDemandsForShop(
+          widget.shopId,
+          shopOwnerId: widget.shopOwnerId,
+        );
     if (!mounted) return;
+    final demands = result.getOrElse(const []);
     setState(() {
-      _count = result.getOrElse(0);
+      _summary = ShopDemandSummary.from(demands);
+      _count = _summary.total;
       _loaded = true;
     });
   }
@@ -888,6 +1021,32 @@ class _DemandNotificationCardState extends State<_DemandNotificationCard> {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (_summary.typesByCount.isNotEmpty) ...[
+                  AppSpacing.verticalXs,
+                  Wrap(
+                    key: const Key('demand_type_breakdown'),
+                    spacing: AppSpacing.xs,
+                    runSpacing: 4,
+                    children: _summary.typesByCount.take(3).map((t) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xs,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${t.displayName} ${_summary.byType[t]}件',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: AppColors.info,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
               ],
             ),
           ),
@@ -898,7 +1057,8 @@ class _DemandNotificationCardState extends State<_DemandNotificationCard> {
               MaterialPageRoute(
                 builder: (_) => ShopPlanScreen(
                   shopId: widget.shopId,
-                  currentPlan: ShopPlanType.free,
+                  currentPlan: widget.currentPlan,
+                  shopName: widget.shopName,
                 ),
               ),
             ),
@@ -956,6 +1116,7 @@ class _UpgradeBanner extends StatelessWidget {
                 builder: (_) => ShopPlanScreen(
                   shopId: shop.id,
                   currentPlan: shop.planType,
+                  shopName: shop.name,
                 ),
               ),
             ),
@@ -1004,4 +1165,113 @@ class _PlanBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 店を持っていない人のうち、店のスタッフのための入口。
+///
+/// スタッフは自分の店を持たない（店のドキュメントIDは店主の uid）ので、
+/// ここで「どの店のスタッフか」を引いて、その店の顧客台帳へ案内する。
+class _StaffEntryCard extends StatefulWidget {
+  final ShopStaffService service;
+
+  const _StaffEntryCard({required this.service});
+
+  @override
+  State<_StaffEntryCard> createState() => _StaffEntryCardState();
+}
+
+class _StaffEntryCardState extends State<_StaffEntryCard> {
+  StaffShopLink? _link;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final uid = context.read<AuthProvider>().firebaseUser?.uid;
+    if (uid == null) return;
+    final r = await widget.service.myShop(uid);
+    if (!mounted) return;
+    setState(() {
+      _link = r.valueOrNull;
+      _loaded = true;
+    });
+  }
+
+  Future<void> _openLedger(StaffShopLink link) async {
+    // いまの店主の uid。店主を引き継げるようにしたので（2026-09-29）、
+    // 店のドキュメントID（＝最初の店主の uid）とは限らない。
+    var ownerUid = link.shopId;
+    if (sl.isRegistered<ShopService>()) {
+      final shop = await sl.get<ShopService>().getShop(link.shopId);
+      ownerUid = shop.valueOrNull?.ownerId ?? link.shopId;
+    }
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => CustomerLedgerScreen(
+          service: sl.get<ShopLedgerService>(),
+          shareService: sl.get<VehicleShareService>(),
+          // スタッフも、お客さんとアプリをつなぎ、明細を送れる（2026-09-28）。
+          // スタッフの管理（staffService）は店主だけなので渡さない。
+          linkService: sl.get<LedgerLinkService>(),
+          inviteService: sl.get<ShopInviteService>(),
+          ownerUid: ownerUid,
+          onAudit: _auditFor(context, link.shopId),
+          shopId: link.shopId,
+          shopName: link.shopName,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _join() async {
+    final user = context.read<AuthProvider>().firebaseUser;
+    if (user == null) return;
+    final link = await Navigator.push<StaffShopLink>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StaffJoinScreen(
+          service: widget.service,
+          uid: user.uid,
+          displayName: user.displayName ?? 'スタッフ',
+        ),
+      ),
+    );
+    if (link == null || !mounted) return;
+    setState(() => _link = link);
+    _openLedger(link);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const SizedBox.shrink();
+    final link = _link;
+    return Card(
+      child: ListTile(
+        key: const Key('staff_entry'),
+        leading: const Icon(Icons.badge_outlined),
+        title: Text(link == null ? '店のスタッフの方' : '${link.shopName} のスタッフ'),
+        subtitle: Text(link == null ? '店主から受け取ったコードで参加できます' : '顧客台帳を開く'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: link == null ? _join : () => _openLedger(link),
+      ),
+    );
+  }
+}
+
+/// ログイン中の人として、この店の操作を記録する関数。
+AuditRecorder? _auditFor(BuildContext context, String shopId) {
+  if (!sl.isRegistered<ShopAuditService>()) return null;
+  final user = context.read<AuthProvider>().firebaseUser;
+  if (user == null) return null;
+  return sl.get<ShopAuditService>().recorderFor(
+        shopId: shopId,
+        actorUid: user.uid,
+        actorName: user.displayName ?? user.email ?? 'スタッフ',
+      );
 }

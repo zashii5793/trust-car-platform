@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/theme/button_text_style.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../models/user.dart';
@@ -11,6 +12,7 @@ import '../../core/ui/app_dialog.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/newsletter_service.dart';
 import '../../widgets/common/app_card.dart';
+import '../../widgets/common/app_text_field.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../settings/privacy_policy_screen.dart';
 import '../settings/terms_of_service_screen.dart';
@@ -146,13 +148,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(fontSize: 13),
             ),
             AppSpacing.verticalMd,
-            TextField(
+            AppTextField(
               controller: controller,
-              decoration: const InputDecoration(
-                labelText: '会社名',
-                hintText: '例: 株式会社○○商事',
-                border: OutlineInputBorder(),
-              ),
+              labelText: '会社名',
+              hintText: '例: 株式会社○○商事',
             ),
           ],
         ),
@@ -257,6 +256,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                         selected: {themeProvider.themeMode},
                         showSelectedIcon: false,
+                        // 既定の大きさだと、アイコンと並んだ「システム」が
+                        // 「システ / ム」に折り返す（390px 幅で実測
+                        // 2026-09-06）。少し詰めて1行に収める。
+                        style: SegmentedButton.styleFrom(
+                          textStyle: buttonTextStyle(context, fontSize: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xs,
+                          ),
+                        ),
                         onSelectionChanged: (selection) {
                           themeProvider.setThemeMode(selection.first);
                         },

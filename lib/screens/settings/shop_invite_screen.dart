@@ -5,6 +5,8 @@ import '../../core/constants/spacing.dart';
 import '../../models/shop_invite.dart';
 import '../../models/vehicle.dart';
 import '../../services/shop_invite_service.dart';
+import '../../core/utils/first_week_tracker.dart';
+import '../../services/analytics_service.dart' show FirstWeekStep;
 
 /// Where a customer types the code their shop handed them.
 ///
@@ -125,6 +127,7 @@ class _ShopInviteScreenState extends State<ShopInviteScreen> {
 
     result.when(
       success: (link) {
+        trackFirstWeekStep(FirstWeekStep.shopLinked);
         setState(() {
           _busy = false;
           _linked = link;

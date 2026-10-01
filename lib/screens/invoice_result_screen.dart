@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/maintenance_record.dart';
 import '../services/invoice_ocr_service.dart';
 import '../core/constants/colors.dart';
+import '../widgets/common/app_text_field.dart';
 
 /// 請求書OCR結果確認・編集画面
 class InvoiceResultScreen extends StatefulWidget {
@@ -113,31 +114,58 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
           const SizedBox(height: 8),
           _buildDateTile(theme),
           const SizedBox(height: 12),
-          _buildTextField(
+          AppTextField(
             controller: _amountController,
-            label: '金額 (円)',
-            icon: Icons.payments,
+            labelText: '金額 (円)',
+            prefixIcon: const Icon(Icons.payments),
             keyboardType: TextInputType.number,
-            isExtracted: widget.ocrData.totalAmount != null,
+            suffixIcon: widget.ocrData.totalAmount != null
+                ? const Tooltip(
+                    message: 'OCRで読み取り済み',
+                    child:
+                        Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+                  )
+                : null,
+            fillColor: widget.ocrData.totalAmount != null
+                ? Colors.amber.withValues(alpha: 0.05)
+                : null,
           ),
           const SizedBox(height: 12),
-          _buildTextField(
+          AppTextField(
             controller: _mileageController,
-            label: '走行距離 (km)',
-            icon: Icons.speed,
+            labelText: '走行距離 (km)',
+            prefixIcon: const Icon(Icons.speed),
             keyboardType: TextInputType.number,
-            isExtracted: widget.ocrData.mileage != null,
+            suffixIcon: widget.ocrData.mileage != null
+                ? const Tooltip(
+                    message: 'OCRで読み取り済み',
+                    child:
+                        Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+                  )
+                : null,
+            fillColor: widget.ocrData.mileage != null
+                ? Colors.amber.withValues(alpha: 0.05)
+                : null,
           ),
           const SizedBox(height: 24),
 
           // 店舗情報
           _buildSectionHeader(theme, '店舗情報', Icons.store),
           const SizedBox(height: 8),
-          _buildTextField(
+          AppTextField(
             controller: _shopNameController,
-            label: '店舗名/整備工場',
-            icon: Icons.business,
-            isExtracted: widget.ocrData.shopName != null,
+            labelText: '店舗名/整備工場',
+            prefixIcon: const Icon(Icons.business),
+            suffixIcon: widget.ocrData.shopName != null
+                ? const Tooltip(
+                    message: 'OCRで読み取り済み',
+                    child:
+                        Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+                  )
+                : null,
+            fillColor: widget.ocrData.shopName != null
+                ? Colors.amber.withValues(alpha: 0.05)
+                : null,
           ),
           const SizedBox(height: 24),
 
@@ -152,17 +180,13 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
           // 説明
           _buildSectionHeader(theme, '説明', Icons.description),
           const SizedBox(height: 8),
-          TextField(
+          AppTextField(
             controller: _descriptionController,
             maxLines: 3,
-            decoration: InputDecoration(
-              hintText: '作業内容の詳細',
-              border: const OutlineInputBorder(),
-              filled: true,
-              fillColor: widget.ocrData.items.isNotEmpty
-                  ? Colors.amber.withValues(alpha: 0.05)
-                  : null,
-            ),
+            hintText: '作業内容の詳細',
+            fillColor: widget.ocrData.items.isNotEmpty
+                ? Colors.amber.withValues(alpha: 0.05)
+                : null,
           ),
           const SizedBox(height: 32),
         ],
@@ -215,7 +239,10 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
                   const SizedBox(height: 4),
                   Text(
                     message,
-                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                    style: TextStyle(
+                      color: theme.textTheme.bodySmall?.color,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),
@@ -233,7 +260,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
   Widget _buildSectionHeader(ThemeData theme, String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: Colors.grey),
+        Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
         const SizedBox(width: 8),
         Text(
           title,
@@ -295,7 +322,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           border: Border.all(
-            color: hasDate ? Colors.grey.shade300 : Colors.orange,
+            color: hasDate ? theme.dividerColor : Colors.orange,
             width: hasDate ? 1 : 2,
           ),
           borderRadius: BorderRadius.circular(8),
@@ -312,9 +339,12 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     '作業日',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -338,32 +368,6 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
             const Icon(Icons.chevron_right),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    bool isExtracted = false,
-  }) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        suffixIcon: isExtracted
-            ? const Tooltip(
-                message: 'OCRで読み取り済み',
-                child: Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
-              )
-            : null,
-        border: const OutlineInputBorder(),
-        filled: true,
-        fillColor: isExtracted ? Colors.amber.withValues(alpha: 0.05) : null,
       ),
     );
   }
@@ -441,7 +445,11 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
       child: SafeArea(
         child: Row(
           children: [
+            // 1:2 だと「キャンセ / ル」に折り返す（390px 幅で実測
+            // 2026-09-06）。主要アクションは色で目立つので、幅で
+            // 差をつけすぎない。
             Expanded(
+              flex: 3,
               child: OutlinedButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('キャンセル'),
@@ -449,7 +457,7 @@ class _InvoiceResultScreenState extends State<InvoiceResultScreen> {
             ),
             const SizedBox(width: 16),
             Expanded(
-              flex: 2,
+              flex: 4,
               child: ElevatedButton.icon(
                 onPressed: _validateAndSubmit,
                 icon: const Icon(Icons.check),

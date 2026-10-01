@@ -130,4 +130,21 @@ void main() {
       expect(config.isFeatureEnabled(FeatureFlag.c2cPartsMarketplace), isFalse);
     });
   });
+
+  // パーツ推薦は、いま架空ブランドのデモデータ（scripts/seed_parts.js が入れる
+  // demo_part_*）を出している。実データが入るまで本番では出さないので、
+  // 他の凍結機能と同じく Remote Config で開け閉めできる必要がある。
+  group('パーツ推薦のフラグ', () {
+    test('既定では無効（架空データを本番に出さない）', () {
+      final config = AppConfig.instance;
+      expect(config.isFeatureEnabled(FeatureFlag.partRecommendations), isFalse);
+    });
+
+    test('Remote Config のキーで開けられる', () {
+      expect(
+        FeatureFlagService.remoteKeys['part_recommendations'],
+        FeatureFlag.partRecommendations,
+      );
+    });
+  });
 }

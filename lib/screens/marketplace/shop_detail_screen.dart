@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/di/service_locator.dart';
+import '../../core/maps_config.dart';
 import '../../models/shop.dart';
 import '../../models/shop_case_study.dart';
 import '../../providers/shop_provider.dart';
@@ -692,8 +694,76 @@ class _AddressSection extends StatelessWidget {
             ),
           ],
         ),
+        // Map preview shown only when a Maps API key is configured and the shop
+        // has coordinates. Tapping opens the full map. Without a key this is
+        // omitted and only the address text is shown (no behavior change).
+        if (MapsConfig.isConfigured && shop.location != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _ShopLocationMap(shop: shop),
+        ],
       ],
     );
+  }
+}
+
+/// Compact, non-interactive map preview of a single shop's location.
+///
+/// Tapping hands the coordinates to the device's map app. The in-app map
+/// ([NearbyShopsMapScreen]) plots every nearby shop from the provider and has
+/// no single-shop mode, so sending one shop there would show the wrong thing.
+/// The external app also gives directions, which is what someone tapping a
+/// shop's location is usually after.
+class _ShopLocationMap extends StatelessWidget {
+  final Shop shop;
+
+  const _ShopLocationMap({required this.shop});
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = shop.location!;
+    final target = LatLng(loc.latitude, loc.longitude);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        height: 160,
+        child: Stack(
+          children: [
+            GoogleMap(
+              initialCameraPosition: CameraPosition(target: target, zoom: 15),
+              markers: {
+                Marker(markerId: MarkerId(shop.id), position: target),
+              },
+              liteModeEnabled: true, // Android: static image (cheaper).
+              zoomControlsEnabled: false,
+              myLocationButtonEnabled: false,
+              zoomGesturesEnabled: false,
+              scrollGesturesEnabled: false,
+              rotateGesturesEnabled: false,
+              tiltGesturesEnabled: false,
+            ),
+            // Tap overlay: hands the location to the device's map app.
+            Positioned.fill(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _openInMapsApp(target),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openInMapsApp(LatLng target) async {
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1'
+      '&query=${target.latitude},${target.longitude}',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 }
 

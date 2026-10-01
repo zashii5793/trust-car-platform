@@ -1,4 +1,6 @@
 import 'dart:typed_data';
+import '../models/shop_monthly_report.dart';
+import '../models/inquiry.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
@@ -9,6 +11,105 @@ import '../models/maintenance_record.dart';
 
 /// PDF出力サービス
 class PdfExportService {
+  const PdfExportService();
+
+  /// 店舗の月次レポートを PDF にする。
+  ///
+  /// 工場は数字を紙で会議にかける。画面で見るだけでは月次の振り返りに
+  /// 使えない。`printing` は依存に入っていたが、使われていたのは愛車カルテ
+  /// （個人向け）だけで、**店舗の月次レポートは対象外だった。**
+  Future<Result<Uint8List, AppError>> generateShopMonthlyReport({
+    required String shopName,
+    required ShopMonthlyReport report,
+  }) async {
+    try {
+      final pdf = pw.Document();
+      final numberFormat = NumberFormat('#,###');
+      final month = '${report.month.year}年${report.month.month}月';
+      final change = report.momChange;
+      final changeLabel = change == 0
+          ? '前月と同じ'
+          : change > 0
+              ? '前月比 +$change 件'
+              : '前月比 $change 件';
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(40),
+          build: (context) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                shopName.isEmpty ? '月次レポート' : shopName,
+                style:
+                    pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Text('$month の問い合わせ', style: const pw.TextStyle(fontSize: 12)),
+              pw.Divider(),
+              pw.SizedBox(height: 12),
+              pw.Row(
+                children: [
+                  pw.Text(
+                    numberFormat.format(report.total),
+                    style: pw.TextStyle(
+                        fontSize: 32, fontWeight: pw.FontWeight.bold),
+                  ),
+                  pw.SizedBox(width: 8),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 6),
+                    child:
+                        pw.Text('件', style: const pw.TextStyle(fontSize: 12)),
+                  ),
+                  pw.Spacer(),
+                  pw.Text(changeLabel, style: const pw.TextStyle(fontSize: 11)),
+                ],
+              ),
+              pw.SizedBox(height: 20),
+              pw.Text('内訳',
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 6),
+              pw.Table(
+                border: pw.TableBorder.all(width: 0.5),
+                children: [
+                  for (final status in InquiryStatus.values)
+                    if (report.countFor(status) > 0)
+                      pw.TableRow(
+                        children: [
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text(status.displayName),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text('${report.countFor(status)} 件'),
+                          ),
+                        ],
+                      ),
+                ],
+              ),
+              if (report.total == 0) ...[
+                pw.SizedBox(height: 12),
+                pw.Text('この月の問い合わせはありませんでした。',
+                    style: const pw.TextStyle(fontSize: 11)),
+              ],
+              pw.Spacer(),
+              pw.Text(
+                '出力: ${DateFormat('yyyy/MM/dd HH:mm').format(DateTime.now())}',
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      return Result.success(await pdf.save());
+    } catch (e) {
+      return Result.failure(AppError.unknown('PDFの生成に失敗しました: $e'));
+    }
+  }
+
   /// 愛車カルテPDFを生成（車両情報＋整備履歴の完全記録）
   Future<Result<Uint8List, AppError>> generateVehicleKarte({
     required Vehicle vehicle,

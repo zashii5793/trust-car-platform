@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./build/**)",
+      "Read(./.dart_tool/**)",
+      "Read(./coverage/**)",
+      "Read(./.claude/worktrees/**)",
+      "Read(./docs/archive/**)",
+      "Read(./**/*.log)",
+      "Read(./**/*.g.dart)",
+      "Read(./**/*.freezed.dart)",
+      "Read(./**/*.mocks.dart)",
+      "Read(./**/Podfile.lock)",
+      "Read(./pubspec.lock)"
+    ]
+  }
+}

@@ -1,0 +1,254 @@
+name: TestFlight
+
+# iOS のテスト配布。署名付きの .ipa を作って App Store Connect（TestFlight）へ上げる。
+#
+# 前提（人間の作業。docs/TESTUSER_ROLLOUT_2026-09.md の §4 に手順）:
+#   1. Apple Developer Program に加入済み（承認が下りている）
+#   2. App Store Connect に Bundle ID `jp.trustcar.app` のアプリを作ってある
+#   3. App Store Connect API キー（役割: Admin）を発行して Secret に入れてある
+#
+# 署名は Xcode の自動署名 + App Store Connect API キーで済ませる。
+# 証明書（.p12）や Provisioning Profile を手で作って Secret に入れる方式は
+# 取っていない。API キーがあれば xcodebuild が証明書・App ID・プロファイルを
+# 作って取ってくる（-allowProvisioningUpdates）ので、人間の手順が3つ減る。
+#
+# 必要な Secret:
+#   APP_STORE_CONNECT_KEY_ID        キー ID（10文字）
+#   APP_STORE_CONNECT_ISSUER_ID     Issuer ID（UUID）
+#   APP_STORE_CONNECT_PRIVATE_KEY   AuthKey_XXXX.p8 の中身（-----BEGIN PRIVATE KEY----- から）
+#   APPLE_TEAM_ID                   Team ID（10文字。developer.apple.com → Membership）
+# 任意の Secret:
+#   GOOGLE_SERVICES_PLIST           GoogleService-Info.plist の中身。無ければ ios/ci/ のものを使う
+#
+# コスト: macOS ランナーは10倍課金。public リポジトリなら無料だが、private に
+# した場合は1回 100〜200 課金分を見込む。だから Secret が揃っているかは
+# ubuntu 側（preflight）で先に確かめ、揃っていなければ macOS を起動しない。
+#
+# ビルド番号は GitHub の run_number を使う。TestFlight は同じビルド番号を
+# 二度受け付けないため、押すたびに必ず増える値が要る。
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: 'このビルドの目印（例: 9/13 テスター配布1回目）'
+        required: false
+        default: ''
+      upload:
+        description: 'App Store Connect へアップロードする（オフなら .ipa を作って Artifacts に置くだけ）'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Check secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required secrets
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          MISSING=""
+          [ -n "$KEY_ID" ]      || MISSING="$MISSING APP_STORE_CONNECT_KEY_ID"
+          [ -n "$ISSUER_ID" ]   || MISSING="$MISSING APP_STORE_CONNECT_ISSUER_ID"
+          [ -n "$PRIVATE_KEY" ] || MISSING="$MISSING APP_STORE_CONNECT_PRIVATE_KEY"
+          [ -n "$TEAM_ID" ]     || MISSING="$MISSING APPLE_TEAM_ID"
+          if [ -n "$MISSING" ]; then
+            {
+              echo "## ❌ TestFlight へ出すための Secret が足りません"
+              echo
+              echo "未設定:"
+              for s in $MISSING; do echo "- \`$s\`"; done
+              echo
+              echo "設定手順は \`docs/TESTUSER_ROLLOUT_2026-09.md\` の §4 を見てください。"
+              echo "macOS ランナーは起動していません（課金なし）。"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Secret が未設定です:$MISSING"
+            exit 1
+          fi
+          case "$PRIVATE_KEY" in
+            *"BEGIN PRIVATE KEY"*) ;;
+            *) echo "::error::APP_STORE_CONNECT_PRIVATE_KEY は .p8 の中身（-----BEGIN PRIVATE KEY----- を含む）を貼ってください"; exit 1 ;;
+          esac
+          echo "Secret は揃っています。"
+
+  build:
+    name: Build & upload iOS
+    needs: preflight
+    runs-on: macos-15
+    env:
+      ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      # altool は ~/private_keys/AuthKey_<KEY_ID>.p8 を探す。xcodebuild にはパスで渡す。
+      - name: Install App Store Connect API key
+        env:
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/private_keys
+          printf '%s\n' "$PRIVATE_KEY" > "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          chmod 600 "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          echo "ASC_KEY_PATH=$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8" >> "$GITHUB_ENV"
+
+      # -allowProvisioningUpdates が作る証明書の鍵を置く場所。既定のキーチェーンが
+      # ロックされていると失敗するので、専用に作ってアンロックしておく。
+      - name: Prepare keychain
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/testflight.keychain-db"
+          security create-keychain -p "" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security default-keychain -s "$KEYCHAIN"
+
+      - name: Place GoogleService-Info.plist
+        env:
+          PLIST: ${{ secrets.GOOGLE_SERVICES_PLIST }}
+        run: |
+          if [ -n "$PLIST" ]; then
+            printf '%s\n' "$PLIST" > ios/Runner/GoogleService-Info.plist
+            echo "Secret の plist を使います"
+          else
+            cp ios/ci/GoogleService-Info.ci.plist ios/Runner/GoogleService-Info.plist
+            echo "ios/ci/GoogleService-Info.ci.plist を使います"
+          fi
+          plutil -lint ios/Runner/GoogleService-Info.plist
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        run: pod install --repo-update
+
+      # Flutter 側の AOT ビルドと Generated.xcconfig（ビルド番号を含む）を作る。
+      # 署名は次の xcodebuild でやるので、ここでは付けない。
+      - name: Build Flutter (release, no codesign)
+        run: |
+          flutter build ios --release --no-codesign \
+            --build-number="${GITHUB_RUN_NUMBER}" \
+            --dart-define=APP_BUILD_ID=${GITHUB_SHA::7}
+
+      - name: Archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            2>&1 | tee /tmp/archive.log | grep -E "error|warning: .*sign|Signing|\*\* ARCHIVE" || true
+          if ! grep -q "ARCHIVE SUCCEEDED" /tmp/archive.log; then
+            echo "::error::=== xcodebuild archive 失敗 ==="
+            grep -E "error:|Provisioning|No signing certificate|No profiles|No Accounts|Command PhaseScriptExecution failed" /tmp/archive.log \
+              | tail -40 | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
+
+      - name: Export .ipa
+        run: |
+          sed "s|__APPLE_TEAM_ID__|$APPLE_TEAM_ID|g" ios/ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"
+          plutil -lint "$RUNNER_TEMP/ExportOptions.plist"
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath build/ios/ipa \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee /tmp/export.log | grep -E "error|EXPORT" || true
+          if ! grep -q "EXPORT SUCCEEDED" /tmp/export.log; then
+            echo "::error::=== xcodebuild -exportArchive 失敗 ==="
+            grep -E "error:|Provisioning|certificate|profile" /tmp/export.log \
+              | tail -40 | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
+          IPA="$(find build/ios/ipa -name '*.ipa' | head -1)"
+          [ -n "$IPA" ] || { echo "::error::.ipa が出ていません"; ls -la build/ios/ipa; exit 1; }
+          mkdir -p dist
+          cp "$IPA" "dist/TrustCar-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}.ipa"
+          ls -la dist
+
+      - name: Upload .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trustcar-testflight-ipa
+          path: dist/*.ipa
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload to App Store Connect
+        if: ${{ inputs.upload }}
+        run: |
+          set -o pipefail
+          xcrun altool --upload-app --type ios \
+            -f dist/*.ipa \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee /tmp/upload.log
+          if grep -qi "error" /tmp/upload.log && ! grep -q "UPLOAD SUCCEEDED\|No errors uploading" /tmp/upload.log; then
+            echo "::error::アップロードに失敗した可能性があります。ログを確認してください。"
+            exit 1
+          fi
+
+      - name: Report
+        env:
+          NOTE: ${{ inputs.note }}
+          UPLOADED: ${{ inputs.upload }}
+        run: |
+          {
+            echo "## iOS ビルド（TestFlight）"
+            echo
+            echo "| 項目 | 値 |"
+            echo "|---|---|"
+            echo "| バージョン | 1.0.0 (build ${GITHUB_RUN_NUMBER}) |"
+            echo "| コミット | ${GITHUB_SHA::7} |"
+            echo "| アップロード | $UPLOADED |"
+            echo "| 目印 | $NOTE |"
+            echo
+            if [ "$UPLOADED" = "true" ]; then
+              echo "**次にやること（人間・App Store Connect）**"
+              echo "1. App Store Connect → アプリ → TestFlight を開く。処理に 10〜30 分かかる"
+              echo "2. 「輸出コンプライアンス」を聞かれたら「いいえ」（暗号化は HTTPS のみ）。Info.plist に ITSAppUsesNonExemptEncryption=false を入れてあるので、通常は聞かれない"
+              echo "3. 内部テスト: テスターを App Store Connect のユーザーとして追加 → 審査なしで即配布"
+              echo "4. 外部テスト: グループを作ってビルドを追加 → 初回のみ Beta App Review（半日〜1日）→ 公開リンクを発行"
+              echo "5. 公開リンクを Test Distribution の \`testflight_url\` に入れて回すと、download.html に iPhone 向け案内が出る"
+            else
+              echo ".ipa は Artifacts の \`trustcar-testflight-ipa\` にあります（アップロードはしていません）。"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean up keychain and key
+        if: always()
+        run: |
+          rm -f "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          security delete-keychain "$RUNNER_TEMP/testflight.keychain-db" 2>/dev/null || true

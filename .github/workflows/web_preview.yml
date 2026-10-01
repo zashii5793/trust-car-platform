@@ -1,18 +1,14 @@
 name: Web Preview
 
-# Flutter Web をビルドして GitHub Pages に公開する。
-# 実機やローカル Flutter 無しで、ブラウザ（PC/スマホ）から動作確認するための導線。
+# Flutter Web が **ビルドできるか** を PR / main で確かめる。公開はしない。
 #
-# 公開URL: https://zashii5793.github.io/trust-car-platform/
+# 以前はここから GitHub Pages（zashii5793.github.io）へ出していたが、2026-08-25 に
+# Pages を停止した（docs/ が丸ごと公開されていたため）。停止後も deploy ジョブが
+# 残っていて、main への push のたびに赤くなっていた。
 #
-# ⚠️ 事前に一度だけ人手作業が必要:
-#   Settings → Pages → Build and deployment → Source を
-#   「Deploy from a branch」から **「GitHub Actions」** に変更する。
-#   変更前に main へ入れると deploy ジョブが失敗する。
-#   （PR 上では deploy はスキップされ、build のみ走る）
-#
-# Firebase の web 設定は lib/firebase_options.dart の `FirebaseOptions web`
-# を使うため登録不要。
+# テスターに配る Web 版は Firebase Hosting（https://trust-car-platform.web.app）。
+# Firebase Auth の承認済みドメインに github.io が無く、Pages ではログインできない
+# こともあり、公開は test_distribution.yml に一本化した。
 #
 # 任意のシークレット:
 #   GOOGLE_MAPS_API_KEY_WEB … 地図を表示する場合に必要。未設定でもビルドは
@@ -39,14 +35,10 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# Pages は同時デプロイを受け付けない。進行中を殺さないのは、途中で止めると
-# Pages が中途半端な状態で残りうるため。
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: web-preview-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -92,7 +84,7 @@ jobs:
         id: build
         run: |
           set +e
-          flutter build web --release --base-href /trust-car-platform/ \
+          flutter build web --release \
             --dart-define=APP_BUILD_ID=${GITHUB_SHA::7} 2>&1 | tee /tmp/web_build.log
           BUILD_STATUS=${PIPESTATUS[0]}
           if [ "$BUILD_STATUS" -ne 0 ]; then
@@ -123,11 +115,7 @@ jobs:
             echo "| build/web 合計 | $(du -sh build/web | cut -f1) |"
             echo "| main.dart.js | $(du -h build/web/main.dart.js 2>/dev/null | cut -f1 || echo 'n/a') |"
             echo
-            if [ "${{ github.event_name }}" = "pull_request" ]; then
-              echo "> PR のため Pages へのデプロイはスキップされます（build 検証のみ）。"
-            else
-              echo "公開URL: https://zashii5793.github.io/trust-car-platform/"
-            fi
+            echo "> ビルド検証のみ。テスターへ配るときは Actions → Test Distribution を回す。"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload build as a plain artifact
@@ -138,23 +126,3 @@ jobs:
           path: build/web
           retention-days: 3
           if-no-files-found: warn
-
-      - name: Upload Pages artifact
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: build/web
-
-  deploy:
-    name: Deploy to GitHub Pages
-    # PR ではデプロイしない（Pages を PR の内容で上書きしないため）。
-    if: github.event_name != 'pull_request'
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5

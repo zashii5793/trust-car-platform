@@ -147,12 +147,17 @@ class VehicleHistorySharingService {
   }
 
   /// Returns the list of shop IDs that [ownerId] has granted access to [vehicleId].
+  ///
+  /// ownerId で絞るのはルールの都合でもある。一覧のルールは当事者に絞った
+  /// 問い合わせしか通さないため、vehicleId だけでは拒否される。
   Future<Result<List<String>, AppError>> getPermittedShops({
     required String vehicleId,
+    required String ownerId,
   }) async {
     try {
       final snapshot = await _firestore
           .collection(_collection)
+          .where('ownerId', isEqualTo: ownerId)
           .where('vehicleId', isEqualTo: vehicleId)
           .where('isActive', isEqualTo: true)
           .get();

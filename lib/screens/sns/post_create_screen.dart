@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+
+import '../../core/constants/maker_brand.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -13,11 +15,24 @@ import '../../providers/auth_provider.dart';
 import '../../providers/post_provider.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../services/firebase_service.dart';
+import '../../widgets/common/app_text_field.dart';
 
 /// Post creation screen
 ///
 /// Supports category selection, text input, image attachment (up to 3),
 /// and optional vehicle tag from the current user's vehicle list.
+/// 投稿に付ける「どの車の話か」の札を、車両から作る。
+///
+/// PostService.getFeed はメーカーを makerId で絞るので、makerId も書く
+/// （書いていなかったため、メーカーで絞ると新しい投稿だけが出なかった）。
+PostVehicleTag vehicleTagFor(Vehicle vehicle) => PostVehicleTag(
+      vehicleId: vehicle.id,
+      makerId: MakerBrand.idFromName(vehicle.maker),
+      makerName: vehicle.maker,
+      modelName: vehicle.model,
+      year: vehicle.year,
+    );
+
 class PostCreateScreen extends StatefulWidget {
   /// Pre-filled content (e.g. from a maintenance record share).
   final String? initialContent;
@@ -175,6 +190,11 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       userDisplayName: user.displayName,
       userPhotoUrl: user.photoURL,
       imageUrls: imageUrls,
+      // 画面では前から車を選べたのに、**選んだ結果を渡していなかった。**
+      // そのため `post.vehicleTag` は誰にも書かれず、「どの車の話か」が
+      // 永久に分からない投稿だけが溜まっていた（2026-09-22 に判明）。
+      vehicleTag:
+          _selectedVehicle == null ? null : vehicleTagFor(_selectedVehicle!),
     );
 
     if (!mounted) return;
@@ -283,16 +303,13 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  TextField(
+                  AppTextField(
                     controller: _contentController,
                     maxLines: 10,
                     minLines: 5,
                     maxLength: _maxLength,
-                    decoration: const InputDecoration(
-                      hintText: '車やドライブについて投稿しましょう...',
-                      border: OutlineInputBorder(),
-                      counterText: '',
-                    ),
+                    hintText: '車やドライブについて投稿しましょう...',
+                    counterText: '',
                   ),
                   const SizedBox(height: 4),
                   Text(

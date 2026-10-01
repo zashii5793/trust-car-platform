@@ -123,7 +123,22 @@ ThemeData goldenTheme(ThemeData base) {
     );
   }
 
+  // チップも同じ（2026-09-05 実測: プロフィールのプランバッジ「フリープラン」が
+  // 豆腐で写っていた）。`ChipThemeData` の `labelStyle` / `secondaryLabelStyle`
+  // も名前を持たない生の `TextStyle`。
+  //
+  // **この手当ては「テーマが持つ生の TextStyle」全部に要る。** 新しく撮った
+  // 画像に □ が出たら、まずここを疑うこと。
   return base.copyWith(
+    // textTheme にも名前を入れる。ウィジェットが
+    // `Theme.of(context).textTheme.labelLarge` から派生させたスタイルは、
+    // ここを通って日本語が出る。
+    textTheme: base.textTheme.apply(fontFamily: family),
+    primaryTextTheme: base.primaryTextTheme.apply(fontFamily: family),
+    chipTheme: base.chipTheme.copyWith(
+      labelStyle: withFamily(base.chipTheme.labelStyle),
+      secondaryLabelStyle: withFamily(base.chipTheme.secondaryLabelStyle),
+    ),
     appBarTheme: base.appBarTheme.copyWith(
       titleTextStyle: withFamily(base.appBarTheme.titleTextStyle),
       toolbarTextStyle: withFamily(base.appBarTheme.toolbarTextStyle),

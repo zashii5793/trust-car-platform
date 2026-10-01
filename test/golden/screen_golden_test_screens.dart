@@ -148,6 +148,7 @@ class _StubDriveLogService implements DriveLogService {
   @override
   Future<Result<void, AppError>> addWaypoint({
     required String driveLogId,
+    required String userId,
     required DriveWaypoint waypoint,
   }) async =>
       const Result.success(null);

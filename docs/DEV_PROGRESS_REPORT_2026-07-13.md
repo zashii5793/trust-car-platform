@@ -121,7 +121,7 @@ Firebase フルスタック（Auth 6 / Firestore 6 / Storage 13 / Messaging / Cr
 
 ### 🟠 課題4: 集客エンジン（GoogleMap連動）の外部API依存（Issue #41/#43/#44）
 
-ニワトリ・タマゴ問題を需要側から割る「GoogleMap風の網羅表示＋提携フリーミアム」は設計合意済み（`BUSINESS_VIABILITY_ASSESSMENT.md §7.7`）だが、**Google Maps / Places API キーの発行・課金設定（人間タスク #17）待ち**。Phase2（需要蓄積）はPR #78で先行実装済み、Phase1（地図描画）が未着手。
+ニワトリ・タマゴ問題を需要側から割る「GoogleMap風の網羅表示＋提携フリーミアム」は設計合意済み（`BUSINESS_VIABILITY_ASSESSMENT.md §7.7`。2026-08-25 に trust-car-platform-internal へ移動。`docs/INTERNAL_DOCS.md` 参照）だが、**Google Maps / Places API キーの発行・課金設定（人間タスク #17）待ち**。Phase2（需要蓄積）はPR #78で先行実装済み、Phase1（地図描画）が未着手。
 
 ### 🟡 課題5: UI一貫性の技術的負債（Issue #29/#30）
 

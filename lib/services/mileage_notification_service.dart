@@ -39,19 +39,17 @@ class MileageNotificationService {
     );
 
     await _plugin.zonedSchedule(
-      _notificationId,
-      '走行距離の更新をお願いします',
-      '正確なメンテナンス提案のために、最新の走行距離を入力してください',
-      scheduledDate,
-      notificationDetails,
+      id: _notificationId,
+      title: '走行距離の更新をお願いします',
+      body: '正確なメンテナンス提案のために、最新の走行距離を入力してください',
+      scheduledDate: scheduledDate,
+      notificationDetails: notificationDetails,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 
   /// Cancels any previously scheduled mileage reminder.
   Future<void> cancelReminder() async {
-    await _plugin.cancel(_notificationId);
+    await _plugin.cancel(id: _notificationId);
   }
 }

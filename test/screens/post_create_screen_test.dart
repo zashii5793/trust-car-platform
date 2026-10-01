@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:provider/provider.dart';
 import 'package:trust_car_platform/screens/sns/post_create_screen.dart';
 import 'package:trust_car_platform/providers/post_provider.dart';
@@ -53,8 +54,13 @@ class MockPostService implements PostService {
     lastContent = content;
     lastCategory = category;
     lastVisibility = visibility;
+    lastVehicleTag = vehicleTag;
     return createResult ?? Result.success(_makePost(content: content));
   }
+
+  /// 選んだ車が投稿に届いているか。届かないと「どの車の話か」が
+  /// 分からない投稿になる。
+  dynamic lastVehicleTag;
 
   @override
   Future<Result<void, AppError>> likePost({
@@ -145,6 +151,12 @@ Post _makePost({String content = 'テスト投稿'}) {
 /// Minimal FirebaseService stub — VehicleProvider only reads its in-memory
 /// state in these tests, so no method is actually invoked.
 class _StubFirebaseService implements FirebaseService {
+  @override
+  Future<Result<MaintenanceSummary, AppError>> maintenanceSummary({
+    DateTime? since,
+  }) async =>
+      const Result.success(MaintenanceSummary.empty);
+
   @override
   Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
       const Result.success(false);
@@ -244,6 +256,20 @@ void main() {
 
       expect(mockService.createCallCount, 1);
       expect(mockService.lastContent, 'テスト投稿です');
+    });
+
+    // 画面では前から車を選べたのに、**選んだ結果を投稿に渡していなかった**
+    // （2026-09-22 実測）。`post.vehicleTag` は誰にも書かれず、
+    // 「どの車の話か」が分からない投稿だけが溜まっていた。
+    testWidgets('車を選んでいなければタグは付かない', (tester) async {
+      await pumpApp(tester, mockService);
+
+      await tester.enterText(find.byType(TextField).first, 'タグ無しの投稿');
+      await tester.pump();
+      await tester.tap(find.text('投稿する'));
+      await tester.pump();
+
+      expect(mockService.lastVehicleTag, isNull);
     });
 
     testWidgets('カテゴリを選択して投稿するとカテゴリが送信される', (tester) async {
@@ -429,6 +455,32 @@ void main() {
 
         expect(mockService.lastVisibility, PostVisibility.public);
       });
+    });
+  });
+
+  group('vehicleTagFor', () {
+    Vehicle v(String maker) => Vehicle(
+          id: 'v1',
+          userId: 'u1',
+          maker: maker,
+          model: 'プリウス',
+          year: 2020,
+          grade: '',
+          mileage: 0,
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        );
+
+    test('makerId も書く（フィードはメーカーを makerId で絞る）', () {
+      final tag = vehicleTagFor(v('トヨタ'));
+      expect(tag.vehicleId, 'v1');
+      expect(tag.makerId, 'toyota');
+      expect(tag.makerName, 'トヨタ');
+      expect(tag.modelName, 'プリウス');
+    });
+
+    test('カタログに無いメーカーは名前をそのまま makerId にする', () {
+      expect(vehicleTagFor(v('ケータハム')).makerId, 'ケータハム');
     });
   });
 }

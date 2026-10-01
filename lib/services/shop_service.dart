@@ -186,10 +186,28 @@ class ShopService {
     }
   }
 
+  /// プランの項目。店主の画面からは書かない（2026-09-30。店舗プランは
+  /// 請求書払いで、切り替えは運営者がサーバ側で行う。firestore.rules でも
+  /// 店主の書き込みを止めている）。
+  static const planFieldKeys = [
+    'planType',
+    'planExpiresAt',
+    'subscriptionStatus',
+    'revenueCatUserId',
+    'trialStartedAt',
+  ];
+
   /// Create a shop for the current user (docId = uid)
+  ///
+  /// 店は必ずフリーで作る。有料プランは plan_requests で申し込む。
   Future<Result<Shop, AppError>> createMyShop(Shop shop) async {
     try {
       final data = shop.toMap();
+      data['planType'] = ShopPlanType.free.name;
+      data['subscriptionStatus'] = ShopSubscriptionStatus.free.name;
+      data['planExpiresAt'] = null;
+      data['revenueCatUserId'] = null;
+      data['trialStartedAt'] = null;
       data['createdAt'] = data['updatedAt']; // Ensure createdAt is set
       await _shopsCollection.doc(shop.id).set(data);
       final doc = await _shopsCollection.doc(shop.id).get();
@@ -212,8 +230,9 @@ class ShopService {
         return Result.failure(AppError.permission('このショップを更新する権限がありません'));
       }
 
-      final data = shop.toMap();
-      data['updatedAt'] = data['updatedAt'];
+      // プランの項目は落とす（いまの値をそのまま残す）
+      final data = shop.toMap()
+        ..removeWhere((key, _) => planFieldKeys.contains(key));
       await _shopsCollection.doc(shop.id).update(data);
       final doc = await _shopsCollection.doc(shop.id).get();
       return Result.success(Shop.fromFirestore(doc));
@@ -223,13 +242,25 @@ class ShopService {
   }
 
   /// Get the current user's shop by UID (returns null if not exists)
+  ///
+  /// 店のドキュメントIDは最初の店主の uid。2026-09-29 から店主を引き継げる
+  /// ようにしたので、次の2つを見分ける:
+  /// - `shops/{uid}` があっても、いまの店主（ownerId）が別の人なら、
+  ///   それは引き継いで手放した店。返さない
+  /// - 引き継いで受け取った店は、ドキュメントIDが自分の uid ではない。
+  ///   ownerId で探す
   Future<Result<Shop?, AppError>> getMyShop(String uid) async {
     try {
       final doc = await _shopsCollection.doc(uid).get();
-      if (!doc.exists) {
-        return Result.success(null);
+      if (doc.exists && doc.data()?['ownerId'] == uid) {
+        return Result.success(Shop.fromFirestore(doc));
       }
-      return Result.success(Shop.fromFirestore(doc));
+      final owned = await _shopsCollection
+          .where('ownerId', isEqualTo: uid)
+          .limit(1)
+          .get();
+      if (owned.docs.isEmpty) return Result.success(null);
+      return Result.success(Shop.fromFirestore(owned.docs.first));
     } catch (e) {
       return Result.failure(AppError.server('ショップ情報の取得に失敗しました: $e'));
     }
@@ -329,17 +360,16 @@ class ShopService {
   /// Delete the current user's shop
   Future<Result<void, AppError>> deleteMyShop(String uid) async {
     try {
-      final doc = await _shopsCollection.doc(uid).get();
-      if (!doc.exists) {
+      final mine = await getMyShop(uid);
+      final shop = mine.valueOrNull;
+      if (shop == null) {
         return Result.failure(AppError.notFound('ショップが見つかりません'));
       }
-
-      final data = doc.data()!;
-      if (data['ownerId'] != uid) {
+      if (shop.ownerId != uid) {
         return Result.failure(AppError.permission('このショップを削除する権限がありません'));
       }
 
-      await _shopsCollection.doc(uid).delete();
+      await _shopsCollection.doc(shop.id).delete();
       return Result.success(null);
     } catch (e) {
       return Result.failure(AppError.server('ショップの削除に失敗しました: $e'));

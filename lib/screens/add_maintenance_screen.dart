@@ -59,6 +59,10 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
 
   bool get _isEditMode => widget.existingRecord != null;
 
+  /// 工場から受け取った記録。金額・日付・内容は変えられない
+  /// （firestore.rules の shopContentUnchanged でも拒否される）。
+  bool get _isShopRecord => widget.existingRecord?.isVerified ?? false;
+
   // OCRサービス (DI経由)
   InvoiceOcrService get _invoiceOcrService => sl.get<InvoiceOcrService>();
   FirebaseService get _firebaseService => sl.get<FirebaseService>();
@@ -170,7 +174,12 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           }
         },
         failure: (error) {
-          showErrorSnackBar(context, error.userMessage);
+          // 読み取れなくても、下のフォームで手入力すれば記録は残せる。
+          // そこを言わないと「使えない」で終わってしまう（車検証側と同じ扱い）。
+          if (mounted) {
+            showErrorSnackBar(context,
+                '請求書を読み取れませんでした。下のフォームから手動でも入力できます（${error.userMessage}）');
+          }
         },
       );
     } finally {
@@ -223,37 +232,66 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
 
     try {
       final existing = widget.existingRecord;
-      final record = MaintenanceRecord(
-        id: existing?.id ?? '',
-        vehicleId: widget.vehicleId,
-        userId: existing?.userId ?? _firebaseService.currentUserId ?? '',
-        type: _selectedType,
-        title: _titleController.text,
-        description: _descriptionController.text.isEmpty
-            ? null
-            : _descriptionController.text,
-        cost: int.tryParse(stripThousands(_costController.text)) ?? 0,
-        shopName:
-            _shopNameController.text.isEmpty ? null : _shopNameController.text,
-        date: _selectedDate,
-        mileageAtService: _mileageController.text.isEmpty
-            ? null
-            : int.tryParse(stripThousands(_mileageController.text)),
-        createdAt: existing?.createdAt ?? DateTime.now(),
-        partNumber: _partNumberController.text.isEmpty
-            ? null
-            : _partNumberController.text,
-        partManufacturer: _partManufacturerController.text.isEmpty
-            ? null
-            : _partManufacturerController.text,
-        // Phase 6: tire fields (only persisted for tire-related types)
-        tireSize: _isTireType
-            ? (_tireSizeController.text.isEmpty
-                ? null
-                : _tireSizeController.text)
-            : null,
-        tirePosition: _isTireType ? _tirePosition : null,
-      );
+      final record = existing != null
+          ? existing.withEdits(
+              type: _selectedType,
+              title: _titleController.text,
+              description: _descriptionController.text.isEmpty
+                  ? null
+                  : _descriptionController.text,
+              cost: int.tryParse(stripThousands(_costController.text)) ?? 0,
+              shopName: _shopNameController.text.isEmpty
+                  ? null
+                  : _shopNameController.text,
+              date: _selectedDate,
+              mileageAtService: _mileageController.text.isEmpty
+                  ? null
+                  : int.tryParse(stripThousands(_mileageController.text)),
+              partNumber: _partNumberController.text.isEmpty
+                  ? null
+                  : _partNumberController.text,
+              partManufacturer: _partManufacturerController.text.isEmpty
+                  ? null
+                  : _partManufacturerController.text,
+              tireSize: _isTireType
+                  ? (_tireSizeController.text.isEmpty
+                      ? null
+                      : _tireSizeController.text)
+                  : null,
+              tirePosition: _isTireType ? _tirePosition : null,
+            )
+          : MaintenanceRecord(
+              id: existing?.id ?? '',
+              vehicleId: widget.vehicleId,
+              userId: existing?.userId ?? _firebaseService.currentUserId ?? '',
+              type: _selectedType,
+              title: _titleController.text,
+              description: _descriptionController.text.isEmpty
+                  ? null
+                  : _descriptionController.text,
+              cost: int.tryParse(stripThousands(_costController.text)) ?? 0,
+              shopName: _shopNameController.text.isEmpty
+                  ? null
+                  : _shopNameController.text,
+              date: _selectedDate,
+              mileageAtService: _mileageController.text.isEmpty
+                  ? null
+                  : int.tryParse(stripThousands(_mileageController.text)),
+              createdAt: existing?.createdAt ?? DateTime.now(),
+              partNumber: _partNumberController.text.isEmpty
+                  ? null
+                  : _partNumberController.text,
+              partManufacturer: _partManufacturerController.text.isEmpty
+                  ? null
+                  : _partManufacturerController.text,
+              // Phase 6: tire fields (only persisted for tire-related types)
+              tireSize: _isTireType
+                  ? (_tireSizeController.text.isEmpty
+                      ? null
+                      : _tireSizeController.text)
+                  : null,
+              tirePosition: _isTireType ? _tirePosition : null,
+            );
 
       final provider = Provider.of<MaintenanceProvider>(context, listen: false);
       final bool success;
@@ -405,6 +443,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       _selectedType == MaintenanceType.tireRotation;
 
   void _onTypeSelected(MaintenanceType type) {
+    if (_isShopRecord) return;
     setState(() {
       _selectedType = type;
       if (_titleController.text.isEmpty) {
@@ -489,8 +528,34 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (_isShopRecord) ...[
+                    Container(
+                      key: const Key('shop_record_locked_banner'),
+                      padding: AppSpacing.paddingCard,
+                      decoration: BoxDecoration(
+                        color: AppColors.secondary.withValues(alpha: 0.1),
+                        borderRadius: AppSpacing.borderRadiusSm,
+                      ),
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.verified_outlined,
+                              color: AppColors.secondary),
+                          AppSpacing.horizontalSm,
+                          Expanded(
+                            child: Text('工場から受け取った記録です。金額・日付・'
+                                '内容は変えられません（工場の記録として信用されるため）。'
+                                'メモは書き足せます。'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    AppSpacing.verticalMd,
+                  ],
                   // 請求書スキャンボタン
-                  if (InvoiceOcrService.isSupported)
+                  if (_isShopRecord)
+                    const SizedBox.shrink()
+                  else if (InvoiceOcrService.isSupported)
                     _buildOcrScanButton(theme)
                   else
                     _buildOcrUnsupportedNote(theme, '請求書'),
@@ -562,6 +627,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   // タイトル
                   AppTextField(
                     controller: _titleController,
+                    enabled: !_isShopRecord,
                     labelText: 'タイトル',
                     hintText: '例: 12ヶ月法定点検',
                     prefixIcon: const Icon(Icons.title),
@@ -577,6 +643,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   // 日付
                   AppDateField(
                     value: _selectedDate,
+                    enabled: !_isShopRecord,
                     labelText: '実施日',
                     onChanged: (date) {
                       setState(() {
@@ -590,6 +657,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   // 費用
                   AppTextField.numberGrouped(
                     controller: _costController,
+                    enabled: !_isShopRecord,
                     labelText: '費用',
                     hintText: '例: 25,000',
                     prefixText: '¥',
@@ -610,6 +678,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   // 実施工場
                   AppTextField(
                     controller: _shopNameController,
+                    enabled: !_isShopRecord,
                     labelText: '実施工場（任意）',
                     hintText: '例: トヨタカローラ福岡',
                     prefixIcon: const Icon(Icons.store),
@@ -619,6 +688,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   // 走行距離
                   AppTextField.numberGrouped(
                     controller: _mileageController,
+                    enabled: !_isShopRecord,
                     labelText: '実施時の走行距離（任意）',
                     hintText: '例: 24,500',
                     prefixIcon: const Icon(Icons.speed),

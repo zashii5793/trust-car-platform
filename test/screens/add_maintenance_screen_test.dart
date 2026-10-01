@@ -10,9 +10,11 @@
 //   - 請求書スキャンボタン
 //   - Edge cases (超長文字、0コスト)
 
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/screens/add_maintenance_screen.dart';
 import 'package:trust_car_platform/providers/maintenance_provider.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
@@ -24,11 +26,19 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/core/di/injection.dart';
 
+import '../golden/font_loader.dart';
+
 // ---------------------------------------------------------------------------
 // Mock Services
 // ---------------------------------------------------------------------------
 
 class _MockFirebaseService implements FirebaseService {
+  @override
+  Future<Result<MaintenanceSummary, AppError>> maintenanceSummary({
+    DateTime? since,
+  }) async =>
+      const Result.success(MaintenanceSummary.empty);
+
   @override
   Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
       const Result.success(false);
@@ -45,10 +55,15 @@ class _MockFirebaseService implements FirebaseService {
           MaintenanceRecord r) async =>
       const Result.success('new-record-id');
 
+  /// 編集で保存された記録。内訳などが引き継がれているかを見るため。
+  MaintenanceRecord? lastUpdated;
+
   @override
   Future<Result<void, AppError>> updateMaintenanceRecord(
-          String id, MaintenanceRecord r) async =>
-      const Result.success(null);
+      String id, MaintenanceRecord r) async {
+    lastUpdated = r;
+    return const Result.success(null);
+  }
 
   @override
   Future<Result<void, AppError>> deleteMaintenanceRecord(String id) async =>
@@ -62,6 +77,13 @@ class _MockFirebaseService implements FirebaseService {
       getMaintenanceRecordsForVehicles(List<String> ids,
               {int limitPerVehicle = 20}) async =>
           const Result.success({});
+
+  @override
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getRecentMaintenanceRecords({
+    int limit = 5,
+  }) async =>
+          const Result.success([]);
 
   @override
   Future<Result<List<MaintenanceRecord>, AppError>>
@@ -127,8 +149,11 @@ class _MockInvoiceOcrService implements InvoiceOcrService {
 
 final _mockFirebase = _MockFirebaseService();
 
-Widget _buildNew({String vehicleId = 'v-001', int? currentMileage}) {
+Widget _buildNew(
+    {String vehicleId = 'v-001', int? currentMileage, ThemeData? theme}) {
   return MaterialApp(
+    theme: theme,
+    debugShowCheckedModeBanner: false,
     home: ChangeNotifierProvider<MaintenanceProvider>(
       create: (_) => MaintenanceProvider(firebaseService: _mockFirebase),
       child: AddMaintenanceScreen(
@@ -191,6 +216,38 @@ void main() {
 
   tearDownAll(() {
     Injection.reset();
+  });
+
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    // 画面が下書きの復元で SharedPreferences を読む。
+    setUp(() => SharedPreferences.setMockInitialValues({}));
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildNew(theme: goldenTheme(base)));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('整備記録の追加（ライト）', (tester) async {
+      await shoot(tester, 'screen_add_maintenance_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('整備記録の追加（ダーク）', (tester) async {
+      await shoot(tester, 'screen_add_maintenance_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
   });
 
   // =========================================================================
@@ -422,6 +479,81 @@ void main() {
       await tester.pump();
 
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  // 2026-09-27: 編集画面は記録を一から作り直していて、画面に無い項目
+  // （内訳・工場との紐づけ・裏書き）を引き継いでいなかった。
+  group('編集で消えてはいけないもの', () {
+    MaintenanceRecord detailed({String? inquiryId}) => MaintenanceRecord(
+          id: 'rec-9',
+          vehicleId: 'v-001',
+          userId: 'user-001',
+          type: MaintenanceType.carInspection,
+          title: '車検',
+          cost: 120000,
+          date: DateTime(2026, 3, 1),
+          mileageAtService: 45000,
+          shopName: 'タカヤモーター',
+          description: '前のメモ',
+          createdAt: DateTime(2026, 3, 1),
+          workItems: const [WorkItem(name: '法定24か月点検', laborCost: 30000)],
+          partsCost: 20000,
+          laborCost: 30000,
+          taxAmount: 10000,
+          inquiryId: inquiryId,
+        );
+
+    Future<void> saveAfter(WidgetTester tester, MaintenanceRecord record,
+        Future<void> Function() edit) async {
+      tester.view.physicalSize = const Size(900, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      _mockFirebase.lastUpdated = null;
+      await tester.pumpWidget(_buildEdit(record: record));
+      await tester.pumpAndSettle();
+      await edit();
+      await tester.tap(find.text('更新する'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('自己申告の記録を直しても、内訳は残る', (tester) async {
+      await saveAfter(tester, detailed(), () async {
+        await tester.enterText(
+            find.widgetWithText(TextFormField, '前のメモ'), '新しいメモ');
+      });
+      final saved = _mockFirebase.lastUpdated!;
+      expect(saved.description, '新しいメモ');
+      expect(saved.workItems.single.name, '法定24か月点検');
+      expect(saved.partsCost, 20000);
+      expect(saved.laborCost, 30000);
+      expect(saved.taxAmount, 10000);
+    });
+
+    testWidgets('工場から受け取った記録は、出所の印を保ったまま保存される', (tester) async {
+      await saveAfter(tester, detailed(inquiryId: 'inq-1'), () async {});
+      final saved = _mockFirebase.lastUpdated!;
+      expect(saved.inquiryId, 'inq-1');
+      expect(saved.verificationSource, VerificationSource.shopImported);
+      expect(saved.toMap()['verificationSource'], 'shopImported');
+    });
+
+    testWidgets('工場から受け取った記録は、金額などを変えられないと示し、入力欄を閉じる', (tester) async {
+      tester.view.physicalSize = const Size(900, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_buildEdit(record: detailed(inquiryId: 'inq-1')));
+      await tester.pumpAndSettle();
+
+      expect(
+          find.byKey(const Key('shop_record_locked_banner')), findsOneWidget);
+      final cost = tester.widget<TextField>(find.descendant(
+        of: find.ancestor(
+            of: find.text('費用'),
+            matching: find.byWidgetPredicate((w) => w is TextFormField)),
+        matching: find.byType(TextField),
+      ));
+      expect(cost.enabled, isFalse);
     });
   });
 }

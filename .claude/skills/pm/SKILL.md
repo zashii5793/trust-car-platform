@@ -20,7 +20,7 @@ description: PMとしてプロジェクト管理・スケジューリング・Is
 ```bash
 gh issue list --label "claude-task" --state open
 git log --oneline -10
-cat CLAUDE_SESSION_NOTES.md
+head -120 CLAUDE_SESSION_NOTES.md   # 全文は読まない（最新分だけ）
 cat docs/HUMAN_TASKS.md 2>/dev/null
 ```
 

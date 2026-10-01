@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_button.dart';
 import 'login_screen.dart';
@@ -49,7 +48,7 @@ const _pages = [
   _OnboardingPage(
     icon: Icons.directions_car,
     title: 'クルマを安心・安全に、\n楽しく管理',
-    subtitle: '整備・点検・車検のすべてを、このアプリ一つで。',
+    subtitle: '整備・点検・車検のすべてを、\nこのアプリ一つで。',
   ),
   _OnboardingPage(
     icon: Icons.history,
@@ -140,7 +139,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final isLastPage = _currentPage == _pages.length - 1;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      // テーマに任せる。白を直書きしていたため、ダークモードでも
+      // 白背景のままだった（2026-09-06 実測）。
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -155,7 +156,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: Text(
                     'スキップ',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -189,8 +190,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     height: 8,
                     decoration: BoxDecoration(
                       color: isActive
-                          ? AppColors.primary
-                          : AppColors.backgroundSecondary,
+                          ? theme.colorScheme.primary
+                          : theme.dividerColor,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   );
@@ -260,13 +261,13 @@ class _OnboardingPageView extends StatelessWidget {
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
+              color: theme.colorScheme.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               page.icon,
               size: 60,
-              color: AppColors.primary,
+              color: theme.colorScheme.primary,
             ),
           ),
           const SizedBox(height: AppSpacing.xl),
@@ -274,7 +275,7 @@ class _OnboardingPageView extends StatelessWidget {
             page.title,
             textAlign: TextAlign.center,
             style: theme.textTheme.headlineSmall?.copyWith(
-              color: AppColors.textPrimary,
+              color: theme.colorScheme.onSurface,
               fontWeight: FontWeight.bold,
               height: 1.4,
             ),
@@ -284,7 +285,7 @@ class _OnboardingPageView extends StatelessWidget {
             page.subtitle,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
+              color: theme.colorScheme.onSurfaceVariant,
               height: 1.6,
             ),
           ),

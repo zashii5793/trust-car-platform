@@ -62,6 +62,9 @@ describe("handleScheduledPurge", () => {
         calls.push(`delete:${collection}:${uid}`);
         return collection === "drive_logs" ? ["dl-1", "dl-2"] : [];
       },
+      deleteSharesOf: async (uid) => {
+        calls.push(`shares:${uid}`);
+      },
       deleteWaypointsFor: async (ids) => {
         calls.push(`waypoints:${ids.join(",")}`);
       },
@@ -94,6 +97,17 @@ describe("handleScheduledPurge", () => {
     for (const prefix of storagePrefixesFor("u1")) {
       expect(calls).toContain(`storage:${prefix}`);
     }
+  });
+
+  it("deletes the vehicle copies handed to shops, before the vehicles", async () => {
+    const { deps, calls } = makeDeps();
+
+    await handleScheduledPurge(deps);
+
+    const shares = calls.indexOf("shares:u1");
+    const vehicles = calls.indexOf("delete:vehicles:u1");
+    expect(shares).toBeGreaterThanOrEqual(0);
+    expect(shares).toBeLessThan(vehicles);
   });
 
   it("marks the marker completed LAST", async () => {
@@ -153,6 +167,14 @@ describe("handleScheduledPurge", () => {
     await handleScheduledPurge(deps);
 
     expect(calls.some((c) => c.startsWith("waypoints:"))).toBe(false);
+  });
+});
+
+describe("purge coverage (2026-09-27)", () => {
+  // どちらも userId を持つのに対象から漏れていて、退会しても残っていた。
+  it("fuel records and shop links are purged", () => {
+    expect(USER_OWNED_COLLECTIONS).toContain("fuel_records");
+    expect(USER_OWNED_COLLECTIONS).toContain("shop_customers");
   });
 });
 

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/screens/marketplace/shop_list_screen.dart';
 import 'package:trust_car_platform/providers/shop_provider.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
@@ -12,6 +13,8 @@ import 'package:trust_car_platform/models/inquiry.dart';
 import 'package:trust_car_platform/models/shop_case_study.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+
+import '../golden/font_loader.dart';
 
 // ---------------------------------------------------------------------------
 // Mock ShopService
@@ -231,10 +234,14 @@ Shop _makeShop({
   );
 }
 
-Widget _buildApp(ShopProvider provider) {
+Widget _buildApp(ShopProvider provider, {ThemeData? theme}) {
   return ChangeNotifierProvider<ShopProvider>.value(
     value: provider,
-    child: const MaterialApp(home: ShopListScreen()),
+    child: MaterialApp(
+      theme: theme,
+      debugShowCheckedModeBanner: false,
+      home: const ShopListScreen(),
+    ),
   );
 }
 
@@ -250,6 +257,37 @@ ShopProvider _makeProvider(MockShopService shopService) {
 // ---------------------------------------------------------------------------
 
 void main() {
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        _buildApp(_makeProvider(MockShopService()), theme: goldenTheme(base)),
+      );
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('工場一覧（ライト）', (tester) async {
+      await shoot(tester, 'screen_shop_list_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('工場一覧（ダーク）', (tester) async {
+      await shoot(tester, 'screen_shop_list_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
+  });
+
   group('ShopListScreen', () {
     late MockShopService mockShop;
     late ShopProvider provider;

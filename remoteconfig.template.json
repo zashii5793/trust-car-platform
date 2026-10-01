@@ -1,0 +1,44 @@
+{
+  "parameters": {
+    "c2c_parts_marketplace": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "valueType": "BOOLEAN",
+      "description": "ユーザー間のパーツ売買（C2C）を開くかどうか。false は凍結。アプリを出し直さずに再開判断を切り替えるための口（docs/HUMAN_TASKS.md P2-15）。"
+    },
+    "premium_features": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "valueType": "BOOLEAN",
+      "description": "B2C（一般ユーザー）のプレミアムプランを売るかどうか。false は凍結。価格が決まり、RevenueCat と各ストアに商品を作ってから true にする（docs/PRICING_DECISION_B2C.md）。"
+    },
+    "part_recommendations": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "valueType": "BOOLEAN",
+      "description": "パーツ推薦を出すかどうか。今の候補は架空のデモデータなので false。実データを調達してから true（docs/PARTS_DATA_SOURCING.md）。"
+    },
+    "ai_chat": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "valueType": "BOOLEAN",
+      "description": "AI チャットを出すかどうか。本番に Functions（askCarAi）と ANTHROPIC_API_KEY が入り、費用の上限を決めてから true にする。"
+    },
+    "shop_in_app_purchase": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "valueType": "BOOLEAN",
+      "description": "店舗プランをアプリ内課金（RevenueCat）で売るかどうか。false は請求書払いの申し込み（2026-09-29 のオーナー判断）。クレジット決済を足すときに、RevenueCat と各ストアの商品を用意してから true にする。"
+    }
+  },
+  "parameterGroups": {},
+  "conditions": [],
+  "version": {
+    "description": "shop_in_app_purchase を追加（false。店舗プランは請求書払い）"
+  }
+}

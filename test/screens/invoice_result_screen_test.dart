@@ -39,8 +39,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/screens/invoice_result_screen.dart';
 import 'package:trust_car_platform/services/invoice_ocr_service.dart';
+
+import '../golden/font_loader.dart';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -75,8 +78,10 @@ InvoiceData _makeOcrData({
   );
 }
 
-Widget _buildScreen(InvoiceData ocrData) {
+Widget _buildScreen(InvoiceData ocrData, {ThemeData? theme}) {
   return MaterialApp(
+    theme: theme,
+    debugShowCheckedModeBanner: false,
     home: InvoiceResultScreen(
       imageFile: _fakeFile,
       ocrData: ocrData,
@@ -89,6 +94,38 @@ Widget _buildScreen(InvoiceData ocrData) {
 // ---------------------------------------------------------------------------
 
 void main() {
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        _buildScreen(_makeOcrData(), theme: goldenTheme(base)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('請求書の読み取り結果（ライト）', (tester) async {
+      await shoot(tester, 'screen_invoice_result_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('請求書の読み取り結果（ダーク）', (tester) async {
+      await shoot(tester, 'screen_invoice_result_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
+  });
+
   group('InvoiceResultScreen — AppBar', () {
     testWidgets('1. shows 読み取り結果の確認 title', (tester) async {
       await tester.pumpWidget(_buildScreen(_makeOcrData()));

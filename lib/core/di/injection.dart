@@ -1,9 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/maintenance_csv_export_service.dart';
 import 'package:flutter/foundation.dart';
 import 'service_locator.dart';
 import '../error/app_error.dart';
 import '../logging/logging_service.dart';
 import '../logging/logging_service_impl.dart';
+import '../logging/browser_user_agent.dart';
+import '../logging/web_error_reporter.dart';
 import '../performance/performance_service.dart';
 import '../performance/performance_service_impl.dart';
 import '../../services/firebase_service.dart';
@@ -29,6 +32,7 @@ import '../../services/drive_log_service.dart';
 import '../../services/part_listing_service.dart';
 import '../../services/shop_report_service.dart';
 import '../../services/shop_subscription_service.dart';
+import '../../services/shop_plan_request_service.dart';
 import '../../services/revenue_cat_service.dart';
 import '../../services/analytics_service.dart';
 import '../../services/user_subscription_service.dart';
@@ -59,6 +63,14 @@ import '../../services/shop_demand_service.dart';
 import '../../services/feedback_service.dart';
 import '../constants/app_info.dart';
 import '../../services/shop_invite_service.dart';
+import '../../services/shop_ledger_service.dart';
+import '../../services/vehicle_share_service.dart';
+import '../../services/model_cost_report_service.dart';
+import '../../services/vehicle_profile_service.dart';
+import '../../services/maintenance_history_import_service.dart';
+import '../../services/shop_staff_service.dart';
+import '../../services/ledger_link_service.dart';
+import '../../services/shop_audit_service.dart';
 import '../../services/fuel_service.dart';
 
 /// 依存性の登録を行うクラス
@@ -83,6 +95,20 @@ class Injection {
     setAppErrorLogger((appError, {tag, stackTrace}) {
       loggingService.logAppError(appError, tag: tag, stackTrace: stackTrace);
     });
+
+    // ウェブ版の不具合の送り先（Crashlytics は Web 非対応のため Firestore へ）。
+    // 起動の途中で落ちたものも拾えるよう、ログの直後に登録する。
+    // フックの取り付けは main.dart（ウェブのリリース版だけ）。
+    // uid は送るときに引く（AuthService はこのあとで登録される）。
+    locator.registerLazySingleton<WebErrorReporter>(
+      () => WebErrorReporter(
+        firestore: FirebaseFirestore.instance,
+        buildId: AppInfo.buildId,
+        currentUrl: () => Uri.base,
+        userAgent: browserUserAgent,
+        currentUid: () => locator.tryGet<AuthService>()?.currentUser?.uid,
+      ),
+    );
 
     // Performance Service (register after LoggingService)
     locator.registerLazySingleton<PerformanceService>(
@@ -145,6 +171,9 @@ class Injection {
     );
     locator.registerLazySingleton<ShopReportService>(() => ShopReportService());
     locator.registerLazySingleton<RevenueCatService>(() => RevenueCatService());
+    // 店舗プランの申し込み（請求書払い・2026-09-30）
+    locator.registerLazySingleton<ShopPlanRequestService>(
+        () => ShopPlanRequestService());
 
     // SNS/Community Services
     locator.registerLazySingleton<PostService>(() => PostService());
@@ -192,6 +221,8 @@ class Injection {
     // Fleet CSV Export Service (vehicle list export for fleet admins)
     locator.registerLazySingleton<FleetCsvExportService>(
         () => const FleetCsvExportService());
+    locator.registerLazySingleton<MaintenanceCsvExportService>(
+        () => const MaintenanceCsvExportService());
 
     // Maintenance Schedule Service (generates standard maintenance schedule)
     locator.registerLazySingleton<MaintenanceScheduleService>(
@@ -265,6 +296,48 @@ class Injection {
     // 自分でアプリを探して自分で店を見つけるところから始めることになる。
     locator.registerLazySingleton<ShopInviteService>(
       () => ShopInviteService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 店の顧客台帳（docs/SHOP_CRM_DESIGN_2026-09-27.md）。アプリを入れていない
+    // 既存客も載せられるよう、店が自分で書く台帳をユーザーのデータとは別に持つ。
+    locator.registerLazySingleton<ShopLedgerService>(
+      () => ShopLedgerService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 初めて行く店に「この車のこれまで」を写しで渡す（同 §7）。
+    locator.registerLazySingleton<VehicleShareService>(
+      () => VehicleShareService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 車種別の維持費レポート（同 §8。書くのはサーバーの aggregateModelCosts）。
+    locator.registerLazySingleton<ModelCostReportService>(
+      () => ModelCostReportService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 愛車ページ（公開）。車を主役に、公開の投稿・パーツ・ドライブを集める。
+    locator.registerLazySingleton<VehicleProfileService>(
+      () => VehicleProfileService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 車両登録時に、過去の整備記録・請求書の内容をまとめて移す。
+    locator.registerLazySingleton<MaintenanceHistoryImportService>(
+      () => MaintenanceHistoryImportService(
+          firestore: FirebaseFirestore.instance),
+    );
+
+    // 店のスタッフ（招待コードで参加）。顧客台帳を店主ひとりで回さないため。
+    locator.registerLazySingleton<ShopStaffService>(
+      () => ShopStaffService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 台帳の顧客とアプリの利用者をつなぎ、整備明細を送る。
+    locator.registerLazySingleton<LedgerLinkService>(
+      () => LedgerLinkService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 店側の操作の記録（誰がいつ顧客を見た・書いたか）。
+    locator.registerLazySingleton<ShopAuditService>(
+      () => ShopAuditService(firestore: FirebaseFirestore.instance),
     );
 
     // Fuel records (給油は月2〜4回あり、唯一の月単位の接点).

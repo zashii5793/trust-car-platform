@@ -62,17 +62,16 @@ void main() {
 
   // Known limitations documented (not asserted — informational only).
   group('Known Limitations', () {
-    test('5-char VIN prefix (BNR35- style) extracts partial match', () {
+    // Fixed on 2026-09-03: the prefix cap went from 4 to 8 characters, so
+    // BNR35- / ZVW30W- / NCP131- now come back whole. Kept as a regression
+    // guard - dropping the first character of a VIN names a different car.
+    // Full coverage lives in test/ocr/vin_extraction_test.dart.
+    test('5-char VIN prefix (BNR35- style) is no longer truncated', () {
       final result = vcService.parseRawTextForTest(
         '車台番号 BNR35-123456',
       );
-      // The regex [A-Z0-9]{2,4} matches at most 4-char prefixes.
-      // BNR35 (5 chars) causes extraction to return a partial match.
-      // This documents the known limitation — not a pass/fail regression.
-      // See REAL_DATA_VALIDATION_CHECKLIST.md § Known Limitations.
-      printOnFailure(
-          'VIN extracted: ${result.vinNumber} (expected BNR35-123456)');
-      // We do NOT assert equality here — just document the behaviour.
+
+      expect(result.vinNumber, 'BNR35-123456');
     });
 
     test('新様式A6 ICカード: 所有者情報はICタグに格納されOCR取得不可', () {

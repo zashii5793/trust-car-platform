@@ -9,6 +9,8 @@ import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/image_viewer.dart';
+import '../../widgets/sns/post_vehicle_chip.dart';
+import '../../widgets/sns/followed_vehicles_bar.dart';
 import 'post_create_screen.dart';
 import 'post_detail_screen.dart';
 
@@ -56,6 +58,7 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
       body: Column(
         children: [
           _CategoryFilterBar(),
+          const FollowedVehiclesBar(),
           _VehicleModelFilterBar(),
           const _SortBar(),
           Expanded(
@@ -113,8 +116,12 @@ class _SnsFeedScreenState extends State<SnsFeedScreen> {
                   return AppEmptyState(
                     icon: Icons.forum_outlined,
                     title: '投稿がまだありません',
-                    description:
-                        '他のユーザーの投稿や、\n気になるハッシュタグを探してみましょう\n\n右下のボタンから最初の投稿をしてみましょう',
+                    // 改行を明示する。自動折り返しに任せると、
+                    // 「探してみましょ / う」のように最後の1文字だけが
+                    // 次の行に落ちる（2026-09-07 実測）。
+                    description: '他のユーザーの投稿や\n'
+                        'ハッシュタグを見てみましょう\n\n'
+                        '右下のボタンから投稿できます',
                     buttonLabel: '投稿する',
                     onButtonPressed: () => _openCreatePost(context),
                   );
@@ -658,6 +665,13 @@ class _PostContent extends StatelessWidget {
           post.content,
           style: theme.textTheme.bodyMedium,
         ),
+        if (post.vehicleTag?.displayName != null) ...[
+          const SizedBox(height: 6),
+          PostVehicleChip(
+            tag: post.vehicleTag,
+            viewerUid: context.read<AuthProvider>().firebaseUser?.uid,
+          ),
+        ],
         if (post.hashtags.isNotEmpty) ...[
           const SizedBox(height: 6),
           Wrap(

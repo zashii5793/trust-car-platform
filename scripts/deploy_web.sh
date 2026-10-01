@@ -34,7 +34,17 @@ RESTORE_INDEX=0
 if [ -n "$MAPS_KEY" ]; then
   cp web/index.html web/index.html.bak
   RESTORE_INDEX=1
-  sed -i '' "s|__GOOGLE_MAPS_API_KEY__|$MAPS_KEY|g" web/index.html
+  # sed -i は macOS（BSD）と Linux（GNU）で書式が違う。
+  if sed --version >/dev/null 2>&1; then
+    sed -i "s|__GOOGLE_MAPS_API_KEY__|$MAPS_KEY|g" web/index.html
+  else
+    # sed -i は macOS（BSD）と Linux（GNU）で書式が違う。
+  if sed --version >/dev/null 2>&1; then
+    sed -i "s|__GOOGLE_MAPS_API_KEY__|$MAPS_KEY|g" web/index.html
+  else
+    sed -i '' "s|__GOOGLE_MAPS_API_KEY__|$MAPS_KEY|g" web/index.html
+  fi
+  fi
   echo "Google Maps のキーを埋め込みました"
 else
   echo "GOOGLE_MAPS_API_KEY_WEB が未設定です。地図は距離順リストにフォールバックします。"
@@ -60,6 +70,11 @@ fi
 echo "ビルド識別子: $BUILD_ID"
 flutter build web --release --dart-define="APP_BUILD_ID=$BUILD_ID"
 
+# 公開した版の目印。毎日の監視（.github/workflows/prod_watch.yml）が読んで、
+# main より古いまま放置されていないかを確かめる。2026-09-30 に、ウェブ版が
+# 5週間古いまま誰も気づかなかったため（docs/MAINTENANCE_OPS_REVIEW_2026-09-30.md）。
+printf '{"commit":"%s","builtAt":"%s"}\n' "$BUILD_ID" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > build/web/build_info.json
+
 echo
 echo "=== 3/3 公開 ==="
 firebase deploy --only hosting --project trust-car-platform
@@ -68,3 +83,5 @@ echo
 echo "公開しました: https://trust-car-platform.web.app（ビルド識別子: $BUILD_ID）"
 echo "規約:         https://trust-car-platform.web.app/terms.html"
 echo "プライバシー: https://trust-car-platform.web.app/privacy.html"
+echo
+echo "忘れずに: docs/RELEASES.md の一番上に1行足す（ウェブ / $BUILD_ID / 内容）"

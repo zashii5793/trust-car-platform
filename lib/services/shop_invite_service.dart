@@ -27,6 +27,12 @@ class ShopCustomerLink {
   /// 満了日を最後に書き込んだ時刻。**古い数字を新しい顔で見せないため。**
   final DateTime? expiryUpdatedAt;
 
+  /// 顧客台帳の顧客に宛てた招待で紐づいたときの、その顧客のIDと招待コード。
+  /// ルールは「この招待に書かれた顧客IDと一致するか」を確かめる
+  /// （他人の顧客IDを名乗って、別人の整備明細を受け取らせないため）。
+  final String? customerId;
+  final String? inviteCode;
+
   const ShopCustomerLink({
     required this.shopId,
     required this.shopName,
@@ -36,6 +42,8 @@ class ShopCustomerLink {
     this.vehicleCount = 0,
     this.sharesInspectionExpiry = true,
     this.expiryUpdatedAt,
+    this.customerId,
+    this.inviteCode,
   });
 
   Map<String, dynamic> toMap() => {
@@ -49,6 +57,8 @@ class ShopCustomerLink {
         'sharesInspectionExpiry': sharesInspectionExpiry,
         if (expiryUpdatedAt != null)
           'expiryUpdatedAt': Timestamp.fromDate(expiryUpdatedAt!),
+        if (customerId != null) 'customerId': customerId,
+        if (inviteCode != null) 'inviteCode': inviteCode,
       };
 
   factory ShopCustomerLink.fromMap(Map<String, dynamic> map) {
@@ -71,6 +81,8 @@ class ShopCustomerLink {
       // 既定は true。切りたい人は画面から切れる。
       sharesInspectionExpiry: map['sharesInspectionExpiry'] as bool? ?? true,
       expiryUpdatedAt: updated is Timestamp ? updated.toDate() : null,
+      customerId: map['customerId'] as String?,
+      inviteCode: map['inviteCode'] as String?,
     );
   }
 
@@ -97,6 +109,8 @@ class ShopCustomerLink {
       sharesInspectionExpiry:
           sharesInspectionExpiry ?? this.sharesInspectionExpiry,
       expiryUpdatedAt: expiryUpdatedAt ?? this.expiryUpdatedAt,
+      customerId: customerId,
+      inviteCode: inviteCode,
     );
   }
 }
@@ -145,6 +159,7 @@ class ShopInviteService {
     required String shopOwnerId,
     int? maxUses,
     DateTime? expiresAt,
+    String? customerId,
   }) async {
     if (shopId.trim().isEmpty) {
       return const Result.failure(AppError.validation('店舗が特定できません'));
@@ -179,6 +194,7 @@ class ShopInviteService {
           isActive: true,
           usedCount: 0,
           maxUses: maxUses,
+          customerId: customerId,
         );
         await doc.set(invite.toMap());
         return Result.success(invite);
@@ -250,6 +266,9 @@ class ShopInviteService {
         vehicleCount: previous?.vehicleCount ?? 0,
         sharesInspectionExpiry: previous?.sharesInspectionExpiry ?? true,
         expiryUpdatedAt: previous?.expiryUpdatedAt,
+        // 台帳の顧客宛ての招待なら、どの顧客かを札に残す
+        customerId: invite.customerId,
+        inviteCode: invite.customerId == null ? null : invite.code,
       );
       await linkRef.set(link.toMap());
 

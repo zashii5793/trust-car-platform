@@ -1,6 +1,29 @@
 {
   "indexes": [
 
+    // 操作の記録: ある顧客に関するものを新しい順に（shop_audit_service.dart）
+    {
+      "collectionGroup": "audit_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "targetId", "order": "ASCENDING" },
+        { "fieldPath": "at", "order": "DESCENDING" }
+      ]
+    },
+
+    // 愛車ページ: 持ち主の、その車の、公開の投稿を新しい順に
+    // （lib/services/vehicle_profile_service.dart _posts）
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "vehicleTag.vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+
     // =========================================================
     // vehicles
     // =========================================================
@@ -282,6 +305,18 @@
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
+    // 愛車ページ: この車についての自分の投稿
+    // （`vehicleTag.vehicleId` で読むのはここだけ。makerId / modelName の
+    //   インデックスは同車種のフィード用で、車両1台ぶんは引けない）
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "vehicleTag.vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
     // ユーザー自身の投稿
     {
       "collectionGroup": "posts",
@@ -476,6 +511,82 @@
         { "fieldPath": "timestamp", "order": "ASCENDING" }
       ]
     },
+    // 経路の読み出し（userId で絞る。ルールが所有者を要求するため）
+    {
+      "collectionGroup": "drive_waypoints",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "driveLogId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
+      ]
+    },
+
+    // =========================================================
+    // fuel_records（給油記録）
+    // =========================================================
+    // その車の給油履歴。userId で絞らないとルールに弾かれる
+    {
+      "collectionGroup": "fuel_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+
+    // =========================================================
+    // documents（書類）
+    // =========================================================
+    {
+      "collectionGroup": "documents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "isArchived", "order": "ASCENDING" },
+        { "fieldPath": "uploadedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "documents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "maintenanceRecordId", "order": "ASCENDING" },
+        { "fieldPath": "uploadedAt", "order": "DESCENDING" }
+      ]
+    },
+
+    // =========================================================
+    // invoices（請求書）
+    // =========================================================
+    {
+      "collectionGroup": "invoices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "issueDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "invoices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "maintenanceRecordId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "invoices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "issueDate", "order": "ASCENDING" }
+      ]
+    },
 
     // =========================================================
     // spots (ドライブスポット)
@@ -577,13 +688,39 @@
     // =========================================================
     // shop_inquiry_demands (Issue #41 Phase 2)
     // =========================================================
-    // getDemandsForShop: shopId フィルタ + createdAt 降順
+    // getDemandsForShop: shopId + shopOwnerId フィルタ + createdAt 降順。
+    // ルールが resource.data.shopOwnerId == request.auth.uid を要求するため、
+    // クエリにも shopOwnerId 条件が要る（2026-09-10。無いと本番で弾かれる）。
+    {
+      "collectionGroup": "shop_inquiry_demands",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "shopOwnerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // 旧形（shopId のみ）。クライアントは使わなくなったが、配布済みの APK が
+    // 参照しうる間は残す。
     {
       "collectionGroup": "shop_inquiry_demands",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "shopId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+
+    // =========================================================
+    // faq_answers（Issue #191）
+    // =========================================================
+    // FaqService.getAnswers: faqId フィルタ + createdAt 昇順
+    {
+      "collectionGroup": "faq_answers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "faqId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
     }
 

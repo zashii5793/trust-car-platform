@@ -21,6 +21,8 @@
 //    15. Shows AppLoadingCenter while loading
 
 import 'package:flutter/material.dart';
+import 'package:trust_car_platform/models/shop_inquiry_demand.dart';
+import 'package:trust_car_platform/models/inquiry.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
@@ -44,13 +46,43 @@ import 'package:trust_car_platform/core/di/injection.dart';
 // ---------------------------------------------------------------------------
 
 int _mockDemandCount = 0;
+String? _lastDemandQueryOwnerId;
 
 class _MockShopDemandService extends ShopDemandService {
   _MockShopDemandService() : super();
 
   @override
-  Future<Result<int, AppError>> getDemandCountForShop(String shopId) async =>
-      Result.success(_mockDemandCount);
+  Future<Result<int, AppError>> getDemandCountForShop(
+    String shopId, {
+    required String shopOwnerId,
+  }) async {
+    _lastDemandQueryOwnerId = shopOwnerId;
+    return Result.success(_mockDemandCount);
+  }
+
+  /// カードは件数ではなく中身を読む（種別の内訳を出すため）。
+  /// `_mockDemandCount` 件ぶんを、見積もり依頼として返す。
+  @override
+  Future<Result<List<ShopInquiryDemand>, AppError>> getDemandsForShop(
+    String shopId, {
+    required String shopOwnerId,
+  }) async {
+    _lastDemandQueryOwnerId = shopOwnerId;
+    return Result.success(
+      List.generate(
+        _mockDemandCount,
+        (i) => ShopInquiryDemand(
+          id: 'demand_$i',
+          shopId: shopId,
+          shopOwnerId: shopOwnerId,
+          userId: 'user_$i',
+          type: InquiryType.estimate,
+          subject: '件名',
+          createdAt: DateTime(2026, 9, 1).add(Duration(days: i)),
+        ),
+      ),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -326,11 +358,21 @@ void main() {
       expect(find.text('無料で掲載を始める'), findsOneWidget);
     });
 
-    testWidgets('プランを選択 section heading is shown', (tester) async {
+    testWidgets('プランと料金 section heading is shown', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
-      expect(find.text('プランを選択'), findsOneWidget);
+      expect(find.text('プランと料金'), findsOneWidget);
+    });
+
+    testWidgets('有料プランは掲載のあと請求書払いで申し込むと案内する', (tester) async {
+      await tester.pumpWidget(_buildScreen(_FakeShopProvider()));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      final note = find.textContaining('請求書払い（銀行振込）で申し込めます');
+      await tester.scrollUntilVisible(note, 200,
+          scrollable: find.byType(Scrollable).first);
+      expect(note, findsOneWidget);
     });
 
     testWidgets('Free plan shows features', (tester) async {
@@ -586,6 +628,48 @@ void main() {
 
       expect(find.byKey(const Key('demand_notification_card')), findsOneWidget);
       expect(find.text('お問い合わせ希望が 5 件あります'), findsOneWidget);
+    });
+
+    // 件数だけでは、登録する価値があるか判断できない。何の相談が来て
+    // いるのかまで出す。
+    testWidgets('何の相談が来ているかの内訳が出る', (tester) async {
+      _mockDemandCount = 3;
+      final provider = _FakeShopProvider(
+        shop: _makeShop(subscriptionStatus: ShopSubscriptionStatus.free),
+      );
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('demand_type_breakdown')), findsOneWidget);
+      expect(find.text('見積もり依頼 3件'), findsOneWidget);
+    });
+
+    // 本文は書いた人のものであり、同時に登録する理由でもある。
+    // 無料で渡すと理由が消える。
+    testWidgets('相談の本文・件名は出さない', (tester) async {
+      _mockDemandCount = 2;
+      final provider = _FakeShopProvider(
+        shop: _makeShop(subscriptionStatus: ShopSubscriptionStatus.free),
+      );
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('件名'), findsNothing);
+      expect(find.textContaining('user_0'), findsNothing);
+    });
+
+    testWidgets(
+        'queries with the signed-in uid when shop.ownerId is missing '
+        '(rules require shopOwnerId)', (tester) async {
+      _mockDemandCount = 1;
+      _lastDemandQueryOwnerId = null;
+      final provider = _FakeShopProvider(
+        shop: _makeShop(subscriptionStatus: ShopSubscriptionStatus.free),
+      );
+      await tester.pumpWidget(_buildScreen(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(_lastDemandQueryOwnerId, 'owner-uid');
     });
 
     testWidgets('hides demand card when demand count is 0', (tester) async {

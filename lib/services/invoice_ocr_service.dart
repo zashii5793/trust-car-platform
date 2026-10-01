@@ -182,8 +182,11 @@ class InvoiceOcrService {
 
       return Result.success(data);
     } catch (e) {
+      // Fixed message — exception details could echo OCR text fragments
+      // that contain personal information (the shop's name and phone number,
+      // sometimes the owner's). Same rule as the certificate scanner.
       return Result.failure(
-        AppError.unknown('OCR処理中にエラーが発生しました: $e'),
+        const AppError.unknown('OCR処理中にエラーが発生しました。もう一度お試しください。'),
       );
     }
   }

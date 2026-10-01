@@ -10,6 +10,12 @@ import 'package:trust_car_platform/core/error/app_error.dart';
 // Mock FirebaseService for testing
 class MockFirebaseService implements FirebaseService {
   @override
+  Future<Result<MaintenanceSummary, AppError>> maintenanceSummary({
+    DateTime? since,
+  }) async =>
+      const Result.success(MaintenanceSummary.empty);
+
+  @override
   Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
       const Result.success(false);
 
@@ -86,6 +92,13 @@ class MockFirebaseService implements FirebaseService {
     String? excludeVehicleId,
   }) async =>
       const Result.success(false);
+
+  @override
+  Future<Result<List<MaintenanceRecord>, AppError>>
+      getRecentMaintenanceRecords({
+    int limit = 5,
+  }) async =>
+          const Result.success([]);
 
   @override
   Future<Result<List<MaintenanceRecord>, AppError>>

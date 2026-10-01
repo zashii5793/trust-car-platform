@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/utils/odometer.dart';
 
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
@@ -40,10 +41,25 @@ class FuelService {
       return const Result.failure(AppError.validation('金額を入力してください'));
     }
 
+    // Odometer typos poison everything downstream: fuel economy, service
+    // intervals, and the mileage a buyer looks at. Refuse only what cannot be
+    // real (negative, or past any vehicle on the road) — a reading lower than
+    // last time happens for real when a cluster is swapped, and refusing it
+    // would stop people recording what actually happened.
+    final odometer = record.odometer;
+    if (odometer != null) {
+      final check = OdometerCheck.against(value: odometer, previous: null);
+      if (check.severity.isBlocking) {
+        return Result.failure(
+          AppError.validation(check.message ?? '走行距離をお確かめください'),
+        );
+      }
+    }
+
     try {
       final doc = await _ref.add(record.toMap());
 
-      final history = await recordsFor(record.vehicleId);
+      final history = await recordsFor(record.vehicleId, userId: record.userId);
       final efficiency = history.valueOrNull == null
           ? null
           : FuelEfficiency.latestFor(history.valueOrNull!);
@@ -57,14 +73,24 @@ class FuelService {
   }
 
   /// その車の給油履歴を、新しい順で返す。
+  ///
+  /// **userId で必ず絞る。** `firestore.rules` の `fuel_records` は
+  /// `resource.data.userId == request.auth.uid` を read の条件にしている。
+  /// Firestore は「そのクエリがルールを満たすこと」を静的に証明できないと
+  /// クエリごと弾くため、vehicleId だけで引くと本番では permission-denied に
+  /// なる（2026-09-08 にエミュレータで実測）。テストは fake_cloud_firestore で
+  /// ルールを評価しないので、この壊れ方はテストでは出ない。
   Future<Result<List<FuelRecord>, AppError>> recordsFor(
     String vehicleId, {
+    required String userId,
     int limit = 100,
   }) async {
     if (vehicleId.trim().isEmpty) return const Result.success([]);
+    if (userId.trim().isEmpty) return const Result.success([]);
 
     try {
       final snapshot = await _ref
+          .where('userId', isEqualTo: userId)
           .where('vehicleId', isEqualTo: vehicleId)
           .orderBy('date', descending: true)
           .limit(limit)

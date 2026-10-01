@@ -398,6 +398,124 @@ void main() {
         'updatedAt': Timestamp.fromDate(DateTime(2024, 1, 1)),
       };
 
+  // 車両タグは投稿が出た頃から保存されていたのに、**車両で読み戻す経路が
+  // 無かった**（makerId / modelName のクエリはあるが、車両1台ぶんは引けない）。
+  // 「この車のことが1か所に集まる」が、データはあるのにできなかった。
+  group('PostService.getPostsForVehicle — 愛車ページ', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late PostService service;
+
+    Map<String, dynamic> taggedPost({
+      required String userId,
+      String? vehicleId,
+      String content = 'test',
+      DateTime? createdAt,
+    }) {
+      final doc = postDoc(
+        userId: userId,
+        visibility: 'public',
+        content: content,
+      );
+      if (createdAt != null) {
+        doc['createdAt'] = Timestamp.fromDate(createdAt);
+      }
+      if (vehicleId != null) {
+        doc['vehicleTag'] = {'vehicleId': vehicleId, 'makerName': 'Toyota'};
+      }
+      return doc;
+    }
+
+    setUp(() {
+      fakeFirestore = FakeFirebaseFirestore();
+      service = PostService(firestore: fakeFirestore);
+    });
+
+    test('その車の投稿だけが返る', () async {
+      await fakeFirestore.collection('posts').add(
+          taggedPost(userId: 'me', vehicleId: 'veh_1', content: 'ハイエースの話'));
+      await fakeFirestore
+          .collection('posts')
+          .add(taggedPost(userId: 'me', vehicleId: 'veh_2', content: '別の車の話'));
+
+      final result = await service.getPostsForVehicle(
+        vehicleId: 'veh_1',
+        ownerId: 'me',
+      );
+
+      expect(result.valueOrNull!.length, 1);
+      expect(result.valueOrNull!.first.content, 'ハイエースの話');
+    });
+
+    test('他人の投稿は混ざらない', () async {
+      await fakeFirestore
+          .collection('posts')
+          .add(taggedPost(userId: 'me', vehicleId: 'veh_1'));
+      await fakeFirestore
+          .collection('posts')
+          .add(taggedPost(userId: 'someone', vehicleId: 'veh_1'));
+
+      final result = await service.getPostsForVehicle(
+        vehicleId: 'veh_1',
+        ownerId: 'me',
+      );
+
+      expect(result.valueOrNull!.length, 1);
+    });
+
+    test('新しい順に返る', () async {
+      await fakeFirestore.collection('posts').add(taggedPost(
+            userId: 'me',
+            vehicleId: 'veh_1',
+            content: '古い',
+            createdAt: DateTime(2026, 1, 1),
+          ));
+      await fakeFirestore.collection('posts').add(taggedPost(
+            userId: 'me',
+            vehicleId: 'veh_1',
+            content: '新しい',
+            createdAt: DateTime(2026, 9, 1),
+          ));
+
+      final result = await service.getPostsForVehicle(
+        vehicleId: 'veh_1',
+        ownerId: 'me',
+      );
+
+      expect(result.valueOrNull!.first.content, '新しい');
+    });
+
+    group('Edge Cases', () {
+      test('タグの無い投稿は返らない', () async {
+        await fakeFirestore.collection('posts').add(taggedPost(userId: 'me'));
+
+        final result = await service.getPostsForVehicle(
+          vehicleId: 'veh_1',
+          ownerId: 'me',
+        );
+
+        expect(result.valueOrNull, isEmpty);
+      });
+
+      test('車両IDが空なら空を返す（全件を舐めない）', () async {
+        await fakeFirestore
+            .collection('posts')
+            .add(taggedPost(userId: 'me', vehicleId: 'veh_1'));
+
+        final result =
+            await service.getPostsForVehicle(vehicleId: '', ownerId: 'me');
+
+        expect(result.valueOrNull, isEmpty);
+      });
+
+      test('所有者IDが空なら空を返す', () async {
+        final result =
+            await service.getPostsForVehicle(vehicleId: 'veh_1', ownerId: '');
+
+        expect(result.valueOrNull, isEmpty);
+      });
+    });
+  });
+
   group('PostService.getUserPosts — フォロワー限定投稿', () {
     late FakeFirebaseFirestore fakeFirestore;
     late PostService service;

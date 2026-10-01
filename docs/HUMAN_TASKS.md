@@ -1,12 +1,183 @@
 # 人間が実施すべきタスク一覧
 
-**最終更新**: 2026-09-03
+**最終更新**: 2026-10-01
 **前提**: AIが実装・テスト・コードプッシュまで完了済み。以下は **AIでは代替できない** 操作、および **人間の意思決定が必要な事項** のみ。
 **出荷目標**: 2026年8月ソフトローンチ（逆算計画は `docs/LAUNCH_PLAN.md`）。
 
 > **来週テストユーザーに触ってもらう分だけを知りたい場合は、
-> `docs/TESTUSER_ROLLOUT_2026-08.md` を先に読んでください。**
+> `docs/TESTUSER_ROLLOUT_2026-09.md`（iPhone 含む。8月の経緯は `TESTUSER_ROLLOUT_2026-08.md`） を先に読んでください。**
 > このドキュメントはストア公開までの全量です。テスト配布に不要な項目も含みます。
+
+## 朝にやること（2026-10-01）
+
+**2026-10-01 に 1〜2 は済み**（PR 10本をマージ、ルール・Remote Config・ウェブを反映、削除保護・PITR・ブランチ保護を設定。記録は `docs/RELEASES.md`）。
+残りは「3. 社長にしかできないこと」と「4. 判断してほしいこと」。
+
+2026-09-30 の夜に、保守の評価（`docs/MAINTENANCE_OPS_REVIEW_2026-09-30.md`・25/60）と
+プロダクト評価（2026-09-29）の改善を、**PR 10本**にしてある。どれも CI を通したが、**マージもデプロイもしていない**。
+10本を順に重ねた状態でも、Flutter 5,026件・ルール 340件・Functions 98件がすべて通ることを確かめてある。
+
+### 1. PR をこの順でマージする
+
+| 順 | PR | 中身 | マージ後に要ること |
+| --- | --- | --- | --- |
+| 1 | #232 | **店主がアプリから自分の店を有料プランに書き換えられた穴を塞ぐ**＋請求書払いの申し込み | **ルールのデプロイ**（急ぐ） |
+| 2 | #224 | Functions のテストを CI に・デプロイ台帳 `docs/RELEASES.md` | — |
+| 3 | #225 | 公開リポジトリから個人のメールアドレスを消す | 履歴の扱いを決める（下記4） |
+| 4 | #226 | 本番を毎日外から見張り、問題を Issue で知らせる | **ウェブを公開し直す**（版の目印が付く） |
+| 5 | #227 | 復旧の手順書（§0）・データの版の決まり | — |
+| 6 | #228 | 店側・利用者側の通しテストを CI で（エミュレータ＋Chrome） | — |
+| 7 | #229 | ウェブ版のエラーを `client_errors` に集める | ルールのデプロイ・ウェブの公開 |
+| 8 | #230 | 利用者の最初の7日を段階ごとに記録（`first_week_step`） | ウェブの公開 |
+| 9 | #231 | 顧客台帳の CSV 書き出し（全件・車検案内の宛名） | ルールのデプロイ・ウェブの公開 |
+| 10 | この PR | 人間タスクと評価の更新 | — |
+
+**マージし終えたら、まとめて1回だけ**（AI に頼んでよい）:
+
+```bash
+git switch main && git pull
+(cd test/rules && npm test)
+firebase deploy --only firestore:rules
+./scripts/deploy_web.sh
+# docs/RELEASES.md に2行（ルール・ウェブ）
+```
+
+### 2. 本番の設定（1行ずつ・AI に頼んでよい）
+
+| やること | コマンド | なぜ |
+| --- | --- | --- |
+| Firestore の削除保護 | `firebase firestore:databases:update "(default)" --delete-protection ENABLED` | 今は DB ごと消せる |
+| Point-in-Time Recovery | `firebase firestore:databases:update "(default)" --point-in-time-recovery ENABLED` | 直近7日の任意の時点に戻せるようにする |
+| **main のブランチ保護** | GitHub → Settings → Branches → `main` →「Require a pull request」「Require status checks」 | 公開リポジトリなので無料で使える |
+
+### 3. 社長にしかできないこと
+
+- **リリース鍵とパスワードを Mac の外へ退避**（まだなら。無くすと Play のアプリを二度と更新できない）
+- Crashlytics の通知（Firebase Console → Crashlytics → 通知）
+- 2人目の管理者を誰にするか（Firebase・GitHub・ストア）
+
+### 4. 判断してほしいこと
+
+| 論点 | 出どころ | AI の案 |
+| --- | --- | --- |
+| **git の履歴に残った個人のメールアドレス**（`ccb6a850` ほか） | #225 | 消すには履歴の書き換えと force push が要る。影響は小さいので、このままにしてよいと考える |
+| 申し込みが来たことを運営者に知らせるか（メール等） | #232 | 最初の数店は Console を見に行く運用で足りる。10店を超えたら Functions で通知 |
+| 無料の試用期間を設けるか | #232 | 「30日間の無料トライアル」の表記は外した（規約・特商法に定めが無いため） |
+| 全件の書き出しを店主だけにしてよいか | #231 | 店主だけにした（スタッフが辞めるときに名簿ごと持ち出せないように） |
+| アプリ利用中の客を車検案内の宛名から外してよいか | #231 | 既定で外す（画面で外せる） |
+| ウェブのエラーを未ログインでも書けるようにしたこと・保存90日 | #229 | ログイン前に落ちるエラーも拾うため。量が気になれば App Check を強制に |
+| PR #61 を閉じるか | #227 | 中身は #227 に取り込んだので閉じてよい |
+
+## いまの順番（2026-09-30）
+
+**済み（2026-09-29）**
+- #216 を main にマージ
+- ルールと索引を本番へデプロイ（ルールのテスト290件パス後。店の顧客台帳・
+  操作の記録・店主の引き継ぎ・工場から受け取った記録の改ざん防止が入った）
+- 判断: 台帳の「車種別レポートへの協力」は**オンにする**／メーカーのロゴは**使う**
+  （各社の公式サイトから取得。PR #218）
+- 判断: 特商法の氏名・所在地・電話番号は**「請求があれば開示」**にする
+- 判断: 店舗プランは**当面は請求書払い**。10店舗程度になったらクレジット決済を足す
+- 判断: 専門家への確認は**しない**（いない）。規約は現状の案で公開する
+- タカヤは整備管理ソフトを使っていない。**取り込むデータは無い**（台帳は一から作る）
+
+**済み（2026-09-30）**
+- シークレット3つを設定し、**Functions 7つを本番へデプロイ**（P0-0 解消。退会後の削除も動いている）。
+  ビルドイメージの自動削除（1日）も設定。firebase-functions 7 系への更新は Issue #220
+- GCP の請求アラート（月1,000円・50/90/100%＋予測100%）
+- **Android のリリース鍵を作成**（P0-1）。`~/trustcar-release.keystore`・`android/key.properties`・
+  GitHub Secrets 4つ。SHA-1 / SHA-256 を Firebase に登録し、`google-services.json` を取り直した
+  （Android の OAuth クライアントができた＝P0-4 の Google 側は解消）
+
+- Remote Config は本番とテンプレートが一致していた（4つとも `false`・反映済み）
+- **タカヤの店主アカウントを登録**（店主本人のメールアドレスで、本人がアプリから登録。アドレスは公開リポジトリに書かない）
+- 判断: 店舗プランの料金は**掲載管理の画面の金額**に揃える
+  （フリー 無料 / スタンダード 9,800円 / プレミアム 29,800円 / エンタープライズ 個別見積もり）。
+  アプリのプラン画面・特商法を合わせて直した
+
+**残り（2026-09-30 時点・この順で）**
+
+| # | やること | 手順 | 所要 |
+|---|---|---|---|
+| 1 | リリース鍵を Mac の外に退避 | `~/trustcar-release.keystore` とパスワードをパスワードマネージャ等へ | 5分 |
+| 2 | 顧客台帳で「車種別レポートへの協力」をオン | 下記「顧客台帳で協力をオンにする」 | 2分 |
+| 3 | 個人向けの有料化の形を決める | 下記「個人向けの有料化」 | 判断 |
+| 4 | 特商法を公開する | `web/tokushoho.html` と `docs/web/tokushoho.html` の最終更新日を公開日に。販売事業者（今は ZAXEL合同会社）で良いか確認 | 10分 |
+| 5 | 輸入車をマスタに入れる（要る場合） | 本番の `vehicle_masters` が投入済みなら `node scripts/import_vehicle_master.js`（サービスアカウントキーが要る） | 10分 |
+| 6 | Apple の設定 | P0-4（Sign in with Apple）・P1-5（証明書）・P1-6（APNs キー） | 2〜3時間 |
+| 7 | Maps のキー | P0-3 | 30分 |
+| 8 | 実機テスト | P1-9（`docs/DEVICE_TEST_CHECKLIST.md`）。最初に車検証 OCR の満了日と Android の Google ログイン | 1日 |
+| 9 | App Check の登録 | P2-13（Android は SHA-256 登録済み。Play Integrity を有効化） | 1時間＋監視 |
+| 10 | ストア申請 | P3-16・17。Play は初回アップロード時に **Play App Signing を有効化** | 各2〜3時間 |
+
+RevenueCat（P1-7）は、店舗プランを請求書払いにしたので当面は不要（10店舗程度でクレジット決済を足すときに）。
+
+### 顧客台帳で協力をオンにする `[2026-09-30]`
+
+タカヤの店主アカウントでログインした状態で:
+
+1. 下のタブの **「マーケット」** を開く
+2. 右上の **お店のアイコン**（店舗を掲載する）を押す → **「掲載管理」** の画面になる
+3. 画面の中ほどにある青いボタン **「顧客台帳」** を押す
+4. 顧客台帳の画面の右上、いちばん右の **「︙」（縦の点3つ）** を押す
+5. メニューの **「車種別レポートへの協力」** を押す
+6. 出てきた画面の **「匿名の集計に協力する」** のスイッチをオンにして閉じる
+
+「切り替えられるのは店主のアカウントだけです」と出たら、ログインしているのが
+店主のアカウントかを確かめる。
+
+**本番に、シードで入れたタカヤの店（`shops/shop_takaya_motor_okayama`）が残っていると、
+店が2つ並ぶ。** マーケットの店の一覧で2つ出ていたら AI に伝える（古い方の片付けには
+サービスアカウントキーが要る）。
+
+### 個人向けの有料化 `[2026-09-30・判断待ち]`
+
+社長の意向: **最初のユーザーはフル機能で、ある段階から有料にしたい。**
+
+**今の実装はこの形に近い。** 登録から **180日間は全機能を無料**
+（`lib/models/user_plan.dart` の `graceDays`）。過ぎると無料プランの範囲に戻り、
+自動で課金はされない（利用規約 第11条）。購入の導線は `premium_features`
+（Remote Config）で止めてある。価格の材料は `docs/PRICING_DECISION_B2C.md`。
+
+決めること:
+- 「ある段階」を **登録からの日数**（今の180日のまま・短く・長く）にするか、
+  **初期ユーザーの特典**（例: ある日までに登録した人はずっと／1年は無料）にするか
+- 個人のプレミアムの月額
+- 課金を始める時期（例: 利用者が何人になったら）
+
+### GCP の請求アラート `[完了: 2026-09-30]`
+
+1. https://console.cloud.google.com/billing で、`trust-car-platform` の請求先アカウントを選ぶ
+2. 左メニュー「予算とアラート」→「予算を作成」
+3. 範囲: 名前 `trustcar-monthly`・期間 月別・プロジェクト `trust-car-platform`・サービス すべて
+4. 金額: 指定額 1,000円
+5. しきい値: 50% / 90% / 100%（実費）＋ 100%（予測）
+6. 通知: 「請求先アカウント管理者とユーザーにメール通知」→ 完了
+
+アラートは知らせるだけで、課金は止まらない。
+
+## 店の顧客台帳と車種別レポート（タカヤで使い始めるまで） `[2026-09-27]`
+
+設計: `docs/SHOP_CRM_DESIGN_2026-09-27.md`
+
+1. ~~整備管理ソフトの製品名と CSV の見本を共有~~ — **タカヤは使っていない（2026-09-29）**。
+   取込は、他の店で使うときに製品に合わせる
+2. ルールと Cloud Functions をデプロイ（上記 ＋ P0-0）
+   — 車種別レポートの集計（`aggregateModelCosts`・毎晩 04:07）と、期限切れの
+   写しの削除（`purgeExpiredShares`・毎晩 03:37）が一緒に入ります
+3. （取り込むデータがある店で）店主アカウントで「掲載管理」→「顧客台帳」→ 右上の取込ボタン
+   - まず **顧客名簿**（顧客・車両の CSV）、次に **整備履歴**（伝票の CSV）
+   - Shift_JIS のままで読めます。やり直しても二重になりません
+4. 台帳の右上メニュー「車種別レポートへの協力」を**オンにする（2026-09-29 決定）**
+   — 整備履歴が車種別の維持費の匿名集計に入ります（既定はオフ）
+5. 規約（**2026-09-29 に案を入れた**。専門家確認はしないと決定）
+   - 利用規約 第15条の2（整備工場との情報の受け渡し）・第15条の3（整備工場向け機能）、
+     第11条（個人は登録から180日間無料・自動課金なし）、第12条（退会は猶予なし）
+   - プライバシーポリシー 9の2〜9の4（店への受け渡し・匿名の統計・店の顧客台帳と委託）
+   - アプリ内の文面は web/*.html から生成するようにした（`dart run tool/gen_policy_texts.dart`）
+   - 以下は当初の論点
+   - 店舗向け: 顧客の個人情報を預かること（委託）、整備実績を匿名の統計に使うこと
+   - 利用者向け: 整備記録・給油記録を匿名の統計に使うこと、写しを店に渡す機能
 
 ## このドキュメントの読み方
 
@@ -22,7 +193,42 @@
 
 ## P0 — リリースブロッカー
 
-### 1. Android リリース署名の設定 `[実測: android/key.properties が存在しません]`
+### 0. Cloud Functions が本番に1つも無い `[完了: 2026-09-30。7つとも本番で稼働]`
+
+**手順: `docs/FUNCTIONS_DEPLOY.md`**
+
+```
+$ firebase functions:list
+No functions found in project trust-car-platform.
+```
+
+**退会後のデータ削除（`purgeDeletedAccounts`）が動いていません。**
+プライバシーポリシーに「退会手続きの完了時に削除します」と書いてあるのに、
+削除する仕組みが本番にありません。AIチャット・課金の同期・コメントの
+モデレーションも同様に動きません。
+
+**2026-09-28 に再確認: Functions は0個、シークレット3つは未設定（404）。**
+
+**Secret Manager API はもう有効になっています `[実測: 2026-09-22]`。**
+以前は「Console でのクリックが要る」と書いていましたが、
+`firebase functions:secrets:get ANTHROPIC_API_KEY` の応答が
+**403（API 未使用）から 404（シークレットが無い）に変わっています**。
+3つとも同じで、**Console 作業はもう不要・CLI だけで完結します。**
+
+残っているのは値の設定とデプロイだけです:
+
+```bash
+firebase functions:secrets:set ANTHROPIC_API_KEY        # 値が無ければダミー可
+firebase functions:secrets:set SENDGRID_API_KEY
+firebase functions:secrets:set REVENUECAT_WEBHOOK_SECRET
+firebase deploy --only functions
+```
+
+**所要時間**: 15分（Console 作業が不要になったぶん短縮）
+
+---
+
+### 1. Android リリース署名の設定 `[完了: 2026-09-30。鍵・key.properties・GitHub Secrets・SHA 登録。CI の release APK で署名一致を確認]`
 
 **状態**: **コード側は対応済み。残るのはキーストアの生成だけです。**
 
@@ -85,63 +291,90 @@ storeFile=/Users/<ユーザー名>/trustcar-release.keystore
 
 **デプロイ手順チェックリスト**（2026-09-03 実施済み）:
 - [x] ローカル検証: `cd test/rules && npm install && npm test` — 148件パス
-- [x] `firebase login`（`hideki.ishizashi@gmail.com`）
+- [x] `firebase login`（プロジェクトのオーナーのアカウント）
 - [x] ドライラン: `firebase deploy --only firestore:rules --dry-run` — コンパイル成功
 - [x] 本番反映: `firebase deploy --only firestore:rules` — released
 - [x] 本番反映: `firebase deploy --only firestore:indexes` — deployed
+- [x] **本番反映: `firebase deploy --only storage`** — 2026-09-06 released
 - [ ] Firebase Console → Firestore → ルール → バージョン履歴で反映時刻を確認（人間の目視）
+
+### Storage のルールは 2026-09-06 に反映しました
+
+未反映のあいだは写真のアップロードが弾かれる状態でした（車両の画像・整備記録の
+写真・プロフィールのアイコン）。
 
 **所要時間**: 5分（インデックス構築は数分〜数十分かかる場合あり）
 
 ---
 
-### 3. Google Maps API キーの設定 `[実測: 未設定]`
+### 3. Google Maps API キーの設定 `[実測: 未設定。ただしコストはほぼゼロと判明]`
 
-**状態**: **未設定を実測で確認しました。** ブラウザのコンソールに以下が出ています。
+**詳細と試算: `docs/MAPS_API_COST.md`**
 
-```
-Google Maps JavaScript API warning: InvalidKey
-```
+**2026-09-03 に調べ直しました。Places API は使っていません**（`lib/` `functions/`
+`web/` を全文検索してヒット0）。Geocoding も Directions も未使用で、距離は
+Haversine のローカル計算です。**課金対象は地図の表示だけ**で、地図を出すのは
+2画面（近隣工場マップ・ドライブログの経路プレビュー）に限られます。
 
-**影響範囲**: 近隣工場の地図表示（#43 / #125）。ただし `MapsConfig.isConfigured` でガードされており、**キーが無い場合は距離順リストにフォールバック**します。アプリがクラッシュすることはありません。
+**「Places の従量課金が高い」という以前の記述は、Issue #44（非提携先の網羅表示）
+を見越したものでした。#44 は未着手なので、ローンチ時点では判断が要りません**
+（着手するときに改めて設計します）。
 
-**手順**:
-1. [Google Cloud Console](https://console.cloud.google.com/) → APIとサービス → 認証情報 → APIキー発行
-2. 有効化するAPI（コスト最適化のため段階的に）:
-   - **フェーズ1a**: Maps SDK for Android / Maps SDK for iOS（地図表示）
-   - **フェーズ1b（任意）**: Places API（非提携先の近隣検索。**従量課金が高いため要判断**）
-3. APIキー制限（必須・漏洩対策）:
-   - Android: パッケージ名 `jp.trustcar.app` ＋ SHA-1 で制限
-   - iOS: Bundle ID `jp.trustcar.app` で制限
-   - 各キーで「使用するAPIのみ」に制限
-4. アプリへの設定（ハードコード禁止）:
-   - Android: `android/local.properties` に `MAPS_API_KEY=<実キー>`、または環境変数 `MAPS_API_KEY` / `GOOGLE_MAPS_API_KEY`
-     （`build.gradle.kts` の `manifestPlaceholders` が3経路とも読むよう実装済み）
-   - iOS: `ios/Runner/AppDelegate.swift` で注入
-   - CI: GitHub Secrets に `GOOGLE_MAPS_API_KEY`
-5. Google Cloud で **予算アラート**を設定（無料枠超過の早期検知）
+ソフトローンチ規模（20人）で **月140ロード程度**、無料枠の 1.4% です。
+さらに **Android / iOS のネイティブ地図は現行の価格体系では無料**で、課金される
+Web は `MAPS_API_KEY` を渡していないため**現状ロード数0**です。
 
-**コスト目安（2026年時点・要最新確認）**:
-- 地図表示（Dynamic Maps, Essentials）: 月10,000ロードまで無料、超過後 約$7/1,000
-- Places 近隣検索（Pro）: 無料枠5,000/月、超過後 約$25〜/1,000
-- → フェーズ1a は無料枠内に収まりやすい。Places は1商圏限定＋キャッシュでコスト管理
+**やること**（30分）:
 
-**所要時間**: 1〜2時間
-**前提条件**: Google Cloud プロジェクトのオーナー権限・課金有効化
+1. Google Cloud Console でAPIキーを発行
+2. 有効化: **Maps SDK for Android / Maps SDK for iOS のみ**（Places は不要）
+3. キー制限: Android はパッケージ名 `jp.trustcar.app` ＋ SHA-1、iOS は Bundle ID
+4. 渡し方: `android/local.properties` に `MAPS_API_KEY=...` / CI は GitHub Secrets
+5. 予算アラート（月$1で十分）
+
+**コード側の穴は 2026-09-03 に塞ぎました。** iOS は
+`ios/Flutter/Maps.xcconfig`（`.gitignore` 対象。`Maps.xcconfig.example` を
+コピーして使う）からキーが渡るようになり、ドライブログ詳細にもガードが
+入っています。**キーを発行したら、あとは置くだけです。**
 
 ---
 
 ### 4. Firebase Authentication の本番設定 `[要確認]`
 
-**手順**:
-1. Firebase Console → Authentication → Sign-in method
-2. 以下を有効化:
-   - **メール / パスワード**（本番にテストユーザーが存在するため、有効化済みの可能性が高い。要確認）
-   - **Google**: SHA-1 フィンガープリントを追加（Android）
-   - **Apple**: iOS のガイドライン4.8対応。`SignInWithAppleButton` は実装済み
-3. 承認済みドメインに本番ドメインを追加（Web版 = `zashii5793.github.io`）
+**詳細な手順: `docs/SETUP_AUTH_CONSOLE.md`**
 
-**所要時間**: 15分
+**2026-09-03 追記: `android/app/google-services.json` に Android 用の OAuth
+クライアント（SHA-1 付き）がありません。** このままでは Android の Google ログインが
+`ApiException: 10` で失敗します。**SHA-1 の登録と `google-services.json` の
+取り直しが要ります**（登録するのは P0-1 のリリース鍵の SHA-1。この開発機には
+Android SDK が無く、debug の SHA-1 は取れません）。
+
+**メール/パスワードと承認済みドメインは、もう済んでいます `[実測: 2026-09-22]`。**
+
+- 存在しないアカウントで `accounts:signInWithPassword` を叩くと
+  `OPERATION_NOT_ALLOWED` ではなく **`INVALID_LOGIN_CREDENTIALS`** が返る
+  ＝プロバイダは有効
+- `authorizedDomains` に `trust-car-platform.web.app` / `.firebaseapp.com` /
+  `localhost` が入っている。**`zashii5793.github.io` の追加は不要**
+  （GitHub Pages へのデプロイは撤去済み。`TESTUSER_ROLLOUT_2026-09.md` §6）
+
+**残っているのは Google と Apple の2つだけです**:
+
+1. **Google**: リリース鍵の SHA-1 を追加（Android）。
+   ⚠️ **いまは Android の OAuth クライアントが存在しません** `[実測: 2026-09-22]`。
+   `firebase apps:sdkconfig ANDROID` の応答に `client_type: 1` が無く
+   `certificate_hash` が0件。**このままだと Android の Google ログインは
+   必ず `ApiException: 10` で失敗します。** 項目1（キーストア生成）が前提
+2. **Apple**: iOS のガイドライン4.8対応。
+   `ios/Runner/Runner.entitlements` は **2026-09-22 に作成済み**
+   （`com.apple.developer.applesignin` と `aps-environment`。pbxproj の
+   3つの config に配線済み）。
+   ⚠️ **ファイルを置いただけでは動きません。** Apple Developer の App ID で
+   **Sign in with Apple と Push Notifications の capability を有効化**し、
+   Firebase Console の Apple プロバイダに Services ID / キーを登録する必要が
+   あります。ここは人間の作業です
+
+**所要時間**: 15分（Google・Apple のみ）
 
 ---
 
@@ -179,6 +412,15 @@ Google Maps JavaScript API warning: InvalidKey
 
 ### 7. RevenueCat のAPIキー設定 `[コード検証済: 環境変数注入は実装済み]`
 
+**2026-09-05: B2C の課金は凍結しました。ソフトローンチは店舗プランだけで出します。**
+
+`FeatureFlag.premiumFeatures`（既定 `false`）で購入導線を止めてあります。
+Remote Config の `premium_features` で後から開けられます（`c2c_parts_marketplace`
+と同じ扱い）。
+
+**したがって、いま作るのは店舗プランの商品だけ**です。B2C の価格を決めるときの
+材料は `docs/PRICING_DECISION_B2C.md` に残してあります。
+
 **状態**: #118 でハードコードを廃止し、`.env` / `--dart-define` 両対応済み。`.env.example` にテンプレートあり。**キーの値そのものは未設定**。
 
 **手順**:
@@ -194,7 +436,14 @@ Google Maps JavaScript API warning: InvalidKey
 
 ---
 
-### 8. GoogleService-Info.plist が別アプリのもの `[実測: iOS が起動しません]`
+### 8. ~~GoogleService-Info.plist が別アプリのもの~~ **解決済み** `[実測: 2026-09-22]`
+
+> **2026-09-22 に確認、この項目はもう作業対象ではありません。**
+> `ios/Runner/GoogleService-Info.plist` の `BUNDLE_ID` は `jp.trustcar.app`、
+> `API_KEY` は `lib/firebase_options.dart` の ios/macos と一致。
+> `firebase apps:list` に `TrustCar (iOS)`
+> `1:31421119456:ios:5646ac324f34398880c985` が登録済み。
+> 以下は経緯の記録として残します。
 
 > **2026-08-21 に格上げ。** この項目は「新端末ビルド時に再配置が必要」と書いていましたが、
 > **実態は「置いてあるファイルが別アプリのもの」**でした。**P0 相当です。**
@@ -274,6 +523,12 @@ plist は **Flutter のテンプレート既定のまま**で、取り直され�
 
 ### 9. 実機テスト（iOS / Android） `[未実施]`
 
+**チェックシート: `docs/DEVICE_TEST_CHECKLIST.md`**（項目ごとの記入欄あり）
+
+**2026-09-03 追記: 車検証OCRの元号変換にバグが見つかり、直しました。** ML Kit が
+ラベルと値を別行で返すと**令和7年が1995年**になっていました（満了日が30年前に
+なると、車検の案内が全部「切れている」と出ます）。実機で最初に確かめるべき項目です。
+
 エミュレータや Web では再現しない領域の確認です。**特に以下の3つは Web で一切検証できません**。
 
 #### 9-1. OCR（iOS/Android専用機能）
@@ -305,14 +560,24 @@ plist は **Flutter のテンプレート既定のまま**で、取り直され�
 
 ---
 
-### 10. Firestore バックアップ設定 `[要確認]`
+### 10. Firestore バックアップ設定 `[完了: 2026-09-03]`
 
-1. Firebase Console → Firestore → バックアップとエクスポート
-2. 自動バックアップを「毎日」に設定
-3. Cloud Storage バケットを指定（例: `gs://trust-car-backup-2026`）
-4. 保持期間: 30日
+**Console を開かずに CLI から設定できます。** 2026-09-03 に設定済み。
 
-**所要時間**: 15分
+```bash
+firebase firestore:backups:schedules:create --recurrence DAILY --retention 30d
+firebase firestore:backups:schedules:list   # 確認
+```
+
+```
+ Name         projects/trust-car-platform/databases/(default)/backupSchedules/d7be24ef-...
+ Recurrence   DAILY
+ Retention    2592000s（30日）
+```
+
+Firestore のスケジュールバックアップは Google 側が保持するため、Cloud Storage
+バケットの指定は要りません（手動エクスポートとは別の仕組み）。
+
 **費用**: 目安 月〜$5
 
 ---
@@ -353,33 +618,43 @@ node seed_fleet_year.js --delete
 
 ## P2 — 意思決定が必要な事項（AIでは判断できない）
 
-### 12. 走行記録のバックグラウンド動作 `[コード検証済: 現在は停止する]`
+### 12. 走行記録のバックグラウンド動作 `[実測: A は実装済み。B/C へ進むかの判断]`
 
-**現状**: `drive_recording_provider.dart` は `Geolocator.getPositionStream()` で位置を追跡していますが、
-**バックグラウンド実行の設定が入っていません**。
+**判断材料: `docs/DRIVE_RECORDING_BACKGROUND.md`**
 
-- iOS: `Info.plist` に `UIBackgroundModes`（location）の記述なし
-- Android: `FOREGROUND_SERVICE` / `ACCESS_BACKGROUND_LOCATION` の権限なし
+**2026-09-04 追記: 選択肢 A（現状のまま出す・画面に明記）は既に実装されています。**
+記録画面に「記録中はこの画面を開いたままにしてください」の但し書きが出ます
+（`drive_recording_screen.dart:249-284`）。判断すべきは **A のままにするか、
+B か C へ進むか**です。
 
-このため、**運転中に画面をロックする、または他アプリに切り替えると記録が止まります**。ドライブログ機能の
-実用性に直結するため、リリース前に方針を決める必要があります。
+| 方針 | 内容 | コスト | 審査 |
+|---|---|---|---|
+| A. 現状のまま | **実装済み** | ゼロ | 影響なし |
+| B. 画面スリープを抑止 | `wakelock_plus`。**止まる原因のほとんど（自動ロック）を潰せる** | 1〜2時間 | **影響なし** |
+| C. 正式対応 | iOS Background Modes ＋ Android Foreground Service | 3〜5日 | **ガイドライン2.5.4 の説明が要る** |
 
-**選択肢**:
+**勧め: B を入れて出し、C は実績を見てから。** 止まる原因のほとんどは自動ロックで、
+B はそこだけを審査リスクなしに潰せます。ただし**車載ホルダー・充電なしで長距離を
+記録する使い方**が主なら、B ではバッテリーが持たず C が要ります。
 
-| 方針 | 内容 | コスト |
-|---|---|---|
-| A. 現状のまま出す | 「アプリを開いたまま記録してください」と画面に明記。実装変更なし | なし |
-| B. 前面固定で緩和 | 記録中は画面スリープを抑止（`wakelock`）。ロックし忘れ以外は救える | 小 |
-| C. 正式対応 | iOS: Background Modes、Android: Foreground Service を実装 | 中〜大。**ストア審査で用途説明が必要**（特にiOSの常時位置情報は審査が厳しい） |
-
-**判断のポイント**: Cは App Store の審査で「なぜ常時位置情報が必要か」の説明を求められ、リジェクトリスクが上がります。
-ソフトローンチ時点では A または B で出し、利用実態を見てから C を検討するのが安全です。
+**C の補足**: iOS は `Always` 権限が不要で、`WhenInUse` のままでも
+「前面で開始 → 背面で継続」はできます（背面から**開始**するには Always が必要）。
+HUMAN_TASKS が以前「常時位置情報の審査が厳しい」と書いていたのは、
+そこまで強い権限は要らないという意味で不正確でした。
 
 ---
 
-### 13. Firebase App Check の有効化 `[コード検証済: 未導入]`
+### 13. Firebase App Check の有効化 `[2026-09-29: アプリ側は導入済み（監視だけ）]`
 
-**状態**: `firebase_app_check` は依存にも実装にも入っていません。
+**状態**: アプリ側は入れました（`lib/core/security/app_check_setup.dart`。起動時に有効化、
+開発中はデバッグ用、Web はサイトキーがあるときだけ）。**Console で「強制」にしない限り、
+誰も弾かれません。** 残りは Console の作業です:
+
+- Android: Play Integrity を登録（リリース鍵の SHA-256 が要る＝P0-1 の後）
+- iOS: App Attest（と DeviceCheck）を登録
+- 数週間「正規のリクエストの割合」を見てから、Firestore → Storage の順に強制へ
+
+以下は導入前に書いた手順（参考）:
 
 Bot・不正アクセスから Firestore を保護します。本番運用では推奨ですが、**導入すると全リクエストに
 アテステーションが必要になる**ため、設定漏れがあるとアプリが動かなくなります。ソフトローンチ後、
@@ -394,12 +669,27 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 
 ---
 
-### 14. 規約ドラフトの確定（社長記入 ＋ 専門家確認） `[実測: 【要記入】は残り4項目]`
+### 14. 規約ドラフトの確定（社長記入 ＋ 専門家確認） `[2026-09-29: 残りは公開日だけ]`
+
+**2026-09-29 追記**:
+- 運営統括責任者・所在地・電話番号は**「請求があれば遅滞なく開示」**の形にした
+  （特商法第11条ただし書き）。**請求が来たら、メールで遅滞なく本当に開示すること**
+- 店舗プランは請求書払いにしたので、特商法の「お支払い方法・時期・提供時期」と
+  利用規約 第11条（請求書払いの申込・解約）を直した
+- 専門家への確認は**しない**（いない）。以下の論点は、将来相談できる人が見つかったとき用に残す
+- 残る【要記入】は**公開日だけ**（`web/tokushoho.html` の最終更新日）
+- 販売事業者は「ZAXEL合同会社」と書いてある。個人で出すなら、ここも直す必要がある
+
 
 2026-09-01 にプライバシーポリシー・利用規約を改訂し、特定商取引法に基づく表示
 （`web/tokushoho.html`）を追加しました。**2026-09-03 に、判断で決まる欄と
 コードから確定できる欄をすべて埋めました。** 残っているのは、事業者本人でなければ
 確定できない4項目だけです。
+
+**2026-09-05 追記: 販売価格は店舗プランで埋めました**（フリー無料 / スタンダード
+3,980円 / プレミアム 9,800円 / エンタープライズ 14,800円）。B2C の有料プランは
+**凍結中**（`FeatureFlag.premiumFeatures`）なので、「現在ご提供しておりません」と
+記載しています。
 
 **社長でなければ埋められない欄**（すべて `web/tokushoho.html`）:
 
@@ -408,7 +698,7 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 | 運営統括責任者 | 代表者または運営責任者の氏名 |
 | 所在地 | 本店所在地。請求があれば遅滞なく開示する形にする場合は、その旨と条件も |
 | 電話番号 | 同上 |
-| 販売価格 | 各有料プランの価格。**P1-7 の RevenueCat 商品作成と同時に決まります**。App Store / Google Play のアプリ内課金画面の表示と一致させること |
+
 
 加えて、公開時に**最終更新日**（現在は「2026年9月3日（ドラフト）」）を公開日に
 直してください。
@@ -445,10 +735,18 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 **実装済み**: `FirebaseRemoteFlagSource` ＋ `FeatureFlagService` を `injection.dart` に配線済み。
 起動時に `sync()` で取得し `AppConfig` に反映。未設定・取得失敗時はローカル既定値（凍結）を維持。
 
-**残作業**:
-1. Firebase Console → Remote Config でパラメータ作成:
-   - キー名: `c2c_parts_marketplace` / 型: Boolean / デフォルト: `false`（凍結のまま）
-2. 動作確認: `true` に変更 → アプリ再起動でマーケットの「パーツ」「マイ出品」タブが復活
+**パラメータは 2026-09-03 に作成済み**（`false` = 凍結のまま）。**Console 手作業
+ではなく、リポジトリの `remoteconfig.template.json` で管理する形にしました。**
+
+```bash
+firebase deploy --only remoteconfig   # テンプレートを反映
+firebase remoteconfig:get             # 現在の内容を確認
+```
+
+**残るのは再開の判断だけ**です。再開するときは `remoteconfig.template.json` の
+`defaultValue.value` を `"true"` にして deploy し、アプリ再起動でマーケットの
+「パーツ」「マイ出品」タブが戻ることを確認します（Console から直接変えると、
+リポジトリの内容と食い違うので避けてください）。
 
 **注意**: 将来 `firebase_core` を上げる際は、`cloud_firestore` の iOS ネイティブと Firebase iOS SDK の
 整合（CocoaPods）を必ず CI ビルドで確認すること（現在 `firebase_core` は 4.9.0 に固定）。
@@ -486,6 +784,7 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 ## ローンチ前チェックリスト
 
 **P0（これが揃わないと出せない）**
+- [ ] P0-0: **Cloud Functions のデプロイ** — 本番に1つも無い。**退会後の削除が動いていません**
 - [ ] P0-1: **Android リリース署名の設定** — コード側は対応済み。残るはキーストア生成と `android/key.properties` の作成（`[実測]` 未作成）
 - [x] **P0-2: Firestore ルール・インデックスのデプロイ** — 2026-09-03 反映済み
 - [ ] P0-3: Google Maps API キーの発行・設定（未設定でも動作はする／地図のみ無効）
@@ -497,14 +796,14 @@ Bot・不正アクセスから Firestore を保護します。本番運用では
 - [ ] P1-7: RevenueCat の Public SDK キー設定と商品作成
 - [x] **P1-8: GoogleService-Info.plist が別アプリのもの** — Firebase の再登録（人間・2026-08-27）とコード側の差し替え（AI・2026-09-01）は完了。**残るは起動確認**（`docs/IOS_FIREBASE_FIX.md` §4）
 - [ ] P1-9: **実機テスト（特にOCRの実画像精度は完全に未検証）**
-- [ ] P1-10: Firestore バックアップ設定
+- [x] **P1-10: Firestore バックアップ設定** — 2026-09-03 設定済み（DAILY・30日保持）
 - [ ] P1-11: 本番データ投入（工場・安全情報・トレンド）＋ `demo_*` 店舗の扱いを決定
 
 **P2（判断が必要）**
-- [ ] P2-12: 走行記録のバックグラウンド動作方針（A/B/C から選択）
+- [ ] P2-12: 走行記録のバックグラウンド動作方針 — **A は実装済み**。B（wakelock・推奨）へ進むかの判断
 - [ ] P2-13: App Check の導入時期
-- [ ] P2-14: **規約ドラフトの確定** — 残り4項目（運営統括責任者・所在地・電話番号・販売価格）。すべて `web/tokushoho.html`。埋めないとアプリ内にそのまま出ます
-- [ ] P2-15: Remote Config `c2c_parts_marketplace` の作成
+- [ ] P2-14: **規約ドラフトの確定** — 残り3項目（運営統括責任者・所在地・電話番号）。すべて `web/tokushoho.html`。埋めないとアプリ内にそのまま出ます
+- [x] **P2-15: Remote Config `c2c_parts_marketplace` の作成** — 2026-09-03 作成済み（`false`）。残るは再開の判断
 
 **P3（申請）**
 - [ ] P3-16: App Store 審査申請

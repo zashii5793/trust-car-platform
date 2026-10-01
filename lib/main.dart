@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'core/security/app_check_setup.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -11,6 +14,8 @@ import 'core/di/injection.dart';
 import 'core/di/service_locator.dart';
 import 'services/analytics_service.dart';
 import 'core/logging/crashlytics_wrapper.dart';
+import 'core/logging/web_error_hooks.dart';
+import 'core/logging/web_error_reporter.dart';
 import 'core/logging/logging_service.dart';
 import 'services/firebase_service.dart';
 import 'services/auth_service.dart';
@@ -36,6 +41,8 @@ import 'services/inquiry_service.dart';
 import 'services/shop_report_service.dart';
 import 'services/shop_subscription_service.dart';
 import 'providers/subscription_provider.dart';
+import 'providers/shop_plan_request_provider.dart';
+import 'services/shop_plan_request_service.dart';
 import 'providers/user_subscription_provider.dart';
 import 'services/revenue_cat_service.dart';
 import 'services/user_subscription_service.dart';
@@ -79,7 +86,22 @@ bool get useEmulatorSuite {
   return false;
 }
 
-void main() async {
+void main() {
+  // ウェブのリリース版は、捕まらなかった非同期の例外を zone で拾って
+  // client_errors に送る。Web では PlatformDispatcher.onError が呼ばれない
+  // （flutter/flutter#100277）ため。ensureInitialized も同じ zone の中で
+  // 呼ぶ（_bootstrap の先頭）ので、Zone mismatch にはならない。
+  if (WebErrorReporter.isEnabledFor(isWeb: kIsWeb, isRelease: kReleaseMode)) {
+    runZonedGuarded(_bootstrap, (error, stack) {
+      debugPrint('Uncaught error: $error');
+      reportZoneError(sl.tryGet<WebErrorReporter>, error, stack);
+    });
+    return;
+  }
+  _bootstrap();
+}
+
+Future<void> _bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -109,8 +131,11 @@ void main() async {
     );
   }
 
-  // Initialize Crashlytics (only in release mode)
-  await _initializeCrashlytics();
+  // App Check（監視だけ。弾くかどうかは Console で決める）
+  await activateAppCheck(useEmulator: useEmulatorSuite);
+
+  // 不具合の収集: モバイルは Crashlytics、ウェブは client_errors（リリース版のみ）
+  await _initializeErrorReporting();
 
   await Injection.init();
 
@@ -135,6 +160,21 @@ void main() async {
   final themeMode = await ThemeProvider.loadSavedMode();
 
   runApp(MyApp(initialThemeMode: themeMode));
+}
+
+/// 不具合の収集を始める。
+///
+/// Crashlytics は Web 非対応なので、ウェブは Firestore の client_errors に送る
+/// （[WebErrorReporter]）。送り先は Injection.init() で登録されるので、
+/// それより前に起きたエラーは送らずに通す。
+Future<void> _initializeErrorReporting() async {
+  if (kIsWeb) {
+    if (WebErrorReporter.isEnabledFor(isWeb: kIsWeb, isRelease: kReleaseMode)) {
+      installWebErrorHooks(sl.tryGet<WebErrorReporter>);
+    }
+    return;
+  }
+  await _initializeCrashlytics();
 }
 
 /// Initialize Firebase Crashlytics for crash reporting
@@ -222,11 +262,40 @@ class MyApp extends StatelessWidget {
             create: (_) => SubscriptionProvider(
                   subscriptionService: sl.get<ShopSubscriptionService>(),
                 )),
+        // 店舗プランの申し込み（請求書払い）。プラン画面が使う。
         ChangeNotifierProvider(
-            create: (_) => UserSubscriptionProvider(
+            create: (_) => ShopPlanRequestProvider(
+                  service: sl.get<ShopPlanRequestService>(),
+                )),
+        // プラン状態は AuthProvider が読んだ AppUser から流し込む。
+        //
+        // **2026-09-22 まで `loadFromUser` が lib から一度も呼ばれておらず、**
+        // プランも登録日もアプリ内では空のままだった（＝常に無料扱い）。
+        // ProxyProvider でログイン状態に追随させる。
+        ChangeNotifierProxyProvider<AuthProvider, UserSubscriptionProvider>(
+          create: (_) => UserSubscriptionProvider(
+            service: sl.get<UserSubscriptionService>(),
+            revenueCatService: sl.get<RevenueCatService>(),
+          ),
+          update: (_, auth, subscription) {
+            final provider = subscription ??
+                UserSubscriptionProvider(
                   service: sl.get<UserSubscriptionService>(),
                   revenueCatService: sl.get<RevenueCatService>(),
-                )),
+                );
+            final user = auth.appUser;
+            if (user == null) {
+              provider.clear();
+            } else {
+              provider.loadFromUser(
+                user.planType,
+                user.planExpiresAt,
+                accountCreatedAt: user.createdAt,
+              );
+            }
+            return provider;
+          },
+        ),
         ChangeNotifierProvider(
             create: (_) => PostProvider(
                   postService: sl.get<PostService>(),

@@ -341,13 +341,17 @@ class InquiryService {
       final now = DateTime.now();
       final monthStart = DateTime(now.year, now.month, 1);
 
+      // Count with an aggregate query: fetching the documents just to read
+      // `length` costs one read per inquiry, and a long-time user has many.
+      // This one runs on every inquiry form open, to show the plan limit.
       final snapshot = await _inquiriesCollection
           .where('userId', isEqualTo: userId)
           .where('createdAt',
               isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart))
+          .count()
           .get();
 
-      return Result.success(snapshot.docs.length);
+      return Result.success(snapshot.count ?? 0);
     } catch (e) {
       return Result.failure(AppError.server('問い合わせ数の取得に失敗しました: $e'));
     }
@@ -356,12 +360,15 @@ class InquiryService {
   /// Get unread inquiry count for user
   Future<Result<int, AppError>> getUnreadCountForUser(String userId) async {
     try {
+      // Aggregate, for the same reason as countUserInquiriesThisMonth above:
+      // the badge only needs the number, not the documents.
       final snapshot = await _inquiriesCollection
           .where('userId', isEqualTo: userId)
           .where('unreadCountUser', isGreaterThan: 0)
+          .count()
           .get();
 
-      return Result.success(snapshot.docs.length);
+      return Result.success(snapshot.count ?? 0);
     } catch (e) {
       return Result.failure(AppError.server('未読数の取得に失敗しました: $e'));
     }

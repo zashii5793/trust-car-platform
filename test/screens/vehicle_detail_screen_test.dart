@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/core/di/injection.dart';
 import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
@@ -26,6 +27,8 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:trust_car_platform/models/drive_log.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
+
+import '../golden/font_loader.dart';
 
 // ---------------------------------------------------------------------------
 // Mock
@@ -72,6 +75,12 @@ UserSubscriptionProvider _premiumSubscription() => UserSubscriptionProvider()
   );
 
 class MockFirebaseService implements FirebaseService {
+  @override
+  Future<Result<MaintenanceSummary, AppError>> maintenanceSummary({
+    DateTime? since,
+  }) async =>
+      const Result.success(MaintenanceSummary.empty);
+
   @override
   Future<Result<bool, AppError>> hasAnyMaintenanceRecord() async =>
       const Result.success(false);
@@ -142,6 +151,13 @@ class MockFirebaseService implements FirebaseService {
 
   @override
   Future<Result<List<MaintenanceRecord>, AppError>>
+      getRecentMaintenanceRecords({
+    int limit = 5,
+  }) async =>
+          const Result.success([]);
+
+  @override
+  Future<Result<List<MaintenanceRecord>, AppError>>
       getMaintenanceRecordsForVehicle(String vehicleId,
               {int limit = 20}) async =>
           const Result.success([]);
@@ -193,6 +209,7 @@ MaintenanceRecord _testRecord({
   String? description,
   int? mileageAtService,
   VerificationSource? verificationSourceOverride,
+  DateTime? date,
 }) =>
     MaintenanceRecord(
       id: id,
@@ -201,8 +218,8 @@ MaintenanceRecord _testRecord({
       type: type,
       title: title,
       cost: cost,
-      date: DateTime(2024, 3, 15),
-      createdAt: DateTime(2024, 3, 15),
+      date: date ?? DateTime(2024, 3, 15),
+      createdAt: date ?? DateTime(2024, 3, 15),
       shopName: shopName,
       description: description,
       mileageAtService: mileageAtService,
@@ -213,8 +230,11 @@ Widget _buildScreen(
   Vehicle vehicle,
   MaintenanceProvider provider, {
   UserSubscriptionProvider? subscriptionProvider,
+  ThemeData? theme,
 }) {
   return MaterialApp(
+    theme: theme,
+    debugShowCheckedModeBanner: false,
     home: MultiProvider(
       providers: [
         ChangeNotifierProvider<MaintenanceProvider>.value(value: provider),
@@ -255,6 +275,40 @@ Future<void> _pumpScreen(
 // ---------------------------------------------------------------------------
 
 void main() {
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  //   flutter test --update-goldens test/screens/vehicle_detail_screen_test.dart
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildScreen(
+        _testVehicle(),
+        MaintenanceProvider(firebaseService: MockFirebaseService()),
+        theme: goldenTheme(base),
+      ));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('車両詳細（ライト）', (tester) async {
+      await shoot(tester, 'screen_vehicle_detail_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('車両詳細（ダーク）', (tester) async {
+      await shoot(tester, 'screen_vehicle_detail_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
+  });
+
   late MockFirebaseService mockFirebase;
   late MaintenanceProvider maintenanceProvider;
 
@@ -897,6 +951,100 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // 予測（MaintenanceTrendService）は DI に登録されているだけで、
+  // 画面から一度も呼ばれていなかった（2026-09-22 実測）。
+  // 次回の目安は、整備の間隔が2回ぶん溜まって初めて言える。
+  // `VehicleRetirementService` はサービスもテストも揃っているのに、
+  // **画面から呼ぶ経路が無かった**（2026-09-22 実測。lib 内の呼び出しゼロ）。
+  // 車を手放したことをアプリに伝えられず、退役一覧に出す方法も無い。
+  //
+  // 売却時に記録を渡せることがこのアプリの値打ちなので、ここが抜けていると
+  // 「売るときに効く」という話が成り立たない。
+  group('車両を手放す', () {
+    testWidgets('メニューから「この車を手放す」を開ける', (tester) async {
+      await _pumpScreen(tester, maintenanceProvider);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byKey(const Key('vehicle_more_menu')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('retire_vehicle_menu_item')), findsOneWidget);
+    });
+
+    testWidgets('手放す理由を選べる', (tester) async {
+      await _pumpScreen(tester, maintenanceProvider);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byKey(const Key('vehicle_more_menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('retire_vehicle_menu_item')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('retire_vehicle_sheet')), findsOneWidget);
+      expect(find.text('売却済み'), findsOneWidget);
+      expect(find.text('廃車済み'), findsOneWidget);
+      expect(find.text('譲渡済み'), findsOneWidget);
+    });
+
+    testWidgets('記録を残すかどうかを選べる（既定は残す）', (tester) async {
+      await _pumpScreen(tester, maintenanceProvider);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.tap(find.byKey(const Key('vehicle_more_menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('retire_vehicle_menu_item')));
+      await tester.pumpAndSettle();
+
+      final toggle = find.byKey(const Key('retire_retain_data_switch'));
+      expect(toggle, findsOneWidget);
+      // 既定で残す。消すほうを既定にすると、売却後に記録を出せなくなる。
+      expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+    });
+  });
+
+  group('次の整備の目安', () {
+    testWidgets('記録が1件だけなら、まだ何も言わない', (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([
+        _testRecord(id: 'r1', date: DateTime(2026, 1, 10)),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('次の整備の目安'), findsNothing);
+    });
+
+    testWidgets('同じ整備が2回あれば、次の目安を出す', (tester) async {
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await _pumpScreen(tester, maintenanceProvider);
+      mockFirebase.emitRecords([
+        _testRecord(
+          id: 'r1',
+          title: 'オイル交換',
+          date: DateTime(2026, 1, 10),
+          mileageAtService: 10000,
+        ),
+        _testRecord(
+          id: 'r2',
+          title: 'オイル交換',
+          date: DateTime(2026, 7, 10),
+          mileageAtService: 15000,
+        ),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.scrollUntilVisible(
+        find.text('次の整備の目安'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      expect(find.text('次の整備の目安'), findsOneWidget);
+      expect(find.byKey(const Key('maintenance_forecast_section')),
+          findsOneWidget);
+    });
+  });
+
   group('C4 — 工場裏書きバッジ & 検証済みサマリー', () {
     testWidgets('verificationSource=shopVerified のレコードにバッジが表示される',
         (tester) async {

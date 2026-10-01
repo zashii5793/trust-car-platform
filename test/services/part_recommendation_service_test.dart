@@ -573,4 +573,188 @@ void main() {
       }
     });
   });
+
+  // ── buildReasons / buildCautions ─────────────────────────────────────────
+  //
+  // 企画（docs/FEATURE_SPEC.md）は「理由を複数、注意点をセットで、ベスト1を
+  // 押し付けない」。ここでは提案 1 件に付く理由と注意点の中身を固定する。
+
+  group('PartRecommendationService.buildReasons', () {
+    late PartRecommendationService service;
+    late Vehicle vehicle;
+
+    PartListing makePart({
+      PartCategory category = PartCategory.wheel,
+      double? rating,
+      int reviewCount = 0,
+      bool isFeatured = false,
+      int? priceFrom,
+      String? brand,
+    }) {
+      final now = DateTime.now();
+      return PartListing(
+        id: 'p1',
+        shopId: 'shop1',
+        name: 'ホイール',
+        description: '説明',
+        category: category,
+        rating: rating,
+        reviewCount: reviewCount,
+        isFeatured: isFeatured,
+        priceFrom: priceFrom,
+        brand: brand,
+        createdAt: now,
+        updatedAt: now,
+      );
+    }
+
+    setUp(() {
+      service = PartRecommendationService(firestore: _FakeFirestore());
+      vehicle = _makeVehicle();
+    });
+
+    test('完全対応なら、車種名入りの対応理由が先頭に来る', () {
+      final reasons =
+          service.buildReasons(makePart(), vehicle, CompatibilityLevel.perfect);
+      expect(reasons, isNotEmpty);
+      expect(reasons.first, contains('完全対応'));
+      expect(reasons.first, contains(vehicle.displayName));
+    });
+
+    test('対応なら「に対応」、条件付きなら対応の理由は付かない', () {
+      final compatible = service.buildReasons(
+          makePart(), vehicle, CompatibilityLevel.compatible);
+      expect(compatible.first, endsWith('に対応'));
+
+      final conditional = service.buildReasons(
+          makePart(), vehicle, CompatibilityLevel.conditional);
+      expect(conditional.where((r) => r.contains('対応')), isEmpty);
+    });
+
+    test('理由は必ず複数になる（対応 + カテゴリの利点）', () {
+      final reasons = service.buildReasons(
+          makePart(category: PartCategory.wheel),
+          vehicle,
+          CompatibilityLevel.compatible);
+      expect(reasons.length, greaterThanOrEqualTo(2));
+      expect(reasons, contains('足元の印象を大きく変えられる'));
+    });
+
+    test('レビューが多く評価が高ければ、件数と点数を理由に出す', () {
+      final reasons = service.buildReasons(
+          makePart(rating: 4.6, reviewCount: 42),
+          vehicle,
+          CompatibilityLevel.compatible);
+      expect(
+          reasons.any((r) => r.contains('42件') && r.contains('4.6')), isTrue);
+    });
+
+    test('レビューが少なければ点数は理由にしない', () {
+      final reasons = service.buildReasons(
+          makePart(rating: 4.6, reviewCount: 2),
+          vehicle,
+          CompatibilityLevel.compatible);
+      expect(reasons.any((r) => r.contains('2件')), isFalse);
+    });
+
+    test('広告枠（isFeatured）は理由にならない', () {
+      final reasons = service.buildReasons(
+          makePart(isFeatured: true), vehicle, CompatibilityLevel.compatible);
+      expect(reasons.any((r) => r.contains('広告') || r.contains('掲載')), isFalse);
+    });
+
+    test('同じ文言は重複しない', () {
+      final reasons = service.buildReasons(
+          makePart(brand: 'RAYS'), vehicle, CompatibilityLevel.compatible);
+      expect(reasons.toSet().length, reasons.length);
+    });
+  });
+
+  group('PartRecommendationService.buildCautions', () {
+    late PartRecommendationService service;
+    late Vehicle vehicle;
+
+    PartListing makePart({
+      PartCategory category = PartCategory.wheel,
+      double? rating,
+      int reviewCount = 0,
+      bool isFeatured = false,
+      int? priceFrom,
+    }) {
+      final now = DateTime.now();
+      return PartListing(
+        id: 'p1',
+        shopId: 'shop1',
+        name: 'ホイール',
+        description: '説明',
+        category: category,
+        rating: rating,
+        reviewCount: reviewCount,
+        isFeatured: isFeatured,
+        priceFrom: priceFrom,
+        createdAt: now,
+        updatedAt: now,
+      );
+    }
+
+    setUp(() {
+      service = PartRecommendationService(firestore: _FakeFirestore());
+      vehicle = _makeVehicle();
+    });
+
+    test('条件付き対応なら、確認を促す注意が先頭に来る', () {
+      final cautions = service.buildCautions(
+          makePart(), vehicle, CompatibilityLevel.conditional);
+      expect(cautions.first, contains('加工が必要'));
+    });
+
+    test('広告枠は注意点として明示する（順位に使っていないことも書く）', () {
+      final cautions = service.buildCautions(
+          makePart(isFeatured: true), vehicle, CompatibilityLevel.perfect);
+      expect(cautions.any((c) => c.contains('広告')), isTrue);
+      expect(cautions.any((c) => c.contains('順位')), isTrue);
+    });
+
+    test('評価があってもレビューが 3 件未満なら参考程度と書く', () {
+      final cautions = service.buildCautions(
+          makePart(rating: 5.0, reviewCount: 1),
+          vehicle,
+          CompatibilityLevel.perfect);
+      expect(cautions.any((c) => c.contains('レビューが少なく')), isTrue);
+    });
+
+    test('カテゴリのデメリットと高価格帯の注意も入る', () {
+      final cautions = service.buildCautions(
+          makePart(category: PartCategory.exhaust, priceFrom: 150000),
+          vehicle,
+          CompatibilityLevel.compatible);
+      expect(cautions, contains('車検対応の確認が必要'));
+      expect(cautions, contains('高価格帯の製品'));
+    });
+
+    test('完全対応・非広告・レビューなしの一般カテゴリでは注意が空になりうる', () {
+      final cautions = service.buildCautions(
+          makePart(category: PartCategory.other),
+          vehicle,
+          CompatibilityLevel.perfect);
+      expect(cautions, isEmpty);
+    });
+
+    group('Edge Cases', () {
+      test('非対応なら車種名入りの非対応が注意に入る', () {
+        final cautions = service.buildCautions(
+            makePart(), vehicle, CompatibilityLevel.incompatible);
+        expect(cautions.first, contains('非対応'));
+        expect(cautions.first, contains(vehicle.displayName));
+      });
+
+      test('同じ文言は重複しない', () {
+        final cautions = service.buildCautions(
+            makePart(category: PartCategory.exhaust, isFeatured: true),
+            vehicle,
+            CompatibilityLevel.conditional);
+        expect(cautions.toSet().length, cautions.length);
+      });
+    });
+  });
 }

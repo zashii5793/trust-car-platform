@@ -131,8 +131,11 @@ class AppEmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    // 中身が入りきらないと、Flutter は黄と黒の縞（RenderFlex overflow）を
+    // 描く。**文言が1行増えただけで出る**ので、スクロールできる形にして
+    // おく（2026-09-07 実測: 「みんなの投稿」の空状態が 3px 溢れていた）。
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: AppSpacing.paddingScreen,
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -155,10 +158,16 @@ class AppEmptyState extends StatelessWidget {
             ),
             if (description != null) ...[
               AppSpacing.verticalXs,
-              Text(
-                description!,
-                style: theme.textTheme.bodyMedium,
-                textAlign: TextAlign.center,
+              // 画面幅いっぱいに流すと、最後の1〜2文字だけが次の行に落ちる
+              // （「…すべて表示さ / れます」・390px 幅で実測 2026-09-06）。
+              // 読み幅を絞ったほうが、どの文言でも収まりが良い。
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: Text(
+                  description!,
+                  style: theme.textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
               ),
             ],
             if (buttonLabel != null && onButtonPressed != null) ...[

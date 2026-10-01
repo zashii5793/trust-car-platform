@@ -6,7 +6,7 @@ Flutter製車両管理アプリ。Firebase（Auth, Firestore, Storage）バッ�
 
 - 必ず日本語で応対してください
 - 調査・デバッグには**サブエージェント**を使いコンテキストを節約してください
-- 重要な決定は `CLAUDE_SESSION_NOTES.md` に記録してください
+- 重要な決定は `CLAUDE_SESSION_NOTES.md` の**先頭**に記録してください（全文は読まず `head` で最新分だけ読む。300行を超えたら古い分を `docs/archive/` へ移す）
 - **計画→テスト→実装**の順序を厳守してください
 - **タスク完了後は次のアクション候補を3つ提案してください**
 
@@ -57,6 +57,10 @@ firebase emulators:start --only auth,firestore
 # Firestoreルール・インデックスデプロイ ⚠️ 本番反映・要確認
 firebase deploy --only firestore:rules,firestore:indexes
 ```
+
+**本番に何かを反映したら、その日のうちに `docs/RELEASES.md` の一番上へ1行足す。**
+（2026-09-30 に、ウェブ版が5週間古いまま・Functions が0個のまま誰も気づかなかった。
+「main に入った ＝ 本番に出た」ではない）
 
 ## アーキテクチャ方針（変更禁止）
 

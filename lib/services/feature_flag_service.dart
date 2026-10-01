@@ -40,6 +40,10 @@ class FeatureFlagService {
   /// are listed here; unknown keys from the source are ignored.
   static const Map<String, FeatureFlag> remoteKeys = {
     'c2c_parts_marketplace': FeatureFlag.c2cPartsMarketplace,
+    'premium_features': FeatureFlag.premiumFeatures,
+    'part_recommendations': FeatureFlag.partRecommendations,
+    'ai_chat': FeatureFlag.aiChat,
+    'shop_in_app_purchase': FeatureFlag.shopInAppPurchase,
   };
 
   /// Fetches remote overrides and applies them onto [AppConfig].

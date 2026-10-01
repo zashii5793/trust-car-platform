@@ -315,7 +315,11 @@ class VehicleCertificateOcrService {
   /// 車台番号を抽出
   /// 例: "ZN6-012345" or "GRB-0123456"
   String? _extractVinNumber(String currentLine, String nextLine) {
-    final pattern = RegExp(r'[A-Z0-9]{2,4}[-−]?\d{5,8}');
+    // The prefix runs up to 8 characters. Capping it at 4 dropped the leading
+    // characters of anything longer - BNR35-123456 came back as NR35-123456,
+    // a different car (fixed 2026-09-03). Six-character prefixes are common
+    // on Japanese vehicles (ZVW30W, NCP131, GRS182).
+    final pattern = RegExp(r'[A-Z0-9]{2,8}[-−]?\d{5,8}');
 
     var match = pattern.firstMatch(currentLine);
     if (match != null) return match.group(0);
@@ -416,32 +420,25 @@ class VehicleCertificateOcrService {
 
   /// 初度登録年を抽出
   int? _extractYear(String currentLine, String nextLine) {
-    // 令和/平成/昭和のパターン
-    final eraPatterns = [
-      RegExp(r'令和\s*(\d{1,2})'),
-      RegExp(r'平成\s*(\d{1,2})'),
-      RegExp(r'昭和\s*(\d{1,2})'),
-      RegExp(r'R\s*(\d{1,2})'),
-      RegExp(r'H\s*(\d{1,2})'),
+    // Each pattern carries the era's base year, so the era is decided by the
+    // text that actually matched. Reading it off `currentLine` instead broke
+    // whenever ML Kit put the label and the value on separate lines - which
+    // is the normal case for a real certificate (fixed 2026-09-03).
+    final eraPatterns = <(RegExp, int)>[
+      (RegExp(r'令和\s*(\d{1,2})'), 2018),
+      (RegExp(r'平成\s*(\d{1,2})'), 1988),
+      (RegExp(r'昭和\s*(\d{1,2})'), 1925),
+      (RegExp(r'R\s*(\d{1,2})'), 2018),
+      (RegExp(r'H\s*(\d{1,2})'), 1988),
     ];
 
-    for (final pattern in eraPatterns) {
-      var match = pattern.firstMatch(currentLine);
-      match ??= pattern.firstMatch(nextLine);
+    for (final (pattern, eraBase) in eraPatterns) {
+      final match =
+          pattern.firstMatch(currentLine) ?? pattern.firstMatch(nextLine);
+      if (match == null) continue;
 
-      if (match != null) {
-        final eraYear = int.tryParse(match.group(1)!);
-        if (eraYear != null) {
-          // 元号を西暦に変換
-          if (currentLine.contains('令和') || currentLine.contains('R')) {
-            return 2018 + eraYear;
-          } else if (currentLine.contains('平成') || currentLine.contains('H')) {
-            return 1988 + eraYear;
-          } else if (currentLine.contains('昭和')) {
-            return 1925 + eraYear;
-          }
-        }
-      }
+      final eraYear = int.tryParse(match.group(1)!);
+      if (eraYear != null) return eraBase + eraYear;
     }
 
     // 西暦パターン
@@ -458,30 +455,29 @@ class VehicleCertificateOcrService {
   /// 有効期間の満了日を抽出
   DateTime? _extractExpiryDate(String currentLine, String nextLine) {
     // 令和/平成形式: "令和7年5月20日"
-    final eraPatterns = [
-      RegExp(r'令和\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日'),
-      RegExp(r'平成\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日'),
-      RegExp(r'R\s*(\d{1,2})[./年]\s*(\d{1,2})[./月]\s*(\d{1,2})'),
+    //
+    // Same rule as _extractYear: the base year travels with the pattern.
+    // A certificate that reads 「有効期間の満了する日 / 令和7年5月20日」 on two
+    // lines used to come back as 1995 - thirty years early, which shows every
+    // vehicle as overdue for inspection (fixed 2026-09-03).
+    final eraPatterns = <(RegExp, int)>[
+      (RegExp(r'令和\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日'), 2018),
+      (RegExp(r'平成\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日'), 1988),
+      (RegExp(r'R\s*(\d{1,2})[./年]\s*(\d{1,2})[./月]\s*(\d{1,2})'), 2018),
+      (RegExp(r'H\s*(\d{1,2})[./年]\s*(\d{1,2})[./月]\s*(\d{1,2})'), 1988),
     ];
 
-    for (final pattern in eraPatterns) {
-      var match = pattern.firstMatch(currentLine);
-      match ??= pattern.firstMatch(nextLine);
+    for (final (pattern, eraBase) in eraPatterns) {
+      final match =
+          pattern.firstMatch(currentLine) ?? pattern.firstMatch(nextLine);
+      if (match == null) continue;
 
-      if (match != null) {
-        final eraYear = int.tryParse(match.group(1)!);
-        final month = int.tryParse(match.group(2)!);
-        final day = int.tryParse(match.group(3)!);
+      final eraYear = int.tryParse(match.group(1)!);
+      final month = int.tryParse(match.group(2)!);
+      final day = int.tryParse(match.group(3)!);
 
-        if (eraYear != null && month != null && day != null) {
-          int year;
-          if (currentLine.contains('令和') || currentLine.contains('R')) {
-            year = 2018 + eraYear;
-          } else {
-            year = 1988 + eraYear;
-          }
-          return DateTime(year, month, day);
-        }
+      if (eraYear != null && month != null && day != null) {
+        return DateTime(eraBase + eraYear, month, day);
       }
     }
 
@@ -549,9 +545,12 @@ class VehicleCertificateOcrService {
   String? _extractFuelType(String currentLine, String nextLine) {
     final fuelTypes = ['ガソリン', '軽油', 'ディーゼル', '電気', 'ハイブリッド', 'LPG', '水素'];
 
-    for (final fuel in fuelTypes) {
-      if (currentLine.contains(fuel) || nextLine.contains(fuel)) {
-        return fuel;
+    // Scan the label's own line first. Going candidate-by-candidate instead
+    // let a word on the *next* line win over the real value on this one
+    // （「燃料の種類 軽油」の次に「ガソリンスタンド利用可」が来ると軽油を取り逃す）.
+    for (final line in [currentLine, nextLine]) {
+      for (final fuel in fuelTypes) {
+        if (line.contains(fuel)) return fuel;
       }
     }
     return _extractAfterKeyword(currentLine, '燃料');
@@ -584,9 +583,12 @@ class VehicleCertificateOcrService {
       'オレンジ',
     ];
 
-    for (final color in colors) {
-      if (currentLine.contains(color)) {
-        return color;
+    // Same as the fuel scan: the value usually arrives on the next line.
+    // Until 2026-09-03 this only looked at the label's line, so a certificate
+    // that put 「車体の色」 and 「白」 in separate blocks came back empty.
+    for (final line in [currentLine, nextLine]) {
+      for (final color in colors) {
+        if (line.contains(color)) return color;
       }
     }
     return _extractAfterKeyword(currentLine, '色');
@@ -625,10 +627,13 @@ class VehicleCertificateOcrService {
       final afterKeyword = text.substring(index + keyword.length).trim();
       // 最初の空白または改行までを取得
       final endIndex = afterKeyword.indexOf(RegExp(r'\s{2,}'));
-      if (endIndex != -1) {
-        return afterKeyword.substring(0, endIndex).trim();
-      }
-      return afterKeyword;
+      final value = endIndex != -1
+          ? afterKeyword.substring(0, endIndex).trim()
+          : afterKeyword;
+      // Nothing after the keyword means the value is on another line, not
+      // that the value is an empty string. Returning '' made the field look
+      // filled in（「色: 」が空欄のまま結果画面に出ていた）.
+      return value.isEmpty ? null : value;
     }
     return null;
   }

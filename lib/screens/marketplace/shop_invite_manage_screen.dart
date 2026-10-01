@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../models/inspection_forecast.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/constants/colors.dart';
@@ -104,6 +105,16 @@ class _ShopInviteManageScreenState extends State<ShopInviteManageScreen> {
     return '${p.start.month}月〜${p.end.month}月';
   }
 
+  /// この先どの月に車検が集まるか。**人ではなく月を出す。**
+  /// 店が持っているのは満了日の配列だけで、誰のどの車かは入っていない。
+  InspectionForecast _forecast() {
+    return InspectionForecast.build(
+      customers: _customers.map((c) => c.toExpirySummary()).toList(),
+      today: widget.today ?? DateTime.now(),
+      months: 6,
+    );
+  }
+
   InspectionPipeline _pipeline() {
     final p = _period;
     return InspectionPipeline.fromSharedExpiries(
@@ -181,6 +192,8 @@ class _ShopInviteManageScreenState extends State<ShopInviteManageScreen> {
                 pipeline: _pipeline(),
                 periodLabel: _periodLabel(),
               ),
+              AppSpacing.verticalLg,
+              _InspectionForecastCard(forecast: _forecast()),
               AppSpacing.verticalLg,
             ],
             Text('コードを使ったお客様', style: theme.textTheme.titleSmall),
@@ -265,6 +278,92 @@ class _CodeCard extends StatelessWidget {
               icon: const Icon(Icons.copy, size: 18),
               label: const Text('コピーする'),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// この先6か月、どの月に車検が集まるかを出す。
+///
+/// **個人は出さない。** 店に届いているのは満了日の配列だけで、誰のどの車か
+/// は入っていない（`ShopCustomerLink` の設計）。だからここで言えるのは
+/// 「11月に5件来る」までで、「誰に声をかけるか」は言えない。
+/// それでも、リフトと人の段取りには足りる。
+class _InspectionForecastCard extends StatelessWidget {
+  const _InspectionForecastCard({required this.forecast});
+
+  final InspectionForecast forecast;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final busiest = forecast.busiestMonth;
+    final max = busiest == null ? 0 : forecast.countFor(busiest);
+
+    return Card(
+      key: const Key('inspection_forecast_card'),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('この先の車検（6か月）', style: theme.textTheme.titleSmall),
+            AppSpacing.verticalXs,
+            Text(
+              forecast.total == 0
+                  ? 'お客様が満了日を共有すると、混む月が先に分かります。'
+                  : '合計 ${forecast.total} 件。段取りの目安にしてください。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+            AppSpacing.verticalMd,
+            ...forecast.months.map((m) {
+              final n = forecast.countFor(m);
+              final isBusiest = busiest != null && m == busiest && n > 0;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 64,
+                      child: Text(
+                        '${m.year}/${m.month}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: max == 0 ? 0 : n / max,
+                          minHeight: 10,
+                          backgroundColor:
+                              theme.colorScheme.surfaceContainerHighest,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            isBusiest ? AppColors.warning : AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 40,
+                      child: Text(
+                        '$n 件',
+                        textAlign: TextAlign.right,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight:
+                              isBusiest ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
           ],
         ),
       ),

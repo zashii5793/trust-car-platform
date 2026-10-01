@@ -117,6 +117,10 @@ class VehicleProvider with ChangeNotifier {
   }
 
   /// 車両を追加
+  /// 直前に登録した車両のID。登録直後に過去の整備記録を移すときに使う。
+  String? _lastAddedVehicleId;
+  String? get lastAddedVehicleId => _lastAddedVehicleId;
+
   Future<bool> addVehicle(Vehicle vehicle) async {
     _isLoading = true;
     _error = null;
@@ -125,8 +129,10 @@ class VehicleProvider with ChangeNotifier {
     final result = await _firebaseService.addVehicle(vehicle);
 
     return result.when(
-      success: (_) {
+      success: (id) {
+        _lastAddedVehicleId = id;
         _analytics?.trackVehicleAdded();
+        _analytics?.trackFirstWeekStep(FirstWeekStep.vehicleAdded);
         _isLoading = false;
         notifyListeners();
         return true;

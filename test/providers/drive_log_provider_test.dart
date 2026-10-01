@@ -21,15 +21,20 @@ class MockDriveLogService implements DriveLogService {
   int? lastLimit;
   String? lastDeletedId;
 
+  /// 続きを読むときに渡されたカーソル（最後の1件のID）。
+  String? lastStartAfterId;
+
   @override
   Future<Result<List<DriveLog>, AppError>> getUserDriveLogs({
     required String userId,
     int limit = 20,
     dynamic startAfter,
+    String? startAfterId,
   }) async {
     getUserLogsCallCount++;
     lastUserId = userId;
     lastLimit = limit;
+    lastStartAfterId = startAfterId;
     return getUserLogsResult;
   }
 
@@ -208,6 +213,25 @@ void main() {
         // ログが空でないため loadMore は実行される
         await provider.loadMore('user1');
         expect(mockService.getUserLogsCallCount, 1);
+      });
+
+      test('続きは最後の1件から読む（件数を増やして取り直さない）', () async {
+        mockService.getUserLogsResult = Result.success(
+          List.generate(20, (i) => _makeLog(id: 'l$i')),
+        );
+        await provider.loadUserDriveLogs('user1');
+
+        mockService.getUserLogsResult = Result.success(
+          List.generate(5, (i) => _makeLog(id: 'm$i')),
+        );
+        await provider.loadMore('user1');
+
+        // 1ページ分だけを、最後のIDの続きから取る。
+        expect(mockService.lastLimit, 20);
+        expect(mockService.lastStartAfterId, 'l19');
+        // 取得済みの20件に、続きの5件が足される。
+        expect(provider.logs.length, 25);
+        expect(provider.hasMore, false);
       });
 
       test('loadMore 失敗時に hasMore が false になる', () async {

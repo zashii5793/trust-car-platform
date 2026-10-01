@@ -3,9 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Listing plan type for BtoB shop registration
 enum ShopPlanType {
   free, // Free listing: 5 inquiries/month, 3 photos
-  standard, // Standard: ¥3,980/month — unlimited inquiries, 20 photos
-  premium, // Premium: ¥9,800/month — priority display, monthly report
-  enterprise, // Enterprise: ¥14,800/month — up to 5 shops, API access
+  standard, // Standard: ¥9,800/month
+  premium, // Premium: ¥29,800/month — priority display, monthly report
+  enterprise, // Enterprise: custom quote — multiple shops
 
   ;
 
@@ -25,12 +25,18 @@ enum ShopPlanType {
         ShopPlanType.enterprise => 'エンタープライズ',
       };
 
+  /// 月額（税込）。無料と個別見積もりは null。
+  ///
+  /// 2026-09-30 に掲載管理の画面の金額に揃えた（特商法の表示も同じ）。
   int? get monthlyPrice => switch (this) {
         ShopPlanType.free => null,
-        ShopPlanType.standard => 3980,
-        ShopPlanType.premium => 9800,
-        ShopPlanType.enterprise => 14800,
+        ShopPlanType.standard => 9800,
+        ShopPlanType.premium => 29800,
+        ShopPlanType.enterprise => null,
       };
+
+  /// 月額を決めず、個別に見積もるプラン（2026-09-30。複数店舗の法人向け）。
+  bool get isCustomQuote => this == ShopPlanType.enterprise;
 }
 
 /// Subscription status for BtoB shops

@@ -63,7 +63,7 @@ class PushNotificationService {
       );
 
       await _localNotifications.initialize(
-        initializationSettings,
+        settings: initializationSettings,
         onDidReceiveNotificationResponse: _onNotificationTapped,
       );
 
@@ -168,10 +168,10 @@ class PushNotificationService {
       );
 
       await _localNotifications.show(
-        DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        title,
-        body,
-        details,
+        id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title: title,
+        body: body,
+        notificationDetails: details,
         payload: payload,
       );
 
@@ -213,14 +213,12 @@ class PushNotificationService {
 
       // Use zonedSchedule for scheduled notifications
       await _localNotifications.zonedSchedule(
-        id,
-        title,
-        body,
-        _convertToTZDateTime(scheduledDate),
-        details,
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: _convertToTZDateTime(scheduledDate),
+        notificationDetails: details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
         payload: payload,
       );
 
@@ -233,7 +231,7 @@ class PushNotificationService {
   /// Cancel a scheduled notification
   Future<Result<void, AppError>> cancelNotification(int id) async {
     try {
-      await _localNotifications.cancel(id);
+      await _localNotifications.cancel(id: id);
       return const Result.success(null);
     } catch (e) {
       return Result.failure(ServerError('Failed to cancel notification: $e'));

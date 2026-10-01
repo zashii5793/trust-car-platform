@@ -7,7 +7,8 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   group('E2E Test', () {
-    testWidgets('TC-001: Login screen display test', (WidgetTester tester) async {
+    testWidgets('TC-001: Login screen display test',
+        (WidgetTester tester) async {
       // アプリを起動
       app.main();
       await tester.pumpAndSettle(const Duration(seconds: 5));
@@ -81,8 +82,8 @@ void main() {
       final bottomNav = find.byType(BottomNavigationBar);
       final homeContent = find.textContaining('マイカー');
 
-      final loginSuccess = bottomNav.evaluate().isNotEmpty ||
-                          homeContent.evaluate().isNotEmpty;
+      final loginSuccess =
+          bottomNav.evaluate().isNotEmpty || homeContent.evaluate().isNotEmpty;
 
       if (loginSuccess) {
         debugPrint('TC-003: Login flow test PASSED - Home screen displayed');
@@ -99,7 +100,8 @@ void main() {
           debugPrint('TC-003: Error snackbar displayed');
         }
         // テストは続行（画面遷移確認のため）
-        debugPrint('TC-003: Login flow test completed (check logs for details)');
+        debugPrint(
+            'TC-003: Login flow test completed (check logs for details)');
       }
     });
   });

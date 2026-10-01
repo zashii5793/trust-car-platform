@@ -546,4 +546,81 @@ void main() {
       });
     });
   });
+
+  // 1年使うと問い合わせは溜まる。未読の「件数」を出すのに問い合わせ文書を
+  // 全部読むと、開くたびに読み取りが件数ぶん増える（集計クエリなら1回）。
+  group('getUnreadCountForUser', () {
+    late FakeFirebaseFirestore fakeFs;
+
+    Future<void> seedInquiry({
+      required String userId,
+      required int unreadCountUser,
+    }) async {
+      await fakeFs.collection('inquiries').add({
+        'shopId': 'shop1',
+        'userId': userId,
+        'type': 'general',
+        'status': 'replied',
+        'subject': 'test',
+        'initialMessage': 'msg',
+        'unreadCountUser': unreadCountUser,
+        'createdAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
+      });
+    }
+
+    setUp(() {
+      fakeFs = FakeFirebaseFirestore();
+    });
+
+    InquiryService makeService() => InquiryService(
+          firestore: fakeFs,
+          subscriptionService: ShopSubscriptionService(firestore: fakeFs),
+        );
+
+    test('未読のあるスレッドの件数を返す', () async {
+      await seedInquiry(userId: 'user1', unreadCountUser: 1);
+      await seedInquiry(userId: 'user1', unreadCountUser: 3);
+      await seedInquiry(userId: 'user1', unreadCountUser: 0);
+
+      final result = await makeService().getUnreadCountForUser('user1');
+
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull, 2);
+    });
+
+    test('他ユーザーの未読は数えない', () async {
+      await seedInquiry(userId: 'user1', unreadCountUser: 1);
+      await seedInquiry(userId: 'other-user', unreadCountUser: 5);
+
+      final result = await makeService().getUnreadCountForUser('user1');
+
+      expect(result.valueOrNull, 1);
+    });
+
+    group('Edge Cases', () {
+      test('問い合わせ0件 → 0を返す', () async {
+        final result = await makeService().getUnreadCountForUser('user1');
+
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull, 0);
+      });
+
+      test('すべて既読 → 0を返す', () async {
+        await seedInquiry(userId: 'user1', unreadCountUser: 0);
+        await seedInquiry(userId: 'user1', unreadCountUser: 0);
+
+        final result = await makeService().getUnreadCountForUser('user1');
+
+        expect(result.valueOrNull, 0);
+      });
+
+      test('空文字のユーザーID → 0を返す（クラッシュしない）', () async {
+        final result = await makeService().getUnreadCountForUser('');
+
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull, 0);
+      });
+    });
+  });
 }

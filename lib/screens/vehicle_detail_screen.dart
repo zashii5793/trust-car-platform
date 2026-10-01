@@ -1,11 +1,29 @@
 import 'package:flutter/material.dart';
+import '../services/maintenance_csv_export_service.dart';
+import 'dart:io';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import '../services/vehicle_retirement_service.dart';
+import '../services/maintenance_trend_service.dart';
+import '../core/config/app_config.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../core/theme/button_text_style.dart';
+import '../core/utils/premium_upsell.dart';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
 import '../models/drive_log.dart';
 import '../models/app_notification.dart';
+import '../providers/auth_provider.dart';
 import '../providers/maintenance_provider.dart';
+import '../services/shop_service.dart';
+import '../services/vehicle_share_service.dart';
+import 'vehicle/share_to_shop_screen.dart';
+import 'vehicle/vehicle_profile_screen.dart';
+import 'vehicle/maintenance_history_import_screen.dart';
+import '../services/maintenance_history_import_service.dart';
+import '../services/vehicle_profile_service.dart';
+import '../models/vehicle_profile.dart';
 import '../providers/notification_provider.dart';
 import '../providers/user_subscription_provider.dart';
 import '../services/drive_log_service.dart';
@@ -28,10 +46,13 @@ import 'maintenance_stats_screen.dart';
 import 'maintenance_search_screen.dart';
 import '../services/firebase_service.dart';
 import '../services/community_trend_service.dart';
+import '../models/model_cost_report.dart';
+import '../services/model_cost_report_service.dart';
+import 'vehicle/model_cost_report_screen.dart';
 import '../core/timeline/mileage_milestone.dart';
 import '../models/year_in_review.dart';
 import 'year_in_review_screen.dart';
-import 'fuel/add_fuel_screen.dart';
+import 'fuel/fuel_history_screen.dart';
 import '../services/fuel_service.dart';
 import '../widgets/vehicle/maker_badge.dart';
 
@@ -110,10 +131,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('プレミアムプランが必要です'),
-        content: const Text(
-          'PDF出力はプレミアムプランの機能です。\n'
-          'プレミアムプランにアップグレードしてご利用ください。',
-        ),
+        content: Text(premiumUpsellMessage('PDF出力')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
@@ -369,6 +387,249 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     }
   }
 
+  /// 整備記録を CSV にして共有する。
+  ///
+  /// PDF は読むもの。買い手や次のオーナーが**自分で扱う**には表が要る。
+  /// 個人向けの出力は PDF だけで、CSV は法人のフリート用しか無かった。
+  Future<void> _importHistory() async {
+    final user = context.read<AuthProvider>().firebaseUser;
+    if (user == null) return;
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MaintenanceHistoryImportScreen(
+          vehicle: _vehicle,
+          userId: user.uid,
+          service: sl.get<MaintenanceHistoryImportService>(),
+        ),
+      ),
+    );
+  }
+
+  /// 愛車ページ。まだ無ければ作る画面、あれば表示（右上から編集）。
+  Future<void> _openProfile() async {
+    final user = context.read<AuthProvider>().firebaseUser;
+    if (user == null) return;
+    final service = sl.get<VehicleProfileService>();
+    final records = context.read<MaintenanceProvider>().records;
+    final navigator = Navigator.of(context);
+
+    Future<VehicleProfile?> edit(VehicleProfile? existing) =>
+        navigator.push<VehicleProfile>(
+          MaterialPageRoute(
+            builder: (_) => VehicleProfileEditScreen(
+              service: service,
+              vehicle: _vehicle,
+              ownerId: user.uid,
+              ownerName: user.displayName ?? 'オーナー',
+              records: records,
+              existing: existing,
+            ),
+          ),
+        );
+
+    var profile = (await service.get(_vehicle.id)).valueOrNull;
+    profile ??= await edit(null);
+    if (profile == null || !mounted) return;
+
+    var current = profile;
+    await navigator.push<void>(
+      MaterialPageRoute(
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setLocal) => VehicleProfileScreen(
+            key: ValueKey(current.updatedAt),
+            service: service,
+            profile: current,
+            viewerUid: user.uid,
+            onEdit: () async {
+              final updated = await edit(current);
+              if (updated != null) setLocal(() => current = updated);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 初めて行く店に、この車のこれまでを渡す（docs/SHOP_CRM_DESIGN_2026-09-27.md §7）。
+  Future<void> _shareToShop() async {
+    final user = context.read<AuthProvider>().firebaseUser;
+    if (user == null) return;
+    final records = context.read<MaintenanceProvider>().records;
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShareToShopScreen(
+          vehicle: _vehicle,
+          records: records,
+          ownerId: user.uid,
+          defaultContactName: user.displayName,
+          service: sl.get<VehicleShareService>(),
+          searchShops: (q) => sl.get<ShopService>().searchShops(q),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportCsv() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final records = context.read<MaintenanceProvider>().records;
+
+    final result = sl.get<MaintenanceCsvExportService>().buildCsv(
+          vehicle: _vehicle,
+          records: records,
+        );
+
+    await result.when(
+      success: (csv) async {
+        File? file;
+        try {
+          final dir = await getTemporaryDirectory();
+          final now = DateTime.now();
+          final stamp = '${now.year}'
+              '${now.month.toString().padLeft(2, '0')}'
+              '${now.day.toString().padLeft(2, '0')}';
+          file = File('${dir.path}/maintenance_${_vehicle.id}_$stamp.csv');
+          await file.writeAsString(csv);
+
+          await Share.shareXFiles(
+            [XFile(file.path, mimeType: 'text/csv')],
+            subject: '${_vehicle.maker} ${_vehicle.model} の整備記録',
+          );
+        } catch (e) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('CSVの共有に失敗しました: $e')),
+          );
+        } finally {
+          // ナンバーや工場名が入る。共有したあとに平文を残さない。
+          try {
+            if (file != null && await file.exists()) await file.delete();
+          } catch (_) {}
+        }
+      },
+      failure: (err) async {
+        messenger.showSnackBar(
+          SnackBar(content: Text('CSVの作成に失敗しました: ${err.userMessage}')),
+        );
+      },
+    );
+  }
+
+  /// 車を手放したことを記録する。
+  ///
+  /// **記録を残すかどうかは本人に選ばせる。** 既定は「残す」。消すほうを
+  /// 既定にすると、売ったあとに買い手へ履歴を出せなくなる。
+  Future<void> _showRetireSheet() async {
+    var reason = VehicleStatus.sold;
+    var retainData = true;
+
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              key: const Key('retire_vehicle_sheet'),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('この車を手放す',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    AppSpacing.verticalXs,
+                    Text(
+                      '手放したあとも、記録は残しておけます。',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    AppSpacing.verticalMd,
+                    RadioGroup<VehicleStatus>(
+                      groupValue: reason,
+                      onChanged: (v) =>
+                          setSheetState(() => reason = v ?? reason),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          VehicleStatus.sold,
+                          VehicleStatus.scrapped,
+                          VehicleStatus.transferred,
+                          VehicleStatus.leaseReturned,
+                        ]
+                            .map(
+                              (s) => RadioListTile<VehicleStatus>(
+                                contentPadding: EdgeInsets.zero,
+                                value: s,
+                                title: Text(s.displayName),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    const Divider(),
+                    SwitchListTile(
+                      key: const Key('retire_retain_data_switch'),
+                      contentPadding: EdgeInsets.zero,
+                      value: retainData,
+                      title: const Text('記録を残す'),
+                      subtitle: const Text('売却時に、次のオーナーへ渡せます'),
+                      onChanged: (v) => setSheetState(() => retainData = v),
+                    ),
+                    AppSpacing.verticalMd,
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        key: const Key('retire_confirm_btn'),
+                        onPressed: () => Navigator.pop(sheetContext, true),
+                        child: const Text('手放したことにする'),
+                      ),
+                    ),
+                    AppSpacing.verticalXs,
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(sheetContext, false),
+                        child: const Text('やめる'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final result = await sl.get<VehicleRetirementService>().retireVehicle(
+          vehicleId: _vehicle.id,
+          ownerId: _vehicle.userId,
+          reason: reason,
+          retainData: retainData,
+        );
+
+    if (!mounted) return;
+    result.when(
+      success: (_) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('${reason.displayName}にしました')),
+        );
+        navigator.pop();
+      },
+      failure: (err) => messenger.showSnackBar(
+        SnackBar(
+          content: Text(err.userMessage),
+          backgroundColor: AppColors.error,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -433,22 +694,94 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                 );
               },
             ),
-            IconButton(
-              icon: const Icon(Icons.build_circle_outlined),
-              tooltip: 'パーツ提案',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PartRecommendationScreen(vehicle: _vehicle),
-                  ),
-                );
-              },
-            ),
+            // パーツ提案は架空データを出しているため既定で非表示
+            // （FeatureFlag.partRecommendations）。
+            if (isFeatureEnabled(FeatureFlag.partRecommendations))
+              IconButton(
+                icon: const Icon(Icons.build_circle_outlined),
+                tooltip: 'パーツ提案',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          PartRecommendationScreen(vehicle: _vehicle),
+                    ),
+                  );
+                },
+              ),
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: '編集',
               onPressed: _navigateToEdit,
+            ),
+            // 手放したことを伝える経路。`VehicleRetirementService` は
+            // サービスもテストも揃っているのに、**画面から呼ぶ経路が無かった**。
+            // 売るときに記録を渡せることがこのアプリの値打ちなので、
+            // ここが抜けていると「売るときに効く」話が成り立たない。
+            PopupMenuButton<String>(
+              key: const Key('vehicle_more_menu'),
+              icon: const Icon(Icons.more_vert),
+              tooltip: 'その他',
+              onSelected: (value) {
+                if (value == 'retire') _showRetireSheet();
+                if (value == 'csv') _exportCsv();
+                if (value == 'share_shop') _shareToShop();
+                if (value == 'profile') _openProfile();
+                if (value == 'history_import') _importHistory();
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  key: Key('history_import_menu_item'),
+                  value: 'history_import',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.history_edu_outlined),
+                    title: Text('過去の整備記録を移す'),
+                    subtitle: Text('整備記録簿・請求書からまとめて'),
+                  ),
+                ),
+                const PopupMenuItem(
+                  key: Key('vehicle_profile_menu_item'),
+                  value: 'profile',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.badge_outlined),
+                    title: Text('愛車ページ'),
+                    subtitle: Text('この車を主役にしたページ'),
+                  ),
+                ),
+                const PopupMenuItem(
+                  key: Key('share_shop_menu_item'),
+                  value: 'share_shop',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.storefront_outlined),
+                    title: Text('お店に共有する'),
+                    subtitle: Text('初めて行くお店に、これまでを渡す'),
+                  ),
+                ),
+                const PopupMenuItem(
+                  key: Key('export_csv_menu_item'),
+                  value: 'csv',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.table_view_outlined),
+                    title: Text('整備記録をCSVで出す'),
+                    subtitle: Text('売却時に次のオーナーへ'),
+                  ),
+                ),
+                const PopupMenuItem(
+                  key: Key('retire_vehicle_menu_item'),
+                  value: 'retire',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.outbound_outlined),
+                    title: Text('この車を手放す'),
+                    subtitle: Text('売却・廃車・譲渡'),
+                  ),
+                ),
+              ],
             ),
           ],
           bottom: TabBar(
@@ -531,7 +864,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                                 horizontal: 10,
                                 vertical: 4,
                               ),
-                              textStyle: const TextStyle(fontSize: 12),
+                              textStyle: buttonTextStyle(context, fontSize: 12),
                             ),
                           ),
                         ),
@@ -564,7 +897,8 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                                   horizontal: 10,
                                   vertical: 4,
                                 ),
-                                textStyle: const TextStyle(fontSize: 12),
+                                textStyle:
+                                    buttonTextStyle(context, fontSize: 12),
                               ),
                             ),
                           ),
@@ -648,17 +982,22 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                           Icons.local_gas_station_outlined,
                           color: AppColors.accentDrive,
                         ),
-                        title: const Text('給油を記録'),
+                        title: const Text('給油と燃費'),
                         subtitle: const Text('入力は4つだけ。満タン2回で燃費が出ます'),
                         trailing: const Icon(Icons.chevron_right),
+                        // 記録の入口だけを置いていたので、**溜めた記録を見る
+                        // 場所が無かった**（保存直後に燃費が1回出るだけ）。
+                        // 一覧を開き、そこから記録する形にした（2026-09-08）。
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute<void>(
-                            builder: (_) => AddFuelScreen(
+                            builder: (_) => FuelHistoryScreen(
                               service: sl.get<FuelService>(),
                               vehicleId: _vehicle.id,
                               userId: _vehicle.userId,
-                              lastOdometer: _vehicle.mileage,
+                              vehicleName:
+                                  '${_vehicle.maker} ${_vehicle.model}',
+                              currentOdometer: _vehicle.mileage,
                             ),
                           ),
                         ),
@@ -668,6 +1007,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
 
                   // この1年のふりかえり
                   _YearInReviewCard(vehicle: _vehicle),
+                  _ModelCostCard(vehicle: _vehicle),
 
                   // 整備記録の査定価値バナー
                   _MaintenanceValueBanner(vehicle: _vehicle),
@@ -695,6 +1035,9 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       );
                     },
                   ),
+
+                  // 次の整備の目安（自分の履歴からの予測）
+                  _MaintenanceForecastSection(vehicle: _vehicle),
 
                   // コミュニティトレンドセクション
                   _CommunityTrendSection(vehicle: _vehicle),
@@ -3361,6 +3704,100 @@ class _CommunityTrendSection extends StatefulWidget {
   State<_CommunityTrendSection> createState() => _CommunityTrendSectionState();
 }
 
+/// 同じ車種の維持費（docs/SHOP_CRM_DESIGN_2026-09-27.md §8）への入口。
+///
+/// **自分の記録が溜まっていなくても、初日から出せる**数字。使い始めの
+/// 半年で「このアプリで何が分かるのか」に答える場所として置く。
+class _ModelCostCard extends StatefulWidget {
+  final Vehicle vehicle;
+
+  const _ModelCostCard({required this.vehicle});
+
+  @override
+  State<_ModelCostCard> createState() => _ModelCostCardState();
+}
+
+class _ModelCostCardState extends State<_ModelCostCard> {
+  ModelCostReport? _report;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!sl.isRegistered<ModelCostReportService>()) return;
+    final r = await sl.get<ModelCostReportService>().forVehicle(
+          maker: widget.vehicle.maker,
+          model: widget.vehicle.model,
+        );
+    if (!mounted) return;
+    setState(() {
+      _report = r.valueOrNull;
+      _loaded = r.isSuccess;
+    });
+  }
+
+  void _browse() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ModelCostBrowseScreen(
+          service: sl.get<ModelCostReportService>(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const SizedBox.shrink();
+    final r = _report;
+    final theme = Theme.of(context);
+    final fmt = NumberFormat('#,###');
+
+    final String subtitle;
+    if (r == null) {
+      subtitle = 'この車種はまだ集計できる人数（持ち主5人）に届いていません';
+    } else if (r.annualEstimate == null) {
+      subtitle = '${r.title}・持ち主${r.ownerCount}人の記録から';
+    } else {
+      subtitle = '${r.isMakerLevel ? '${r.maker}全体で' : ''}'
+          '年 約${fmt.format(r.annualEstimate)}円・持ち主${r.ownerCount}人の記録から';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: ListTile(
+          key: const Key('model_cost_entry'),
+          leading: const Icon(Icons.bar_chart, color: AppColors.primary),
+          title: const Text('同じ車種の維持費'),
+          subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: r == null
+              ? _browse
+              : () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => ModelCostReportScreen(
+                        report: r,
+                        onBrowseOthers: _browse,
+                      ),
+                    ),
+                  ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 「この1年のふりかえり」への入口。
 ///
 /// docs/HABIT_DESIGN.md 打ち手2。1年で整備記録は数十件溜まるのに、それを
@@ -3388,6 +3825,23 @@ class _YearInReviewCardState extends State<_YearInReviewCard> {
   }
 
   Future<void> _fetchPeerCost() async {
+    // 実際の記録から集計した車種別レポートを先に見る。比べる相手は
+    // 「ふりかえり」と同じく整備記録の費用なので、燃料は足さない。
+    // メーカー全体の数字とは比べない（別の車と比べることになる）。
+    if (sl.isRegistered<ModelCostReportService>()) {
+      final report = await sl.get<ModelCostReportService>().forVehicle(
+            maker: widget.vehicle.maker,
+            model: widget.vehicle.model,
+          );
+      final r = report.valueOrNull;
+      final maint = r?.maintenanceAnnual;
+      if (r != null && !r.isMakerLevel && maint != null) {
+        if (!mounted) return;
+        setState(() => _peerAnnualCost =
+            maint.median + (r.inspectionPerEvent?.median ?? 0) ~/ 2);
+        return;
+      }
+    }
     if (!sl.isRegistered<CommunityTrendService>()) return;
     final result = await sl.get<CommunityTrendService>().getTrendsForVehicle(
           maker: widget.vehicle.maker,
@@ -3699,4 +4153,128 @@ class _InspectionActionButtons extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         textStyle: const TextStyle(fontSize: 12),
       );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 次の整備の目安
+//
+// `MaintenanceTrendService` は予測 API（predictedNextDate /
+// predictedNextMileage / confidence）を揃えていたのに、**DI に登録されている
+// だけで画面から一度も呼ばれていなかった**（2026-09-22 実測）。
+//
+// 店から顧客へ「そろそろですよ」と声をかける経路は無い（連絡手段が無い）。
+// だから予測は**本人に見せる**。そろそろだと分かれば、かかりつけに行く。
+// 同じ結果を、個人情報を店に渡さずに得られる。
+//
+// 間隔は2回ぶんの記録が無いと出せないので、それまでは何も言わない。
+// 当てずっぽうを出すと、この画面ごと信用されなくなる。
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MaintenanceForecastSection extends StatelessWidget {
+  const _MaintenanceForecastSection({required this.vehicle});
+
+  final Vehicle vehicle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final records = context.watch<MaintenanceProvider>().records;
+    if (records.length < 2) return const SizedBox.shrink();
+
+    const service = MaintenanceTrendService();
+    final insights = service.sortByUrgency(
+      service
+          .analyzeHistory(records, currentMileage: vehicle.mileage)
+          .where((i) => i.predictedNextDate != null)
+          .toList(),
+    );
+    if (insights.isEmpty) return const SizedBox.shrink();
+
+    final shown = insights.take(3).toList();
+
+    return Padding(
+      key: const Key('maintenance_forecast_section'),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.event_repeat_outlined, size: 18),
+              AppSpacing.horizontalXs,
+              Text('次の整備の目安', style: theme.textTheme.titleSmall),
+            ],
+          ),
+          AppSpacing.verticalXs,
+          Text(
+            'これまでの間隔から出しています。目安なので、状態を見て決めてください。',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          AppSpacing.verticalSm,
+          ...shown.map((i) => _ForecastRow(insight: i)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ForecastRow extends StatelessWidget {
+  const _ForecastRow({required this.insight});
+
+  final MaintenanceTrendInsight insight;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final next = insight.predictedNextDate!;
+    final days = next.difference(DateTime.now()).inDays;
+
+    // 過ぎているものを先に、色を変えて出す。
+    final overdue = days < 0;
+    final label = overdue
+        ? '${-days}日 過ぎています'
+        : days == 0
+            ? '今日ごろ'
+            : 'あと$days日';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              insight.type.displayName,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+          // 記録が少ないうちは、その旨を添える。数字だけ出すと
+          // 根拠より強く見えてしまう。
+          if (insight.confidence == TrendConfidence.low)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              child: Text(
+                '参考',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+              ),
+            ),
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: overdue ? AppColors.warning : AppColors.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -2,7 +2,14 @@
 
 > **対象読者**: バグ修正・保守担当者、新規開発者
 > **目的**: コードを理解してエラーを素早くトレースする
-> **最終更新**: 2026-03-06
+> **最終更新**: 2026-03-06（構成の説明）／ 2026-09-10（数の更新）
+>
+> **数は育つ。** 本文の「Service 21個 / Provider 7個」は 2026-03 時点の値で、
+> 2026-09-10 の実数は **Service 55 / Provider 19 / Model 40 / Screen 63 /
+> Widget 21**（`ls lib/services | wc -l` などで再計測できる）。層の役割と
+> 依存の向きは変わっていないので、構成の説明はそのまま読める。
+> 直近の全体像は `docs/reports/`（8/29 の進捗レポート）と、2026-09-10 の
+> PM レポート（Firestore ルール・Cloud Functions・配布経路まで含む）を見る。
 
 ---
 
@@ -52,7 +59,7 @@
 └─────────────────────────────────────────────────────────────────────┘
 
 DIコンテナ（ServiceLocator）
-  └─ Injection.init() で全 Service をシングルトン登録（21個）
+  └─ Injection.init() で全 Service をシングルトン登録（2026-09 時点 55個）
   └─ main.dart の MultiProvider で sl.get<XxxService>() して Provider に注入
 ```
 
@@ -84,7 +91,7 @@ main()
  │     FlutterError.onError    → Crashlytics
  │     PlatformDispatcher.onError → Crashlytics (fatal)
  │
- ├─ Injection.init()                           ← 全 Service を ServiceLocator に登録（21個）
+ ├─ Injection.init()                           ← 全 Service を ServiceLocator に登録（2026-09 時点 55個）
  │
  ├─ _setupAuthLogging()                        ← Auth 状態変化を LoggingService に記録
  │
@@ -94,7 +101,7 @@ main()
  │
  └─ runApp(MyApp())
       │
-      └─ MultiProvider（7 Provider を生成）
+      └─ MultiProvider（2026-09 時点 14 Provider を生成）
            │
            └─ MaterialApp
                 │  theme: AppTheme.lightTheme
@@ -299,7 +306,7 @@ AppError (sealed class)
 
 ## 5. 状態管理（Provider）
 
-### 登録されている Provider（7個）
+### 登録されている Provider（2026-03 時点の 7個。現在は 14個 — `lib/main.dart` の MultiProvider が正）
 
 ```dart
 // lib/main.dart の MultiProvider

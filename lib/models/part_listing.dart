@@ -412,7 +412,12 @@ class PartListing {
   int get hashCode => id.hashCode;
 }
 
-/// Part recommendation result with compatibility info
+/// Part recommendation result with compatibility info.
+///
+/// Product principle (docs/FEATURE_SPEC.md): the AI never decides for the
+/// user. Every candidate carries several [reasons] and its [cautions] so the
+/// user can compare; there is deliberately no `isBest` / `isRecommended`
+/// flag and no single "top pick".
 class PartRecommendation {
   final PartListing part;
   final CompatibilityLevel compatibility;
@@ -420,12 +425,23 @@ class PartRecommendation {
   final double
       relevanceScore; // 0.0 - 1.0, how relevant to user's vehicle/preferences
 
+  /// Why this part is worth a look for this vehicle (several, in display order).
+  final List<String> reasons;
+
+  /// What to check or accept before buying (downsides, conditions, ad slot).
+  final List<String> cautions;
+
   const PartRecommendation({
     required this.part,
     required this.compatibility,
     this.compatibilityNote,
     this.relevanceScore = 0.5,
+    this.reasons = const [],
+    this.cautions = const [],
   });
+
+  /// [relevanceScore] as the 0-100 integer the spec calls `confidenceScore`.
+  int get confidenceScore => (relevanceScore.clamp(0.0, 1.0) * 100).round();
 
   /// Sort by relevance and compatibility
   static int compare(PartRecommendation a, PartRecommendation b) {

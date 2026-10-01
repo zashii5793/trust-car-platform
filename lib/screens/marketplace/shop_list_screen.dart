@@ -260,7 +260,7 @@ class _ShopListScreenState extends State<ShopListScreen> {
       return AppEmptyState(
         icon: Icons.store_outlined,
         title: '整備工場・業者が見つかりません',
-        description: '絞り込みを外すと、登録されている工場がすべて表示されます',
+        description: '絞り込みを外すと、すべての工場が表示されます',
         buttonLabel: '条件をクリアして再読み込み',
         onButtonPressed: () {
           _searchController.clear();

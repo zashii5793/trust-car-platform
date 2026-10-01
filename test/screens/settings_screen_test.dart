@@ -31,6 +31,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart' show User, UserCredential;
 
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/screens/profile/settings_screen.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/providers/theme_provider.dart';
@@ -40,6 +41,8 @@ import 'package:trust_car_platform/models/user.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/di/service_locator.dart';
+
+import '../golden/font_loader.dart';
 
 // ---------------------------------------------------------------------------
 // Stub services
@@ -135,13 +138,17 @@ AppUser _makeAppUser({NotificationSettings? notificationSettings}) {
   );
 }
 
-Widget _buildScreen({required _FakeAuthProvider provider}) {
+Widget _buildScreen({required _FakeAuthProvider provider, ThemeData? theme}) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<AuthProvider>.value(value: provider),
       ChangeNotifierProvider<ThemeProvider>(create: (_) => ThemeProvider()),
     ],
-    child: const MaterialApp(home: SettingsScreen()),
+    child: MaterialApp(
+      theme: theme,
+      debugShowCheckedModeBanner: false,
+      home: const SettingsScreen(),
+    ),
   );
 }
 
@@ -150,6 +157,39 @@ Widget _buildScreen({required _FakeAuthProvider provider}) {
 // ---------------------------------------------------------------------------
 
 void main() {
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        _buildScreen(provider: _FakeAuthProvider(), theme: goldenTheme(base)),
+      );
+      // pumpAndSettle は止まらない（回り続けるアニメーションがある）。
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('設定（ライト）', (tester) async {
+      await shoot(tester, 'screen_settings_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('設定（ダーク）', (tester) async {
+      await shoot(tester, 'screen_settings_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
+  });
+
   setUp(() {
     ServiceLocator.instance.override<PushNotificationService>(
       _StubPushNotificationService(),

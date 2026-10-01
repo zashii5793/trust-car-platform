@@ -7,6 +7,8 @@ import '../../models/inquiry.dart';
 import '../../models/maintenance_record.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
+import '../../providers/vehicle_provider.dart';
+import '../../models/vehicle.dart';
 import '../../services/firebase_service.dart';
 import '../../services/inquiry_maintenance_importer.dart';
 
@@ -277,8 +279,17 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
+  /// Date and time, because a thread with a shop you keep going back to spans
+  /// months — a bare `10:15` cannot tell June 29th from July 11th. The year is
+  /// added only when it is not the current one, to keep the line short.
+  /// The shop-side screen has always shown `6/29 10:15`; this side had not.
   String _formatTime(DateTime dt) {
-    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    final date = dt.year == DateTime.now().year
+        ? '${dt.month}/${dt.day}'
+        : '${dt.year}/${dt.month}/${dt.day}';
+    return '$date $h:$m';
   }
 }
 
@@ -306,15 +317,58 @@ class _MaintenanceImportCard extends StatefulWidget {
 class _MaintenanceImportCardState extends State<_MaintenanceImportCard> {
   bool _importing = false;
   bool _imported = false;
+  bool _noVehicles = false;
+
+  /// どの車の明細かを決める。車が無ければ null（[_noVehicles] を立てる）。
+  Future<String?> _chooseVehicle() async {
+    List<Vehicle> vehicles;
+    try {
+      vehicles = context
+          .read<VehicleProvider>()
+          .vehicles
+          .where((v) => v.userId == widget.userId)
+          .toList();
+    } catch (_) {
+      vehicles = const [];
+    }
+    _noVehicles = vehicles.isEmpty;
+    if (vehicles.isEmpty) return null;
+    if (vehicles.length == 1) return vehicles.single.id;
+    return showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('どの車の整備明細ですか？')),
+            for (final v in vehicles)
+              ListTile(
+                key: Key('import_vehicle_${v.id}'),
+                leading: const Icon(Icons.directions_car),
+                title: Text(v.displayName),
+                subtitle: v.licensePlate == null ? null : Text(v.licensePlate!),
+                onTap: () => Navigator.pop(ctx, v.id),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Future<void> _import() async {
     if (_importing || _imported) return;
     final messenger = ScaffoldMessenger.of(context);
 
-    if (widget.vehicleId == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('車両が特定できないため取り込めません')),
-      );
+    // 店から開いたスレッド（顧客台帳から明細を送ったもの）には、お客さんの
+    // 車の ID が入っていない。店はお客さんのアプリ側の車の ID を知らないため。
+    // そのときは、ここでどの車の明細かを決める（1台ならその車、複数なら選ぶ）。
+    final vehicleId = widget.vehicleId ?? await _chooseVehicle();
+    if (vehicleId == null) {
+      if (mounted && widget.vehicleId == null && _noVehicles) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('先に車両を登録してから取り込んでください')),
+        );
+      }
       return;
     }
 
@@ -322,7 +376,7 @@ class _MaintenanceImportCardState extends State<_MaintenanceImportCard> {
     try {
       final record = buildMaintenanceRecordFromPayload(
         payload: widget.payload,
-        vehicleId: widget.vehicleId!,
+        vehicleId: vehicleId,
         userId: widget.userId,
         inquiryId: widget.inquiryId,
       );

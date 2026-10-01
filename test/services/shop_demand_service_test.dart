@@ -151,14 +151,16 @@ void main() {
       await _seedDemand(fakeFs, shopId: 's1', userId: 'u3');
       await _seedDemand(fakeFs, shopId: 's2', userId: 'u4'); // 別の店舗
 
-      final result = await sut.getDemandCountForShop('s1');
+      final result =
+          await sut.getDemandCountForShop('s1', shopOwnerId: 'owner1');
 
       expect(result.isSuccess, isTrue);
       expect(result.valueOrNull, 3);
     });
 
     test('需要が0件の場合 0 を返す', () async {
-      final result = await sut.getDemandCountForShop('s_no_demand');
+      final result =
+          await sut.getDemandCountForShop('s_no_demand', shopOwnerId: 'owner1');
 
       expect(result.isSuccess, isTrue);
       expect(result.valueOrNull, 0);
@@ -168,10 +170,26 @@ void main() {
       await _seedDemand(fakeFs, shopId: 's2', userId: 'u1');
       await _seedDemand(fakeFs, shopId: 's2', userId: 'u2');
 
-      final result = await sut.getDemandCountForShop('s1');
+      final result =
+          await sut.getDemandCountForShop('s1', shopOwnerId: 'owner1');
 
       expect(result.isSuccess, isTrue);
       expect(result.valueOrNull, 0);
+    });
+
+    // 2026-09-29: 店主かどうかは店の ownerId で判定するようにルールを変えた
+    // （需要データに写した shopOwnerId では判定しない）。店主を引き継ぐと、
+    // 前の店主の uid が写った需要が残るが、それも店への需要なので数える。
+    test('店主が替わる前の需要も、その店への需要として数える', () async {
+      await _seedDemand(fakeFs, shopId: 's1', userId: 'u1');
+      await _seedDemand(fakeFs,
+          shopId: 's1', userId: 'u2', shopOwnerId: 'previous_owner');
+
+      final result =
+          await sut.getDemandCountForShop('s1', shopOwnerId: 'owner1');
+
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull, 2);
     });
   });
 
@@ -184,7 +202,7 @@ void main() {
       await _seedDemand(fakeFs, shopId: 's1', userId: 'u2', subject: '質問B');
       await _seedDemand(fakeFs, shopId: 's2', userId: 'u3', subject: '質問C');
 
-      final result = await sut.getDemandsForShop('s1');
+      final result = await sut.getDemandsForShop('s1', shopOwnerId: 'owner1');
 
       expect(result.isSuccess, isTrue);
       final demands = result.valueOrNull!;
@@ -194,7 +212,8 @@ void main() {
     });
 
     test('需要が0件の場合は空リストを返す', () async {
-      final result = await sut.getDemandsForShop('s_empty');
+      final result =
+          await sut.getDemandsForShop('s_empty', shopOwnerId: 'owner1');
 
       expect(result.isSuccess, isTrue);
       expect(result.valueOrNull, isEmpty);
@@ -284,7 +303,17 @@ void main() {
     });
 
     test('getDemandCountForShop: 空 shopId は failure を返す', () async {
-      final result = await sut.getDemandCountForShop('');
+      final result = await sut.getDemandCountForShop('', shopOwnerId: 'owner1');
+      expect(result.isFailure, isTrue);
+    });
+
+    test('getDemandCountForShop: 空 shopOwnerId は failure を返す', () async {
+      final result = await sut.getDemandCountForShop('s1', shopOwnerId: '');
+      expect(result.isFailure, isTrue);
+    });
+
+    test('getDemandsForShop: 空 shopOwnerId は failure を返す', () async {
+      final result = await sut.getDemandsForShop('s1', shopOwnerId: '');
       expect(result.isFailure, isTrue);
     });
   });

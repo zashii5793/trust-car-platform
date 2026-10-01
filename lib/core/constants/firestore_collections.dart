@@ -21,6 +21,9 @@ class FirestoreCollections {
   static const String messages = 'messages';
   static const String notifications = 'notifications';
   static const String feedback = 'feedback';
+
+  /// ウェブ版の不具合（Crashlytics の代わり）。作成のみ、読むのは運営者だけ。
+  static const String clientErrors = 'client_errors';
   static const String postLikes = 'post_likes';
   static const String commentLikes = 'comment_likes';
   static const String driveLogLikes = 'drive_log_likes';

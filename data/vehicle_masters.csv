@@ -23,6 +23,26 @@ maker,suzuki,,スズキ,Suzuki,,,6,JP
 maker,daihatsu,,ダイハツ,Daihatsu,,,7,JP
 maker,mitsubishi,,三菱,Mitsubishi,,,8,JP
 maker,lexus,,レクサス,Lexus,,,9,JP
+maker,mercedes,,メルセデス・ベンツ,Mercedes-Benz,,,20,DE
+maker,bmw,,BMW,BMW,,,21,DE
+maker,mini,,MINI,MINI,,,22,GB
+maker,volkswagen,,フォルクスワーゲン,Volkswagen,,,23,DE
+maker,audi,,アウディ,Audi,,,24,DE
+maker,porsche,,ポルシェ,Porsche,,,25,DE
+maker,volvo,,ボルボ,Volvo,,,26,SE
+maker,peugeot,,プジョー,Peugeot,,,27,FR
+maker,jeep,,ジープ,Jeep,,,28,US
+maker,landrover,,ランドローバー,Land Rover,,,29,GB
+maker,fiat,,フィアット,Fiat,,,30,IT
+maker,renault,,ルノー,Renault,,,31,FR
+maker,citroen,,シトロエン,Citroën,,,32,FR
+maker,tesla,,テスラ,Tesla,,,33,US
+maker,ferrari,,フェラーリ,Ferrari,,,34,IT
+maker,lamborghini,,ランボルギーニ,Lamborghini,,,35,IT
+maker,jaguar,,ジャガー,Jaguar,,,36,GB
+maker,abarth,,アバルト,Abarth,,,37,IT
+maker,byd,,BYD,BYD,,,38,CN
+maker,hyundai,,ヒョンデ,Hyundai,,,39,KR
 maker,other,,その他,Other,,,100,OTHER
 
 # ==== TOYOTA MODELS ====
@@ -132,6 +152,26 @@ model,lexus_other,lexus,その他,Other,,,100,
 
 # ==== OTHER ====
 model,other_other,other,その他,Other,,,100,
+model,mercedes_other,mercedes,その他,Other,,,100,
+model,bmw_other,bmw,その他,Other,,,100,
+model,mini_other,mini,その他,Other,,,100,
+model,volkswagen_other,volkswagen,その他,Other,,,100,
+model,audi_other,audi,その他,Other,,,100,
+model,porsche_other,porsche,その他,Other,,,100,
+model,volvo_other,volvo,その他,Other,,,100,
+model,peugeot_other,peugeot,その他,Other,,,100,
+model,jeep_other,jeep,その他,Other,,,100,
+model,landrover_other,landrover,その他,Other,,,100,
+model,fiat_other,fiat,その他,Other,,,100,
+model,renault_other,renault,その他,Other,,,100,
+model,citroen_other,citroen,その他,Other,,,100,
+model,tesla_other,tesla,その他,Other,,,100,
+model,ferrari_other,ferrari,その他,Other,,,100,
+model,lamborghini_other,lamborghini,その他,Other,,,100,
+model,jaguar_other,jaguar,その他,Other,,,100,
+model,abarth_other,abarth,その他,Other,,,100,
+model,byd_other,byd,その他,Other,,,100,
+model,hyundai_other,hyundai,その他,Other,,,100,
 
 # ==== GRADES (common grades shared across models) ====
 # These are "template" grades. VehicleMasterService uses commonGrades for all models.

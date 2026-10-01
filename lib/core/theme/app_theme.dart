@@ -10,10 +10,29 @@ class AppTheme {
   // ========================================
   // Light Theme
   // ========================================
+  /// 同梱した日本語フォント（`pubspec.yaml` の `fonts:` を参照）。
+  ///
+  /// **これを指定しないと、OS ごとに書体が変わる。** Web はさらに、起動後に
+  /// `fonts.gstatic.com` から取りに行くまで日本語が □ で出る。
+  static const String _fontFamily = 'NotoSansJP';
+
+  /// 同梱分に無い文字（JIS第2水準以降の漢字、絵文字など）の逃げ先。
+  /// **順に探して、最初に見つかった書体で描く。** 端末に無い名前は無視される
+  /// ので、全OS分を並べておいて構わない。
+  static const List<String> _fontFallback = [
+    'Hiragino Sans', // iOS / macOS
+    'Hiragino Kaku Gothic ProN',
+    'Noto Sans CJK JP', // Android
+    'Yu Gothic', // Windows
+    'sans-serif',
+  ];
+
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      fontFamily: _fontFamily,
+      fontFamilyFallback: _fontFallback,
 
       // Color Scheme
       colorScheme: const ColorScheme.light(
@@ -323,6 +342,8 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      fontFamily: _fontFamily,
+      fontFamilyFallback: _fontFallback,
 
       // Color Scheme
       colorScheme: const ColorScheme.dark(

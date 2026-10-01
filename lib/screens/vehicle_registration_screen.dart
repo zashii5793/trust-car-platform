@@ -1,3 +1,8 @@
+import 'shop/ledger/ledger_csv_import_screen.dart'
+    show CsvFilePicker, pickCsvWithFilePicker;
+import '../providers/auth_provider.dart';
+import '../services/maintenance_history_import_service.dart';
+import 'vehicle/maintenance_history_import_screen.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -28,7 +33,11 @@ import 'vehicle_certificate_result_screen.dart';
 import 'vehicle/vehicle_ocr_matcher.dart';
 
 class VehicleRegistrationScreen extends StatefulWidget {
-  const VehicleRegistrationScreen({super.key});
+  /// 登録の直後に過去の整備記録を移すとき、ファイルを選ぶ関数。
+  /// 操作の流れを通すテストで差し替える。
+  final CsvFilePicker? historyCsvPicker;
+
+  const VehicleRegistrationScreen({super.key, this.historyCsvPicker});
 
   @override
   State<VehicleRegistrationScreen> createState() =>
@@ -649,6 +658,14 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
         _recordCustomMasterSuggestions(currentUserId);
         if (!mounted) return;
         showSuccessSnackBar(context, '車両を登録しました');
+        final newId = provider.lastAddedVehicleId;
+        if (newId != null && isLikelyUsedVehicle(vehicle, DateTime.now())) {
+          // 保存は終わっている。聞いている間も「保存中」を回し続けないよう、
+          // 先に止める（止めるのが答えた後だと、ダイアログの裏で回り続ける）
+          setState(() => _isLoading = false);
+          await _offerHistoryImport(vehicle.copyWith(id: newId));
+          return;
+        }
         Navigator.pop(context);
       } else {
         showErrorSnackBar(context, provider.errorMessage ?? '登録に失敗しました');
@@ -657,6 +674,50 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
       if (mounted) showErrorSnackBar(context, '登録に失敗しました: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// 新車でなさそうなら、過去の整備記録を移すかを聞く。
+  ///
+  /// 中古車は、新車でない限り必ず過去の整備記録・請求書がある。
+  /// 登録の日に入れてもらえれば、ふりかえりも車種別の維持費も初日から効く。
+  Future<void> _offerHistoryImport(Vehicle vehicle) async {
+    final user = context.read<AuthProvider>().firebaseUser;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('過去の整備記録を移しますか？'),
+        content: const Text('整備記録簿や請求書の内容を、記入用のフォーマットで'
+            'まとめて移せます。あとから車両の画面のメニューでも移せます。'),
+        actions: [
+          TextButton(
+            key: const Key('history_offer_later'),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('あとで'),
+          ),
+          FilledButton(
+            key: const Key('history_offer_go'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('移す'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (go == true && user != null) {
+      await Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => MaintenanceHistoryImportScreen(
+            vehicle: vehicle,
+            userId: user.uid,
+            service: sl.get<MaintenanceHistoryImportService>(),
+            pickFile: widget.historyCsvPicker ?? pickCsvWithFilePicker,
+          ),
+        ),
+      );
+    } else {
+      Navigator.pop(context);
     }
   }
 
@@ -1523,7 +1584,10 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '車検証をスキャンして自動入力',
+                        // 「おすすめ」バッジと矢印に押されて2行に折り返して
+                        // いた（390px 幅で実測 2026-09-06）。中身は下の
+                        // 説明文が補う。
+                        '車検証をスキャン',
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: AppColors.primary,
@@ -1959,3 +2023,10 @@ class _AddPhotoTile extends StatelessWidget {
     );
   }
 }
+
+/// 新車でなさそうか。年式が今年より前、または走行距離が1,000kmを超える。
+///
+/// 過去の整備記録を移すかを聞く目安。外れても「あとで」で閉じられるので、
+/// 迷ったら聞く側に倒している。
+bool isLikelyUsedVehicle(Vehicle vehicle, DateTime today) =>
+    (vehicle.year > 0 && vehicle.year < today.year) || vehicle.mileage > 1000;

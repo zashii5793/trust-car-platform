@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 import 'package:trust_car_platform/screens/auth/onboarding_screen.dart';
 import 'package:trust_car_platform/screens/auth/login_screen.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
+
+import '../golden/font_loader.dart';
 import 'package:firebase_auth/firebase_auth.dart' show User;
 import 'package:provider/provider.dart';
 
@@ -20,14 +23,48 @@ class _StubAuthService implements AuthService {
   dynamic noSuchMethod(Invocation i) => null;
 }
 
-Widget _buildOnboardingApp() {
+Widget _buildOnboardingApp({ThemeData? theme}) {
   return ChangeNotifierProvider<AuthProvider>(
     create: (_) => AuthProvider(authService: _StubAuthService()),
-    child: const MaterialApp(home: OnboardingScreen()),
+    child: MaterialApp(
+      theme: theme,
+      debugShowCheckedModeBanner: false,
+      home: const OnboardingScreen(),
+    ),
   );
 }
 
 void main() {
+  // 見え方を画像に残す。CI では走らない（tags: 'golden'）。
+  group('ゴールデン', () {
+    setUpAll(() async {
+      await loadMaterialIcons();
+      await loadJapaneseFont();
+    });
+
+    Future<void> shoot(WidgetTester tester, String name, ThemeData base) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildOnboardingApp(theme: goldenTheme(base)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../golden/goldens/$name.png'),
+      );
+    }
+
+    testWidgets('オンボーディング（ライト）', (tester) async {
+      await shoot(tester, 'screen_onboarding_light', AppTheme.lightTheme);
+    }, tags: 'golden');
+
+    testWidgets('オンボーディング（ダーク）', (tester) async {
+      await shoot(tester, 'screen_onboarding_dark', AppTheme.darkTheme);
+    }, tags: 'golden');
+  });
+
   setUp(() {
     // Reset SharedPreferences before each test
     SharedPreferences.setMockInitialValues({});

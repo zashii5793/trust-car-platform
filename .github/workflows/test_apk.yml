@@ -14,12 +14,25 @@ name: Test APK
 #
 # 出力: Actions の実行ページ下部 "Artifacts" から zip をダウンロードできる。
 # テストユーザーには、その zip を展開した .apk を渡す。
+#
+# 単体で回すより、Test Distribution（test_distribution.yml）から回すことを勧める。
+# そちらは Web と一緒に Firebase Hosting へ出し、テスターは
+# https://trust-car-platform.web.app/download.html から受け取れる。
 
 on:
   workflow_dispatch:
     inputs:
       note:
         description: 'この APK の目印（例: 8/25 テスト配布1回目）'
+        required: false
+        default: ''
+  # test_distribution.yml から呼ばれる。APK の作り方をここ1か所に閉じるため、
+  # 配布側は成果物 `trustcar-test-apk` を受け取るだけにしている。
+  workflow_call:
+    inputs:
+      note:
+        description: 'この APK の目印'
+        type: string
         required: false
         default: ''
 
@@ -78,33 +91,9 @@ jobs:
 
       # ci.yml と同じ内容。APK に埋め込まれて配られるものなので秘密ではない。
       - name: Place google-services.json
-        run: |
-          cat > android/app/google-services.json <<'EOF'
-          {
-            "project_info": {
-              "project_number": "31421119456",
-              "project_id": "trust-car-platform",
-              "storage_bucket": "trust-car-platform.firebasestorage.app"
-            },
-            "client": [{
-              "client_info": {
-                "mobilesdk_app_id": "1:31421119456:android:145b8b79b1d9e7cf80c985",
-                "android_client_info": { "package_name": "jp.trustcar.app" }
-              },
-              "oauth_client": [{
-                "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
-                "client_type": 3
-              }],
-              "api_key": [{ "current_key": "AIzaSyDwjPzpdQqXFl4be7oE3n-yzcl6hoLv_Uw" }],
-              "services": { "appinvite_service": { "other_platform_oauth_client": [{
-                "client_id": "31421119456-1suofflbt89utameb6sjsm6eg856pkos.apps.googleusercontent.com",
-                "client_type": 3
-              }] } }
-            }],
-            "configuration_version": "1"
-          }
-          EOF
-
+        # 値は android/ci/google-services.ci.json に1か所で持つ（3 本のワークフローで共用）。
+        # APK に埋め込まれて配られるものなので秘密ではない。
+        run: cp android/ci/google-services.ci.json android/app/google-services.json
       - name: Restore release keystore (if configured)
         id: keystore
         env:
@@ -142,7 +131,11 @@ jobs:
           # フィードバックの両方から読めるようにする。テスト配布中は
           # バージョンが 1.0.0 のまま出し直すので、これが無いと
           # 「直っていない」という報告を確かめられない。
-          flutter build apk --$MODE \
+          # --split-per-abi: ABI ごとに分けて出す。既定は arm64-v8a /
+          # armeabi-v7a / x86_64 を1つの APK に詰めるため 130MB になり、
+          # スマホで受け取るには重い。実機はほぼ arm64-v8a なので、
+          # それだけ配れば 60MB 前後に収まる。
+          flutter build apk --$MODE --split-per-abi \
             --dart-define=APP_BUILD_ID=${GITHUB_SHA::7} 2>&1 | tee /tmp/apk_build.log
           STATUS=${PIPESTATUS[0]}
           if [ "$STATUS" -ne 0 ]; then
@@ -156,9 +149,24 @@ jobs:
       - name: Rename APK
         run: |
           MODE=${{ steps.build.outputs.mode }}
-          SRC="build/app/outputs/flutter-apk/app-$MODE.apk"
           mkdir -p dist
+
+          # --split-per-abi にすると app-<abi>-<mode>.apk が ABI の数だけ出る。
+          # 配るのは arm64-v8a のみ。armeabi-v7a は 2015 年前後より古い端末、
+          # x86_64 はエミュレータ用で、テスト配布の相手には要らない。
+          # 万一 arm64 が無ければ、黙って別物を配らずここで止める。
+          SRC="build/app/outputs/flutter-apk/app-arm64-v8a-$MODE.apk"
+          if [ ! -f "$SRC" ]; then
+            echo "::error::$SRC がありません。出力されたのは以下です:"
+            ls -la build/app/outputs/flutter-apk/ || true
+            exit 1
+          fi
           cp "$SRC" "dist/TrustCar-$MODE-${GITHUB_SHA::7}.apk"
+
+          # 他の ABI は捨てるが、何を捨てたかはログに残す
+          # （arm64 で動かない端末が出たとき、ここを見れば分かる）。
+          echo "配布するのは arm64-v8a のみ。ビルドされたのは:"
+          ls -la build/app/outputs/flutter-apk/*.apk
           ls -la dist
 
       - name: Report
@@ -171,6 +179,8 @@ jobs:
             echo "| ビルド種別 | ${{ steps.build.outputs.mode }} |"
             echo "| 署名 | ${{ steps.keystore.outputs.signed == 'true' && 'リリース鍵' || 'debug 鍵（直接インストール用）' }} |"
             echo "| コミット | ${GITHUB_SHA::7} |"
+            echo "| ABI | arm64-v8a のみ（--split-per-abi） |"
+            echo "| サイズ | $(du -h dist/*.apk | cut -f1 | tr -d ' ') |"
             echo "| 目印 | ${{ inputs.note }} |"
             echo
             echo "下の Artifacts から zip をダウンロードし、展開した .apk を配布してください。"

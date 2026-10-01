@@ -5,8 +5,28 @@ import 'package:flutter/foundation.dart';
 /// Passing this on the command line is deliberate: it cannot be switched on by
 /// accident, it does not change what any build ships, and no test has to know
 /// about it. Verification needs the screens; users do not have them yet.
+/// Opt-in switch for the parts recommendation UI (demo data until real
+/// listings are sourced). `--dart-define=ENABLE_PART_RECOMMENDATIONS=true`.
+const bool kEnablePartRecommendations =
+    bool.fromEnvironment('ENABLE_PART_RECOMMENDATIONS');
+
 const bool kEnableC2cParts =
     bool.fromEnvironment('ENABLE_C2C_PARTS', defaultValue: false);
+
+/// AI チャット。Anthropic API を Cloud Functions 経由で呼ぶので、本番に
+/// Functions とキーが入り、費用の上限を決めるまで既定で隠す（販売版の構成・
+/// docs/FEATURE_SPEC.md「事業の芯」）。`--dart-define=ENABLE_AI_CHAT=true`、
+/// 本番は Remote Config の `ai_chat`。
+const bool kEnableAiChat =
+    bool.fromEnvironment('ENABLE_AI_CHAT', defaultValue: false);
+
+/// 店舗プランのアプリ内課金（RevenueCat）。2026-09-29 のオーナー判断で、
+/// 店舗プランは当面、請求書払い（銀行振込）。10店舗程度になってクレジット
+/// 決済を足すときに戻せるよう、購入処理は消さずに既定で隠す。
+/// `--dart-define=ENABLE_SHOP_IAP=true`、本番は Remote Config の
+/// `shop_in_app_purchase`。
+const bool kEnableShopInAppPurchase =
+    bool.fromEnvironment('ENABLE_SHOP_IAP', defaultValue: false);
 
 /// アプリケーション設定
 ///
@@ -51,6 +71,21 @@ class AppConfig {
     // Production is switched by Firebase Remote Config
     // (`c2c_parts_marketplace`) — see docs/HUMAN_TASKS.md P2-15.
     FeatureFlag.c2cPartsMarketplace: kEnableC2cParts,
+    // Parts recommendations are off by default.
+    //
+    // What ships today is demo data: `scripts/seed_parts.js` writes 300
+    // `demo_part_*` documents with invented brand names, and
+    // `PartRecommendationService` reads that same `part_listings` collection.
+    // Showing invented products as recommendations costs more trust than the
+    // feature earns, so it stays hidden until real data is sourced
+    // (docs/PARTS_DATA_SOURCING.md).
+    //
+    // Flip it per run with --dart-define, or in production via Remote Config
+    // key `part_recommendations`.
+    FeatureFlag.partRecommendations: kEnablePartRecommendations,
+    FeatureFlag.aiChat: kEnableAiChat,
+    // 店舗プランのアプリ内課金。既定は請求書払いの申し込み（shop_plan_screen）。
+    FeatureFlag.shopInAppPurchase: kEnableShopInAppPurchase,
   };
 
   // 設定値
@@ -204,6 +239,18 @@ enum FeatureFlag {
   // マーケットプレイス
   // C2Cパーツ売買（手数料8%）。事業判断で凍結中（デフォルト無効）。
   c2cPartsMarketplace,
+
+  // AI チャット。Functions と費用の上限が決まるまで既定で無効（販売版の構成）。
+  aiChat,
+
+  // パーツ推薦。いま出ているのは scripts/seed_parts.js が入れる
+  // 架空ブランドのデモデータ（demo_part_*）なので、既定で無効。
+  // 実データの調達が済んだら Remote Config の `part_recommendations` で開ける。
+  partRecommendations,
+
+  // 店舗プランのアプリ内課金（RevenueCat）。当面は請求書払いなので既定で無効。
+  // クレジット決済を足すときに Remote Config の `shop_in_app_purchase` で開ける。
+  shopInAppPurchase,
 }
 
 /// AppConfig のショートカット
