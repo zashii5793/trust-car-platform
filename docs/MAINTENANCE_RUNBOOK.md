@@ -1,6 +1,110 @@
 # TrustCar 保守・運用ランブック
 
-> 最終更新: 2026-03-25
+> 最終更新: 2026-09-30（§0 の復旧手順・§5 のバックアップを実態に合わせて書き直した。§7 のプラン移行は済み）
+
+---
+
+## 0. 壊れたときに最初に見る（2026-09-30 版）
+
+**迷ったらこの節だけ見る。** 残りの節は背景と定期作業。
+どれも Firebase CLI（`firebase --version` 15.x で確認）だけで完結し、`gcloud` は要らない。
+本番に何か入れたら、戻したときも含めて **`docs/RELEASES.md` に1行足す**。
+
+### 0-1. 何が本番に出ているか
+
+```bash
+./scripts/prod_watch.sh          # ウェブ・規約・Functions・公開中の版と main の差（毎日 09:00 に Actions でも走る）
+firebase functions:list          # Functions の一覧（スケジュール実行のものも見える）
+firebase hosting:channel:list    # ウェブの最終公開日時
+cat docs/RELEASES.md             # 何を・いつ・どのコミットから入れたか
+```
+
+### 0-2. ウェブ版を前の版に戻す（数分）
+
+ウェブの公開は版ごとに残っている。**戻すのは Console が一番早い。**
+
+1. Firebase Console → Hosting → 「リリース履歴」
+2. 戻したい版の「︙」→「ロールバック」
+3. `./scripts/prod_watch.sh` で 200 が返ることを確かめ、`docs/RELEASES.md` に「ロールバック」と書く
+
+コードから出し直す場合は、戻したいコミットを取り出して公開する:
+
+```bash
+git switch --detach <戻したいコミット>
+./scripts/deploy_web.sh
+git switch main
+```
+
+### 0-3. 機能だけを止める（アプリの出し直し不要）
+
+Remote Config のフラグで止める。**Console から直接変えず、テンプレートを直して出す**（リポジトリと食い違うため）。
+
+```bash
+# remoteconfig.template.json の該当フラグの defaultValue.value を "false" にして
+firebase deploy --only remoteconfig
+firebase remoteconfig:get          # 反映を確かめる
+```
+
+| フラグ | 止まるもの |
+| --- | --- |
+| `ai_chat` | AI チャット |
+| `part_recommendations` | パーツ提案 |
+| `premium_features` | 個人向けの購入導線 |
+| `c2c_parts_marketplace` | パーツの個人間売買 |
+
+### 0-4. Functions を戻す
+
+```bash
+git switch --detach <戻したいコミット>
+firebase deploy --only functions            # 特定の関数だけなら --only functions:askCarAi
+git switch main
+```
+
+関数を止めたいだけなら、`functions/src/index.ts` から外して出し直すと、デプロイ時に削除を聞かれる。
+
+### 0-5. ルールを戻す
+
+```bash
+git switch --detach <戻したいコミット>
+(cd test/rules && npm test)                 # 戻す先のルールでもテストが通ることを確かめる
+firebase deploy --only firestore:rules      # Storage なら --only storage
+git switch main
+```
+
+Console → Firestore → ルール の「履歴」からも前の版に戻せる（ただしリポジトリと食い違うので、後で揃える）。
+
+### 0-6. データを戻す（最悪の日）
+
+**毎日のバックアップがある**（2026-09-03 から毎日・30日保持）。**戻す先は必ず新しいデータベース**にする。
+`(default)` に直接上書きはできないし、してはいけない（直近の正しいデータまで消える）。
+
+```bash
+firebase firestore:backups:list                          # どの日のバックアップがあるか（READY のもの）
+firebase firestore:databases:restore \
+  --database restore-YYYYMMDD \
+  --backup projects/trust-car-platform/locations/nam5/backups/<ID>
+```
+
+戻したデータベースで中身を確かめてから、必要な文書だけを `(default)` に写す（Admin SDK のスクリプト。
+サービスアカウントキーが要る）。**一度も練習していない**ので、落ち着いている日に1回通しておく
+（`docs/MAINTENANCE_OPS_REVIEW_2026-09-30.md` 計画 5）。
+
+**2026-09-30 時点の穴**（オーナーの判断待ち・`docs/HUMAN_TASKS.md`）:
+
+| 穴 | 直し方（1行） |
+| --- | --- |
+| 削除保護が無効（DB ごと消せてしまう） | `firebase firestore:databases:update "(default)" --delete-protection ENABLED` |
+| Point-in-Time Recovery が無効（直近7日の任意の時点に戻せない） | `firebase firestore:databases:update "(default)" --point-in-time-recovery ENABLED` |
+| Storage（写真）の控えが無い | バケットのバージョニング（Console → Storage） |
+| Auth のユーザーの控えが無い | `firebase auth:export users.json --format=json`（個人情報なので保管場所に注意） |
+
+### 0-7. 鍵を無くした
+
+| 無くしたもの | どうなるか | 戻し方 |
+| --- | --- | --- |
+| Android のリリース鍵（`~/trustcar-release.keystore`） | Play のアプリを更新できない | **Play App Signing を有効にしていれば**、アップロード鍵の再発行を Play Console から申請できる。有効にしていないと戻せない |
+| シークレット（`ANTHROPIC_API_KEY` など） | 該当の Functions が失敗する | 発行元で作り直し → `firebase functions:secrets:set <名前>` → `firebase deploy --only functions` |
+| GitHub の Secrets | CI の署名付きビルドが debug 署名に落ちる | `./scripts/create_release_keystore.sh` の4番目の手順（`gh secret set`）を手で |
 
 ---
 
@@ -116,7 +220,8 @@ App Store Connect → アプリ → バージョン → 「Expedited Review」�
 ### 週次
 
 - [ ] Crashlyticsダッシュボード確認（クラッシュフリー率 ≥ 99.5%）
-- [ ] Firebase Firestore 使用量確認（Spark Plan 上限に注意）
+- [ ] Firebase の使用量と請求の確認（Blaze。請求アラートは月1,000円で設定済み）
+- [ ] 見張りの Issue（`prod-watch` ラベル）が開いていないか
 - [ ] P2/P3 バグリストのトリアージ
 
 ### 月次
@@ -140,22 +245,13 @@ App Store Connect → アプリ → バージョン → 「Expedited Review」�
 
 ## 5. データバックアップ・リストア
 
-### Firestore バックアップ（月次推奨）
+**2026-09-30 に実態に合わせて書き直した。** 以前は `gcloud firestore export` の月次を書いていたが、
+実際には **Firestore のスケジュールバックアップ（毎日・30日保持）** を使っている（2026-09-03 設定）。
+Google 側が保持するので、Cloud Storage のバケットは要らない。戻し方は §0-6。
 
 ```bash
-# Google Cloud コンソール → Firestore → エクスポート
-# または gcloud CLI:
-gcloud firestore export gs://trust-car-platform-backup/$(date +%Y%m%d) \
-  --project=trust-car-platform
-```
-
-### リストア手順（緊急時）
-
-```bash
-# 特定コレクションのみリストア
-gcloud firestore import gs://trust-car-platform-backup/20260301 \
-  --collection-ids=vehicles,maintenance_records \
-  --project=trust-car-platform
+firebase firestore:backups:schedules:list    # 毎日・30日
+firebase firestore:backups:list              # 2026-09-30 時点で 26件（9/04〜9/29）、すべて READY
 ```
 
 ### データ保持ポリシー（プライバシーポリシー準拠）
@@ -191,7 +287,7 @@ gcloud firestore import gs://trust-car-platform-backup/20260301 \
 
 ## 7. Firebase Plan アップグレード計画（Spark → Blaze）
 
-現在: **Spark Plan（無料）**
+現在: **Blaze（従量課金）に移行済み**（2026-09 に Cloud Functions のデプロイのため。以下は移行前の検討の記録）
 
 ### このアプリの特性（実測ベース）
 
