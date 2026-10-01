@@ -4,6 +4,7 @@
 //   onRevenueCatWebhook — HTTP endpoint called by RevenueCat after subscription events.
 //   askCarAi           — HTTPS proxy for Anthropic API (API key never leaves the server).
 //   onPlanRequestCreated — 店舗プランの申し込みを運営者にメールで知らせる。
+//   onInspectionNoticeCreated — 店からアプリ利用者へ車検案内のプッシュを送る。
 //
 // Deploy:
 //   firebase deploy --only functions
@@ -31,6 +32,14 @@ import {
   type OperatorMail,
   type PlanRequestData,
 } from "./notifyPlanRequest";
+import {
+  handleInspectionNoticeCreated,
+  invalidTokensFrom,
+  isNoticedForCurrentExpiry,
+  type LedgerVehicleData,
+  type NoticeRequestData,
+  type VehicleClaim,
+} from "./inspectionNotice";
 import type { ShopSubscriptionUpdate } from "./types";
 export { onNewsletterSend } from "./sendNewsletter";
 export { askCarAi } from "./askCarAi";
@@ -246,6 +255,142 @@ export const onPlanRequestCreated = onDocumentCreated(
           const sgMail = require("@sendgrid/mail");
           sgMail.setApiKey(sendgridApiKey.value());
           await sgMail.send(mail);
+        },
+      }
+    );
+  }
+);
+
+/**
+ * Firestore-triggered Cloud Function — 店からアプリ利用者への車検案内（プッシュ）。
+ *
+ * 店のスタッフが shops/{shopId}/inspection_notices/{noticeId} を置いたら、
+ * 車ごとに台帳のつながり・利用者の通知設定・案内済みかを確かめて FCM で送り、
+ * 送れた車に「案内した日」を付ける。処理の中身は inspectionNotice.ts。
+ *
+ * retry は付けない。車ごとに「案内した日」を先に付けてから送るので、
+ * 途中で落ちても二重には送らない（届かなかった車は案内した日を戻す）。
+ * 失敗は依頼の文書の status: failed で画面に出る。
+ */
+export const onInspectionNoticeCreated = onDocumentCreated(
+  {
+    document: "shops/{shopId}/inspection_notices/{noticeId}",
+    region: "asia-northeast1",
+  },
+  async (event) => {
+    const { shopId, noticeId } = event.params;
+    const db = admin.firestore();
+    const shopRef = db.collection("shops").doc(shopId);
+    const ref = shopRef.collection("inspection_notices").doc(noticeId);
+    const vehicleRef = (id: string) =>
+      shopRef.collection("customer_vehicles").doc(id);
+
+    await handleInspectionNoticeCreated(
+      {
+        shopId,
+        noticeId,
+        eventId: event.id,
+        data: event.data?.data() as NoticeRequestData | undefined,
+      },
+      {
+        claimRequest: (eventId) =>
+          db.runTransaction(async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists || snap.get("delivery") != null) {
+              return "already" as const;
+            }
+            tx.update(ref, {
+              delivery: {
+                state: "sending",
+                eventId,
+                claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+            });
+            return "claimed" as const;
+          }),
+        loadShopName: async () => {
+          const name = (await shopRef.get()).data()?.name;
+          return typeof name === "string" ? name : null;
+        },
+        loadVehicle: async (id) => {
+          const snap = await vehicleRef(id).get();
+          return snap.exists ? (snap.data() as LedgerVehicleData) : null;
+        },
+        loadCustomer: async (id) => {
+          const snap = await shopRef.collection("customers").doc(id).get();
+          return snap.exists ? (snap.data() ?? null) : null;
+        },
+        loadLinkShopId: async (uid) => {
+          const shop = (await db.collection("shop_customers").doc(uid).get())
+            .data()?.shopId;
+          return typeof shop === "string" ? shop : null;
+        },
+        loadUser: async (uid) => {
+          const snap = await db.collection("users").doc(uid).get();
+          return snap.exists ? (snap.data() ?? null) : null;
+        },
+        claimVehicles: (ids, now) =>
+          db.runTransaction(async (tx) => {
+            const snaps = await Promise.all(ids.map((id) => tx.get(vehicleRef(id))));
+            const claims: VehicleClaim[] = [];
+            for (const snap of snaps) {
+              if (!snap.exists) continue;
+              const v = snap.data() as LedgerVehicleData;
+              if (isNoticedForCurrentExpiry(v) || !v.inspectionExpiry) continue;
+              claims.push({
+                id: snap.id,
+                prevNoticeAt: v.inspectionNoticeAt ?? null,
+                prevNoticeExpiry: v.inspectionNoticeExpiry ?? null,
+              });
+              tx.update(snap.ref, {
+                inspectionNoticeAt: admin.firestore.Timestamp.fromDate(now),
+                inspectionNoticeExpiry: v.inspectionExpiry,
+              });
+            }
+            return claims;
+          }),
+        releaseVehicles: async (claims) => {
+          const batch = db.batch();
+          for (const c of claims) {
+            batch.update(vehicleRef(c.id), {
+              inspectionNoticeAt:
+                c.prevNoticeAt ?? admin.firestore.FieldValue.delete(),
+              inspectionNoticeExpiry:
+                c.prevNoticeExpiry ?? admin.firestore.FieldValue.delete(),
+            });
+          }
+          await batch.commit();
+        },
+        send: async (tokens, message) => {
+          const res = await admin.messaging().sendEachForMulticast({
+            tokens,
+            notification: { title: message.title, body: message.body },
+            data: message.data,
+            android: {
+              priority: "high",
+              // アプリが作る通知チャンネル（push_notification_service.dart）
+              notification: { channelId: "trust_car_high_importance" },
+            },
+            apns: { payload: { aps: { sound: "default" } } },
+          });
+          return {
+            successCount: res.successCount,
+            invalidTokens: invalidTokensFrom(tokens, res.responses),
+          };
+        },
+        removeTokens: async (uid, tokens) => {
+          await db.collection("users").doc(uid).update({
+            fcmTokens: admin.firestore.FieldValue.arrayRemove(...tokens),
+          });
+        },
+        writeResult: async (status, result, error) => {
+          await ref.update({
+            status,
+            result,
+            processedAt: admin.firestore.FieldValue.serverTimestamp(),
+            "delivery.state": "finished",
+            ...(error ? { error } : {}),
+          });
         },
       }
     );

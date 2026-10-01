@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../services/analytics_service.dart';
+import '../services/fcm_token_service.dart';
 import '../models/user.dart';
 import '../core/error/app_error.dart';
 
@@ -14,16 +15,22 @@ class AuthProvider with ChangeNotifier {
   final AuthService _authService;
   final AnalyticsService? _analytics;
 
+  /// この端末のプッシュの宛先を利用者に登録する（ウェブでは渡さない）。
+  final FcmTokenService? _fcmTokens;
+
   User? _firebaseUser;
   AppUser? _appUser;
   bool _isLoading = true;
   AppError? _error;
   StreamSubscription<User?>? _authSubscription;
 
-  AuthProvider(
-      {required AuthService authService, AnalyticsService? analyticsService})
-      : _authService = authService,
-        _analytics = analyticsService {
+  AuthProvider({
+    required AuthService authService,
+    AnalyticsService? analyticsService,
+    FcmTokenService? fcmTokenService,
+  })  : _authService = authService,
+        _analytics = analyticsService,
+        _fcmTokens = fcmTokenService {
     _init();
   }
 
@@ -66,6 +73,9 @@ class AuthProvider with ChangeNotifier {
             _appUser = null;
           },
         );
+        // 店からの車検案内を受け取る端末として登録する。失敗してもログインは
+        // 止めない（次の起動でやり直す）ので待たない
+        if (_appUser != null) unawaited(_fcmTokens?.register(user.uid));
       } else {
         _appUser = null;
       }
@@ -246,6 +256,10 @@ class AuthProvider with ChangeNotifier {
     _isLoading = true;
     _error = null;
     notifyListeners();
+
+    // ログアウトしたあとは users に書けないので、先にこの端末の宛先を外す
+    final uid = _firebaseUser?.uid;
+    if (uid != null) await _fcmTokens?.unregister(uid);
 
     final result = await _authService.signOut();
 

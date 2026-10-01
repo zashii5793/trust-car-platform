@@ -21,6 +21,7 @@ import 'services/firebase_service.dart';
 import 'services/auth_service.dart';
 import 'services/recommendation_service.dart';
 import 'services/push_notification_service.dart';
+import 'services/fcm_token_service.dart';
 import 'services/inspection_reminder_service.dart';
 import 'services/notification_state_store.dart';
 import 'providers/vehicle_provider.dart';
@@ -227,6 +228,8 @@ class MyApp extends StatelessWidget {
             create: (_) => AuthProvider(
                   authService: sl.get<AuthService>(),
                   analyticsService: sl.get<AnalyticsService>(),
+                  // プッシュはモバイルだけ（ウェブは firebase_messaging を初期化しない）
+                  fcmTokenService: kIsWeb ? null : sl.get<FcmTokenService>(),
                 )),
         ChangeNotifierProvider(
             create: (_) => VehicleProvider(

@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:trust_car_platform/providers/auth_provider.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
+import 'package:trust_car_platform/services/fcm_token_service.dart';
 import 'package:trust_car_platform/models/user.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
@@ -20,6 +22,9 @@ class MockAuthService implements AuthService {
   bool signUpCalled = false;
   bool signInCalled = false;
   bool signOutCalled = false;
+
+  /// 呼ばれた順を見るため（プッシュの宛先の登録・解除との前後）。
+  List<String>? eventLog;
   bool googleSignInCalled = false;
   bool passwordResetCalled = false;
 
@@ -85,6 +90,7 @@ class MockAuthService implements AuthService {
   @override
   Future<Result<void, AppError>> signOut() async {
     signOutCalled = true;
+    eventLog?.add('signOut');
     return signOutResult ?? const Result.success(null);
   }
 
@@ -127,6 +133,32 @@ class MockAuthService implements AuthService {
   void dispose() {
     _authStateController.close();
   }
+}
+
+/// 登録・解除の呼ばれ方だけを見る。
+class _FakeFcmTokens implements FcmTokenService {
+  final List<String> events = [];
+  bool fail = false;
+
+  _FakeFcmTokens(MockAuthService auth) {
+    auth.eventLog = events;
+  }
+
+  @override
+  Future<Result<void, AppError>> register(String uid) async {
+    events.add('register:$uid');
+    if (fail) return const Result.failure(ServerError('no token'));
+    return const Result.success(null);
+  }
+
+  @override
+  Future<Result<void, AppError>> unregister(String uid) async {
+    events.add('unregister:$uid');
+    return const Result.success(null);
+  }
+
+  @override
+  void dispose() {}
 }
 
 void main() {
@@ -289,6 +321,77 @@ void main() {
         await provider.signOut();
 
         expect(mockAuthService.signOutCalled, isTrue);
+      });
+    });
+
+    // 店からの車検案内を受け取る端末の登録（2026-10-01）
+    group('プッシュの宛先（FcmTokenService）', () {
+      late _FakeFcmTokens fcm;
+      final user = MockUser(uid: 'u1', email: 'a@example.com');
+      final profile = AppUser(
+        id: 'u1',
+        email: 'a@example.com',
+        createdAt: DateTime(2026, 1, 1),
+        updatedAt: DateTime(2026, 1, 1),
+      );
+
+      setUp(() {
+        fcm = _FakeFcmTokens(mockAuthService);
+      });
+
+      test('ログインしてプロフィールが読めたら、この端末を登録する', () async {
+        mockAuthService.getUserProfileResult = Result.success(profile);
+        provider =
+            AuthProvider(authService: mockAuthService, fcmTokenService: fcm);
+        mockAuthService.emitAuthState(user);
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        expect(fcm.events, ['register:u1']);
+      });
+
+      test('ログアウトの前に、この端末を外す（外したあとはもう書けないため）', () async {
+        mockAuthService.getUserProfileResult = Result.success(profile);
+        provider =
+            AuthProvider(authService: mockAuthService, fcmTokenService: fcm);
+        mockAuthService.emitAuthState(user);
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        await provider.signOut();
+
+        expect(fcm.events, ['register:u1', 'unregister:u1', 'signOut']);
+      });
+
+      group('Edge Cases', () {
+        test('プロフィールがまだ無ければ登録しない（次の起動で登録する）', () async {
+          provider =
+              AuthProvider(authService: mockAuthService, fcmTokenService: fcm);
+          mockAuthService.emitAuthState(user);
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          expect(fcm.events, isEmpty);
+        });
+
+        test('ログインしていなければ外さない', () async {
+          provider =
+              AuthProvider(authService: mockAuthService, fcmTokenService: fcm);
+          mockAuthService.emitAuthState(null);
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          await provider.signOut();
+          expect(fcm.events, ['signOut']);
+        });
+
+        test('登録に失敗してもログインは続く', () async {
+          fcm.fail = true;
+          mockAuthService.getUserProfileResult = Result.success(profile);
+          provider =
+              AuthProvider(authService: mockAuthService, fcmTokenService: fcm);
+          mockAuthService.emitAuthState(user);
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          expect(provider.isAuthenticated, isTrue);
+          expect(provider.appUser?.id, 'u1');
+        });
       });
     });
 

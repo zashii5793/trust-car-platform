@@ -272,6 +272,77 @@ void main() {
     });
   });
 
+  group('appInspectionNoticeTargets — アプリへの車検案内', () {
+    final to = DateTime(2026, 11, 27);
+
+    Future<InspectionNoticeList> targets() async =>
+        (await service.appInspectionNoticeTargets(
+          shopId: shopId,
+          from: today,
+          to: to,
+        ))
+            .valueOrNull!;
+
+    Future<void> link(LedgerCustomer c, String uid) => firestore
+        .doc('shops/$shopId/customers/${c.id}')
+        .update({'linkedUserId': uid, 'isLinked': true});
+
+    test('期間内で、アプリとつながっている客の車だけ。住所は要らない', () async {
+      final app = await addCustomer('アプリの人', address: null);
+      await link(app, 'u1');
+      await addVehicle(app, model: '近い', expiry: DateTime(2026, 10, 1));
+      await addVehicle(app, model: '遠い', expiry: DateTime(2027, 3, 1));
+      final paper = await addCustomer('はがきの人');
+      await addVehicle(paper, model: 'はがき', expiry: DateTime(2026, 10, 2));
+
+      final r = await targets();
+      expect(r.targets.map((t) => t.vehicle.model), ['近い']);
+      expect(r.targets.single.customer.linkedUserId, 'u1');
+      expect(r.notLinked, 1);
+    });
+
+    test('はがきで案内済みの車は送らない（同じ「案内した日」を見る）', () async {
+      final c = await addCustomer('アプリの人');
+      await link(c, 'u1');
+      final v = await addVehicle(c, expiry: DateTime(2026, 10, 1));
+      await service.markInspectionNoticed(shopId: shopId, vehicles: [v]);
+
+      final r = await targets();
+      expect(r.targets, isEmpty);
+      expect(r.alreadyNoticed, 1);
+    });
+
+    group('Edge Cases', () {
+      test('台帳が空なら空', () async {
+        final r = await targets();
+        expect(r.targets, isEmpty);
+        expect(r.notLinked, 0);
+      });
+
+      test('期間の終わりが始まりより前なら空', () async {
+        final c = await addCustomer('アプリの人');
+        await link(c, 'u1');
+        await addVehicle(c, expiry: DateTime(2026, 10, 1));
+        final r = (await service.appInspectionNoticeTargets(
+          shopId: shopId,
+          from: to,
+          to: today,
+        ))
+            .valueOrNull!;
+        expect(r.targets, isEmpty);
+      });
+
+      test('他の店の車は入らない', () async {
+        final c = await addCustomer('よそ', shop: otherShop);
+        await firestore
+            .doc('shops/$otherShop/customers/${c.id}')
+            .update({'linkedUserId': 'u1', 'isLinked': true});
+        await addVehicle(c, shop: otherShop, expiry: DateTime(2026, 10, 1));
+        expect((await targets()).targets, isEmpty);
+      });
+    });
+  });
+
   group('markInspectionNoticed — 案内した日の記録', () {
     Future<InspectionNoticeList> targets({bool excludeNoticed = true}) async =>
         (await service.inspectionNoticeTargets(
