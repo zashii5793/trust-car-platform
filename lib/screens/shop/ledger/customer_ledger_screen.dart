@@ -65,9 +65,8 @@ class CustomerLedgerScreen extends StatefulWidget {
   final CsvSharer? csvSharer;
 
   /// アプリを使っているお客さんに車検案内（プッシュ）を送るため。
-  /// [currentUid]（依頼する人）と両方そろったときだけ入口を出す。
+  /// [currentUid]（依頼する人。整備明細の送付と同じ値）と両方そろったときだけ入口を出す。
   final InspectionPushService? pushService;
-  final String? currentUid;
 
   /// 操作の記録。[auditService] は店主が記録を見るため（店主のときだけ渡す）。
   final AuditRecorder? onAudit;
@@ -92,7 +91,6 @@ class CustomerLedgerScreen extends StatefulWidget {
     this.csvPicker,
     this.csvSharer,
     this.pushService,
-    this.currentUid,
     this.onAudit,
     this.auditService,
     required this.shopId,

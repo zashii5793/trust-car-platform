@@ -353,7 +353,6 @@ class _RegisteredBody extends StatelessWidget {
                   onAudit: _auditFor(context, shop.id),
                   auditService: sl.get<ShopAuditService>(),
                   pushService: sl.tryGet<InspectionPushService>(),
-                  currentUid: context.read<AuthProvider>().firebaseUser?.uid,
                   shopId: shop.id,
                   shopName: shop.name,
                 ),
@@ -1238,7 +1237,6 @@ class _StaffEntryCardState extends State<_StaffEntryCard> {
           onAudit: _auditFor(context, link.shopId),
           // スタッフも車検案内を送れる（はがきの書き出しと同じ）
           pushService: sl.tryGet<InspectionPushService>(),
-          currentUid: context.read<AuthProvider>().firebaseUser?.uid,
           shopId: link.shopId,
           shopName: link.shopName,
         ),
