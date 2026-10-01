@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:trust_car_platform/core/di/service_locator.dart';
 import 'package:trust_car_platform/models/model_cost_report.dart';
+import 'package:trust_car_platform/screens/vehicle/model_cost_compare_screen.dart';
 import 'package:trust_car_platform/screens/vehicle/model_cost_report_screen.dart';
 import 'package:trust_car_platform/services/analytics_service.dart';
 import 'package:trust_car_platform/services/model_cost_report_service.dart';
