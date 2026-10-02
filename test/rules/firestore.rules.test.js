@@ -3638,6 +3638,161 @@ describe('shops — プランは店主でも書けない（請求書払いの切
   });
 });
 
+// ==================== アプリ利用者への車検案内（2026-10-01） ====================
+// 店のスタッフが依頼を置き、送るのはサーバー（onInspectionNoticeCreated）。
+// lib/services/inspection_push_service.dart が書く形と同じ。
+
+describe('shops/{id}/inspection_notices — 車検案内の依頼', () => {
+  const { serverTimestamp, addDoc } = require('firebase/firestore');
+  const noticePath = `shops/${LEDGER_SHOP_ID}/inspection_notices/n1`;
+  const notice = (uid, o = {}) => ({
+    requesterUid: uid,
+    vehicleIds: ['v1', 'v2'],
+    status: 'pending',
+    createdAt: serverTimestamp(),
+    ...o,
+  });
+  async function seedNotice() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), noticePath), {
+        ...notice(LEDGER_STAFF_UID), createdAt: new Date(),
+      });
+    });
+  }
+
+  test('スタッフはアプリが書く形（add）で依頼を置ける', async () => {
+    await seedLedgerShop();
+    await assertSucceeds(addDoc(
+      collection(dbFor(LEDGER_STAFF_UID), `shops/${LEDGER_SHOP_ID}/inspection_notices`),
+      notice(LEDGER_STAFF_UID)));
+  });
+
+  test('店主も依頼を置ける', async () => {
+    await seedLedgerShop();
+    await assertSucceeds(setDoc(doc(dbFor(LEDGER_OWNER_UID), noticePath), notice(LEDGER_OWNER_UID)));
+  });
+
+  test('店と無関係の人は依頼を置けない', async () => {
+    await seedLedgerShop();
+    await assertFails(setDoc(doc(dbFor(LEDGER_OUTSIDER_UID), noticePath), notice(LEDGER_OUTSIDER_UID)));
+  });
+
+  test('アプリの利用者（店の客）も依頼を置けない', async () => {
+    await seedLedgerShop();
+    await assertFails(setDoc(doc(dbFor(LEDGER_APP_USER_UID), noticePath), notice(LEDGER_APP_USER_UID)));
+  });
+
+  test('未ログインでは置けない', async () => {
+    await seedLedgerShop();
+    await assertFails(setDoc(doc(unauthDb(), noticePath), notice(LEDGER_STAFF_UID)));
+  });
+
+  test('読めるのは店のスタッフ（店主を含む）だけ', async () => {
+    await seedLedgerShop();
+    await seedNotice();
+    await assertSucceeds(getDoc(doc(dbFor(LEDGER_STAFF_UID), noticePath)));
+    await assertSucceeds(getDoc(doc(dbFor(LEDGER_OWNER_UID), noticePath)));
+    await assertFails(getDoc(doc(dbFor(LEDGER_OUTSIDER_UID), noticePath)));
+    await assertFails(getDoc(doc(dbFor(LEDGER_APP_USER_UID), noticePath)));
+  });
+
+  test('作ったあとは店主でも書き換え・削除できない（結果はサーバーが書く）', async () => {
+    await seedLedgerShop();
+    await seedNotice();
+    await assertFails(updateDoc(doc(dbFor(LEDGER_OWNER_UID), noticePath), { status: 'done' }));
+    await assertFails(updateDoc(doc(dbFor(LEDGER_STAFF_UID), noticePath), { result: { sent: 99 } }));
+    await assertFails(deleteDoc(doc(dbFor(LEDGER_OWNER_UID), noticePath)));
+  });
+
+  describe('Edge Cases', () => {
+    test('他人の名前では置けない', async () => {
+      await seedLedgerShop();
+      await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), noticePath), notice(LEDGER_OWNER_UID)));
+    });
+
+    test('受付中以外の状態・結果を最初から書いては置けない', async () => {
+      await seedLedgerShop();
+      await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), noticePath),
+        notice(LEDGER_STAFF_UID, { status: 'done' })));
+      await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), noticePath),
+        notice(LEDGER_STAFF_UID, { result: { sent: 1 } })));
+      await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), noticePath),
+        notice(LEDGER_STAFF_UID, { delivery: { state: 'finished' } })));
+    });
+
+    test('車が0台・201台以上・配列でないものは置けない', async () => {
+      await seedLedgerShop();
+      const many = Array.from({ length: 201 }, (_, i) => `v${i}`);
+      await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), noticePath),
+        notice(LEDGER_STAFF_UID, { vehicleIds: [] })));
+      await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), noticePath),
+        notice(LEDGER_STAFF_UID, { vehicleIds: many })));
+      await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), noticePath),
+        notice(LEDGER_STAFF_UID, { vehicleIds: 'v1' })));
+      await assertSucceeds(setDoc(doc(dbFor(LEDGER_STAFF_UID), noticePath),
+        notice(LEDGER_STAFF_UID, { vehicleIds: many.slice(0, 200) })));
+    });
+
+    test('作った時刻をごまかせない（サーバー時刻だけ）', async () => {
+      await seedLedgerShop();
+      await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), noticePath),
+        notice(LEDGER_STAFF_UID, { createdAt: new Date('2020-01-01') })));
+    });
+
+    test('スタッフを外された人は置けない', async () => {
+      await seedLedgerShop();
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await deleteDoc(doc(ctx.firestore(), `shops/${LEDGER_SHOP_ID}/members/${LEDGER_STAFF_UID}`));
+      });
+      await assertFails(setDoc(doc(dbFor(LEDGER_STAFF_UID), noticePath), notice(LEDGER_STAFF_UID)));
+    });
+  });
+});
+
+describe('users/{uid}.fcmTokens — プッシュの宛先', () => {
+  const UID = 'fcm_user_1';
+  const userPath = `users/${UID}`;
+  async function seedUser(extra = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), userPath), { email: 'a@example.com', planType: 'free', ...extra });
+    });
+  }
+
+  test('本人は自分の端末を登録・外せる', async () => {
+    await seedUser();
+    await assertSucceeds(updateDoc(doc(dbFor(UID), userPath), {
+      fcmTokens: ['tok-a'], fcmTokenUpdatedAt: new Date(),
+    }));
+    await assertSucceeds(updateDoc(doc(dbFor(UID), userPath), { fcmTokens: [] }));
+  });
+
+  test('他人の端末の登録はできない', async () => {
+    await seedUser();
+    await assertFails(updateDoc(doc(dbFor(OTHER_UID), userPath), { fcmTokens: ['tok-x'] }));
+  });
+
+  describe('Edge Cases', () => {
+    test('20件を超える・配列でないものは書けない', async () => {
+      await seedUser();
+      const many = Array.from({ length: 21 }, (_, i) => `t${i}`);
+      await assertFails(updateDoc(doc(dbFor(UID), userPath), { fcmTokens: many }));
+      await assertFails(updateDoc(doc(dbFor(UID), userPath), { fcmTokens: 'tok' }));
+      await assertSucceeds(updateDoc(doc(dbFor(UID), userPath), { fcmTokens: many.slice(0, 20) }));
+    });
+
+    test('fcmTokens を持たない普段の更新はこれまでどおり通る', async () => {
+      await seedUser();
+      await assertSucceeds(updateDoc(doc(dbFor(UID), userPath), { displayName: '山田' }));
+    });
+
+    test('作るときも上限を見る', async () => {
+      const many = Array.from({ length: 21 }, (_, i) => `t${i}`);
+      await assertFails(setDoc(doc(dbFor(UID), userPath), { email: 'a@example.com', fcmTokens: many }));
+      await assertSucceeds(setDoc(doc(dbFor(UID), userPath), { email: 'a@example.com' }));
+    });
+  });
+});
+
 // ===========================================================================
 // Issue #192 — 本番ルールで弾かれるクエリ（残り）
 //

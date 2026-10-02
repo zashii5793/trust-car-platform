@@ -104,6 +104,23 @@ service cloud.firestore {
             || d.inspectionNoticeExpiry is timestamp);
     }
 
+    // アプリ利用者への車検案内の依頼（shops/{shopId}/inspection_notices）。
+    // lib/services/inspection_push_service.dart と同じ形だけを受け付ける。
+    // 送るのはサーバー（onInspectionNoticeCreated）で、車ごとのつながり・
+    // 利用者の通知設定・案内済みかはそちらで確かめる（ルールでは配列の
+    // 中身を1件ずつ見られないため）。ここでは自分の名前で・受付中として・
+    // 台数の上限だけを見る。
+    function validInspectionNotice() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['requesterUid', 'vehicleIds', 'status', 'createdAt'])
+        && d.requesterUid == request.auth.uid
+        && d.vehicleIds is list
+        && d.vehicleIds.size() > 0
+        && d.vehicleIds.size() <= 200
+        && d.status == 'pending'
+        && d.createdAt == request.time;
+    }
+
     // 店舗プランの申し込み（shops/{shopId}/plan_requests）。
     // lib/services/shop_plan_request_service.dart と同じ形だけを受け付ける。
     function validPlanRequest(shopId) {
@@ -153,18 +170,27 @@ service cloud.firestore {
         get(/databases/$(database)/documents/inquiries/$(inquiryId)).data.shopId);
     }
 
+    // users の fcmTokens（プッシュの宛先）。無いか、20件までの配列。
+    function validFcmTokens(d) {
+      return !('fcmTokens' in d)
+        || (d.fcmTokens is list && d.fcmTokens.size() <= 20);
+    }
+
     // ユーザードキュメント
     match /users/{userId} {
       // 自分のデータのみ読み取り可能
       allow read: if isOwner(userId);
 
       // 作成: 自分自身のドキュメントのみ
-      allow create: if isOwner(userId);
+      allow create: if isOwner(userId) && validFcmTokens(request.resource.data);
 
       // 更新: planType / planExpiresAt はCloud Functions経由のみ（クライアント書き換え禁止）
+      // fcmTokens（この人の端末のプッシュの宛先・2026-10-01）は文字列の配列で
+      // 20件まで（アプリは10件で古いものを落とす。fcm_token_service.dart）。
       allow update: if isOwner(userId)
           && !request.resource.data.diff(resource.data).affectedKeys()
-              .hasAny(['planType', 'planExpiresAt']);
+              .hasAny(['planType', 'planExpiresAt'])
+          && validFcmTokens(request.resource.data);
     }
 
     // 車両データ
@@ -388,6 +414,16 @@ service cloud.firestore {
       match /plan_requests/{requestId} {
         allow read: if isShopOwnerOf(shopId);
         allow create: if isShopOwnerOf(shopId) && validPlanRequest(shopId);
+        allow update, delete: if false;
+      }
+
+      // ==================== アプリ利用者への車検案内（2026-10-01） ====================
+      // 店のスタッフ（店主を含む）が依頼を置き、送るのはサーバー
+      // （onInspectionNoticeCreated）。結果（status・result）もサーバーが書く。
+      // **作ったあとは書き換え・削除できない**（送った記録を消させない）。
+      match /inspection_notices/{noticeId} {
+        allow read: if isShopStaff(shopId);
+        allow create: if isShopStaff(shopId) && validInspectionNotice();
         allow update, delete: if false;
       }
 
