@@ -172,6 +172,7 @@ class _FakeShopProvider extends ShopProvider {
 
   bool saveCalledWith = false;
   Shop? lastSavedShop;
+  String? lastOwnerName;
 
   _FakeShopProvider({
     bool isSubmitting = false,
@@ -192,9 +193,10 @@ class _FakeShopProvider extends ShopProvider {
   String? get submitError => _fakeSubmitError;
 
   @override
-  Future<bool> saveMyShop(Shop shop) async {
+  Future<bool> saveMyShop(Shop shop, {String? ownerName}) async {
     saveCalledWith = true;
     lastSavedShop = shop;
+    lastOwnerName = ownerName;
     return _saveShouldSucceed;
   }
 }
@@ -691,6 +693,21 @@ void main() {
 
       expect(provider.saveCalledWith, isTrue);
       expect(provider.lastSavedShop?.name, '新規テスト工場');
+    });
+
+    testWidgets('33b. 新しい店は id を空で渡す（自動ID・店主の uid にしない）', (tester) async {
+      final provider = _FakeShopProvider(saveShouldSucceed: true);
+      await tester.pumpWidget(_buildScreen(shopProvider: provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      await tester.enterText(find.byType(TextFormField).first, '新規テスト工場');
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(provider.lastSavedShop?.id, isEmpty);
+      expect(provider.lastSavedShop?.ownerId, 'owner-uid');
+      // 名簿に載せる店主の名前
+      expect(provider.lastOwnerName, 'Shop Owner');
     });
 
     testWidgets('34. failed save shows error snackbar', (tester) async {

@@ -80,7 +80,8 @@ class MockShopService implements ShopService {
       const Result.success([]);
 
   @override
-  Future<Result<Shop, AppError>> createMyShop(Shop shop) async =>
+  Future<Result<Shop, AppError>> createMyShop(Shop shop,
+          {String? ownerName}) async =>
       Result.failure(AppError.unknown('not impl'));
 
   @override

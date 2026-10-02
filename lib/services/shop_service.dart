@@ -197,10 +197,30 @@ class ShopService {
     'trialStartedAt',
   ];
 
-  /// Create a shop for the current user (docId = uid)
+  /// 自分の店を作る。
+  ///
+  /// 店のドキュメントID（2026-10-01、docs/SHOP_ID_DECOUPLING_DESIGN.md 段階1）:
+  /// - [shop] の id が空なら、新しい形。`shops` の自動IDで作り、作った人
+  ///   （ownerId）をスタッフ名簿（`members/{uid}`）の owner にする。
+  ///   店と名簿は1回のバッチで書く
+  /// - id が入っていれば、そのIDで作る（これまでの形。id ＝ 店主の uid）
+  ///
+  /// firestore.rules を出す前の本番は新しい形を知らないので、バッチは
+  /// permission-denied になる。そのときは、これまでの形（`shops/{uid}`、
+  /// 名簿は書かない）で作り直す。ルールとアプリのどちらを先に出しても、
+  /// 店を作れなくならないようにするため。
+  ///
+  /// [ownerName] は名簿に載せる店主の名前（空なら「店主」）。
   ///
   /// 店は必ずフリーで作る。有料プランは plan_requests で申し込む。
-  Future<Result<Shop, AppError>> createMyShop(Shop shop) async {
+  Future<Result<Shop, AppError>> createMyShop(
+    Shop shop, {
+    String? ownerName,
+  }) async {
+    final ownerId = shop.ownerId ?? '';
+    if (ownerId.isEmpty) {
+      return const Result.failure(AppError.validation('店主が特定できません'));
+    }
     try {
       final data = shop.toMap();
       data['planType'] = ShopPlanType.free.name;
@@ -209,9 +229,34 @@ class ShopService {
       data['revenueCatUserId'] = null;
       data['trialStartedAt'] = null;
       data['createdAt'] = data['updatedAt']; // Ensure createdAt is set
-      await _shopsCollection.doc(shop.id).set(data);
-      final doc = await _shopsCollection.doc(shop.id).get();
-      return Result.success(Shop.fromFirestore(doc));
+
+      if (shop.id.isNotEmpty) {
+        // これまでの形（IDは呼び出し側が決める。ふつうは店主の uid）
+        await _shopsCollection.doc(shop.id).set(data);
+        final doc = await _shopsCollection.doc(shop.id).get();
+        return Result.success(Shop.fromFirestore(doc));
+      }
+
+      final ref = _shopsCollection.doc();
+      final name = ownerName?.trim() ?? '';
+      try {
+        final batch = _firestore.batch();
+        batch.set(ref, data);
+        batch.set(ref.collection('members').doc(ownerId), {
+          'role': 'owner',
+          'displayName': name.isEmpty ? '店主' : name,
+          'addedAt': data['createdAt'],
+        });
+        await batch.commit();
+      } on FirebaseException catch (e) {
+        if (e.code != 'permission-denied') rethrow;
+        // ルールが古い本番。これまでの形で作る（名簿は古いルールでは
+        // 店と一緒に書けないので、これまでどおり書かない）
+        final legacy = _shopsCollection.doc(ownerId);
+        await legacy.set(data);
+        return Result.success(Shop.fromFirestore(await legacy.get()));
+      }
+      return Result.success(Shop.fromFirestore(await ref.get()));
     } catch (e) {
       return Result.failure(AppError.server('ショップの作成に失敗しました: $e'));
     }
@@ -241,30 +286,41 @@ class ShopService {
     }
   }
 
-  /// Get the current user's shop by UID (returns null if not exists)
+  /// 自分が店主（ownerId）の店。無ければ null。
   ///
-  /// 店のドキュメントIDは最初の店主の uid。2026-09-29 から店主を引き継げる
-  /// ようにしたので、次の2つを見分ける:
-  /// - `shops/{uid}` があっても、いまの店主（ownerId）が別の人なら、
-  ///   それは引き継いで手放した店。返さない
-  /// - 引き継いで受け取った店は、ドキュメントIDが自分の uid ではない。
-  ///   ownerId で探す
+  /// 店のドキュメントIDでは引かない（2026-10-01、
+  /// docs/SHOP_ID_DECOUPLING_DESIGN.md 段階1）。IDが自分の uid とは限らない:
+  /// - 新しく作る店は、IDが自動ID
+  /// - 引き継いで受け取った店は、IDが前の店主の uid
+  /// - `shops/{uid}` があっても、引き継いで手放した店なら自分の店ではない
+  ///
+  /// 店主の店が2つ以上あるとき（段階1では、ふつうは起きない）は、
+  /// IDが自分の uid の店（これまでの形）→ 作った日が古い順、で1つ選ぶ。
+  /// 何度開いても同じ店が開くように。
   Future<Result<Shop?, AppError>> getMyShop(String uid) async {
+    if (uid.isEmpty) return const Result.success(null);
     try {
-      final doc = await _shopsCollection.doc(uid).get();
-      if (doc.exists && doc.data()?['ownerId'] == uid) {
-        return Result.success(Shop.fromFirestore(doc));
-      }
       final owned = await _shopsCollection
           .where('ownerId', isEqualTo: uid)
-          .limit(1)
+          .limit(myShopsLimit)
           .get();
-      if (owned.docs.isEmpty) return Result.success(null);
-      return Result.success(Shop.fromFirestore(owned.docs.first));
+      if (owned.docs.isEmpty) return const Result.success(null);
+      final shops = owned.docs.map(Shop.fromFirestore).toList()
+        ..sort((a, b) {
+          if (a.id == uid) return -1;
+          if (b.id == uid) return 1;
+          final byDate = a.createdAt.compareTo(b.createdAt);
+          return byDate != 0 ? byDate : a.id.compareTo(b.id);
+        });
+      return Result.success(shops.first);
     } catch (e) {
       return Result.failure(AppError.server('ショップ情報の取得に失敗しました: $e'));
     }
   }
+
+  /// [getMyShop] が1人の店主の店として読む上限。段階1は1人1店の前提だが、
+  /// 何かの拍子に増えても読み込みが膨らまないように。
+  static const myShopsLimit = 20;
 
   /// Stream of inquiry counts for a shop — emits real-time updates.
   ///

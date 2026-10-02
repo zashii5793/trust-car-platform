@@ -3,7 +3,10 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // ==================== MULTI-TENANT SECURITY MODEL ====================
     // BtoB tenant isolation:
-    //   - Each shop's ID equals the owner's Firebase Auth UID (shopId == ownerId == uid)
+    //   - The shop owner is the shop doc's ownerId field (isShopOwnerOf). The shop ID
+    //     is NOT the owner's uid in general: older shops use the first owner's uid
+    //     as the ID, newer shops use an auto ID, and ownership can be transferred.
+    //     docs/SHOP_ID_DECOUPLING_DESIGN.md
     //   - Shop public data (name, type, planType) is readable by all authenticated users
     //     to support the marketplace browsing experience
     //   - Shop private data (analytics, revenue, private ops) lives in sub-collections
@@ -33,7 +36,7 @@ service cloud.firestore {
     }
 
     // Checks if the requesting user is the owner of a specific shop
-    // In this schema, shopId == ownerId == request.auth.uid
+    // 店のIDは店主の uid とは限らない（docs/SHOP_ID_DECOUPLING_DESIGN.md）
     // 2026-09-29: 店のドキュメントIDではなく、店の ownerId で判定する。
     // 以前は request.auth.uid == shopId だったため、店主を引き継ぐと
     // 前の店主（＝店のドキュメントID）が店主のままになっていた。
@@ -47,6 +50,19 @@ service cloud.firestore {
       return isAuthenticated()
         && get(/databases/$(database)/documents/shops/$(shopId)).data.ownerId
              == request.auth.uid;
+    }
+
+    // 新しく作る店の自動ID（2026-10-01、docs/SHOP_ID_DECOUPLING_DESIGN.md）。
+    // Firestore の自動IDと同じ形（英数字20文字）だけを受け付ける。
+    // **ルールからは「本当に自動で振られたか」は分からない。** 形を縛るのは、
+    // 好きな名前（他人の uid・意味のある文字列）で店を作らせないため:
+    //   - Firebase Auth が振る uid は28文字なので、この形とは重ならない
+    //   - 念のため、利用者（users/{id}）がいるIDでは作らせない。店のIDかどうか
+    //     で書き手を見分ける判定（actsAsAuthor）を、他人の uid で店を作って
+    //     乗っ取られないように
+    function isAutoShopId(shopId) {
+      return shopId.matches('^[A-Za-z0-9]{20}$')
+        && !exists(/databases/$(database)/documents/users/$(shopId));
     }
 
     // 店のスタッフか（持ち主を含む）。顧客台帳は店のスタッフ全員で使う。
@@ -363,7 +379,7 @@ service cloud.firestore {
       // 有効なメニューは認証済みユーザーなら誰でも読み取り可能
       allow read: if isAuthenticated();
 
-      // 作成は自店舗のメニューのみ（shopId == 自分のUID）
+      // 作成は自店舗のメニューのみ（自分が店主＝ownerId の店）
       allow create: if isAuthenticated() &&
         isShopOwnerOf(request.resource.data.shopId);
       // 更新・削除は自店舗のメニューのみ
@@ -376,11 +392,14 @@ service cloud.firestore {
       // 認証済みユーザーなら誰でも閲覧可能（アクティブな店舗）
       allow read: if isAuthenticated();
 
-      // 新規作成: docId == uid、かつ ownerId フィールドも uid と一致。
+      // 新規作成: ownerId フィールドは自分の uid。店のIDは次のどちらか
+      // （2026-10-01、docs/SHOP_ID_DECOUPLING_DESIGN.md 段階1）:
+      //   - 自分の uid（これまでの形。本番のタカヤモーターはこの形）
+      //   - 自動IDの形（isAutoShopId）。店のIDと店主を切り離す
       // 2026-09-30: 作るときもプランはフリーだけ（有料プラン・有効を名乗って
       // 作れてしまっていた）。有料プランは plan_requests で申し込む。
       allow create: if isAuthenticated()
-        && shopId == request.auth.uid
+        && (shopId == request.auth.uid || isAutoShopId(shopId))
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.get('planType', 'free') == 'free'
         && request.resource.data.get('subscriptionStatus', 'free') == 'free'
@@ -442,6 +461,17 @@ service cloud.firestore {
         allow read: if isShopStaff(shopId);
         allow create, update: if isShopOwnerOf(shopId)
           && request.resource.data.role in ['owner', 'staff'];
+        // 店を作った人が、店と同じバッチで自分を owner として載せる
+        // （2026-10-01 段階1）。isShopOwnerOf は書く前の店を見るので、
+        // 店がまだ無いこのバッチでは通らない。書いたあとの店（getAfter）の
+        // ownerId が自分であることを確かめる。載せられるのは自分だけ、役割は
+        // owner だけ（スタッフが自分を owner に書き換えることはできない:
+        // 書いたあとも店の ownerId は店主のまま）。
+        allow create: if isAuthenticated()
+          && request.auth.uid == memberUid
+          && request.resource.data.role == 'owner'
+          && getAfter(/databases/$(database)/documents/shops/$(shopId)).data.ownerId
+               == request.auth.uid;
         // スタッフ本人が招待コードで入る。同じバッチでコードを自分の使用済みに
         // するので、書いたあとの状態（getAfter）で確かめる。役割は staff だけ。
         allow create: if isAuthenticated()
@@ -1205,8 +1235,8 @@ service cloud.firestore {
     // Vehicle owners grant specific shops read access to their maintenance
     // history (e.g., to facilitate trusted shop-assisted inspections).
     //
-    // Schema invariant (from shops collection):
-    //   shopId == shop owner's Firebase UID
+    // 店のIDは店主の uid とは限らない（2026-10-01 から自動IDの店もある）。
+    //   店の側の判定は isShopStaff（ownerId・スタッフ名簿）で行う。
     //
     // Security design:
     //   - Only the vehicle owner (ownerId) can grant or revoke access.
