@@ -10,6 +10,7 @@
 //                        — 法人向けの整備集計（fleet_maintenance_summaries）を作り直す。
 //   opsHealthCheck     — 1時間ごとの健康診断（ops_health/latest）。
 //   opsHealth          — 健康診断の結果を外から見る口（GET。detail は返さない）。
+//   opsDailyReport     — 毎朝 8 時の日次レポート（前日のウェブのエラーの集計＋健康診断）を運営者にメール。
 //
 // Deploy:
 //   firebase deploy --only functions
@@ -95,6 +96,13 @@ import {
   type HeartbeatSnapshot,
   type StoredHealth,
 } from "./opsHealth";
+import { notifyHealthChange, type PreviousHealth } from "./opsAlert";
+import {
+  REPORT_COLLECTION,
+  handleDailyReport,
+  type ErrorRow,
+  type ReportDoc,
+} from "./opsDailyReport";
 import { GoogleAuth } from "google-auth-library";
 
 admin.initializeApp();
@@ -249,6 +257,15 @@ const sendgridApiKey = defineSecret("SENDGRID_API_KEY");
 // 運営者の宛先。公開リポジトリに書かないため Secret Manager に置く
 const operatorEmail = defineSecret("OPERATOR_EMAIL");
 
+/** 運営者へのメールを SendGrid で送る（secrets に sendgridApiKey を持つ関数から呼ぶ）。 */
+async function sendOperatorMail(mail: OperatorMail): Promise<void> {
+  // sendNewsletter.ts と同じく @sendgrid/mail を使う
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const sgMail = require("@sendgrid/mail");
+  sgMail.setApiKey(sendgridApiKey.value());
+  await sgMail.send(mail);
+}
+
 /**
  * Firestore-triggered Cloud Function — 店舗プランの申し込みの通知。
  *
@@ -321,13 +338,7 @@ export const onPlanRequestCreated = onDocumentCreated(
               admin.firestore.FieldValue.serverTimestamp(),
           });
         },
-        send: async (mail: OperatorMail) => {
-          // sendNewsletter.ts と同じく @sendgrid/mail を使う
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const sgMail = require("@sendgrid/mail");
-          sgMail.setApiKey(sendgridApiKey.value());
-          await sgMail.send(mail);
-        },
+        send: sendOperatorMail,
       }
     );
   }
@@ -877,6 +888,19 @@ function heartbeatSnapshot(
   };
 }
 
+/** 定期ジョブのハートビートを読む。文書が無いジョブはキーが無い。 */
+async function loadHeartbeats(): Promise<Record<string, HeartbeatSnapshot>> {
+  const db = admin.firestore();
+  const snaps = await db.getAll(
+    ...SCHEDULED_JOBS.map((j) => db.collection(HEARTBEAT_COLLECTION).doc(j.name))
+  );
+  const out: Record<string, HeartbeatSnapshot> = {};
+  for (const snap of snaps) {
+    if (snap.exists) out[snap.id] = heartbeatSnapshot(snap.data()!);
+  }
+  return out;
+}
+
 /** count() の結果。数えられなかったら null（その項目は unknown になる）。 */
 async function countOrNull(
   label: string,
@@ -929,16 +953,9 @@ async function loadHealthInputs(now: number): Promise<HealthInputs> {
   const db = admin.firestore();
   const ts = (ms: number) => admin.firestore.Timestamp.fromMillis(ms);
 
-  const heartbeats: HealthInputs["heartbeats"] = {};
+  let heartbeats: HealthInputs["heartbeats"] = {};
   try {
-    const snaps = await db.getAll(
-      ...SCHEDULED_JOBS.map((j) =>
-        db.collection(HEARTBEAT_COLLECTION).doc(j.name)
-      )
-    );
-    for (const snap of snaps) {
-      if (snap.exists) heartbeats[snap.id] = heartbeatSnapshot(snap.data()!);
-    }
+    heartbeats = await loadHeartbeats();
   } catch (err) {
     console.error("健康診断: ハートビートを読めませんでした:", err);
     for (const j of SCHEDULED_JOBS) heartbeats[j.name] = "error";
@@ -1010,14 +1027,38 @@ async function loadHealthInputs(now: number): Promise<HealthInputs> {
  * 定期ジョブのハートビート・申し込みと車検案内の滞留・ウェブのエラーの急増・
  * バックアップの鮮度を見て、ops_health/latest と ops_health_history/{時刻} に書く。
  * 外からは opsHealth（下）と scripts/prod_watch.sh で見る。
+ *
+ * ok → ng に変わったときだけ、運営者にメールで知らせる（opsAlert.ts）。
+ * 知らせた印（ngNotified）は ops_health/latest に持ち、同じ NG では再送しない。
  */
 export const opsHealthCheck = onSchedule(
   { schedule: "every 1 hours", timeZone: "Asia/Tokyo",
-    region: "asia-northeast1" },
+    region: "asia-northeast1", secrets: [sendgridApiKey, operatorEmail] },
   async () => {
     const db = admin.firestore();
+    const latestRef = db.collection(HEALTH_COLLECTION).doc(HEALTH_LATEST_DOC);
     const now = Date.now();
     const report = evaluateHealth(await loadHealthInputs(now), now);
+
+    // 前回の結果（知らせるかどうかの判断に使う）。読めなければ初回と同じ扱い
+    let prev: PreviousHealth | null = null;
+    try {
+      const snap = await latestRef.get();
+      if (snap.exists) {
+        const d = snap.data()!;
+        prev = {
+          overall: d.overall === "ok" || d.overall === "ng" ? d.overall : undefined,
+          ngNotified: d.ngNotified === true,
+        };
+      }
+    } catch (err) {
+      console.error("健康診断: 前回の結果を読めませんでした:", err);
+    }
+    const alert = await notifyHealthChange(prev, report, {
+      operatorEmail: () => operatorEmail.value(),
+      send: sendOperatorMail,
+    });
+
     const doc = {
       overall: report.overall,
       checkedAt: admin.firestore.Timestamp.fromMillis(now),
@@ -1025,7 +1066,7 @@ export const opsHealthCheck = onSchedule(
     };
     const historyId = new Date(now).toISOString().slice(0, 19) + "Z";
     const batch = db.batch();
-    batch.set(db.collection(HEALTH_COLLECTION).doc(HEALTH_LATEST_DOC), doc);
+    batch.set(latestRef, { ...doc, ngNotified: alert.ngNotified });
     batch.set(db.collection(HEALTH_HISTORY_COLLECTION).doc(historyId), {
       ...doc,
       expireAt: admin.firestore.Timestamp.fromMillis(
@@ -1080,5 +1121,79 @@ export const opsHealth = onRequest(
     const result = await handleOpsHealthRequest(req.method, loadLatestHealth);
     res.set("Cache-Control", result.cacheControl);
     res.status(result.status).json(result.body);
+  }
+);
+
+/**
+ * Scheduled Cloud Function — ウェブのエラーの日次解析と、運営者への日次レポート
+ * （opsDailyReport.ts）。
+ *
+ * 毎朝 8 時（日本時間）に、前日 0〜24 時の client_errors を集計し、健康診断と
+ * 定期ジョブの最終実行とまとめて ops_reports/{YYYY-MM-DD} に書き、OPERATOR_EMAIL に送る。
+ * 二重送信の防止: 送る前に ops_reports の文書をトランザクションで作る（既にあれば送らない）。
+ */
+export const opsDailyReport = onSchedule(
+  { schedule: "every day 08:00", timeZone: "Asia/Tokyo",
+    region: "asia-northeast1", secrets: [sendgridApiKey, operatorEmail] },
+  async () => {
+    const db = admin.firestore();
+    const ts = (ms: number) => admin.firestore.Timestamp.fromMillis(ms);
+    const errors = db.collection("client_errors");
+    const reportRef = (date: string) =>
+      db.collection(REPORT_COLLECTION).doc(date);
+    const inRange = (startMs: number, endMs: number) =>
+      errors.where("createdAt", ">=", ts(startMs)).where("createdAt", "<", ts(endMs));
+
+    await handleDailyReport(
+      {
+        operatorEmail: () => operatorEmail.value(),
+        countErrors: async (startMs, endMs) =>
+          (await inRange(startMs, endMs).count().get()).data().count,
+        loadErrorRows: async (startMs, endMs, limit) => {
+          // uid・stack・userAgent は読まない
+          const snap = await inRange(startMs, endMs)
+            .select("message", "source", "buildId", "path")
+            .limit(limit)
+            .get();
+          return snap.docs.map((d) => d.data() as ErrorRow);
+        },
+        loadHealth: loadLatestHealth,
+        loadHeartbeats,
+        claimReport: (date, doc: ReportDoc) =>
+          db.runTransaction(async (tx) => {
+            const ref = reportRef(date);
+            const snap = await tx.get(ref);
+            if (snap.exists && snap.get("mail.state") !== "failed") {
+              return "already" as const;
+            }
+            const { createdAtMs, expireAtMs, rangeStartMs, rangeEndMs, health, ...rest } =
+              doc;
+            tx.set(ref, {
+              ...rest,
+              rangeStart: ts(rangeStartMs),
+              rangeEnd: ts(rangeEndMs),
+              health: health
+                ? {
+                    overall: health.overall,
+                    checkedAt: ts(health.checkedAtMs),
+                    ngItems: health.ngItems,
+                  }
+                : null,
+              createdAt: ts(createdAtMs),
+              expireAt: ts(expireAtMs),
+            });
+            return "claimed" as const;
+          }),
+        markMail: async (date, state, error) => {
+          await reportRef(date).update({
+            "mail.state": state,
+            "mail.at": admin.firestore.FieldValue.serverTimestamp(),
+            ...(error ? { "mail.error": error } : {}),
+          });
+        },
+        send: sendOperatorMail,
+      },
+      Date.now()
+    );
   }
 );

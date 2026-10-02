@@ -111,7 +111,15 @@ firebase firestore:databases:restore \
 通知は2つの道で来る。
 
 - **GitHub の Issue（`prod-watch` ラベル）**: 毎日 09:00 JST の `./scripts/prod_watch.sh`。直ったら自動で閉じる
-- **運営者へのメール（`OPERATOR_EMAIL`）**: 健康診断 `opsHealthCheck`（1時間ごと）が ok → NG に変わったとき（PR2 以降）
+- **運営者へのメール（`OPERATOR_EMAIL`）**: 健康診断 `opsHealthCheck`（1時間ごと）が ok → NG に変わったとき。
+  同じ NG が続く間は再送しない（ok に戻ってから再び NG になったら送る）
+- **日次レポートのメール**: 毎朝 08:00 JST の `opsDailyReport`。件名が「問題あり N件」なら、本文の [NG] の項目を下の表で引く。
+  本文の「ウェブのエラー」で同じ `buildId` に偏っていれば、その版の公開が原因の見込みが高い。
+  控えは Console → Firestore → `ops_reports/{YYYY-MM-DD}`（`mail.state` が `failed` なら送信に失敗している。
+  `firebase functions:log --only opsDailyReport`）
+
+メールが1通も来ないときは、`OPERATOR_EMAIL`・`SENDGRID_API_KEY` が設定されているか
+（`firebase functions:secrets:access OPERATOR_EMAIL`）と、`ops_reports` の `mail.state` が `skipped`（宛先が空）でないかを見る。
 
 まず手元で同じものを見て、NG の項目を確かめる。項目の細かい理由（件数・エラーの先頭）は
 外からは見えない（`opsHealth` は name と status だけ返す）ので、Console で `ops_health/latest` の
