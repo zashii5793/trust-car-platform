@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../models/car_purchase_inquiry.dart';
 import '../../models/model_cost_report.dart';
+import '../../services/car_purchase_inquiry_service.dart';
 import '../../services/model_cost_report_service.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
+import 'model_cost_compare_screen.dart';
 import '../../core/utils/first_week_tracker.dart';
 import '../../services/analytics_service.dart' show FirstWeekStep;
 
@@ -24,10 +28,17 @@ class ModelCostReportScreen extends StatefulWidget {
   /// ほかの車種を探す画面へ。渡さなければボタンを出さない。
   final VoidCallback? onBrowseOthers;
 
+  /// 中古車検索（カーセンサー / Goo-net）へのリンクを出すか。
+  ///
+  /// 車種を選んで調べている人（買う前の人）向け。自分の車の詳細から開いた
+  /// ときは出さない（もう持っている車種を探させても意味が薄い）。
+  final bool showUsedCarSearch;
+
   const ModelCostReportScreen({
     super.key,
     required this.report,
     this.onBrowseOthers,
+    this.showUsedCarSearch = false,
   });
 
   @override
@@ -122,6 +133,10 @@ class _ModelCostReportScreenState extends State<ModelCostReportScreen> {
                 '${r.updatedAt!.year}/${r.updatedAt!.month}/${r.updatedAt!.day} 時点',
             ].join(''),
           ),
+          if (widget.showUsedCarSearch) ...[
+            AppSpacing.verticalMd,
+            _UsedCarSearchLinks(report: r),
+          ],
           if (onBrowseOthers != null) ...[
             AppSpacing.verticalMd,
             OutlinedButton.icon(
@@ -292,7 +307,58 @@ class _Note extends StatelessWidget {
   }
 }
 
+Future<void> _openExternal(String url) async {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return;
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+}
+
+/// この車種の中古車を探すリンク（Issue #208「中古車検索リンクの隣に置く」）。
+///
+/// URL は CarPurchaseInquiryService と同じ規則で作る。メーカー全体の
+/// レポートなら、メーカーだけで探す。
+class _UsedCarSearchLinks extends StatelessWidget {
+  final ModelCostReport report;
+
+  const _UsedCarSearchLinks({required this.report});
+
+  @override
+  Widget build(BuildContext context) {
+    final links = CarPurchaseInquiryService.searchLinksFor(
+      CarPurchaseCondition(maker: report.maker, model: report.model),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          report.model == null ? '${report.maker}の中古車を探す' : 'この車種の中古車を探す',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        AppSpacing.verticalXs,
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
+          children: [
+            for (var i = 0; i < links.length; i++)
+              OutlinedButton.icon(
+                key: Key('model_cost_used_car_$i'),
+                onPressed: () => _openExternal(links[i].url),
+                icon: const Icon(Icons.open_in_new, size: AppSpacing.iconSm),
+                label: Text(links[i].siteName),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 /// 見られる車種の一覧。**買う前に調べる**ための入口。
+///
+/// 車を登録していない人（ホームの最初の画面）と、メニューからも開ける。
+/// チェックを入れた車種を並べて比べられる（[ModelCostCompareScreen]）。
 class ModelCostBrowseScreen extends StatefulWidget {
   final ModelCostReportService service;
 
@@ -303,8 +369,37 @@ class ModelCostBrowseScreen extends StatefulWidget {
 }
 
 class _ModelCostBrowseScreenState extends State<ModelCostBrowseScreen> {
+  /// 一度に比べられる車種の数（スマホの幅で読める列数）。
+  static const int maxCompare = 3;
+
   List<ModelCostReport>? _all;
   String _filter = '';
+
+  /// 比べるために選んだ車種のID（選んだ順）。
+  final List<String> _selected = [];
+
+  void _toggle(String id) {
+    setState(() {
+      if (_selected.contains(id)) {
+        _selected.remove(id);
+      } else if (_selected.length < maxCompare) {
+        _selected.add(id);
+      }
+    });
+  }
+
+  void _compare() {
+    final all = _all ?? const <ModelCostReport>[];
+    final reports = [
+      for (final id in _selected) ...all.where((r) => r.id == id),
+    ];
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ModelCostCompareScreen(reports: reports),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -333,6 +428,23 @@ class _ModelCostBrowseScreenState extends State<ModelCostBrowseScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('車種ごとの維持費')),
+      bottomNavigationBar: _selected.isEmpty
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: AppSpacing.paddingScreen,
+                child: ElevatedButton.icon(
+                  key: const Key('model_cost_compare'),
+                  onPressed: _selected.length >= 2 ? _compare : null,
+                  icon: const Icon(Icons.compare_arrows),
+                  label: Text(
+                    _selected.length >= 2
+                        ? '${_selected.length}車種を比べる'
+                        : 'もう1車種選ぶと比べられます',
+                  ),
+                ),
+              ),
+            ),
       body: all == null
           ? const AppLoadingCenter()
           : Column(
@@ -350,6 +462,16 @@ class _ModelCostBrowseScreenState extends State<ModelCostBrowseScreen> {
                     ),
                   ),
                 ),
+                if (all.length >= 2)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                    ),
+                    child: Text(
+                      'チェックを入れると、$maxCompare車種まで並べて比べられます',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
                 Expanded(
                   child: shown.isEmpty
                       ? AppEmptyState(
@@ -367,6 +489,14 @@ class _ModelCostBrowseScreenState extends State<ModelCostBrowseScreen> {
                             for (final r in shown)
                               ListTile(
                                 key: Key('model_cost_${r.id}'),
+                                leading: Checkbox(
+                                  key: Key('model_cost_select_${r.id}'),
+                                  value: _selected.contains(r.id),
+                                  onChanged: _selected.contains(r.id) ||
+                                          _selected.length < maxCompare
+                                      ? (_) => _toggle(r.id)
+                                      : null,
+                                ),
                                 title: Text(r.title),
                                 subtitle: Text('持ち主 ${r.ownerCount}人'),
                                 trailing: Text(
@@ -377,8 +507,10 @@ class _ModelCostBrowseScreenState extends State<ModelCostBrowseScreen> {
                                 onTap: () => Navigator.push(
                                   context,
                                   MaterialPageRoute<void>(
-                                    builder: (_) =>
-                                        ModelCostReportScreen(report: r),
+                                    builder: (_) => ModelCostReportScreen(
+                                      report: r,
+                                      showUsedCarSearch: true,
+                                    ),
                                   ),
                                 ),
                               ),

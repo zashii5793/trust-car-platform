@@ -103,7 +103,13 @@ class CarPurchaseInquiryService {
   /// Generates deep-link search URLs for major Japanese used-car portals.
   ///
   /// Uses each portal's public search URL structure — no API contract needed.
-  List<UsedCarSearchLink> generateSearchLinks(CarPurchaseCondition condition) {
+  List<UsedCarSearchLink> generateSearchLinks(CarPurchaseCondition condition) =>
+      searchLinksFor(condition);
+
+  /// [generateSearchLinks] と同じもの。Firestore を使わないので、
+  /// サービスを組まずに画面から呼べる（車種別の維持費レポートの隣に置く）。
+  static List<UsedCarSearchLink> searchLinksFor(
+      CarPurchaseCondition condition) {
     return [
       UsedCarSearchLink(
         siteName: 'カーセンサー',
@@ -116,7 +122,7 @@ class CarPurchaseInquiryService {
     ];
   }
 
-  String _buildCarSensorUrl(CarPurchaseCondition c) {
+  static String _buildCarSensorUrl(CarPurchaseCondition c) {
     final params = <String, String>{};
     if (c.maker != null) params['BRAND_CODE'] = _toCarSensorMakerCode(c.maker!);
     if (c.model != null) params['SERIES_CODE'] = Uri.encodeComponent(c.model!);
@@ -129,7 +135,7 @@ class CarPurchaseInquiryService {
     return 'https://www.carsensor.net/usedcar/search/?$query';
   }
 
-  String _buildGooNetUrl(CarPurchaseCondition c) {
+  static String _buildGooNetUrl(CarPurchaseCondition c) {
     final params = <String, String>{'l': 'ja'};
     if (c.maker != null) params['maker'] = Uri.encodeComponent(c.maker!);
     if (c.model != null) params['model'] = Uri.encodeComponent(c.model!);
@@ -156,6 +162,6 @@ class CarPurchaseInquiryService {
     'Lexus': 'LEXUS',
   };
 
-  String _toCarSensorMakerCode(String maker) =>
+  static String _toCarSensorMakerCode(String maker) =>
       _carSensorMakerCodes[maker] ?? Uri.encodeComponent(maker);
 }

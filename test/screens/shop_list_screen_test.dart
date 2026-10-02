@@ -1,6 +1,8 @@
 // ShopListScreen Widget Tests
 
+import 'package:cloud_firestore/cloud_firestore.dart' show GeoPoint;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:trust_car_platform/core/theme/app_theme.dart';
@@ -13,6 +15,8 @@ import 'package:trust_car_platform/models/inquiry.dart';
 import 'package:trust_car_platform/models/shop_case_study.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:trust_car_platform/core/utils/shop_map_utils.dart';
+import 'package:trust_car_platform/screens/marketplace/nearby_shops_map_screen.dart';
 
 import '../golden/font_loader.dart';
 
@@ -254,6 +258,78 @@ ShopProvider _makeProvider(MockShopService shopService) {
 }
 
 // ---------------------------------------------------------------------------
+// 地図（Issue #43）用ヘルパー
+// ---------------------------------------------------------------------------
+
+/// GoogleMap の代わりに置く地図。受け取ったものを記録し、ピンをボタンで並べる。
+class _FakeMap {
+  ShopMapViewData? last;
+
+  Widget build(BuildContext context, ShopMapViewData data) {
+    last = data;
+    return ListView(
+      key: const Key('fake_map'),
+      children: [
+        for (final pin in data.pins)
+          TextButton(
+            key: Key('fake_pin_${pin.shopId}'),
+            onPressed: () => data.onPinTap(pin),
+            child: Text('${pin.shopId}:${pin.category.name}'),
+          ),
+      ],
+    );
+  }
+}
+
+Widget _buildMapApp(
+  ShopProvider provider, {
+  required _FakeMap fakeMap,
+  bool mapsConfigured = true,
+  bool embedded = false,
+  bool selectMode = false,
+  bool compareMode = false,
+}) {
+  return ChangeNotifierProvider<ShopProvider>.value(
+    value: provider,
+    child: MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: embedded
+          ? Scaffold(
+              body: ShopListScreen(
+                embedded: true,
+                mapsConfigured: mapsConfigured,
+                mapViewBuilder: fakeMap.build,
+              ),
+            )
+          : ShopListScreen(
+              selectMode: selectMode,
+              compareMode: compareMode,
+              mapsConfigured: mapsConfigured,
+              mapViewBuilder: fakeMap.build,
+            ),
+    ),
+  );
+}
+
+Shop _partnerAt(String id, double lat, double lng,
+        {bool isVerified = true, bool isFeatured = false}) =>
+    _makeShop(
+            id: id,
+            name: '提携$id',
+            isVerified: isVerified,
+            isFeatured: isFeatured)
+        .copyWith(
+      location: GeoPoint(lat, lng),
+      subscriptionStatus: ShopSubscriptionStatus.active,
+    );
+
+Shop _nonPartnerAt(String id, double lat, double lng) =>
+    _makeShop(id: id, name: '一般$id', isVerified: false).copyWith(
+      location: GeoPoint(lat, lng),
+      subscriptionStatus: ShopSubscriptionStatus.free,
+    );
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -457,6 +533,265 @@ void main() {
 
         expect(find.byType(ListView), findsOneWidget);
         expect(tester.takeException(), isNull);
+      });
+    });
+  });
+
+  group('地図（Issue #43）', () {
+    late MockShopService mockShop;
+    late ShopProvider provider;
+    late _FakeMap fakeMap;
+
+    // 東京駅 / 横浜駅 / 大阪駅
+    final tokyo = _partnerAt('tokyo', 35.681, 139.767);
+    final yokohama = _nonPartnerAt('yokohama', 35.466, 139.622);
+    final osaka = _partnerAt('osaka', 34.702, 135.495, isFeatured: true);
+
+    setUp(() {
+      mockShop = MockShopService();
+      provider = _makeProvider(mockShop);
+      fakeMap = _FakeMap();
+    });
+
+    Future<void> pumpList(WidgetTester tester, Widget app) async {
+      await tester.pumpWidget(app);
+      await tester.pumpAndSettle();
+    }
+
+    /// geolocator のチャネルを「失敗する端末」に差し替え、呼ばれたメソッドを記録する。
+    ///
+    /// 差し替えないとテスト環境では MissingPluginException が実時間で返り、
+    /// 負荷が高いと待ち時間が足りずに不安定になる（2026-10-01 に一度落ちた）。
+    List<String> mockGeolocatorFailure(WidgetTester tester) {
+      final calls = <String>[];
+      const channel = MethodChannel('flutter.baseflow.com/geolocator');
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call.method);
+        throw PlatformException(code: 'LOCATION_UNAVAILABLE');
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      return calls;
+    }
+
+    Future<void> openMap(WidgetTester tester) async {
+      await tester.tap(find.byKey(const Key('toggle_map_button')));
+      await tester.pumpAndSettle();
+    }
+
+    group('キーが無いとき', () {
+      testWidgets('地図ボタンを出さず、リストのまま', (tester) async {
+        mockShop.shopsResult = Result.success([tokyo, yokohama]);
+        await pumpList(
+          tester,
+          _buildMapApp(provider, fakeMap: fakeMap, mapsConfigured: false),
+        );
+
+        expect(find.byKey(const Key('toggle_map_button')), findsNothing);
+        expect(find.byKey(const Key('fake_map')), findsNothing);
+        expect(find.text('提携tokyo'), findsOneWidget);
+      });
+
+      testWidgets('埋め込み表示でも地図ボタンを出さない', (tester) async {
+        mockShop.shopsResult = Result.success([tokyo]);
+        await pumpList(
+          tester,
+          _buildMapApp(provider,
+              fakeMap: fakeMap, mapsConfigured: false, embedded: true),
+        );
+
+        expect(
+            find.byKey(const Key('toggle_map_button_embedded')), findsNothing);
+        expect(find.text('提携tokyo'), findsOneWidget);
+      });
+
+      testWidgets('既定（MapsConfig）ではテスト環境にキーが無いので地図ボタンが無い', (tester) async {
+        mockShop.shopsResult = Result.success([tokyo]);
+        await pumpList(tester, _buildApp(provider));
+
+        expect(find.byKey(const Key('toggle_map_button')), findsNothing);
+      });
+
+      testWidgets('近い順に並べるとリストが距離順になる', (tester) async {
+        mockShop.shopsResult = Result.success([osaka, yokohama, tokyo]);
+        await pumpList(
+          tester,
+          _buildMapApp(provider, fakeMap: fakeMap, mapsConfigured: false),
+        );
+
+        // 現在地の取得は実機の権限に依存するので、Provider に直接渡す。
+        provider.sortByDistanceFrom(35.681, 139.767);
+        await tester.pumpAndSettle();
+
+        final dy = [
+          tester.getTopLeft(find.text('提携tokyo')).dy,
+          tester.getTopLeft(find.text('一般yokohama')).dy,
+          tester.getTopLeft(find.text('提携osaka')).dy,
+        ];
+        expect(dy[0], lessThan(dy[1]));
+        expect(dy[1], lessThan(dy[2]));
+        expect(find.textContaining('現在地から0.0km'), findsOneWidget);
+      });
+    });
+
+    group('キーがあるとき', () {
+      testWidgets('地図に切り替えると提携・非提携のピンが出し分けられる', (tester) async {
+        mockShop.shopsResult = Result.success([tokyo, yokohama]);
+        await pumpList(tester, _buildMapApp(provider, fakeMap: fakeMap));
+        provider.sortByDistanceFrom(35.681, 139.767);
+        await openMap(tester);
+
+        expect(find.byKey(const Key('fake_map')), findsOneWidget);
+        expect(find.text('tokyo:partner'), findsOneWidget);
+        expect(find.text('yokohama:nonPartner'), findsOneWidget);
+        expect(find.byKey(const Key('map_legend')), findsOneWidget);
+      });
+
+      testWidgets('現在地があれば地図の中心は現在地、ピンは近い順', (tester) async {
+        mockShop.shopsResult = Result.success([osaka, yokohama, tokyo]);
+        await pumpList(tester, _buildMapApp(provider, fakeMap: fakeMap));
+        provider.sortByDistanceFrom(35.0, 139.0);
+        await openMap(tester);
+
+        final data = fakeMap.last!;
+        expect(data.center.latitude, 35.0);
+        expect(data.center.longitude, 139.0);
+        expect(data.hasUserLocation, isTrue);
+        expect(data.pins.map((p) => p.shopId), ['yokohama', 'tokyo', 'osaka']);
+      });
+
+      testWidgets('リストへ戻れる', (tester) async {
+        mockShop.shopsResult = Result.success([tokyo]);
+        await pumpList(tester, _buildMapApp(provider, fakeMap: fakeMap));
+        provider.sortByDistanceFrom(35.681, 139.767);
+        await openMap(tester);
+        await openMap(tester); // もう一度押すとリスト
+
+        expect(find.byKey(const Key('fake_map')), findsNothing);
+        expect(find.text('提携tokyo'), findsOneWidget);
+      });
+
+      testWidgets('埋め込み表示でも地図からリストへ戻れる', (tester) async {
+        mockShop.shopsResult = Result.success([tokyo]);
+        await pumpList(
+          tester,
+          _buildMapApp(provider, fakeMap: fakeMap, embedded: true),
+        );
+        provider.sortByDistanceFrom(35.681, 139.767);
+        await tester.pumpAndSettle();
+
+        final toggle = find.byKey(const Key('toggle_map_button_embedded'));
+        await tester.tap(toggle);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('fake_map')), findsOneWidget);
+        // 以前は地図表示中に切替ボタンが消え、戻れなかった。
+        expect(toggle, findsOneWidget);
+
+        await tester.tap(toggle);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('fake_map')), findsNothing);
+        expect(find.text('提携tokyo'), findsOneWidget);
+      });
+
+      testWidgets('選択モード・比較モードでは地図ボタンを出さない', (tester) async {
+        mockShop.shopsResult = Result.success([tokyo]);
+        await pumpList(
+          tester,
+          _buildMapApp(provider, fakeMap: fakeMap, selectMode: true),
+        );
+        expect(find.byKey(const Key('toggle_map_button')), findsNothing);
+
+        await pumpList(
+          tester,
+          _buildMapApp(provider, fakeMap: fakeMap, compareMode: true),
+        );
+        expect(find.byKey(const Key('toggle_map_button')), findsNothing);
+      });
+
+      testWidgets('提携ピンをタップすると審査済・広告・距離と詳細ボタンが出る', (tester) async {
+        mockShop.shopsResult = Result.success([osaka]);
+        await pumpList(tester, _buildMapApp(provider, fakeMap: fakeMap));
+        provider.sortByDistanceFrom(34.702, 135.495);
+        await openMap(tester);
+
+        await tester.tap(find.byKey(const Key('fake_pin_osaka')));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('verified_badge')), findsOneWidget);
+        expect(find.byKey(const Key('featured_badge')), findsOneWidget);
+        expect(find.byKey(const Key('sheet_distance')), findsOneWidget);
+        expect(find.byKey(const Key('view_detail_button')), findsOneWidget);
+        expect(find.byKey(const Key('non_partner_badge')), findsNothing);
+      });
+
+      testWidgets('非提携ピンをタップすると「参考（未審査）」で、詳細ボタンは出ない', (tester) async {
+        mockShop.shopsResult = Result.success([yokohama]);
+        await pumpList(tester, _buildMapApp(provider, fakeMap: fakeMap));
+        provider.sortByDistanceFrom(35.681, 139.767);
+        await openMap(tester);
+
+        await tester.tap(find.byKey(const Key('fake_pin_yokohama')));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('non_partner_badge')), findsOneWidget);
+        expect(find.byKey(const Key('non_partner_inquiry_prompt')),
+            findsOneWidget);
+        expect(find.byKey(const Key('view_detail_button')), findsNothing);
+        expect(find.byKey(const Key('verified_badge')), findsNothing);
+      });
+
+      group('Edge Cases', () {
+        testWidgets('現在地が取れなくても地図は出て、提携店を中心にする', (tester) async {
+          // 位置情報の取得に失敗する端末（チャネルを差し替えて再現）。
+          final calls = mockGeolocatorFailure(tester);
+          mockShop.shopsResult = Result.success([yokohama, osaka]);
+          await pumpList(tester, _buildMapApp(provider, fakeMap: fakeMap));
+          await openMap(tester);
+
+          expect(calls, isNotEmpty);
+          expect(find.byKey(const Key('fake_map')), findsOneWidget);
+          expect(find.text('現在地の取得に失敗しました'), findsOneWidget);
+          final data = fakeMap.last!;
+          expect(data.hasUserLocation, isFalse);
+          expect(data.center.latitude, 34.702); // 先頭の提携店（大阪）
+        });
+
+        testWidgets('位置のある店が0件なら案内を出す', (tester) async {
+          mockShop.shopsResult = Result.success([_makeShop(id: 'no-loc')]);
+          await pumpList(tester, _buildMapApp(provider, fakeMap: fakeMap));
+          provider.sortByDistanceFrom(35.681, 139.767);
+          await openMap(tester);
+
+          expect(fakeMap.last!.pins, isEmpty);
+          expect(find.textContaining('地図に表示できる工場がありません'), findsOneWidget);
+        });
+
+        testWidgets('地図表示中に一覧が変わるとピンも変わる', (tester) async {
+          mockShop.shopsResult = Result.success([tokyo, yokohama]);
+          await pumpList(tester, _buildMapApp(provider, fakeMap: fakeMap));
+          provider.sortByDistanceFrom(35.681, 139.767);
+          await openMap(tester);
+          expect(fakeMap.last!.pins, hasLength(2));
+
+          mockShop.shopsResult = Result.success([tokyo]);
+          await provider.loadShops();
+          await tester.pumpAndSettle();
+
+          expect(fakeMap.last!.pins.map((p) => p.shopId), ['tokyo']);
+        });
+
+        testWidgets('店0件のとき地図に切り替えても位置情報を取りに行かない', (tester) async {
+          final calls = mockGeolocatorFailure(tester);
+          mockShop.shopsResult = const Result.success([]);
+          await pumpList(tester, _buildMapApp(provider, fakeMap: fakeMap));
+          await openMap(tester);
+
+          expect(calls, isEmpty);
+
+          expect(find.byKey(const Key('fake_map')), findsOneWidget);
+          expect(find.text('現在地の取得に失敗しました'), findsNothing);
+          expect(fakeMap.last!.center, ShopMapUtils.defaultCenter);
+        });
       });
     });
   });

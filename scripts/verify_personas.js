@@ -20,16 +20,21 @@
  *
  * 出すもの:
  *   各ペルソナごとの [OK] / [NG] と、最後に NG の一覧。NG が1件でもあれば
- *   終了コード 1（CI から呼べる）。
+ *   終了コード 1（CI から呼べる）。.github/workflows/ci.yml の
+ *   Verify Personas ジョブが PR ごとに走らせている（Issue #204）。
+ *
+ * 依存:
+ *   クライアント SDK（firebase）は scripts/package.json に持つ（cd scripts && npm ci）。
+ *   以前は test/rules/node_modules を相対パスで借りていて、scripts/ だけ入れても動かなかった。
  */
 
-const { initializeApp } = require('../test/rules/node_modules/firebase/app');
+const { initializeApp } = require('firebase/app');
 const {
   getAuth,
   connectAuthEmulator,
   signInWithEmailAndPassword,
   signOut,
-} = require('../test/rules/node_modules/firebase/auth');
+} = require('firebase/auth');
 const {
   getFirestore,
   connectFirestoreEmulator,
@@ -43,7 +48,7 @@ const {
   orderBy,
   limit,
   getCountFromServer,
-} = require('../test/rules/node_modules/firebase/firestore');
+} = require('firebase/firestore');
 
 const PASSWORD = 'password123';
 

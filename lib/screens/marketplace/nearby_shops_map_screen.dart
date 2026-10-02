@@ -9,79 +9,62 @@ import '../../providers/shop_provider.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'shop_detail_screen.dart';
 
-/// Issue #41 Phase 1: 近隣工場地図表示（GoogleMap連動・色分けピン）
+/// 地図本体を組む関数。
 ///
-/// - 提携店: AppColors.primary 系ブルーマーカー + 審査済バッジ
-/// - 非提携店: グレーマーカー +「参考（未審査）」ラベル
-/// - ピンタップ→BottomSheetで詳細＋「詳細を見る」CTA
-class NearbyShopsMapScreen extends StatefulWidget {
-  const NearbyShopsMapScreen({super.key});
+/// google_maps_flutter の GoogleMap はテスト環境で描けない（プラットフォーム
+/// ビュー）。地図そのものだけを差し替えられるようにして、ピンの出し分けや
+/// BottomSheet はテストで確かめる。
+typedef ShopMapViewBuilder = Widget Function(
+  BuildContext context,
+  ShopMapViewData data,
+);
 
-  @override
-  State<NearbyShopsMapScreen> createState() => _NearbyShopsMapScreenState();
+/// 地図本体に渡すもの。地図 SDK の型は含めない。
+class ShopMapViewData {
+  /// 立てるピン（近い順。距離が無い店は末尾）。
+  final List<ShopMapPin> pins;
+
+  /// 中心（現在地 → 提携店 → 東京駅の順で決まる）。
+  final ShopGeoPoint center;
+
+  /// 現在地を取得済みか。取得済みのときだけ現在地の青い点を出す
+  /// （権限が無いまま myLocationEnabled にしない）。
+  final bool hasUserLocation;
+
+  /// ピンがタップされたとき。
+  final ValueChanged<ShopMapPin> onPinTap;
+
+  const ShopMapViewData({
+    required this.pins,
+    required this.center,
+    required this.hasUserLocation,
+    required this.onPinTap,
+  });
 }
 
-class _NearbyShopsMapScreenState extends State<NearbyShopsMapScreen> {
-  GoogleMapController? _mapController;
-  Set<Marker> _markers = {};
+/// Issue #41 Phase 1 / #43: 近隣工場地図表示（GoogleMap連動・色分けピン）
+///
+/// - 提携店: AppColors.primary 系ブルーマーカー + 審査済バッジ
+/// - 非提携店: オレンジマーカー +「参考（未審査）」ラベル
+/// - 広告（isFeatured）は InfoWindow と BottomSheet で明示する
+/// - ピンタップ→BottomSheetで詳細＋「詳細を見る」CTA
+///
+/// Maps のキーが無いビルド（MapsConfig.isConfigured == false）では、
+/// 呼び出し側（ShopListScreen）がこの画面自体を出さない。
+class NearbyShopsMapScreen extends StatelessWidget {
+  /// 地図本体。null なら GoogleMap を使う。テストで差し替える。
+  final ShopMapViewBuilder? mapViewBuilder;
 
-  // Default center: Tokyo station area
-  static const _defaultCenter = LatLng(35.6812, 139.7671);
-  static const _defaultZoom = 13.0;
+  const NearbyShopsMapScreen({super.key, this.mapViewBuilder});
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _buildMarkers();
-    });
-  }
-
-  void _buildMarkers() {
+  void _showShopBottomSheet(BuildContext context, ShopMapPin pin) {
     final provider = context.read<ShopProvider>();
-    final shops = ShopMapUtils.filterWithLocation(provider.shops);
-    final markers = <Marker>{};
-
-    for (final shop in shops) {
-      final category = ShopMapUtils.categorize(shop);
-      // Azure=提携（ブランドブルー系）、Orange=非提携（参考・未審査）
-      final hue = category == ShopPinCategory.partner
-          ? BitmapDescriptor.hueAzure
-          : BitmapDescriptor.hueOrange;
-
-      markers.add(Marker(
-        markerId: MarkerId(shop.id),
-        position: LatLng(
-          shop.location!.latitude,
-          shop.location!.longitude,
-        ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(hue),
-        infoWindow: InfoWindow(
-          title: ShopMapUtils.infoWindowTitle(shop),
-          snippet: shop.displayAddress,
-        ),
-        onTap: () => _onMarkerTapped(shop),
-      ));
-    }
-
-    setState(() => _markers = markers);
-  }
-
-  void _onMarkerTapped(Shop shop) {
-    _showShopBottomSheet(shop);
-  }
-
-  void _showShopBottomSheet(Shop shop) {
+    final shop = provider.shops.where((s) => s.id == pin.shopId).firstOrNull;
+    if (shop == null) return;
     showModalBottomSheet<void>(
       context: context,
-      builder: (ctx) => _ShopInfoSheet(shop: shop),
+      builder: (ctx) => _ShopInfoSheet(shop: shop, distanceKm: pin.distanceKm),
     );
-  }
-
-  @override
-  void dispose() {
-    _mapController?.dispose();
-    super.dispose();
   }
 
   @override
@@ -92,43 +75,120 @@ class _NearbyShopsMapScreenState extends State<NearbyShopsMapScreen> {
           return const AppLoadingCenter(message: '工場を検索中...');
         }
 
-        final shopsWithLocation =
-            ShopMapUtils.filterWithLocation(provider.shops);
+        // 絞り込みや距離ソートのたびに作り直す（以前は初回だけで、
+        // 絞り込みを変えてもピンが残っていた）。
+        final pins = ShopMapUtils.buildPins(
+          provider.shops,
+          distanceFor: provider.distanceForShop,
+        );
+        final origin = provider.distanceOrigin;
+        final data = ShopMapViewData(
+          pins: pins,
+          center: ShopMapUtils.initialCenter(pins, origin: origin),
+          hasUserLocation: origin != null,
+          onPinTap: (pin) => _showShopBottomSheet(context, pin),
+        );
+        final builder = mapViewBuilder ?? _buildGoogleMap;
 
         return Stack(
           children: [
-            GoogleMap(
-              key: const Key('nearby_shops_map'),
-              initialCameraPosition: const CameraPosition(
-                target: _defaultCenter,
-                zoom: _defaultZoom,
-              ),
-              markers: _markers,
-              myLocationButtonEnabled: true,
-              myLocationEnabled: true,
-              mapToolbarEnabled: false,
-              onMapCreated: (controller) {
-                _mapController = controller;
-                _buildMarkers();
-              },
-            ),
-            _MapLegend(),
-            if (shopsWithLocation.isEmpty) const _NoLocationBanner(),
+            Positioned.fill(child: builder(context, data)),
+            const _MapLegend(),
+            if (pins.isEmpty) const _NoLocationBanner(),
           ],
         );
       },
+    );
+  }
+
+  static Widget _buildGoogleMap(BuildContext context, ShopMapViewData data) =>
+      _GoogleShopMapView(data: data);
+}
+
+/// GoogleMap による地図本体（実機・Web 用）。
+class _GoogleShopMapView extends StatefulWidget {
+  final ShopMapViewData data;
+  const _GoogleShopMapView({required this.data});
+
+  @override
+  State<_GoogleShopMapView> createState() => _GoogleShopMapViewState();
+}
+
+class _GoogleShopMapViewState extends State<_GoogleShopMapView> {
+  GoogleMapController? _mapController;
+
+  static const _defaultZoom = 13.0;
+
+  @override
+  void didUpdateWidget(covariant _GoogleShopMapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 地図を開いた後に現在地が取れたら、そこへ寄せる。
+    final c = widget.data.center;
+    if (c != oldWidget.data.center) {
+      _mapController?.animateCamera(
+        CameraUpdate.newLatLng(LatLng(c.latitude, c.longitude)),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
+  }
+
+  Set<Marker> _markers() {
+    return {
+      for (final pin in widget.data.pins)
+        Marker(
+          markerId: MarkerId(pin.shopId),
+          position: LatLng(pin.latitude, pin.longitude),
+          // Azure=提携（ブランドブルー系）、Orange=非提携（参考・未審査）
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            pin.isPartner
+                ? BitmapDescriptor.hueAzure
+                : BitmapDescriptor.hueOrange,
+          ),
+          // 提携店のピンを非提携店より手前に出す。
+          zIndexInt: pin.isPartner ? 1 : 0,
+          infoWindow: InfoWindow(
+            title: pin.title,
+            snippet: pin.snippet.isEmpty ? null : pin.snippet,
+          ),
+          onTap: () => widget.data.onPinTap(pin),
+        ),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.data.center;
+    return GoogleMap(
+      key: const Key('nearby_shops_map'),
+      initialCameraPosition: CameraPosition(
+        target: LatLng(c.latitude, c.longitude),
+        zoom: _defaultZoom,
+      ),
+      markers: _markers(),
+      myLocationButtonEnabled: widget.data.hasUserLocation,
+      myLocationEnabled: widget.data.hasUserLocation,
+      mapToolbarEnabled: false,
+      onMapCreated: (controller) => _mapController = controller,
     );
   }
 }
 
 // ── 凡例（右下） ────────────────────────────────────────────────────
 class _MapLegend extends StatelessWidget {
+  const _MapLegend();
+
   @override
   Widget build(BuildContext context) {
     return Positioned(
       right: 16,
       bottom: 100,
       child: Card(
+        key: const Key('map_legend'),
         child: Padding(
           padding: const EdgeInsets.all(8),
           child: Column(
@@ -137,7 +197,7 @@ class _MapLegend extends StatelessWidget {
             children: [
               _LegendItem(
                 color: AppColors.primary,
-                label: '提携（審査済）',
+                label: '提携店',
               ),
               const SizedBox(height: 4),
               _LegendItem(
@@ -197,7 +257,11 @@ class _NoLocationBanner extends StatelessWidget {
 // ── 工場情報BottomSheet ───────────────────────────────────────────────
 class _ShopInfoSheet extends StatelessWidget {
   final Shop shop;
-  const _ShopInfoSheet({required this.shop});
+
+  /// 現在地からの距離（km）。未取得なら出さない。
+  final double? distanceKm;
+
+  const _ShopInfoSheet({required this.shop, this.distanceKm});
 
   @override
   Widget build(BuildContext context) {
@@ -243,6 +307,18 @@ class _ShopInfoSheet extends StatelessWidget {
                   ),
                   padding: EdgeInsets.zero,
                 ),
+              // 広告は一覧と同じく必ず明示する（順位操作を隠さない）。
+              if (shop.isFeatured)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Chip(
+                    key: const Key('featured_badge'),
+                    label: const Text('広告'),
+                    backgroundColor: Colors.amber.shade100,
+                    labelStyle: const TextStyle(fontSize: 11),
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
               if (!isPartner)
                 Chip(
                   key: const Key('non_partner_badge'),
@@ -253,6 +329,14 @@ class _ShopInfoSheet extends StatelessWidget {
                 ),
             ],
           ),
+          if (distanceKm != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              '現在地から${distanceKm!.toStringAsFixed(1)}km',
+              key: const Key('sheet_distance'),
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+            ),
+          ],
           if (shop.displayAddress.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
