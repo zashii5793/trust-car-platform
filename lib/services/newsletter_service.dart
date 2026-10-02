@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 import '../models/newsletter.dart';
 import '../core/result/result.dart';
 import '../core/error/app_error.dart';
@@ -13,9 +17,27 @@ import '../core/error/app_error.dart';
 class NewsletterService {
   final FirebaseFirestore? _firestore;
 
-  NewsletterService({FirebaseFirestore? firestore}) : _firestore = firestore;
+  /// Optional HTTP client for dependency injection (used in tests).
+  final http.Client? _httpClient;
+
+  /// Cloud Functions base URL override (tests). Defaults to
+  /// FIREBASE_FUNCTIONS_URL in .env, same as AiChatService.
+  final String? _functionsBaseUrl;
+
+  NewsletterService({
+    FirebaseFirestore? firestore,
+    http.Client? httpClient,
+    String? functionsBaseUrl,
+  })  : _firestore = firestore,
+        _httpClient = httpClient,
+        _functionsBaseUrl = functionsBaseUrl;
 
   FirebaseFirestore get _db => _firestore ?? FirebaseFirestore.instance;
+
+  String get _baseUrl =>
+      _functionsBaseUrl ??
+      (dotenv.isInitialized ? dotenv.env['FIREBASE_FUNCTIONS_URL'] : null) ??
+      '';
 
   static const String _newsletters = 'newsletters';
   static const String _subscriptions = 'newsletter_subscriptions';
@@ -144,23 +166,47 @@ class NewsletterService {
   }
 
   /// Unsubscribes a user by their secure token (for email unsubscribe links).
+  ///
+  /// Cloud Function `unsubscribeNewsletter` に POST する（Issue #192）。
+  /// リンクから来る人はログインしていないので、クライアントから
+  /// newsletter_subscriptions をトークンで引くとルールで必ず拒否される。
+  /// トークンの照合と書き込みはサーバー（Admin SDK）で行う。
   Future<Result<void, AppError>> unsubscribeByToken(String token) async {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) {
+      return const Result.failure(ValidationError('無効な配信停止リンクです'));
+    }
+    if (_baseUrl.isEmpty) {
+      return const Result.failure(
+        ServerError('FIREBASE_FUNCTIONS_URLが設定されていません。'),
+      );
+    }
     try {
-      final snap = await _db
-          .collection(_subscriptions)
-          .where('unsubscribeToken', isEqualTo: token)
-          .limit(1)
-          .get();
-      if (snap.docs.isEmpty) {
-        return const Result.failure(
-          NotFoundError('無効な配信停止リンクです'),
-        );
+      final client = _httpClient ?? http.Client();
+      final response = await client
+          .post(
+            Uri.parse('$_baseUrl/unsubscribeNewsletter'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'token': trimmed}),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      switch (response.statusCode) {
+        case 200:
+          return const Result.success(null);
+        case 400:
+        case 404:
+          return const Result.failure(NotFoundError('無効な配信停止リンクです'));
+        default:
+          return Result.failure(ServerError(
+            '配信停止処理に失敗しました (${response.statusCode})',
+            statusCode: response.statusCode,
+          ));
       }
-      await snap.docs.first.reference.update({
-        'isSubscribed': false,
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
-      });
-      return const Result.success(null);
+    } on http.ClientException catch (e) {
+      return Result.failure(NetworkError('ネットワークエラー: ${e.message}'));
+    } on TimeoutException {
+      return const Result.failure(NetworkError('配信停止処理がタイムアウトしました'));
     } catch (e) {
       return Result.failure(ServerError('配信停止処理に失敗しました: $e'));
     }

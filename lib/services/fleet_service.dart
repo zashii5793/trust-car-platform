@@ -191,55 +191,38 @@ class FleetService {
     }
   }
 
-  /// Aggregates maintenance history (last date / total cost) per vehicle.
+  /// Aggregated maintenance history (last date / total cost / count) per
+  /// vehicle, for the fleet CSV export.
   ///
-  /// Used by the fleet CSV export. Queries in chunks of 10 to respect
-  /// Firestore's whereIn limit.
+  /// 法人の管理者はメンバーの maintenance_records を読めない（ルールで本人
+  /// だけ）。代わりに Cloud Functions（onMaintenanceRecordWritten）が書く
+  /// `fleet_maintenance_summaries/{vehicleId}` を読む。集計の項目しか
+  /// 入っていないので、メモや店名などの個人の記録は管理者に渡らない。
   ///
-  /// [userId] must be the signed-in user: the security rule for
-  /// `maintenance_records` requires `resource.data.userId == request.auth.uid`,
-  /// and a list query that only filters on `vehicleId` cannot satisfy that
-  /// statically, so Firestore rejects the whole query in production.
+  /// ルールは「いまの車の文書」で管理者か持ち主かを判定する（get()）。
+  /// documentId の whereIn は文書ごとに評価され、1件でも読めないと全体が
+  /// 拒否されるので、1件ずつ get する（Issue #192）。
+  ///
+  /// 集計がまだ無い車（記録が無い・集計の導入前のまま）はマップに含めない。
   Future<Result<Map<String, MaintenanceSummary>, AppError>>
-      getMaintenanceSummaries(
-    List<String> vehicleIds, {
-    required String userId,
-  }) async {
-    if (vehicleIds.isEmpty || userId.isEmpty) {
-      return const Result.success({});
-    }
+      getMaintenanceSummaries(List<String> vehicleIds) async {
+    final ids = vehicleIds.where((id) => id.isNotEmpty).toSet().toList();
+    if (ids.isEmpty) return const Result.success({});
     try {
-      final recordsRef =
-          _firestore.collection(FirestoreCollections.maintenanceRecords);
+      final ref =
+          _firestore.collection(FirestoreCollections.fleetMaintenanceSummaries);
+      final snaps = await Future.wait(ids.map((id) => ref.doc(id).get()));
+
       final summaries = <String, MaintenanceSummary>{};
-
-      for (var i = 0; i < vehicleIds.length; i += 10) {
-        final chunk = vehicleIds.sublist(
-            i, i + 10 > vehicleIds.length ? vehicleIds.length : i + 10);
-        final snap = await recordsRef
-            .where('userId', isEqualTo: userId)
-            .where('vehicleId', whereIn: chunk)
-            .get();
-
-        for (final doc in snap.docs) {
-          final data = doc.data();
-          final vehicleId = data['vehicleId'] as String? ?? '';
-          if (vehicleId.isEmpty) continue;
-          final cost = (data['cost'] as num?)?.toInt() ?? 0;
-          final ts = data['date'];
-          final date = ts is Timestamp ? ts.toDate() : null;
-
-          final prev = summaries[vehicleId];
-          summaries[vehicleId] = MaintenanceSummary(
-            lastMaintenanceDate: prev?.lastMaintenanceDate == null
-                ? date
-                : (date != null && date.isAfter(prev!.lastMaintenanceDate!)
-                    ? date
-                    : prev!.lastMaintenanceDate),
-            totalCost: (prev?.totalCost ?? 0) + cost,
-            recordCount: (prev?.recordCount ?? 0) + 1,
-          );
-        }
+      for (final snap in snaps) {
+        final data = snap.data();
+        if (data == null) continue;
+        final ts = data['lastMaintenanceDate'];
+        summaries[snap.id] = MaintenanceSummary(
+          lastMaintenanceDate: ts is Timestamp ? ts.toDate() : null,
+          totalCost: (data['totalCost'] as num?)?.toInt() ?? 0,
+          recordCount: (data['recordCount'] as num?)?.toInt() ?? 0,
+        );
       }
       return Result.success(summaries);
     } catch (e) {
