@@ -186,6 +186,16 @@ void main() {
         final carsensor = links.firstWhere((l) => l.siteName == 'カーセンサー');
         expect(carsensor.url, contains('2000000'));
       });
+
+      // 車種別の維持費レポートの画面から、サービスを組まずに呼ぶ（Issue #208）
+      test('searchLinksFor はインスタンスのものと同じリンクを返す', () {
+        const c = CarPurchaseCondition(maker: 'Toyota', model: 'プリウス');
+        final a = service.generateSearchLinks(c);
+        final b = CarPurchaseInquiryService.searchLinksFor(c);
+        expect(b.map((l) => l.siteName), a.map((l) => l.siteName));
+        expect(b.map((l) => l.url), a.map((l) => l.url));
+        expect(b.first.url, contains('TOYOTA'));
+      });
     });
 
     // -------------------------------------------------------------------------

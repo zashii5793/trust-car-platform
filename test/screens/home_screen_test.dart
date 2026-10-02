@@ -53,6 +53,8 @@ import 'package:trust_car_platform/models/part_listing.dart' as parts;
 
 import '../golden/font_loader.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:trust_car_platform/services/analytics_service.dart';
+import 'package:trust_car_platform/services/model_cost_report_service.dart';
 
 // ---------------------------------------------------------------------------
 // Stub FirebaseService
@@ -1406,6 +1408,69 @@ void main() {
       await tester.pump();
 
       expect(find.text('まず愛車を登録しよう'), findsNothing);
+    });
+
+    // Issue #208: 車を持っていない人（買う前の人）が、車種の維持費を調べる入口
+    group('車種ごとの維持費（買う前の人）', () {
+      late FakeFirebaseFirestore fs;
+
+      setUp(() async {
+        fs = FakeFirebaseFirestore();
+        sl.registerSingleton<ModelCostReportService>(
+          ModelCostReportService(firestore: fs),
+        );
+        await fs.collection('model_cost_reports').doc('mini__くーぱー').set({
+          'level': 'model',
+          'maker': 'MINI',
+          'model': 'クーパー',
+          'ownerCount': 12,
+          'annualEstimate': 182000,
+        });
+      });
+
+      tearDown(() => sl.unregister<ModelCostReportService>());
+
+      testWidgets('車が0台なら入口が出て、一覧からレポートを開ける', (tester) async {
+        final sent = <String>[];
+        sl.registerSingleton<AnalyticsService>(AnalyticsService.forTesting(
+          onLog: (name, params) {
+            if (name == 'first_week_step') sent.add(params!['step'] as String);
+          },
+        ));
+        addTearDown(() => sl.unregister<AnalyticsService>());
+
+        await tester
+            .pumpWidget(_buildApp(vehicleProvider: _FakeVehicleProvider()));
+        await tester.pump();
+
+        final entry = find.byKey(const Key('home_model_cost_browse'));
+        await tester.ensureVisible(entry);
+        await tester.tap(entry);
+        await tester.pumpAndSettle();
+        expect(find.text('車種ごとの維持費'), findsOneWidget);
+
+        await tester.tap(find.text('MINI クーパー'));
+        await tester.pumpAndSettle();
+        expect(find.text('維持費レポート'), findsOneWidget);
+        // 新しい入口から開いても、最初の7日のイベントは同じものが1回だけ
+        expect(sent, ['model_cost_viewed']);
+      });
+
+      group('Edge Cases', () {
+        testWidgets('サービスが組まれていなければ入口を出さない', (tester) async {
+          sl.unregister<ModelCostReportService>();
+          addTearDown(() => sl.registerSingleton<ModelCostReportService>(
+                ModelCostReportService(firestore: fs),
+              ));
+
+          await tester
+              .pumpWidget(_buildApp(vehicleProvider: _FakeVehicleProvider()));
+          await tester.pump();
+
+          expect(find.text('まず愛車を登録しよう'), findsOneWidget);
+          expect(find.byKey(const Key('home_model_cost_browse')), findsNothing);
+        });
+      });
     });
   });
 

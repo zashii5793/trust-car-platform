@@ -79,14 +79,10 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
+      # seed_all.sh の最後の確認（scripts/verify_personas.js）が使うクライアント SDK
+      # （firebase）もここに入っている。以前は test/rules の依存を別に入れていた
       - name: Install seed dependencies
         working-directory: scripts
-        run: npm ci
-
-      # seed_all.sh の最後の確認（scripts/verify_personas.js）が、ルールのテスト用の
-      # クライアント SDK（test/rules/node_modules/firebase）を使う
-      - name: Install rules-test dependencies (used by verify_personas.js)
-        working-directory: test/rules
         run: npm ci
 
       - name: Get Flutter dependencies

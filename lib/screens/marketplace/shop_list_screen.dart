@@ -42,6 +42,17 @@ class ShopListScreen extends StatefulWidget {
   /// AppBar を出さず、並び替えなどの操作は本文側に置く。
   final bool embedded;
 
+  /// 地図を出せるか。null なら [MapsConfig.isConfigured]（ビルド時のキー）。
+  ///
+  /// MapsConfig はコンパイル時定数でテストからは常に false になるため、
+  /// 地図側の導線を確かめるときだけ true を渡す。
+  @visibleForTesting
+  final bool? mapsConfigured;
+
+  /// 地図本体の差し替え。null なら GoogleMap。テストで使う。
+  @visibleForTesting
+  final ShopMapViewBuilder? mapViewBuilder;
+
   const ShopListScreen({
     super.key,
     this.maintenanceContext,
@@ -49,6 +60,8 @@ class ShopListScreen extends StatefulWidget {
     this.compareMode = false,
     this.primaryNeed,
     this.embedded = false,
+    this.mapsConfigured,
+    this.mapViewBuilder,
   });
 
   @override
@@ -66,8 +79,27 @@ class _ShopListScreenState extends State<ShopListScreen> {
   // Map entry points are hidden when no Maps API key was supplied at build
   // time (MapsConfig); the distance-sorted list remains the sole view.
   bool get _canShowMap =>
-      MapsConfig.isConfigured && !widget.selectMode && !widget.compareMode;
+      (widget.mapsConfigured ?? MapsConfig.isConfigured) &&
+      !widget.selectMode &&
+      !widget.compareMode;
   final Set<String> _selectedIds = {};
+
+  /// リストと地図を切り替える。
+  ///
+  /// 地図に切り替えたときに現在地が未取得なら、近い順ボタンと同じ流れで
+  /// 取りに行く（地図を現在地中心にするため）。権限拒否・取得失敗でも
+  /// 地図は出したまま、提携店を中心に表示する。リストへはいつでも戻れる。
+  void _toggleMap() {
+    final toMap = !_showMap;
+    setState(() => _showMap = toMap);
+    final provider = context.read<ShopProvider>();
+    if (toMap &&
+        provider.distanceOrigin == null &&
+        provider.shops.isNotEmpty &&
+        !_isLocating) {
+      _sortByDistance();
+    }
+  }
 
   /// 現在地を取得して近い順にソートする。
   /// 権限拒否・位置情報サービス無効時は SnackBar で案内する。
@@ -165,7 +197,7 @@ class _ShopListScreenState extends State<ShopListScreen> {
                         key: const Key('toggle_map_button'),
                         icon: Icon(_showMap ? Icons.list : Icons.map_outlined),
                         tooltip: _showMap ? 'リストで見る' : '地図で見る',
-                        onPressed: () => setState(() => _showMap = !_showMap),
+                        onPressed: _toggleMap,
                       ),
                     if (!_showMap)
                       IconButton(
@@ -195,50 +227,64 @@ class _ShopListScreenState extends State<ShopListScreen> {
                       ),
                   ],
                 ),
-          body: _showMap && _canShowMap
-              ? const NearbyShopsMapScreen()
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // AppBar が無い埋め込み表示では、地図への導線が
-                    // どこにも出なくなる。本文の先頭に出す。
-                    if (widget.embedded && _canShowMap)
-                      _EmbeddedMapToggle(
-                        showMap: _showMap,
-                        onPressed: () => setState(() => _showMap = !_showMap),
-                      ),
-                    if (widget.maintenanceContext != null)
-                      _AiContextBanner(context: widget.maintenanceContext!),
-                    _SearchBar(
-                      controller: _searchController,
-                      onChanged: _onSearchChanged,
-                    ),
-                    _FilterRow(provider: provider),
-                    if (!provider.isLoading && provider.shops.isNotEmpty)
-                      _ResultCount(count: provider.shops.length),
-                    Expanded(child: _buildBody(provider)),
-                    if (widget.compareMode)
-                      _ComparePanelBar(
-                        selectedCount: _selectedIds.length,
-                        onCompare: () {
-                          final selected = provider.shops
-                              .where((s) => _selectedIds.contains(s.id))
-                              .toList();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute<void>(
-                              builder: (_) => ShopComparisonScreen(
-                                shops: selected,
-                                primaryNeed: widget.primaryNeed,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                  ],
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // AppBar が無い埋め込み表示では、地図への導線が
+              // どこにも出なくなる。本文の先頭に出す。地図表示中も
+              // 出しておかないと、リストへ戻れなくなる。
+              if (widget.embedded && _canShowMap)
+                _EmbeddedMapToggle(
+                  showMap: _showMap,
+                  onPressed: _toggleMap,
                 ),
+              Expanded(
+                child: _showMap && _canShowMap
+                    ? NearbyShopsMapScreen(
+                        mapViewBuilder: widget.mapViewBuilder,
+                      )
+                    : _buildListView(provider),
+              ),
+            ],
+          ),
         );
       },
+    );
+  }
+
+  Widget _buildListView(ShopProvider provider) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.maintenanceContext != null)
+          _AiContextBanner(context: widget.maintenanceContext!),
+        _SearchBar(
+          controller: _searchController,
+          onChanged: _onSearchChanged,
+        ),
+        _FilterRow(provider: provider),
+        if (!provider.isLoading && provider.shops.isNotEmpty)
+          _ResultCount(count: provider.shops.length),
+        Expanded(child: _buildBody(provider)),
+        if (widget.compareMode)
+          _ComparePanelBar(
+            selectedCount: _selectedIds.length,
+            onCompare: () {
+              final selected = provider.shops
+                  .where((s) => _selectedIds.contains(s.id))
+                  .toList();
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => ShopComparisonScreen(
+                    shops: selected,
+                    primaryNeed: widget.primaryNeed,
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 

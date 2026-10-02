@@ -905,6 +905,41 @@ void main() {
           expect(provider.distanceForShop('same'), closeTo(0, 0.001));
         });
 
+        test('距離ソート前は distanceOrigin が null', () {
+          expect(provider.distanceOrigin, isNull);
+        });
+
+        test('距離ソートに使った現在地が distanceOrigin に残る', () async {
+          mockShopService.shopsResult =
+              Result.success([shopAt('s1', 35.466, 139.622)]);
+          await provider.loadShops();
+
+          provider.sortByDistanceFrom(35.681, 139.767);
+
+          expect(provider.distanceOrigin?.latitude, 35.681);
+          expect(provider.distanceOrigin?.longitude, 139.767);
+        });
+
+        test('loadShops を再実行しても distanceOrigin は残る（地図の中心用）', () async {
+          mockShopService.shopsResult =
+              Result.success([shopAt('s1', 35.466, 139.622)]);
+          await provider.loadShops();
+          provider.sortByDistanceFrom(35.681, 139.767);
+
+          await provider.loadShops();
+
+          expect(provider.distanceOrigin, isNotNull);
+        });
+
+        test('店舗0件でも distanceOrigin は記録される', () async {
+          mockShopService.shopsResult = const Result.success([]);
+          await provider.loadShops();
+
+          provider.sortByDistanceFrom(35.0, 139.0);
+
+          expect(provider.distanceOrigin, isNotNull);
+        });
+
         test('loadShops を再実行すると距離情報はクリアされる', () async {
           mockShopService.shopsResult =
               Result.success([shopAt('s1', 35.466, 139.622)]);
