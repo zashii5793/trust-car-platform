@@ -13,7 +13,7 @@
 ### 0-1. 何が本番に出ているか
 
 ```bash
-./scripts/prod_watch.sh          # ウェブ・規約・Functions・公開中の版と main の差（毎日 09:00 に Actions でも走る）
+./scripts/prod_watch.sh          # ウェブ・規約・Functions・公開中の版と main の差・健康診断（毎日 09:00 に Actions でも走る。NG なら 0-8）
 firebase functions:list          # Functions の一覧（スケジュール実行のものも見える）
 firebase hosting:channel:list    # ウェブの最終公開日時
 cat docs/RELEASES.md             # 何を・いつ・どのコミットから入れたか
@@ -105,6 +105,47 @@ firebase firestore:databases:restore \
 | Android のリリース鍵（`~/trustcar-release.keystore`） | Play のアプリを更新できない | **Play App Signing を有効にしていれば**、アップロード鍵の再発行を Play Console から申請できる。有効にしていないと戻せない |
 | シークレット（`ANTHROPIC_API_KEY` など） | 該当の Functions が失敗する | 発行元で作り直し → `firebase functions:secrets:set <名前>` → `firebase deploy --only functions` |
 | GitHub の Secrets | CI の署名付きビルドが debug 署名に落ちる | `./scripts/create_release_keystore.sh` の4番目の手順（`gh secret set`）を手で |
+
+### 0-8. 見張りの通知が来たら（2026-10-02 版）
+
+通知は2つの道で来る。
+
+- **GitHub の Issue（`prod-watch` ラベル）**: 毎日 09:00 JST の `./scripts/prod_watch.sh`。直ったら自動で閉じる
+- **運営者へのメール（`OPERATOR_EMAIL`）**: 健康診断 `opsHealthCheck`（1時間ごと）が ok → NG に変わったとき（PR2 以降）
+
+まず手元で同じものを見て、NG の項目を確かめる。項目の細かい理由（件数・エラーの先頭）は
+外からは見えない（`opsHealth` は name と status だけ返す）ので、Console で `ops_health/latest` の
+`items[].detail` を読む。
+
+```bash
+./scripts/prod_watch.sh                                     # どの項目が NG か
+curl -s https://asia-northeast1-trust-car-platform.cloudfunctions.net/opsHealth   # 健康診断の生の応答
+firebase functions:log --only opsHealthCheck                # 診断そのものが落ちていないか
+```
+
+Console → Firestore → `ops_health/latest`（詳しい理由）・`ops_heartbeats/{関数名}`（各ジョブの最後の実行）・
+`ops_health_history`（過去 30 日の診断。いつから NG か）。
+
+| NG の項目 | 意味 | 見るもの・打つもの |
+| --- | --- | --- |
+| `opsHealth` → 404（未デプロイ） | 健康診断の関数が本番に無い | `firebase functions:list`。無ければ `firebase deploy --only functions:opsHealthCheck,functions:opsHealth`（`docs/RELEASES.md` に1行） |
+| `opsHealth` → 503 | 一度も診断していない | `firebase functions:log --only opsHealthCheck`。Cloud Scheduler のジョブが止まっていないか（Console → Cloud Scheduler） |
+| 最後の診断が2時間より古い | `opsHealthCheck` が止まっている・落ちている | 同上。ログに `Ops health:` の行が毎時出ているか |
+| `job.purgeDeletedAccounts` | 退会者のデータ削除が 26 時間成功していない／最後が失敗 | `firebase functions:log --only purgeDeletedAccounts`。**プライバシーポリシーの約束に関わる**ので最優先。`account_deletions` の `status: pending` が残っていないか |
+| `job.purgeExpiredShares` | 期限切れの「車の写し」の削除が止まっている | `firebase functions:log --only purgeExpiredShares` |
+| `job.aggregateModelCosts` | 車種別の維持費レポートの集計が止まっている（メモリ・時間切れが多い） | `firebase functions:log --only aggregateModelCosts`。`timeoutSeconds`・`memory` が足りているか |
+| `plan_requests.pending` | 店舗プランの申し込みが受付中のまま 72 時間 | Console で `plan_requests`（コレクショングループ）を `status == pending` で見る。請求書を出したら Admin SDK で `status` を変える |
+| `plan_requests.notify_failed` | 申し込みの通知メールが送れず、受付中のまま | `firebase functions:log --only onPlanRequestCreated`。SendGrid の鍵（`SENDGRID_API_KEY`）・宛先（`OPERATOR_EMAIL`）・送信元の認証。申し込みは Console で直接見て処理する |
+| `inspection_notices.pending` | 車検案内の依頼が 1 時間処理されない | `firebase functions:log --only onInspectionNoticeCreated`。関数が本番にあるか（`firebase functions:list`） |
+| `client_errors.spike` | ウェブのエラーが直近1時間に急増（7日の1時間平均の 5 倍以上かつ 10 件以上） | Console で `client_errors` を `createdAt` 降順に見る。同じ `buildId` に偏っていれば直前の公開が原因 → 0-2 で前の版に戻す |
+| `backup.firestore` | 最新の READY のバックアップが 48 時間より古い／1つも無い | `firebase firestore:backups:list`・`firebase firestore:backups:schedules:list`。スケジュールが消えていたら §5 の手順で作り直す |
+
+**[不明] の項目**は NG に数えない（読めなかった・まだ記録が無い）。デプロイ直後の `job.*` は、
+各ジョブが一度走る（翌朝）まで不明になる。`backup.firestore` が不明のままなら、Functions の
+サービスアカウントに `datastore.backups.list` の権限があるか（Datastore 閲覧者など）を確かめる。
+
+直したら `./scripts/prod_watch.sh` で [OK] に戻ることを確かめる（健康診断は毎時0分ごろに走るので、
+すぐに確かめたいときは Console → Cloud Scheduler → `opsHealthCheck` のジョブを「今すぐ実行」）。
 
 ---
 
