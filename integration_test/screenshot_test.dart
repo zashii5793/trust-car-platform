@@ -14,6 +14,15 @@ Future<void> takeScreenshot(
   print('📸 Screenshot: $name');
 }
 
+/// いま画面に出ている Text を集める。落ちたときの手掛かりに使う。
+List<String> _visibleTexts() => find
+    .byType(Text)
+    .evaluate()
+    .map((e) => (e.widget as Text).data)
+    .whereType<String>()
+    .where((t) => t.trim().isNotEmpty)
+    .toList();
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -40,11 +49,13 @@ void main() {
       // Find the email and password fields on the login screen
       final emailFields = find.byType(TextFormField);
 
-      // Verify we have text fields
+      // ログイン画面の入力欄（メール・パスワード）が出ていること。
+      // 以前は足りなければ return で素通りしていて、撮れなくても「成功」になった
+      // （Issue #203）。撮影は手掛かりとして残し、テストは落とす。
       if (emailFields.evaluate().length < 2) {
-        print('❌ Not enough TextFormFields - expected at least 2');
         await takeScreenshot(binding, '02_error_no_fields');
-        return;
+        fail('ログイン画面の入力欄が2つ未満。画面に出ている文字: '
+            '${_visibleTexts().join(' / ')}');
       }
 
       // Enter test credentials (login screen has 2 fields: email and password)
@@ -234,9 +245,11 @@ void main() {
 
         print('✅ All screens captured successfully!');
       } else {
-        // Login might have failed, capture error state
+        // ログインできていない。撮影は手掛かりとして残し、テストは落とす
+        // （以前は print だけで「All tests passed」になっていた。Issue #203）
         await takeScreenshot(binding, '03_login_error');
-        print('⚠️ Login may have failed - captured error state');
+        fail('ログイン後にホームへ進めていない。画面に出ている文字: '
+            '${_visibleTexts().join(' / ')}');
       }
     });
   });

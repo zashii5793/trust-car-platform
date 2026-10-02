@@ -230,10 +230,11 @@ void main() {
       for (final maker in makers) {
         final models = VehicleMasterData.getModelsForMaker(maker.id);
         for (final model in models) {
-          if (model.name != 'その他') {
-            // Other models can have null bodyType in some cases
-            // This is expected for flexibility
-          }
+          // 「その他」だけは車体の形が決まらないので null を許す。
+          // 以前は if の中が空で、何も確かめていなかった（Issue #203）
+          if (model.name == 'その他') continue;
+          expect(model.bodyType, isNotNull,
+              reason: '${maker.name} ${model.name} に bodyType が無い');
         }
       }
     });
