@@ -8,6 +8,7 @@ import '../../../models/shop_ledger.dart';
 import '../../../services/shop_ledger_service.dart';
 import '../../../services/vehicle_share_service.dart';
 import '../../../services/shop_staff_service.dart';
+import '../../../services/detail_delivery_service.dart';
 import '../../../services/ledger_link_service.dart';
 import '../../../services/shop_audit_service.dart';
 import 'audit_log_screen.dart';
@@ -21,6 +22,7 @@ import 'ledger_csv_import_screen.dart';
 import 'ledger_csv_share.dart';
 import 'shared_vehicles_screen.dart';
 import 'staff_screens.dart';
+import 'unsent_details_screen.dart';
 import 'ledger_format.dart';
 import 'ledger_paged_list.dart';
 
@@ -48,6 +50,12 @@ class CustomerLedgerScreen extends StatefulWidget {
   final LedgerLinkService? linkService;
   final ShopInviteService? inviteService;
 
+  /// 取り込んだ伝票から、アプリ利用客への整備明細をまとめて送るため。
+  /// [currentUid] は送る人（いまログインしている店主・スタッフ）。
+  /// どちらかが無ければ「送っていない明細」の入口を出さない。
+  final DetailDeliveryService? deliveryService;
+  final String? currentUid;
+
   /// CSV 取込でファイルを選ぶ関数。テスト（操作の流れを通すもの）で差し替える。
   final CsvFilePicker? csvPicker;
 
@@ -72,6 +80,8 @@ class CustomerLedgerScreen extends StatefulWidget {
     this.ownerName = '',
     this.linkService,
     this.inviteService,
+    this.deliveryService,
+    this.currentUid,
     this.csvPicker,
     this.csvSharer,
     this.onAudit,
@@ -191,6 +201,21 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
           service: widget.service,
           shopId: widget.shopId,
           onOpenCustomer: _openCustomer,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openUnsentDetails() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UnsentDetailsScreen(
+          service: widget.deliveryService!,
+          shopId: widget.shopId,
+          shopName: widget.shopName,
+          senderUid: widget.currentUid!,
+          onAudit: widget.onAudit,
         ),
       ),
     );
@@ -464,6 +489,13 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
             icon: const Icon(Icons.trending_down),
             onPressed: _openLoss,
           ),
+          if (widget.deliveryService != null && widget.currentUid != null)
+            IconButton(
+              key: const Key('ledger_unsent_details'),
+              tooltip: '送っていない明細',
+              icon: const Icon(Icons.outbox_outlined),
+              onPressed: _openUnsentDetails,
+            ),
           if (widget.shareService != null)
             IconButton(
               key: const Key('ledger_shared_vehicles'),

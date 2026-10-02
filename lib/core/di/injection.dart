@@ -69,6 +69,7 @@ import '../../services/model_cost_report_service.dart';
 import '../../services/vehicle_profile_service.dart';
 import '../../services/maintenance_history_import_service.dart';
 import '../../services/shop_staff_service.dart';
+import '../../services/detail_delivery_service.dart';
 import '../../services/ledger_link_service.dart';
 import '../../services/shop_audit_service.dart';
 import '../../services/fuel_service.dart';
@@ -333,6 +334,16 @@ class Injection {
     // 台帳の顧客とアプリの利用者をつなぎ、整備明細を送る。
     locator.registerLazySingleton<LedgerLinkService>(
       () => LedgerLinkService(firestore: FirebaseFirestore.instance),
+    );
+
+    // 取り込んだ伝票から、アプリ利用客への整備明細をまとめて送る
+    // （2026-09-29 プロダクト評価 #4）。送り方は上の1件ずつの送付と同じ。
+    locator.registerLazySingleton<DetailDeliveryService>(
+      () => DetailDeliveryService(
+        firestore: FirebaseFirestore.instance,
+        linkService: locator.get<LedgerLinkService>(),
+        inquiryService: locator.get<InquiryService>(),
+      ),
     );
 
     // 店側の操作の記録（誰がいつ顧客を見た・書いたか）。
