@@ -11,6 +11,7 @@
     "import-vehicle-master:emulator": "firebase emulators:exec --only firestore --project trust-car-platform \"node import_vehicle_master.js --emulator\""
   },
   "dependencies": {
+    "firebase": "^11.10.0",
     "firebase-admin": "^12.0.0"
   },
   "devDependencies": {
