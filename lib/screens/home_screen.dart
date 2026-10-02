@@ -52,6 +52,8 @@ import 'fuel/add_fuel_screen.dart';
 import '../services/fuel_service.dart';
 import 'maintenance_search_screen.dart';
 import 'year_in_review_screen.dart';
+import 'vehicle/model_cost_report_screen.dart';
+import '../services/model_cost_report_service.dart';
 import '../models/year_in_review.dart';
 import 'ai_chat/ai_chat_screen.dart';
 import 'fleet/fleet_dashboard_screen.dart';
@@ -547,6 +549,9 @@ class _VehicleTabState extends State<_VehicleTab> {
             ),
           );
         },
+        onBrowseModelCosts: sl.isRegistered<ModelCostReportService>()
+            ? () => _openModelCostBrowse(context)
+            : null,
       );
     }
 
@@ -792,6 +797,15 @@ class _ProfileTab extends StatelessWidget {
                   ),
                 ),
               ),
+              // 買い替えを考えている人向け（Issue #208）。自分の車の詳細からも
+              // 行けるが、持っていない車種を調べたいときに入口が無かった。
+              if (sl.isRegistered<ModelCostReportService>())
+                _MenuItemData(
+                  icon: Icons.bar_chart_outlined,
+                  label: '車種ごとの維持費を比べる',
+                  color: AppColors.primary,
+                  onTap: () => _openModelCostBrowse(context),
+                ),
               if (isBusiness)
                 _MenuItemData(
                   icon: Icons.business_center_outlined,
@@ -1615,10 +1629,30 @@ class _InspectionSetupCard extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
+/// 車種ごとの維持費の一覧を開く（Issue #208）。
+///
+/// 車を登録していない人（買う前の人）と、メニューから開く人の共通の入口。
+void _openModelCostBrowse(BuildContext context) {
+  Navigator.push(
+    context,
+    MaterialPageRoute<void>(
+      builder: (_) => ModelCostBrowseScreen(
+        service: sl.get<ModelCostReportService>(),
+      ),
+    ),
+  );
+}
+
 class _VehicleEmptyOnboarding extends StatelessWidget {
   final VoidCallback onRegister;
 
-  const _VehicleEmptyOnboarding({required this.onRegister});
+  /// 車を買う前の人向けの入口（Issue #208）。null なら出さない。
+  final VoidCallback? onBrowseModelCosts;
+
+  const _VehicleEmptyOnboarding({
+    required this.onRegister,
+    this.onBrowseModelCosts,
+  });
 
   static const _features = [
     (
@@ -1717,6 +1751,23 @@ class _VehicleEmptyOnboarding extends StatelessWidget {
               ),
             ),
           ),
+          if (onBrowseModelCosts != null) ...[
+            AppSpacing.verticalMd,
+            // まだ車を持っていない人（中古車を探している人）向け。
+            // 登録しなくても、ほかの人の実際の記録から維持費の目安を見られる。
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                key: const Key('home_model_cost_browse'),
+                onPressed: onBrowseModelCosts,
+                icon: const Icon(Icons.bar_chart_outlined),
+                label: const Text('クルマ選び中なら：車種ごとの維持費を見る'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                ),
+              ),
+            ),
+          ],
           AppSpacing.verticalLg,
         ],
       ),

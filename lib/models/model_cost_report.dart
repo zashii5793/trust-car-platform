@@ -16,6 +16,14 @@ String modelCostKey(String s) => LedgerSearch.nameKey(
       s.replaceAll(RegExp(r'[\t\n\r]'), ''),
     ).replaceAll('/', '_');
 
+/// 数字を出してよい持ち主の下限。
+///
+/// **サーバー側の MIN_OWNERS（functions/src/modelCostReport.ts）と同じ値。**
+/// サーバーは満たないものを書かない決まりだが、アプリでも重ねて確かめる。
+/// 古い集計や手で入れた値が残っていても、少ない人数の数字は画面に出さない
+/// （外れ値に振られるうえ、個人が特定されうる）。
+const int modelCostMinOwners = 5;
+
 /// 車種のレポートのID。
 String modelCostReportId(String maker, String model) =>
     '${modelCostKey(maker)}__${modelCostKey(model)}';
@@ -34,8 +42,11 @@ class CostStat {
     required this.n,
   });
 
+  /// 人数が [modelCostMinOwners] に満たなければ null（出さない）。
   static CostStat? fromMap(Object? v) {
     if (v is! Map) return null;
+    final n = (v['n'] as num?)?.toInt() ?? 0;
+    if (n < modelCostMinOwners) return null;
     return CostStat(
       median: (v['median'] as num?)?.round() ?? 0,
       p25: (v['p25'] as num?)?.round() ?? 0,
@@ -104,8 +115,33 @@ class ModelCostReport {
 
   String get title => model == null ? '$maker（メーカー全体）' : '$maker $model';
 
+  /// 持ち主が下限に届いていて、画面に出してよいか。
+  bool get isPublishable => ownerCount >= modelCostMinOwners;
+
+  /// 読み込み時に、人数が下限に満たない項目を落とす。
+  ///
+  /// 年の目安は内訳から作られているので、内訳を1つでも落としたら
+  /// サーバーと同じ式（整備＋車検/2＋燃料）で作り直す。整備が出せなければ
+  /// 目安も出さない（サーバーと同じ）。
   factory ModelCostReport.fromMap(String id, Map<String, dynamic> m) {
     final sources = m['sources'];
+    final maintenance = CostStat.fromMap(m['maintenanceAnnual']);
+    final inspection = CostStat.fromMap(m['inspectionPerEvent']);
+    final fuel = CostStat.fromMap(m['fuelAnnual']);
+    final dropped = (m['maintenanceAnnual'] is Map && maintenance == null) ||
+        (m['inspectionPerEvent'] is Map && inspection == null) ||
+        (m['fuelAnnual'] is Map && fuel == null);
+    final int? estimate;
+    if (maintenance == null) {
+      estimate = null;
+    } else if (dropped) {
+      estimate = (maintenance.median +
+              (inspection?.median ?? 0) / 2 +
+              (fuel?.median ?? 0))
+          .round();
+    } else {
+      estimate = (m['annualEstimate'] as num?)?.round();
+    }
     return ModelCostReport(
       id: id,
       isMakerLevel: m['level'] == 'maker',
@@ -113,10 +149,10 @@ class ModelCostReport {
       model: m['model'] as String?,
       ownerCount: (m['ownerCount'] as num?)?.toInt() ?? 0,
       vehicleCount: (m['vehicleCount'] as num?)?.toInt() ?? 0,
-      maintenanceAnnual: CostStat.fromMap(m['maintenanceAnnual']),
-      inspectionPerEvent: CostStat.fromMap(m['inspectionPerEvent']),
-      fuelAnnual: CostStat.fromMap(m['fuelAnnual']),
-      annualEstimate: (m['annualEstimate'] as num?)?.round(),
+      maintenanceAnnual: maintenance,
+      inspectionPerEvent: inspection,
+      fuelAnnual: fuel,
+      annualEstimate: estimate,
       byAge: ((m['byAge'] as List?) ?? const [])
           .whereType<Map>()
           .map((e) => CostByAge(
@@ -124,6 +160,7 @@ class ModelCostReport {
                 median: (e['median'] as num?)?.round() ?? 0,
                 n: (e['n'] as num?)?.toInt() ?? 0,
               ))
+          .where((e) => e.n >= modelCostMinOwners)
           .toList(),
       topItems: ((m['topItems'] as List?) ?? const [])
           .whereType<Map>()
@@ -132,6 +169,7 @@ class ModelCostReport {
                 owners: (e['owners'] as num?)?.toInt() ?? 0,
                 medianCost: (e['medianCost'] as num?)?.round() ?? 0,
               ))
+          .where((e) => e.owners >= modelCostMinOwners)
           .toList(),
       appOwners: sources is Map ? (sources['app'] as num?)?.toInt() ?? 0 : 0,
       shopOwners: sources is Map ? (sources['shop'] as num?)?.toInt() ?? 0 : 0,
