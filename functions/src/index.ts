@@ -8,6 +8,8 @@
 //   unsubscribeNewsletter — メールの配信停止リンク（トークン）で購読を止める。
 //   onMaintenanceRecordWritten / onVehicleWrittenForFleetSummary
 //                        — 法人向けの整備集計（fleet_maintenance_summaries）を作り直す。
+//   opsHealthCheck     — 1時間ごとの健康診断（ops_health/latest）。
+//   opsHealth          — 健康診断の結果を外から見る口（GET。detail は返さない）。
 //
 // Deploy:
 //   firebase deploy --only functions
@@ -71,8 +73,61 @@ import {
   isDue,
   type DeletionMarker,
 } from "./purgeDeletedAccounts";
+import {
+  HEARTBEAT_COLLECTION,
+  runWithHeartbeat,
+  type HeartbeatWrite,
+  type JobOutcome,
+} from "./opsHeartbeat";
+import {
+  HEALTH_COLLECTION,
+  HEALTH_HISTORY_COLLECTION,
+  HEALTH_HISTORY_DAYS,
+  HEALTH_LATEST_DOC,
+  HOUR_MS,
+  SCHEDULED_JOBS,
+  THRESHOLDS,
+  evaluateHealth,
+  handleOpsHealthRequest,
+  latestReadyBackupMs,
+  type BackupInput,
+  type HealthInputs,
+  type HeartbeatSnapshot,
+  type StoredHealth,
+} from "./opsHealth";
+import { GoogleAuth } from "google-auth-library";
 
 admin.initializeApp();
+
+/** 定期ジョブのハートビートを ops_heartbeats/{関数名} に書く（opsHeartbeat.ts）。 */
+async function writeHeartbeat(name: string, hb: HeartbeatWrite): Promise<void> {
+  const ts = (d: Date) => admin.firestore.Timestamp.fromDate(d);
+  // merge: 失敗のときは lastSuccessAt を書かないので、前の成功の時刻が残る
+  await admin
+    .firestore()
+    .collection(HEARTBEAT_COLLECTION)
+    .doc(name)
+    .set(
+      {
+        lastRunAt: ts(hb.lastRunAt),
+        ...(hb.lastSuccessAt ? { lastSuccessAt: ts(hb.lastSuccessAt) } : {}),
+        ok: hb.ok,
+        processed: hb.processed,
+        error: hb.error,
+      },
+      { merge: true }
+    );
+}
+
+/** 定期ジョブを、終わったらハートビートを書く形で包む。 */
+function withHeartbeat(
+  name: string,
+  job: () => Promise<JobOutcome>
+): () => Promise<void> {
+  return async () => {
+    await runWithHeartbeat(name, job, writeHeartbeat);
+  };
+}
 
 const revenueCatWebhookSecret = defineSecret("REVENUECAT_WEBHOOK_SECRET");
 
@@ -426,7 +481,7 @@ export const onInspectionNoticeCreated = onDocumentCreated(
 export const purgeDeletedAccounts = onSchedule(
   { schedule: "every day 03:17", timeZone: "Asia/Tokyo",
     region: "asia-northeast1" },
-  async () => {
+  withHeartbeat("purgeDeletedAccounts", async () => {
     const db = admin.firestore();
     const bucket = admin.storage().bucket();
     const now = Date.now();
@@ -520,7 +575,14 @@ export const purgeDeletedAccounts = onSchedule(
           ? ` (${result.failedUids.join(", ")})`
           : "")
     );
-  }
+    // ハートビートには uid を残さない（件数だけ）
+    return {
+      processed: result.purgedUids.length,
+      ...(result.failedUids.length > 0
+        ? { error: `${result.failedUids.length} 件の削除に失敗` }
+        : {}),
+    };
+  })
 );
 
 function millis(v: unknown): number | undefined {
@@ -549,7 +611,7 @@ function num(v: unknown): number {
 export const aggregateModelCosts = onSchedule(
   { schedule: "every day 04:07", timeZone: "Asia/Tokyo",
     region: "asia-northeast1", timeoutSeconds: 540, memory: "1GiB" },
-  async () => {
+  withHeartbeat("aggregateModelCosts", async () => {
     const db = admin.firestore();
     const now = Date.now();
     const vehicles: CostVehicle[] = [];
@@ -660,7 +722,8 @@ export const aggregateModelCosts = onSchedule(
         `(${vehicles.length} vehicles, ${events.length} events, ` +
         `${shops.size} shops)`
     );
-  }
+    return { processed: reports.length };
+  })
 );
 
 /**
@@ -673,7 +736,7 @@ export const aggregateModelCosts = onSchedule(
 export const purgeExpiredShares = onSchedule(
   { schedule: "every day 03:37", timeZone: "Asia/Tokyo",
     region: "asia-northeast1" },
-  async () => {
+  withHeartbeat("purgeExpiredShares", async () => {
     const db = admin.firestore();
     const now = admin.firestore.Timestamp.now();
     let removed = 0;
@@ -694,7 +757,8 @@ export const purgeExpiredShares = onSchedule(
       await batch.commit();
     }
     console.log(`Expired vehicle shares: ${removed} removed`);
-  }
+    return { processed: removed };
+  })
 );
 
 /**
@@ -797,5 +861,224 @@ export const onVehicleWrittenForFleetSummary = onDocumentWritten(
     const after = event.data?.after?.data();
     if (!vehicleChangeNeedsRecompute(before, after)) return;
     await recomputeSummary(event.params.vehicleId, fleetSummaryDeps());
+  }
+);
+
+/** ops_heartbeats/{関数名} の文書を、判定に使う形にする。 */
+function heartbeatSnapshot(
+  data: admin.firestore.DocumentData
+): HeartbeatSnapshot {
+  return {
+    lastRunAtMs: millis(data.lastRunAt) ?? null,
+    lastSuccessAtMs: millis(data.lastSuccessAt) ?? null,
+    ok: typeof data.ok === "boolean" ? data.ok : null,
+    processed: typeof data.processed === "number" ? data.processed : null,
+    error: typeof data.error === "string" ? data.error : null,
+  };
+}
+
+/** count() の結果。数えられなかったら null（その項目は unknown になる）。 */
+async function countOrNull(
+  label: string,
+  query: admin.firestore.Query
+): Promise<number | null> {
+  try {
+    return (await query.count().get()).data().count;
+  } catch (err) {
+    console.error(`健康診断: ${label} を数えられませんでした:`, err);
+    return null;
+  }
+}
+
+/**
+ * Firestore のバックアップの一覧（Firestore Admin API の backups.list）。
+ * locations/- で全ての場所を見る（本番は nam5）。権限が無い・API が落ちているときは
+ * error を返し、判定は unknown になる（NG にはしない）。
+ */
+async function loadBackupInput(): Promise<BackupInput> {
+  try {
+    const auth = new GoogleAuth({
+      scopes: ["https://www.googleapis.com/auth/datastore"],
+    });
+    const projectId = await auth.getProjectId();
+    const client = await auth.getClient();
+    const res = await client.request<{
+      backups?: unknown[];
+      unreachable?: string[];
+    }>({
+      url:
+        `https://firestore.googleapis.com/v1/projects/${projectId}` +
+        "/locations/-/backups",
+    });
+    return {
+      latestReadyMs: latestReadyBackupMs(res.data.backups ?? []),
+      unreachable: res.data.unreachable ?? [],
+    };
+  } catch (err) {
+    const status = (err as { response?: { status?: unknown } })?.response
+      ?.status;
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      error: typeof status === "number" ? `${status} ${message}` : message,
+    };
+  }
+}
+
+/** 健康診断の材料を集める。どれかが読めなくても、他は続ける。 */
+async function loadHealthInputs(now: number): Promise<HealthInputs> {
+  const db = admin.firestore();
+  const ts = (ms: number) => admin.firestore.Timestamp.fromMillis(ms);
+
+  const heartbeats: HealthInputs["heartbeats"] = {};
+  try {
+    const snaps = await db.getAll(
+      ...SCHEDULED_JOBS.map((j) =>
+        db.collection(HEARTBEAT_COLLECTION).doc(j.name)
+      )
+    );
+    for (const snap of snaps) {
+      if (snap.exists) heartbeats[snap.id] = heartbeatSnapshot(snap.data()!);
+    }
+  } catch (err) {
+    console.error("健康診断: ハートビートを読めませんでした:", err);
+    for (const j of SCHEDULED_JOBS) heartbeats[j.name] = "error";
+  }
+
+  // collectionGroup の索引は firestore.indexes.json（ops の節）
+  const planRequests = db.collectionGroup("plan_requests");
+  const [stalePlanRequests, failedPlanNotifications, staleInspectionNotices] =
+    await Promise.all([
+      countOrNull(
+        "受付中のままの申し込み",
+        planRequests
+          .where("status", "==", "pending")
+          .where(
+            "createdAt",
+            "<=",
+            ts(now - THRESHOLDS.planRequestPendingHours * HOUR_MS)
+          )
+      ),
+      countOrNull(
+        "通知に失敗した申し込み",
+        planRequests
+          .where("status", "==", "pending")
+          .where("operatorNotification.state", "==", "failed")
+      ),
+      countOrNull(
+        "処理されない車検案内",
+        db
+          .collectionGroup("inspection_notices")
+          .where("status", "==", "pending")
+          .where(
+            "createdAt",
+            "<=",
+            ts(now - THRESHOLDS.inspectionNoticePendingHours * HOUR_MS)
+          )
+      ),
+    ]);
+
+  const errors = db.collection("client_errors");
+  const [lastHour, last7Days] = await Promise.all([
+    countOrNull(
+      "直近1時間のウェブのエラー",
+      errors.where("createdAt", ">=", ts(now - HOUR_MS))
+    ),
+    countOrNull(
+      "7日間のウェブのエラー",
+      errors.where(
+        "createdAt",
+        ">=",
+        ts(now - THRESHOLDS.errorBaselineDays * 24 * HOUR_MS)
+      )
+    ),
+  ]);
+
+  return {
+    heartbeats,
+    stalePlanRequests,
+    failedPlanNotifications,
+    staleInspectionNotices,
+    clientErrors:
+      lastHour === null || last7Days === null ? null : { lastHour, last7Days },
+    backup: await loadBackupInput(),
+  };
+}
+
+/**
+ * Scheduled Cloud Function — 1時間ごとの健康診断（opsHealth.ts）。
+ *
+ * 定期ジョブのハートビート・申し込みと車検案内の滞留・ウェブのエラーの急増・
+ * バックアップの鮮度を見て、ops_health/latest と ops_health_history/{時刻} に書く。
+ * 外からは opsHealth（下）と scripts/prod_watch.sh で見る。
+ */
+export const opsHealthCheck = onSchedule(
+  { schedule: "every 1 hours", timeZone: "Asia/Tokyo",
+    region: "asia-northeast1" },
+  async () => {
+    const db = admin.firestore();
+    const now = Date.now();
+    const report = evaluateHealth(await loadHealthInputs(now), now);
+    const doc = {
+      overall: report.overall,
+      checkedAt: admin.firestore.Timestamp.fromMillis(now),
+      items: report.items,
+    };
+    const historyId = new Date(now).toISOString().slice(0, 19) + "Z";
+    const batch = db.batch();
+    batch.set(db.collection(HEALTH_COLLECTION).doc(HEALTH_LATEST_DOC), doc);
+    batch.set(db.collection(HEALTH_HISTORY_COLLECTION).doc(historyId), {
+      ...doc,
+      expireAt: admin.firestore.Timestamp.fromMillis(
+        now + HEALTH_HISTORY_DAYS * 24 * HOUR_MS
+      ),
+    });
+    await batch.commit();
+
+    const ng = report.items.filter((i) => i.status === "ng").map((i) => i.name);
+    const unknown = report.items
+      .filter((i) => i.status === "unknown")
+      .map((i) => i.name);
+    console.log(
+      `Ops health: ${report.overall}` +
+        (ng.length > 0 ? ` ng=[${ng.join(", ")}]` : "") +
+        (unknown.length > 0 ? ` unknown=[${unknown.join(", ")}]` : "")
+    );
+  }
+);
+
+/** ops_health/latest を読む。無ければ null。 */
+async function loadLatestHealth(): Promise<StoredHealth | null> {
+  const snap = await admin
+    .firestore()
+    .collection(HEALTH_COLLECTION)
+    .doc(HEALTH_LATEST_DOC)
+    .get();
+  if (!snap.exists) return null;
+  const data = snap.data()!;
+  const checkedAtMs = millis(data.checkedAt);
+  if (checkedAtMs === undefined) return null;
+  return {
+    overall: data.overall,
+    checkedAtMs,
+    items: Array.isArray(data.items) ? data.items : [],
+  };
+}
+
+/**
+ * HTTPS Cloud Function — 健康診断の結果を外から見る口（scripts/prod_watch.sh が叩く）。
+ *
+ * 認証なしで呼べるので、返すのは全体の状態・各項目の name と status・確かめた時刻だけ。
+ * detail（件数・エラーの中身）は返さない。
+ *
+ * Request: GET
+ * Response: 200 { overall, checkedAt, checkedAtMs, items: [{ name, status }] }
+ *           / 405 / 500 / 503（まだ一度も診断していない）
+ */
+export const opsHealth = onRequest(
+  { region: "asia-northeast1" },
+  async (req, res) => {
+    const result = await handleOpsHealthRequest(req.method, loadLatestHealth);
+    res.set("Cache-Control", result.cacheControl);
+    res.status(result.status).json(result.body);
   }
 );

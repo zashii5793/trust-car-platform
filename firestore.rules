@@ -1528,6 +1528,26 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // 保守・運用（2026-10-02）。書くのは Cloud Functions（Admin SDK）だけ。
+    // - ops_heartbeats/{関数名}: 定期ジョブの最後の実行・成功（functions/src/opsHeartbeat.ts）
+    // - ops_health/latest・ops_health_history/{時刻}: 1時間ごとの健康診断（opsHealth.ts）
+    // - ops_reports/{YYYY-MM-DD}: エラーの日次解析（opsDailyReport.ts）
+    // エラーの先頭・件数など運営者向けの中身なので、クライアントからは読み書きとも禁止。
+    // 外から見るのは opsHealth 関数（全体と各項目の status だけを返す）。
+    // 下の「その他は拒否」でも閉じているが、閉じていることを明示しテストで押さえる。
+    match /ops_heartbeats/{docId} {
+      allow read, write: if false;
+    }
+    match /ops_health/{docId} {
+      allow read, write: if false;
+    }
+    match /ops_health_history/{docId} {
+      allow read, write: if false;
+    }
+    match /ops_reports/{docId} {
+      allow read, write: if false;
+    }
+
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;

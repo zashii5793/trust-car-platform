@@ -722,6 +722,38 @@
         { "fieldPath": "faqId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
+    },
+
+    // =========================================================
+    // 健康診断 opsHealthCheck（functions/src/opsHealth.ts。2026-10-02）
+    // =========================================================
+    // どれも Admin SDK の collectionGroup の count()。クライアントは使わない。
+    // 受付中のまま 72 時間を過ぎた申し込み: status == pending + createdAt <=
+    {
+      "collectionGroup": "plan_requests",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    // 運営者への通知に失敗した受付中の申し込み: status == pending + operatorNotification.state == failed
+    {
+      "collectionGroup": "plan_requests",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "operatorNotification.state", "order": "ASCENDING" }
+      ]
+    },
+    // 処理されないまま 1 時間を過ぎた車検案内: status == pending + createdAt <=
+    {
+      "collectionGroup": "inspection_notices",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
     }
 
   ],

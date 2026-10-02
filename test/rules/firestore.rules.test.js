@@ -4488,3 +4488,65 @@ describe('shops — 店のIDと店主を切り離す（段階1）', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// ops_heartbeats / ops_health / ops_health_history / ops_reports — 保守・運用（2026-10-02）
+//
+// 書くのは Cloud Functions（Admin SDK）だけ。中身はエラーの先頭・件数など運営者向けで、
+// クライアントからは読み書きとも禁止（ログイン中の誰でも、admin の札があっても）。
+// 外から見るのは opsHealth（name と status だけを返す）。
+// ---------------------------------------------------------------------------
+
+describe('ops_* — クライアントからは読み書き禁止', () => {
+  const OPS_DOCS = [
+    ['ops_heartbeats', 'purgeDeletedAccounts'],
+    ['ops_health', 'latest'],
+    ['ops_health_history', '2026-10-02T01:00:00Z'],
+    ['ops_reports', '2026-10-01'],
+  ];
+
+  async function seedOps() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      for (const [col, id] of OPS_DOCS) {
+        await setDoc(doc(ctx.firestore(), `${col}/${id}`), {
+          ok: true,
+          overall: 'ok',
+          checkedAt: new Date(),
+        });
+      }
+    });
+  }
+
+  for (const [col, id] of OPS_DOCS) {
+    describe(col, () => {
+      test('未ログインでは読めない（get・list）', async () => {
+        await seedOps();
+        await assertFails(getDoc(doc(unauthDb(), `${col}/${id}`)));
+        await assertFails(getDocs(collection(unauthDb(), col)));
+      });
+
+      test('ログイン中でも読めない（get・list）', async () => {
+        await seedOps();
+        await assertFails(getDoc(doc(dbFor(OWNER_UID), `${col}/${id}`)));
+        await assertFails(getDocs(collection(dbFor(OWNER_UID), col)));
+      });
+
+      test('admin の札があっても読めない', async () => {
+        await seedOps();
+        const adminDb = testEnv
+          .authenticatedContext(OWNER_UID, { admin: true })
+          .firestore();
+        await assertFails(getDoc(doc(adminDb, `${col}/${id}`)));
+      });
+
+      test('作れない・書き換えられない・消せない', async () => {
+        await seedOps();
+        const db = dbFor(OWNER_UID);
+        await assertFails(setDoc(doc(db, `${col}/new_doc`), { ok: true }));
+        await assertFails(updateDoc(doc(db, `${col}/${id}`), { ok: false }));
+        await assertFails(deleteDoc(doc(db, `${col}/${id}`)));
+        await assertFails(setDoc(doc(unauthDb(), `${col}/new_doc`), { ok: true }));
+      });
+    });
+  }
+});
