@@ -32,9 +32,9 @@ main には顧客台帳などが入っていたのに、ウェブ版には入っ
 | 対象 | 本番の版 | 反映日 |
 | --- | --- | --- |
 | ウェブ | `64c6271f` | 2026-10-02 |
-| Functions（7つ） | `0dc5ce50` | 2026-09-30（**main より古い**。`OPERATOR_EMAIL` 待ち） |
-| Firestore のルール | `64c6271f` | 2026-10-02 |
-| Firestore の索引 | `e3478bca` | 2026-09-29 |
+| Functions（15個） | `e4afce51` | 2026-10-02 |
+| Firestore のルール | `e4afce51` | 2026-10-02 |
+| Firestore の索引 | `e4afce51` | 2026-10-02 |
 | Storage のルール | 不明（後から記録） | 2026-09-06 |
 | Remote Config | `4b01c936`（5フラグとも `false`） | 2026-10-01 |
 | Android / iOS | 未公開 | — |
@@ -43,6 +43,8 @@ main には顧客台帳などが入っていたのに、ウェブ版には入っ
 
 | 日付 | 対象 | コミット | 内容 | 誰 |
 | --- | --- | --- | --- | --- |
+| 2026-10-02 | Functions | `e4afce51` | **15個**（新規8：`onPlanRequestCreated`・`onInspectionNoticeCreated`・`unsubscribeNewsletter`・`onMaintenanceRecordWritten`・`onVehicleWrittenForFleetSummary`・`opsHealthCheck`・`opsHealth`・`opsDailyReport`／更新7）。`OPERATOR_EMAIL` を設定後。再試行の設定があるため `--force`（本番の関数はすべてコードにあることを確かめてから） | AI |
+| 2026-10-02 | Firestore のルール・索引 | `e4afce51` | `ops_*` の読み書き禁止、滞留を数える collectionGroup の索引3つ（ルールのテスト 443件・Functions 303件パス後） | AI |
 | 2026-10-02 | Firestore（復元の練習） | — | 2026-10-01T14:41Z のバックアップを新しい DB `restore-drill-20261002` に復元。Console で本番と同じコレクション・文書が戻っていることを確認（手順書 §0-6 が通る）。確認後、削除保護を外して削除した（本番の `(default)` の削除保護・PITR は有効のまま） | AI |
 | 2026-10-02 | ウェブ | `64c6271f` | PR #237〜#245 を反映（地図・維持費の比較・明細のまとめ送り・車検案内のプッシュの画面・店 ID の切り離し段階1 ほか）。見張りで main と差なしを確認 | AI |
 | 2026-10-02 | Firestore のルール | `64c6271f` | 法人の整備集計・車検案内の依頼・FCM トークン・店の自動 ID・スポットの読み方など（ルールのテスト 427件パス後） | AI |
