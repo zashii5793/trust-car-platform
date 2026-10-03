@@ -425,3 +425,50 @@ describe("handleOpsHealthRequest", () => {
     });
   });
 });
+
+
+// 2026-10-04 オーナー判断: 記録が無いジョブは、監視を始めてから 48 時間を過ぎたら NG。
+// デプロイ直後は「不明」で騒がないが、ジョブが消えた・一度も動かないを見逃さない。
+describe("checkJob — 記録が無いまま", () => {
+  test("監視を始めて 48 時間以内は不明", () => {
+    const item = checkJob("purgeDeletedAccounts", 26, undefined, NOW, NOW - 47 * HOUR_MS);
+    expect(item.status).toBe("unknown");
+  });
+
+  test("監視を始めて 48 時間を過ぎたら NG", () => {
+    const item = checkJob("purgeDeletedAccounts", 26, undefined, NOW, NOW - 49 * HOUR_MS);
+    expect(item.status).toBe("ng");
+    expect(item.detail).toContain("48");
+  });
+
+  test("ちょうど 48 時間は不明（過ぎてから NG）", () => {
+    const item = checkJob("purgeDeletedAccounts", 26, undefined, NOW, NOW - 48 * HOUR_MS);
+    expect(item.status).toBe("unknown");
+  });
+
+  describe("Edge Cases", () => {
+    test("監視を始めた時刻が分からなければ不明のまま", () => {
+      expect(checkJob("purgeDeletedAccounts", 26, undefined, NOW, null).status).toBe("unknown");
+      expect(checkJob("purgeDeletedAccounts", 26, undefined, NOW).status).toBe("unknown");
+    });
+
+    test("読めなかった（error）は時間にかかわらず不明", () => {
+      expect(checkJob("purgeDeletedAccounts", 26, "error", NOW, NOW - 100 * HOUR_MS).status).toBe("unknown");
+    });
+
+    test("記録があれば監視の開始時刻は関係ない", () => {
+      expect(checkJob("purgeDeletedAccounts", 26, hb(), NOW, NOW - 100 * HOUR_MS).status).toBe("ok");
+    });
+  });
+});
+
+describe("evaluateHealth — 監視の開始時刻", () => {
+  test("記録の無いジョブが 48 時間を過ぎていれば全体も NG", () => {
+    const report = evaluateHealth(
+      inputs({ heartbeats: {}, monitoringSinceMs: NOW - 72 * HOUR_MS }),
+      NOW
+    );
+    expect(report.overall).toBe("ng");
+    expect(report.items.filter((i) => i.name.startsWith("job.")).every((i) => i.status === "ng")).toBe(true);
+  });
+});
