@@ -37,6 +37,11 @@ export const SCHEDULED_JOBS: readonly { name: string; maxAgeHours: number }[] = 
 export const THRESHOLDS = {
   /** plan_requests が受付中（pending）のまま、これを過ぎたら NG。 */
   planRequestPendingHours: 72,
+  /**
+   * 定期ジョブの記録が一度も無いまま、監視を始めてからこれを過ぎたら NG。
+   * 日次ジョブなら必ず1回は走っているはずの長さ（2026-10-04 オーナー判断）。
+   */
+  missingHeartbeatGraceHours: 48,
   /** inspection_notices が pending のまま、これを過ぎたら NG。 */
   inspectionNoticePendingHours: 1,
   /** client_errors の急増: 平均の何倍で NG か。 */
@@ -80,6 +85,8 @@ export interface HealthInputs {
   staleInspectionNotices: number | null;
   clientErrors: { lastHour: number; last7Days: number } | null;
   backup: BackupInput;
+  /** 健康診断を初めて走らせた時刻。記録の無いジョブを NG にするかの起点。分からなければ null。 */
+  monitoringSinceMs?: number | null;
 }
 
 export interface HealthReport {
@@ -111,13 +118,22 @@ export function checkJob(
   job: string,
   maxAgeHours: number,
   hb: HeartbeatSnapshot | "error" | null | undefined,
-  now: number
+  now: number,
+  monitoringSinceMs: number | null = null
 ): CheckItem {
   const name = `job.${job}`;
   if (hb === "error") {
     return { name, status: "unknown", detail: "ハートビートを読めなかった" };
   }
   if (!hb) {
+    const grace = THRESHOLDS.missingHeartbeatGraceHours;
+    if (monitoringSinceMs !== null && now - monitoringSinceMs > grace * HOUR_MS) {
+      return {
+        name,
+        status: "ng",
+        detail: `監視を始めて ${grace} 時間を過ぎても記録が無い（ジョブが動いていない・消えた）`,
+      };
+    }
     return {
       name,
       status: "unknown",
@@ -251,7 +267,13 @@ export function checkBackup(input: BackupInput, now: number): CheckItem {
 export function evaluateHealth(inputs: HealthInputs, now: number): HealthReport {
   const items: CheckItem[] = [
     ...SCHEDULED_JOBS.map((j) =>
-      checkJob(j.name, j.maxAgeHours, inputs.heartbeats[j.name], now)
+      checkJob(
+        j.name,
+        j.maxAgeHours,
+        inputs.heartbeats[j.name],
+        now,
+        inputs.monitoringSinceMs ?? null
+      )
     ),
     checkPending(
       "plan_requests.pending",

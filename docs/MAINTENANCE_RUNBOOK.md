@@ -149,7 +149,7 @@ Console → Firestore → `ops_health/latest`（詳しい理由）・`ops_heartb
 | `backup.firestore` | 最新の READY のバックアップが 48 時間より古い／1つも無い | `firebase firestore:backups:list`・`firebase firestore:backups:schedules:list`。スケジュールが消えていたら §5 の手順で作り直す |
 
 **[不明] の項目**は NG に数えない（読めなかった・まだ記録が無い）。デプロイ直後の `job.*` は、
-各ジョブが一度走る（翌朝）まで不明になる。`backup.firestore` が不明のままなら、Functions の
+各ジョブが一度走る（翌朝）まで不明になる。**ただし健康診断を初めて走らせてから 48 時間を過ぎても記録が無いジョブは NG**（ジョブが動いていない・消えた。2026-10-04 から）。`backup.firestore` が不明のままなら、Functions の
 サービスアカウントに `datastore.backups.list` の権限があるか（Datastore 閲覧者など）を確かめる。
 
 直したら `./scripts/prod_watch.sh` で [OK] に戻ることを確かめる（健康診断は毎時0分ごろに走るので、

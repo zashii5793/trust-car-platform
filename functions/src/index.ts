@@ -1038,10 +1038,12 @@ export const opsHealthCheck = onSchedule(
     const db = admin.firestore();
     const latestRef = db.collection(HEALTH_COLLECTION).doc(HEALTH_LATEST_DOC);
     const now = Date.now();
-    const report = evaluateHealth(await loadHealthInputs(now), now);
 
     // 前回の結果（知らせるかどうかの判断に使う）。読めなければ初回と同じ扱い
     let prev: PreviousHealth | null = null;
+    // 健康診断を初めて走らせた時刻。記録の無いジョブを NG にするかの起点
+    // （2026-10-04。それまでの結果には無いので、無ければ今回から数える）
+    let firstCheckedAtMs: number | null = null;
     try {
       const snap = await latestRef.get();
       if (snap.exists) {
@@ -1050,10 +1052,16 @@ export const opsHealthCheck = onSchedule(
           overall: d.overall === "ok" || d.overall === "ng" ? d.overall : undefined,
           ngNotified: d.ngNotified === true,
         };
+        if (typeof d.firstCheckedAtMs === "number") firstCheckedAtMs = d.firstCheckedAtMs;
       }
     } catch (err) {
       console.error("健康診断: 前回の結果を読めませんでした:", err);
     }
+    const monitoringSinceMs = firstCheckedAtMs ?? now;
+    const report = evaluateHealth(
+      { ...(await loadHealthInputs(now)), monitoringSinceMs },
+      now
+    );
     const alert = await notifyHealthChange(prev, report, {
       operatorEmail: () => operatorEmail.value(),
       send: sendOperatorMail,
@@ -1066,7 +1074,11 @@ export const opsHealthCheck = onSchedule(
     };
     const historyId = new Date(now).toISOString().slice(0, 19) + "Z";
     const batch = db.batch();
-    batch.set(latestRef, { ...doc, ngNotified: alert.ngNotified });
+    batch.set(latestRef, {
+      ...doc,
+      ngNotified: alert.ngNotified,
+      firstCheckedAtMs: monitoringSinceMs,
+    });
     batch.set(db.collection(HEALTH_HISTORY_COLLECTION).doc(historyId), {
       ...doc,
       expireAt: admin.firestore.Timestamp.fromMillis(
