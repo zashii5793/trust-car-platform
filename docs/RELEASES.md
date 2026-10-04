@@ -27,14 +27,14 @@ main には顧客台帳などが入っていたのに、ウェブ版には入っ
 | Remote Config | `firebase deploy --only remoteconfig`（`remoteconfig.template.json`） |
 | Android / iOS | ストアへの提出（まだ一度も無い） |
 
-## 今どこに何が出ているか（2026-10-02 時点）
+## 今どこに何が出ているか（2026-10-04 時点）
 
 | 対象 | 本番の版 | 反映日 |
 | --- | --- | --- |
 | ウェブ | `64c6271f` | 2026-10-02 |
-| Functions（15個） | `e4afce51` | 2026-10-02 |
+| Functions（15個） | `e4afce51`（`opsHealthCheck` だけ `d5c9c19c`） | 2026-10-04 |
 | Firestore のルール | `e4afce51` | 2026-10-02 |
-| Firestore の索引 | `e4afce51` | 2026-10-02 |
+| Firestore の索引・TTL | `d5c9c19c` | 2026-10-04 |
 | Storage のルール | 不明（後から記録） | 2026-09-06 |
 | Remote Config | `4b01c936`（5フラグとも `false`） | 2026-10-01 |
 | Android / iOS | 未公開 | — |
@@ -43,6 +43,8 @@ main には顧客台帳などが入っていたのに、ウェブ版には入っ
 
 | 日付 | 対象 | コミット | 内容 | 誰 |
 | --- | --- | --- | --- | --- |
+| 2026-10-04 | Firestore の TTL | `d5c9c19c` | `client_errors`（90日）・`ops_health_history`（30日）・`ops_reports`（180日）の `expireAt` に TTL。本番の設定で3つとも有効を確認 | AI |
+| 2026-10-04 | Functions（`opsHealthCheck`） | `d5c9c19c` | 記録が無いまま 48 時間を過ぎた定期ジョブを NG にする（起点は次の実行から） | AI |
 | 2026-10-02 | Functions | `e4afce51` | **15個**（新規8：`onPlanRequestCreated`・`onInspectionNoticeCreated`・`unsubscribeNewsletter`・`onMaintenanceRecordWritten`・`onVehicleWrittenForFleetSummary`・`opsHealthCheck`・`opsHealth`・`opsDailyReport`／更新7）。`OPERATOR_EMAIL` を設定後。再試行の設定があるため `--force`（本番の関数はすべてコードにあることを確かめてから） | AI |
 | 2026-10-02 | Firestore のルール・索引 | `e4afce51` | `ops_*` の読み書き禁止、滞留を数える collectionGroup の索引3つ（ルールのテスト 443件・Functions 303件パス後） | AI |
 | 2026-10-02 | Firestore（復元の練習） | — | 2026-10-01T14:41Z のバックアップを新しい DB `restore-drill-20261002` に復元。Console で本番と同じコレクション・文書が戻っていることを確認（手順書 §0-6 が通る）。確認後、削除保護を外して削除した（本番の `(default)` の削除保護・PITR は有効のまま） | AI |
