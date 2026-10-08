@@ -32,7 +32,7 @@ const countArg = args.indexOf('--count');
 const COUNT = countArg >= 0 ? parseInt(args[countArg + 1], 10) : 300;
 
 if (useEmulator) {
-  process.env.FIRESTORE_EMULATOR_HOST = 'localhost:8080';
+  process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080';
 }
 
 const admin = (() => {

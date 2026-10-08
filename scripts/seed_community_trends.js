@@ -38,7 +38,7 @@ const isDryRun    = process.argv.includes('--dry-run');
 const useEmulator = process.argv.includes('--emulator');
 
 if (useEmulator) {
-  process.env.FIRESTORE_EMULATOR_HOST = 'localhost:8080';
+  process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080';
 }
 
 const admin = (() => {
