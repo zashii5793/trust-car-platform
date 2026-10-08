@@ -120,7 +120,12 @@ Future<void> _bootstrap() async {
     // rewrite, which left the client sending unauthenticated reads — every
     // query then failed the `request.auth != null` rule and screens rendered
     // as if the account had no data. Do not add a settings assignment here.
-    FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
+    // 8080 is often taken by other local apps, so the port can be overridden
+    // with `--dart-define=FIRESTORE_EMULATOR_PORT=8085`.
+    FirebaseFirestore.instance.useFirestoreEmulator(
+      'localhost',
+      const int.fromEnvironment('FIRESTORE_EMULATOR_PORT', defaultValue: 8080),
+    );
     // 画像アップロードも Emulator に向ける。これが無いと、Auth と Firestore は
     // ローカルなのに画像だけ本番バケットへ飛び、確認中に本番を汚してしまう。
     await FirebaseStorage.instance.useStorageEmulator('localhost', 9199);
