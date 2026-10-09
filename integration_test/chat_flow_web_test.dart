@@ -230,18 +230,19 @@ void main() {
 
     // **どのスレッドが開くかは一覧の並び次第。** 特定の本文を待つと、
     // 別のスレッドが開いただけで落ちる（2026-09-21 に踏んだ）。
-    // 「工場の吹き出しが出たか」で待つ。
+    // 「工場の吹き出しが出たか」で待つ（差出人は店の名前で出るので、
+    // 文字ではなく見出しのキーで見る。2026-10-09）。
     await _pumpUntil(
       tester,
-      () => _visibleTexts().any((t) => t == '工場'),
+      () => find.byKey(const Key('thread_shop_sender')).evaluate().isNotEmpty,
       maxPumps: 160,
     );
-        // 画面遷移のアニメーションが終わるまで待ってから撮る。
+    // 画面遷移のアニメーションが終わるまで待ってから撮る。
     // 途中を撮ると内容が横にずれ、右端が切れた画像になる。**それを
     // 「吹き出しがはみ出している」というレイアウト不具合と読み違えた**
     // （2026-09-22）。
     await tester.pump(const Duration(seconds: 1));
-await binding.takeScreenshot('flow_07_chat_thread');
+    await binding.takeScreenshot('flow_07_chat_thread');
 
     final threadTexts = _visibleTexts();
     binding.reportData = {
@@ -252,7 +253,7 @@ await binding.takeScreenshot('flow_07_chat_thread');
     // 店舗からの返信が読めること。ルールに弾かれると**空のスレッド**になるので、
     // 「工場」の見出しと、本文が1つ以上あることを見る。
     expect(
-      threadTexts.any((t) => t == '工場'),
+      find.byKey(const Key('thread_shop_sender')).evaluate().isNotEmpty,
       isTrue,
       reason: '店舗からのメッセージが読めていない（空スレッド）。'
           '画面の文字: ${threadTexts.join(' / ')}',

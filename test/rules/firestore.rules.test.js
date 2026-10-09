@@ -4662,3 +4662,161 @@ describe('ops_* — クライアントからは読み書き禁止', () => {
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// 店から届いた整備明細の「記録に追加済み」（2026-10-09 使用感テスト）
+//
+// 取り込み済みを画面の中だけで覚えていたため、スレッドを開き直すと再び
+// 押せる状態に戻っていた。印はメッセージ（店が見る）と記録（sourceMessageId）
+// の両方に残す。印を付けられるのは本人だけ、明細の付いた店のメッセージだけ。
+// 取り込んだ記録の sourceMessageId は、出所の印として後から変えられない。
+// ---------------------------------------------------------------------------
+
+describe('店から届いた整備明細の取り込み済みの印', () => {
+  const detailPath = `inquiries/${MR_INQUIRY_ID}/messages/d_1`;
+  const plainPath = `inquiries/${MR_INQUIRY_ID}/messages/p_1`;
+  const mark = () => ({
+    importedAt: Timestamp.fromDate(new Date('2026-10-09')),
+    importedRecordId: 'shopdetail_x',
+  });
+
+  async function seedDetail() {
+    await seedInquiryFor(MR_USER_UID);
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `shops/${MR_SHOP_UID}`), {
+        name: 'タカヤモーター', ownerId: MR_SHOP_UID,
+      });
+      await setDoc(doc(ctx.firestore(), detailPath), {
+        senderId: MR_SHOP_UID,
+        isFromShop: true,
+        isRead: false,
+        content: '整備明細をお送りします。',
+        maintenancePayload: { title: 'オイル交換', cost: 16500 },
+      });
+      await setDoc(doc(ctx.firestore(), plainPath), {
+        senderId: MR_SHOP_UID,
+        isFromShop: true,
+        isRead: false,
+        content: 'ご来店ありがとうございました',
+      });
+    });
+  }
+
+  test('本人は、明細の付いた店のメッセージに印を付けられる', async () => {
+    await seedDetail();
+    await assertSucceeds(updateDoc(doc(dbFor(MR_USER_UID), detailPath), mark()));
+  });
+
+  test('本人は、既読と印を一緒に付けられる', async () => {
+    await seedDetail();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(MR_USER_UID), detailPath), { ...mark(), isRead: true }),
+    );
+  });
+
+  test('本人は、届いた明細を既読にできる（店に「届いた」と分かる）', async () => {
+    await seedDetail();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(MR_USER_UID), detailPath), {
+        isRead: true,
+        readAt: Timestamp.fromDate(new Date('2026-10-09')),
+      }),
+    );
+  });
+
+  test('店は、送ったメッセージが既読になったか・印が付いたかを読める', async () => {
+    await seedDetail();
+    await assertSucceeds(getDoc(doc(dbFor(MR_SHOP_UID), detailPath)));
+  });
+
+  describe('Edge Cases', () => {
+    test('明細の付いていないメッセージには印を付けられない', async () => {
+      await seedDetail();
+      await assertFails(updateDoc(doc(dbFor(MR_USER_UID), plainPath), mark()));
+    });
+
+    test('印と一緒に明細の中身は変えられない', async () => {
+      await seedDetail();
+      await assertFails(
+        updateDoc(doc(dbFor(MR_USER_UID), detailPath), {
+          ...mark(),
+          maintenancePayload: { title: 'オイル交換', cost: 1 },
+        }),
+      );
+    });
+
+    test('店（送った側）は印を付けられない', async () => {
+      await seedDetail();
+      await assertFails(updateDoc(doc(dbFor(MR_SHOP_UID), detailPath), mark()));
+    });
+
+    test('当事者でない人は印を付けられない', async () => {
+      await seedDetail();
+      await assertFails(updateDoc(doc(dbFor(OTHER_UID), detailPath), mark()));
+    });
+
+    test('印の形が違う（日時でない）ものは付けられない', async () => {
+      await seedDetail();
+      await assertFails(
+        updateDoc(doc(dbFor(MR_USER_UID), detailPath), {
+          importedAt: 'yesterday',
+          importedRecordId: 'shopdetail_x',
+        }),
+      );
+    });
+  });
+});
+
+describe('maintenance_records — 取り込んだ明細の元メッセージ（sourceMessageId）', () => {
+  test('元メッセージ付きで取り込める', async () => {
+    await seedInquiryFor(MR_USER_UID);
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(MR_USER_UID), mrPath),
+        mrDoc({
+          inquiryId: MR_INQUIRY_ID,
+          verificationSource: 'shopImported',
+          sourceMessageId: 'd_1',
+        }),
+      ),
+    );
+  });
+
+  test('取り込んだ記録の元メッセージは、あとから変えられない', async () => {
+    await seedInquiryFor(MR_USER_UID);
+    await seedRecord({
+      inquiryId: MR_INQUIRY_ID,
+      verificationSource: 'shopImported',
+      sourceMessageId: 'd_1',
+    });
+    await assertFails(
+      updateDoc(doc(dbFor(MR_USER_UID), mrPath), { sourceMessageId: 'd_2' }),
+    );
+  });
+
+  describe('Edge Cases', () => {
+    test('元メッセージを消して、二重取り込みの見張りを外すこともできない', async () => {
+      await seedInquiryFor(MR_USER_UID);
+      await seedRecord({
+        inquiryId: MR_INQUIRY_ID,
+        verificationSource: 'shopImported',
+        sourceMessageId: 'd_1',
+      });
+      await assertFails(
+        updateDoc(doc(dbFor(MR_USER_UID), mrPath), { sourceMessageId: null }),
+      );
+    });
+
+    test('元メッセージ付きでも、メモは本人が書ける', async () => {
+      await seedInquiryFor(MR_USER_UID);
+      await seedRecord({
+        inquiryId: MR_INQUIRY_ID,
+        verificationSource: 'shopImported',
+        sourceMessageId: 'd_1',
+      });
+      await assertSucceeds(
+        updateDoc(doc(dbFor(MR_USER_UID), mrPath), { description: 'メモ' }),
+      );
+    });
+  });
+});

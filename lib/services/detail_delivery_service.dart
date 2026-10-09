@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../core/error/app_error.dart';
 import '../core/result/result.dart';
+import '../models/inquiry.dart';
 import '../models/shop_ledger.dart';
 import 'inquiry_maintenance_importer.dart';
 import 'inquiry_service.dart';
@@ -29,6 +30,11 @@ class DetailDraft {
   final String? maker;
   final String? model;
 
+  /// The ledger car the slip is for, and its plate (so the user's app can
+  /// tell which of their cars the detail belongs to).
+  final String? customerVehicleId;
+  final String? plate;
+
   const DetailDraft({
     required this.recordId,
     required this.customerId,
@@ -41,6 +47,8 @@ class DetailDraft {
     this.slipNumber,
     this.maker,
     this.model,
+    this.customerVehicleId,
+    this.plate,
   });
 
   String get vehicleLabel =>
@@ -57,6 +65,9 @@ class DetailDraft {
       mileageAtService: mileage,
       shopName: shopName.isEmpty ? null : shopName,
       description: slipNumber == null ? null : '伝票番号 $slipNumber',
+      vehicleLabel: vehicleLabel.isEmpty ? null : vehicleLabel,
+      licensePlate: plate,
+      ledgerVehicleId: customerVehicleId,
     );
   }
 }
@@ -216,15 +227,100 @@ class DetailDeliveryService {
           slipNumber: m['externalId'] as String?,
           maker: m['maker'] as String?,
           model: m['model'] as String?,
+          customerVehicleId: m['customerVehicleId'] as String?,
         ));
       }
       drafts.sort((a, b) => b.date.compareTo(a.date));
+      final withPlates = await _withPlates(shopId, drafts);
       return Result.success(DetailDeliveryList(
-        drafts: drafts,
+        drafts: withPlates,
         linkedRecords: total,
         sentRecords: sent,
         days: days,
       ));
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  /// Fills in the plate of each draft's ledger car (one read per car; only
+  /// unsent slips of app users, so few). A car that is gone keeps no plate.
+  Future<List<DetailDraft>> _withPlates(
+      String shopId, List<DetailDraft> drafts) async {
+    final ids = {
+      for (final d in drafts)
+        if (d.customerVehicleId != null && d.customerVehicleId!.isNotEmpty)
+          d.customerVehicleId!,
+    };
+    if (ids.isEmpty) return drafts;
+    final col = _firestore
+        .collection('shops')
+        .doc(shopId)
+        .collection('customer_vehicles');
+    final plates = <String, String?>{};
+    await Future.wait(ids.map((id) async {
+      try {
+        final doc = await col.doc(id).get();
+        plates[id] = doc.data()?['plate'] as String?;
+      } catch (_) {
+        plates[id] = null;
+      }
+    }));
+    return [
+      for (final d in drafts)
+        DetailDraft(
+          recordId: d.recordId,
+          customerId: d.customerId,
+          customerName: d.customerName,
+          userId: d.userId,
+          date: d.date,
+          typeText: d.typeText,
+          totalCost: d.totalCost,
+          mileage: d.mileage,
+          slipNumber: d.slipNumber,
+          maker: d.maker,
+          model: d.model,
+          customerVehicleId: d.customerVehicleId,
+          plate: plates[d.customerVehicleId],
+        ),
+    ];
+  }
+
+  /// Details this shop sent to [userId], newest first, with whether they
+  /// reached the user and were added to the records (2026-10-09).
+  Future<Result<List<SentDetail>, AppError>> sentDetails({
+    required String shopId,
+    required String userId,
+    int limit = 50,
+  }) async {
+    if (shopId.isEmpty || userId.isEmpty) {
+      return const Result.failure(AppError.validation('店か送り先が分かりません'));
+    }
+    try {
+      final threads = await _firestore
+          .collection('inquiries')
+          .where('shopId', isEqualTo: shopId)
+          .where('userId', isEqualTo: userId)
+          .get();
+      final out = <SentDetail>[];
+      for (final t in threads.docs) {
+        final msgs = await t.reference
+            .collection('messages')
+            .orderBy('sentAt', descending: true)
+            .limit(200)
+            .get();
+        for (final d in msgs.docs) {
+          final m = InquiryMessage.fromMap(d.data(), d.id);
+          if (!m.hasMaintenanceDetail) continue;
+          out.add(SentDetail(
+            inquiryId: t.id,
+            message: m,
+            payload: InquiryMaintenancePayload.fromMap(m.maintenancePayload!),
+          ));
+        }
+      }
+      out.sort((a, b) => b.message.sentAt.compareTo(a.message.sentAt));
+      return Result.success(out.take(limit).toList());
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
     }
@@ -382,3 +478,42 @@ class DetailDeliveryService {
 }
 
 enum _Outcome { sent, alreadySent, failed }
+
+/// Where a sent detail stands, as far as the shop can tell.
+enum SentDetailStatus {
+  /// In the user's app, not opened yet.
+  delivered('届いています（未読）'),
+
+  /// The user opened the thread.
+  seen('お客さんが開きました'),
+
+  /// The user added it to their records.
+  imported('記録に追加済み');
+
+  final String label;
+  const SentDetailStatus(this.label);
+}
+
+/// A maintenance detail the shop sent.
+class SentDetail {
+  final String inquiryId;
+  final InquiryMessage message;
+  final InquiryMaintenancePayload payload;
+
+  const SentDetail({
+    required this.inquiryId,
+    required this.message,
+    required this.payload,
+  });
+
+  DateTime get sentAt => message.sentAt;
+  DateTime? get importedAt => message.importedAt;
+
+  SentDetailStatus get status => statusOf(message);
+
+  static SentDetailStatus statusOf(InquiryMessage m) {
+    if (m.isDetailImported) return SentDetailStatus.imported;
+    if (m.isRead) return SentDetailStatus.seen;
+    return SentDetailStatus.delivered;
+  }
+}

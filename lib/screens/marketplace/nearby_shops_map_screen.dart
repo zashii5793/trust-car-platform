@@ -265,7 +265,7 @@ class _ShopInfoSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isPartner = shop.isPartner;
+    final isPartner = shop.isOnApp;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),

@@ -15,6 +15,7 @@ import 'package:trust_car_platform/models/maintenance_record.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
+import 'package:trust_car_platform/services/shop_detail_inbox_service.dart';
 
 import '../golden/font_loader.dart';
 
@@ -173,6 +174,17 @@ class MockNotificationProvider extends ChangeNotifier
 
   @override
   List<AppNotification> get topSuggestions => _notifications.take(3).toList();
+
+  @override
+  List<ReceivedShopDetail> get pendingShopDetails => const [];
+
+  int refreshShopDetailsCount = 0;
+
+  @override
+  Future<void> refreshShopDetails() async => refreshShopDetailsCount++;
+
+  @override
+  ReceivedShopDetail? shopDetailFor(AppNotification notification) => null;
 
   // --- tracked calls ---
   String? lastMarkedReadId;

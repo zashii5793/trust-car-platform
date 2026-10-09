@@ -11,6 +11,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
 import 'package:trust_car_platform/core/result/result.dart';
@@ -620,6 +621,60 @@ void main() {
 
         expect(result.isSuccess, isTrue);
         expect(result.valueOrNull, 0);
+      });
+    });
+  });
+
+  // The user's app finds threads with shop details by this count, so a detail
+  // sent into a thread the user opened (not only a shop-opened one) is not
+  // missed on the home card and in the notifications (2026-10-09).
+  group('sendMessage — 明細の件数', () {
+    late FakeFirebaseFirestore fs;
+
+    InquiryService service(String uid) => InquiryService(
+          firestore: fs,
+          auth: MockFirebaseAuth(signedIn: true, mockUser: MockUser(uid: uid)),
+          subscriptionService: ShopSubscriptionService(firestore: fs),
+        );
+
+    setUp(() async {
+      fs = FakeFirebaseFirestore();
+      await fs.collection('inquiries').doc('inq1').set({
+        'userId': 'user1',
+        'shopId': 'shop1',
+        'type': 'general',
+        'status': 'pending',
+        'subject': 's',
+        'initialMessage': 'm',
+        'createdAt': Timestamp.fromDate(DateTime(2026)),
+        'updatedAt': Timestamp.fromDate(DateTime(2026)),
+      });
+    });
+
+    test('店が明細を送ると detailCount が増える', () async {
+      await service('owner').sendMessage(
+        inquiryId: 'inq1',
+        senderId: 'owner',
+        isFromShop: true,
+        content: '明細',
+        maintenancePayload: const {'title': 'オイル交換', 'cost': 1},
+      );
+      final doc = await fs.collection('inquiries').doc('inq1').get();
+      expect(doc.data()!['detailCount'], 1);
+      expect(Inquiry.fromFirestore(doc).mayCarryDetails, isTrue);
+    });
+
+    group('Edge Cases', () {
+      test('明細の無い返信では増えない', () async {
+        await service('owner').sendMessage(
+          inquiryId: 'inq1',
+          senderId: 'owner',
+          isFromShop: true,
+          content: '返信',
+        );
+        final doc = await fs.collection('inquiries').doc('inq1').get();
+        expect(doc.data()!['detailCount'], isNull);
+        expect(Inquiry.fromFirestore(doc).mayCarryDetails, isFalse);
       });
     });
   });

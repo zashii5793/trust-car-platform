@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import '../models/app_notification.dart';
 import '../models/vehicle.dart';
@@ -6,6 +8,8 @@ import '../services/recommendation_service.dart';
 import '../services/firebase_service.dart';
 import '../services/inspection_reminder_service.dart';
 import '../services/notification_state_store.dart';
+import '../services/inquiry_maintenance_importer.dart';
+import '../services/shop_detail_inbox_service.dart';
 import '../core/error/app_error.dart';
 
 /// 通知状態管理Provider
@@ -18,17 +22,30 @@ class NotificationProvider extends ChangeNotifier {
   /// restarts. Optional — when null the provider behaves as in-memory only.
   final NotificationStateStore? _stateStore;
 
+  /// Maintenance details shops sent to the user. Optional — when null no
+  /// shop-detail notifications are produced.
+  final ShopDetailInboxService? _detailInbox;
+
   NotificationProvider({
     required FirebaseService firebaseService,
     required RecommendationService recommendationService,
     InspectionReminderService? inspectionReminderService,
     NotificationStateStore? stateStore,
+    ShopDetailInboxService? detailInbox,
   })  : _firebaseService = firebaseService,
         _recommendationService = recommendationService,
         _inspectionReminderService = inspectionReminderService,
-        _stateStore = stateStore;
+        _stateStore = stateStore,
+        _detailInbox = detailInbox;
 
+  /// Generated suggestions (inspection, maintenance, ...).
   List<AppNotification> _notifications = [];
+
+  /// Shop-sent details not yet added to the records, newest first.
+  List<ReceivedShopDetail> _pendingShopDetails = [];
+
+  /// Notifications for [_pendingShopDetails] (dismissed ones left out).
+  List<AppNotification> _detailNotifications = [];
   bool _isLoading = false;
   AppError? _error;
 
@@ -53,14 +70,85 @@ class NotificationProvider extends ChangeNotifier {
     _stateLoaded = true;
   }
 
-  /// 通知一覧
-  List<AppNotification> get notifications => _notifications;
+  /// 通知一覧（店から届いた明細を先頭に）
+  List<AppNotification> get notifications =>
+      [..._detailNotifications, ..._notifications];
+
+  /// 店から届いて、まだ記録に追加していない明細（ホームのカード用）。
+  List<ReceivedShopDetail> get pendingShopDetails => _pendingShopDetails;
+
+  /// The shop detail behind a notification, or null for other notifications.
+  ReceivedShopDetail? shopDetailFor(AppNotification notification) {
+    final meta = notification.metadata;
+    if (meta?['kind'] != shopDetailKind) return null;
+    for (final d in _pendingShopDetails) {
+      if (d.message.id == meta?['messageId']) return d;
+    }
+    return null;
+  }
+
+  /// Metadata `kind` of a shop-detail notification.
+  static const String shopDetailKind = 'shopDetail';
+
+  /// Deterministic ID, so read / dismissed state survives reloads.
+  static String shopDetailNotificationId(String messageId) =>
+      'shop_detail_$messageId';
+
+  /// 店から届いた明細を読み直す（未取り込みの件数と通知）。
+  ///
+  /// Shown as `system` notifications so existing screens that switch on the
+  /// type need no change, and kept out of [topSuggestions].
+  Future<void> refreshShopDetails() async {
+    final inbox = _detailInbox;
+    final userId = _firebaseService.currentUserId;
+    if (inbox == null || userId == null || userId.isEmpty) return;
+    await _ensureStateLoaded();
+
+    final result = await inbox.pendingDetails(userId);
+    final details = result.valueOrNull;
+    if (details == null) return; // keep what we had; not worth an error
+
+    _pendingShopDetails = details;
+    _detailNotifications = [
+      for (final d in details)
+        if (!_dismissedIds.contains(shopDetailNotificationId(d.message.id)))
+          _toNotification(d, userId),
+    ];
+    notifyListeners();
+  }
+
+  AppNotification _toNotification(ReceivedShopDetail d, String userId) {
+    final id = shopDetailNotificationId(d.message.id);
+    final p = d.payload;
+    final what = [
+      p.vehicleDisplay ?? d.inquiry.vehicleDisplay,
+      p.title.isEmpty ? null : p.title,
+      if (p.cost > 0) formatYen(p.cost),
+    ].whereType<String>().join('・');
+    return AppNotification(
+      id: id,
+      userId: userId,
+      vehicleId: p.vehicleId,
+      type: NotificationType.system,
+      title: '${d.shopName}から整備明細が届きました',
+      message: what.isEmpty ? '「記録に追加」で整備記録に入れられます' : what,
+      reason: '店が出した記録です。記録に追加すると、金額・日付・作業内容は変えられません。',
+      priority: NotificationPriority.high,
+      isRead: _readIds.contains(id),
+      createdAt: d.message.sentAt,
+      metadata: {
+        'kind': shopDetailKind,
+        'inquiryId': d.inquiry.id,
+        'messageId': d.message.id,
+      },
+    );
+  }
 
   /// 未読通知数
-  int get unreadCount => _notifications.where((n) => !n.isRead).length;
+  int get unreadCount => notifications.where((n) => !n.isRead).length;
 
   /// 高優先度の未読通知数
-  int get highPriorityUnreadCount => _notifications
+  int get highPriorityUnreadCount => notifications
       .where((n) => !n.isRead && n.priority == NotificationPriority.high)
       .length;
 
@@ -103,6 +191,8 @@ class NotificationProvider extends ChangeNotifier {
   /// バッチ取得でN+1クエリを最適化
   Future<void> generateNotificationsForVehicles(List<Vehicle> vehicles) async {
     final userId = _firebaseService.currentUserId;
+    // Shop details do not depend on the cars; load them alongside.
+    if (userId != null) unawaited(refreshShopDetails());
     if (userId == null || vehicles.isEmpty) return;
 
     // Schedule OS-level inspection reminders so the user is notified even
@@ -195,11 +285,7 @@ class NotificationProvider extends ChangeNotifier {
 
   /// 通知を既読にする
   Future<void> markAsRead(String notificationId) async {
-    final index = _notifications.indexWhere((n) => n.id == notificationId);
-    if (index != -1) {
-      _notifications[index] = _notifications[index].copyWith(isRead: true);
-      notifyListeners();
-    }
+    if (_setRead(notificationId, true)) notifyListeners();
     _readIds.add(notificationId);
     _persistRead();
   }
@@ -209,11 +295,7 @@ class NotificationProvider extends ChangeNotifier {
   /// カードをタップすると既読になる設計なので、取り消せないと
   /// 「読もうと思っていた通知」を戻す手段が無くなる。
   Future<void> markAsUnread(String notificationId) async {
-    final index = _notifications.indexWhere((n) => n.id == notificationId);
-    if (index != -1) {
-      _notifications[index] = _notifications[index].copyWith(isRead: false);
-      notifyListeners();
-    }
+    if (_setRead(notificationId, false)) notifyListeners();
     _readIds.remove(notificationId);
     _persistRead();
   }
@@ -222,20 +304,35 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> markAllAsRead() async {
     _notifications =
         _notifications.map((n) => n.copyWith(isRead: true)).toList();
+    _detailNotifications =
+        _detailNotifications.map((n) => n.copyWith(isRead: true)).toList();
     notifyListeners();
-    _readIds.addAll(_notifications.map((n) => n.id));
+    _readIds.addAll(notifications.map((n) => n.id));
     _persistRead();
   }
 
   /// 通知を削除
   void removeNotification(String notificationId) {
     _notifications.removeWhere((n) => n.id == notificationId);
+    _detailNotifications.removeWhere((n) => n.id == notificationId);
     notifyListeners();
     _dismissedIds.add(notificationId);
     final store = _stateStore;
     if (store != null) {
       store.saveDismissedIds(_dismissedIds).catchError((_) {});
     }
+  }
+
+  /// Sets the read flag in whichever list holds [id]. True when found.
+  bool _setRead(String id, bool isRead) {
+    for (final list in [_notifications, _detailNotifications]) {
+      final index = list.indexWhere((n) => n.id == id);
+      if (index != -1) {
+        list[index] = list[index].copyWith(isRead: isRead);
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Fire-and-forget persistence of the read-id set.
@@ -255,6 +352,8 @@ class NotificationProvider extends ChangeNotifier {
   /// ログアウト時のクリーンアップ
   void clear() {
     _notifications = [];
+    _pendingShopDetails = [];
+    _detailNotifications = [];
     _isLoading = false;
     _error = null;
     // Reset in-memory persisted state so the next user reloads fresh.

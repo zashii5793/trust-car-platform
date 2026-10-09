@@ -359,6 +359,11 @@ class MaintenanceRecord {
   // 工場連携: 問い合わせスレッド経由で取り込んだ場合の元問い合わせID（トレーサビリティ）
   final String? inquiryId;
 
+  // Message in the inquiry thread this record was imported from. Lets the
+  // import be idempotent (one record per shop detail) and lets the thread show
+  // "already added" after it is reopened.
+  final String? sourceMessageId;
+
   // C1 検証フィールド（moat核心）
   // verificationSource は getter で導出。明示的な上書きが必要な場合のみ _verificationSourceOverride を設定する
   final VerificationSource? _verificationSourceOverride;
@@ -431,6 +436,7 @@ class MaintenanceRecord {
     this.tireTreadDepth,
     // 工場連携
     this.inquiryId,
+    this.sourceMessageId,
     // C1 検証フィールド
     VerificationSource? verificationSourceOverride,
     this.verifiedByShopId,
@@ -485,6 +491,7 @@ class MaintenanceRecord {
       tireTreadDepth: data['tireTreadDepth'] as int?,
       // 工場連携
       inquiryId: data['inquiryId'] as String?,
+      sourceMessageId: data['sourceMessageId'] as String?,
       // C1 検証フィールド
       verificationSourceOverride: data.containsKey('verificationSource')
           ? VerificationSource.fromString(data['verificationSource'] as String?)
@@ -584,6 +591,7 @@ class MaintenanceRecord {
       if (tireTreadDepth != null) 'tireTreadDepth': tireTreadDepth,
       // 工場連携 (only written when non-null)
       if (inquiryId != null) 'inquiryId': inquiryId,
+      if (sourceMessageId != null) 'sourceMessageId': sourceMessageId,
       // C1 検証フィールド
       'verificationSource': verificationSource.name,
       if (verifiedByShopId != null) 'verifiedByShopId': verifiedByShopId,
@@ -690,6 +698,7 @@ class MaintenanceRecord {
       tirePosition: tirePosition,
       tireTreadDepth: tireTreadDepth,
       inquiryId: inquiryId,
+      sourceMessageId: sourceMessageId,
       verificationSourceOverride: _verificationSourceOverride,
       verifiedByShopId: verifiedByShopId,
       verifiedAt: verifiedAt,
@@ -733,6 +742,7 @@ class MaintenanceRecord {
     int? tireTreadDepth,
     // 工場連携
     String? inquiryId,
+    String? sourceMessageId,
     // C1 検証フィールド
     VerificationSource? verificationSourceOverride,
     String? verifiedByShopId,
@@ -777,6 +787,7 @@ class MaintenanceRecord {
       tireTreadDepth: tireTreadDepth ?? this.tireTreadDepth,
       // 工場連携
       inquiryId: inquiryId ?? this.inquiryId,
+      sourceMessageId: sourceMessageId ?? this.sourceMessageId,
       // C1 検証フィールド
       verificationSourceOverride:
           verificationSourceOverride ?? _verificationSourceOverride,

@@ -24,6 +24,7 @@ import 'services/push_notification_service.dart';
 import 'services/fcm_token_service.dart';
 import 'services/inspection_reminder_service.dart';
 import 'services/notification_state_store.dart';
+import 'services/shop_detail_inbox_service.dart';
 import 'providers/vehicle_provider.dart';
 import 'providers/maintenance_provider.dart';
 import 'providers/auth_provider.dart';
@@ -256,6 +257,7 @@ class MyApp extends StatelessWidget {
                   inspectionReminderService:
                       sl.get<InspectionReminderService>(),
                   stateStore: sl.get<NotificationStateStore>(),
+                  detailInbox: sl.get<ShopDetailInboxService>(),
                 )),
         ChangeNotifierProvider(
             create: (_) => PartRecommendationProvider(

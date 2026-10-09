@@ -141,6 +141,36 @@ Future<void> _shopDeliversDetailFlow(
   expect(records.single.isVerified, isTrue);
   expect(records.single.inquiryId, inquiry.id);
 
+  // ---- 山田さん: スレッドを開き直しても「追加済み」。二重に取り込めない ----
+  // （2026-10-09 使用感テスト: 画面の中でしか覚えていなかった）
+  await world.pumpAs(tester, yamada, InquiryThreadScreen(inquiry: inquiry));
+  expect(find.byKey(const Key('import_maintenance_done')), findsOneWidget);
+  expect(find.byKey(const Key('import_maintenance_btn')), findsNothing);
+  final again = await world
+      .firebaseFor(yamada)
+      .getVehicleMaintenanceRecords(car.id)
+      .first;
+  expect(again, hasLength(1));
+
+  // 明細には店が選んだ車（台帳の1台）が入っている
+  final detailMessages = await world.fs
+      .collection('inquiries')
+      .doc(inquiry.id)
+      .collection('messages')
+      .get();
+  final payload = detailMessages.docs
+      .map((d) => d.data()['maintenancePayload'])
+      .firstWhere((p) => p != null) as Map;
+  expect(payload['licensePlate'], '品川300あ1234');
+  expect(payload['vehicleLabel'], 'MINI クーパー');
+
+  // ---- 店主: 顧客を開くと、送った明細が「記録に追加済み」----
+  await world.pumpAs(tester, owner, ledger());
+  await tester.tap(find.text('山田太郎'));
+  await tester.pumpAndSettle();
+  expect(find.byKey(const Key('sent_details_section')), findsOneWidget);
+  expect(find.textContaining('記録に追加済み'), findsOneWidget);
+
   // ---- 店主: 操作の記録に、取込・閲覧・コード発行・明細送付が残っている ----
   await world.pumpAs(
       tester, owner, AuditLogScreen(service: audit, shopId: shopId));

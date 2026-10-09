@@ -152,7 +152,7 @@ class _InquiryScreenState extends State<InquiryScreen> {
     }
 
     // Issue #41 Phase 2: non-partner shops record demand instead of real inquiry
-    if (!widget.shop.isPartner) {
+    if (!widget.shop.isOnApp) {
       await _recordDemand(userId: userId);
       return;
     }

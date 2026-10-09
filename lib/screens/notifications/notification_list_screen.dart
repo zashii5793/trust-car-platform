@@ -11,6 +11,7 @@ import '../../core/constants/spacing.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../vehicle_detail_screen.dart';
+import '../marketplace/inquiry_thread_screen.dart';
 
 /// 通知一覧。
 ///
@@ -75,6 +76,21 @@ class NotificationListScreen extends StatelessWidget {
                         notification: notification,
                         onTap: () {
                           provider.markAsRead(notification.id);
+                          // A shop-sent detail opens the thread with the
+                          // detail, where it can be added to the records.
+                          final detail = provider.shopDetailFor(notification);
+                          if (detail != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => InquiryThreadScreen(
+                                  inquiry: detail.inquiry,
+                                  focusMessageId: detail.message.id,
+                                ),
+                              ),
+                            );
+                            return;
+                          }
                           _showNotificationDetail(context, notification);
                         },
                         onDismiss: () {
@@ -287,8 +303,13 @@ class NotificationListScreen extends StatelessWidget {
   }
 
   Widget _buildTypeIcon(AppNotification notification) {
-    final color = _getTypeColor(notification.type);
-    final icon = _getTypeIcon(notification.type);
+    final isShopDetail =
+        notification.metadata?['kind'] == NotificationProvider.shopDetailKind;
+    final color =
+        isShopDetail ? AppColors.primary : _getTypeColor(notification.type);
+    final icon = isShopDetail
+        ? Icons.receipt_long_outlined
+        : _getTypeIcon(notification.type);
 
     return CircleAvatar(
       backgroundColor: color,
@@ -433,7 +454,10 @@ class _NotificationCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final priorityColor = _getPriorityColor(notification.priority);
-    final typeColor = _getTypeColor(notification.type);
+    final isShopDetail =
+        notification.metadata?['kind'] == NotificationProvider.shopDetailKind;
+    final typeColor =
+        isShopDetail ? AppColors.primary : _getTypeColor(notification.type);
 
     return Semantics(
       label: '${notification.title}。左スワイプで削除、右スワイプで既読',
@@ -564,8 +588,12 @@ class _NotificationCard extends StatelessWidget {
                         color: typeColor.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(_getTypeIcon(notification.type),
-                          color: typeColor, size: 22),
+                      child: Icon(
+                          isShopDetail
+                              ? Icons.receipt_long_outlined
+                              : _getTypeIcon(notification.type),
+                          color: typeColor,
+                          size: 22),
                     ),
                   ),
                   // コンテンツ
