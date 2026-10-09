@@ -25,7 +25,33 @@ class VehicleProvider with ChangeNotifier {
   AppError? _error;
   StreamSubscription<List<Vehicle>>? _vehiclesSubscription;
 
-  List<Vehicle> get vehicles => _vehicles;
+  /// Vehicles the user still owns (status == active).
+  ///
+  /// Retired vehicles (sold / scrapped / transferred / lease returned) stay in
+  /// Firestore so their records can be kept, but they must not show up as
+  /// everyday cars: home cards, the vehicle count and the inspection nags all
+  /// read from this list.
+  List<Vehicle> get vehicles =>
+      allVehicles.where((v) => !v.status.isRetired).toList(growable: false);
+
+  /// Every vehicle the user has, active and retired, as streamed.
+  List<Vehicle> get allVehicles => _vehicles;
+
+  /// Vehicles the user has let go of, newest retirement first.
+  List<Vehicle> get retiredVehicles =>
+      allVehicles.where((v) => v.status.isRetired).toList()
+        ..sort((a, b) =>
+            (b.retiredAt ?? DateTime(0)).compareTo(a.retiredAt ?? DateTime(0)));
+
+  /// Looks up any vehicle (active or retired) by id. Null when unknown.
+  Vehicle? vehicleById(String id) {
+    if (id.isEmpty) return null;
+    for (final v in allVehicles) {
+      if (v.id == id) return v;
+    }
+    return null;
+  }
+
   Vehicle? get selectedVehicle => _selectedVehicle;
   bool get isLoading => _isLoading;
 

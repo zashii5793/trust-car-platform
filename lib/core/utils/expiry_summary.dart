@@ -1,4 +1,5 @@
 import '../../models/vehicle.dart';
+import 'calendar_days.dart';
 import 'inspection_urgency.dart';
 
 /// Kind of upcoming deadline tracked for a vehicle.
@@ -46,7 +47,7 @@ List<ExpiryItem> vehicleExpiryItems(Vehicle vehicle, {DateTime? now}) {
     items.add(ExpiryItem(
       kind: kind,
       date: date,
-      days: date.difference(base).inDays,
+      days: calendarDaysUntil(date, now: base),
     ));
   }
 

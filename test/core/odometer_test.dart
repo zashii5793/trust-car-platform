@@ -128,4 +128,137 @@ void main() {
       expect(OdometerIssue.outOfRange.isBlocking, isTrue);
     });
   });
+
+  // 使用感テスト（2026-10-09）: 車の走行距離 32,000km に対して、今日の
+  // 整備記録に 10,000km を入れても何も言われずに保存された。
+  //
+  // 過去の日付の記録なら、小さい値は正しい。日付と前後の記録を見て、
+  // **矛盾するときだけ**理由の分かる言葉で確認させる。
+  group('OdometerCheck.againstHistory — 日付つきの前後の記録と比べる', () {
+    final car = OdometerReading(
+      date: DateTime(2026, 10, 1),
+      km: 32000,
+      label: '車の走行距離',
+    );
+    final spring = OdometerReading(
+      date: DateTime(2026, 4, 10),
+      km: 28000,
+      label: 'オイル交換',
+    );
+
+    test('今日の記録で、車の走行距離より小さいと確認させる', () {
+      final r = OdometerCheck.againstHistory(
+        value: 10000,
+        date: DateTime(2026, 10, 9),
+        readings: [car, spring],
+      );
+      expect(r.severity, OdometerIssue.wentBackwards);
+      expect(r.message, contains('32,000km'));
+      expect(r.message, contains('2026/10/01'));
+      expect(r.message, contains('小さい'));
+    });
+
+    test('過去の日付で、その時点までの記録と矛盾しなければ問題なし', () {
+      final r = OdometerCheck.againstHistory(
+        value: 10000,
+        date: DateTime(2024, 6, 1),
+        readings: [car, spring],
+      );
+      expect(r.hasProblem, isFalse);
+    });
+
+    test('前の記録より小さいと確認させる（前の記録の名前と日付を言う）', () {
+      final r = OdometerCheck.againstHistory(
+        value: 20000,
+        date: DateTime(2026, 6, 1),
+        readings: [spring],
+      );
+      expect(r.severity, OdometerIssue.wentBackwards);
+      expect(r.message, contains('オイル交換'));
+      expect(r.message, contains('2026/04/10'));
+      expect(r.message, contains('28,000km'));
+    });
+
+    test('あとの記録より大きいと確認させる', () {
+      final r = OdometerCheck.againstHistory(
+        value: 30000,
+        date: DateTime(2026, 1, 1),
+        readings: [spring],
+      );
+      expect(r.severity, OdometerIssue.wentBackwards);
+      expect(r.message, contains('大きい'));
+      expect(r.message, contains('2026/04/10'));
+    });
+
+    test('前後の記録の間に収まっていれば問題なし', () {
+      final r = OdometerCheck.againstHistory(
+        value: 30000,
+        date: DateTime(2026, 7, 1),
+        readings: [car, spring],
+      );
+      expect(r.hasProblem, isFalse);
+    });
+
+    group('Edge Cases', () {
+      test('比べる記録が無ければ問題なし', () {
+        final r = OdometerCheck.againstHistory(
+          value: 10000,
+          date: DateTime(2026, 10, 9),
+          readings: const [],
+        );
+        expect(r.hasProblem, isFalse);
+      });
+
+      test('同じ日の記録と同じ値は問題なし', () {
+        final r = OdometerCheck.againstHistory(
+          value: 32000,
+          date: DateTime(2026, 10, 1, 18),
+          readings: [car],
+        );
+        expect(r.hasProblem, isFalse);
+      });
+
+      test('同じ日の記録より大きく小さいと確認させる（時刻の違いで見逃さない）', () {
+        final r = OdometerCheck.againstHistory(
+          value: 29000,
+          date: DateTime(2026, 10, 1),
+          readings: [
+            OdometerReading(
+              date: DateTime(2026, 10, 1, 21),
+              km: 32000,
+              label: '車の走行距離',
+            ),
+          ],
+        );
+        expect(r.severity, OdometerIssue.wentBackwards);
+      });
+
+      test('同じ日の少しの差は問わない（朝の整備と夜の更新）', () {
+        final r = OdometerCheck.againstHistory(
+          value: 31800,
+          date: DateTime(2026, 10, 1),
+          readings: [car],
+        );
+        expect(r.hasProblem, isFalse);
+      });
+
+      test('範囲外は前後の記録より先に言う', () {
+        final r = OdometerCheck.againstHistory(
+          value: -1,
+          date: DateTime(2026, 10, 9),
+          readings: [car],
+        );
+        expect(r.severity, OdometerIssue.outOfRange);
+      });
+
+      test('0km は過去の日付なら通る（新車の最初の記録）', () {
+        final r = OdometerCheck.againstHistory(
+          value: 0,
+          date: DateTime(2020, 1, 1),
+          readings: [car],
+        );
+        expect(r.hasProblem, isFalse);
+      });
+    });
+  });
 }

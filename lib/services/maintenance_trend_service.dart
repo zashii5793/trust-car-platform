@@ -1,3 +1,4 @@
+import '../core/utils/calendar_days.dart';
 import '../models/maintenance_record.dart';
 
 enum TrendConfidence { high, medium, low }
@@ -77,8 +78,12 @@ class MaintenanceTrendService {
         }
       }
 
-      final avgCost =
-          typeRecords.map((r) => r.cost).reduce((a, b) => a + b) / sampleCount;
+      // Records without an amount say nothing about the price; leave them
+      // out instead of averaging them in as ¥0.
+      final costed = typeRecords.where((r) => r.hasCost).toList();
+      final avgCost = costed.isEmpty
+          ? null
+          : costed.map((r) => r.cost).reduce((a, b) => a + b) / costed.length;
 
       DateTime? predictedNextDate;
       int? predictedNextMileage;
@@ -111,6 +116,36 @@ class MaintenanceTrendService {
   }
 
   /// Sorts insights by urgency (overdue first, then soonest upcoming).
+  /// Replaces the interval guess for 車検 with the actual expiry date.
+  ///
+  /// The certificate's expiry is a fact; two past inspections a few months
+  /// off the 2-year cycle made the guess say 「62日過ぎています」 on the same
+  /// screen that showed 149 days left (usability test 2026-10-09).
+  List<MaintenanceTrendInsight> withInspectionDeadline(
+    List<MaintenanceTrendInsight> insights,
+    DateTime? inspectionExpiryDate,
+  ) {
+    if (inspectionExpiryDate == null) return insights;
+    return [
+      for (final i in insights)
+        if (i.type == MaintenanceType.carInspection)
+          MaintenanceTrendInsight(
+            type: i.type,
+            averageIntervalKm: i.averageIntervalKm,
+            averageIntervalDays: i.averageIntervalDays,
+            lastServiceDate: i.lastServiceDate,
+            lastServiceMileage: i.lastServiceMileage,
+            predictedNextDate: inspectionExpiryDate,
+            predictedNextMileage: null,
+            averageCost: i.averageCost,
+            sampleCount: i.sampleCount,
+            confidence: TrendConfidence.high,
+          )
+        else
+          i,
+    ];
+  }
+
   List<MaintenanceTrendInsight> sortByUrgency(
     List<MaintenanceTrendInsight> insights, {
     DateTime? currentDate,
@@ -164,6 +199,6 @@ class MaintenanceTrendService {
     if (insight.predictedNextDate == null) {
       return 9999;
     }
-    return insight.predictedNextDate!.difference(now).inDays;
+    return calendarDaysUntil(insight.predictedNextDate!, now: now);
   }
 }

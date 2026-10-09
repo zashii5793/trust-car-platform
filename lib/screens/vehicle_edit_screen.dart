@@ -491,6 +491,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   }
 
   Future<void> _updateVehicle() async {
+    // Same guard as registration: a quick double tap must not save twice.
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -948,14 +950,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                             });
                             _onFieldChanged();
                           },
-                          validator: (value) {
-                            if (value == null &&
-                                _selectedGrade == null &&
-                                !_masterDataLoading) {
-                              return 'グレードを選択';
-                            }
-                            return null;
-                          },
+                          // Optional, as at registration: a car registered
+                          // without a grade must still be editable.
+                          isRequired: false,
                         ),
                       ),
                     ],

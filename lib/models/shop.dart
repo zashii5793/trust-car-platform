@@ -276,6 +276,16 @@ class Shop {
       subscriptionStatus == ShopSubscriptionStatus.active ||
       subscriptionStatus == ShopSubscriptionStatus.trialing;
 
+  /// Whether the shop is on the app: a paid plan, or an owner using the app
+  /// (the customer ledger, inquiries). Such a shop can be reached from the
+  /// app and must not be labelled "アプリ未提携".
+  ///
+  /// [isPartner] stays the paid-plan check (demand card, map placement).
+  /// Before 2026-10-09 the shop page used [isPartner] alone, so a shop with an
+  /// owner on the free plan (タカヤモーター) showed "認証済み" next to
+  /// "アプリ未提携の工場です".
+  bool get isOnApp => isPartner || (ownerId?.trim().isNotEmpty ?? false);
+
   /// Get display address
   String get displayAddress {
     final parts = <String>[];

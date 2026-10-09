@@ -212,6 +212,7 @@ class _StaffManageScreenState extends State<StaffManageScreen> {
                 title: Text(m.displayName),
                 subtitle: Text([
                   m.isOwner ? '店主' : 'スタッフ',
+                  if (m.email != null && m.email != m.displayName) m.email!,
                   if (m.addedAt != null) '${ledgerDate(m.addedAt!)} から',
                 ].join('・')),
                 trailing: m.isOwner || m.uid == widget.ownerUid
@@ -243,11 +244,15 @@ class StaffJoinScreen extends StatefulWidget {
   final String uid;
   final String displayName;
 
+  /// Shown to the owner next to the name (the name may be empty).
+  final String? email;
+
   const StaffJoinScreen({
     super.key,
     required this.service,
     required this.uid,
     required this.displayName,
+    this.email,
   });
 
   @override
@@ -274,6 +279,7 @@ class _StaffJoinScreenState extends State<StaffJoinScreen> {
       code: _code.text,
       uid: widget.uid,
       displayName: widget.displayName,
+      email: widget.email,
     );
     if (!mounted) return;
     r.when(

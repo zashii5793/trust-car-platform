@@ -54,9 +54,13 @@ const PASSWORD = 'password123';
 
 const app = initializeApp({ projectId: 'trust-car-platform', apiKey: 'demo-key' });
 const auth = getAuth(app);
-connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+connectAuthEmulator(auth, `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST || 'localhost:9099'}`, { disableWarnings: true });
 const db = getFirestore(app);
-connectFirestoreEmulator(db, 'localhost', 8080);
+{
+  // ポートが塞がれている端末向けに、FIRESTORE_EMULATOR_HOST で差し替えられるようにする
+  const [fsHost, fsPort] = (process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080').split(':');
+  connectFirestoreEmulator(db, fsHost, Number(fsPort));
+}
 
 const results = [];
 let currentPersona = '';
@@ -357,8 +361,13 @@ async function main() {
       count(query(collection(db, 'vehicles'), where('userId', '==', uid))),
       (n) => n >= 1);
     // 記録0件でも「拒否」ではなく「0件」で返ること。空表示の前提。
-    await check('整備記録0件が、拒否ではなく0件で返る', () =>
-      count(query(collection(db, 'maintenance_records'), where('userId', '==', uid))),
+    // seed_shop_ledger_year.js（使用感テスト用の台帳シード）を流した環境では、
+    // J は店から届いた明細を1件取り込み、店から開いたスレッドを1本持つ。
+    // それは除いて「自分では何も記録していない」ことを見る。
+    const notLedgerSeed = (snap) =>
+      snap.docs.filter((d) => d.get('seedTag') !== 'shop_ledger_year_v1').length;
+    await check('整備記録0件が、拒否ではなく0件で返る', async () =>
+      notLedgerSeed(await getDocs(query(collection(db, 'maintenance_records'), where('userId', '==', uid)))),
       (n) => n === 0);
     await check('ドライブログ0件が、拒否ではなく0件で返る', () =>
       count(query(
@@ -367,12 +376,12 @@ async function main() {
         orderBy('startTime', 'desc'),
         limit(20),
       )), (n) => n === 0);
-    await check('問い合わせ0件が、拒否ではなく0件で返る', () =>
-      count(query(
+    await check('問い合わせ0件が、拒否ではなく0件で返る', async () =>
+      notLedgerSeed(await getDocs(query(
         collection(db, 'inquiries'),
         where('userId', '==', uid),
         orderBy('updatedAt', 'desc'),
-      )), (n) => n === 0);
+      ))), (n) => n === 0);
   });
 
   // -------------------------------------------------------------------------

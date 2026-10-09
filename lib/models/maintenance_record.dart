@@ -313,7 +313,14 @@ class MaintenanceRecord {
   final MaintenanceType type;
   final String title;
   final String? description;
+
+  /// Amount paid, in yen. 0 when not recorded — check [hasCost] before
+  /// showing it, and leave unrecorded ones out of averages.
   final int cost;
+
+  /// False when the person left the amount empty (they did not remember).
+  /// Stored as `cost: null`, shown as 「未入力」, never as ¥0.
+  final bool hasCost;
   final String? shopName;
   final DateTime date;
   final int? mileageAtService;
@@ -352,6 +359,11 @@ class MaintenanceRecord {
   // 工場連携: 問い合わせスレッド経由で取り込んだ場合の元問い合わせID（トレーサビリティ）
   final String? inquiryId;
 
+  // Message in the inquiry thread this record was imported from. Lets the
+  // import be idempotent (one record per shop detail) and lets the thread show
+  // "already added" after it is reopened.
+  final String? sourceMessageId;
+
   // C1 検証フィールド（moat核心）
   // verificationSource は getter で導出。明示的な上書きが必要な場合のみ _verificationSourceOverride を設定する
   final VerificationSource? _verificationSourceOverride;
@@ -369,6 +381,20 @@ class MaintenanceRecord {
     return VerificationSource.selfReported;
   }
 
+  /// The amount as shown to people: 「¥15,000」, or 「未入力」 when empty.
+  String get costLabel {
+    if (!hasCost) return '未入力';
+    final digits = cost.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0 && digits[i - 1] != '-') {
+        buf.write(',');
+      }
+      buf.write(digits[i]);
+    }
+    return '¥$buf';
+  }
+
   /// 工場が関与した記録かどうか（shopImported または shopVerified）
   bool get isVerified => verificationSource != VerificationSource.selfReported;
 
@@ -380,6 +406,7 @@ class MaintenanceRecord {
     required this.title,
     this.description,
     required this.cost,
+    this.hasCost = true,
     this.shopName,
     required this.date,
     this.mileageAtService,
@@ -409,6 +436,7 @@ class MaintenanceRecord {
     this.tireTreadDepth,
     // 工場連携
     this.inquiryId,
+    this.sourceMessageId,
     // C1 検証フィールド
     VerificationSource? verificationSourceOverride,
     this.verifiedByShopId,
@@ -425,7 +453,9 @@ class MaintenanceRecord {
       type: _parseMaintenanceType(data['type']),
       title: data['title'] ?? '',
       description: data['description'],
-      cost: data['cost'] ?? 0,
+      cost: (data['cost'] as num?)?.toInt() ?? 0,
+      // Older records and ones saved without an amount have no number.
+      hasCost: data['cost'] is num,
       shopName: data['shopName'],
       date: _parseTimestamp(data['date']),
       mileageAtService: data['mileageAtService'],
@@ -461,6 +491,7 @@ class MaintenanceRecord {
       tireTreadDepth: data['tireTreadDepth'] as int?,
       // 工場連携
       inquiryId: data['inquiryId'] as String?,
+      sourceMessageId: data['sourceMessageId'] as String?,
       // C1 検証フィールド
       verificationSourceOverride: data.containsKey('verificationSource')
           ? VerificationSource.fromString(data['verificationSource'] as String?)
@@ -528,7 +559,7 @@ class MaintenanceRecord {
       'type': type.name, // 文字列で保存（新形式）
       'title': title,
       'description': description,
-      'cost': cost,
+      'cost': hasCost ? cost : null,
       'shopName': shopName,
       'date': Timestamp.fromDate(date),
       'mileageAtService': mileageAtService,
@@ -560,6 +591,7 @@ class MaintenanceRecord {
       if (tireTreadDepth != null) 'tireTreadDepth': tireTreadDepth,
       // 工場連携 (only written when non-null)
       if (inquiryId != null) 'inquiryId': inquiryId,
+      if (sourceMessageId != null) 'sourceMessageId': sourceMessageId,
       // C1 検証フィールド
       'verificationSource': verificationSource.name,
       if (verifiedByShopId != null) 'verifiedByShopId': verifiedByShopId,
@@ -622,7 +654,7 @@ class MaintenanceRecord {
     required MaintenanceType type,
     required String title,
     required String? description,
-    required int cost,
+    required int? cost,
     required String? shopName,
     required DateTime date,
     required int? mileageAtService,
@@ -639,7 +671,8 @@ class MaintenanceRecord {
       type: locked ? this.type : type,
       title: locked ? this.title : title,
       description: description,
-      cost: locked ? this.cost : cost,
+      cost: locked ? this.cost : (cost ?? 0),
+      hasCost: locked ? hasCost : cost != null,
       shopName: locked ? this.shopName : shopName,
       date: locked ? this.date : date,
       mileageAtService: locked ? this.mileageAtService : mileageAtService,
@@ -665,6 +698,7 @@ class MaintenanceRecord {
       tirePosition: tirePosition,
       tireTreadDepth: tireTreadDepth,
       inquiryId: inquiryId,
+      sourceMessageId: sourceMessageId,
       verificationSourceOverride: _verificationSourceOverride,
       verifiedByShopId: verifiedByShopId,
       verifiedAt: verifiedAt,
@@ -679,6 +713,7 @@ class MaintenanceRecord {
     String? title,
     String? description,
     int? cost,
+    bool? hasCost,
     String? shopName,
     DateTime? date,
     int? mileageAtService,
@@ -707,6 +742,7 @@ class MaintenanceRecord {
     int? tireTreadDepth,
     // 工場連携
     String? inquiryId,
+    String? sourceMessageId,
     // C1 検証フィールド
     VerificationSource? verificationSourceOverride,
     String? verifiedByShopId,
@@ -720,6 +756,7 @@ class MaintenanceRecord {
       title: title ?? this.title,
       description: description ?? this.description,
       cost: cost ?? this.cost,
+      hasCost: hasCost ?? this.hasCost,
       shopName: shopName ?? this.shopName,
       date: date ?? this.date,
       mileageAtService: mileageAtService ?? this.mileageAtService,
@@ -750,6 +787,7 @@ class MaintenanceRecord {
       tireTreadDepth: tireTreadDepth ?? this.tireTreadDepth,
       // 工場連携
       inquiryId: inquiryId ?? this.inquiryId,
+      sourceMessageId: sourceMessageId ?? this.sourceMessageId,
       // C1 検証フィールド
       verificationSourceOverride:
           verificationSourceOverride ?? _verificationSourceOverride,

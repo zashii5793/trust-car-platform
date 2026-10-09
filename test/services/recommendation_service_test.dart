@@ -119,8 +119,10 @@ void main() {
 
     test('車検まで7日 → high priority & メッセージに日数', () {
       final v = _makeVehicle(
-        inspectionExpiryDate:
-            DateTime.now().add(const Duration(days: 7, hours: 12)),
+        // Seven calendar days ahead. Days are counted date to date
+        // (2026-10-09), so `now + 7d12h` would be 8 days after noon.
+        inspectionExpiryDate: DateTime(DateTime.now().year,
+            DateTime.now().month, DateTime.now().day + 7, 12),
       );
       final result = service.generateRecommendations(
         vehicle: v,

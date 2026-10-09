@@ -58,8 +58,10 @@ beforeAll(async () => {
         path.resolve(__dirname, '../../firestore.rules'),
         'utf8',
       ),
-      host: 'localhost',
-      port: 8080,
+      // FIRESTORE_EMULATOR_HOST があればそこへ（8080 が別のアプリに
+      // 塞がれている端末で、別ポートのエミュレータに向けるため）
+      host: (process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080').split(':')[0],
+      port: Number((process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080').split(':')[1]),
     },
   });
 });
@@ -2378,6 +2380,37 @@ async function seedLedgerCustomer(overrides = {}) {
 }
 
 describe('shops/{id}/customers — 顧客台帳', () => {
+  // 漢字・姓名・電話番号で探すための前方一致のキー（2026-10-09）
+  describe('検索用のキー', () => {
+    test('スタッフは検索用のキーを書ける（既存の顧客への書き足しも）', async () => {
+      await seedLedgerShop();
+      await assertSucceeds(
+        setDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerCustomerPath), ledgerCustomer({
+          searchKeys: ['青', '青木', 'あ', 'あお'], searchVersion: 2,
+        })),
+      );
+      await assertSucceeds(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerCustomerPath), {
+          searchKeys: ['青'], searchVersion: 2,
+        }),
+      );
+    });
+
+    test('リストでないもの・多すぎるものは書けない（索引を膨らませない）', async () => {
+      await seedLedgerShop();
+      await assertFails(
+        setDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerCustomerPath), ledgerCustomer({
+          searchKeys: '青木',
+        })),
+      );
+      await assertFails(
+        setDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerCustomerPath), ledgerCustomer({
+          searchKeys: Array.from({ length: 201 }, (_, i) => `k${i}`),
+        })),
+      );
+    });
+  });
+
   test('店主は顧客を登録できる（docId が uid でない店でも）', async () => {
     await seedLedgerShop();
     await assertSucceeds(
@@ -2580,6 +2613,85 @@ describe('shops/{id}/customer_vehicles — 台帳の車両', () => {
         updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
           inspectionNoticeAt: new Date('2026-09-30'),
           inspectionNoticeExpiry: 'いつか',
+        }),
+      );
+    });
+  });
+
+  // ナンバー末尾2〜4桁で探すためのキー（2026-10-09）
+  describe('ナンバー末尾のキー', () => {
+    async function seedVehicle() {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), ledgerVehiclePath), ledgerVehicle());
+      });
+    }
+
+    test('スタッフは末尾のキーを書ける', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertSucceeds(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          plateTails: ['35', '335', '6335'], searchVersion: 2,
+        }),
+      );
+    });
+
+    test('リストでないもの・多すぎるものは書けない', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertFails(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), { plateTails: '35' }),
+      );
+      await assertFails(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          plateTails: ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
+        }),
+      );
+    });
+  });
+
+  // 整備履歴の取込で、最後の車検日と、それがどの満了日の分かを写す
+  // （2026-10-09。取りこぼしの集計が伝票を読まずに済むように）
+  describe('最後の車検日', () => {
+    async function seedVehicle() {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), ledgerVehiclePath), ledgerVehicle());
+      });
+    }
+
+    test('スタッフは日付で付けられる', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertSucceeds(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          lastInspectionAt: new Date('2026-04-20'),
+          lastInspectionDueAt: new Date('2026-05-10'),
+        }),
+      );
+    });
+
+    test('車検の記録が無い車には null で付けられる', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertSucceeds(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          lastInspectionAt: null,
+          lastInspectionDueAt: null,
+        }),
+      );
+    });
+
+    test('日付でない値は入れられない（集計の数を狂わせない）', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertFails(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          lastInspectionAt: '2026-04-20',
+        }),
+      );
+      await assertFails(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          lastInspectionDueAt: 20260510,
         }),
       );
     });
@@ -4549,4 +4661,162 @@ describe('ops_* — クライアントからは読み書き禁止', () => {
       });
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// 店から届いた整備明細の「記録に追加済み」（2026-10-09 使用感テスト）
+//
+// 取り込み済みを画面の中だけで覚えていたため、スレッドを開き直すと再び
+// 押せる状態に戻っていた。印はメッセージ（店が見る）と記録（sourceMessageId）
+// の両方に残す。印を付けられるのは本人だけ、明細の付いた店のメッセージだけ。
+// 取り込んだ記録の sourceMessageId は、出所の印として後から変えられない。
+// ---------------------------------------------------------------------------
+
+describe('店から届いた整備明細の取り込み済みの印', () => {
+  const detailPath = `inquiries/${MR_INQUIRY_ID}/messages/d_1`;
+  const plainPath = `inquiries/${MR_INQUIRY_ID}/messages/p_1`;
+  const mark = () => ({
+    importedAt: Timestamp.fromDate(new Date('2026-10-09')),
+    importedRecordId: 'shopdetail_x',
+  });
+
+  async function seedDetail() {
+    await seedInquiryFor(MR_USER_UID);
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `shops/${MR_SHOP_UID}`), {
+        name: 'タカヤモーター', ownerId: MR_SHOP_UID,
+      });
+      await setDoc(doc(ctx.firestore(), detailPath), {
+        senderId: MR_SHOP_UID,
+        isFromShop: true,
+        isRead: false,
+        content: '整備明細をお送りします。',
+        maintenancePayload: { title: 'オイル交換', cost: 16500 },
+      });
+      await setDoc(doc(ctx.firestore(), plainPath), {
+        senderId: MR_SHOP_UID,
+        isFromShop: true,
+        isRead: false,
+        content: 'ご来店ありがとうございました',
+      });
+    });
+  }
+
+  test('本人は、明細の付いた店のメッセージに印を付けられる', async () => {
+    await seedDetail();
+    await assertSucceeds(updateDoc(doc(dbFor(MR_USER_UID), detailPath), mark()));
+  });
+
+  test('本人は、既読と印を一緒に付けられる', async () => {
+    await seedDetail();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(MR_USER_UID), detailPath), { ...mark(), isRead: true }),
+    );
+  });
+
+  test('本人は、届いた明細を既読にできる（店に「届いた」と分かる）', async () => {
+    await seedDetail();
+    await assertSucceeds(
+      updateDoc(doc(dbFor(MR_USER_UID), detailPath), {
+        isRead: true,
+        readAt: Timestamp.fromDate(new Date('2026-10-09')),
+      }),
+    );
+  });
+
+  test('店は、送ったメッセージが既読になったか・印が付いたかを読める', async () => {
+    await seedDetail();
+    await assertSucceeds(getDoc(doc(dbFor(MR_SHOP_UID), detailPath)));
+  });
+
+  describe('Edge Cases', () => {
+    test('明細の付いていないメッセージには印を付けられない', async () => {
+      await seedDetail();
+      await assertFails(updateDoc(doc(dbFor(MR_USER_UID), plainPath), mark()));
+    });
+
+    test('印と一緒に明細の中身は変えられない', async () => {
+      await seedDetail();
+      await assertFails(
+        updateDoc(doc(dbFor(MR_USER_UID), detailPath), {
+          ...mark(),
+          maintenancePayload: { title: 'オイル交換', cost: 1 },
+        }),
+      );
+    });
+
+    test('店（送った側）は印を付けられない', async () => {
+      await seedDetail();
+      await assertFails(updateDoc(doc(dbFor(MR_SHOP_UID), detailPath), mark()));
+    });
+
+    test('当事者でない人は印を付けられない', async () => {
+      await seedDetail();
+      await assertFails(updateDoc(doc(dbFor(OTHER_UID), detailPath), mark()));
+    });
+
+    test('印の形が違う（日時でない）ものは付けられない', async () => {
+      await seedDetail();
+      await assertFails(
+        updateDoc(doc(dbFor(MR_USER_UID), detailPath), {
+          importedAt: 'yesterday',
+          importedRecordId: 'shopdetail_x',
+        }),
+      );
+    });
+  });
+});
+
+describe('maintenance_records — 取り込んだ明細の元メッセージ（sourceMessageId）', () => {
+  test('元メッセージ付きで取り込める', async () => {
+    await seedInquiryFor(MR_USER_UID);
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(MR_USER_UID), mrPath),
+        mrDoc({
+          inquiryId: MR_INQUIRY_ID,
+          verificationSource: 'shopImported',
+          sourceMessageId: 'd_1',
+        }),
+      ),
+    );
+  });
+
+  test('取り込んだ記録の元メッセージは、あとから変えられない', async () => {
+    await seedInquiryFor(MR_USER_UID);
+    await seedRecord({
+      inquiryId: MR_INQUIRY_ID,
+      verificationSource: 'shopImported',
+      sourceMessageId: 'd_1',
+    });
+    await assertFails(
+      updateDoc(doc(dbFor(MR_USER_UID), mrPath), { sourceMessageId: 'd_2' }),
+    );
+  });
+
+  describe('Edge Cases', () => {
+    test('元メッセージを消して、二重取り込みの見張りを外すこともできない', async () => {
+      await seedInquiryFor(MR_USER_UID);
+      await seedRecord({
+        inquiryId: MR_INQUIRY_ID,
+        verificationSource: 'shopImported',
+        sourceMessageId: 'd_1',
+      });
+      await assertFails(
+        updateDoc(doc(dbFor(MR_USER_UID), mrPath), { sourceMessageId: null }),
+      );
+    });
+
+    test('元メッセージ付きでも、メモは本人が書ける', async () => {
+      await seedInquiryFor(MR_USER_UID);
+      await seedRecord({
+        inquiryId: MR_INQUIRY_ID,
+        verificationSource: 'shopImported',
+        sourceMessageId: 'd_1',
+      });
+      await assertSucceeds(
+        updateDoc(doc(dbFor(MR_USER_UID), mrPath), { description: 'メモ' }),
+      );
+    });
+  });
 });

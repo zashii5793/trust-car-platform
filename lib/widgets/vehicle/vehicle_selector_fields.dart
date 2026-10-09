@@ -355,9 +355,14 @@ class _MakerPickerSheetState extends State<_MakerPickerSheet> {
                       ),
                     ),
                     AppSpacing.horizontalSm,
-                    ElevatedButton(
-                      onPressed: _submitCustom,
-                      child: const Text('決定'),
+                    // Inside the field's tap region: pressing it must not
+                    // unfocus the field first. On a phone that closed the
+                    // keyboard, moved the sheet, and the tap missed.
+                    TextFieldTapRegion(
+                      child: ElevatedButton(
+                        onPressed: _submitCustom,
+                        child: const Text('決定'),
+                      ),
                     ),
                   ],
                 ),
@@ -780,9 +785,14 @@ class _ModelPickerSheetState extends State<_ModelPickerSheet> {
                       ),
                     ),
                     AppSpacing.horizontalSm,
-                    ElevatedButton(
-                      onPressed: _submitCustom,
-                      child: const Text('決定'),
+                    // Inside the field's tap region: pressing it must not
+                    // unfocus the field first. On a phone that closed the
+                    // keyboard, moved the sheet, and the tap missed.
+                    TextFieldTapRegion(
+                      child: ElevatedButton(
+                        onPressed: _submitCustom,
+                        child: const Text('決定'),
+                      ),
                     ),
                   ],
                 ),
@@ -875,6 +885,10 @@ class GradeSelectorField extends StatefulWidget {
   final bool enabled;
   final bool allowCustom;
 
+  /// Whether a grade must be chosen. Many cars have no grade candidates and
+  /// many owners do not know theirs, so registration leaves it optional.
+  final bool isRequired;
+
   const GradeSelectorField({
     super.key,
     this.modelId,
@@ -883,6 +897,7 @@ class GradeSelectorField extends StatefulWidget {
     this.validator,
     this.enabled = true,
     this.allowCustom = true,
+    this.isRequired = true,
   });
 
   @override
@@ -1004,7 +1019,11 @@ class _GradeSelectorFieldState extends State<GradeSelectorField> {
                         widget.selectedGrade?.name ??
                             // 年式と横並びで幅が狭く、「車種を先に選択」は
                             // 2行に折り返して隣と高さが揃わなかった。
-                            (widget.modelId == null ? '車種を選択' : 'グレードを選択 *'),
+                            (widget.modelId == null
+                                ? '車種を選択'
+                                : widget.isRequired
+                                    ? 'グレードを選択 *'
+                                    : 'グレード（任意）'),
                         style: theme.textTheme.bodyLarge?.copyWith(
                           color: widget.selectedGrade == null || isDisabled
                               ? (isDark
@@ -1051,6 +1070,7 @@ class _GradeSelectorFieldState extends State<GradeSelectorField> {
         grades: _grades,
         selectedGrade: widget.selectedGrade,
         allowCustom: widget.allowCustom,
+        allowUnknown: !widget.isRequired,
         modelId: widget.modelId!,
         onSelected: (grade) {
           widget.onChanged(grade);
@@ -1099,13 +1119,19 @@ class _GradePickerSheet extends StatefulWidget {
   final List<VehicleGrade> grades;
   final VehicleGrade? selectedGrade;
   final bool allowCustom;
+
+  /// Offer 「わからない」, which leaves the grade empty.
+  final bool allowUnknown;
   final String modelId;
-  final ValueChanged<VehicleGrade> onSelected;
+
+  /// Null means "no grade" (the person chose 「わからない」).
+  final ValueChanged<VehicleGrade?> onSelected;
 
   const _GradePickerSheet({
     required this.grades,
     this.selectedGrade,
     required this.allowCustom,
+    this.allowUnknown = false,
     required this.modelId,
     required this.onSelected,
   });
@@ -1124,126 +1150,169 @@ class _GradePickerSheetState extends State<_GradePickerSheet> {
     super.dispose();
   }
 
+  void _submitCustom() {
+    final name = _customController.text.trim();
+    if (name.isEmpty) return;
+    widget.onSelected(VehicleGrade(
+      id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
+      modelId: widget.modelId,
+      name: name,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.8,
-      expand: false,
-      builder: (context, scrollController) {
-        return Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  AppSpacing.verticalMd,
-                  Text(
-                    'グレードを選択',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (_showCustomInput)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
+    // Keep the sheet above the on-screen keyboard. Without this the custom
+    // field and its 決定 sat under the keyboard on a phone.
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final leading = widget.allowUnknown ? 1 : 0;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboard),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.8,
+        expand: false,
+        builder: (context, scrollController) {
+          return Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                child: Column(
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _customController,
-                        decoration: InputDecoration(
-                          hintText: 'グレード名を入力',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 16),
-                        ),
-                        autofocus: true,
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    AppSpacing.horizontalSm,
-                    ElevatedButton(
-                      onPressed: () {
-                        if (_customController.text.isNotEmpty) {
-                          final customGrade = VehicleGrade(
-                            id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
-                            modelId: widget.modelId,
-                            name: _customController.text,
-                          );
-                          widget.onSelected(customGrade);
-                        }
-                      },
-                      child: const Text('決定'),
+                    AppSpacing.verticalMd,
+                    Text(
+                      'グレードを選択',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
+                    if (widget.grades.isEmpty) ...[
+                      AppSpacing.verticalXs,
+                      Text(
+                        'この車種のグレード候補はまだありません。'
+                        '分からなければ空けたまま進めます',
+                        style: theme.textTheme.bodySmall,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ],
                 ),
               ),
-            AppSpacing.verticalSm,
-            Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemCount: widget.grades.length + (widget.allowCustom ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (widget.allowCustom && index == widget.grades.length) {
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: Colors.grey[200],
-                        child: const Icon(Icons.edit, color: Colors.black54),
-                      ),
-                      title: const Text('カスタム入力'),
-                      subtitle: const Text('一覧にないグレードを入力'),
-                      onTap: () {
-                        setState(() {
-                          _showCustomInput = !_showCustomInput;
-                        });
-                      },
-                    );
-                  }
-
-                  final grade = widget.grades[index];
-                  final isSelected = widget.selectedGrade?.id == grade.id;
-
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: isSelected
-                          ? theme.colorScheme.primary
-                          : Colors.grey[200],
-                      child: Text(
-                        grade.name.substring(0, 1),
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black87,
-                          fontWeight: FontWeight.bold,
+              if (_showCustomInput)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          key: const Key('grade_custom_field'),
+                          controller: _customController,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _submitCustom(),
+                          decoration: InputDecoration(
+                            hintText: 'グレード名を入力',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                          autofocus: true,
                         ),
                       ),
-                    ),
-                    title: Text(grade.name),
-                    trailing: isSelected
-                        ? Icon(Icons.check, color: theme.colorScheme.primary)
-                        : null,
-                    onTap: () => widget.onSelected(grade),
-                  );
-                },
+                      AppSpacing.horizontalSm,
+                      // Inside the field's tap region so the press does not
+                      // unfocus the field first (keyboard closes, the sheet
+                      // moves, the tap misses: about six retries in the
+                      // usability test of 2026-10-09).
+                      TextFieldTapRegion(
+                        child: ElevatedButton(
+                          key: const Key('grade_custom_submit'),
+                          onPressed: _submitCustom,
+                          child: const Text('決定'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              AppSpacing.verticalSm,
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: leading +
+                      widget.grades.length +
+                      (widget.allowCustom ? 1 : 0),
+                  itemBuilder: (context, rawIndex) {
+                    if (widget.allowUnknown && rawIndex == 0) {
+                      return ListTile(
+                        key: const Key('grade_unknown_tile'),
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.grey[200],
+                          child: const Icon(Icons.help_outline,
+                              color: Colors.black54),
+                        ),
+                        title: const Text('わからない（あとで入れる）'),
+                        onTap: () => widget.onSelected(null),
+                      );
+                    }
+                    final index = rawIndex - leading;
+                    if (widget.allowCustom && index == widget.grades.length) {
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.grey[200],
+                          child: const Icon(Icons.edit, color: Colors.black54),
+                        ),
+                        title: const Text('カスタム入力'),
+                        subtitle: const Text('一覧にないグレードを入力'),
+                        onTap: () {
+                          setState(() {
+                            _showCustomInput = !_showCustomInput;
+                          });
+                        },
+                      );
+                    }
+
+                    final grade = widget.grades[index];
+                    final isSelected = widget.selectedGrade?.id == grade.id;
+
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: isSelected
+                            ? theme.colorScheme.primary
+                            : Colors.grey[200],
+                        child: Text(
+                          grade.name.substring(0, 1),
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : Colors.black87,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      title: Text(grade.name),
+                      trailing: isSelected
+                          ? Icon(Icons.check, color: theme.colorScheme.primary)
+                          : null,
+                      onTap: () => widget.onSelected(grade),
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
     );
   }
 }

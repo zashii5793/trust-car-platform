@@ -141,11 +141,16 @@ class _StubFirebaseService implements FirebaseService {
               {int limit = 20}) async =>
           Result.success(vehicleRecords);
 
+  /// 車ごとの記録（「すべて見る」で全車ぶんを読むとき）。
+  Map<String, List<MaintenanceRecord>> recordsByVehicle = const {};
+
   @override
   Future<Result<Map<String, List<MaintenanceRecord>>, AppError>>
       getMaintenanceRecordsForVehicles(List<String> vehicleIds,
               {int limitPerVehicle = 20}) async =>
-          const Result.success({});
+          Result.success({
+            for (final id in vehicleIds) id: recordsByVehicle[id] ?? const [],
+          });
 
   @override
   Future<Result<String, AppError>> uploadImage(dynamic f, String path) async =>
@@ -403,7 +408,7 @@ class _FakeVehicleProvider extends VehicleProvider {
   }
 
   @override
-  List<Vehicle> get vehicles => _fakeVehicles;
+  List<Vehicle> get allVehicles => _fakeVehicles;
 
   @override
   bool get isLoading => _fakeLoading;
@@ -516,7 +521,12 @@ Widget _buildApp({
   bool isOffline = false,
   ThemeData? theme,
 }) {
-  final fb = _StubFirebaseService();
+  // Share the stub the test registered, so records set on it reach the
+  // providers too (「すべて見る」 reads through MaintenanceProvider).
+  final sl = ServiceLocator.instance;
+  final fb = sl.isRegistered<FirebaseService>()
+      ? sl.get<FirebaseService>()
+      : _StubFirebaseService();
   final vp = vehicleProvider ?? _FakeVehicleProvider();
   final np = notificationProvider ?? _FakeNotificationProvider();
 
@@ -646,6 +656,111 @@ void main() {
     sl.unregister<DriveLogService>();
   });
 
+  // 使用感テスト（2026-10-09）: 売却済みの車が、ホームの車カード・登録台数・
+  // 「要対応」に普段の車として出ていた。手放した直後にも消えなかった。
+  group('ホーム — 手放した車', () {
+    Vehicle sold() => _makeVehicle('sold').copyWith(
+          maker: 'Toyota',
+          model: 'Prius',
+          status: VehicleStatus.sold,
+          retiredAt: DateTime(2026, 9, 30),
+          // 満了日が切れたままの車。使用中なら「要対応」に数えられる。
+          inspectionExpiryDate: DateTime(2026, 1, 1),
+        );
+    Vehicle active() =>
+        _makeVehicle('active').copyWith(maker: 'Honda', model: 'Fit');
+
+    // Tall surface so the lazily built ListView lays out every card.
+    Future<void> tall(WidgetTester tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 4000);
+      addTearDown(tester.view.reset);
+    }
+
+    testWidgets('車カードと登録台数に出ない', (tester) async {
+      final vp = _FakeVehicleProvider()..setVehicles([active(), sold()]);
+
+      await tall(tester);
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // 登録車両は1台、要対応は0（売却済みの車検切れを数えない）。
+      final dashboard = find.ancestor(
+        of: find.text('ダッシュボード'),
+        matching: find.byType(Container),
+      );
+      expect(
+        find.descendant(of: dashboard.first, matching: find.text('1')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('vehicle_card_sold')), findsNothing);
+      expect(find.byKey(const Key('vehicle_card_active')), findsOneWidget);
+    });
+
+    testWidgets('「過去の車両」に売却済みとして出る', (tester) async {
+      final vp = _FakeVehicleProvider()..setVehicles([active(), sold()]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp, signedIn: true));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.scrollUntilVisible(
+        find.text('過去の車両'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('過去の車両'), findsOneWidget);
+      expect(find.text('Toyota Prius'), findsOneWidget);
+      expect(find.textContaining('売却済み'), findsOneWidget);
+    });
+
+    testWidgets('手放した直後（一覧が更新された時点）でホームから消える', (tester) async {
+      final vp = _FakeVehicleProvider()
+        ..setVehicles(
+            [active(), sold().copyWith(status: VehicleStatus.active)]);
+
+      await tall(tester);
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp, signedIn: true));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byKey(const Key('vehicle_card_sold')), findsOneWidget);
+
+      vp.setVehicles([active(), sold()]);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byKey(const Key('vehicle_card_sold')), findsNothing);
+      expect(find.byKey(const Key('vehicle_card_active')), findsOneWidget);
+      expect(find.text('過去の車両'), findsOneWidget);
+      expect(find.textContaining('売却済み'), findsOneWidget);
+    });
+
+    testWidgets('プロフィールタブから「過去の車両」へいつでも行ける', (tester) async {
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      await _tapNavCell(tester, 3);
+      final entry = find.text('過去の車両（手放した車）');
+      await tester.scrollUntilVisible(entry, 300);
+
+      expect(entry, findsOneWidget);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('全部手放したら登録の案内と「過去の車両」への入口が出る', (tester) async {
+        final vp = _FakeVehicleProvider()..setVehicles([sold()]);
+
+        await tester.pumpWidget(_buildApp(vehicleProvider: vp, signedIn: true));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.byKey(const Key('open_retired_vehicles')), findsOneWidget);
+      });
+    });
+  });
+
   group('ホーム — メンテナンスの記録', () {
     // 車検・点検だけでなく、オイル交換もカスタムパーツも同じ並びで出す。
     // 金額を添えるのは、積み上がった費用が維持費の実感になるため。
@@ -716,6 +831,118 @@ void main() {
       expect(find.text('¥38,000'), findsOneWidget);
       expect(find.text('¥6,200'), findsOneWidget);
       expect(find.text('¥74,000'), findsOneWidget);
+    });
+
+    // 使用感テスト（2026-10-09）: 記録・合計 ¥455,868 があるのに
+    // 「この1年で0件」。件数の集計が取れていなかった（サービス側で修正、
+    // ここでは集計の値がそのまま出ることを固定する）。
+    testWidgets('この1年の件数は集計の値を出す', (tester) async {
+      stubFirebase.recentRecords = [
+        record(
+          id: 'r1',
+          title: 'オイル交換',
+          type: MaintenanceType.oilChange,
+          cost: 6200,
+          date: DateTime(2026, 7, 2),
+        ),
+      ];
+      stubFirebase.summary =
+          const MaintenanceSummary(count: 12, totalCost: 455868);
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.scrollUntilVisible(
+        find.text('メンテナンスの記録'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      expect(find.text('この1年で12件'), findsOneWidget);
+      expect(find.text('¥455,868'), findsOneWidget);
+    });
+
+    // 新規ユーザーで、追加した記録が再読込するまでホームに出なかった。
+    testWidgets('記録を足すと、再読込しなくても件数と一覧が増える', (tester) async {
+      final first = record(
+        id: 'r1',
+        title: 'オイル交換',
+        type: MaintenanceType.oilChange,
+        cost: 6200,
+        date: DateTime(2026, 7, 2),
+      );
+      stubFirebase.recentRecords = [first];
+      stubFirebase.summary =
+          const MaintenanceSummary(count: 1, totalCost: 6200);
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final added = record(
+        id: 'r2',
+        title: '12ヶ月点検',
+        type: MaintenanceType.legalInspection12,
+        cost: 15000,
+        date: DateTime(2026, 10, 8),
+      );
+      stubFirebase.recentRecords = [added, first];
+      stubFirebase.summary =
+          const MaintenanceSummary(count: 2, totalCost: 21200);
+      await Provider.of<MaintenanceProvider>(
+        tester.element(find.byType(HomeScreen)),
+        listen: false,
+      ).addMaintenanceRecord(added);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await tester.scrollUntilVisible(
+        find.text('メンテナンスの記録'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('この1年で2件'), findsOneWidget);
+      expect(find.text('12ヶ月点検'), findsOneWidget);
+    });
+
+    // 4台持ちの人が「すべて見る」を押すと0件。「絞り込みをクリア」でも0件。
+    testWidgets('「すべて見る」で全車の記録が出る', (tester) async {
+      MaintenanceRecord on(String vehicleId, String id, String title) => record(
+            id: id,
+            title: title,
+            type: MaintenanceType.oilChange,
+            cost: 5000,
+            date: DateTime(2026, 6, 1),
+          ).copyWith(vehicleId: vehicleId);
+      stubFirebase.recentRecords = [on('v1', 'r1', 'プリウスのオイル')];
+      stubFirebase.recordsByVehicle = {
+        'v1': [on('v1', 'r1', 'プリウスのオイル')],
+        'v2': [on('v2', 'r2', 'ハイエースの車検')],
+      };
+      final vp = _FakeVehicleProvider()
+        ..setVehicles([_makeVehicle('v1'), _makeVehicle('v2')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      final seeAll = find.byKey(const Key('maintenance_see_all'));
+      await tester.scrollUntilVisible(
+        seeAll,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      // Clear the floating + button that sits over the bottom edge.
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -200));
+      await tester.pump();
+      await tester.tap(seeAll);
+      await tester.pumpAndSettle();
+
+      expect(find.text('2件'), findsOneWidget);
+      expect(find.text('ハイエースの車検'), findsOneWidget);
+      expect(find.text('プリウスのオイル'), findsOneWidget);
+      expect(find.textContaining('すべての車'), findsOneWidget);
     });
 
     testWidgets('記録が無ければ見出しごと出さない', (tester) async {
@@ -1155,6 +1382,60 @@ void main() {
   });
 
   group('HomeScreen — ナビゲーション', () {
+    // 使用感テスト（2026-10-09）: 390 幅で下のナビが2段になり、1段の高さは
+    // 約34px（目安 44px）。2段目は画面の下端に寄って見落とされた。
+    testWidgets('390 幅で4つのタブが1段に並び、どれも高さ 44px 以上', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      final tops = <double>{};
+      for (var i = 0; i < 4; i++) {
+        final cell = find.byKey(Key('nav_cell_$i'));
+        final rect = tester.getRect(cell);
+        expect(rect.height, greaterThanOrEqualTo(44),
+            reason: 'nav_cell_$i が低い');
+        expect(rect.left, greaterThanOrEqualTo(0));
+        expect(rect.right, lessThanOrEqualTo(390));
+        tops.add(rect.top);
+      }
+      expect(tops, hasLength(1), reason: '1段に並んでいない');
+      expect(tester.takeException(), isNull);
+    });
+
+    // 同: 3ステップ・ダッシュボード・近道・AI提案が縦に積まれ、登録した車は
+    // 2画面目だった。車カードを AI 提案より上に置く（大きく作り替えない）。
+    testWidgets('390×844 で、提案があっても車カードが1画面目に入る', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.reset);
+      final vp = _FakeVehicleProvider()
+        ..setVehicles([
+          _makeVehicle('v1').copyWith(
+            inspectionExpiryDate: DateTime.now().add(const Duration(days: 200)),
+          ),
+        ]);
+      final np = _FakeNotificationProvider()
+        ..setNotifications([_makeNotif(), _makeNotif()]);
+
+      await tester
+          .pumpWidget(_buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final card = find.byKey(const Key('vehicle_card_v1'));
+      expect(card, findsOneWidget);
+      final navTop = tester.getRect(find.byKey(const Key('nav_cell_0'))).top;
+      expect(tester.getRect(card).top, lessThan(navTop));
+      // The car comes before the AI suggestions.
+      final ai = find.text('AIからの提案');
+      if (ai.evaluate().isNotEmpty) {
+        expect(tester.getRect(card).top, lessThan(tester.getRect(ai).top));
+      }
+    });
+
     testWidgets('4つのナビゲーションセルが表示される', (tester) async {
       await tester.pumpWidget(_buildApp());
       await tester.pump();
@@ -1709,6 +1990,10 @@ void main() {
         ),
         _makeVehicle('v2'), // no inspection date
       ]);
+      // The car cards now come first, so the prompt sits further down.
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 2000);
+      addTearDown(tester.view.reset);
 
       await tester.pumpWidget(_buildApp(vehicleProvider: vp));
       await tester.pump();

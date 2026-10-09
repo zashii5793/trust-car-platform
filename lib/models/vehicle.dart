@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/utils/calendar_days.dart';
 import 'vehicle_equipment.dart';
 import '../data/vehicle_master_data.dart';
 import 'vehicle_master.dart';
@@ -329,14 +330,14 @@ class VoluntaryInsurance {
   /// 任意保険期限が近いか（30日以内）
   bool get isExpiringSoon {
     if (expiryDate == null) return false;
-    final days = expiryDate!.difference(DateTime.now()).inDays;
+    final days = calendarDaysUntil(expiryDate!);
     return days <= 30 && days >= 0;
   }
 
   /// 任意保険期限切れか
   bool get isExpired {
     if (expiryDate == null) return false;
-    return expiryDate!.difference(DateTime.now()).inDays < 0;
+    return calendarDaysUntil(expiryDate!) < 0;
   }
 
   /// 法人で多いフリート契約か
@@ -468,7 +469,7 @@ class LeaseInfo {
   /// 契約満了が近いか（60日以内）
   bool get isExpiringSoon {
     if (contractEndDate == null) return false;
-    final days = contractEndDate!.difference(DateTime.now()).inDays;
+    final days = calendarDaysUntil(contractEndDate!);
     return days <= 60 && days >= 0;
   }
 
@@ -599,9 +600,12 @@ class Vehicle {
   });
 
   /// 車検までの残日数（null: 車検日未設定）
-  int? get daysUntilInspection {
+  int? get daysUntilInspection => daysUntilInspectionAt(DateTime.now());
+
+  /// 車検までの残日数を [now] 時点で数える（日付どうしの差。時刻で変わらない）
+  int? daysUntilInspectionAt(DateTime now) {
     if (inspectionExpiryDate == null) return null;
-    return inspectionExpiryDate!.difference(DateTime.now()).inDays;
+    return calendarDaysUntil(inspectionExpiryDate!, now: now);
   }
 
   /// 用途区分（未設定時は自家用乗用車として扱う）
@@ -634,9 +638,13 @@ class Vehicle {
   }
 
   /// 自賠責保険までの残日数
-  int? get daysUntilInsuranceExpiry {
+  int? get daysUntilInsuranceExpiry =>
+      daysUntilInsuranceExpiryAt(DateTime.now());
+
+  /// 自賠責保険までの残日数を [now] 時点で数える
+  int? daysUntilInsuranceExpiryAt(DateTime now) {
     if (insuranceExpiryDate == null) return null;
-    return insuranceExpiryDate!.difference(DateTime.now()).inDays;
+    return calendarDaysUntil(insuranceExpiryDate!, now: now);
   }
 
   /// 自賠責保険期限が近いか（30日以内）
@@ -876,13 +884,13 @@ class Vehicle {
   /// リース契約満了までの残日数（null: リース情報なし/満了日未設定）
   int? get daysUntilLeaseExpiry {
     if (leaseInfo?.contractEndDate == null) return null;
-    return leaseInfo!.contractEndDate!.difference(DateTime.now()).inDays;
+    return calendarDaysUntil(leaseInfo!.contractEndDate!);
   }
 
   /// 任意保険期限までの残日数
   int? get daysUntilVoluntaryInsuranceExpiry {
     if (voluntaryInsurance?.expiryDate == null) return null;
-    return voluntaryInsurance!.expiryDate!.difference(DateTime.now()).inDays;
+    return calendarDaysUntil(voluntaryInsurance!.expiryDate!);
   }
 
   /// 任意保険期限が近いか（30日以内）

@@ -251,6 +251,61 @@ void main() {
       });
     });
 
+    // 使用感テスト（2026-10-09）: 売却済みの車が、ホームの車カード・
+    // 登録台数・「要対応」の催促に普段の車として出ていた。
+    group('手放した車', () {
+      Vehicle retired(String id) =>
+          _createTestVehicle(id: id).copyWith(status: VehicleStatus.sold);
+
+      test('vehicles には使用中の車だけが入る', () async {
+        provider.listenToVehicles();
+        mockFirebaseService
+            .emitVehicles([_createTestVehicle(id: 'active'), retired('sold')]);
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        expect(provider.vehicles.map((v) => v.id), ['active']);
+      });
+
+      test('retiredVehicles には手放した車だけが入る', () async {
+        provider.listenToVehicles();
+        mockFirebaseService
+            .emitVehicles([_createTestVehicle(id: 'active'), retired('sold')]);
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        expect(provider.retiredVehicles.map((v) => v.id), ['sold']);
+      });
+
+      test('vehicleById は手放した車も引ける', () async {
+        provider.listenToVehicles();
+        mockFirebaseService
+            .emitVehicles([_createTestVehicle(id: 'active'), retired('sold')]);
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        expect(provider.vehicleById('sold')?.status, VehicleStatus.sold);
+        expect(provider.vehicleById('active')?.id, 'active');
+      });
+
+      group('Edge Cases', () {
+        test('全部手放していれば vehicles は空', () async {
+          provider.listenToVehicles();
+          mockFirebaseService.emitVehicles([retired('a'), retired('b')]);
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          expect(provider.vehicles, isEmpty);
+          expect(provider.retiredVehicles, hasLength(2));
+        });
+
+        test('存在しない ID・空文字は null', () async {
+          provider.listenToVehicles();
+          mockFirebaseService.emitVehicles([_createTestVehicle(id: 'a')]);
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          expect(provider.vehicleById('missing'), isNull);
+          expect(provider.vehicleById(''), isNull);
+        });
+      });
+    });
+
     group('selectVehicle', () {
       test('sets the selected vehicle', () {
         final vehicle = _createTestVehicle();

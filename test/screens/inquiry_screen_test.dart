@@ -754,10 +754,31 @@ void main() {
     // 非提携店フリーミアムゲート（Issue #41 Phase 2）
     // -------------------------------------------------------------------------
     group('非提携店フリーミアムゲート', () {
+      // 店主がアプリにいる店（台帳を使っている店）は、フリープランでも
+      // 問い合わせを受けられる。需要として貯めるだけにしない（2026-10-09）。
+      testWidgets('店主のいるフリープランの店には、本当の問い合わせが届く', (tester) async {
+        final ownedFreeShop = _testShop(
+            subscriptionStatus: ShopSubscriptionStatus.free, ownerId: 'owner1');
+
+        await tester.pumpWidget(_buildApp(
+          ownedFreeShop,
+          shopProvider: shopProvider,
+          authProvider: _LoggedInAuthProvider(),
+        ));
+        await tester.pump();
+
+        await _fillValidForm(tester);
+        await tester.tap(find.textContaining('送信').last);
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(mockDemand.recordDemandCallCount, 0);
+        expect(mockInquiry.createCallCount, 1);
+      });
+
       testWidgets('非提携店への送信 → recordDemand が呼ばれ createInquiry は呼ばれない',
           (tester) async {
-        final nonPartnerShop =
-            _testShop(subscriptionStatus: ShopSubscriptionStatus.free);
+        final nonPartnerShop = _testShop(
+            subscriptionStatus: ShopSubscriptionStatus.free, ownerId: null);
 
         await tester.pumpWidget(_buildApp(
           nonPartnerShop,
@@ -775,8 +796,8 @@ void main() {
       });
 
       testWidgets('非提携店 → 成功時に需要受付ダイアログが表示される', (tester) async {
-        final nonPartnerShop =
-            _testShop(subscriptionStatus: ShopSubscriptionStatus.free);
+        final nonPartnerShop = _testShop(
+            subscriptionStatus: ShopSubscriptionStatus.free, ownerId: null);
 
         await tester.pumpWidget(_buildApp(
           nonPartnerShop,
@@ -813,8 +834,8 @@ void main() {
 
       testWidgets('非提携店 → recordDemand 失敗時にエラーSnackBarが出る', (tester) async {
         mockDemand.shouldFail = true;
-        final nonPartnerShop =
-            _testShop(subscriptionStatus: ShopSubscriptionStatus.free);
+        final nonPartnerShop = _testShop(
+            subscriptionStatus: ShopSubscriptionStatus.free, ownerId: null);
 
         await tester.pumpWidget(_buildApp(
           nonPartnerShop,

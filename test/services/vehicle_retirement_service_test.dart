@@ -136,6 +136,12 @@ void main() {
           );
 
           expect(result.isFailure, isTrue);
+          // 使用感テスト（2026-10-09）: 「入力内容を確認してください」とだけ
+          // 出て、何を直せばよいか分からなかった。何が起きたかを言う。
+          final message = result.errorOrNull!.userMessage;
+          expect(message, isNot('入力内容を確認してください'));
+          expect(message, contains('すでに'));
+          expect(message, contains('売却済み'));
         });
 
         test('active以外のreasonはバリデーションエラー', () async {
@@ -203,6 +209,7 @@ void main() {
         );
 
         expect(result.isFailure, isTrue);
+        expect(result.errorOrNull!.userMessage, contains('使用中'));
       });
 
       test('異常系: 他人の退役車両は復元できない', () async {

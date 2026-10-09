@@ -317,8 +317,10 @@ class DriveLogService {
         );
       }
 
+      // count() has to be asked for; real Firestore leaves count null
+      // otherwise and the home screen read 「この1年で0回」.
       final snapshot =
-          await query.aggregate(sum('statistics.totalDistance')).get();
+          await query.aggregate(count(), sum('statistics.totalDistance')).get();
 
       return Result.success(
         DriveLogSummary(

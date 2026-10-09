@@ -493,4 +493,151 @@ void main() {
       });
     });
   });
+
+  // 使用感テスト 2026-10-09: どの車の明細かが途中で抜けていた（#9）、
+  // 送った明細が届いたか・取り込まれたかが店から見えなかった（#10）。
+  group('車を明細に持たせる', () {
+    Future<void> ledgerVehicle(String id, String plate) => fs
+            .collection('shops')
+            .doc(_shopId)
+            .collection('customer_vehicles')
+            .doc(id)
+            .set({
+          'customerId': 'c1',
+          'customerName': '山田太郎',
+          'plate': plate,
+          'maker': 'MINI',
+          'model': 'クーパー',
+          'createdAt': Timestamp.fromDate(DateTime(2026)),
+          'updatedAt': Timestamp.fromDate(DateTime(2026)),
+        });
+
+    test('送っていない明細に、台帳の車（車名・ナンバー）が付く', () async {
+      await customer('c1', '山田太郎', userId: 'app-yamada');
+      await ledgerVehicle('v_c1', '品川 300 あ 12-34');
+      await slip('r1', customerId: 'c1', date: DateTime(2026, 9, 20));
+
+      final d =
+          (await service.pending(shopId: _shopId)).valueOrNull!.drafts.single;
+      expect(d.customerVehicleId, 'v_c1');
+      expect(d.plate, '品川 300 あ 12-34');
+      final p = d.payload(shopName: _shopName);
+      expect(p.vehicleLabel, 'MINI クーパー');
+      expect(p.licensePlate, '品川 300 あ 12-34');
+      expect(p.ledgerVehicleId, 'v_c1');
+    });
+
+    test('まとめて送った明細にも車が入る', () async {
+      await customer('c1', '山田太郎', userId: 'app-yamada');
+      await ledgerVehicle('v_c1', '品川 300 あ 12-34');
+      await slip('r1', customerId: 'c1', date: DateTime(2026, 9, 20));
+      final drafts =
+          (await service.pending(shopId: _shopId)).valueOrNull!.drafts;
+      await service.sendAll(
+        shopId: _shopId,
+        shopName: _shopName,
+        senderId: _shopId,
+        drafts: drafts,
+      );
+      final m = (await messagesTo('app-yamada'))
+          .firstWhere((m) => m['maintenancePayload'] != null);
+      expect(m['maintenancePayload']['licensePlate'], '品川 300 あ 12-34');
+    });
+
+    group('Edge Cases', () {
+      test('台帳の車が消えていても、車名だけで送れる', () async {
+        await customer('c1', '山田太郎', userId: 'app-yamada');
+        await slip('r1', customerId: 'c1', date: DateTime(2026, 9, 20));
+        final d =
+            (await service.pending(shopId: _shopId)).valueOrNull!.drafts.single;
+        expect(d.plate, isNull);
+        expect(d.payload(shopName: _shopName).vehicleLabel, 'MINI クーパー');
+      });
+    });
+  });
+
+  group('sentDetails（送った明細の行方）', () {
+    Future<String> sendOne() async {
+      await customer('c1', '山田太郎', userId: 'app-yamada');
+      await slip('r1', customerId: 'c1', date: DateTime(2026, 9, 20));
+      final drafts =
+          (await service.pending(shopId: _shopId)).valueOrNull!.drafts;
+      await service.sendAll(
+        shopId: _shopId,
+        shopName: _shopName,
+        senderId: _shopId,
+        drafts: drafts,
+      );
+      final inq = await fs
+          .collection('inquiries')
+          .where('userId', isEqualTo: 'app-yamada')
+          .get();
+      return inq.docs.single.id;
+    }
+
+    Future<DocumentReference<Map<String, dynamic>>> detailMessage(
+        String inquiryId) async {
+      final ms = await fs
+          .collection('inquiries')
+          .doc(inquiryId)
+          .collection('messages')
+          .get();
+      return ms.docs
+          .firstWhere((d) => d.data()['maintenancePayload'] != null)
+          .reference;
+    }
+
+    test('送ったばかりの明細は「届いています（未読）」', () async {
+      await sendOne();
+      final list =
+          (await service.sentDetails(shopId: _shopId, userId: 'app-yamada'))
+              .valueOrNull!;
+      expect(list, hasLength(1));
+      expect(list.single.status, SentDetailStatus.delivered);
+      expect(list.single.payload.cost, 128000);
+    });
+
+    test('お客さんが開くと「開封済み」、記録に追加すると「記録に追加済み」', () async {
+      final inquiryId = await sendOne();
+      final ref = await detailMessage(inquiryId);
+
+      await ref.update({'isRead': true});
+      var list =
+          (await service.sentDetails(shopId: _shopId, userId: 'app-yamada'))
+              .valueOrNull!;
+      expect(list.single.status, SentDetailStatus.seen);
+
+      await ref.update({
+        'importedAt': Timestamp.fromDate(DateTime(2026, 9, 29)),
+        'importedRecordId': 'shopdetail_x',
+      });
+      list = (await service.sentDetails(shopId: _shopId, userId: 'app-yamada'))
+          .valueOrNull!;
+      expect(list.single.status, SentDetailStatus.imported);
+      expect(list.single.importedAt, DateTime(2026, 9, 29));
+    });
+
+    group('Edge Cases', () {
+      test('まだ何も送っていなければ空', () async {
+        final r =
+            await service.sentDetails(shopId: _shopId, userId: 'app-yamada');
+        expect(r.valueOrNull, isEmpty);
+      });
+
+      test('店か利用者が空なら失敗', () async {
+        expect((await service.sentDetails(shopId: '', userId: 'u')).isFailure,
+            isTrue);
+        expect(
+            (await service.sentDetails(shopId: _shopId, userId: '')).isFailure,
+            isTrue);
+      });
+
+      test('ほかの店が送った明細は出ない', () async {
+        await sendOne();
+        final r = await service.sentDetails(
+            shopId: 'other_shop', userId: 'app-yamada');
+        expect(r.valueOrNull, isEmpty);
+      });
+    });
+  });
 }

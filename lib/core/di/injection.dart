@@ -70,7 +70,9 @@ import '../../services/model_cost_report_service.dart';
 import '../../services/vehicle_profile_service.dart';
 import '../../services/maintenance_history_import_service.dart';
 import '../../services/shop_staff_service.dart';
+import '../../services/shop_entry_service.dart';
 import '../../services/detail_delivery_service.dart';
+import '../../services/shop_detail_inbox_service.dart';
 import '../../services/ledger_link_service.dart';
 import '../../services/shop_audit_service.dart';
 import '../../services/fuel_service.dart';
@@ -334,6 +336,14 @@ class Injection {
       () => ShopStaffService(firestore: FirebaseFirestore.instance),
     );
 
+    // ログイン直後に、店主・スタッフなら顧客台帳を最初に開く（2026-10-09）。
+    locator.registerLazySingleton<ShopEntryService>(
+      () => ShopEntryService(
+        shopService: locator.get<ShopService>(),
+        staffService: locator.get<ShopStaffService>(),
+      ),
+    );
+
     // 台帳の顧客とアプリの利用者をつなぎ、整備明細を送る。
     locator.registerLazySingleton<LedgerLinkService>(
       () => LedgerLinkService(firestore: FirebaseFirestore.instance),
@@ -347,6 +357,12 @@ class Injection {
         linkService: locator.get<LedgerLinkService>(),
         inquiryService: locator.get<InquiryService>(),
       ),
+    );
+
+    // The user's side of shop-sent details: add to records once, list the
+    // ones not yet added (home card / notifications). 2026-10-09.
+    locator.registerLazySingleton<ShopDetailInboxService>(
+      () => ShopDetailInboxService(firestore: FirebaseFirestore.instance),
     );
 
     // 店側の操作の記録（誰がいつ顧客を見た・書いたか）。

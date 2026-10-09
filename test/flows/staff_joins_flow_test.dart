@@ -99,6 +99,12 @@ Future<void> _staffJoinsFlow(WidgetTester tester, ShopIdForm form) async {
 
   // ---- スタッフ: 掲載管理（自分の店は無い）から参加 ----
   await world.pumpAs(tester, staff, const ShopOwnerScreen());
+  // The entry sits above the pricing table, not below it (2026-10-08).
+  expect(find.byKey(const Key('staff_entry')), findsOneWidget);
+  expect(
+    tester.getTopLeft(find.byKey(const Key('staff_entry'))).dy,
+    lessThan(tester.getTopLeft(find.text('あなたの店舗を掲載しましょう')).dy),
+  );
   await tester.scrollUntilVisible(
     find.byKey(const Key('staff_entry')),
     300,

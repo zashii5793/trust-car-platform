@@ -34,6 +34,22 @@ enum OdometerIssue {
   bool get isBlocking => this == OdometerIssue.outOfRange;
 }
 
+/// One known odometer value with the day it was read, used as a reference
+/// point by [OdometerCheck.againstHistory].
+class OdometerReading {
+  const OdometerReading({
+    required this.date,
+    required this.km,
+    required this.label,
+  });
+
+  final DateTime date;
+  final int km;
+
+  /// What the reading came from, shown to the person (e.g. 「オイル交換」).
+  final String label;
+}
+
 /// The result of checking one odometer reading.
 class OdometerCheckResult {
   const OdometerCheckResult(this.severity, [this.message]);
@@ -108,6 +124,70 @@ abstract final class OdometerCheck {
     }
 
     return const OdometerCheckResult(OdometerIssue.none);
+  }
+
+  /// Checks [value], recorded on [date], against other dated readings of
+  /// the same vehicle (earlier and later maintenance records, the vehicle's
+  /// own odometer).
+  ///
+  /// A past-dated record with a small number is normal, so this only speaks
+  /// up when the value contradicts the sequence: below a reading from the
+  /// same day or earlier, or above a reading from a later day. Like
+  /// [against] it asks rather than refuses — a cluster swap really does make
+  /// the number go down.
+  ///
+  /// Readings on the same calendar day get [maxKmSameDay] of slack: a
+  /// morning service and an evening odometer update are both "today".
+  static OdometerCheckResult againstHistory({
+    required int value,
+    required DateTime date,
+    required List<OdometerReading> readings,
+  }) {
+    final range = against(value: value, previous: null);
+    if (range.severity == OdometerIssue.outOfRange) return range;
+
+    final day = _day(date);
+    OdometerReading? highestBefore;
+    OdometerReading? lowestAfter;
+    for (final r in readings) {
+      final rDay = _day(r.date);
+      if (rDay.isAfter(day)) {
+        if (lowestAfter == null || r.km < lowestAfter.km) lowestAfter = r;
+      } else {
+        // Same-day readings only count when the gap is beyond one day's
+        // worth of driving.
+        final effective = rDay == day ? r.km - maxKmSameDay : r.km;
+        if (value < effective &&
+            (highestBefore == null || r.km > highestBefore.km)) {
+          highestBefore = r;
+        }
+      }
+    }
+
+    if (highestBefore != null) {
+      return OdometerCheckResult(
+        OdometerIssue.wentBackwards,
+        '${_describe(highestBefore)}より小さい値です。'
+        'メーター交換などでなければ、日付か走行距離をお確かめください',
+      );
+    }
+    if (lowestAfter != null && value > lowestAfter.km) {
+      return OdometerCheckResult(
+        OdometerIssue.wentBackwards,
+        'あとの日付の${_describe(lowestAfter)}より大きい値です。'
+        '日付か走行距離をお確かめください',
+      );
+    }
+    return const OdometerCheckResult(OdometerIssue.none);
+  }
+
+  static DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  static String _describe(OdometerReading r) {
+    final d = r.date;
+    final date = '${d.year}/${d.month.toString().padLeft(2, '0')}/'
+        '${d.day.toString().padLeft(2, '0')}';
+    return '$date の${r.label}（${_km(r.km)}）';
   }
 
   static String _km(int v) {

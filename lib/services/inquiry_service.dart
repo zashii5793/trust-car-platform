@@ -227,6 +227,12 @@ class InquiryService {
           updateData['status'] = InquiryStatus.replied.name;
         }
         updateData['unreadCountUser'] = FieldValue.increment(1);
+        // Lets the user's app find threads carrying details without reading
+        // every thread's messages.
+        if (maintenancePayload != null) {
+          updateData['detailCount'] = FieldValue.increment(1);
+          updateData['lastDetailAt'] = Timestamp.fromDate(now);
+        }
       } else {
         updateData['unreadCountShop'] = FieldValue.increment(1);
         // If user replies after shop, set status back to inProgress

@@ -1,3 +1,6 @@
+// The real Query is sealed; the recording double below implements it anyway.
+// ignore_for_file: subtype_of_sealed_class
+
 // FirebaseService.maintenanceSummary のテスト
 //
 // なぜ要るか:
@@ -10,6 +13,38 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
+
+/// Records which aggregate fields a query asks for, then fails the read.
+///
+/// fake_cloud_firestore fills `count` on every aggregate snapshot whether or
+/// not `count()` was requested, so it cannot catch a missing count. Real
+/// Firestore leaves it null — which is how the home screen ended up showing
+/// 「この1年で0件」 next to a non-zero total (2026-10-09).
+class _RecordingQuery implements CollectionReference<Map<String, dynamic>> {
+  final List<AggregateField> requested = [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #where) return this;
+    if (invocation.memberName == #aggregate) {
+      requested
+          .addAll(invocation.positionalArguments.whereType<AggregateField>());
+      throw StateError('read not simulated');
+    }
+    return super.noSuchMethod(invocation);
+  }
+}
+
+class _RecordingFirestore implements FirebaseFirestore {
+  _RecordingFirestore(this.query);
+  final _RecordingQuery query;
+
+  @override
+  CollectionReference<Map<String, dynamic>> collection(String path) => query;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
   late FakeFirebaseFirestore firestore;
@@ -86,6 +121,24 @@ void main() {
 
       expect(summary.count, 1);
       expect(summary.totalCost, 5000);
+    });
+
+    test('本番の Firestore で件数が返るよう、count() を一緒に頼む', () async {
+      final query = _RecordingQuery();
+      final recording = FirebaseService(
+        firestore: _RecordingFirestore(query),
+        auth: MockFirebaseAuth(
+          signedIn: true,
+          mockUser: MockUser(uid: 'u1', email: 'u1@example.com'),
+        ),
+      );
+
+      await recording.maintenanceSummary(
+        since: DateTime.now().subtract(const Duration(days: 365)),
+      );
+
+      expect(query.requested.whereType<count>(), hasLength(1));
+      expect(query.requested.whereType<sum>(), hasLength(1));
     });
 
     group('Edge Cases', () {

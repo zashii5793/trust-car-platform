@@ -1,3 +1,6 @@
+// The real Query is sealed; the recording double below implements it anyway.
+// ignore_for_file: subtype_of_sealed_class
+
 // DriveLogService.summaryForUser のテスト
 //
 // なぜ要るか:
@@ -12,6 +15,35 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
+
+/// Records which aggregate fields a query asks for, then fails the read.
+/// fake_cloud_firestore fills `count` even when `count()` was not requested;
+/// real Firestore does not, which showed 「この1年で0回」 (2026-10-09).
+class _RecordingQuery implements CollectionReference<Map<String, dynamic>> {
+  final List<AggregateField> requested = [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #where) return this;
+    if (invocation.memberName == #aggregate) {
+      requested
+          .addAll(invocation.positionalArguments.whereType<AggregateField>());
+      throw StateError('read not simulated');
+    }
+    return super.noSuchMethod(invocation);
+  }
+}
+
+class _RecordingFirestore implements FirebaseFirestore {
+  _RecordingFirestore(this.query);
+  final _RecordingQuery query;
+
+  @override
+  CollectionReference<Map<String, dynamic>> collection(String path) => query;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
   late FakeFirebaseFirestore firestore;
@@ -122,5 +154,18 @@ void main() {
         expect(summary.totalDistanceKm, 0);
       });
     });
+  });
+
+  test('本番の Firestore で回数が返るよう、count() を一緒に頼む', () async {
+    final query = _RecordingQuery();
+    final recording = DriveLogService(firestore: _RecordingFirestore(query));
+
+    await recording.summaryForUser(
+      userId: 'u1',
+      since: DateTime.now().subtract(const Duration(days: 365)),
+    );
+
+    expect(query.requested.whereType<count>(), hasLength(1));
+    expect(query.requested.whereType<sum>(), hasLength(1));
   });
 }

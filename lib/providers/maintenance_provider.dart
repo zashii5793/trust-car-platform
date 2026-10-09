@@ -56,6 +56,49 @@ class MaintenanceProvider with ChangeNotifier {
 
   String? _currentVehicleId;
 
+  /// Bumped every time a record is added, updated or deleted through this
+  /// provider. Screens that read records on their own (the home summary)
+  /// watch it to know when to read again.
+  int _revision = 0;
+  int get revision => _revision;
+
+  /// Per-vehicle cap when loading every vehicle's records at once. High
+  /// enough for a decade of records per car; the list is filtered locally.
+  static const int allVehiclesLimitPerVehicle = 500;
+
+  /// Loads the records of several vehicles at once, newest first.
+  ///
+  /// Used by "すべて見る" on the home screen: the per-vehicle stream only
+  /// ever held one car, so someone with four cars saw zero records. This
+  /// stops the per-vehicle stream so it cannot overwrite the merged list.
+  Future<void> loadRecordsForVehicles(List<String> vehicleIds) async {
+    stopListening();
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    if (vehicleIds.isEmpty) {
+      _records = [];
+      _isLoading = false;
+      notifyListeners();
+      return;
+    }
+
+    final result = await _firebaseService.getMaintenanceRecordsForVehicles(
+      vehicleIds,
+      limitPerVehicle: allVehiclesLimitPerVehicle,
+    );
+    result.when(
+      success: (byVehicle) {
+        _records = byVehicle.values.expand((r) => r).toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
+      },
+      failure: (error) => _error = error,
+    );
+    _isLoading = false;
+    notifyListeners();
+  }
+
   // 特定車両の履歴をリスニング
   void listenToMaintenanceRecords(String vehicleId) {
     // 既存のサブスクリプションをキャンセル
@@ -134,6 +177,7 @@ class MaintenanceProvider with ChangeNotifier {
     return result.when(
       success: (_) {
         _analytics?.trackMaintenanceRecorded(record.type.name);
+        _revision++;
         _isLoading = false;
         notifyListeners();
         return true;
@@ -159,6 +203,7 @@ class MaintenanceProvider with ChangeNotifier {
 
     return result.when(
       success: (_) {
+        _revision++;
         _isLoading = false;
         notifyListeners();
         return true;
@@ -182,6 +227,7 @@ class MaintenanceProvider with ChangeNotifier {
 
     return result.when(
       success: (_) {
+        _revision++;
         _isLoading = false;
         notifyListeners();
         return true;

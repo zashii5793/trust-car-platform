@@ -1,3 +1,4 @@
+import '../core/utils/calendar_days.dart';
 import '../models/vehicle.dart';
 import '../models/maintenance_record.dart';
 import '../models/app_notification.dart';
@@ -599,7 +600,7 @@ class RecommendationService {
     }
 
     // 期限までの日数を計算
-    final daysUntilInspection = nextInspectionDate.difference(now).inDays;
+    final daysUntilInspection = calendarDaysUntil(nextInspectionDate, now: now);
 
     NotificationPriority priority;
     if (daysUntilInspection <= 0) {

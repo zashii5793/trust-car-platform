@@ -138,7 +138,7 @@ class MaintenanceDetailBreakdown extends StatelessWidget {
             ),
           ),
           Text(
-            '¥${_yen.format(record.cost)}',
+            record.hasCost ? '¥${_yen.format(record.cost)}' : '未入力',
             style: theme.textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.bold),
           ),
@@ -146,7 +146,7 @@ class MaintenanceDetailBreakdown extends StatelessWidget {
       ),
       // 内訳の合計と請求額がずれている場合だけ注記する。読み取り漏れや
       // 入力漏れに気付ける唯一の手がかりになる。
-      if (record.calculatedTotal != record.cost)
+      if (record.hasCost && record.calculatedTotal != record.cost)
         Padding(
           padding: const EdgeInsets.only(top: AppSpacing.xxs),
           child: Text(

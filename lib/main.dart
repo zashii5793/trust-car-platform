@@ -24,6 +24,7 @@ import 'services/push_notification_service.dart';
 import 'services/fcm_token_service.dart';
 import 'services/inspection_reminder_service.dart';
 import 'services/notification_state_store.dart';
+import 'services/shop_detail_inbox_service.dart';
 import 'providers/vehicle_provider.dart';
 import 'providers/maintenance_provider.dart';
 import 'providers/auth_provider.dart';
@@ -34,6 +35,9 @@ import 'providers/post_provider.dart';
 import 'providers/drive_log_provider.dart';
 import 'providers/drive_recording_provider.dart';
 import 'providers/shop_provider.dart';
+import 'screens/shop/post_login_home.dart';
+import 'screens/shop/ledger/ledger_launcher.dart';
+import 'services/shop_entry_service.dart';
 import 'services/part_recommendation_service.dart';
 import 'services/post_service.dart';
 import 'services/drive_log_service.dart';
@@ -120,7 +124,12 @@ Future<void> _bootstrap() async {
     // rewrite, which left the client sending unauthenticated reads — every
     // query then failed the `request.auth != null` rule and screens rendered
     // as if the account had no data. Do not add a settings assignment here.
-    FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
+    // 8080 is often taken by other local apps, so the port can be overridden
+    // with `--dart-define=FIRESTORE_EMULATOR_PORT=8085`.
+    FirebaseFirestore.instance.useFirestoreEmulator(
+      'localhost',
+      const int.fromEnvironment('FIRESTORE_EMULATOR_PORT', defaultValue: 8080),
+    );
     // 画像アップロードも Emulator に向ける。これが無いと、Auth と Firestore は
     // ローカルなのに画像だけ本番バケットへ飛び、確認中に本番を汚してしまう。
     await FirebaseStorage.instance.useStorageEmulator('localhost', 9199);
@@ -248,6 +257,7 @@ class MyApp extends StatelessWidget {
                   inspectionReminderService:
                       sl.get<InspectionReminderService>(),
                   stateStore: sl.get<NotificationStateStore>(),
+                  detailInbox: sl.get<ShopDetailInboxService>(),
                 )),
         ChangeNotifierProvider(
             create: (_) => PartRecommendationProvider(
@@ -354,6 +364,11 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   bool? _onboardingDone;
 
+  /// Whether the last build was signed in. On signing out, screens pushed
+  /// on top (the customer home opened from the ledger) are closed so the
+  /// login screen is not left underneath them.
+  bool _wasAuthenticated = false;
+
   @override
   void initState() {
     super.initState();
@@ -384,9 +399,33 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
         }
 
-        // Authenticated users always go to HomeScreen
         if (authProvider.isAuthenticated) {
-          return const HomeScreen();
+          _wasAuthenticated = true;
+          final uid = authProvider.firebaseUser?.uid ?? '';
+          // Shop owners and staff open the customer ledger first
+          // (2026-10-09); everyone else goes to HomeScreen as before.
+          return PostLoginHome(
+            key: ValueKey('home|$uid'),
+            uid: uid,
+            entryService: sl.tryGet<ShopEntryService>(),
+            userHome: (_) => const HomeScreen(),
+            ledgerBuilder: (context, entry, openUserHome) =>
+                buildCustomerLedgerScreen(
+              context,
+              shopId: entry.shopId,
+              shopName: entry.shopName,
+              isOwner: entry.isOwner,
+              ownerUid: entry.ownerUid,
+              onOpenUserHome: openUserHome,
+            ),
+          );
+        }
+        if (_wasAuthenticated) {
+          _wasAuthenticated = false;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted) return;
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          });
         }
 
         // First-time visitors see onboarding. The callback swaps the screen

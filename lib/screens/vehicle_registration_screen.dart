@@ -524,13 +524,16 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   // ---------------------------------------------------------------------------
 
   Future<void> _registerVehicle({bool quick = false}) async {
+    // Taps that land before the disabled button is rebuilt still reach here;
+    // without this a double tap registered the same car twice.
+    if (_isLoading) return;
     // ステップ1は既に検証済みだが念のため確認。
     // quick（OCRワンタップ登録）では grade / 走行距離 は任意（車検リマインダーには不要）。
     final missingCore = _selectedMaker == null ||
         _selectedModel == null ||
         _yearController.text.isEmpty;
-    final missingDetail =
-        _selectedGrade == null || _mileageController.text.isEmpty;
+    // Grade is optional; only the mileage is needed beyond the core fields.
+    final missingDetail = _mileageController.text.isEmpty;
     if (missingCore || (!quick && missingDetail)) {
       showErrorSnackBar(context, '基本情報が不足しています。最初のステップに戻って確認してください');
       return;
@@ -969,7 +972,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                         }
                       });
                     },
-                    validator: (value) => value == null ? 'グレードを選択' : null,
+                    // Optional: many cars have no grade candidates, and
+                    // many owners do not know theirs (2026-10-09).
+                    isRequired: false,
                   ),
                 ),
               ],

@@ -1,0 +1,179 @@
+<title>TrustCar 使用感テスト結果</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Zen+Kaku+Gothic+New:wght@700;900&family=M+PLUS+1+Code:wght@400;500&display=swap">
+<style>
+/* レイアウト: 1カラム。先に件数と重い指摘、次に3本の詳細レポートへの入口 */
+:root {
+  --bg: #f5f7f6; --surface: #ffffff; --fg: #1c2522; --muted: #5a6763; --line: #d7dfdc;
+  --accent: #0f6b5c; --user: #1d5fa8; --shop: #9a5b12;
+  --s1: #b3261e; --s2: #c25e00; --s3: #6b6b00; --s4: #5a6763;
+  --f-display: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  --f-body: "BIZ UDPGothic", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  --f-code: "M PLUS 1 Code", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121816; --surface: #1a2220; --fg: #e3ebe8; --muted: #9aa8a3; --line: #2e3a37;
+    --accent: #5cc7b2; --user: #7fb3ec; --shop: #e0a75e;
+    --s1: #f2867e; --s2: #f0a35a; --s3: #d6d36a; --s4: #9aa8a3; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121816; --surface: #1a2220; --fg: #e3ebe8; --muted: #9aa8a3; --line: #2e3a37;
+  --accent: #5cc7b2; --user: #7fb3ec; --shop: #e0a75e;
+  --s1: #f2867e; --s2: #f0a35a; --s3: #d6d36a; --s4: #9aa8a3; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.8; padding: 0 16px; }
+.wrap { max-width: 880px; margin: 0 auto; padding-block: 40px 80px; display: grid; gap: 44px; }
+header { display: grid; gap: 10px; }
+.eyebrow { font-family: var(--f-code); font-size: 12px; letter-spacing: .12em; color: var(--accent); }
+h1 { font-family: var(--f-display); font-weight: 900; font-size: clamp(26px, 5vw, 38px); line-height: 1.3; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--f-display); font-weight: 700; font-size: 21px; margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 65ch; }
+.lead { color: var(--muted); }
+section { display: grid; gap: 14px; min-width: 0; }
+ul, ol { margin: 0; padding-left: 1.4em; display: grid; gap: 6px; }
+.tbl { overflow-x: auto; border: 1px solid var(--line); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+thead th { font-size: 13px; color: var(--muted); }
+td.n { text-align: right; }
+td.s1 { color: var(--s1); font-weight: 700; } td.s2 { color: var(--s2); font-weight: 700; }
+.issue { display: grid; gap: 4px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--s2); }
+.issue.s1 { border-left-color: var(--s1); }
+.issue h3 { font-family: var(--f-display); font-size: 16px; margin: 0; }
+.issue .who { font-size: 12px; color: var(--muted); }
+.issue p { font-size: 14px; }
+.tag { font-family: var(--f-code); font-size: 12px; padding: 0 6px; border: 1px solid currentColor; border-radius: 3px; margin-right: 6px; }
+.tag.s1 { color: var(--s1); } .tag.s2 { color: var(--s2); }
+.links { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.links .lk { display: grid; min-width: 0; gap: 2px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); color: var(--fg); text-decoration: none; }
+.links b { font-family: var(--f-display); }
+.links code { word-break: break-all; }
+.links span { font-size: 13px; color: var(--muted); }
+.note { border-left: 3px solid var(--accent); padding: 10px 14px; background: var(--surface); font-size: 14px; }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; display: grid; gap: 6px; }
+code { font-family: var(--f-code); font-size: 13px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">TRUSTCAR / USABILITY TEST / 2026-10-08 夜〜10-09</div>
+    <h1>TrustCar 使用感テスト結果</h1>
+    <p class="lead">1年分のテストデータ（店の顧客4,100・車5,947・整備履歴15,692件）を入れたエミュレータで、プロンプト2本を3回に分けて回しました。判断はすべてスクリーンショットだけで行っています。</p>
+  </header>
+
+  <section>
+    <h2>件数</h2>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>回</th><th>画面幅</th><th>S1 進めない</th><th>S2 迷う</th><th>S3 気づきにくい</th><th>S4 好み</th></tr></thead>
+        <tbody>
+          <tr><td>ユーザー側</td><td>PC 1209</td><td class="n s1">1</td><td class="n s2">11</td><td class="n">22</td><td class="n">5</td></tr>
+          <tr><td>ユーザー側</td><td>スマホ 390（一部 820）</td><td class="n s1">1（既出）</td><td class="n s2">9（新規2）</td><td class="n">29（新規12）</td><td class="n">12</td></tr>
+          <tr><td>店側</td><td>PC 1209</td><td class="n s1">1</td><td class="n s2">14</td><td class="n">17</td><td class="n">2</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>先に直したいもの</h2>
+    <p>3回の結果から、重複をまとめて重い順に並べました。いちばん大きいのは3つめで、店から明細を送ってお客さんに届くまでの流れが、どちらの側から見ても途切れています。</p>
+
+    <div class="issue s1">
+      <div class="who"><span class="tag s1">S1</span>ユーザー側（PC・スマホの両方）</div>
+      <h3>売却済みの車が、売却済みに見えない</h3>
+      <p>persona.f の車はデータ上すでに「売却済み」です。それなのに普段の車として表示され、「手放す」を押すと「入力内容を確認してください」とだけ出ます。新規ユーザーの車で手放しても、カード・登録台数・「要対応」が変わりません。「元に戻す」の画面（手放した車の一覧）はコードにはありますが、2回のテストとも見つけられませんでした。</p>
+    </div>
+
+    <div class="issue s1">
+      <div class="who"><span class="tag s1">S1</span>店側</div>
+      <h3>車検の取りこぼし画面が開けない</h3>
+      <p>約30秒待たされたあと、下半分が赤いエラー（BoxConstraints has a negative minimum width）になります。上半分には「整備履歴がまだ取り込まれていません」と出ますが、データ上は 10/4 に取り込みがあります。整備履歴を1年分まとめて読み込んでいるので、4,000人の規模では遅くなります。</p>
+    </div>
+
+    <div class="issue">
+      <div class="who"><span class="tag s2">S2</span>店側とユーザー側をまたぐ</div>
+      <h3>店から送った明細に、お客さんが気づけない</h3>
+      <p>届いた明細はホームにも通知にも出ず、マーケット → 問い合わせの奥にありました。差出人は「工場」とだけ出て、車名もありません。店は明細を作るときに車を選べないので、「記録に追加」でお客さんが車を選ぶことになります。そのシートは4台目が画面からはみ出して選べません。店側には、届いたか・取り込まれたかを見る場所がありません。開き直すと同じ明細を二重に取り込めるようにも見えます（データ作成時にコードから気づいた点）。</p>
+    </div>
+
+    <div class="issue">
+      <div class="who"><span class="tag s2">S2</span>店側</div>
+      <h3>検索で見つからず、二重登録に誘導される</h3>
+      <p>漢字の名前（「青木」）・名のフリガナ・ナンバー末尾2桁（「35」）では当たりません。そのうえで「いません」と出て、すぐ下に「新しい顧客として追加」が並びます。末尾4桁なら見つかります。</p>
+    </div>
+
+    <div class="issue">
+      <div class="who"><span class="tag s2">S2</span>店側</div>
+      <h3>店主がログインすると、お客さん用の画面が開く</h3>
+      <p>台帳に着くまで5手かかります。新しく入ったスタッフは、料金表の下までスクロールしてコードを入れます。スタッフ一覧には名前が出ず、「スタッフ」とだけ表示されます。</p>
+    </div>
+
+    <div class="issue">
+      <div class="who"><span class="tag s2">S2</span>ユーザー側</div>
+      <h3>ホームの数字が合わない・矛盾する</h3>
+      <p>「この1年で0件」は常に0です。4台ある persona.a で「すべて見る」を押すと0件になります。persona.d は「車検まで残149日」と「車検 62日過ぎています」が同じ画面に並びます。残り日数は2台で1日少なく出ました。</p>
+    </div>
+
+    <div class="issue">
+      <div class="who"><span class="tag s2">S2</span>ユーザー側</div>
+      <h3>はじめての人が入力で止まる</h3>
+      <p>グレードが必須なのに候補が0件で、自由入力の「決定」はシートが動いて押しにくい状態です。整備記録の費用も必須で、覚えていなければ ¥0 を入れることになります。逆に、走行距離を前回より小さく入れても何も言われません。保存ボタンを続けて押すと、同じ記録が2件できます。</p>
+    </div>
+
+    <div class="issue">
+      <div class="who"><span class="tag s2">S2</span>ユーザー側</div>
+      <h3>かかりつけの店とつながれないように見える</h3>
+      <p>タカヤモーターのページに、「認証済み」と「アプリ未提携の工場です」が並んでいます。ハイエースの「相談」ボタンは、タカヤではなく別の工場を案内します。売り込まない原則とも合いません。</p>
+    </div>
+
+    <div class="issue">
+      <div class="who"><span class="tag s2">S2</span>ユーザー側（スマホ 390）</div>
+      <h3>スマホ幅で読めない・押しにくい</h3>
+      <p>任意保険の車両保険の行が右へ 85px はみ出し、免責額が読めません。ほかに次の点がありました（S3）。下のナビは高さ約34px で、目安の 44px より低い。ホームが詰まっていて、1画面目に車が出ない。ナンバーと店名が途中で切れる。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>明日もう一度開くか（ユーザー側）</h2>
+    <ul>
+      <li>新規ユーザー: 開かない。入力で止められ、記録しても反映されないように見える</li>
+      <li>E（はじめての車）: 通知が来たら開く</li>
+      <li>A（4台）: 開く。19日後の車検がすぐ見える</li>
+      <li>D（長く乗る）: 開く。ただし車検の表示の矛盾で不安</li>
+      <li>F（手放す）: 開かない。手放す操作が失敗する</li>
+      <li>C（新しい店へ共有）: 用事が済んだので当面は開かない。共有の画面は分かりやすかった</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>詳細レポート</h2>
+    <p>スクショつきの詳細は手元の Mac にあります（Finder で開くか、ブラウザにパスを入れて開きます）。</p>
+    <div class="links">
+      <div class="lk"><b>ユーザー側（PC 幅）</b><code>~/Downloads/trustcar-usability-20261009/user/report.html</code><span>シナリオ1〜7・スクショ102枚</span></div>
+      <div class="lk"><b>ユーザー側（スマホ幅）</b><code>~/Downloads/trustcar-usability-20261009/user-phone/report.html</code><span>390 中心・スクショ138枚</span></div>
+      <div class="lk"><b>店側</b><code>~/Downloads/trustcar-usability-20261009/shop/report.html</code><span>台帳・CSV・通しの流れ・スクショ123枚</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>確かめられなかったこと</h2>
+    <ul>
+      <li>店側の 820 幅、ユーザー側の 820 幅の大半（Chrome の画面幅が変えられなかった。スマホ幅は別のブラウザで回した）</li>
+      <li>CSV の取り込みの実行（ファイルを選ぶ前の画面まで。テスト用の CSV 5本は shop/csv/ にある）</li>
+      <li>車検案内の一斉送信、PDF・CSV の書き出し（ダウンロードになるため押していない）</li>
+      <li>実機のカメラ読み取り、プッシュ通知、キーボードで入力欄が隠れないか、文字を大きくした設定</li>
+    </ul>
+    <div class="note">S1 のうち「売却済みの車」と「取りこぼし画面」の原因は、テスト後にコードとデータで確かめました。テストの担当が推測した原因（車検満了日が未設定だから）は外れていました。ほかの指摘は、画面で見えたままの記録です。</div>
+  </section>
+
+  <footer>
+    <span>手元の置き場所: ~/Downloads/trustcar-usability-20261009/</span>
+    <span>プロンプト: trust_car_platform/docs/USABILITY_TEST_PROMPT.md（ブランチ claude/usability-test-seed）</span>
+  </footer>
+</div>

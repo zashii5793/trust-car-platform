@@ -52,8 +52,13 @@ class VehicleRetirementService {
       }
       final currentStatus = VehicleStatus.fromString(data['status'] as String?);
       if (currentStatus != VehicleStatus.active) {
-        return const Result.failure(
-            AppError.validation('vehicle is already retired'));
+        // The generic "check your input" left people stuck: there is no input
+        // to fix. Say what state the car is in and where to undo it.
+        return Result.failure(AppError.validation(
+          'vehicle is already retired',
+          userMessage: 'この車はすでに${currentStatus.displayName}になっています。'
+              '使用中に戻すときは「過去の車両」から元に戻せます',
+        ));
       }
 
       await _firestore.collection(_collection).doc(vehicleId).update({
@@ -93,8 +98,10 @@ class VehicleRetirementService {
       }
       final currentStatus = VehicleStatus.fromString(data['status'] as String?);
       if (currentStatus == VehicleStatus.active) {
-        return const Result.failure(
-            AppError.validation('vehicle is already active'));
+        return const Result.failure(AppError.validation(
+          'vehicle is already active',
+          userMessage: 'この車はすでに使用中に戻っています',
+        ));
       }
 
       await _firestore.collection(_collection).doc(vehicleId).update({

@@ -27,6 +27,12 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:trust_car_platform/models/drive_log.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
+import 'package:trust_car_platform/services/vehicle_retirement_service.dart';
+import 'package:trust_car_platform/services/shop_invite_service.dart';
+import 'package:trust_car_platform/services/shop_service.dart';
+import 'package:trust_car_platform/services/inquiry_service.dart';
+import 'package:trust_car_platform/providers/shop_provider.dart';
+import 'package:trust_car_platform/screens/marketplace/inquiry_screen.dart';
 
 import '../golden/font_loader.dart';
 
@@ -1002,6 +1008,102 @@ void main() {
     });
   });
 
+  // 使用感テスト（2026-10-09）: 売却済みの車にも「この車を手放す」が出て、
+  // 押すと「入力内容を確認してください」とだけ出た。元に戻す操作も無かった。
+  group('手放した車の詳細', () {
+    late FakeFirebaseFirestore firestore;
+
+    setUp(() async {
+      firestore = FakeFirebaseFirestore();
+      final sl = ServiceLocator.instance;
+      if (sl.isRegistered<VehicleRetirementService>()) {
+        sl.unregister<VehicleRetirementService>();
+      }
+      sl.registerLazySingleton<VehicleRetirementService>(
+          () => VehicleRetirementService(firestore: firestore));
+    });
+
+    tearDown(() {
+      ServiceLocator.instance.unregister<VehicleRetirementService>();
+    });
+
+    Vehicle soldVehicle() => _testVehicle().copyWith(
+          status: VehicleStatus.sold,
+          retiredAt: DateTime(2026, 9, 30),
+        );
+
+    Future<void> pump(WidgetTester tester, Vehicle vehicle) async {
+      await firestore.collection('vehicles').doc(vehicle.id).set(
+            vehicle.toMap(),
+          );
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_buildScreen(vehicle, maintenanceProvider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+    }
+
+    testWidgets('売却済みと分かる帯が出る', (tester) async {
+      await pump(tester, soldVehicle());
+
+      final banner = find.byKey(const Key('retired_vehicle_banner'));
+      expect(banner, findsOneWidget);
+      expect(
+        find.descendant(of: banner, matching: find.textContaining('売却済み')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('メニューは「手放す」ではなく「使用中に戻す」', (tester) async {
+      await pump(tester, soldVehicle());
+
+      await tester.tap(find.byKey(const Key('vehicle_more_menu')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('retire_vehicle_menu_item')), findsNothing);
+      expect(
+          find.byKey(const Key('restore_vehicle_menu_item')), findsOneWidget);
+    });
+
+    testWidgets('「使用中に戻す」で元に戻り、帯が消える', (tester) async {
+      await pump(tester, soldVehicle());
+
+      await tester.tap(find.byKey(const Key('restore_vehicle_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('retired_vehicle_banner')), findsNothing);
+      final doc = await firestore.collection('vehicles').doc('v1').get();
+      expect(doc.data()!['status'], 'active');
+    });
+
+    testWidgets('使用中の車には帯が出ない', (tester) async {
+      await pump(tester, _testVehicle());
+
+      expect(find.byKey(const Key('retired_vehicle_banner')), findsNothing);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('別の端末で手放し済みのとき、理由の分かる言葉で知らせる', (tester) async {
+        // The screen still thinks the car is active, but the stored state
+        // says it was sold (e.g. retired from another device).
+        await pump(tester, _testVehicle());
+        await firestore
+            .collection('vehicles')
+            .doc('v1')
+            .update({'status': 'sold'});
+
+        await tester.tap(find.byKey(const Key('vehicle_more_menu')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('retire_vehicle_menu_item')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('retire_confirm_btn')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('入力内容を確認してください'), findsNothing);
+        expect(find.textContaining('すでに売却済み'), findsOneWidget);
+      });
+    });
+  });
+
   group('次の整備の目安', () {
     testWidgets('記録が1件だけなら、まだ何も言わない', (tester) async {
       maintenanceProvider.listenToMaintenanceRecords('v1');
@@ -1042,6 +1144,204 @@ void main() {
       expect(find.text('次の整備の目安'), findsOneWidget);
       expect(find.byKey(const Key('maintenance_forecast_section')),
           findsOneWidget);
+    });
+  });
+
+  // 使用感テスト（2026-10-09）: 車検満了日は残149日なのに、同じ画面の
+  // 「次の整備の目安」は「車検 62日過ぎています」と出た。車検は間隔からの
+  // 当て推量ではなく、満了日から出す。
+  group('次の整備の目安 — 車検は満了日から', () {
+    testWidgets('満了日があれば、車検の目安は満了日までの日数', (tester) async {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final vehicle = _testVehicle().copyWith(
+        inspectionExpiryDate: today.add(const Duration(days: 149)),
+      );
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_buildScreen(vehicle, maintenanceProvider));
+      // Two past inspections 440 days apart: the interval guess lands in
+      // the past even though the certificate runs for another 149 days.
+      mockFirebase.emitRecords([
+        _testRecord(
+          id: 'i2',
+          title: '車検',
+          type: MaintenanceType.carInspection,
+          date: today.subtract(const Duration(days: 460)),
+        ),
+        _testRecord(
+          id: 'i1',
+          title: '車検',
+          type: MaintenanceType.carInspection,
+          date: today.subtract(const Duration(days: 900)),
+        ),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('maintenance_forecast_section')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      final section = find.byKey(const Key('maintenance_forecast_section'));
+      expect(
+        find.descendant(of: section, matching: find.text('あと149日')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: section, matching: find.textContaining('過ぎています')),
+        findsNothing,
+      );
+    });
+  });
+
+  // 使用感テスト（2026-10-09）: 390 幅で任意保険の「車両保険」の行が
+  // 右へ 85px はみ出し、免責額が読めなかった（persona.e・d）。
+  group('任意保険 — スマホ幅で切れない', () {
+    testWidgets('390 幅で車両保険の行がはみ出さず、免責額まで読める', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 2400);
+      addTearDown(tester.view.reset);
+      final vehicle = _testVehicle().copyWith(
+        voluntaryInsurance: VoluntaryInsurance(
+          companyName: 'テスト損害保険株式会社',
+          expiryDate: DateTime(2027, 4, 1),
+          hasVehicleInsurance: true,
+          vehicleInsuranceType: 'エコノミー（車対車+A）',
+          vehicleInsuranceAmount: 1500000,
+          vehicleInsuranceDeductible: '1回目5万円・2回目以降10万円',
+          driverScope: '本人・配偶者限定',
+          driverAgeCondition: '35歳以上補償',
+        ),
+      );
+
+      await tester.pumpWidget(_buildScreen(vehicle, maintenanceProvider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('免責1回目5万円・2回目以降10万円'), findsOneWidget);
+    });
+  });
+
+  // 使用感テスト（2026-10-09）: persona.a のハイエースで、相談ボタンが
+  // かかりつけのタカヤモーターではなく、整備記録にあった別の工場
+  // （テストオート品川）をマーケットで案内した。
+  group('車検の相談 — かかりつけの店を先に', () {
+    late FakeFirebaseFirestore firestore;
+
+    setUp(() {
+      firestore = FakeFirebaseFirestore();
+      final sl = ServiceLocator.instance;
+      for (final unregister in [
+        () => sl.unregister<ShopInviteService>(),
+        () => sl.unregister<ShopService>(),
+      ]) {
+        try {
+          unregister();
+        } catch (_) {}
+      }
+      sl.registerLazySingleton<ShopInviteService>(
+          () => ShopInviteService(firestore: firestore));
+      sl.registerLazySingleton<ShopService>(
+          () => ShopService(firestore: firestore));
+    });
+
+    tearDown(() {
+      final sl = ServiceLocator.instance;
+      sl.unregister<ShopInviteService>();
+      sl.unregister<ShopService>();
+    });
+
+    Future<void> pump(WidgetTester tester, {required bool linked}) async {
+      if (linked) {
+        await firestore.collection('shop_customers').doc('test-user-id').set(
+              ShopCustomerLink(
+                shopId: 'takaya',
+                shopName: 'タカヤモーター',
+                userId: 'test-user-id',
+                linkedAt: DateTime(2026, 1, 1),
+              ).toMap(),
+            );
+        await firestore
+            .collection('shops')
+            .doc('takaya')
+            .set({'name': 'タカヤモーター', 'type': 'maintenanceShop'});
+      }
+      final now = DateTime.now();
+      final vehicle = _testVehicle().copyWith(
+        inspectionExpiryDate: DateTime(now.year, now.month, now.day + 19),
+      );
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      // Providers sit above MaterialApp here so the pushed inquiry screen
+      // can reach ShopProvider.
+      await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider<MaintenanceProvider>.value(
+              value: maintenanceProvider),
+          ChangeNotifierProvider<NotificationProvider>(
+            create: (_) => NotificationProvider(
+              firebaseService: MockFirebaseService(),
+              recommendationService: RecommendationService(),
+            ),
+          ),
+          ChangeNotifierProvider<UserSubscriptionProvider>(
+            create: (_) => UserSubscriptionProvider(),
+          ),
+          ChangeNotifierProvider<ShopProvider>(
+            create: (_) => ShopProvider(
+              shopService: ShopService(firestore: firestore),
+              inquiryService: InquiryService(firestore: firestore),
+            ),
+          ),
+        ],
+        child: MaterialApp(home: VehicleDetailScreen(vehicle: vehicle)),
+      ));
+      mockFirebase.emitRecords([
+        _testRecord(id: 'r1', shopName: 'テストオート品川整備センター'),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+    }
+
+    testWidgets('かかりつけがあれば、その店の名前で相談ボタンを出す', (tester) async {
+      await pump(tester, linked: true);
+
+      final linked =
+          find.byKey(const Key('inspection_contact_linked_shop_btn'));
+      expect(linked, findsOneWidget);
+      expect(
+        find.descendant(of: linked, matching: find.text('タカヤモーターに相談')),
+        findsOneWidget,
+      );
+      // 整備記録にあった別の店は案内しない（売り込まない）。
+      expect(find.textContaining('テストオート品川整備センターに相談'), findsNothing);
+    });
+
+    testWidgets('押すと、その店への問い合わせ画面が直接開く', (tester) async {
+      await pump(tester, linked: true);
+
+      await tester
+          .tap(find.byKey(const Key('inspection_contact_linked_shop_btn')));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      final screen = tester.widget<InquiryScreen>(find.byType(InquiryScreen));
+      expect(screen.shop.id, 'takaya');
+      expect(screen.vehicleId, 'v1');
+    });
+
+    group('Edge Cases', () {
+      testWidgets('かかりつけが無ければ、今までどおり（記録にある店・工場を探す）', (tester) async {
+        await pump(tester, linked: false);
+
+        expect(find.byKey(const Key('inspection_contact_linked_shop_btn')),
+            findsNothing);
+        expect(find.byKey(const Key('inspection_contact_last_shop_btn')),
+            findsOneWidget);
+        expect(
+            find.byKey(const Key('inspection_find_shop_btn')), findsOneWidget);
+      });
     });
   });
 

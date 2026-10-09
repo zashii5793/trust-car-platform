@@ -109,7 +109,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('グレードを選択 *'));
+    await tester.tap(find.text('グレード（任意）'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('S').last);
     await tester.pumpAndSettle();

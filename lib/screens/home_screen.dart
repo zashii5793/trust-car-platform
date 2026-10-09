@@ -17,7 +17,6 @@ import '../services/popular_accessories_service.dart';
 import '../services/drive_log_service.dart';
 import '../services/part_recommendation_service.dart';
 import '../models/part_listing.dart';
-import '../services/vehicle_retirement_service.dart';
 import '../models/maintenance_record.dart';
 import '../models/drive_log.dart';
 import '../models/vehicle.dart';
@@ -72,6 +71,7 @@ import '../core/constants/app_info.dart';
 import 'settings/shop_invite_screen.dart';
 import '../services/shop_invite_service.dart';
 import '../widgets/vehicle/maker_badge.dart';
+import '../widgets/home/shop_detail_inbox_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -370,13 +370,12 @@ class _HomeScreenState extends State<HomeScreen> {
   static bool _useTopNavigation(BuildContext context) =>
       MediaQuery.sizeOf(context).width >= 720;
 
-  /// 下段のメニュー。**2行2列**に置く。
-  ///
-  /// 横一列に5つ並べると、390px 幅では1項目あたり78pxしか取れず、
-  /// ラベルが小さくなって押し間違えやすい。2行に分けると倍の幅が取れる。
+  /// 下段のメニュー。4つを**1段**に置く。
   ///
   /// 通知はタブから外して AppBar のベルに寄せた（どのタブにいても見たい
-  /// ものなので、常設のほうが合う）。残る4つを 2×2 に置いている。
+  /// ものなので、常設のほうが合う）。残る4つなら 390px 幅でも1項目
+  /// 約97px 取れる。2×2 にしていた頃は1段が約34pxと低く、2段目が画面の
+  /// 下端に寄って見落とされた（2026-10-09 使用感テスト）。
   Widget _buildNavigation() {
     const items = <({IconData icon, IconData selectedIcon, String label})>[
       (
@@ -401,25 +400,22 @@ class _HomeScreenState extends State<HomeScreen> {
             horizontal: AppSpacing.sm,
             vertical: AppSpacing.xs,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          // One row of four. The 2x2 grid made each row about 34px tall
+          // (target 44px) and pushed the second row to the very bottom edge
+          // where it went unnoticed (usability test 2026-10-09). With the
+          // icon above the label, 「みんなの投稿」 fits a quarter of 390px.
+          child: Row(
             children: [
-              for (var row = 0; row < 2; row++)
-                Row(
-                  children: [
-                    for (var col = 0; col < 2; col++)
-                      Expanded(
-                        child: _NavCell(
-                          index: row * 2 + col,
-                          icon: items[row * 2 + col].icon,
-                          selectedIcon: items[row * 2 + col].selectedIcon,
-                          label: items[row * 2 + col].label,
-                          isSelected: _currentIndex == row * 2 + col,
-                          onTap: () =>
-                              setState(() => _currentIndex = row * 2 + col),
-                        ),
-                      ),
-                  ],
+              for (var i = 0; i < items.length; i++)
+                Expanded(
+                  child: _NavCell(
+                    index: i,
+                    icon: items[i].icon,
+                    selectedIcon: items[i].selectedIcon,
+                    label: items[i].label,
+                    isSelected: _currentIndex == i,
+                    onTap: () => setState(() => _currentIndex = i),
+                  ),
                 ),
             ],
           ),
@@ -552,6 +548,9 @@ class _VehicleTabState extends State<_VehicleTab> {
         onBrowseModelCosts: sl.isRegistered<ModelCostReportService>()
             ? () => _openModelCostBrowse(context)
             : null,
+        // Someone who let go of every car still needs a way back to them
+        // (to read the records, or to undo a mistaken retirement).
+        retiredCount: vehicleProvider.retiredVehicles.length,
       );
     }
 
@@ -635,15 +634,18 @@ class _VehicleTabState extends State<_VehicleTab> {
                   },
                   onDismiss: _dismissGettingStarted,
                 ),
+              const ShopDetailInboxCard(),
               _DashboardSummaryCard(vehicles: vehicles),
               // 記録する行為と、次に買うものへの入口。開いてすぐの高さに置く。
               _QuickActionsRow(vehicle: primaryVehicle),
+              // 自分の車は AI の提案より先に出す。提案が2枚あると、登録した
+              // 車が2画面目に押し出されていた（2026-10-09 使用感テスト）。
+              ...vehicles.map((v) => _VehicleCard(vehicle: v)),
               // ガイドを出している間は車検の催促を重ねない。同じことを二か所で
               // 言われると、どちらも読み飛ばされる。
               if (hasVehicleWithoutInspection && !showGettingStarted)
                 _InspectionSetupCard(vehicles: vehicles),
               _AiSuggestionSection(onSeeAll: widget.onNavigateToNotifications),
-              ...vehicles.map((v) => _VehicleCard(vehicle: v)),
               // たびの記録とおすすめパーツを、車両カードのすぐ下に置く。
               // どちらもプロフィールの奥・車両詳細のヘッダーにあって、
               // 1年使っても辿り着かない位置だった（2026-09-08）。
@@ -658,7 +660,9 @@ class _VehicleTabState extends State<_VehicleTab> {
             ];
 
             return ListView.builder(
-              padding: AppSpacing.paddingScreen,
+              // Extra room at the end so the last 「すべて見る」 and prices
+              // can scroll clear of the floating + button (2026-10-09).
+              padding: AppSpacing.paddingScreen.copyWith(bottom: 96),
               itemCount: items.length,
               itemBuilder: (_, i) => items[i],
             );
@@ -781,6 +785,19 @@ class _ProfileTab extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                ),
+              ),
+              // 手放した車の入口。ホームの「過去の車両」は手放した車があるとき
+              // しか出ないので、いつでも辿れる場所にも置く（2026-10-09）。
+              _MenuItemData(
+                icon: Icons.history_outlined,
+                label: '過去の車両（手放した車）',
+                color: AppColors.textSecondary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const RetiredVehiclesScreen(),
+                  ),
                 ),
               ),
               // 「ドライブログ」はここに置いていた。「アカウント」の中では
@@ -1155,7 +1172,8 @@ class _ProfileTab extends StatelessWidget {
 class _VehicleCard extends StatelessWidget {
   final Vehicle vehicle;
 
-  const _VehicleCard({required this.vehicle});
+  _VehicleCard({required this.vehicle})
+      : super(key: Key('vehicle_card_${vehicle.id}'));
 
   String _formatMileage(int mileage) {
     final formatter = NumberFormat('#,###');
@@ -1649,9 +1667,13 @@ class _VehicleEmptyOnboarding extends StatelessWidget {
   /// 車を買う前の人向けの入口（Issue #208）。null なら出さない。
   final VoidCallback? onBrowseModelCosts;
 
+  /// Number of retired vehicles. When non-zero a link to them is shown.
+  final int retiredCount;
+
   const _VehicleEmptyOnboarding({
     required this.onRegister,
     this.onBrowseModelCosts,
+    this.retiredCount = 0,
   });
 
   static const _features = [
@@ -1766,6 +1788,20 @@ class _VehicleEmptyOnboarding extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                 ),
               ),
+            ),
+          ],
+          if (retiredCount > 0) ...[
+            AppSpacing.verticalMd,
+            TextButton.icon(
+              key: const Key('open_retired_vehicles'),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => const RetiredVehiclesScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.history_outlined),
+              label: Text('手放した車（$retiredCount台）を見る'),
             ),
           ],
           AppSpacing.verticalLg,
@@ -2118,15 +2154,21 @@ class _DashboardSummaryCard extends StatelessWidget {
             children: [
               Icon(icon, size: 14, color: iconColor),
               AppSpacing.horizontalXs,
-              Text(
-                '次の車検: '
-                '${vehicle.maker} '
-                '${vehicle.model} '
-                '— あと$days日',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white,
-                  fontWeight: fontWeight,
+              // Long maker/model names must not push the chip off a 390px
+              // screen.
+              Flexible(
+                child: Text(
+                  '次の車検: '
+                  '${vehicle.maker} '
+                  '${vehicle.model} '
+                  '— あと$days日',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: fontWeight,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -2757,44 +2799,17 @@ class _InfoChip extends StatelessWidget {
 ///
 /// 2026-09-07 まではテキストリンクだけで、車そのものは奥の画面まで行かないと
 /// 見えなかった。
-class _RetiredVehiclesSection extends StatefulWidget {
+///
+/// Reads from [VehicleProvider] rather than querying on its own: the vehicle
+/// stream already carries retired cars, so a car let go of a moment ago
+/// moves here on the same frame it leaves the active list (2026-10-09).
+class _RetiredVehiclesSection extends StatelessWidget {
   const _RetiredVehiclesSection();
 
   @override
-  State<_RetiredVehiclesSection> createState() =>
-      _RetiredVehiclesSectionState();
-}
-
-class _RetiredVehiclesSectionState extends State<_RetiredVehiclesSection> {
-  List<Vehicle>? _vehicles;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-  }
-
-  Future<void> _load() async {
-    final uid = context.read<AuthProvider>().appUser?.id ?? '';
-    if (uid.isEmpty) return;
-    final result =
-        await sl.get<VehicleRetirementService>().getRetiredVehicles(uid);
-    if (!mounted) return;
-    result.when(
-      // **返ってきたリストをその場で並べ替えない。** 呼び出し先が変更できない
-      // リスト（const [] など）を返すと落ちる。写しを作ってから並べ替える。
-      success: (vehicles) => setState(() {
-        _vehicles = [...vehicles]..sort((a, b) =>
-            (b.retiredAt ?? DateTime(0)).compareTo(a.retiredAt ?? DateTime(0)));
-      }),
-      failure: (_) => setState(() => _vehicles = const []),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final vehicles = _vehicles;
-    if (vehicles == null || vehicles.isEmpty) return const SizedBox.shrink();
+    final vehicles = context.watch<VehicleProvider>().retiredVehicles;
+    if (vehicles.isEmpty) return const SizedBox.shrink();
 
     final shown = vehicles.take(3).toList();
 
@@ -2839,40 +2854,51 @@ class _RetiredVehicleRow extends StatelessWidget {
     final retiredAt = vehicle.retiredAt;
 
     // 現役の車と同じ濃さで出すと、どれが今の愛車か分からなくなる。
-    return Opacity(
-      opacity: 0.65,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: AppSpacing.sm,
+    // Tapping opens the detail screen, which shows the records and offers
+    // 「使用中に戻す」 for a mistaken retirement.
+    return InkWell(
+      key: Key('retired_vehicle_row_${vehicle.id}'),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => VehicleDetailScreen(vehicle: vehicle),
         ),
-        child: Row(
-          children: [
-            Icon(Icons.directions_car_outlined,
-                size: 18, color: AppColors.textTertiary),
-            AppSpacing.horizontalSm,
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${vehicle.maker} ${vehicle.model}',
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  AppSpacing.verticalXxs,
-                  Text(
-                    retiredAt == null
-                        ? vehicle.status.displayName
-                        : '${vehicle.status.displayName} ・ ${dateFormat.format(retiredAt)}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
+      ),
+      child: Opacity(
+        opacity: 0.65,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.directions_car_outlined,
+                  size: 18, color: AppColors.textTertiary),
+              AppSpacing.horizontalSm,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${vehicle.maker} ${vehicle.model}',
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    AppSpacing.verticalXxs,
+                    Text(
+                      retiredAt == null
+                          ? vehicle.status.displayName
+                          : '${vehicle.status.displayName} ・ ${dateFormat.format(retiredAt)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -2892,11 +2918,13 @@ class _SectionHeader extends StatelessWidget {
   final IconData icon;
   final String title;
   final VoidCallback onSeeAll;
+  final Key? seeAllKey;
 
   const _SectionHeader({
     required this.icon,
     required this.title,
     required this.onSeeAll,
+    this.seeAllKey,
   });
 
   @override
@@ -2918,6 +2946,7 @@ class _SectionHeader extends StatelessWidget {
           ),
           const Spacer(),
           TextButton(
+            key: seeAllKey,
             onPressed: onSeeAll,
             style: TextButton.styleFrom(
               visualDensity: VisualDensity.compact,
@@ -2991,6 +3020,11 @@ class _RecentMaintenanceSection extends StatefulWidget {
 class _RecentMaintenanceSectionState extends State<_RecentMaintenanceSection> {
   List<MaintenanceRecord>? _records;
 
+  /// The MaintenanceProvider revision last read. A record added anywhere in
+  /// the app bumps it, and the section reads again; before this a new
+  /// record only showed up after a full reload (2026-10-09).
+  int? _seenRevision;
+
   /// この1年の件数と金額。直近3件の合計では、かけた額が分からない。
   MaintenanceSummary? _summary;
 
@@ -3054,8 +3088,44 @@ class _RecentMaintenanceSectionState extends State<_RecentMaintenanceSection> {
     );
   }
 
+  /// Opens every vehicle's records, not just the one the provider happened
+  /// to be following (which left people with several cars at 0 件).
+  void _openAllRecords() {
+    final vehicles = context.read<VehicleProvider>().vehicles;
+    context
+        .read<MaintenanceProvider>()
+        .loadRecordsForVehicles(vehicles.map((v) => v.id).toList());
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => MaintenanceSearchScreen(
+          scopeLabel: vehicles.length > 1
+              ? 'すべての車（${vehicles.length}台）'
+              : vehicles.isEmpty
+                  ? null
+                  : vehicles.first.displayName,
+          vehicleNames: vehicles.length > 1
+              ? {for (final v in vehicles) v.id: v.displayName}
+              : const {},
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final revision = context.select<MaintenanceProvider, int>(
+      (p) => p.revision,
+    );
+    if (_seenRevision == null) {
+      _seenRevision = revision;
+    } else if (_seenRevision != revision) {
+      _seenRevision = revision;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
+    }
+
     final records = _records;
     // 読み込み中とゼロ件は、どちらも何も出さない。ホームの一等地に
     // 「ありません」を置いても、できることが増えるわけではない。
@@ -3067,12 +3137,8 @@ class _RecentMaintenanceSectionState extends State<_RecentMaintenanceSection> {
         _SectionHeader(
           icon: Icons.build_outlined,
           title: 'メンテナンスの記録',
-          onSeeAll: () => Navigator.push(
-            context,
-            MaterialPageRoute<void>(
-              builder: (_) => const MaintenanceSearchScreen(),
-            ),
-          ),
+          seeAllKey: const Key('maintenance_see_all'),
+          onSeeAll: _openAllRecords,
         ),
         // 直近の3件だけだと「1年でいくら使ったか」が見えない。**積み上がった
         // 額が維持費の実感になる**ので、集計を先に出す。集計が取れないあいだは
@@ -3126,7 +3192,6 @@ class _MaintenanceRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dateFormat = DateFormat('yyyy/MM/dd');
-    final costFormat = NumberFormat('#,###');
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -3158,7 +3223,7 @@ class _MaintenanceRow extends StatelessWidget {
           ),
           AppSpacing.horizontalSm,
           Text(
-            '¥${costFormat.format(record.cost)}',
+            record.costLabel,
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: AppColors.primary,
@@ -3814,8 +3879,8 @@ class _PartRow extends StatelessWidget {
 
 /// 下段メニューの1マス。
 ///
-/// アイコンと文字を横に並べる。縦積み（アイコンの下に文字）より1行ぶん
-/// 低く収まり、2行にしても画面を取りすぎない。
+/// アイコンの下に文字を置き、4つを1段に並べる。2行2列にしていた頃は
+/// 1段が約34pxで押しにくかった（2026-10-09 使用感テスト）。
 class _NavCell extends StatelessWidget {
   final int index;
   final IconData icon;
@@ -3848,9 +3913,11 @@ class _NavCell extends StatelessWidget {
         onTap: onTap,
         borderRadius: AppSpacing.borderRadiusSm,
         child: Container(
+          // At least 48px tall: comfortably above the 44px touch target.
+          constraints: const BoxConstraints(minHeight: 48),
           padding: const EdgeInsets.symmetric(
-            vertical: AppSpacing.xs,
-            horizontal: AppSpacing.xs,
+            vertical: AppSpacing.xxs,
+            horizontal: AppSpacing.xxs,
           ),
           decoration: BoxDecoration(
             color: isSelected
@@ -3858,11 +3925,12 @@ class _NavCell extends StatelessWidget {
                 : null,
             borderRadius: AppSpacing.borderRadiusSm,
           ),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(isSelected ? selectedIcon : icon, size: 20, color: color),
-              AppSpacing.horizontalXs,
+              Icon(isSelected ? selectedIcon : icon, size: 22, color: color),
+              const SizedBox(height: 2),
               Flexible(
                 child: Text(
                   label,

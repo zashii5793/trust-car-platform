@@ -181,10 +181,10 @@ void main() {
             _makeVehicle(
               id: entry.key,
               companyId: 'company-B',
-              // +12h avoids inDays truncation flakiness around midnight.
-              inspectionExpiryDate: now.add(
-                Duration(days: entry.value, hours: 12),
-              ),
+              // Days are counted date to date (2026-10-09), so pin the
+              // calendar day; the hour no longer matters.
+              inspectionExpiryDate:
+                  DateTime(now.year, now.month, now.day + entry.value, 12),
             ),
           );
         }

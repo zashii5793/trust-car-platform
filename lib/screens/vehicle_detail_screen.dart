@@ -16,6 +16,7 @@ import '../models/drive_log.dart';
 import '../models/app_notification.dart';
 import '../providers/auth_provider.dart';
 import '../providers/maintenance_provider.dart';
+import '../services/shop_invite_service.dart';
 import '../services/shop_service.dart';
 import '../services/vehicle_share_service.dart';
 import 'vehicle/share_to_shop_screen.dart';
@@ -38,6 +39,7 @@ import 'drive/drive_log_screen.dart';
 import '../widgets/maintenance/maintenance_ai_comment.dart';
 import '../widgets/maintenance/maintenance_detail_breakdown.dart';
 import 'export/export_dialog.dart';
+import 'marketplace/inquiry_screen.dart';
 import 'marketplace/shop_list_screen.dart';
 import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
@@ -50,6 +52,7 @@ import '../models/model_cost_report.dart';
 import '../services/model_cost_report_service.dart';
 import 'vehicle/model_cost_report_screen.dart';
 import '../core/timeline/mileage_milestone.dart';
+import '../core/utils/calendar_days.dart';
 import '../models/year_in_review.dart';
 import 'year_in_review_screen.dart';
 import 'fuel/fuel_history_screen.dart';
@@ -80,10 +83,51 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   /// double-submission while an async update is in flight.
   bool _isProcessing = false;
 
+  /// The shop this person is linked to (shop_customers), if any. The
+  /// inspection 相談 button goes there first instead of to whichever shop
+  /// last appeared in the records (usability test 2026-10-09).
+  ShopCustomerLink? _linkedShop;
+
+  Future<void> _loadLinkedShop() async {
+    if (!sl.isRegistered<ShopInviteService>()) return;
+    final result =
+        await sl.get<ShopInviteService>().linkedShopFor(_vehicle.userId);
+    if (!mounted) return;
+    final link = result.valueOrNull;
+    if (link != null) setState(() => _linkedShop = link);
+  }
+
+  /// Opens an inquiry to the linked shop directly. Falls back to the shop
+  /// search by name when the shop page cannot be read.
+  Future<void> _contactLinkedShop() async {
+    final link = _linkedShop;
+    if (link == null) return;
+    final navigator = Navigator.of(context);
+    final result = sl.isRegistered<ShopService>()
+        ? await sl.get<ShopService>().getShop(link.shopId)
+        : null;
+    if (!mounted) return;
+    final shop = result?.valueOrNull;
+    if (shop == null) {
+      navigator.push(MaterialPageRoute<void>(
+        builder: (_) => ShopListScreen(maintenanceContext: link.shopName),
+      ));
+      return;
+    }
+    navigator.push(MaterialPageRoute<void>(
+      builder: (_) => InquiryScreen(
+        shop: shop,
+        vehicleId: _vehicle.id,
+        prefillSubject: '${_vehicle.displayName}の車検について',
+      ),
+    ));
+  }
+
   @override
   void initState() {
     super.initState();
     _vehicle = widget.vehicle;
+    _loadLinkedShop();
     // Own the maintenance subscription for this vehicle so newly added records
     // (including ones created from this screen) stream into the timeline even
     // when the navigating screen never started the listener. Without this the
@@ -298,18 +342,6 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
-  }
-
-  /// 整備記録に残っている直近の店舗名。無ければ null。
-  ///
-  /// 「いつもの店に相談」の宛先に使う。記録は日付降順で保持されている。
-  String? _latestShopName() {
-    final provider = context.read<MaintenanceProvider>();
-    for (final record in provider.records) {
-      final name = record.shopName;
-      if (name != null && name.trim().isNotEmpty) return name.trim();
-    }
-    return null;
   }
 
   Future<void> _showMileageUpdateDialog() async {
@@ -616,8 +648,36 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     if (!mounted) return;
     result.when(
       success: (_) {
+        // Reflect the new state right away. The home list follows the vehicle
+        // stream, so after popping the car has already moved to 過去の車両.
+        setState(() => _vehicle = _vehicle.copyWith(
+              status: reason,
+              retiredAt: DateTime.now(),
+            ));
+        final service = sl.get<VehicleRetirementService>();
+        final vehicleId = _vehicle.id;
+        final ownerId = _vehicle.userId;
         messenger.showSnackBar(
-          SnackBar(content: Text('${reason.displayName}にしました')),
+          SnackBar(
+            content: Text('${reason.displayName}にしました。「過去の車両」から見られます'),
+            action: SnackBarAction(
+              label: '元に戻す',
+              onPressed: () async {
+                final undo = await service.restoreVehicle(
+                  vehicleId: vehicleId,
+                  ownerId: ownerId,
+                );
+                undo.when(
+                  success: (_) => messenger.showSnackBar(
+                    const SnackBar(content: Text('使用中に戻しました')),
+                  ),
+                  failure: (err) => messenger.showSnackBar(
+                    SnackBar(content: Text(err.userMessage)),
+                  ),
+                );
+              },
+            ),
+          ),
         );
         navigator.pop();
       },
@@ -630,10 +690,43 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     );
   }
 
+  /// Undoes a retirement: the car goes back to the active list.
+  Future<void> _restoreVehicle() async {
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result = await sl.get<VehicleRetirementService>().restoreVehicle(
+            vehicleId: _vehicle.id,
+            ownerId: _vehicle.userId,
+          );
+      if (!mounted) return;
+      result.when(
+        success: (_) {
+          setState(() => _vehicle = _vehicle.copyWith(
+                status: VehicleStatus.active,
+              ));
+          messenger.showSnackBar(
+            const SnackBar(content: Text('使用中に戻しました')),
+          );
+        },
+        failure: (err) => messenger.showSnackBar(
+          SnackBar(
+            content: Text(err.userMessage),
+            backgroundColor: AppColors.error,
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final isRetired = _vehicle.status.isRetired;
 
     return DefaultTabController(
       length: 3,
@@ -725,6 +818,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
               tooltip: 'その他',
               onSelected: (value) {
                 if (value == 'retire') _showRetireSheet();
+                if (value == 'restore') _restoreVehicle();
                 if (value == 'csv') _exportCsv();
                 if (value == 'share_shop') _shareToShop();
                 if (value == 'profile') _openProfile();
@@ -771,16 +865,29 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                     subtitle: Text('売却時に次のオーナーへ'),
                   ),
                 ),
-                const PopupMenuItem(
-                  key: Key('retire_vehicle_menu_item'),
-                  value: 'retire',
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.outbound_outlined),
-                    title: Text('この車を手放す'),
-                    subtitle: Text('売却・廃車・譲渡'),
+                // A retired car cannot be retired again; offer the undo.
+                if (isRetired)
+                  const PopupMenuItem(
+                    key: Key('restore_vehicle_menu_item'),
+                    value: 'restore',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.restore_outlined),
+                      title: Text('使用中に戻す'),
+                      subtitle: Text('手放したのを取り消す'),
+                    ),
+                  )
+                else
+                  const PopupMenuItem(
+                    key: Key('retire_vehicle_menu_item'),
+                    value: 'retire',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.outbound_outlined),
+                      title: Text('この車を手放す'),
+                      subtitle: Text('売却・廃車・譲渡'),
+                    ),
                   ),
-                ),
               ],
             ),
           ],
@@ -810,6 +917,11 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (isRetired)
+                    _RetiredBanner(
+                      vehicle: _vehicle,
+                      onRestore: _isProcessing ? null : _restoreVehicle,
+                    ),
                   // 車両画像
                   _VehicleImage(imageUrls: _vehicle.imageUrls, isDark: isDark),
 
@@ -910,7 +1022,8 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                             Padding(
                               padding: const EdgeInsets.only(left: 88, top: 6),
                               child: _InspectionActionButtons(
-                                latestShopName: _latestShopName(),
+                                linkedShopName: _linkedShop?.shopName,
+                                onContactLinkedShop: _contactLinkedShop,
                               ),
                             ),
                         ],
@@ -1101,6 +1214,52 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
 
 // ── 任意保険情報セクション ────────────────────────────────────────────────────
 
+/// Shown at the top of the detail screen for a car the user has let go of,
+/// so it never reads as an everyday car, with the undo right there.
+class _RetiredBanner extends StatelessWidget {
+  final Vehicle vehicle;
+  final VoidCallback? onRestore;
+
+  const _RetiredBanner({required this.vehicle, required this.onRestore});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final retiredAt = vehicle.retiredAt;
+    final when = retiredAt == null
+        ? ''
+        : '（${DateFormat('yyyy/MM/dd').format(retiredAt)}）';
+
+    return Container(
+      key: const Key('retired_vehicle_banner'),
+      width: double.infinity,
+      color: AppColors.warning.withValues(alpha: 0.12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.history_outlined, color: AppColors.warning),
+          AppSpacing.horizontalSm,
+          Expanded(
+            child: Text(
+              'この車は${vehicle.status.displayName}です$when。'
+              '記録は残っています',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+          TextButton(
+            key: const Key('restore_vehicle_btn'),
+            onPressed: onRestore,
+            child: const Text('使用中に戻す'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _VoluntaryInsuranceSection extends StatelessWidget {
   final Vehicle vehicle;
   final ValueChanged<Vehicle> onUpdated;
@@ -1125,7 +1284,8 @@ class _VoluntaryInsuranceSection extends StatelessWidget {
     final insurance = vehicle.voluntaryInsurance;
     final money = NumberFormat('#,###');
 
-    final days = insurance?.expiryDate?.difference(DateTime.now()).inDays;
+    final expiry = insurance?.expiryDate;
+    final days = expiry == null ? null : calendarDaysUntil(expiry);
     final isExpired = days != null && days < 0;
     final isWarning = days != null && days <= 30 && days >= 0;
     final expiryColor = isExpired
@@ -1295,7 +1455,8 @@ class _LeaseInfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final days = leaseInfo.contractEndDate?.difference(DateTime.now()).inDays;
+    final end = leaseInfo.contractEndDate;
+    final days = end == null ? null : calendarDaysUntil(end);
     final isExpired = days != null && days < 0;
     final isWarning = days != null && days <= 60 && days >= 0;
     final endDateColor = isExpired
@@ -1704,6 +1865,7 @@ class _InfoRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
             icon,
@@ -1718,11 +1880,17 @@ class _InfoRow extends StatelessWidget {
               style: theme.textTheme.bodyMedium,
             ),
           ),
-          Text(
-            value,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: valueColor,
-              fontWeight: valueColor != null ? FontWeight.bold : null,
+          // Wraps instead of running off the screen. On a 390px phone the
+          // 車両保険 line (type / amount / deductible) overflowed by 85px and
+          // the deductible could not be read (usability test 2026-10-09).
+          Expanded(
+            child: Text(
+              value,
+              softWrap: true,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: valueColor,
+                fontWeight: valueColor != null ? FontWeight.bold : null,
+              ),
             ),
           ),
         ],
@@ -2462,7 +2630,7 @@ class _MaintenanceTimelineItem extends StatelessWidget {
                                 Row(
                                   children: [
                                     Text(
-                                      '¥${NumberFormat('#,###').format(record.cost)}',
+                                      record.costLabel,
                                       style:
                                           theme.textTheme.bodyMedium?.copyWith(
                                         fontWeight: FontWeight.bold,
@@ -2933,7 +3101,7 @@ class _MaintenanceDetailSheet extends StatelessWidget {
 
                   // Cost (large)
                   Text(
-                    '¥${NumberFormat('#,###').format(record.cost)}',
+                    record.costLabel,
                     style: theme.textTheme.displaySmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: typeColor,
@@ -4108,16 +4276,49 @@ class _CommunityInsightRow extends StatelessWidget {
 /// 検索済みの状態で開く（記録の shopName は文字列でしか持っておらず
 /// shopId が無いため、名前検索で繋ぐ）。
 class _InspectionActionButtons extends StatelessWidget {
-  final String? latestShopName;
+  /// The shop the person is linked to. When set it comes first, and the
+  /// shop name taken from old records is not offered: the person already
+  /// chose where they go, and the app does not steer them elsewhere
+  /// (FEATURE_SPEC 設計思想「事業者は売り込まない」).
+  final String? linkedShopName;
+  final VoidCallback? onContactLinkedShop;
 
-  const _InspectionActionButtons({required this.latestShopName});
+  const _InspectionActionButtons({
+    this.linkedShopName,
+    this.onContactLinkedShop,
+  });
+
+  /// 整備記録に残っている直近の店舗名。無ければ null。記録は日付降順。
+  String? _latestShopName(List<MaintenanceRecord> records) {
+    for (final record in records) {
+      final name = record.shopName;
+      if (name != null && name.trim().isNotEmpty) return name.trim();
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final linked = linkedShopName;
+    final latestShopName = linked == null
+        ? _latestShopName(context.watch<MaintenanceProvider>().records)
+        : null;
     return Wrap(
       spacing: AppSpacing.xs,
       runSpacing: AppSpacing.xxs,
       children: [
+        if (linked != null)
+          FilledButton.icon(
+            key: const Key('inspection_contact_linked_shop_btn'),
+            onPressed: onContactLinkedShop,
+            icon: const Icon(Icons.storefront_outlined, size: 15),
+            label: Text('$linkedに相談'),
+            style: FilledButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              textStyle: const TextStyle(fontSize: 12),
+            ),
+          ),
         OutlinedButton.icon(
           key: const Key('inspection_find_shop_btn'),
           onPressed: () => Navigator.push(
@@ -4125,7 +4326,7 @@ class _InspectionActionButtons extends StatelessWidget {
             MaterialPageRoute(builder: (_) => const ShopListScreen()),
           ),
           icon: const Icon(Icons.search, size: 15),
-          label: const Text('整備工場を探す'),
+          label: Text(linked != null ? 'ほかの整備工場を探す' : '整備工場を探す'),
           style: _style(AppColors.warning),
         ),
         if (latestShopName != null)
@@ -4184,7 +4385,10 @@ class _MaintenanceForecastSection extends StatelessWidget {
     const service = MaintenanceTrendService();
     final insights = service.sortByUrgency(
       service
-          .analyzeHistory(records, currentMileage: vehicle.mileage)
+          .withInspectionDeadline(
+            service.analyzeHistory(records, currentMileage: vehicle.mileage),
+            vehicle.inspectionExpiryDate,
+          )
           .where((i) => i.predictedNextDate != null)
           .toList(),
     );
@@ -4234,7 +4438,7 @@ class _ForecastRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final next = insight.predictedNextDate!;
-    final days = next.difference(DateTime.now()).inDays;
+    final days = calendarDaysUntil(next);
 
     // 過ぎているものを先に、色を変えて出す。
     final overdue = days < 0;

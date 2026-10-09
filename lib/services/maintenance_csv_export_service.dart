@@ -61,7 +61,8 @@ class MaintenanceCsvExportService {
           dateFormat.format(r.date),
           r.type.displayName,
           r.title,
-          r.cost.toString(),
+          // Empty, not 0, when the amount was not recorded.
+          r.hasCost ? r.cost.toString() : '',
           r.partsCost?.toString() ?? '',
           r.laborCost?.toString() ?? '',
           r.mileageAtService?.toString() ?? '',

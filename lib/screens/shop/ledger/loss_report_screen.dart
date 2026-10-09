@@ -115,7 +115,7 @@ class _LossReportScreenState extends State<LossReportScreen> {
         AppSpacing.verticalMd,
         Text('満了した月ごと', style: theme.textTheme.titleMedium),
         AppSpacing.verticalXs,
-        for (final m in r.months)
+        for (final (i, m) in r.months.indexed)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 3),
             child: Row(
@@ -124,41 +124,27 @@ class _LossReportScreenState extends State<LossReportScreen> {
                   width: 72,
                   child: Text('${m.month.year % 100}年${m.month.month}月'),
                 ),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, c) {
-                      final w = c.maxWidth * m.expired / maxExpired;
-                      final lostW =
-                          m.expired == 0 ? 0.0 : w * m.lost / m.expired;
-                      return Row(
-                        children: [
-                          Container(
-                            width: w - lostW,
-                            height: 12,
-                            color: AppColors.primary.withValues(alpha: 0.6),
-                          ),
-                          Container(
-                            width: lostW,
-                            height: 12,
-                            color: AppColors.error.withValues(alpha: 0.7),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
+                Expanded(child: _MonthBar(month: m, maxExpired: maxExpired)),
                 SizedBox(
                   width: 96,
                   child: Text(
                     m.expired == 0 ? '—' : '${m.lost} / ${m.expired}台',
+                    key: m.expired > 0 && m.lost == m.expired
+                        ? Key('loss_month_all_lost_$i')
+                        : null,
                     textAlign: TextAlign.end,
-                    style: theme.textTheme.bodySmall,
+                    style: m.expired > 0 && m.lost == m.expired
+                        ? theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.error,
+                            fontWeight: FontWeight.bold,
+                          )
+                        : theme.textTheme.bodySmall,
                   ),
                 ),
               ],
             ),
           ),
-        Text('青＝車検で入庫、赤＝入庫なし', style: theme.textTheme.bodySmall),
+        Text('青＝車検で入庫、赤＝入庫なし、—＝満了した車なし', style: theme.textTheme.bodySmall),
         AppSpacing.verticalLg,
         Text('声をかける相手（${r.lostVehicles.length}台）',
             style: theme.textTheme.titleMedium),
@@ -184,13 +170,56 @@ class _LossReportScreenState extends State<LossReportScreen> {
           ),
         AppSpacing.verticalMd,
         Text(
-          '数え方: いまの満了日が直近12か月に過ぎた車のうち、満了日の60日前から'
+          '数え方: 満了日が直近12か月に来た車のうち、満了日の60日前から'
           '今日までに「車検」「継続検査」の整備履歴が無いものを取りこぼしとしています。'
-          '名簿を取り直して満了日が先に進んだ車は、数えなくなります。',
+          '車検で入庫して名簿の満了日が先に進んだ車は、元の満了日の月に「入庫」として数えます。',
           style: theme.textTheme.bodySmall,
         ),
         AppSpacing.verticalXl,
       ],
+    );
+  }
+}
+
+/// One month's bar: blue (returned) + red (lost), scaled to the busiest month.
+///
+/// Widths are integer flex factors, not `maxWidth * a / b` arithmetic.
+/// The latter produced -3.5e-15 for a month where every car was lost
+/// (`w - w * n / n`), and a negative width throws in layout
+/// ("BoxConstraints has a negative minimum width").
+class _MonthBar extends StatelessWidget {
+  final LossMonth month;
+  final int maxExpired;
+
+  const _MonthBar({required this.month, required this.maxExpired});
+
+  @override
+  Widget build(BuildContext context) {
+    final rest = maxExpired - month.expired;
+    if (month.expired <= 0) {
+      return const SizedBox(height: 12);
+    }
+    return SizedBox(
+      height: 12,
+      child: Row(
+        children: [
+          if (month.returned > 0)
+            Expanded(
+              flex: month.returned,
+              child: ColoredBox(
+                color: AppColors.primary.withValues(alpha: 0.6),
+              ),
+            ),
+          if (month.lost > 0)
+            Expanded(
+              flex: month.lost,
+              child: ColoredBox(
+                color: AppColors.error.withValues(alpha: 0.7),
+              ),
+            ),
+          if (rest > 0) Spacer(flex: rest),
+        ],
+      ),
     );
   }
 }

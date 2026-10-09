@@ -1,6 +1,17 @@
 {
   "indexes": [
 
+    // 顧客台帳の検索: 漢字・フリガナの姓や名・電話番号の前方一致を、フリガナ順に
+    // （ShopLedgerService.listCustomers(search:) / similarCustomers。2026-10-09）
+    {
+      "collectionGroup": "customers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "searchKeys", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "searchKey", "order": "ASCENDING" }
+      ]
+    },
+
     // 操作の記録: ある顧客に関するものを新しい順に（shop_audit_service.dart）
     {
       "collectionGroup": "audit_logs",
