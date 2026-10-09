@@ -4,6 +4,8 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/screens/shop/ledger/loss_report_screen.dart';
 import 'package:trust_car_platform/services/ledger_csv_import.dart';
 import 'package:trust_car_platform/services/shop_ledger_service.dart';
@@ -68,4 +70,71 @@ void main() {
     expect(find.byKey(const Key('loss_stale_note')), findsOneWidget);
     expect(find.textContaining('50%'), findsNothing);
   });
+
+  group('Edge Cases', () {
+    // 2026-10-08 usability test: every month was n/n (all lost) and the
+    // bar width `w - w * lost / expired` came out as -3.5e-15, which threw
+    // "BoxConstraints has a negative minimum width" over half the screen.
+    for (final width in [390.0, 900.0, 1209.0]) {
+      testWidgets('全部取りこぼした月・0台の月・最大の月が並んでも崩れない（幅 $width）', (tester) async {
+        final months = <LossMonth>[
+          for (var i = 0; i < 12; i++)
+            LossMonth(month: DateTime(2025, 11 + i))
+              ..lost = i == 0 ? 0 : 28 + i
+              ..returned = i == 5 ? 2 : 0,
+        ];
+        final service = _FixedReport(LossReport(
+          months: months,
+          lostVehicles: const [],
+          lastImportAt: _today,
+          isStale: false,
+        ));
+        tester.view.physicalSize = Size(width, 2400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(MaterialApp(
+            home: LossReportScreen(service: service, shopId: 's1')));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.text('39 / 39台'), findsOneWidget);
+        expect(find.text('33 / 35台'), findsOneWidget);
+      });
+    }
+
+    testWidgets('全部取りこぼした月は「全台」、満了0台の月は「—」と分けて出す', (tester) async {
+      final months = <LossMonth>[
+        for (var i = 0; i < 12; i++) LossMonth(month: DateTime(2025, 11 + i)),
+      ];
+      months[3].lost = 5;
+      months[4]
+        ..lost = 1
+        ..returned = 3;
+      final service = _FixedReport(LossReport(
+        months: months,
+        lostVehicles: const [],
+        lastImportAt: _today,
+        isStale: false,
+      ));
+      await pump(tester, LossReportScreen(service: service, shopId: 's1'));
+      expect(find.text('5 / 5台'), findsOneWidget);
+      expect(find.byKey(const Key('loss_month_all_lost_3')), findsOneWidget);
+      expect(find.byKey(const Key('loss_month_all_lost_4')), findsNothing);
+      expect(find.text('—'), findsNWidgets(10));
+    });
+  });
+}
+
+/// A service that returns a fixed report (no Firestore reads).
+class _FixedReport extends ShopLedgerService {
+  final LossReport report;
+  _FixedReport(this.report) : super(firestore: FakeFirebaseFirestore());
+
+  @override
+  Future<Result<LossReport, AppError>> lossReport({
+    required String shopId,
+    int months = 12,
+    int leadDays = 60,
+    int staleDays = 30,
+  }) async =>
+      Result.success(report);
 }
