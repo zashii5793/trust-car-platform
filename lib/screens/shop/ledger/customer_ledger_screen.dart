@@ -79,6 +79,11 @@ class CustomerLedgerScreen extends StatefulWidget {
   /// 「今日」。テスト（特にゴールデン）で日付を止めるために渡せる。
   final DateTime? today;
 
+  /// Opens the customer-side app ("マイカー"). Set when the ledger is the
+  /// first screen after sign-in (shop owners and staff), so the way to
+  /// the customer screens stays one tap away.
+  final VoidCallback? onOpenUserHome;
+
   const CustomerLedgerScreen({
     super.key,
     required this.service,
@@ -98,6 +103,7 @@ class CustomerLedgerScreen extends StatefulWidget {
     required this.shopId,
     required this.shopName,
     this.today,
+    this.onOpenUserHome,
   });
 
   @override
@@ -603,6 +609,17 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('顧客台帳'),
+        // As the first screen there is no back button; the way to the
+        // customer side goes there, as words rather than an icon.
+        leadingWidth: widget.onOpenUserHome == null ? null : 96,
+        leading: widget.onOpenUserHome == null
+            ? null
+            : TextButton.icon(
+                key: const Key('ledger_open_user_home'),
+                onPressed: widget.onOpenUserHome,
+                icon: const Icon(Icons.directions_car_outlined, size: 18),
+                label: const Text('マイカー'),
+              ),
         actions: [
           IconButton(
             key: const Key('ledger_loss'),

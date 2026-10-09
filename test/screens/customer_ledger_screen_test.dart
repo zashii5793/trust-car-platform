@@ -246,6 +246,29 @@ void main() {
     });
   });
 
+  testWidgets('最初の画面として開いたときは、左上の「マイカー」でお客さん用の画面へ行ける', (tester) async {
+    var opened = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: CustomerLedgerScreen(
+        service: service,
+        shopId: _shopId,
+        shopName: 'テスト工場',
+        today: _today,
+        onOpenUserHome: () => opened++,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('ledger_open_user_home')));
+    expect(opened, 1);
+    expect(find.text('マイカー'), findsOneWidget);
+  });
+
+  testWidgets('掲載管理から開いたとき（いつもの戻る）は「マイカー」を出さない', (tester) async {
+    await tester.pumpWidget(_build(service));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('ledger_open_user_home')), findsNothing);
+  });
+
   testWidgets('車検が近いタブは、顧客をまたいで満了日の近い順', (tester) async {
     final a = await add('A商店', 'エーショウテン');
     final b = await add('B運輸', 'ビーウンユ');

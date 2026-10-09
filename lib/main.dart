@@ -34,6 +34,9 @@ import 'providers/post_provider.dart';
 import 'providers/drive_log_provider.dart';
 import 'providers/drive_recording_provider.dart';
 import 'providers/shop_provider.dart';
+import 'screens/shop/post_login_home.dart';
+import 'screens/shop/ledger/ledger_launcher.dart';
+import 'services/shop_entry_service.dart';
 import 'services/part_recommendation_service.dart';
 import 'services/post_service.dart';
 import 'services/drive_log_service.dart';
@@ -359,6 +362,11 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   bool? _onboardingDone;
 
+  /// Whether the last build was signed in. On signing out, screens pushed
+  /// on top (the customer home opened from the ledger) are closed so the
+  /// login screen is not left underneath them.
+  bool _wasAuthenticated = false;
+
   @override
   void initState() {
     super.initState();
@@ -389,9 +397,33 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
         }
 
-        // Authenticated users always go to HomeScreen
         if (authProvider.isAuthenticated) {
-          return const HomeScreen();
+          _wasAuthenticated = true;
+          final uid = authProvider.firebaseUser?.uid ?? '';
+          // Shop owners and staff open the customer ledger first
+          // (2026-10-09); everyone else goes to HomeScreen as before.
+          return PostLoginHome(
+            key: ValueKey('home|$uid'),
+            uid: uid,
+            entryService: sl.tryGet<ShopEntryService>(),
+            userHome: (_) => const HomeScreen(),
+            ledgerBuilder: (context, entry, openUserHome) =>
+                buildCustomerLedgerScreen(
+              context,
+              shopId: entry.shopId,
+              shopName: entry.shopName,
+              isOwner: entry.isOwner,
+              ownerUid: entry.ownerUid,
+              onOpenUserHome: openUserHome,
+            ),
+          );
+        }
+        if (_wasAuthenticated) {
+          _wasAuthenticated = false;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted) return;
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          });
         }
 
         // First-time visitors see onboarding. The callback swaps the screen

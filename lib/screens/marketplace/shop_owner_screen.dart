@@ -21,16 +21,10 @@ import 'shop_registration_screen.dart';
 import '../newsletter/newsletter_list_screen.dart';
 import 'shop_invite_manage_screen.dart';
 import '../../services/shop_invite_service.dart';
-import '../../services/shop_ledger_service.dart';
-import '../../services/vehicle_share_service.dart';
 import '../../services/shop_service.dart';
 import '../../services/shop_staff_service.dart';
-import '../../services/detail_delivery_service.dart';
-import '../../services/ledger_link_service.dart';
-import '../../services/shop_audit_service.dart';
-import '../../services/inspection_push_service.dart';
 import '../shop/ledger/staff_screens.dart';
-import '../shop/ledger/customer_ledger_screen.dart';
+import '../shop/ledger/ledger_launcher.dart';
 
 /// Shop owner hub screen.
 ///
@@ -117,6 +111,11 @@ class _UnregisteredBody extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Staff come here to enter the code and, once joined, to open the
+          // ledger every day. It used to sit below the pricing table, so
+          // they scrolled past "9,800円 / 月" each time (2026-10-08).
+          if (sl.isRegistered<ShopStaffService>())
+            _StaffEntryCard(service: sl.get<ShopStaffService>()),
           AppSpacing.verticalLg,
           // Hero icon
           Center(
@@ -219,9 +218,6 @@ class _UnregisteredBody extends StatelessWidget {
                   const Size.fromHeight(AppSpacing.tapTargetRecommended),
             ),
           ),
-          AppSpacing.verticalLg,
-          if (sl.isRegistered<ShopStaffService>())
-            _StaffEntryCard(service: sl.get<ShopStaffService>()),
           AppSpacing.verticalLg,
         ],
       ),
@@ -335,26 +331,12 @@ class _RegisteredBody extends StatelessWidget {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute<void>(
-                builder: (_) => CustomerLedgerScreen(
-                  service: sl.get<ShopLedgerService>(),
-                  shareService: sl.get<VehicleShareService>(),
-                  staffService: sl.get<ShopStaffService>(),
-                  ownerUid: shop.ownerId,
-                  ownerName:
-                      context.read<AuthProvider>().firebaseUser?.displayName ??
-                          '',
-                  linkService: sl.get<LedgerLinkService>(),
-                  inviteService: sl.get<ShopInviteService>(),
-                  // 登録の無い環境（テスト）では入口を出さないだけにする
-                  deliveryService: sl.isRegistered<DetailDeliveryService>()
-                      ? sl.get<DetailDeliveryService>()
-                      : null,
-                  currentUid: context.read<AuthProvider>().firebaseUser?.uid,
-                  onAudit: _auditFor(context, shop.id),
-                  auditService: sl.get<ShopAuditService>(),
-                  pushService: sl.tryGet<InspectionPushService>(),
+                builder: (_) => buildCustomerLedgerScreen(
+                  context,
                   shopId: shop.id,
                   shopName: shop.name,
+                  isOwner: true,
+                  ownerUid: shop.ownerId,
                 ),
               ),
             ),
@@ -1224,24 +1206,14 @@ class _StaffEntryCardState extends State<_StaffEntryCard> {
     await Navigator.push(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => CustomerLedgerScreen(
-          service: sl.get<ShopLedgerService>(),
-          shareService: sl.get<VehicleShareService>(),
-          // スタッフも、お客さんとアプリをつなぎ、明細を送れる（2026-09-28）。
-          // スタッフの管理（staffService）は店主だけなので渡さない。
-          linkService: sl.get<LedgerLinkService>(),
-          inviteService: sl.get<ShopInviteService>(),
-          // 登録の無い環境（テスト）では入口を出さないだけにする
-          deliveryService: sl.isRegistered<DetailDeliveryService>()
-              ? sl.get<DetailDeliveryService>()
-              : null,
-          currentUid: context.read<AuthProvider>().firebaseUser?.uid,
-          ownerUid: ownerUid,
-          onAudit: _auditFor(context, link.shopId),
-          // スタッフも車検案内を送れる（はがきの書き出しと同じ）
-          pushService: sl.tryGet<InspectionPushService>(),
+        // スタッフも、お客さんとアプリをつなぎ、明細と車検案内を送れる
+        // （2026-09-28）。スタッフの管理と操作の記録は店主だけ。
+        builder: (_) => buildCustomerLedgerScreen(
+          context,
           shopId: link.shopId,
           shopName: link.shopName,
+          isOwner: false,
+          ownerUid: ownerUid,
         ),
       ),
     );
@@ -1286,16 +1258,4 @@ class _StaffEntryCardState extends State<_StaffEntryCard> {
       ),
     );
   }
-}
-
-/// ログイン中の人として、この店の操作を記録する関数。
-AuditRecorder? _auditFor(BuildContext context, String shopId) {
-  if (!sl.isRegistered<ShopAuditService>()) return null;
-  final user = context.read<AuthProvider>().firebaseUser;
-  if (user == null) return null;
-  return sl.get<ShopAuditService>().recorderFor(
-        shopId: shopId,
-        actorUid: user.uid,
-        actorName: user.displayName ?? user.email ?? 'スタッフ',
-      );
 }
