@@ -222,6 +222,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   }
 
   Future<void> _saveRecord() async {
+    // Taps that arrive before the disabled button is rebuilt still call this.
+    // Without the guard a quick double tap saved the same record twice.
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) {
       return;
     }

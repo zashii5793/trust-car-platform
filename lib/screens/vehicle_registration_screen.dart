@@ -524,6 +524,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
   // ---------------------------------------------------------------------------
 
   Future<void> _registerVehicle({bool quick = false}) async {
+    // Taps that land before the disabled button is rebuilt still reach here;
+    // without this a double tap registered the same car twice.
+    if (_isLoading) return;
     // ステップ1は既に検証済みだが念のため確認。
     // quick（OCRワンタップ登録）では grade / 走行距離 は任意（車検リマインダーには不要）。
     final missingCore = _selectedMaker == null ||

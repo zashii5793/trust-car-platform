@@ -129,8 +129,16 @@ class _StubFirebaseService implements FirebaseService {
   @override
   String? get currentUserId => 'test-uid';
 
+  /// 登録された車（二重送信の確認用）。
+  final List<Vehicle> added = [];
+
+  /// How long a save takes. Zero unless a test needs taps to pile up.
+  Duration addDelay = Duration.zero;
+
   @override
   Future<Result<String, AppError>> addVehicle(Vehicle v) async {
+    added.add(v);
+    if (addDelay > Duration.zero) await Future<void>.delayed(addDelay);
     if (addVehicleShouldFail) {
       return const Result.failure(AppError.server('save error'));
     }
@@ -813,6 +821,21 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text('車両を登録しました'), findsOneWidget);
+    });
+
+    // 使用感テスト（2026-10-09）: 保存を続けて押すと同じものが2件できた。
+    testWidgets('29b. 「登録する」を続けて押しても1台だけ登録される', (tester) async {
+      _firebaseStub.addDelay = const Duration(milliseconds: 300);
+      await navigateToStep3(tester);
+
+      for (var i = 0; i < 10; i++) {
+        await tester.tap(find.text('登録する'), warnIfMissed: false);
+      }
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+
+      expect(_firebaseStub.added, hasLength(1));
     });
 
     testWidgets('30. addVehicle failure → error snackbar shown',

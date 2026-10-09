@@ -491,6 +491,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   }
 
   Future<void> _updateVehicle() async {
+    // Same guard as registration: a quick double tap must not save twice.
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) {
       return;
     }
