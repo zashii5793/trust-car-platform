@@ -5,7 +5,9 @@
 
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trust_car_platform/core/theme/app_theme.dart';
 
 import 'package:trust_car_platform/models/shop_ledger.dart';
 import 'package:trust_car_platform/screens/shop/ledger/customer_ledger_screen.dart';
@@ -261,6 +263,25 @@ void main() {
     await tester.tap(find.byKey(const Key('ledger_open_user_home')));
     expect(opened, 1);
     expect(find.text('マイカー'), findsOneWidget);
+  });
+
+  testWidgets('「マイカー」は見出しの帯の上で読める色（帯と同じ青にしない）', (tester) async {
+    // 2026-10-09: TextButton took the primary blue on the blue app bar and
+    // the button could not be seen at all.
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: CustomerLedgerScreen(
+        service: service,
+        shopId: _shopId,
+        shopName: 'テスト工場',
+        today: _today,
+        onOpenUserHome: () {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final label = tester.renderObject<RenderParagraph>(find.text('マイカー'));
+    expect(label.text.style?.color,
+        AppTheme.lightTheme.appBarTheme.foregroundColor);
   });
 
   testWidgets('掲載管理から開いたとき（いつもの戻る）は「マイカー」を出さない', (tester) async {

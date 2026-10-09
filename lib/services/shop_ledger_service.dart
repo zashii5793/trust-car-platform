@@ -214,6 +214,80 @@ class ShopLedgerService {
     }
   }
 
+  /// Fills `lastInspectionAt` / `lastInspectionDueAt` (2026-10-09) on
+  /// vehicles written before they existed, from the records already
+  /// stored. Returns how many vehicles got the fields.
+  ///
+  /// Without them the loss report cannot see cars that came back for their
+  /// inspection (their expiry moved two years on) and counts every expired
+  /// car as lost. The next history import fills them too; this runs on
+  /// opening the ledger so the report is right before that. A marker
+  /// (`inspectionFieldsVersion`) and two `count()` queries make it a few
+  /// reads once every vehicle is done.
+  Future<Result<int, AppError>> ensureInspectionFields(String shopId) async {
+    if (shopId.isEmpty) {
+      return const Result.failure(AppError.validation('店が選ばれていません'));
+    }
+    try {
+      final col = _vehicles(shopId);
+      final counts = await Future.wait([
+        col.count().get(),
+        col
+            .where('inspectionFieldsVersion',
+                isEqualTo: _inspectionFieldsVersion)
+            .count()
+            .get(),
+      ]);
+      if ((counts[0].count ?? 0) == (counts[1].count ?? 0)) {
+        return const Result.success(0);
+      }
+
+      final pending = (await col.get())
+          .docs
+          .where((d) =>
+              d.data()['inspectionFieldsVersion'] != _inspectionFieldsVersion)
+          .toList();
+      final unknown = <String>{
+        for (final d in pending)
+          if (!d.data().containsKey('lastInspectionAt')) d.id,
+      };
+      final latest = await _latestInspections(
+        shopId,
+        unknown,
+        readAll: unknown.length > _readAllRecordsAbove,
+      );
+      for (var i = 0; i < pending.length; i += _batchLimit) {
+        final batch = _firestore.batch();
+        for (final d in pending.skip(i).take(_batchLimit)) {
+          final fields = <String, dynamic>{
+            'inspectionFieldsVersion': _inspectionFieldsVersion,
+          };
+          if (unknown.contains(d.id)) {
+            final at = latest[d.id];
+            final due = at == null
+                ? null
+                : inspectionDueFor(
+                    expiry:
+                        LedgerVehicle.fromMap(d.id, d.data()).inspectionExpiry,
+                    inspectedAt: at,
+                  );
+            fields['lastInspectionAt'] =
+                at == null ? null : Timestamp.fromDate(at);
+            fields['lastInspectionDueAt'] =
+                due == null ? null : Timestamp.fromDate(due);
+          }
+          batch.set(d.reference, fields, SetOptions(merge: true));
+        }
+        await batch.commit();
+      }
+      return Result.success(unknown.length);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  static const int _inspectionFieldsVersion = 1;
+
   Future<int> _ensureVersion(
     CollectionReference<Map<String, dynamic>> col,
     Map<String, dynamic> Function(String id, Map<String, dynamic> m) fields,

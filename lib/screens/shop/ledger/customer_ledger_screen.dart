@@ -140,6 +140,8 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
   /// that) and reload the list so the new search works right away.
   Future<void> _ensureSearchFields() async {
     final r = await widget.service.ensureSearchFields(widget.shopId);
+    // Same for the last-inspection fields the loss report reads.
+    await widget.service.ensureInspectionFields(widget.shopId);
     if (!mounted || (r.valueOrNull ?? 0) == 0) return;
     setState(() => _revision++);
   }
@@ -617,6 +619,12 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
             : TextButton.icon(
                 key: const Key('ledger_open_user_home'),
                 onPressed: widget.onOpenUserHome,
+                // TextButton defaults to the primary blue, which vanished
+                // on the blue app bar.
+                style: TextButton.styleFrom(
+                  foregroundColor:
+                      Theme.of(context).appBarTheme.foregroundColor,
+                ),
                 icon: const Icon(Icons.directions_car_outlined, size: 18),
                 label: const Text('マイカー'),
               ),
