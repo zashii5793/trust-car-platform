@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/spacing.dart';
+import '../../../core/error/app_error.dart';
+import '../../../core/result/result.dart';
 import '../../../models/inspection_push_request.dart';
 import '../../../models/shop_ledger.dart';
 import '../../../services/shop_ledger_service.dart';
@@ -124,6 +126,16 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
   void initState() {
     super.initState();
     _loadCounts();
+    _ensureSearchFields();
+  }
+
+  /// Ledgers written before 2026-10-09 lack the kanji / given-name / phone
+  /// and 2-digit plate search fields. Fill them in once (a no-op after
+  /// that) and reload the list so the new search works right away.
+  Future<void> _ensureSearchFields() async {
+    final r = await widget.service.ensureSearchFields(widget.shopId);
+    if (!mounted || (r.valueOrNull ?? 0) == 0) return;
+    setState(() => _revision++);
   }
 
   @override
@@ -161,7 +173,10 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
   }
 
   /// 数字が入っていたら、ナンバーの末尾の番号として引く。
-  bool get _isPlateSearch => RegExp(r'[0-9０-９]').hasMatch(_search);
+  /// 数字（と区切り）だけで5桁以上なら電話番号なので、顧客から引く。
+  bool get _isPlateSearch =>
+      RegExp(r'[0-9０-９]').hasMatch(_search) &&
+      !LedgerSearch.isPhoneQuery(_search);
 
   Future<void> _openCustomer(String customerId) async {
     final changed = await Navigator.push<bool>(
@@ -714,7 +729,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
                   onChanged: _onSearchChanged,
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search),
-                    hintText: 'フリガナ または ナンバー末尾（例: 1234）',
+                    hintText: '名前・フリガナ・電話番号・ナンバー末尾（2〜4桁）',
                     isDense: true,
                     border: OutlineInputBorder(),
                   ),
@@ -765,16 +780,22 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
               buttonLabel: '顧客を追加',
               onButtonPressed: _addCustomer,
             )
-          : AppEmptyState(
-              icon: Icons.search_off,
-              title: '「$_search」に当たる顧客はいません',
-              description: 'フリガナの先頭から入力してください。'
-                  'まだ台帳に無いお客さんなら、ここから登録できます。',
-              buttonLabel: '新しい顧客として追加',
-              onButtonPressed: _addCustomer,
+          : _NoMatch(
+              key: ValueKey('nomatch|$_revision|$_search'),
+              search: _search,
+              similar: widget.service.similarCustomers(
+                shopId: widget.shopId,
+                search: _search,
+              ),
+              today: _today,
+              onOpenCustomer: _openCustomer,
+              onAdd: _addCustomer,
             ),
     );
   }
+
+  /// Fetch one more than shown, to tell whether there are more.
+  static const int _plateLimit = 50;
 
   /// ナンバーは件数が少ない（同じ末尾番号は店内で数台）ので、ページングしない。
   Widget _plateResults() {
@@ -783,19 +804,29 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
       future: widget.service.findVehiclesByPlateNumber(
         shopId: widget.shopId,
         number: _search,
+        limit: _plateLimit + 1,
       ),
       builder: (context, snap) {
         if (!snap.hasData) return const AppLoadingCenter();
-        final vehicles = snap.data!.valueOrNull ?? const <LedgerVehicle>[];
-        if (vehicles.isEmpty) {
+        final found = snap.data!.valueOrNull ?? const <LedgerVehicle>[];
+        final number = LedgerSearch.plateNumber(_search) ?? '';
+        if (found.isEmpty) {
+          // One digit is only matched exactly (a one-digit tail would hit
+          // a tenth of the shop), so do not say "no such car" for it.
           return AppEmptyState(
             icon: Icons.search_off,
-            title: 'ナンバー末尾「${ledgerDigits(_search)}」の車はありません',
-            description: 'ナンバーが未登録の車は、名前（フリガナ）で探してください。',
+            title: number.length < 2
+                ? 'ナンバー末尾は2〜4桁で入れてください'
+                : 'ナンバー末尾「$number」の車はありません',
+            description: number.length < 2
+                ? '例: 63-35 の車なら「35」「335」「6335」のどれでも探せます。'
+                : 'ナンバーが未登録の車は、名前・フリガナ・電話番号で探してください。',
             buttonLabel: '検索を消す',
             onButtonPressed: _clearSearch,
           );
         }
+        final more = found.length > _plateLimit;
+        final vehicles = more ? found.take(_plateLimit) : found;
         return ListView(
           children: [
             for (final v in vehicles)
@@ -803,6 +834,11 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen>
                 vehicle: v,
                 today: _today,
                 onTap: () => _openCustomer(v.customerId),
+              ),
+            if (more)
+              const Padding(
+                padding: EdgeInsets.all(AppSpacing.md),
+                child: Text('ほかにもあります。末尾の桁を増やすと絞り込めます。'),
               ),
           ],
         );
@@ -1220,6 +1256,85 @@ class _Badge extends StatelessWidget {
         borderRadius: AppSpacing.borderRadiusXs,
       ),
       child: Text(label, style: TextStyle(fontSize: 11, color: color)),
+    );
+  }
+}
+
+/// Shown when a customer search finds nobody (2026-10-08 usability test:
+/// "no one" sat right above "add as a new customer", which led to the
+/// same person being registered twice).
+///
+/// Says what can be searched, shows people with a similar name first,
+/// and only then offers to add.
+class _NoMatch extends StatelessWidget {
+  final String search;
+  final Future<Result<List<LedgerCustomer>, AppError>> similar;
+  final DateTime today;
+  final void Function(String customerId) onOpenCustomer;
+  final VoidCallback onAdd;
+
+  const _NoMatch({
+    super.key,
+    required this.search,
+    required this.similar,
+    required this.today,
+    required this.onOpenCustomer,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Placed inside the paged list's ListView (pull to refresh), so a
+    // plain column.
+    return Padding(
+      key: const Key('ledger_no_match'),
+      padding: AppSpacing.paddingScreen,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('「$search」に当たる顧客はいません', style: theme.textTheme.titleMedium),
+          AppSpacing.verticalXs,
+          Text(
+            '名前（漢字）・フリガナ（姓だけ・名だけでも）・電話番号・'
+            'ナンバー末尾（2〜4桁）で探せます。どれも先頭から一致するものを出します。',
+            style: theme.textTheme.bodyMedium,
+          ),
+          AppSpacing.verticalMd,
+          FutureBuilder<Result<List<LedgerCustomer>, AppError>>(
+            future: similar,
+            builder: (context, snap) {
+              final list = snap.data?.valueOrNull ?? const <LedgerCustomer>[];
+              if (list.isEmpty) return const SizedBox.shrink();
+              return Column(
+                key: const Key('ledger_similar'),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('名前の近い顧客', style: theme.textTheme.titleSmall),
+                  for (final c in list)
+                    _CustomerTile(
+                      customer: c,
+                      today: today,
+                      onTap: () => onOpenCustomer(c.id),
+                    ),
+                  AppSpacing.verticalMd,
+                ],
+              );
+            },
+          ),
+          Text(
+            '同じ人を二重に登録しないよう、電話番号でも探してみてください。',
+            style: theme.textTheme.bodySmall,
+          ),
+          AppSpacing.verticalSm,
+          OutlinedButton.icon(
+            key: const Key('ledger_no_match_add'),
+            onPressed: onAdd,
+            icon: const Icon(Icons.person_add_alt_1_outlined),
+            label: const Text('台帳に無いので、新しい顧客として追加'),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -246,6 +246,53 @@ function plateNumber(input) {
   return m ? m[1] : null;
 }
 
+// LedgerSearch.version / maxPrefixLength / maxKeys と同じ
+const SEARCH_VERSION = 2;
+const MAX_PREFIX = 20;
+const MAX_KEYS = 200;
+
+function searchDigits(input) {
+  let out = '';
+  for (const ch of input) {
+    const r = ch.codePointAt(0);
+    if (r >= 0x30 && r <= 0x39) out += ch;
+    if (r >= 0xff10 && r <= 0xff19) out += String.fromCodePoint(r - 0xfee0);
+  }
+  return out;
+}
+const prefixesOf = (token) => {
+  const cps = Array.from(token);
+  const out = [];
+  for (let i = 1; i <= Math.min(cps.length, MAX_PREFIX); i++) out.push(cps.slice(0, i).join(''));
+  return out;
+};
+
+// LedgerSearch.customerKeys と同じ。漢字・フリガナの姓と名・続けた形・担当者・
+// 電話番号（数字だけ）の前方一致。searchKeys array-contains で引く。
+function customerKeys({ name, nameKana, contactPerson, phone }) {
+  const keys = new Set();
+  for (const text of [name, nameKana, contactPerson]) {
+    if (text == null) continue;
+    const parts = text.replace(/\u3000/g, ' ').split(' ').map(nameKey).filter((x) => x !== '');
+    for (const token of new Set([...parts, parts.join('')])) {
+      for (const k of prefixesOf(token)) keys.add(k);
+    }
+  }
+  const digits = phone == null ? '' : searchDigits(phone);
+  if (digits !== '') for (const k of prefixesOf(digits)) keys.add(k);
+  return [...keys].slice(0, MAX_KEYS);
+}
+
+// LedgerSearch.plateTails と同じ。ナンバー末尾の番号の下2〜4桁
+function plateTails(plate) {
+  const number = plateNumber(plate);
+  if (number == null) return [];
+  if (number.length <= 2) return [number];
+  const out = [];
+  for (let n = 2; n <= number.length; n++) out.push(number.slice(number.length - n));
+  return out;
+}
+
 // ShopLedgerService.isInspectionWork と同じ（車検の入庫とみなす作業）
 function isInspectionWork(type) {
   const t = nameKey(type || '');
@@ -1157,6 +1204,11 @@ function customerDoc(c) {
     externalId: nonEmpty(c.externalId),
     // LedgerCustomer.searchKey: フリガナがあればフリガナ、無ければ名前
     searchKey: nameKey(nonEmpty(c.nameKana) ?? c.name),
+    searchKeys: customerKeys({
+      name: c.name, nameKana: nonEmpty(c.nameKana),
+      contactPerson: nonEmpty(c.contactPerson), phone: nonEmpty(c.phone),
+    }),
+    searchVersion: SEARCH_VERSION,
     vehicleCount: c.vehicleCount,
     nextInspectionAt: tsOrNull(c.nextInspectionAt),
     lastVisitAt: tsOrNull(c.lastVisitAt),
@@ -1176,6 +1228,8 @@ function vehicleDoc(v) {
     plate: v.plate,
     plateKey: v.plate == null ? null : plateKey(v.plate),
     plateNumber: v.plate == null ? null : plateNumber(v.plate),
+    plateTails: v.plate == null ? [] : plateTails(v.plate),
+    searchVersion: SEARCH_VERSION,
     maker: v.maker,
     model: v.model,
     year: v.year,
@@ -1534,4 +1588,7 @@ if (require.main === module) {
   });
 }
 
-module.exports = { nameKey, plateKey, plateNumber, guessMaintenanceType, idForExternal };
+module.exports = {
+  nameKey, plateKey, plateNumber, plateTails, customerKeys, searchDigits,
+  guessMaintenanceType, idForExternal,
+};

@@ -2380,6 +2380,37 @@ async function seedLedgerCustomer(overrides = {}) {
 }
 
 describe('shops/{id}/customers — 顧客台帳', () => {
+  // 漢字・姓名・電話番号で探すための前方一致のキー（2026-10-09）
+  describe('検索用のキー', () => {
+    test('スタッフは検索用のキーを書ける（既存の顧客への書き足しも）', async () => {
+      await seedLedgerShop();
+      await assertSucceeds(
+        setDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerCustomerPath), ledgerCustomer({
+          searchKeys: ['青', '青木', 'あ', 'あお'], searchVersion: 2,
+        })),
+      );
+      await assertSucceeds(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerCustomerPath), {
+          searchKeys: ['青'], searchVersion: 2,
+        }),
+      );
+    });
+
+    test('リストでないもの・多すぎるものは書けない（索引を膨らませない）', async () => {
+      await seedLedgerShop();
+      await assertFails(
+        setDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerCustomerPath), ledgerCustomer({
+          searchKeys: '青木',
+        })),
+      );
+      await assertFails(
+        setDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerCustomerPath), ledgerCustomer({
+          searchKeys: Array.from({ length: 201 }, (_, i) => `k${i}`),
+        })),
+      );
+    });
+  });
+
   test('店主は顧客を登録できる（docId が uid でない店でも）', async () => {
     await seedLedgerShop();
     await assertSucceeds(
@@ -2582,6 +2613,38 @@ describe('shops/{id}/customer_vehicles — 台帳の車両', () => {
         updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
           inspectionNoticeAt: new Date('2026-09-30'),
           inspectionNoticeExpiry: 'いつか',
+        }),
+      );
+    });
+  });
+
+  // ナンバー末尾2〜4桁で探すためのキー（2026-10-09）
+  describe('ナンバー末尾のキー', () => {
+    async function seedVehicle() {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), ledgerVehiclePath), ledgerVehicle());
+      });
+    }
+
+    test('スタッフは末尾のキーを書ける', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertSucceeds(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          plateTails: ['35', '335', '6335'], searchVersion: 2,
+        }),
+      );
+    });
+
+    test('リストでないもの・多すぎるものは書けない', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertFails(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), { plateTails: '35' }),
+      );
+      await assertFails(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          plateTails: ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
         }),
       );
     });

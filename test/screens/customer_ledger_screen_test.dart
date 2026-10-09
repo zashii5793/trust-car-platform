@@ -157,6 +157,95 @@ void main() {
     expect(find.text('山田太郎'), findsOneWidget);
   });
 
+  // 2026-10-08 usability test #3 / #4.
+  group('見つからないとき・漢字・末尾2桁', () {
+    Future<void> type(WidgetTester tester, String q) async {
+      await tester.enterText(find.byKey(const Key('ledger_search')), q);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('漢字の名でも出る。検索欄の例に、何で探せるかが書いてある', (tester) async {
+      await add('青木 和也', 'アオキ カズヤ');
+      await tester.pumpWidget(_build(service));
+      await tester.pumpAndSettle();
+      final field =
+          tester.widget<TextField>(find.byKey(const Key('ledger_search')));
+      expect(field.decoration!.hintText, contains('名前'));
+      expect(field.decoration!.hintText, contains('電話'));
+      await type(tester, '和也');
+      expect(find.text('青木 和也'), findsOneWidget);
+    });
+
+    testWidgets('見つからなければ、何で探せるかと、よく似た顧客を、追加の前に出す', (tester) async {
+      await add('青木 和也', 'アオキ カズヤ');
+      tester.view.physicalSize = const Size(900, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_build(service));
+      await tester.pumpAndSettle();
+      await type(tester, '青木和男');
+
+      expect(find.byKey(const Key('ledger_no_match')), findsOneWidget);
+      expect(find.textContaining('電話番号'), findsWidgets);
+      expect(find.byKey(const Key('ledger_similar')), findsOneWidget);
+      expect(find.text('青木 和也'), findsOneWidget);
+      // The add button comes after the similar customers.
+      final similarY =
+          tester.getTopLeft(find.byKey(const Key('ledger_similar'))).dy;
+      final addY =
+          tester.getTopLeft(find.byKey(const Key('ledger_no_match_add'))).dy;
+      expect(addY, greaterThan(similarY));
+    });
+
+    testWidgets('前の形の台帳でも、開いたときに検索用の項目を書き足して漢字で出る', (tester) async {
+      await fs.collection('shops/$_shopId/customers').doc('old').set({
+        'kind': 'individual',
+        'name': '青木 節子',
+        'nameKana': 'アオキ セツコ',
+        'searchKey': 'あおきせつこ',
+        'isLinked': false,
+      });
+      await tester.pumpWidget(_build(service));
+      await tester.pumpAndSettle();
+      await type(tester, '青木');
+      expect(find.text('青木 節子'), findsOneWidget);
+    });
+
+    testWidgets('ナンバー末尾2桁で車が出る。1桁なら2〜4桁で入れるよう案内する', (tester) async {
+      final c = await add('山田太郎', 'ヤマダタロウ');
+      await service.saveVehicle(
+        shopId: _shopId,
+        customerId: c.id,
+        maker: 'トヨタ',
+        model: 'プリウス',
+        plate: '岡山 300 あ 63-35',
+      );
+      await tester.pumpWidget(_build(service));
+      await tester.pumpAndSettle();
+      await type(tester, '35');
+      expect(find.textContaining('トヨタ プリウス'), findsOneWidget);
+
+      await type(tester, '3');
+      expect(find.textContaining('2〜4桁'), findsWidgets);
+      expect(find.textContaining('の車はありません'), findsNothing);
+    });
+
+    testWidgets('電話番号（5桁以上の数字）は顧客の電話番号で探す', (tester) async {
+      await service.createCustomer(
+        shopId: _shopId,
+        kind: LedgerCustomerKind.individual,
+        name: '青木 和也',
+        nameKana: 'アオキ カズヤ',
+        phone: '086-123-4567',
+      );
+      await tester.pumpWidget(_build(service));
+      await tester.pumpAndSettle();
+      await type(tester, '086-123');
+      expect(find.text('青木 和也'), findsOneWidget);
+    });
+  });
+
   testWidgets('車検が近いタブは、顧客をまたいで満了日の近い順', (tester) async {
     final a = await add('A商店', 'エーショウテン');
     final b = await add('B運輸', 'ビーウンユ');

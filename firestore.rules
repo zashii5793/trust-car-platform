@@ -86,6 +86,9 @@ service cloud.firestore {
       let linked = d.get('linkedUserId', null);
       return isShortString(d.name, 100)
         && d.kind in ['individual', 'corporate']
+        // 検索用の前方一致のキー（2026-10-09）。アプリは200個までに抑える
+        && d.get('searchKeys', []) is list
+        && d.get('searchKeys', []).size() <= 200
         && d.get('isLinked', false) == (linked != null)
         && (linked == null
             || get(/databases/$(database)/documents/shop_customers/$(linked)).data.shopId
@@ -123,7 +126,10 @@ service cloud.firestore {
         && (d.get('lastInspectionAt', null) == null
             || d.lastInspectionAt is timestamp)
         && (d.get('lastInspectionDueAt', null) == null
-            || d.lastInspectionDueAt is timestamp);
+            || d.lastInspectionDueAt is timestamp)
+        // ナンバー末尾2〜4桁のキー（2026-10-09）。多くて3つ
+        && d.get('plateTails', []) is list
+        && d.get('plateTails', []).size() <= 4;
     }
 
     // アプリ利用者への車検案内の依頼（shops/{shopId}/inspection_notices）。

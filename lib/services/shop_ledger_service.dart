@@ -82,8 +82,9 @@ class ShopLedgerService {
 
   /// 顧客の一覧を1ページ分返す。
   ///
-  /// [search] があれば、並べ方は無視してフリガナの前方一致で引く
-  /// （Firestore では範囲条件と別フィールドの並べ替えを組み合わせられない）。
+  /// [search] があれば、並べ方は無視して、漢字・フリガナの姓や名・担当者・
+  /// 電話番号の前方一致で引き、フリガナ順に並べる
+  /// （`searchKeys array-contains`。[LedgerSearch.customerKeys]）。
   Future<Result<LedgerPage<LedgerCustomer>, AppError>> listCustomers({
     required String shopId,
     LedgerCustomerSort sort = LedgerCustomerSort.kana,
@@ -93,13 +94,27 @@ class ShopLedgerService {
   }) async {
     try {
       Query<Map<String, dynamic>> q = _customers(shopId);
-      final key = search == null ? '' : LedgerSearch.nameKey(search);
+      final key = search == null ? '' : LedgerSearch.queryKey(search);
 
       if (key.isNotEmpty) {
-        q = q
-            .where('searchKey', isGreaterThanOrEqualTo: key)
-            .where('searchKey', isLessThan: '$key${LedgerSearch.rangeEnd}')
-            .orderBy('searchKey');
+        final probe = _probeKey(key);
+        q = q.where('searchKeys', arrayContains: probe).orderBy('searchKey');
+        final page = await _page(
+          q,
+          cursor: cursor,
+          limit: limit,
+          map: LedgerCustomer.fromMap,
+        );
+        if (probe == key) return Result.success(page);
+        // Only the first maxPrefixLength characters are stored; check the
+        // rest here (a page may come back shorter than [limit]).
+        return Result.success(LedgerPage(
+          items: page.items
+              .where((c) => LedgerSearch.customerMatches(c, key))
+              .toList(),
+          cursor: page.cursor,
+          hasMore: page.hasMore,
+        ));
       } else {
         q = switch (sort) {
           LedgerCustomerSort.kana => q.orderBy('searchKey'),
@@ -118,6 +133,116 @@ class ShopLedgerService {
     } catch (e) {
       return Result.failure(mapFirebaseError(e));
     }
+  }
+
+  /// Customers whose name looks like [search], for when the search found
+  /// nobody: the query is shortened from the end one character at a time
+  /// ("青木和男" → "青木和" → "青木"), up to [limit] people.
+  ///
+  /// Shown above "add as a new customer" so that a name typed a little
+  /// differently does not become a second record of the same person.
+  Future<Result<List<LedgerCustomer>, AppError>> similarCustomers({
+    required String shopId,
+    required String search,
+    int limit = 5,
+  }) async {
+    final runes = LedgerSearch.queryKey(search).runes.toList();
+    if (shopId.isEmpty || runes.length < 2 || limit <= 0) {
+      return const Result.success([]);
+    }
+    try {
+      final longest = runes.length - 1 < LedgerSearch.maxPrefixLength
+          ? runes.length - 1
+          : LedgerSearch.maxPrefixLength;
+      for (var n = longest; n >= 1; n--) {
+        final snap = await _customers(shopId)
+            .where('searchKeys',
+                arrayContains: String.fromCharCodes(runes.take(n)))
+            .orderBy('searchKey')
+            .limit(limit)
+            .get();
+        if (snap.docs.isNotEmpty) {
+          return Result.success(snap.docs
+              .map((d) => LedgerCustomer.fromMap(d.id, d.data()))
+              .toList());
+        }
+      }
+      return const Result.success([]);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  static String _probeKey(String key) {
+    final runes = key.runes;
+    return runes.length <= LedgerSearch.maxPrefixLength
+        ? key
+        : String.fromCharCodes(runes.take(LedgerSearch.maxPrefixLength));
+  }
+
+  /// Adds the search fields (searchKeys / plateTails, 2026-10-09) to
+  /// customers and vehicles written before they existed. Returns how many
+  /// documents were rewritten.
+  ///
+  /// Two `count()` queries per collection tell whether anything is
+  /// missing, so once a shop is done this costs a few reads. The first
+  /// time it reads the whole collection once (4,000 customers ≈ 4,000
+  /// reads and writes). `updatedAt` is left alone: nothing the shop sees
+  /// has changed.
+  Future<Result<int, AppError>> ensureSearchFields(String shopId) async {
+    if (shopId.isEmpty) {
+      return const Result.failure(AppError.validation('店が選ばれていません'));
+    }
+    try {
+      var rewritten = 0;
+      rewritten += await _ensureVersion(_customers(shopId), (id, m) {
+        final c = LedgerCustomer.fromMap(id, m);
+        return {'searchKey': c.searchKey, 'searchKeys': c.searchKeys};
+      });
+      rewritten += await _ensureVersion(_vehicles(shopId), (id, m) {
+        final plate = m['plate'] as String?;
+        return {
+          'plateKey': plate == null ? null : LedgerSearch.plateKey(plate),
+          'plateNumber': plate == null ? null : LedgerSearch.plateNumber(plate),
+          'plateTails':
+              plate == null ? const <String>[] : LedgerSearch.plateTails(plate),
+        };
+      });
+      return Result.success(rewritten);
+    } catch (e) {
+      return Result.failure(mapFirebaseError(e));
+    }
+  }
+
+  Future<int> _ensureVersion(
+    CollectionReference<Map<String, dynamic>> col,
+    Map<String, dynamic> Function(String id, Map<String, dynamic> m) fields,
+  ) async {
+    final counts = await Future.wait([
+      col.count().get(),
+      col.where('searchVersion', isEqualTo: LedgerSearch.version).count().get(),
+    ]);
+    if ((counts[0].count ?? 0) == (counts[1].count ?? 0)) return 0;
+
+    final stale = (await col.get())
+        .docs
+        .where((d) => d.data()['searchVersion'] != LedgerSearch.version)
+        .toList();
+    for (var i = 0; i < stale.length; i += _batchLimit) {
+      final batch = _firestore.batch();
+      for (final d in stale.skip(i).take(_batchLimit)) {
+        batch.set(
+          d.reference,
+          {
+            ...fields(d.id, d.data()),
+            'searchVersion': LedgerSearch.version,
+          },
+          SetOptions(merge: true),
+        );
+      }
+      await batch.commit();
+    }
+    return stale.length;
   }
 
   /// しばらく来ていない顧客。[since] より前が最後の来店だった人を、古い順に。
@@ -350,18 +475,21 @@ class ShopLedgerService {
     }
   }
 
-  /// ナンバー末尾の番号（「12-34」→ "1234"）で車両を引く。
+  /// ナンバー末尾の番号で車両を引く。末尾の2〜4桁のどれでも当たる
+  /// （「35」「335」「63-35」→ 63-35 の車。`plateTails array-contains`）。
+  /// 1桁は、番号がその1桁の車だけ（末尾1桁では店の1割の車が当たる）。
   Future<Result<List<LedgerVehicle>, AppError>> findVehiclesByPlateNumber({
     required String shopId,
     required String number,
+    int limit = pageSize,
   }) async {
     final key = LedgerSearch.plateNumber(number);
-    if (key == null) return const Result.success([]);
+    if (key == null || limit <= 0) return const Result.success([]);
     try {
-      final snap = await _vehicles(shopId)
-          .where('plateNumber', isEqualTo: key)
-          .limit(pageSize)
-          .get();
+      final q = key.length == 1
+          ? _vehicles(shopId).where('plateNumber', isEqualTo: key)
+          : _vehicles(shopId).where('plateTails', arrayContains: key);
+      final snap = await q.limit(limit).get();
       return Result.success(
         snap.docs.map((d) => LedgerVehicle.fromMap(d.id, d.data())).toList(),
       );
@@ -593,6 +721,8 @@ class ShopLedgerService {
           kind: c.kind,
           name: c.name,
           nameKana: c.nameKana,
+          contactPerson: c.contactPerson,
+          phone: c.phone,
           createdAt: now,
           updatedAt: now,
         );
@@ -601,6 +731,8 @@ class ShopLedgerService {
           'name': c.name,
           'nameKana': c.nameKana,
           'searchKey': probe.searchKey,
+          'searchKeys': probe.searchKeys,
+          'searchVersion': LedgerSearch.version,
           'contactPerson': c.contactPerson,
           'phone': c.phone,
           'email': c.email,
