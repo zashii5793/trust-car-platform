@@ -246,6 +246,42 @@ function plateNumber(input) {
   return m ? m[1] : null;
 }
 
+// ShopLedgerService.isInspectionWork と同じ（車検の入庫とみなす作業）
+function isInspectionWork(type) {
+  const t = nameKey(type || '');
+  return t.includes('車検') || t.includes('継続検査') || t.includes('carinspection');
+}
+
+// ShopLedgerService.inspectionDueFor と同じ。車検をした日から、それがどの
+// 満了日の分かを決める（名簿の満了日が既に1〜2年進んでいても戻す）。
+function inspectionDueFor(expiryMs, inspectedMs) {
+  if (expiryMs == null) return null;
+  const earliest = inspectedMs - 31 * DAY;
+  const latest = inspectedMs + 92 * DAY;
+  const e = new Date(expiryMs);
+  for (let years = 0; years <= 3; years++) {
+    const due = new Date(e.getFullYear() - years, e.getMonth(), e.getDate()).getTime();
+    if (due >= earliest && due <= latest) return due;
+  }
+  return null;
+}
+
+// 整備履歴の取込（ShopLedgerService.importHistory）が車に写す、最後の車検日と
+// それがどの満了日の分か。取りこぼしの集計は伝票を読まずにこれを使う。
+function applyInspections() {
+  const last = new Map();
+  for (const r of out.records) {
+    if (!isInspectionWork(r.text)) continue;
+    const prev = last.get(r.vehicle);
+    if (prev == null || r.date > prev) last.set(r.vehicle, r.date);
+  }
+  for (const v of out.vehicles) {
+    const at = last.get(v) ?? null;
+    v.lastInspectionAt = at;
+    v.lastInspectionDueAt = at == null ? null : inspectionDueFor(v.expiry, at);
+  }
+}
+
 // ShopLedgerService.idForExternal と同じ
 const idForExternal = (prefix, ext) => `${prefix}_${ext.trim().replace(/[/\s]/g, '_')}`;
 
@@ -1151,6 +1187,9 @@ function vehicleDoc(v) {
     externalId: v.ext,
     ...(v.noticeAt != null ? { inspectionNoticeAt: ts(v.noticeAt) } : {}),
     ...(v.noticeExpiry != null ? { inspectionNoticeExpiry: ts(v.noticeExpiry) } : {}),
+    // 車検の伝票が無い車にも null を書く（集計が伝票を読みに行かないように）
+    lastInspectionAt: tsOrNull(v.lastInspectionAt),
+    lastInspectionDueAt: tsOrNull(v.lastInspectionDueAt),
     createdAt: ts(v.createdAt),
     updatedAt: ts(v.updatedAt),
     ...META,
@@ -1368,6 +1407,7 @@ async function main() {
   buildCustomers();
   buildVehiclesAndHistory();
   const extras = await buildPersonas(DRY_RUN ? null : db);
+  applyInspections();
   summarize();
   buildAudit();
 

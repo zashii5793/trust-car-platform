@@ -58,8 +58,10 @@ beforeAll(async () => {
         path.resolve(__dirname, '../../firestore.rules'),
         'utf8',
       ),
-      host: 'localhost',
-      port: 8080,
+      // FIRESTORE_EMULATOR_HOST があればそこへ（8080 が別のアプリに
+      // 塞がれている端末で、別ポートのエミュレータに向けるため）
+      host: (process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080').split(':')[0],
+      port: Number((process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080').split(':')[1]),
     },
   });
 });
@@ -2580,6 +2582,53 @@ describe('shops/{id}/customer_vehicles — 台帳の車両', () => {
         updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
           inspectionNoticeAt: new Date('2026-09-30'),
           inspectionNoticeExpiry: 'いつか',
+        }),
+      );
+    });
+  });
+
+  // 整備履歴の取込で、最後の車検日と、それがどの満了日の分かを写す
+  // （2026-10-09。取りこぼしの集計が伝票を読まずに済むように）
+  describe('最後の車検日', () => {
+    async function seedVehicle() {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), ledgerVehiclePath), ledgerVehicle());
+      });
+    }
+
+    test('スタッフは日付で付けられる', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertSucceeds(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          lastInspectionAt: new Date('2026-04-20'),
+          lastInspectionDueAt: new Date('2026-05-10'),
+        }),
+      );
+    });
+
+    test('車検の記録が無い車には null で付けられる', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertSucceeds(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          lastInspectionAt: null,
+          lastInspectionDueAt: null,
+        }),
+      );
+    });
+
+    test('日付でない値は入れられない（集計の数を狂わせない）', async () => {
+      await seedLedgerShop();
+      await seedVehicle();
+      await assertFails(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          lastInspectionAt: '2026-04-20',
+        }),
+      );
+      await assertFails(
+        updateDoc(doc(dbFor(LEDGER_STAFF_UID), ledgerVehiclePath), {
+          lastInspectionDueAt: 20260510,
         }),
       );
     });

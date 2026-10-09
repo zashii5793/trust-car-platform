@@ -170,9 +170,9 @@ class _LossReportScreenState extends State<LossReportScreen> {
           ),
         AppSpacing.verticalMd,
         Text(
-          '数え方: いまの満了日が直近12か月に過ぎた車のうち、満了日の60日前から'
+          '数え方: 満了日が直近12か月に来た車のうち、満了日の60日前から'
           '今日までに「車検」「継続検査」の整備履歴が無いものを取りこぼしとしています。'
-          '名簿を取り直して満了日が先に進んだ車は、数えなくなります。',
+          '車検で入庫して名簿の満了日が先に進んだ車は、元の満了日の月に「入庫」として数えます。',
           style: theme.textTheme.bodySmall,
         ),
         AppSpacing.verticalXl,

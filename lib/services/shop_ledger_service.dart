@@ -432,10 +432,19 @@ class ShopLedgerService {
         // 丸ごと書き直すので、案内した日は前のものを引き継ぐ（消さない）
         inspectionNoticeAt: before?.inspectionNoticeAt,
         inspectionNoticeExpiry: before?.inspectionNoticeExpiry,
+        lastInspectionAt: before?.lastInspectionAt,
+        lastInspectionDueAt: before?.lastInspectionDueAt,
         createdAt: createdAt,
         updatedAt: now,
       );
-      await ref.set(vehicle.toMap());
+      final data = vehicle.toMap();
+      // A stored null ("imported, no inspection") must survive the full
+      // overwrite, or the loss report would fall back to reading records.
+      final raw = existing.data() ?? const <String, dynamic>{};
+      for (final key in const ['lastInspectionAt', 'lastInspectionDueAt']) {
+        if (raw.containsKey(key)) data.putIfAbsent(key, () => raw[key]);
+      }
+      await ref.set(data);
       await refreshSummary(shopId: shopId, customerId: customerId);
       return Result.success(vehicle);
     } catch (e) {
@@ -684,9 +693,15 @@ class ShopLedgerService {
     void Function(int done, int total)? onProgress,
   }) async {
     try {
+      final vehicleDocs = (await _vehicles(shopId).get()).docs;
       final vehicles = <String, LedgerVehicle>{
-        for (final d in (await _vehicles(shopId).get()).docs)
+        for (final d in vehicleDocs)
           d.id: LedgerVehicle.fromMap(d.id, d.data()),
+      };
+      // Vehicles from before `lastInspectionAt` existed (2026-10-09).
+      final unknownInspection = <String>{
+        for (final d in vehicleDocs)
+          if (!d.data().containsKey('lastInspectionAt')) d.id,
       };
       final customerIdByExt = <String, String>{};
       for (final d in (await _customers(shopId).get()).docs) {
@@ -706,6 +721,7 @@ class ShopLedgerService {
       final writes =
           <(DocumentReference<Map<String, dynamic>>, Map<String, dynamic>)>[];
       final latest = <String, LedgerHistoryRow>{};
+      final inspectedAt = <String, DateTime>{};
       final now = Timestamp.fromDate(_now());
       final recordIds = <String>{};
 
@@ -756,7 +772,15 @@ class ShopLedgerService {
         ));
         final prev = latest[v.id];
         if (prev == null || row.date.isAfter(prev.date)) latest[v.id] = row;
+        if (isInspectionWork(row.type)) {
+          final seen = inspectedAt[v.id];
+          if (seen == null || row.date.isAfter(seen)) {
+            inspectedAt[v.id] = row.date;
+          }
+        }
       }
+
+      final vehicleUpdates = <String, Map<String, dynamic>>{};
 
       // 車ごとの最終来店・走行距離
       final touchedCustomers = <String>{};
@@ -772,15 +796,45 @@ class ShopLedgerService {
           if (row.mileage != null) 'lastMileage': row.mileage,
         });
         vehicles[v.id] = updated;
-        writes.add((
-          _vehicles(shopId).doc(v.id),
-          {
-            'lastVisitAt': Timestamp.fromDate(row.date),
-            if (row.mileage != null) 'lastMileage': row.mileage,
-            'updatedAt': now,
-          },
-        ));
+        vehicleUpdates.putIfAbsent(v.id, () => {}).addAll({
+          'lastVisitAt': Timestamp.fromDate(row.date),
+          if (row.mileage != null) 'lastMileage': row.mileage,
+          'updatedAt': now,
+        });
         touchedCustomers.add(v.customerId);
+      }
+
+      // The latest inspection per vehicle, kept on the vehicle so the loss
+      // report reads vehicles only. Vehicles from before this field get it
+      // from the records already stored (a one-time migration); the field
+      // is written even when there is no inspection (null), so this runs
+      // once per vehicle.
+      final fromStored = await _latestInspections(
+        shopId,
+        unknownInspection,
+        readAll: unknownInspection.length > _readAllRecordsAbove,
+      );
+      for (final v in vehicles.values) {
+        final unknown = unknownInspection.contains(v.id);
+        var at = unknown ? fromStored[v.id] : v.lastInspectionAt;
+        final imported = inspectedAt[v.id];
+        if (imported != null && (at == null || imported.isAfter(at))) {
+          at = imported;
+        }
+        if (!unknown && at == v.lastInspectionAt) continue;
+        final due = at == null
+            ? null
+            : (at == v.lastInspectionAt && v.lastInspectionDueAt != null
+                ? v.lastInspectionDueAt
+                : inspectionDueFor(
+                    expiry: v.inspectionExpiry, inspectedAt: at));
+        vehicleUpdates.putIfAbsent(v.id, () => {}).addAll({
+          'lastInspectionAt': at == null ? null : Timestamp.fromDate(at),
+          'lastInspectionDueAt': due == null ? null : Timestamp.fromDate(due),
+        });
+      }
+      for (final e in vehicleUpdates.entries) {
+        writes.add((_vehicles(shopId).doc(e.key), e.value));
       }
 
       // 顧客の要約値
@@ -1031,12 +1085,29 @@ class ShopLedgerService {
 
   /// 取りこぼしの集計。
   ///
-  /// - 対象: いまの満了日が、直近 [months] か月のうちに過ぎた車
+  /// - 対象: 満了日が直近 [months] か月のうちに来た車
   /// - 入庫済み: 満了日の [leadDays] 日前から今日までに、車検の整備履歴がある
   /// - 取りこぼし: それが無い
   ///
-  /// **名簿を取り直すと満了日が2年先に進み、その車は過去の月から外れる**
-  /// （分母と分子の両方から抜けるので、率はほとんど動かない）。
+  /// **整備履歴（伝票）は読まない**（2026-10-09）。4,000人・伝票1.5万件の店で
+  /// 直近の伝票を全部読んでいたため、開くのに約30秒かかっていた。代わりに、
+  /// 取込のときに車へ写しておいた「最後の車検日」（lastInspectionAt）と
+  /// 「それがどの満了日の分か」（lastInspectionDueAt）を使う:
+  ///
+  /// 1. 満了日がこの期間に過ぎた車（＝名簿の満了日がまだ進んでいない車）を
+  ///    読む。取りこぼした車の一覧はここから作る（声をかける相手なので
+  ///    中身が要る）
+  /// 2. 満了日が進んだ車（車検で入庫し、名簿を取り直した車）は、
+  ///    lastInspectionDueAt の月ごとの count() で数える。中身は読まない
+  ///
+  /// 読み取りは「満了日が過ぎた車」の件数＋月の数の集計＋2件。
+  ///
+  /// 以前は、名簿を取り直して満了日が2年先へ進んだ車が分母からも分子からも
+  /// 抜けていたため、取りこぼし率がほぼ 100% になっていた（2026-10-08
+  /// 使用感テスト「39 / 39台」）。2. でその車を元の月に戻している。
+  ///
+  /// lastInspectionAt の無い車（2026-10-09 より前のデータで、まだ整備履歴を
+  /// 取り込み直していない車）だけは、その車の伝票を読んで判定する。
   ///
   /// 最後に整備履歴を取り込んだのが [staleDays] 日より前（または一度も
   /// 無い）なら [LossReport.isStale] を立てる。取込が止まっていると、
@@ -1047,66 +1118,78 @@ class ShopLedgerService {
     int leadDays = 60,
     int staleDays = 30,
   }) async {
+    if (shopId.isEmpty) {
+      return const Result.failure(AppError.validation('店が選ばれていません'));
+    }
+    if (months <= 0 || leadDays < 0) {
+      return const Result.failure(AppError.validation('期間の指定が正しくありません'));
+    }
     try {
       final now = _now();
       final today = DateTime(now.year, now.month, now.day);
       final from = DateTime(today.year, today.month - months + 1, 1);
-
-      final vehicleSnap = await _vehicles(shopId)
-          .where('inspectionExpiry',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(from))
-          .where('inspectionExpiry', isLessThan: Timestamp.fromDate(today))
-          .get();
-      final vehicles = vehicleSnap.docs
-          .map((d) => LedgerVehicle.fromMap(d.id, d.data()))
-          .toList();
-
-      final recordSnap = await _records(shopId)
-          .where('date',
-              isGreaterThanOrEqualTo:
-                  Timestamp.fromDate(from.subtract(Duration(days: leadDays))))
-          .get();
-      final inspectionsByVehicle = <String, List<DateTime>>{};
-      for (final d in recordSnap.docs) {
-        final data = d.data();
-        final vid = data['customerVehicleId'] as String?;
-        final date = (data['date'] as Timestamp?)?.toDate();
-        if (vid == null || date == null) continue;
-        if (!isInspectionWork(data['type'] as String? ?? '')) continue;
-        inspectionsByVehicle.putIfAbsent(vid, () => []).add(date);
-      }
-
-      final lastImportSnap = await _records(shopId)
-          .orderBy('updatedAt', descending: true)
-          .limit(1)
-          .get();
-      final lastImportAt = lastImportSnap.docs.isEmpty
-          ? null
-          : (lastImportSnap.docs.first.data()['updatedAt'] as Timestamp?)
-              ?.toDate();
 
       final byMonth = <String, LossMonth>{};
       for (var i = 0; i < months; i++) {
         final m = DateTime(from.year, from.month + i, 1);
         byMonth[_monthKey(m)] = LossMonth(month: m);
       }
+
+      // 1. Cars whose (current) expiry passed in the period.
+      final expiredSnap = await _vehicles(shopId)
+          .where('inspectionExpiry',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(from))
+          .where('inspectionExpiry', isLessThan: Timestamp.fromDate(today))
+          .get();
+      final expired = <LedgerVehicle>[];
+      final unknown = <String>{};
+      for (final d in expiredSnap.docs) {
+        expired.add(LedgerVehicle.fromMap(d.id, d.data()));
+        if (!d.data().containsKey('lastInspectionAt')) unknown.add(d.id);
+      }
+      final legacy = await _latestInspections(shopId, unknown);
+
+      // 2. Inspections at this shop per due month. Cars that are still in
+      //    step 1 are subtracted so nothing is counted twice.
+      final dueCounts = await Future.wait([
+        for (final m in byMonth.values)
+          _vehicles(shopId)
+              .where('lastInspectionDueAt',
+                  isGreaterThanOrEqualTo: Timestamp.fromDate(m.month))
+              .where('lastInspectionDueAt',
+                  isLessThan: Timestamp.fromDate(_minDate(
+                      DateTime(m.month.year, m.month.month + 1, 1), today)))
+              .count()
+              .get()
+              .then((s) => s.count ?? 0),
+      ]);
+      for (final (i, m) in byMonth.values.indexed) {
+        m.returned += dueCounts[i];
+      }
+
       final lost = <LedgerVehicle>[];
-      for (final v in vehicles) {
+      for (final v in expired) {
+        final due = v.lastInspectionDueAt;
+        if (due != null) byMonth[_monthKey(due)]?.returned--;
+
         final expiry = v.inspectionExpiry!;
-        final windowStart = expiry.subtract(Duration(days: leadDays));
-        final returned = (inspectionsByVehicle[v.id] ?? const [])
-            .any((d) => !d.isBefore(windowStart));
         final month = byMonth[_monthKey(expiry)];
         if (month == null) continue;
-        if (returned) {
+        final last = unknown.contains(v.id) ? legacy[v.id] : v.lastInspectionAt;
+        final windowStart = expiry.subtract(Duration(days: leadDays));
+        if (last != null && !last.isBefore(windowStart)) {
           month.returned++;
         } else {
           month.lost++;
           lost.add(v);
         }
       }
+      for (final m in byMonth.values) {
+        if (m.returned < 0) m.returned = 0;
+      }
       lost.sort((a, b) => b.inspectionExpiry!.compareTo(a.inspectionExpiry!));
 
+      final lastImportAt = await _lastImportAt(shopId, now);
       final stale = lastImportAt == null ||
           today.difference(lastImportAt).inDays > staleDays;
       return Result.success(LossReport(
@@ -1119,6 +1202,106 @@ class ShopLedgerService {
       return Result.failure(mapFirebaseError(e));
     }
   }
+
+  /// When the service records were last brought in.
+  ///
+  /// The newest `updatedAt` (written by the import), and the newest work
+  /// `date` as a lower bound: a record without `updatedAt` (entered by
+  /// other means) still shows that the records are being kept. Values of
+  /// an unexpected type (string, number) are read as dates rather than
+  /// failing the whole report.
+  Future<DateTime?> _lastImportAt(String shopId, DateTime now) async {
+    final results = await Future.wait([
+      _records(shopId).orderBy('updatedAt', descending: true).limit(1).get(),
+      _records(shopId).orderBy('date', descending: true).limit(1).get(),
+    ]);
+    final updatedAt = results[0].docs.isEmpty
+        ? null
+        : anyDate(results[0].docs.first.data()['updatedAt']);
+    var workDate = results[1].docs.isEmpty
+        ? null
+        : anyDate(results[1].docs.first.data()['date']);
+    // A mistyped future work date must not make stale data look fresh.
+    if (workDate != null && workDate.isAfter(now)) workDate = null;
+    if (updatedAt == null) return workDate;
+    if (workDate == null) return updatedAt;
+    return updatedAt.isAfter(workDate) ? updatedAt : workDate;
+  }
+
+  /// Reads a date stored as a Timestamp, DateTime, epoch milliseconds or
+  /// an ISO-8601 string. Anything else is null.
+  static DateTime? anyDate(Object? v) {
+    if (v is Timestamp) return v.toDate();
+    if (v is DateTime) return v;
+    if (v is int) return DateTime.fromMillisecondsSinceEpoch(v);
+    if (v is num) return DateTime.fromMillisecondsSinceEpoch(v.toInt());
+    if (v is String) return DateTime.tryParse(v)?.toLocal();
+    return null;
+  }
+
+  /// The expiry an inspection on [inspectedAt] was for.
+  ///
+  /// The roster may already carry the next expiry (one or two years
+  /// later) when the records are imported, so step back whole years until
+  /// the date falls just after the inspection (inspections are done up to
+  /// about two months before the expiry). Null when nothing fits (for
+  /// example, no expiry on the roster).
+  static DateTime? inspectionDueFor({
+    required DateTime? expiry,
+    required DateTime inspectedAt,
+  }) {
+    if (expiry == null) return null;
+    final earliest = inspectedAt.subtract(const Duration(days: 31));
+    final latest = inspectedAt.add(const Duration(days: 92));
+    for (var years = 0; years <= 3; years++) {
+      final due = DateTime(expiry.year - years, expiry.month, expiry.day);
+      if (!due.isBefore(earliest) && !due.isAfter(latest)) return due;
+    }
+    return null;
+  }
+
+  /// Above this many vehicles, read all records once instead of asking
+  /// per vehicle (one query per 30 vehicles).
+  static const int _readAllRecordsAbove = 300;
+
+  /// The latest inspection date per vehicle, from the stored records.
+  /// Only used for vehicles without `lastInspectionAt` (older data).
+  Future<Map<String, DateTime>> _latestInspections(
+    String shopId,
+    Set<String> vehicleIds, {
+    bool readAll = false,
+  }) async {
+    final latest = <String, DateTime>{};
+    if (vehicleIds.isEmpty) return latest;
+    void take(QueryDocumentSnapshot<Map<String, dynamic>> d) {
+      final m = d.data();
+      final vid = m['customerVehicleId'] as String?;
+      final date = anyDate(m['date']);
+      if (vid == null || date == null || !vehicleIds.contains(vid)) return;
+      if (!isInspectionWork(m['type'] as String? ?? '')) return;
+      final seen = latest[vid];
+      if (seen == null || date.isAfter(seen)) latest[vid] = date;
+    }
+
+    if (readAll) {
+      (await _records(shopId).get()).docs.forEach(take);
+      return latest;
+    }
+    final ids = vehicleIds.toList();
+    final snaps = await Future.wait([
+      for (var i = 0; i < ids.length; i += 30)
+        _records(shopId)
+            .where('customerVehicleId',
+                whereIn: ids.sublist(i, (i + 30).clamp(0, ids.length)))
+            .get(),
+    ]);
+    for (final s in snaps) {
+      s.docs.forEach(take);
+    }
+    return latest;
+  }
+
+  static DateTime _minDate(DateTime a, DateTime b) => a.isBefore(b) ? a : b;
 
   static String _monthKey(DateTime d) => '${d.year}-${d.month}';
 

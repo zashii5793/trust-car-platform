@@ -199,6 +199,23 @@ async function ownerChecks() {
     const days = t ? Math.floor((today - t) / 86400000) : 999;
     return { n: days, note: `${t?.toLocaleString('ja-JP')}（30日を超えると率を出さない）` };
   }, (n) => n <= 30);
+  // lossReport は伝票を読まず、車の lastInspectionAt / lastInspectionDueAt で数える
+  // （2026-10-09）。満了日が進んだ車も「入庫した」に数え、率が 100% に張り付かないこと
+  await check('取りこぼし：直近12か月の率（車だけで数える）', async () => {
+    const from = new Date(today.getFullYear(), today.getMonth() - 11, 1);
+    const expired = await getDocs(query(vcol, where('inspectionExpiry', '>=', Timestamp.fromDate(from)), where('inspectionExpiry', '<', Timestamp.fromDate(today))));
+    const unknown = expired.docs.filter((d) => !('lastInspectionAt' in d.data())).length;
+    const lost = expired.docs.filter((d) => {
+      const last = d.get('lastInspectionAt');
+      const ws = new Date(d.get('inspectionExpiry').toDate()); ws.setDate(ws.getDate() - 60);
+      return !last || last.toDate() < ws;
+    }).length;
+    const renewed = (await getCountFromServer(query(vcol, where('lastInspectionDueAt', '>=', Timestamp.fromDate(from)), where('lastInspectionDueAt', '<', Timestamp.fromDate(today))))).data().count;
+    const overlap = expired.docs.filter((d) => { const t = d.get('lastInspectionDueAt')?.toMillis(); return t != null && t >= from.getTime() && t < today.getTime(); }).length;
+    const returned = renewed - overlap + (expired.size - lost);
+    const rate = Math.round((lost / (lost + returned)) * 100);
+    return { n: unknown === 0 ? rate : -1, note: `取りこぼし ${lost}台・入庫 ${returned}台・最後の車検日が無い車 ${unknown}台` };
+  }, (n) => n > 0 && n < 50);
   await check('整備履歴：直近1年', async () => {
     const from = new Date(today); from.setFullYear(from.getFullYear() - 1);
     return (await getCountFromServer(query(rcol, where('date', '>=', Timestamp.fromDate(from))))).data().count;

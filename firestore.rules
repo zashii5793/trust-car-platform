@@ -117,7 +117,13 @@ service cloud.firestore {
         && (d.get('inspectionNoticeAt', null) == null
             || d.inspectionNoticeAt is timestamp)
         && (d.get('inspectionNoticeExpiry', null) == null
-            || d.inspectionNoticeExpiry is timestamp);
+            || d.inspectionNoticeExpiry is timestamp)
+        // 最後の車検日と、それがどの満了日の分か（2026-10-09）。
+        // 取りこぼしの集計が日付の範囲で数えるので、日付以外は入れさせない。
+        && (d.get('lastInspectionAt', null) == null
+            || d.lastInspectionAt is timestamp)
+        && (d.get('lastInspectionDueAt', null) == null
+            || d.lastInspectionDueAt is timestamp);
     }
 
     // アプリ利用者への車検案内の依頼（shops/{shopId}/inspection_notices）。

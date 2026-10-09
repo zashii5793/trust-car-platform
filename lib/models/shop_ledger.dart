@@ -411,6 +411,20 @@ class LedgerVehicle {
   /// そのとき案内した満了日。**車検を通して満了日が進んだら、次の案内の
   /// 対象に戻す**ために、案内した日と別に持つ。
   final DateTime? inspectionNoticeExpiry;
+
+  /// Date of the latest inspection (車検) service record for this car.
+  ///
+  /// Written by the service-record import so the loss report can tell
+  /// "came back for the inspection" from the vehicle alone, without
+  /// reading every service record. A stored `null` means "imported, and
+  /// there is no inspection record"; a missing field means "not known yet"
+  /// (data from before 2026-10-09).
+  final DateTime? lastInspectionAt;
+
+  /// The expiry that [lastInspectionAt] was for. Lets the loss report put
+  /// a car whose expiry has already moved two years ahead (the roster was
+  /// re-imported) back into the month it was due.
+  final DateTime? lastInspectionDueAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -430,6 +444,8 @@ class LedgerVehicle {
     this.externalId,
     this.inspectionNoticeAt,
     this.inspectionNoticeExpiry,
+    this.lastInspectionAt,
+    this.lastInspectionDueAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -468,6 +484,12 @@ class LedgerVehicle {
           'inspectionNoticeAt': Timestamp.fromDate(inspectionNoticeAt!),
         if (inspectionNoticeExpiry != null)
           'inspectionNoticeExpiry': Timestamp.fromDate(inspectionNoticeExpiry!),
+        // Same as above: the roster import merges, so a null here would
+        // erase what the service-record import found.
+        if (lastInspectionAt != null)
+          'lastInspectionAt': Timestamp.fromDate(lastInspectionAt!),
+        if (lastInspectionDueAt != null)
+          'lastInspectionDueAt': Timestamp.fromDate(lastInspectionDueAt!),
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': Timestamp.fromDate(updatedAt),
       };
@@ -489,6 +511,8 @@ class LedgerVehicle {
       externalId: m['externalId'] as String?,
       inspectionNoticeAt: _date(m['inspectionNoticeAt']),
       inspectionNoticeExpiry: _date(m['inspectionNoticeExpiry']),
+      lastInspectionAt: _date(m['lastInspectionAt']),
+      lastInspectionDueAt: _date(m['lastInspectionDueAt']),
       createdAt:
           _date(m['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
       updatedAt:
