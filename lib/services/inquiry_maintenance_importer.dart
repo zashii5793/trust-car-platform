@@ -1,4 +1,6 @@
 import '../models/maintenance_record.dart';
+import '../models/shop_ledger.dart';
+import '../models/vehicle.dart';
 
 /// 店が整備明細を送るときのメッセージ本文。スレッドから1件ずつ送るときも、
 /// 台帳の「送っていない明細」からまとめて送るときも、同じ文にする。
@@ -25,6 +27,17 @@ class InquiryMaintenancePayload {
   final int? laborCost;
   final int? miscCost;
 
+  /// Which car the detail is for. The shop picks it from its ledger; the
+  /// ledger does not know the user's app vehicle IDs, so the plate and the car
+  /// name travel with the detail and the user's app matches them.
+  final String? vehicleLabel;
+  final String? licensePlate;
+  final String? ledgerVehicleId;
+
+  /// The user's app vehicle ID, when the shop knows it (a thread the user
+  /// opened about a specific car).
+  final String? vehicleId;
+
   const InquiryMaintenancePayload({
     required this.typeKey,
     required this.title,
@@ -40,6 +53,10 @@ class InquiryMaintenancePayload {
     this.partsCost,
     this.laborCost,
     this.miscCost,
+    this.vehicleLabel,
+    this.licensePlate,
+    this.ledgerVehicleId,
+    this.vehicleId,
   });
 
   factory InquiryMaintenancePayload.fromMap(Map<String, dynamic> map) {
@@ -65,6 +82,10 @@ class InquiryMaintenancePayload {
       partsCost: (map['partsCost'] as num?)?.toInt(),
       laborCost: (map['laborCost'] as num?)?.toInt(),
       miscCost: (map['miscCost'] as num?)?.toInt(),
+      vehicleLabel: map['vehicleLabel'] as String?,
+      licensePlate: map['licensePlate'] as String?,
+      ledgerVehicleId: map['ledgerVehicleId'] as String?,
+      vehicleId: map['vehicleId'] as String?,
     );
   }
 
@@ -85,14 +106,28 @@ class InquiryMaintenancePayload {
       if (partsCost != null) 'partsCost': partsCost,
       if (laborCost != null) 'laborCost': laborCost,
       if (miscCost != null) 'miscCost': miscCost,
+      if (vehicleLabel != null) 'vehicleLabel': vehicleLabel,
+      if (licensePlate != null) 'licensePlate': licensePlate,
+      if (ledgerVehicleId != null) 'ledgerVehicleId': ledgerVehicleId,
+      if (vehicleId != null) 'vehicleId': vehicleId,
     };
+  }
+
+  /// Car name and plate for display, or null when the shop did not say.
+  String? get vehicleDisplay {
+    final parts = [vehicleLabel, licensePlate]
+        .whereType<String>()
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    return parts.isEmpty ? null : parts.join('・');
   }
 
   /// One-line summary for the import card UI.
   String get summary {
     final buf = StringBuffer(title.isEmpty ? '整備記録' : title);
     if (cost > 0) {
-      buf.write(' / ¥$cost');
+      buf.write(' / ${formatYen(cost)}');
     }
     return buf.toString();
   }
@@ -109,6 +144,7 @@ MaintenanceRecord buildMaintenanceRecordFromPayload({
   required String vehicleId,
   required String userId,
   required String inquiryId,
+  String? sourceMessageId,
   DateTime? now,
 }) {
   final created = now ?? DateTime.now();
@@ -132,5 +168,58 @@ MaintenanceRecord buildMaintenanceRecordFromPayload({
     laborCost: payload.laborCost,
     miscCost: payload.miscCost,
     inquiryId: inquiryId,
+    sourceMessageId: sourceMessageId,
   );
 }
+
+/// Yen with thousands separators, e.g. `¥16,500`.
+String formatYen(int value) {
+  final negative = value < 0;
+  final digits = value.abs().toString();
+  final buf = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buf.write(',');
+    buf.write(digits[i]);
+  }
+  return '${negative ? '-' : ''}¥$buf';
+}
+
+/// The user's car a shop-sent detail most likely belongs to, or null when it
+/// cannot be told. Used as the initial choice; the user still confirms.
+///
+/// 1. the app vehicle ID, if it is one of [vehicles]
+/// 2. the plate (ignoring spaces, hyphens and full-width digits)
+/// 3. the car name, when exactly one car matches
+String? suggestImportVehicleId({
+  required InquiryMaintenancePayload payload,
+  required List<Vehicle> vehicles,
+}) {
+  if (vehicles.isEmpty) return null;
+
+  final id = payload.vehicleId;
+  if (id != null && vehicles.any((v) => v.id == id)) return id;
+
+  final plate = payload.licensePlate?.trim() ?? '';
+  if (plate.isNotEmpty) {
+    final key = LedgerSearch.plateKey(plate);
+    final hits = vehicles
+        .where((v) =>
+            v.licensePlate != null &&
+            v.licensePlate!.trim().isNotEmpty &&
+            LedgerSearch.plateKey(v.licensePlate!) == key)
+        .toList();
+    if (hits.length == 1) return hits.single.id;
+  }
+
+  final label = _nameKey(payload.vehicleLabel ?? '');
+  if (label.isNotEmpty) {
+    final hits = vehicles
+        .where((v) => _nameKey('${v.maker}${v.model}') == label)
+        .toList();
+    if (hits.length == 1) return hits.single.id;
+  }
+  return null;
+}
+
+String _nameKey(String s) =>
+    s.replaceAll(RegExp(r'[\s\u3000]'), '').toLowerCase();

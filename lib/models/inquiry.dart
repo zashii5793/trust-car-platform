@@ -62,6 +62,13 @@ class InquiryMessage {
   /// `inquiry_maintenance_importer.dart`.
   final Map<String, dynamic>? maintenancePayload;
 
+  /// When the user added the attached maintenance detail to their records.
+  /// Written by the user's app; the shop reads it to see the detail landed.
+  final DateTime? importedAt;
+
+  /// The maintenance record created from the attached detail.
+  final String? importedRecordId;
+
   const InquiryMessage({
     required this.id,
     required this.senderId,
@@ -71,7 +78,15 @@ class InquiryMessage {
     required this.sentAt,
     this.isRead = false,
     this.maintenancePayload,
+    this.importedAt,
+    this.importedRecordId,
   });
+
+  /// Whether this message carries a maintenance detail from the shop.
+  bool get hasMaintenanceDetail => isFromShop && maintenancePayload != null;
+
+  /// Whether the attached detail has been added to the user's records.
+  bool get isDetailImported => importedAt != null;
 
   factory InquiryMessage.fromMap(Map<String, dynamic> map, String id) {
     final rawPayload = map['maintenancePayload'];
@@ -85,6 +100,8 @@ class InquiryMessage {
       isRead: map['isRead'] ?? false,
       maintenancePayload:
           rawPayload is Map ? Map<String, dynamic>.from(rawPayload) : null,
+      importedAt: (map['importedAt'] as Timestamp?)?.toDate(),
+      importedRecordId: map['importedRecordId'] as String?,
     );
   }
 
@@ -97,6 +114,8 @@ class InquiryMessage {
       'sentAt': Timestamp.fromDate(sentAt),
       'isRead': isRead,
       if (maintenancePayload != null) 'maintenancePayload': maintenancePayload,
+      if (importedAt != null) 'importedAt': Timestamp.fromDate(importedAt!),
+      if (importedRecordId != null) 'importedRecordId': importedRecordId,
     };
   }
 }
@@ -133,6 +152,13 @@ class Inquiry {
   final int unreadCountUser; // Unread messages for user
   final int unreadCountShop; // Unread messages for shop
 
+  /// Thread opened by the shop (to deliver maintenance details), not by the
+  /// user asking a question.
+  final bool openedByShop;
+
+  /// Number of maintenance details the shop has sent in this thread.
+  final int detailCount;
+
   const Inquiry({
     required this.id,
     required this.userId,
@@ -155,7 +181,12 @@ class Inquiry {
     this.messageCount = 1,
     this.unreadCountUser = 0,
     this.unreadCountShop = 1,
+    this.openedByShop = false,
+    this.detailCount = 0,
   });
+
+  /// Whether this thread may carry maintenance details from the shop.
+  bool get mayCarryDetails => openedByShop || detailCount > 0;
 
   /// Check if inquiry has been replied
   bool get hasReply => repliedAt != null;
@@ -205,6 +236,8 @@ class Inquiry {
       messageCount: data['messageCount'] ?? 1,
       unreadCountUser: data['unreadCountUser'] ?? 0,
       unreadCountShop: data['unreadCountShop'] ?? 1,
+      openedByShop: data['openedByShop'] == true,
+      detailCount: (data['detailCount'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -278,6 +311,8 @@ class Inquiry {
       messageCount: messageCount ?? this.messageCount,
       unreadCountUser: unreadCountUser ?? this.unreadCountUser,
       unreadCountShop: unreadCountShop ?? this.unreadCountShop,
+      openedByShop: openedByShop,
+      detailCount: detailCount,
     );
   }
 

@@ -289,7 +289,7 @@ service cloud.firestore {
           'shopName', 'workItems', 'parts', 'partsCost', 'laborCost',
           'miscCost', 'taxAmount', 'discountAmount', 'staffId', 'staffName',
           'inspectionResult', 'certificateUpdated',
-          'safetyStandardsCertificate'
+          'safetyStandardsCertificate', 'sourceMessageId'
         ]);
     }
 
@@ -633,6 +633,19 @@ service cloud.firestore {
             || isInquiryShopStaff(inquiryId))
           && resource.data.senderId != request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'readAt']);
+
+        // 店から届いた整備明細に「記録に追加済み」の印を付ける（2026-10-09）。
+        // 付けられるのは問い合わせの本人だけ、明細の付いた店のメッセージだけ、
+        // 印の項目（と既読）だけ。本文・明細は変えられない。店はこの印で、
+        // 送った明細が取り込まれたかを知る。
+        allow update: if isAuthenticated()
+          && request.auth.uid == get(/databases/$(database)/documents/inquiries/$(inquiryId)).data.userId
+          && resource.data.get('isFromShop', false) == true
+          && resource.data.get('maintenancePayload', null) != null
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['isRead', 'readAt', 'importedAt', 'importedRecordId'])
+          && request.resource.data.get('importedAt', null) is timestamp
+          && request.resource.data.get('importedRecordId', null) is string;
 
         // 削除は不可
         allow delete: if false;
