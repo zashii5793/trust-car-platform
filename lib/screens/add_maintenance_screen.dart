@@ -340,11 +340,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
 
       // Resolve vehicle maker/model; VehicleProvider may not be present in all
       // widget trees (e.g. tests), so guard with a try-catch.
-      final vehicle = context
-          .read<VehicleProvider>()
-          .vehicles
-          .where((v) => v.id == widget.vehicleId)
-          .firstOrNull;
+      final vehicle =
+          context.read<VehicleProvider>().vehicleById(widget.vehicleId);
       if (vehicle == null) return;
 
       // Find the most recent previous record of the same maintenance type to
@@ -413,11 +410,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     Navigator.pop(context); // Pop AddMaintenanceScreen
 
     if (share == true && mounted) {
-      final vehicle = context
-          .read<VehicleProvider>()
-          .vehicles
-          .where((v) => v.id == widget.vehicleId)
-          .firstOrNull;
+      final vehicle =
+          context.read<VehicleProvider>().vehicleById(widget.vehicleId);
 
       final content = '${record.title} を実施しました。'
           '${record.shopName != null ? "\n場所: ${record.shopName}" : ""}'

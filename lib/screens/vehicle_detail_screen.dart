@@ -616,8 +616,36 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     if (!mounted) return;
     result.when(
       success: (_) {
+        // Reflect the new state right away. The home list follows the vehicle
+        // stream, so after popping the car has already moved to 過去の車両.
+        setState(() => _vehicle = _vehicle.copyWith(
+              status: reason,
+              retiredAt: DateTime.now(),
+            ));
+        final service = sl.get<VehicleRetirementService>();
+        final vehicleId = _vehicle.id;
+        final ownerId = _vehicle.userId;
         messenger.showSnackBar(
-          SnackBar(content: Text('${reason.displayName}にしました')),
+          SnackBar(
+            content: Text('${reason.displayName}にしました。「過去の車両」から見られます'),
+            action: SnackBarAction(
+              label: '元に戻す',
+              onPressed: () async {
+                final undo = await service.restoreVehicle(
+                  vehicleId: vehicleId,
+                  ownerId: ownerId,
+                );
+                undo.when(
+                  success: (_) => messenger.showSnackBar(
+                    const SnackBar(content: Text('使用中に戻しました')),
+                  ),
+                  failure: (err) => messenger.showSnackBar(
+                    SnackBar(content: Text(err.userMessage)),
+                  ),
+                );
+              },
+            ),
+          ),
         );
         navigator.pop();
       },
@@ -630,10 +658,43 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     );
   }
 
+  /// Undoes a retirement: the car goes back to the active list.
+  Future<void> _restoreVehicle() async {
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result = await sl.get<VehicleRetirementService>().restoreVehicle(
+            vehicleId: _vehicle.id,
+            ownerId: _vehicle.userId,
+          );
+      if (!mounted) return;
+      result.when(
+        success: (_) {
+          setState(() => _vehicle = _vehicle.copyWith(
+                status: VehicleStatus.active,
+              ));
+          messenger.showSnackBar(
+            const SnackBar(content: Text('使用中に戻しました')),
+          );
+        },
+        failure: (err) => messenger.showSnackBar(
+          SnackBar(
+            content: Text(err.userMessage),
+            backgroundColor: AppColors.error,
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final isRetired = _vehicle.status.isRetired;
 
     return DefaultTabController(
       length: 3,
@@ -725,6 +786,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
               tooltip: 'その他',
               onSelected: (value) {
                 if (value == 'retire') _showRetireSheet();
+                if (value == 'restore') _restoreVehicle();
                 if (value == 'csv') _exportCsv();
                 if (value == 'share_shop') _shareToShop();
                 if (value == 'profile') _openProfile();
@@ -771,16 +833,29 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                     subtitle: Text('売却時に次のオーナーへ'),
                   ),
                 ),
-                const PopupMenuItem(
-                  key: Key('retire_vehicle_menu_item'),
-                  value: 'retire',
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.outbound_outlined),
-                    title: Text('この車を手放す'),
-                    subtitle: Text('売却・廃車・譲渡'),
+                // A retired car cannot be retired again; offer the undo.
+                if (isRetired)
+                  const PopupMenuItem(
+                    key: Key('restore_vehicle_menu_item'),
+                    value: 'restore',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.restore_outlined),
+                      title: Text('使用中に戻す'),
+                      subtitle: Text('手放したのを取り消す'),
+                    ),
+                  )
+                else
+                  const PopupMenuItem(
+                    key: Key('retire_vehicle_menu_item'),
+                    value: 'retire',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.outbound_outlined),
+                      title: Text('この車を手放す'),
+                      subtitle: Text('売却・廃車・譲渡'),
+                    ),
                   ),
-                ),
               ],
             ),
           ],
@@ -810,6 +885,11 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (isRetired)
+                    _RetiredBanner(
+                      vehicle: _vehicle,
+                      onRestore: _isProcessing ? null : _restoreVehicle,
+                    ),
                   // 車両画像
                   _VehicleImage(imageUrls: _vehicle.imageUrls, isDark: isDark),
 
@@ -1100,6 +1180,52 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
 }
 
 // ── 任意保険情報セクション ────────────────────────────────────────────────────
+
+/// Shown at the top of the detail screen for a car the user has let go of,
+/// so it never reads as an everyday car, with the undo right there.
+class _RetiredBanner extends StatelessWidget {
+  final Vehicle vehicle;
+  final VoidCallback? onRestore;
+
+  const _RetiredBanner({required this.vehicle, required this.onRestore});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final retiredAt = vehicle.retiredAt;
+    final when = retiredAt == null
+        ? ''
+        : '（${DateFormat('yyyy/MM/dd').format(retiredAt)}）';
+
+    return Container(
+      key: const Key('retired_vehicle_banner'),
+      width: double.infinity,
+      color: AppColors.warning.withValues(alpha: 0.12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.history_outlined, color: AppColors.warning),
+          AppSpacing.horizontalSm,
+          Expanded(
+            child: Text(
+              'この車は${vehicle.status.displayName}です$when。'
+              '記録は残っています',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+          TextButton(
+            key: const Key('restore_vehicle_btn'),
+            onPressed: onRestore,
+            child: const Text('使用中に戻す'),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _VoluntaryInsuranceSection extends StatelessWidget {
   final Vehicle vehicle;

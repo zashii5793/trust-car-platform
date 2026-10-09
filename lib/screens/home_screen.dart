@@ -17,7 +17,6 @@ import '../services/popular_accessories_service.dart';
 import '../services/drive_log_service.dart';
 import '../services/part_recommendation_service.dart';
 import '../models/part_listing.dart';
-import '../services/vehicle_retirement_service.dart';
 import '../models/maintenance_record.dart';
 import '../models/drive_log.dart';
 import '../models/vehicle.dart';
@@ -552,6 +551,9 @@ class _VehicleTabState extends State<_VehicleTab> {
         onBrowseModelCosts: sl.isRegistered<ModelCostReportService>()
             ? () => _openModelCostBrowse(context)
             : null,
+        // Someone who let go of every car still needs a way back to them
+        // (to read the records, or to undo a mistaken retirement).
+        retiredCount: vehicleProvider.retiredVehicles.length,
       );
     }
 
@@ -781,6 +783,19 @@ class _ProfileTab extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                ),
+              ),
+              // 手放した車の入口。ホームの「過去の車両」は手放した車があるとき
+              // しか出ないので、いつでも辿れる場所にも置く（2026-10-09）。
+              _MenuItemData(
+                icon: Icons.history_outlined,
+                label: '過去の車両（手放した車）',
+                color: AppColors.textSecondary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const RetiredVehiclesScreen(),
+                  ),
                 ),
               ),
               // 「ドライブログ」はここに置いていた。「アカウント」の中では
@@ -1155,7 +1170,8 @@ class _ProfileTab extends StatelessWidget {
 class _VehicleCard extends StatelessWidget {
   final Vehicle vehicle;
 
-  const _VehicleCard({required this.vehicle});
+  _VehicleCard({required this.vehicle})
+      : super(key: Key('vehicle_card_${vehicle.id}'));
 
   String _formatMileage(int mileage) {
     final formatter = NumberFormat('#,###');
@@ -1649,9 +1665,13 @@ class _VehicleEmptyOnboarding extends StatelessWidget {
   /// 車を買う前の人向けの入口（Issue #208）。null なら出さない。
   final VoidCallback? onBrowseModelCosts;
 
+  /// Number of retired vehicles. When non-zero a link to them is shown.
+  final int retiredCount;
+
   const _VehicleEmptyOnboarding({
     required this.onRegister,
     this.onBrowseModelCosts,
+    this.retiredCount = 0,
   });
 
   static const _features = [
@@ -1766,6 +1786,20 @@ class _VehicleEmptyOnboarding extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                 ),
               ),
+            ),
+          ],
+          if (retiredCount > 0) ...[
+            AppSpacing.verticalMd,
+            TextButton.icon(
+              key: const Key('open_retired_vehicles'),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => const RetiredVehiclesScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.history_outlined),
+              label: Text('手放した車（$retiredCount台）を見る'),
             ),
           ],
           AppSpacing.verticalLg,
@@ -2757,44 +2791,17 @@ class _InfoChip extends StatelessWidget {
 ///
 /// 2026-09-07 まではテキストリンクだけで、車そのものは奥の画面まで行かないと
 /// 見えなかった。
-class _RetiredVehiclesSection extends StatefulWidget {
+///
+/// Reads from [VehicleProvider] rather than querying on its own: the vehicle
+/// stream already carries retired cars, so a car let go of a moment ago
+/// moves here on the same frame it leaves the active list (2026-10-09).
+class _RetiredVehiclesSection extends StatelessWidget {
   const _RetiredVehiclesSection();
 
   @override
-  State<_RetiredVehiclesSection> createState() =>
-      _RetiredVehiclesSectionState();
-}
-
-class _RetiredVehiclesSectionState extends State<_RetiredVehiclesSection> {
-  List<Vehicle>? _vehicles;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-  }
-
-  Future<void> _load() async {
-    final uid = context.read<AuthProvider>().appUser?.id ?? '';
-    if (uid.isEmpty) return;
-    final result =
-        await sl.get<VehicleRetirementService>().getRetiredVehicles(uid);
-    if (!mounted) return;
-    result.when(
-      // **返ってきたリストをその場で並べ替えない。** 呼び出し先が変更できない
-      // リスト（const [] など）を返すと落ちる。写しを作ってから並べ替える。
-      success: (vehicles) => setState(() {
-        _vehicles = [...vehicles]..sort((a, b) =>
-            (b.retiredAt ?? DateTime(0)).compareTo(a.retiredAt ?? DateTime(0)));
-      }),
-      failure: (_) => setState(() => _vehicles = const []),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final vehicles = _vehicles;
-    if (vehicles == null || vehicles.isEmpty) return const SizedBox.shrink();
+    final vehicles = context.watch<VehicleProvider>().retiredVehicles;
+    if (vehicles.isEmpty) return const SizedBox.shrink();
 
     final shown = vehicles.take(3).toList();
 
@@ -2839,40 +2846,51 @@ class _RetiredVehicleRow extends StatelessWidget {
     final retiredAt = vehicle.retiredAt;
 
     // 現役の車と同じ濃さで出すと、どれが今の愛車か分からなくなる。
-    return Opacity(
-      opacity: 0.65,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: AppSpacing.sm,
+    // Tapping opens the detail screen, which shows the records and offers
+    // 「使用中に戻す」 for a mistaken retirement.
+    return InkWell(
+      key: Key('retired_vehicle_row_${vehicle.id}'),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => VehicleDetailScreen(vehicle: vehicle),
         ),
-        child: Row(
-          children: [
-            Icon(Icons.directions_car_outlined,
-                size: 18, color: AppColors.textTertiary),
-            AppSpacing.horizontalSm,
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${vehicle.maker} ${vehicle.model}',
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  AppSpacing.verticalXxs,
-                  Text(
-                    retiredAt == null
-                        ? vehicle.status.displayName
-                        : '${vehicle.status.displayName} ・ ${dateFormat.format(retiredAt)}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
+      ),
+      child: Opacity(
+        opacity: 0.65,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.directions_car_outlined,
+                  size: 18, color: AppColors.textTertiary),
+              AppSpacing.horizontalSm,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${vehicle.maker} ${vehicle.model}',
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    AppSpacing.verticalXxs,
+                    Text(
+                      retiredAt == null
+                          ? vehicle.status.displayName
+                          : '${vehicle.status.displayName} ・ ${dateFormat.format(retiredAt)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

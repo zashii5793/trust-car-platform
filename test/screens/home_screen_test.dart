@@ -403,7 +403,7 @@ class _FakeVehicleProvider extends VehicleProvider {
   }
 
   @override
-  List<Vehicle> get vehicles => _fakeVehicles;
+  List<Vehicle> get allVehicles => _fakeVehicles;
 
   @override
   bool get isLoading => _fakeLoading;
@@ -644,6 +644,111 @@ void main() {
     sl.unregister<VehicleRetirementService>();
     sl.unregister<PartRecommendationService>();
     sl.unregister<DriveLogService>();
+  });
+
+  // 使用感テスト（2026-10-09）: 売却済みの車が、ホームの車カード・登録台数・
+  // 「要対応」に普段の車として出ていた。手放した直後にも消えなかった。
+  group('ホーム — 手放した車', () {
+    Vehicle sold() => _makeVehicle('sold').copyWith(
+          maker: 'Toyota',
+          model: 'Prius',
+          status: VehicleStatus.sold,
+          retiredAt: DateTime(2026, 9, 30),
+          // 満了日が切れたままの車。使用中なら「要対応」に数えられる。
+          inspectionExpiryDate: DateTime(2026, 1, 1),
+        );
+    Vehicle active() =>
+        _makeVehicle('active').copyWith(maker: 'Honda', model: 'Fit');
+
+    // Tall surface so the lazily built ListView lays out every card.
+    Future<void> tall(WidgetTester tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 4000);
+      addTearDown(tester.view.reset);
+    }
+
+    testWidgets('車カードと登録台数に出ない', (tester) async {
+      final vp = _FakeVehicleProvider()..setVehicles([active(), sold()]);
+
+      await tall(tester);
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // 登録車両は1台、要対応は0（売却済みの車検切れを数えない）。
+      final dashboard = find.ancestor(
+        of: find.text('ダッシュボード'),
+        matching: find.byType(Container),
+      );
+      expect(
+        find.descendant(of: dashboard.first, matching: find.text('1')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('vehicle_card_sold')), findsNothing);
+      expect(find.byKey(const Key('vehicle_card_active')), findsOneWidget);
+    });
+
+    testWidgets('「過去の車両」に売却済みとして出る', (tester) async {
+      final vp = _FakeVehicleProvider()..setVehicles([active(), sold()]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp, signedIn: true));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.scrollUntilVisible(
+        find.text('過去の車両'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('過去の車両'), findsOneWidget);
+      expect(find.text('Toyota Prius'), findsOneWidget);
+      expect(find.textContaining('売却済み'), findsOneWidget);
+    });
+
+    testWidgets('手放した直後（一覧が更新された時点）でホームから消える', (tester) async {
+      final vp = _FakeVehicleProvider()
+        ..setVehicles(
+            [active(), sold().copyWith(status: VehicleStatus.active)]);
+
+      await tall(tester);
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp, signedIn: true));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byKey(const Key('vehicle_card_sold')), findsOneWidget);
+
+      vp.setVehicles([active(), sold()]);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byKey(const Key('vehicle_card_sold')), findsNothing);
+      expect(find.byKey(const Key('vehicle_card_active')), findsOneWidget);
+      expect(find.text('過去の車両'), findsOneWidget);
+      expect(find.textContaining('売却済み'), findsOneWidget);
+    });
+
+    testWidgets('プロフィールタブから「過去の車両」へいつでも行ける', (tester) async {
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      await _tapNavCell(tester, 3);
+      final entry = find.text('過去の車両（手放した車）');
+      await tester.scrollUntilVisible(entry, 300);
+
+      expect(entry, findsOneWidget);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('全部手放したら登録の案内と「過去の車両」への入口が出る', (tester) async {
+        final vp = _FakeVehicleProvider()..setVehicles([sold()]);
+
+        await tester.pumpWidget(_buildApp(vehicleProvider: vp, signedIn: true));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.byKey(const Key('open_retired_vehicles')), findsOneWidget);
+      });
+    });
   });
 
   group('ホーム — メンテナンスの記録', () {

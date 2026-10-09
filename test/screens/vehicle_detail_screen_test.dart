@@ -27,6 +27,7 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:trust_car_platform/models/drive_log.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
+import 'package:trust_car_platform/services/vehicle_retirement_service.dart';
 
 import '../golden/font_loader.dart';
 
@@ -999,6 +1000,102 @@ void main() {
       expect(toggle, findsOneWidget);
       // 既定で残す。消すほうを既定にすると、売却後に記録を出せなくなる。
       expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+    });
+  });
+
+  // 使用感テスト（2026-10-09）: 売却済みの車にも「この車を手放す」が出て、
+  // 押すと「入力内容を確認してください」とだけ出た。元に戻す操作も無かった。
+  group('手放した車の詳細', () {
+    late FakeFirebaseFirestore firestore;
+
+    setUp(() async {
+      firestore = FakeFirebaseFirestore();
+      final sl = ServiceLocator.instance;
+      if (sl.isRegistered<VehicleRetirementService>()) {
+        sl.unregister<VehicleRetirementService>();
+      }
+      sl.registerLazySingleton<VehicleRetirementService>(
+          () => VehicleRetirementService(firestore: firestore));
+    });
+
+    tearDown(() {
+      ServiceLocator.instance.unregister<VehicleRetirementService>();
+    });
+
+    Vehicle soldVehicle() => _testVehicle().copyWith(
+          status: VehicleStatus.sold,
+          retiredAt: DateTime(2026, 9, 30),
+        );
+
+    Future<void> pump(WidgetTester tester, Vehicle vehicle) async {
+      await firestore.collection('vehicles').doc(vehicle.id).set(
+            vehicle.toMap(),
+          );
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_buildScreen(vehicle, maintenanceProvider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+    }
+
+    testWidgets('売却済みと分かる帯が出る', (tester) async {
+      await pump(tester, soldVehicle());
+
+      final banner = find.byKey(const Key('retired_vehicle_banner'));
+      expect(banner, findsOneWidget);
+      expect(
+        find.descendant(of: banner, matching: find.textContaining('売却済み')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('メニューは「手放す」ではなく「使用中に戻す」', (tester) async {
+      await pump(tester, soldVehicle());
+
+      await tester.tap(find.byKey(const Key('vehicle_more_menu')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('retire_vehicle_menu_item')), findsNothing);
+      expect(
+          find.byKey(const Key('restore_vehicle_menu_item')), findsOneWidget);
+    });
+
+    testWidgets('「使用中に戻す」で元に戻り、帯が消える', (tester) async {
+      await pump(tester, soldVehicle());
+
+      await tester.tap(find.byKey(const Key('restore_vehicle_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('retired_vehicle_banner')), findsNothing);
+      final doc = await firestore.collection('vehicles').doc('v1').get();
+      expect(doc.data()!['status'], 'active');
+    });
+
+    testWidgets('使用中の車には帯が出ない', (tester) async {
+      await pump(tester, _testVehicle());
+
+      expect(find.byKey(const Key('retired_vehicle_banner')), findsNothing);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('別の端末で手放し済みのとき、理由の分かる言葉で知らせる', (tester) async {
+        // The screen still thinks the car is active, but the stored state
+        // says it was sold (e.g. retired from another device).
+        await pump(tester, _testVehicle());
+        await firestore
+            .collection('vehicles')
+            .doc('v1')
+            .update({'status': 'sold'});
+
+        await tester.tap(find.byKey(const Key('vehicle_more_menu')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('retire_vehicle_menu_item')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('retire_confirm_btn')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('入力内容を確認してください'), findsNothing);
+        expect(find.textContaining('すでに売却済み'), findsOneWidget);
+      });
     });
   });
 

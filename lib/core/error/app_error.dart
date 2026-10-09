@@ -17,8 +17,8 @@ sealed class AppError implements Exception {
   const factory AppError.network(String message, {String? userMessage}) =
       NetworkError;
   const factory AppError.auth(String message, {AuthErrorType type}) = AuthError;
-  const factory AppError.validation(String message, {String? field}) =
-      ValidationError;
+  const factory AppError.validation(String message,
+      {String? field, String? userMessage}) = ValidationError;
   const factory AppError.notFound(String message, {String? resourceType}) =
       NotFoundError;
   const factory AppError.permission(String message) = PermissionError;
@@ -96,11 +96,17 @@ final class ValidationError extends AppError {
 
   final String? field;
 
-  const ValidationError(this.message, {this.field});
+  /// What to tell the person when the generic "check your input" would not
+  /// say what happened (e.g. the state changed, not the input).
+  final String? _userMessage;
+
+  const ValidationError(this.message, {this.field, String? userMessage})
+      : _userMessage = userMessage;
 
   @override
   String get userMessage =>
-      field != null ? '$fieldの入力内容を確認してください' : '入力内容を確認してください';
+      _userMessage ??
+      (field != null ? '$fieldの入力内容を確認してください' : '入力内容を確認してください');
 
   @override
   bool get isRetryable => false;

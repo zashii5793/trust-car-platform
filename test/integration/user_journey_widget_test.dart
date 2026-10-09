@@ -313,7 +313,7 @@ class _FakeVehicleProvider extends VehicleProvider {
   List<Vehicle> _fakeVehicles;
 
   @override
-  List<Vehicle> get vehicles => _fakeVehicles;
+  List<Vehicle> get allVehicles => _fakeVehicles;
 
   @override
   bool get isLoading => false;
