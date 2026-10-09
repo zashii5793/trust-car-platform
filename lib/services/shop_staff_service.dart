@@ -9,12 +9,16 @@ class ShopStaffMember {
   final String uid;
   final String role;
   final String displayName;
+
+  /// Login email. Null for members added before 2026-10-09.
+  final String? email;
   final DateTime? addedAt;
 
   const ShopStaffMember({
     required this.uid,
     required this.role,
     required this.displayName,
+    this.email,
     this.addedAt,
   });
 
@@ -24,7 +28,9 @@ class ShopStaffMember {
       ShopStaffMember(
         uid: uid,
         role: m['role'] as String? ?? 'staff',
-        displayName: m['displayName'] as String? ?? 'スタッフ',
+        displayName:
+            m['displayName'] as String? ?? m['email'] as String? ?? 'スタッフ',
+        email: m['email'] as String?,
         addedAt: (m['addedAt'] as Timestamp?)?.toDate(),
       );
 }
@@ -132,10 +138,15 @@ class ShopStaffService {
   ///
   /// コードの使用・スタッフ名簿・スタッフの札を1回のバッチで書く
   /// （途中で止まると「コードは使ったのに入れていない」になるため）。
+  ///
+  /// 店主のスタッフ一覧で誰か分かるよう、名前とメールを名簿に持たせる。
+  /// 名前が無ければ（メールとパスワードで作ったアカウントには Auth の
+  /// 表示名が無い）メールを名前にする。
   Future<Result<StaffShopLink, AppError>> redeem({
     required String code,
     required String uid,
     required String displayName,
+    String? email,
   }) async {
     final normalized = InviteCode.normalize(code);
     if (normalized.length != InviteCode.length) {
@@ -166,11 +177,15 @@ class ShopStaffService {
       final shopId = data['shopId'] as String;
       final shopName = data['shopName'] as String? ?? '';
       final now = Timestamp.fromDate(_now());
+      final name = displayName.trim();
+      final mail = email?.trim() ?? '';
       final batch = _firestore.batch();
       batch.update(ref, {'usedBy': uid, 'usedAt': now});
       batch.set(_members(shopId).doc(uid), {
         'role': 'staff',
-        'displayName': displayName.trim().isEmpty ? 'スタッフ' : displayName,
+        'displayName':
+            name.isNotEmpty ? name : (mail.isNotEmpty ? mail : 'スタッフ'),
+        if (mail.isNotEmpty) 'email': mail,
         'inviteCode': normalized,
         'addedAt': now,
       });

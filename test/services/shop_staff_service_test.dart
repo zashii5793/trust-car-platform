@@ -95,6 +95,101 @@ void main() {
     });
   });
 
+  // 2026-10-08 usability test: a newly joined staff member showed up in
+  // the owner's list as just "スタッフ" — no name, no email. Accounts made
+  // with email + password have no Auth displayName.
+  group('参加したスタッフの名前とメール', () {
+    test('名前とメールを名簿に持たせ、一覧で返す', () async {
+      final code = await issue();
+      await service.redeem(
+        code: code,
+        uid: 's1',
+        displayName: '使用感 新スタッフ',
+        email: 'new.staff@example.com',
+      );
+      final m = (await service.members('owner1')).valueOrNull!.single;
+      expect(m.displayName, '使用感 新スタッフ');
+      expect(m.email, 'new.staff@example.com');
+      final raw = await fs.doc('shops/owner1/members/s1').get();
+      expect(raw.data()!['email'], 'new.staff@example.com');
+    });
+
+    group('Edge Cases', () {
+      test('名前が無ければメールを名前にする', () async {
+        final code = await issue();
+        await service.redeem(
+          code: code,
+          uid: 's1',
+          displayName: '  ',
+          email: 'new.staff@example.com',
+        );
+        final m = (await service.members('owner1')).valueOrNull!.single;
+        expect(m.displayName, 'new.staff@example.com');
+      });
+
+      test('名前もメールも無ければ「スタッフ」（メールは書かない）', () async {
+        final code = await issue();
+        await service.redeem(code: code, uid: 's1', displayName: '');
+        final m = (await service.members('owner1')).valueOrNull!.single;
+        expect(m.displayName, 'スタッフ');
+        expect(m.email, isNull);
+        final raw = await fs.doc('shops/owner1/members/s1').get();
+        expect(raw.data()!.containsKey('email'), isFalse);
+      });
+
+      test('前の形（メールの無い・名前が「スタッフ」）の名簿も読める', () async {
+        await fs.doc('shops/owner1/members/old').set({
+          'role': 'staff',
+          'displayName': 'スタッフ',
+          'inviteCode': 'ABCDEF',
+        });
+        await fs.doc('shops/owner1/members/older').set({'role': 'staff'});
+        final list = (await service.members('owner1')).valueOrNull!;
+        expect(list.map((m) => m.displayName), ['スタッフ', 'スタッフ']);
+        expect(list.every((m) => m.email == null), isTrue);
+      });
+    });
+
+    testWidgets('店主のスタッフ一覧に名前とメールが出る', (tester) async {
+      final code = await issue();
+      await service.redeem(
+        code: code,
+        uid: 's1',
+        displayName: '使用感 新スタッフ',
+        email: 'new.staff@example.com',
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: StaffManageScreen(
+          service: service,
+          shopId: 'owner1',
+          shopName: 'タカヤモーター',
+          ownerUid: 'owner1',
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('使用感 新スタッフ'), findsOneWidget);
+      expect(find.textContaining('new.staff@example.com'), findsOneWidget);
+    });
+
+    testWidgets('参加の画面は、渡された名前とメールで名簿に載せる', (tester) async {
+      final code = await issue();
+      await tester.pumpWidget(MaterialApp(
+        home: StaffJoinScreen(
+          service: service,
+          uid: 's1',
+          displayName: '',
+          email: 'new.staff@example.com',
+        ),
+      ));
+      await tester.enterText(find.byKey(const Key('staff_join_code')), code);
+      await tester.tap(find.byKey(const Key('staff_join_submit')));
+      await tester.pumpAndSettle();
+      final m = (await service.members('owner1')).valueOrNull!.single;
+      expect(m.displayName, 'new.staff@example.com');
+      expect(m.email, 'new.staff@example.com');
+    });
+  });
+
   group('remove', () {
     test('外すと、名簿からも札からも消える', () async {
       final code = await issue();

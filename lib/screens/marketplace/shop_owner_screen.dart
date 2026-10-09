@@ -1248,15 +1248,21 @@ class _StaffEntryCardState extends State<_StaffEntryCard> {
   }
 
   Future<void> _join() async {
-    final user = context.read<AuthProvider>().firebaseUser;
+    final auth = context.read<AuthProvider>();
+    final user = auth.firebaseUser;
     if (user == null) return;
+    // Email sign-ups have no Auth displayName; the profile (users/{uid})
+    // has the name typed at sign-up. The email goes along so the owner
+    // can tell who joined even without a name.
+    final email = user.email ?? auth.appUser?.email;
     final link = await Navigator.push<StaffShopLink>(
       context,
       MaterialPageRoute(
         builder: (_) => StaffJoinScreen(
           service: widget.service,
           uid: user.uid,
-          displayName: user.displayName ?? 'スタッフ',
+          displayName: auth.appUser?.displayName ?? user.displayName ?? '',
+          email: (email == null || email.isEmpty) ? null : email,
         ),
       ),
     );

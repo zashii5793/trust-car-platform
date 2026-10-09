@@ -1431,7 +1431,7 @@ async function main() {
   writes.push([shop.collection('members').doc(OWNER_UID), { role: 'owner', displayName: OWNER_NAME, addedAt: ts(ROSTER_IMPORT_AT - 2 * DAY), ...META }]);
   for (const s of STAFF) {
     const added = dayMs(-s.addedDays) + 10 * HOUR;
-    writes.push([shop.collection('members').doc(s.uid), { role: 'staff', displayName: s.name, inviteCode: s.code, addedAt: ts(added), ...META }]);
+    writes.push([shop.collection('members').doc(s.uid), { role: 'staff', displayName: s.name, email: s.email, inviteCode: s.code, addedAt: ts(added), ...META }]);
     writes.push([db.collection('shop_staff').doc(s.uid), { shopId: SHOP_ID, shopName: SHOP_NAME, ...META }]);
     writes.push([db.collection('shop_staff_invites').doc(s.code), {
       shopId: SHOP_ID, shopName: SHOP_NAME, issuedBy: OWNER_UID,
