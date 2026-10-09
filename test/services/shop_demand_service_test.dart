@@ -250,6 +250,41 @@ void main() {
     });
   });
 
+  // 「アプリでつながる店か」。有料プランだけでなく、店主がアプリにいる店
+  // （台帳を使っている店）も含む（2026-10-09）。isPartner は有料プランの
+  // 判定として残す（店主画面の需要カードなど）。
+  group('Shop.isOnApp', () {
+    test('有料プランの店は true', () {
+      expect(_makeShop(status: ShopSubscriptionStatus.active).isOnApp, isTrue);
+    });
+
+    test('フリープランでも店主がいれば true', () {
+      final shop = _makeShop(status: ShopSubscriptionStatus.free)
+          .copyWith(ownerId: 'owner1');
+      expect(shop.isOnApp, isTrue);
+      expect(shop.isPartner, isFalse);
+    });
+
+    group('Edge Cases', () {
+      test('店主もプランも無ければ false', () {
+        final shop = Shop(
+          id: 'map_only',
+          name: '地図から拾った工場',
+          type: ShopType.maintenanceShop,
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
+        );
+        expect(shop.isOnApp, isFalse);
+      });
+
+      test('店主が空文字なら店主なし扱い', () {
+        final shop = _makeShop(status: ShopSubscriptionStatus.expired)
+            .copyWith(ownerId: '');
+        expect(shop.isOnApp, isFalse);
+      });
+    });
+  });
+
   // -------------------------------------------------------------------------
   // 5. Edge Cases
   // -------------------------------------------------------------------------

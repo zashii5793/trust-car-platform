@@ -84,8 +84,8 @@ class ShopMapUtils {
   /// 広告（isFeatured）は一覧と同じく必ず明示する（順位操作を隠さない）。
   static String infoWindowTitle(Shop shop) {
     final tags = <String>[
-      if (shop.isPartner && shop.isVerified) '審査済',
-      if (!shop.isPartner) '参考・未審査',
+      if (shop.isOnApp && shop.isVerified) '審査済',
+      if (!shop.isOnApp) '参考・未審査',
       if (shop.isFeatured) '広告',
     ];
     if (tags.isEmpty) return shop.name;

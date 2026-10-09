@@ -88,7 +88,7 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
                       // 提携店と、地図から拾っただけの参考情報を分ける。
                       // 同じ見た目で並べると、審査済みの工場と未確認の
                       // 工場が区別できない。
-                      if (!shop.isPartner) ...[
+                      if (!shop.isOnApp) ...[
                         const _NonPartnerNotice(),
                         AppSpacing.verticalMd,
                       ],
@@ -103,7 +103,7 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
                       AppSpacing.verticalMd,
                       // 実績は提携店が登録するものなので、未提携店では
                       // 常に空になる。空セクションを出さない。
-                      if (shop.isPartner) ...[
+                      if (shop.isOnApp) ...[
                         _CaseStudiesSection(shopId: shop.id),
                       ],
                       AppSpacing.verticalXl,
@@ -119,7 +119,7 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
               // アプリ内で問い合わせを受けられるのは提携店だけ。
               // 未提携店にボタンを出すと、送っても誰も見ない問い合わせに
               // なる。代わりに電話番号があればそれを案内する。
-              child: shop.isPartner
+              child: shop.isOnApp
                   ? FilledButton.icon(
                       key: const Key('shop_inquiry_button'),
                       onPressed: () => Navigator.push(

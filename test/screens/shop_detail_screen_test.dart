@@ -203,6 +203,7 @@ Shop _fullShop({
   // 既定は提携店。詳細画面はアプリ内の導線から開く前提なので、
   // 通常ケースは提携店になる。未提携は個別のテストで指定する。
   ShopSubscriptionStatus subscriptionStatus = ShopSubscriptionStatus.active,
+  String? ownerId,
 }) {
   final now = DateTime.now();
   return Shop(
@@ -225,6 +226,7 @@ Shop _fullShop({
     rating: rating,
     reviewCount: 42,
     subscriptionStatus: subscriptionStatus,
+    ownerId: ownerId,
     createdAt: now,
     updatedAt: now,
   );
@@ -325,6 +327,42 @@ void main() {
       expect(find.byKey(const Key('shop_non_partner_notice')), findsOneWidget);
       expect(find.byKey(const Key('shop_inquiry_button')), findsNothing);
       expect(find.byKey(const Key('shop_call_button')), findsOneWidget);
+    });
+
+    // 使用感テスト 2026-10-09: タカヤモーター（店主がいて台帳を使っている、
+    // フリープランの店）のページに、青い「認証済み」と「アプリ未提携の工場です」
+    // 「アプリからは問い合わせできません」が並んでいた。未提携の判定が
+    // 有料プラン（subscriptionStatus）だけを見ていたため。
+    testWidgets('店主のいるフリープランの店は「未提携」と出さず、問い合わせできる', (tester) async {
+      mockShop.shopResult = Result.success(
+        _fullShop(
+          isVerified: true,
+          subscriptionStatus: ShopSubscriptionStatus.free,
+          ownerId: 'takaya_owner',
+        ),
+      );
+
+      await tester.pumpWidget(_buildApp(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('shop_non_partner_notice')), findsNothing);
+      expect(find.byKey(const Key('shop_non_partner_cta')), findsNothing);
+      expect(find.byKey(const Key('shop_inquiry_button')), findsOneWidget);
+      expect(find.textContaining('未提携'), findsNothing);
+    });
+
+    testWidgets('店主が空文字の店は、これまでどおり未提携', (tester) async {
+      mockShop.shopResult = Result.success(
+        _fullShop(
+          subscriptionStatus: ShopSubscriptionStatus.free,
+          ownerId: '',
+        ),
+      );
+
+      await tester.pumpWidget(_buildApp(provider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('shop_non_partner_notice')), findsOneWidget);
     });
 
     testWidgets('未提携店で電話番号が無ければ電話ボタンも出さない', (tester) async {
