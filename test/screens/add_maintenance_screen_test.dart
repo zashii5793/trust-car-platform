@@ -618,4 +618,73 @@ void main() {
       }
     });
   });
+
+  // 使用感テスト（2026-10-09）: 車の走行距離 32,000km に対して、今日の記録に
+  // 10,000km を入れても何も言われずに保存された。
+  group('走行距離の前後の整合', () {
+    Finder field(String label) => find.ancestor(
+          of: find.text(label),
+          matching: find.byWidgetPredicate((w) => w is TextFormField),
+        );
+
+    Future<void> fillAndSave(WidgetTester tester, String mileage) async {
+      tester.view.physicalSize = const Size(900, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      _mockFirebase.added.clear();
+      await tester.pumpWidget(_buildNew(currentMileage: 32000));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(field('タイトル'), 'オイル交換');
+      await tester.enterText(field('費用'), '5000');
+      await tester.enterText(field('実施時の走行距離（任意）'), mileage);
+      await tester.tap(find.text('保存する'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+    }
+
+    testWidgets('今日の記録で車の走行距離より小さいと、理由を添えて確認する', (tester) async {
+      await fillAndSave(tester, '10000');
+
+      expect(find.text('走行距離の確認'), findsOneWidget);
+      expect(find.textContaining('32,000km'), findsOneWidget);
+      expect(_mockFirebase.added, isEmpty);
+    });
+
+    testWidgets('「見直す」を選ぶと保存しない', (tester) async {
+      await fillAndSave(tester, '10000');
+
+      await tester.tap(find.byKey(const Key('mileage_conflict_review')));
+      await settle(tester);
+
+      expect(_mockFirebase.added, isEmpty);
+      expect(find.text('メンテナンス履歴を追加'), findsOneWidget);
+    });
+
+    testWidgets('「このまま保存」を選ぶと保存する（メーター交換など）', (tester) async {
+      await fillAndSave(tester, '10000');
+
+      await tester.tap(find.byKey(const Key('mileage_conflict_save')));
+      await settle(tester);
+
+      expect(_mockFirebase.added, hasLength(1));
+      expect(_mockFirebase.added.single.mileageAtService, 10000);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('車の走行距離と同じなら確認しない', (tester) async {
+        await fillAndSave(tester, '32000');
+        await settle(tester);
+
+        expect(find.text('走行距離の確認'), findsNothing);
+        expect(_mockFirebase.added, hasLength(1));
+      });
+    });
+  });
 }

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/maintenance_record.dart';
 import '../models/post.dart';
+import '../models/vehicle.dart';
 import '../providers/maintenance_provider.dart';
 import '../providers/vehicle_provider.dart';
 import '../services/firebase_service.dart';
@@ -16,6 +17,7 @@ import '../core/constants/spacing.dart';
 import '../widgets/common/app_button.dart';
 import '../widgets/common/app_text_field.dart';
 import '../widgets/common/loading_indicator.dart';
+import '../core/utils/odometer.dart';
 import '../core/utils/thousands_separator_input_formatter.dart';
 import 'document_scanner_screen.dart';
 import 'invoice_result_screen.dart';
@@ -54,6 +56,10 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   MaintenanceType _selectedType = MaintenanceType.repair;
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
+
+  /// True while the mileage confirmation is open, so a second tap on the
+  /// save button cannot start another save underneath it.
+  bool _isConfirming = false;
   bool _isOcrProcessing = false;
   List<String> _ocrAppliedFields = [];
 
@@ -224,10 +230,18 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   Future<void> _saveRecord() async {
     // Taps that arrive before the disabled button is rebuilt still call this.
     // Without the guard a quick double tap saved the same record twice.
-    if (_isLoading) return;
+    if (_isLoading || _isConfirming) return;
     if (!_formKey.currentState!.validate()) {
       return;
     }
+
+    // A number that contradicts the other records is almost always a typo,
+    // but a cluster swap makes it real, so ask instead of refusing.
+    setState(() => _isConfirming = true);
+    final proceed = await _confirmMileageConsistency();
+    if (!mounted) return;
+    setState(() => _isConfirming = false);
+    if (!proceed) return;
 
     setState(() {
       _isLoading = true;
@@ -332,6 +346,74 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
         });
       }
     }
+  }
+
+  /// Readings this record's odometer value should agree with: the other
+  /// records of this vehicle and the vehicle's own odometer.
+  List<OdometerReading> _odometerReadings() {
+    final readings = <OdometerReading>[];
+    final editingId = widget.existingRecord?.id;
+    for (final r in context.read<MaintenanceProvider>().records) {
+      final km = r.mileageAtService;
+      if (km == null || r.vehicleId != widget.vehicleId) continue;
+      if (editingId != null && r.id == editingId) continue;
+      readings.add(OdometerReading(date: r.date, km: km, label: r.title));
+    }
+
+    // The vehicle's odometer is a reading too, taken when it was last
+    // updated. VehicleProvider is not in every tree (tests, deep links).
+    Vehicle? vehicle;
+    try {
+      vehicle = context.read<VehicleProvider>().vehicleById(widget.vehicleId);
+    } on ProviderNotFoundException {
+      vehicle = null;
+    }
+    final current = vehicle?.mileage ?? widget.currentVehicleMileage;
+    if (current != null && current > 0) {
+      readings.add(OdometerReading(
+        date: vehicle?.mileageUpdatedAt ?? vehicle?.createdAt ?? DateTime.now(),
+        km: current,
+        label: '車の走行距離',
+      ));
+    }
+    return readings;
+  }
+
+  /// Returns false when the person chose to go back and fix the value.
+  Future<bool> _confirmMileageConsistency() async {
+    final text = stripThousands(_mileageController.text);
+    final value = int.tryParse(text);
+    if (value == null) return true;
+    // A shop's record is locked; its numbers are what the shop wrote.
+    if (_isShopRecord) return true;
+
+    final check = OdometerCheck.againstHistory(
+      value: value,
+      date: _selectedDate,
+      readings: _odometerReadings(),
+    );
+    if (!check.hasProblem) return true;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('走行距離の確認'),
+        content: Text(check.message ?? ''),
+        actions: [
+          TextButton(
+            key: const Key('mileage_conflict_review'),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('見直す'),
+          ),
+          FilledButton(
+            key: const Key('mileage_conflict_save'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('このまま保存'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
   }
 
   /// Fire-and-forget: contribute anonymized maintenance interval data to
@@ -509,7 +591,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           ),
           child: AppButton.primary(
             label: _isEditMode ? '更新する' : '保存する',
-            onPressed: _isLoading ? null : _saveRecord,
+            onPressed: (_isLoading || _isConfirming) ? null : _saveRecord,
             isFullWidth: true,
             size: AppButtonSize.large,
             icon: Icons.check,
