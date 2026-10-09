@@ -16,6 +16,7 @@ import '../models/drive_log.dart';
 import '../models/app_notification.dart';
 import '../providers/auth_provider.dart';
 import '../providers/maintenance_provider.dart';
+import '../services/shop_invite_service.dart';
 import '../services/shop_service.dart';
 import '../services/vehicle_share_service.dart';
 import 'vehicle/share_to_shop_screen.dart';
@@ -38,6 +39,7 @@ import 'drive/drive_log_screen.dart';
 import '../widgets/maintenance/maintenance_ai_comment.dart';
 import '../widgets/maintenance/maintenance_detail_breakdown.dart';
 import 'export/export_dialog.dart';
+import 'marketplace/inquiry_screen.dart';
 import 'marketplace/shop_list_screen.dart';
 import 'parts/part_recommendation_screen.dart';
 import 'vehicle_edit_screen.dart';
@@ -81,10 +83,51 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   /// double-submission while an async update is in flight.
   bool _isProcessing = false;
 
+  /// The shop this person is linked to (shop_customers), if any. The
+  /// inspection 相談 button goes there first instead of to whichever shop
+  /// last appeared in the records (usability test 2026-10-09).
+  ShopCustomerLink? _linkedShop;
+
+  Future<void> _loadLinkedShop() async {
+    if (!sl.isRegistered<ShopInviteService>()) return;
+    final result =
+        await sl.get<ShopInviteService>().linkedShopFor(_vehicle.userId);
+    if (!mounted) return;
+    final link = result.valueOrNull;
+    if (link != null) setState(() => _linkedShop = link);
+  }
+
+  /// Opens an inquiry to the linked shop directly. Falls back to the shop
+  /// search by name when the shop page cannot be read.
+  Future<void> _contactLinkedShop() async {
+    final link = _linkedShop;
+    if (link == null) return;
+    final navigator = Navigator.of(context);
+    final result = sl.isRegistered<ShopService>()
+        ? await sl.get<ShopService>().getShop(link.shopId)
+        : null;
+    if (!mounted) return;
+    final shop = result?.valueOrNull;
+    if (shop == null) {
+      navigator.push(MaterialPageRoute<void>(
+        builder: (_) => ShopListScreen(maintenanceContext: link.shopName),
+      ));
+      return;
+    }
+    navigator.push(MaterialPageRoute<void>(
+      builder: (_) => InquiryScreen(
+        shop: shop,
+        vehicleId: _vehicle.id,
+        prefillSubject: '${_vehicle.displayName}の車検について',
+      ),
+    ));
+  }
+
   @override
   void initState() {
     super.initState();
     _vehicle = widget.vehicle;
+    _loadLinkedShop();
     // Own the maintenance subscription for this vehicle so newly added records
     // (including ones created from this screen) stream into the timeline even
     // when the navigating screen never started the listener. Without this the
@@ -299,18 +342,6 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
-  }
-
-  /// 整備記録に残っている直近の店舗名。無ければ null。
-  ///
-  /// 「いつもの店に相談」の宛先に使う。記録は日付降順で保持されている。
-  String? _latestShopName() {
-    final provider = context.read<MaintenanceProvider>();
-    for (final record in provider.records) {
-      final name = record.shopName;
-      if (name != null && name.trim().isNotEmpty) return name.trim();
-    }
-    return null;
   }
 
   Future<void> _showMileageUpdateDialog() async {
@@ -991,7 +1022,8 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                             Padding(
                               padding: const EdgeInsets.only(left: 88, top: 6),
                               child: _InspectionActionButtons(
-                                latestShopName: _latestShopName(),
+                                linkedShopName: _linkedShop?.shopName,
+                                onContactLinkedShop: _contactLinkedShop,
                               ),
                             ),
                         ],
@@ -4244,16 +4276,49 @@ class _CommunityInsightRow extends StatelessWidget {
 /// 検索済みの状態で開く（記録の shopName は文字列でしか持っておらず
 /// shopId が無いため、名前検索で繋ぐ）。
 class _InspectionActionButtons extends StatelessWidget {
-  final String? latestShopName;
+  /// The shop the person is linked to. When set it comes first, and the
+  /// shop name taken from old records is not offered: the person already
+  /// chose where they go, and the app does not steer them elsewhere
+  /// (FEATURE_SPEC 設計思想「事業者は売り込まない」).
+  final String? linkedShopName;
+  final VoidCallback? onContactLinkedShop;
 
-  const _InspectionActionButtons({required this.latestShopName});
+  const _InspectionActionButtons({
+    this.linkedShopName,
+    this.onContactLinkedShop,
+  });
+
+  /// 整備記録に残っている直近の店舗名。無ければ null。記録は日付降順。
+  String? _latestShopName(List<MaintenanceRecord> records) {
+    for (final record in records) {
+      final name = record.shopName;
+      if (name != null && name.trim().isNotEmpty) return name.trim();
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final linked = linkedShopName;
+    final latestShopName = linked == null
+        ? _latestShopName(context.watch<MaintenanceProvider>().records)
+        : null;
     return Wrap(
       spacing: AppSpacing.xs,
       runSpacing: AppSpacing.xxs,
       children: [
+        if (linked != null)
+          FilledButton.icon(
+            key: const Key('inspection_contact_linked_shop_btn'),
+            onPressed: onContactLinkedShop,
+            icon: const Icon(Icons.storefront_outlined, size: 15),
+            label: Text('$linkedに相談'),
+            style: FilledButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              textStyle: const TextStyle(fontSize: 12),
+            ),
+          ),
         OutlinedButton.icon(
           key: const Key('inspection_find_shop_btn'),
           onPressed: () => Navigator.push(
@@ -4261,7 +4326,7 @@ class _InspectionActionButtons extends StatelessWidget {
             MaterialPageRoute(builder: (_) => const ShopListScreen()),
           ),
           icon: const Icon(Icons.search, size: 15),
-          label: const Text('整備工場を探す'),
+          label: Text(linked != null ? 'ほかの整備工場を探す' : '整備工場を探す'),
           style: _style(AppColors.warning),
         ),
         if (latestShopName != null)

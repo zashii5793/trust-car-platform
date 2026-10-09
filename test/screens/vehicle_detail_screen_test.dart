@@ -28,6 +28,11 @@ import 'package:trust_car_platform/models/drive_log.dart';
 import 'package:trust_car_platform/services/drive_log_service.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/services/vehicle_retirement_service.dart';
+import 'package:trust_car_platform/services/shop_invite_service.dart';
+import 'package:trust_car_platform/services/shop_service.dart';
+import 'package:trust_car_platform/services/inquiry_service.dart';
+import 'package:trust_car_platform/providers/shop_provider.dart';
+import 'package:trust_car_platform/screens/marketplace/inquiry_screen.dart';
 
 import '../golden/font_loader.dart';
 
@@ -1216,6 +1221,127 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.textContaining('免責1回目5万円・2回目以降10万円'), findsOneWidget);
+    });
+  });
+
+  // 使用感テスト（2026-10-09）: persona.a のハイエースで、相談ボタンが
+  // かかりつけのタカヤモーターではなく、整備記録にあった別の工場
+  // （テストオート品川）をマーケットで案内した。
+  group('車検の相談 — かかりつけの店を先に', () {
+    late FakeFirebaseFirestore firestore;
+
+    setUp(() {
+      firestore = FakeFirebaseFirestore();
+      final sl = ServiceLocator.instance;
+      for (final unregister in [
+        () => sl.unregister<ShopInviteService>(),
+        () => sl.unregister<ShopService>(),
+      ]) {
+        try {
+          unregister();
+        } catch (_) {}
+      }
+      sl.registerLazySingleton<ShopInviteService>(
+          () => ShopInviteService(firestore: firestore));
+      sl.registerLazySingleton<ShopService>(
+          () => ShopService(firestore: firestore));
+    });
+
+    tearDown(() {
+      final sl = ServiceLocator.instance;
+      sl.unregister<ShopInviteService>();
+      sl.unregister<ShopService>();
+    });
+
+    Future<void> pump(WidgetTester tester, {required bool linked}) async {
+      if (linked) {
+        await firestore.collection('shop_customers').doc('test-user-id').set(
+              ShopCustomerLink(
+                shopId: 'takaya',
+                shopName: 'タカヤモーター',
+                userId: 'test-user-id',
+                linkedAt: DateTime(2026, 1, 1),
+              ).toMap(),
+            );
+        await firestore
+            .collection('shops')
+            .doc('takaya')
+            .set({'name': 'タカヤモーター', 'type': 'maintenanceShop'});
+      }
+      final now = DateTime.now();
+      final vehicle = _testVehicle().copyWith(
+        inspectionExpiryDate: DateTime(now.year, now.month, now.day + 19),
+      );
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      // Providers sit above MaterialApp here so the pushed inquiry screen
+      // can reach ShopProvider.
+      await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider<MaintenanceProvider>.value(
+              value: maintenanceProvider),
+          ChangeNotifierProvider<NotificationProvider>(
+            create: (_) => NotificationProvider(
+              firebaseService: MockFirebaseService(),
+              recommendationService: RecommendationService(),
+            ),
+          ),
+          ChangeNotifierProvider<UserSubscriptionProvider>(
+            create: (_) => UserSubscriptionProvider(),
+          ),
+          ChangeNotifierProvider<ShopProvider>(
+            create: (_) => ShopProvider(
+              shopService: ShopService(firestore: firestore),
+              inquiryService: InquiryService(firestore: firestore),
+            ),
+          ),
+        ],
+        child: MaterialApp(home: VehicleDetailScreen(vehicle: vehicle)),
+      ));
+      mockFirebase.emitRecords([
+        _testRecord(id: 'r1', shopName: 'テストオート品川整備センター'),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+    }
+
+    testWidgets('かかりつけがあれば、その店の名前で相談ボタンを出す', (tester) async {
+      await pump(tester, linked: true);
+
+      final linked =
+          find.byKey(const Key('inspection_contact_linked_shop_btn'));
+      expect(linked, findsOneWidget);
+      expect(
+        find.descendant(of: linked, matching: find.text('タカヤモーターに相談')),
+        findsOneWidget,
+      );
+      // 整備記録にあった別の店は案内しない（売り込まない）。
+      expect(find.textContaining('テストオート品川整備センターに相談'), findsNothing);
+    });
+
+    testWidgets('押すと、その店への問い合わせ画面が直接開く', (tester) async {
+      await pump(tester, linked: true);
+
+      await tester
+          .tap(find.byKey(const Key('inspection_contact_linked_shop_btn')));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      final screen = tester.widget<InquiryScreen>(find.byType(InquiryScreen));
+      expect(screen.shop.id, 'takaya');
+      expect(screen.vehicleId, 'v1');
+    });
+
+    group('Edge Cases', () {
+      testWidgets('かかりつけが無ければ、今までどおり（記録にある店・工場を探す）', (tester) async {
+        await pump(tester, linked: false);
+
+        expect(find.byKey(const Key('inspection_contact_linked_shop_btn')),
+            findsNothing);
+        expect(find.byKey(const Key('inspection_contact_last_shop_btn')),
+            findsOneWidget);
+        expect(
+            find.byKey(const Key('inspection_find_shop_btn')), findsOneWidget);
+      });
     });
   });
 
