@@ -1833,6 +1833,7 @@ class _InfoRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
             icon,
@@ -1847,11 +1848,17 @@ class _InfoRow extends StatelessWidget {
               style: theme.textTheme.bodyMedium,
             ),
           ),
-          Text(
-            value,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: valueColor,
-              fontWeight: valueColor != null ? FontWeight.bold : null,
+          // Wraps instead of running off the screen. On a 390px phone the
+          // 車両保険 line (type / amount / deductible) overflowed by 85px and
+          // the deductible could not be read (usability test 2026-10-09).
+          Expanded(
+            child: Text(
+              value,
+              softWrap: true,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: valueColor,
+                fontWeight: valueColor != null ? FontWeight.bold : null,
+              ),
             ),
           ),
         ],

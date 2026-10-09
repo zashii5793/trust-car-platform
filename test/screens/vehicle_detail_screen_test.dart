@@ -1191,6 +1191,34 @@ void main() {
     });
   });
 
+  // 使用感テスト（2026-10-09）: 390 幅で任意保険の「車両保険」の行が
+  // 右へ 85px はみ出し、免責額が読めなかった（persona.e・d）。
+  group('任意保険 — スマホ幅で切れない', () {
+    testWidgets('390 幅で車両保険の行がはみ出さず、免責額まで読める', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 2400);
+      addTearDown(tester.view.reset);
+      final vehicle = _testVehicle().copyWith(
+        voluntaryInsurance: VoluntaryInsurance(
+          companyName: 'テスト損害保険株式会社',
+          expiryDate: DateTime(2027, 4, 1),
+          hasVehicleInsurance: true,
+          vehicleInsuranceType: 'エコノミー（車対車+A）',
+          vehicleInsuranceAmount: 1500000,
+          vehicleInsuranceDeductible: '1回目5万円・2回目以降10万円',
+          driverScope: '本人・配偶者限定',
+          driverAgeCondition: '35歳以上補償',
+        ),
+      );
+
+      await tester.pumpWidget(_buildScreen(vehicle, maintenanceProvider));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('免責1回目5万円・2回目以降10万円'), findsOneWidget);
+    });
+  });
+
   group('C4 — 工場裏書きバッジ & 検証済みサマリー', () {
     testWidgets('verificationSource=shopVerified のレコードにバッジが表示される',
         (tester) async {
