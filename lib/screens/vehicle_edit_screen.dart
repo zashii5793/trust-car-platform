@@ -950,14 +950,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                             });
                             _onFieldChanged();
                           },
-                          validator: (value) {
-                            if (value == null &&
-                                _selectedGrade == null &&
-                                !_masterDataLoading) {
-                              return 'グレードを選択';
-                            }
-                            return null;
-                          },
+                          // Optional, as at registration: a car registered
+                          // without a grade must still be editable.
+                          isRequired: false,
                         ),
                       ),
                     ],

@@ -42,6 +42,7 @@
 
 import 'dart:typed_data';
 
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -52,6 +53,7 @@ import 'package:trust_car_platform/widgets/vehicle/year_picker_sheet.dart';
 import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/services/vehicle_master_service.dart';
+import 'package:trust_car_platform/services/vehicle_spec_service.dart';
 import 'package:trust_car_platform/services/vehicle_certificate_ocr_service.dart';
 import 'package:trust_car_platform/models/vehicle.dart';
 import 'package:trust_car_platform/models/vehicle_master.dart';
@@ -90,6 +92,10 @@ const _testGrade = VehicleGrade(
 // Stub — VehicleMasterService
 // ===========================================================================
 
+/// グレードの候補。使用感テスト（2026-10-09）で、プリウス 2024 の候補が
+/// 0件だった状態をテストから作れるようにする。
+List<VehicleGrade> _stubGrades = const [_testGrade];
+
 class _StubMasterService implements VehicleMasterService {
   @override
   Future<Result<List<VehicleMaker>, AppError>> getMakers() async =>
@@ -103,7 +109,7 @@ class _StubMasterService implements VehicleMasterService {
   @override
   Future<Result<List<VehicleGrade>, AppError>> getGradesForModel(
           String modelId) async =>
-      const Result.success([_testGrade]);
+      Result.success(_stubGrades);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -301,8 +307,8 @@ Future<void> _fillStep1AndAdvance(WidgetTester tester) async {
   await tester.pumpAndSettle(const Duration(seconds: 10));
 
   // Select grade (loads after model selection)
-  await tester.ensureVisible(find.text('グレードを選択 *'));
-  await tester.tap(find.text('グレードを選択 *'));
+  await tester.ensureVisible(find.text('グレード（任意）'));
+  await tester.tap(find.text('グレード（任意）'));
   await tester.pumpAndSettle(const Duration(seconds: 10));
   // 「S」はリストタイルの avatar イニシャルと名前の両方に現れる（同一タイル内）
   await tester.tap(find.text('S').first);
@@ -367,6 +373,9 @@ void main() {
     ServiceLocator.instance
       ..override<VehicleMasterService>(_StubMasterService())
       ..override<VehicleCertificateOcrService>(_StubOcrService())
+      // Choosing a grade after the year looks up community specs.
+      ..override<VehicleSpecService>(
+          VehicleSpecService(firestore: FakeFirebaseFirestore()))
       ..override<FirebaseService>(_firebaseStub);
   });
 
@@ -376,6 +385,7 @@ void main() {
 
   setUp(() {
     _firebaseStub = _StubFirebaseService();
+    _stubGrades = const [_testGrade];
     ServiceLocator.instance.override<FirebaseService>(_firebaseStub);
   });
 
@@ -860,6 +870,110 @@ void main() {
         ),
         findsWidgets,
       );
+    });
+  });
+
+  // =========================================================================
+  // 使用感テスト（2026-10-09）: グレードが必須なのに候補が0件。自由入力の
+  // 「決定」は、入力欄からフォーカスが外れた瞬間にシートが動いて押せず、
+  // 約6回やり直した。
+  group('VehicleRegistrationScreen — グレードは任意', () {
+    Future<void> pickMakerModelYearMileage(WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text('メーカーを選択 *'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text('トヨタ'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text('車種を選択 *'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text('プリウス'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text('年式 *'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text(formatYearWithWareki(DateTime.now().year)));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.enterText(find.byType(TextFormField).at(1), '15000');
+      await tester.pump();
+    }
+
+    testWidgets('グレードを選ばずに次へ進める', (tester) async {
+      _stubGrades = const [];
+      await pickMakerModelYearMileage(tester);
+
+      await tester.tap(find.text('次へ'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('グレードを選択'), findsNothing);
+      expect(find.text('車検・保険の情報'), findsOneWidget);
+    });
+
+    testWidgets('候補が無いときは、その旨と「わからない」が出る', (tester) async {
+      _stubGrades = const [];
+      await pickMakerModelYearMileage(tester);
+
+      await tester.tap(find.text('グレード（任意）'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.textContaining('候補はまだありません'), findsOneWidget);
+      expect(find.byKey(const Key('grade_unknown_tile')), findsOneWidget);
+    });
+
+    testWidgets('自由入力の「決定」はキーボードを閉じても押せる位置にある', (tester) async {
+      _stubGrades = const [];
+      await pickMakerModelYearMileage(tester);
+
+      await tester.tap(find.text('グレード（任意）'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text('カスタム入力'));
+      await tester.pumpAndSettle();
+
+      // The button is part of the text field's tap region, so pressing it
+      // does not first unfocus the field (which hid the keyboard and moved
+      // the sheet out from under the finger).
+      final decide = find.byKey(const Key('grade_custom_submit'));
+      expect(
+        find.ancestor(of: decide, matching: find.byType(TextFieldTapRegion)),
+        findsWidgets,
+      );
+
+      await tester.enterText(
+          find.byKey(const Key('grade_custom_field')), 'Gツーリング');
+      await tester.tap(decide);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.text('Gツーリング'), findsOneWidget);
+    });
+
+    testWidgets('自由入力はキーボードの「完了」でも決まる', (tester) async {
+      _stubGrades = const [];
+      await pickMakerModelYearMileage(tester);
+
+      await tester.tap(find.text('グレード（任意）'));
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.tap(find.text('カスタム入力'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('grade_custom_field')), 'Z');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('grade_custom_field')), findsNothing);
+      expect(find.text('Z'), findsWidgets);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('「わからない」を選ぶとグレードは空のまま', (tester) async {
+        await pickMakerModelYearMileage(tester);
+
+        await tester.tap(find.text('グレード（任意）'));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+        await tester.tap(find.byKey(const Key('grade_unknown_tile')));
+        await tester.pumpAndSettle(const Duration(seconds: 10));
+
+        expect(find.text('グレード（任意）'), findsOneWidget);
+      });
     });
   });
 

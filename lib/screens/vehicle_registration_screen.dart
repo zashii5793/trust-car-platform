@@ -532,8 +532,8 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
     final missingCore = _selectedMaker == null ||
         _selectedModel == null ||
         _yearController.text.isEmpty;
-    final missingDetail =
-        _selectedGrade == null || _mileageController.text.isEmpty;
+    // Grade is optional; only the mileage is needed beyond the core fields.
+    final missingDetail = _mileageController.text.isEmpty;
     if (missingCore || (!quick && missingDetail)) {
       showErrorSnackBar(context, '基本情報が不足しています。最初のステップに戻って確認してください');
       return;
@@ -972,7 +972,9 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
                         }
                       });
                     },
-                    validator: (value) => value == null ? 'グレードを選択' : null,
+                    // Optional: many cars have no grade candidates, and
+                    // many owners do not know theirs (2026-10-09).
+                    isRequired: false,
                   ),
                 ),
               ],
