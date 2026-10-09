@@ -313,7 +313,14 @@ class MaintenanceRecord {
   final MaintenanceType type;
   final String title;
   final String? description;
+
+  /// Amount paid, in yen. 0 when not recorded — check [hasCost] before
+  /// showing it, and leave unrecorded ones out of averages.
   final int cost;
+
+  /// False when the person left the amount empty (they did not remember).
+  /// Stored as `cost: null`, shown as 「未入力」, never as ¥0.
+  final bool hasCost;
   final String? shopName;
   final DateTime date;
   final int? mileageAtService;
@@ -369,6 +376,20 @@ class MaintenanceRecord {
     return VerificationSource.selfReported;
   }
 
+  /// The amount as shown to people: 「¥15,000」, or 「未入力」 when empty.
+  String get costLabel {
+    if (!hasCost) return '未入力';
+    final digits = cost.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0 && digits[i - 1] != '-') {
+        buf.write(',');
+      }
+      buf.write(digits[i]);
+    }
+    return '¥$buf';
+  }
+
   /// 工場が関与した記録かどうか（shopImported または shopVerified）
   bool get isVerified => verificationSource != VerificationSource.selfReported;
 
@@ -380,6 +401,7 @@ class MaintenanceRecord {
     required this.title,
     this.description,
     required this.cost,
+    this.hasCost = true,
     this.shopName,
     required this.date,
     this.mileageAtService,
@@ -425,7 +447,9 @@ class MaintenanceRecord {
       type: _parseMaintenanceType(data['type']),
       title: data['title'] ?? '',
       description: data['description'],
-      cost: data['cost'] ?? 0,
+      cost: (data['cost'] as num?)?.toInt() ?? 0,
+      // Older records and ones saved without an amount have no number.
+      hasCost: data['cost'] is num,
       shopName: data['shopName'],
       date: _parseTimestamp(data['date']),
       mileageAtService: data['mileageAtService'],
@@ -528,7 +552,7 @@ class MaintenanceRecord {
       'type': type.name, // 文字列で保存（新形式）
       'title': title,
       'description': description,
-      'cost': cost,
+      'cost': hasCost ? cost : null,
       'shopName': shopName,
       'date': Timestamp.fromDate(date),
       'mileageAtService': mileageAtService,
@@ -622,7 +646,7 @@ class MaintenanceRecord {
     required MaintenanceType type,
     required String title,
     required String? description,
-    required int cost,
+    required int? cost,
     required String? shopName,
     required DateTime date,
     required int? mileageAtService,
@@ -639,7 +663,8 @@ class MaintenanceRecord {
       type: locked ? this.type : type,
       title: locked ? this.title : title,
       description: description,
-      cost: locked ? this.cost : cost,
+      cost: locked ? this.cost : (cost ?? 0),
+      hasCost: locked ? hasCost : cost != null,
       shopName: locked ? this.shopName : shopName,
       date: locked ? this.date : date,
       mileageAtService: locked ? this.mileageAtService : mileageAtService,
@@ -679,6 +704,7 @@ class MaintenanceRecord {
     String? title,
     String? description,
     int? cost,
+    bool? hasCost,
     String? shopName,
     DateTime? date,
     int? mileageAtService,
@@ -720,6 +746,7 @@ class MaintenanceRecord {
       title: title ?? this.title,
       description: description ?? this.description,
       cost: cost ?? this.cost,
+      hasCost: hasCost ?? this.hasCost,
       shopName: shopName ?? this.shopName,
       date: date ?? this.date,
       mileageAtService: mileageAtService ?? this.mileageAtService,

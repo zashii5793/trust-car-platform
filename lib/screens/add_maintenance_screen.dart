@@ -86,7 +86,10 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       _selectedType = record.type;
       _titleController.text = record.title;
       _selectedDate = record.date;
-      _costController.text = formatThousands(record.cost);
+      // An unrecorded amount stays empty instead of showing 0.
+      if (record.hasCost) {
+        _costController.text = formatThousands(record.cost);
+      }
       if (record.shopName != null) _shopNameController.text = record.shopName!;
       if (record.mileageAtService != null) {
         _mileageController.text = formatThousands(record.mileageAtService!);
@@ -256,7 +259,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
               description: _descriptionController.text.isEmpty
                   ? null
                   : _descriptionController.text,
-              cost: int.tryParse(stripThousands(_costController.text)) ?? 0,
+              cost: _enteredCost,
               shopName: _shopNameController.text.isEmpty
                   ? null
                   : _shopNameController.text,
@@ -286,7 +289,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
               description: _descriptionController.text.isEmpty
                   ? null
                   : _descriptionController.text,
-              cost: int.tryParse(stripThousands(_costController.text)) ?? 0,
+              cost: _enteredCost ?? 0,
+              hasCost: _enteredCost != null,
               shopName: _shopNameController.text.isEmpty
                   ? null
                   : _shopNameController.text,
@@ -346,6 +350,13 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
         });
       }
     }
+  }
+
+  /// The amount typed in, or null when left empty.
+  int? get _enteredCost {
+    final text = stripThousands(_costController.text).trim();
+    if (text.isEmpty) return null;
+    return int.tryParse(text);
   }
 
   /// Readings this record's odometer value should agree with: the other
@@ -442,6 +453,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       // At least one prior record of the same type is required to compute an
       // interval (first-ever records have no baseline).
       if (previous == null) return;
+
+      // Without an amount the contribution would pull the median toward ¥0.
+      if (!record.hasCost) return;
 
       final intervalDays = record.date.difference(previous.date).inDays;
 
@@ -737,13 +751,15 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   AppTextField.numberGrouped(
                     controller: _costController,
                     enabled: !_isShopRecord,
-                    labelText: '費用',
-                    hintText: '例: 25,000',
+                    labelText: '費用（任意）',
+                    // Some people do not remember the amount. Empty is
+                    // saved as 「未入力」, not as ¥0 (2026-10-09).
+                    hintText: '分からなければ空けたままで大丈夫です',
                     prefixText: '¥',
                     prefixIcon: const Icon(Icons.currency_yen),
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return '費用を入力してください';
+                      if (value == null || value.trim().isEmpty) {
+                        return null; // optional
                       }
                       final cost = int.tryParse(stripThousands(value));
                       if (cost == null || cost < 0) {

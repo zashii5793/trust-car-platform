@@ -3186,7 +3186,6 @@ class _MaintenanceRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dateFormat = DateFormat('yyyy/MM/dd');
-    final costFormat = NumberFormat('#,###');
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -3218,7 +3217,7 @@ class _MaintenanceRow extends StatelessWidget {
           ),
           AppSpacing.horizontalSm,
           Text(
-            '¥${costFormat.format(record.cost)}',
+            record.costLabel,
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: AppColors.primary,

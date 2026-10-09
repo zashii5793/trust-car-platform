@@ -816,7 +816,9 @@ class PdfExportService {
                 _buildTableCell(_getTypeDisplayName(record.type)),
                 _buildTableCell(record.title),
                 _buildTableCell(
-                  '¥${numberFormat.format(record.cost)}',
+                  record.hasCost
+                      ? '¥${numberFormat.format(record.cost)}'
+                      : '未入力',
                   alignment: pw.TextAlign.right,
                 ),
                 _buildTableCell(

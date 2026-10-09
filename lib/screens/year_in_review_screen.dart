@@ -205,7 +205,7 @@ class YearInReviewScreen extends StatelessWidget {
           '${record.type.displayName} ・ ${DateFormat('yyyy年M月').format(record.date)}',
         ),
         trailing: Text(
-          '${fmt.format(record.cost)}円',
+          record.hasCost ? '${fmt.format(record.cost)}円' : '未入力',
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
           ),

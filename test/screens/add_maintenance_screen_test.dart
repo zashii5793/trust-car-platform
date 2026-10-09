@@ -556,7 +556,7 @@ void main() {
           find.byKey(const Key('shop_record_locked_banner')), findsOneWidget);
       final cost = tester.widget<TextField>(find.descendant(
         of: find.ancestor(
-            of: find.text('費用'),
+            of: find.text('費用（任意）'),
             matching: find.byWidgetPredicate((w) => w is TextFormField)),
         matching: find.byType(TextField),
       ));
@@ -581,7 +581,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(field('タイトル'), '12ヶ月点検');
-      await tester.enterText(field('費用'), '15000');
+      await tester.enterText(field('費用（任意）'), '15000');
       await tester.pump();
 
       final save = find.text('保存する');
@@ -604,7 +604,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(field('タイトル'), '12ヶ月点検');
-      await tester.enterText(field('費用'), '15000');
+      await tester.enterText(field('費用（任意）'), '15000');
       await tester.tap(find.text('保存する'));
       await tester.pump(const Duration(milliseconds: 50));
 
@@ -636,7 +636,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(field('タイトル'), 'オイル交換');
-      await tester.enterText(field('費用'), '5000');
+      await tester.enterText(field('費用（任意）'), '5000');
       await tester.enterText(field('実施時の走行距離（任意）'), mileage);
       await tester.tap(find.text('保存する'));
       await tester.pump();
@@ -684,6 +684,69 @@ void main() {
 
         expect(find.text('走行距離の確認'), findsNothing);
         expect(_mockFirebase.added, hasLength(1));
+      });
+    });
+  });
+
+  // 使用感テスト（2026-10-09）: 金額を空けると「費用を入力してください」で
+  // 保存できず、0円を入れると記録に「¥0」と残った。
+  group('費用は任意', () {
+    Finder field(String label) => find.ancestor(
+          of: find.text(label),
+          matching: find.byWidgetPredicate((w) => w is TextFormField),
+        );
+
+    testWidgets('費用を空けたまま保存でき、未入力として残る', (tester) async {
+      tester.view.physicalSize = const Size(900, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      _mockFirebase.added.clear();
+      await tester.pumpWidget(_buildNew());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(field('タイトル'), '12ヶ月点検');
+      await tester.tap(find.text('保存する'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+
+      expect(find.text('費用を入力してください'), findsNothing);
+      expect(_mockFirebase.added, hasLength(1));
+      expect(_mockFirebase.added.single.hasCost, isFalse);
+      expect(_mockFirebase.added.single.toMap()['cost'], isNull);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('未入力の記録を編集で開くと、費用欄は空（0 と出さない）', (tester) async {
+        await tester.pumpWidget(_buildEdit(
+          record: _makeRecord(cost: 0).copyWith(hasCost: false),
+        ));
+        await tester.pumpAndSettle();
+
+        final cost = tester.widget<TextField>(find.descendant(
+          of: field('費用（任意）'),
+          matching: find.byType(TextField),
+        ));
+        expect(cost.controller!.text, isEmpty);
+      });
+
+      testWidgets('0円と入れた記録は 0円として残す', (tester) async {
+        tester.view.physicalSize = const Size(900, 4000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        _mockFirebase.added.clear();
+        await tester.pumpWidget(_buildNew());
+        await tester.pumpAndSettle();
+
+        await tester.enterText(field('タイトル'), '無料点検');
+        await tester.enterText(field('費用（任意）'), '0');
+        await tester.tap(find.text('保存する'));
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+
+        expect(_mockFirebase.added.single.hasCost, isTrue);
+        expect(_mockFirebase.added.single.cost, 0);
       });
     });
   });

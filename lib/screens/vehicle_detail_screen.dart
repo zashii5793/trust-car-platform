@@ -2598,7 +2598,7 @@ class _MaintenanceTimelineItem extends StatelessWidget {
                                 Row(
                                   children: [
                                     Text(
-                                      '¥${NumberFormat('#,###').format(record.cost)}',
+                                      record.costLabel,
                                       style:
                                           theme.textTheme.bodyMedium?.copyWith(
                                         fontWeight: FontWeight.bold,
@@ -3069,7 +3069,7 @@ class _MaintenanceDetailSheet extends StatelessWidget {
 
                   // Cost (large)
                   Text(
-                    '¥${NumberFormat('#,###').format(record.cost)}',
+                    record.costLabel,
                     style: theme.textTheme.displaySmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: typeColor,

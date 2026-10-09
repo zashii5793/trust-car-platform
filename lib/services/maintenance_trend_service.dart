@@ -78,8 +78,12 @@ class MaintenanceTrendService {
         }
       }
 
-      final avgCost =
-          typeRecords.map((r) => r.cost).reduce((a, b) => a + b) / sampleCount;
+      // Records without an amount say nothing about the price; leave them
+      // out instead of averaging them in as ¥0.
+      final costed = typeRecords.where((r) => r.hasCost).toList();
+      final avgCost = costed.isEmpty
+          ? null
+          : costed.map((r) => r.cost).reduce((a, b) => a + b) / costed.length;
 
       DateTime? predictedNextDate;
       int? predictedNextMileage;

@@ -137,7 +137,10 @@ class _MaintenanceStats {
     return _MaintenanceStats(
       totalCost: totalCost,
       recordCount: records.length,
-      averageCostPerRecord: totalCost ~/ records.length,
+      // Per record that has an amount; empty ones would drag it to ¥0.
+      averageCostPerRecord: records.any((r) => r.hasCost)
+          ? totalCost ~/ records.where((r) => r.hasCost).length
+          : 0,
       costByType: costByType,
       countByType: countByType,
       costByYear: costByYear,

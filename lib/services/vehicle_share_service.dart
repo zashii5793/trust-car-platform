@@ -101,7 +101,7 @@ class VehicleShareService {
             date: r.date,
             type: r.type.displayName,
             title: r.title,
-            cost: includeCosts ? r.cost : null,
+            cost: includeCosts && r.hasCost ? r.cost : null,
             mileage: r.mileageAtService,
             shopName: r.shopName,
           ),

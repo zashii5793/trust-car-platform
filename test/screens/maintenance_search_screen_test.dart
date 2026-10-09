@@ -176,6 +176,33 @@ void main() {
     });
   });
 
+  // 使用感テスト（2026-10-09）: 金額を覚えていない記録は「未入力」と出す。
+  // 合計には足さない（0 として扱う）。
+  group('MaintenanceSearchScreen — 費用の未入力', () {
+    testWidgets('未入力の記録は「未入力」と出し、合計は入力済みの分だけ', (tester) async {
+      loadRecords([
+        _record(
+            id: 'r1',
+            type: MaintenanceType.oilChange,
+            title: 'オイル交換',
+            cost: 5000),
+        _record(
+          id: 'r2',
+          type: MaintenanceType.tireChange,
+          title: 'タイヤ交換',
+          cost: 0,
+        ).copyWith(hasCost: false),
+      ]);
+
+      await tester.pumpWidget(_buildUnderTest(provider));
+      await tester.pump();
+
+      expect(find.text('未入力'), findsOneWidget);
+      expect(find.text('¥0'), findsNothing);
+      expect(find.text('合計 ¥5,000'), findsOneWidget);
+    });
+  });
+
   group('MaintenanceSearchScreen — キーワード検索', () {
     testWidgets('キーワード入力で結果が絞り込まれる', (tester) async {
       loadRecords([

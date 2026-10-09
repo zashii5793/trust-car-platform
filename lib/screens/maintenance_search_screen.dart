@@ -297,7 +297,7 @@ class _SearchResultCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '¥${costFormat.format(record.cost)}',
+                          record.costLabel,
                           style: theme.textTheme.bodyLarge?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: AppColors.primary,
