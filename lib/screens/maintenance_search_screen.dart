@@ -12,7 +12,18 @@ import '../widgets/common/loading_indicator.dart';
 /// 現在リスニング中の車両の整備記録を、キーワード・タイプ・並び順で
 /// 絞り込んで一覧表示する。フィルタはすべて端末内で完結する。
 class MaintenanceSearchScreen extends StatefulWidget {
-  const MaintenanceSearchScreen({super.key});
+  /// Which vehicles the list covers (e.g. 「すべての車（4台）」). Shown under
+  /// the title so an empty list is not mistaken for lost records.
+  final String? scopeLabel;
+
+  /// Vehicle names by id. When given, each result says which car it is for.
+  final Map<String, String> vehicleNames;
+
+  const MaintenanceSearchScreen({
+    super.key,
+    this.scopeLabel,
+    this.vehicleNames = const {},
+  });
 
   @override
   State<MaintenanceSearchScreen> createState() =>
@@ -71,7 +82,22 @@ class _MaintenanceSearchScreenState extends State<MaintenanceSearchScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('整備履歴を検索'),
+        title: widget.scopeLabel == null
+            ? const Text('整備履歴を検索')
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('整備履歴を検索'),
+                  Text(
+                    widget.scopeLabel!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.appBarTheme.foregroundColor ??
+                          theme.colorScheme.onPrimary,
+                    ),
+                  ),
+                ],
+              ),
         actions: [
           PopupMenuButton<MaintenanceSortBy>(
             icon: const Icon(Icons.sort),
@@ -191,26 +217,31 @@ class _MaintenanceSearchScreenState extends State<MaintenanceSearchScreen> {
 
           // ---- 結果リスト ----
           Expanded(
-            child: results.isEmpty
-                // "Change your filters" is advice, not an action: the user still
-                // has to find and undo each one. Clearing them is one tap.
-                ? AppEmptyState(
-                    icon: Icons.search_off,
-                    title: '該当する整備記録がありません',
-                    description: 'キーワードや種類の絞り込みを外すと、'
-                        'すべての整備記録が表示されます',
-                    buttonLabel: '絞り込みをクリア',
-                    onButtonPressed: () {
-                      _keywordController.clear();
-                      setState(_selectedTypes.clear);
-                    },
-                  )
-                : ListView.builder(
-                    padding: AppSpacing.paddingScreen,
-                    itemCount: results.length,
-                    itemBuilder: (context, index) =>
-                        _SearchResultCard(record: results[index]),
-                  ),
+            child: provider.isLoading && provider.records.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : results.isEmpty
+                    // "Change your filters" is advice, not an action: the user still
+                    // has to find and undo each one. Clearing them is one tap.
+                    ? AppEmptyState(
+                        icon: Icons.search_off,
+                        title: '該当する整備記録がありません',
+                        description: 'キーワードや種類の絞り込みを外すと、'
+                            'すべての整備記録が表示されます',
+                        buttonLabel: '絞り込みをクリア',
+                        onButtonPressed: () {
+                          _keywordController.clear();
+                          setState(_selectedTypes.clear);
+                        },
+                      )
+                    : ListView.builder(
+                        padding: AppSpacing.paddingScreen,
+                        itemCount: results.length,
+                        itemBuilder: (context, index) => _SearchResultCard(
+                          record: results[index],
+                          vehicleName:
+                              widget.vehicleNames[results[index].vehicleId],
+                        ),
+                      ),
           ),
         ],
       ),
@@ -225,7 +256,10 @@ class _MaintenanceSearchScreenState extends State<MaintenanceSearchScreen> {
 class _SearchResultCard extends StatelessWidget {
   final MaintenanceRecord record;
 
-  const _SearchResultCard({required this.record});
+  /// Which car the record belongs to, when the list spans several.
+  final String? vehicleName;
+
+  const _SearchResultCard({required this.record, this.vehicleName});
 
   @override
   Widget build(BuildContext context) {
@@ -271,6 +305,17 @@ class _SearchResultCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (vehicleName != null) ...[
+                      AppSpacing.verticalXxs,
+                      Text(
+                        vehicleName!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.primary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                     AppSpacing.verticalXxs,
                     Row(
                       children: [

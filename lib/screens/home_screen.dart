@@ -660,7 +660,9 @@ class _VehicleTabState extends State<_VehicleTab> {
             ];
 
             return ListView.builder(
-              padding: AppSpacing.paddingScreen,
+              // Extra room at the end so the last 「すべて見る」 and prices
+              // can scroll clear of the floating + button (2026-10-09).
+              padding: AppSpacing.paddingScreen.copyWith(bottom: 96),
               itemCount: items.length,
               itemBuilder: (_, i) => items[i],
             );
@@ -2910,11 +2912,13 @@ class _SectionHeader extends StatelessWidget {
   final IconData icon;
   final String title;
   final VoidCallback onSeeAll;
+  final Key? seeAllKey;
 
   const _SectionHeader({
     required this.icon,
     required this.title,
     required this.onSeeAll,
+    this.seeAllKey,
   });
 
   @override
@@ -2936,6 +2940,7 @@ class _SectionHeader extends StatelessWidget {
           ),
           const Spacer(),
           TextButton(
+            key: seeAllKey,
             onPressed: onSeeAll,
             style: TextButton.styleFrom(
               visualDensity: VisualDensity.compact,
@@ -3009,6 +3014,11 @@ class _RecentMaintenanceSection extends StatefulWidget {
 class _RecentMaintenanceSectionState extends State<_RecentMaintenanceSection> {
   List<MaintenanceRecord>? _records;
 
+  /// The MaintenanceProvider revision last read. A record added anywhere in
+  /// the app bumps it, and the section reads again; before this a new
+  /// record only showed up after a full reload (2026-10-09).
+  int? _seenRevision;
+
   /// この1年の件数と金額。直近3件の合計では、かけた額が分からない。
   MaintenanceSummary? _summary;
 
@@ -3072,8 +3082,44 @@ class _RecentMaintenanceSectionState extends State<_RecentMaintenanceSection> {
     );
   }
 
+  /// Opens every vehicle's records, not just the one the provider happened
+  /// to be following (which left people with several cars at 0 件).
+  void _openAllRecords() {
+    final vehicles = context.read<VehicleProvider>().vehicles;
+    context
+        .read<MaintenanceProvider>()
+        .loadRecordsForVehicles(vehicles.map((v) => v.id).toList());
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => MaintenanceSearchScreen(
+          scopeLabel: vehicles.length > 1
+              ? 'すべての車（${vehicles.length}台）'
+              : vehicles.isEmpty
+                  ? null
+                  : vehicles.first.displayName,
+          vehicleNames: vehicles.length > 1
+              ? {for (final v in vehicles) v.id: v.displayName}
+              : const {},
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final revision = context.select<MaintenanceProvider, int>(
+      (p) => p.revision,
+    );
+    if (_seenRevision == null) {
+      _seenRevision = revision;
+    } else if (_seenRevision != revision) {
+      _seenRevision = revision;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
+    }
+
     final records = _records;
     // 読み込み中とゼロ件は、どちらも何も出さない。ホームの一等地に
     // 「ありません」を置いても、できることが増えるわけではない。
@@ -3085,12 +3131,8 @@ class _RecentMaintenanceSectionState extends State<_RecentMaintenanceSection> {
         _SectionHeader(
           icon: Icons.build_outlined,
           title: 'メンテナンスの記録',
-          onSeeAll: () => Navigator.push(
-            context,
-            MaterialPageRoute<void>(
-              builder: (_) => const MaintenanceSearchScreen(),
-            ),
-          ),
+          seeAllKey: const Key('maintenance_see_all'),
+          onSeeAll: _openAllRecords,
         ),
         // 直近の3件だけだと「1年でいくら使ったか」が見えない。**積み上がった
         // 額が維持費の実感になる**ので、集計を先に出す。集計が取れないあいだは

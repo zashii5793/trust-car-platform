@@ -108,13 +108,23 @@ class MockFirebaseService implements FirebaseService {
   }) async =>
           const Result.success([]);
 
+  /// Records returned per vehicle by [getMaintenanceRecordsForVehicles].
+  Map<String, List<MaintenanceRecord>> recordsByVehicle = {};
+  Result<Map<String, List<MaintenanceRecord>>, AppError>? recordsByVehicleError;
+  int? lastLimitPerVehicle;
+
   @override
   Future<Result<Map<String, List<MaintenanceRecord>>, AppError>>
       getMaintenanceRecordsForVehicles(
     List<String> vehicleIds, {
     int limitPerVehicle = 20,
-  }) async =>
-          const Result.success({});
+  }) async {
+    lastLimitPerVehicle = limitPerVehicle;
+    if (recordsByVehicleError != null) return recordsByVehicleError!;
+    return Result.success({
+      for (final id in vehicleIds) id: recordsByVehicle[id] ?? const [],
+    });
+  }
 
   @override
   Future<Result<String, AppError>> uploadImageBytes(
@@ -301,6 +311,92 @@ void main() {
 
         expect(success, isFalse);
         expect(provider.error, isA<NotFoundError>());
+      });
+    });
+
+    // 使用感テスト（2026-10-09）: 4台持ちの人がホームの「すべて見る」を
+    // 押すと0件だった。記録は車1台ぶんしか読み込まれていなかった。
+    group('loadRecordsForVehicles（全車の記録）', () {
+      MaintenanceRecord rec(String id, String vehicleId, DateTime date) =>
+          MaintenanceRecord(
+            id: id,
+            vehicleId: vehicleId,
+            userId: 'test-user-id',
+            type: MaintenanceType.oilChange,
+            title: id,
+            cost: 1000,
+            date: date,
+            createdAt: date,
+          );
+
+      test('複数台の記録をまとめて、新しい順に並べる', () async {
+        mockFirebaseService.recordsByVehicle = {
+          'a': [rec('a1', 'a', DateTime(2026, 5, 1))],
+          'b': [
+            rec('b2', 'b', DateTime(2026, 9, 1)),
+            rec('b1', 'b', DateTime(2025, 1, 1)),
+          ],
+        };
+
+        await provider.loadRecordsForVehicles(['a', 'b']);
+
+        expect(provider.records.map((r) => r.id), ['b2', 'a1', 'b1']);
+        expect(provider.error, isNull);
+      });
+
+      test('1台あたりの上限を広げて読む（直近20件で切らない）', () async {
+        await provider.loadRecordsForVehicles(['a']);
+        expect(mockFirebaseService.lastLimitPerVehicle, greaterThan(20));
+      });
+
+      test('読み込んだあとに、前の車の購読が上書きしない', () async {
+        provider.listenToMaintenanceRecords('a');
+        mockFirebaseService.recordsByVehicle = {
+          'a': [rec('a1', 'a', DateTime(2026, 5, 1))],
+          'b': [rec('b1', 'b', DateTime(2026, 6, 1))],
+        };
+        await provider.loadRecordsForVehicles(['a', 'b']);
+
+        mockFirebaseService.emitRecords([rec('x', 'a', DateTime(2026, 1, 1))]);
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        expect(provider.records.map((r) => r.id), ['b1', 'a1']);
+      });
+
+      group('Edge Cases', () {
+        test('車が0台なら空', () async {
+          await provider.loadRecordsForVehicles([]);
+          expect(provider.records, isEmpty);
+        });
+
+        test('読み込みに失敗したらエラーを持つ', () async {
+          mockFirebaseService.recordsByVehicleError =
+              const Result.failure(AppError.network('offline'));
+          await provider.loadRecordsForVehicles(['a']);
+          expect(provider.error, isNotNull);
+        });
+      });
+    });
+
+    // 使用感テスト（2026-10-09）: 記録を足してもホームの一覧・合計が
+    // 再読込まで増えなかった。ホームは revision を見て読み直す。
+    group('revision（記録が変わった印）', () {
+      test('追加・更新・削除に成功すると増える', () async {
+        final start = provider.revision;
+        await provider.addMaintenanceRecord(_createTestRecord());
+        await provider.updateMaintenanceRecord('r', _createTestRecord());
+        await provider.deleteMaintenanceRecord('r');
+        expect(provider.revision, start + 3);
+      });
+
+      group('Edge Cases', () {
+        test('失敗したら増えない', () async {
+          mockFirebaseService.addRecordResult =
+              const Result.failure(AppError.server('x'));
+          final start = provider.revision;
+          await provider.addMaintenanceRecord(_createTestRecord());
+          expect(provider.revision, start);
+        });
       });
     });
 

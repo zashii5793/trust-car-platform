@@ -141,11 +141,16 @@ class _StubFirebaseService implements FirebaseService {
               {int limit = 20}) async =>
           Result.success(vehicleRecords);
 
+  /// 車ごとの記録（「すべて見る」で全車ぶんを読むとき）。
+  Map<String, List<MaintenanceRecord>> recordsByVehicle = const {};
+
   @override
   Future<Result<Map<String, List<MaintenanceRecord>>, AppError>>
       getMaintenanceRecordsForVehicles(List<String> vehicleIds,
               {int limitPerVehicle = 20}) async =>
-          const Result.success({});
+          Result.success({
+            for (final id in vehicleIds) id: recordsByVehicle[id] ?? const [],
+          });
 
   @override
   Future<Result<String, AppError>> uploadImage(dynamic f, String path) async =>
@@ -516,7 +521,12 @@ Widget _buildApp({
   bool isOffline = false,
   ThemeData? theme,
 }) {
-  final fb = _StubFirebaseService();
+  // Share the stub the test registered, so records set on it reach the
+  // providers too (「すべて見る」 reads through MaintenanceProvider).
+  final sl = ServiceLocator.instance;
+  final fb = sl.isRegistered<FirebaseService>()
+      ? sl.get<FirebaseService>()
+      : _StubFirebaseService();
   final vp = vehicleProvider ?? _FakeVehicleProvider();
   final np = notificationProvider ?? _FakeNotificationProvider();
 
@@ -821,6 +831,118 @@ void main() {
       expect(find.text('¥38,000'), findsOneWidget);
       expect(find.text('¥6,200'), findsOneWidget);
       expect(find.text('¥74,000'), findsOneWidget);
+    });
+
+    // 使用感テスト（2026-10-09）: 記録・合計 ¥455,868 があるのに
+    // 「この1年で0件」。件数の集計が取れていなかった（サービス側で修正、
+    // ここでは集計の値がそのまま出ることを固定する）。
+    testWidgets('この1年の件数は集計の値を出す', (tester) async {
+      stubFirebase.recentRecords = [
+        record(
+          id: 'r1',
+          title: 'オイル交換',
+          type: MaintenanceType.oilChange,
+          cost: 6200,
+          date: DateTime(2026, 7, 2),
+        ),
+      ];
+      stubFirebase.summary =
+          const MaintenanceSummary(count: 12, totalCost: 455868);
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.scrollUntilVisible(
+        find.text('メンテナンスの記録'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      expect(find.text('この1年で12件'), findsOneWidget);
+      expect(find.text('¥455,868'), findsOneWidget);
+    });
+
+    // 新規ユーザーで、追加した記録が再読込するまでホームに出なかった。
+    testWidgets('記録を足すと、再読込しなくても件数と一覧が増える', (tester) async {
+      final first = record(
+        id: 'r1',
+        title: 'オイル交換',
+        type: MaintenanceType.oilChange,
+        cost: 6200,
+        date: DateTime(2026, 7, 2),
+      );
+      stubFirebase.recentRecords = [first];
+      stubFirebase.summary =
+          const MaintenanceSummary(count: 1, totalCost: 6200);
+      final vp = _FakeVehicleProvider()..setVehicles([_makeVehicle('v1')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final added = record(
+        id: 'r2',
+        title: '12ヶ月点検',
+        type: MaintenanceType.legalInspection12,
+        cost: 15000,
+        date: DateTime(2026, 10, 8),
+      );
+      stubFirebase.recentRecords = [added, first];
+      stubFirebase.summary =
+          const MaintenanceSummary(count: 2, totalCost: 21200);
+      await Provider.of<MaintenanceProvider>(
+        tester.element(find.byType(HomeScreen)),
+        listen: false,
+      ).addMaintenanceRecord(added);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await tester.scrollUntilVisible(
+        find.text('メンテナンスの記録'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('この1年で2件'), findsOneWidget);
+      expect(find.text('12ヶ月点検'), findsOneWidget);
+    });
+
+    // 4台持ちの人が「すべて見る」を押すと0件。「絞り込みをクリア」でも0件。
+    testWidgets('「すべて見る」で全車の記録が出る', (tester) async {
+      MaintenanceRecord on(String vehicleId, String id, String title) => record(
+            id: id,
+            title: title,
+            type: MaintenanceType.oilChange,
+            cost: 5000,
+            date: DateTime(2026, 6, 1),
+          ).copyWith(vehicleId: vehicleId);
+      stubFirebase.recentRecords = [on('v1', 'r1', 'プリウスのオイル')];
+      stubFirebase.recordsByVehicle = {
+        'v1': [on('v1', 'r1', 'プリウスのオイル')],
+        'v2': [on('v2', 'r2', 'ハイエースの車検')],
+      };
+      final vp = _FakeVehicleProvider()
+        ..setVehicles([_makeVehicle('v1'), _makeVehicle('v2')]);
+
+      await tester.pumpWidget(_buildApp(vehicleProvider: vp));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      final seeAll = find.byKey(const Key('maintenance_see_all'));
+      await tester.scrollUntilVisible(
+        seeAll,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      // Clear the floating + button that sits over the bottom edge.
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -200));
+      await tester.pump();
+      await tester.tap(seeAll);
+      await tester.pumpAndSettle();
+
+      expect(find.text('2件'), findsOneWidget);
+      expect(find.text('ハイエースの車検'), findsOneWidget);
+      expect(find.text('プリウスのオイル'), findsOneWidget);
+      expect(find.textContaining('すべての車'), findsOneWidget);
     });
 
     testWidgets('記録が無ければ見出しごと出さない', (tester) async {

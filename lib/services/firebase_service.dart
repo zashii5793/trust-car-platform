@@ -276,7 +276,10 @@ class FirebaseService {
             isGreaterThanOrEqualTo: Timestamp.fromDate(since));
       }
 
-      final snapshot = await query.aggregate(sum('cost')).get();
+      // count() must be requested explicitly. Without it real Firestore
+      // returns count == null (the emulator fake fills it anyway), and the
+      // home screen showed 「この1年で0件」 beside a non-zero total.
+      final snapshot = await query.aggregate(count(), sum('cost')).get();
 
       return Result.success(
         MaintenanceSummary(
