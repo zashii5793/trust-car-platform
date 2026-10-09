@@ -6,11 +6,13 @@ import '../../core/di/service_locator.dart';
 import '../../models/inquiry.dart';
 import '../../models/maintenance_record.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../models/vehicle.dart';
-import '../../services/firebase_service.dart';
 import '../../services/inquiry_maintenance_importer.dart';
+import '../../services/shop_detail_inbox_service.dart';
+import '../../widgets/shop/import_vehicle_sheet.dart';
 
 /// 問い合わせスレッド画面（ユーザー側）
 ///
@@ -20,7 +22,18 @@ import '../../services/inquiry_maintenance_importer.dart';
 class InquiryThreadScreen extends StatefulWidget {
   final Inquiry inquiry;
 
-  const InquiryThreadScreen({super.key, required this.inquiry});
+  /// Adds shop-sent details to the records. Defaults to the registered one.
+  final ShopDetailInboxService? detailInbox;
+
+  /// Message to highlight when opened from the home card or a notification.
+  final String? focusMessageId;
+
+  const InquiryThreadScreen({
+    super.key,
+    required this.inquiry,
+    this.detailInbox,
+    this.focusMessageId,
+  });
 
   @override
   State<InquiryThreadScreen> createState() => _InquiryThreadScreenState();
@@ -30,6 +43,15 @@ class _InquiryThreadScreenState extends State<InquiryThreadScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isSending = false;
+
+  /// Details already in the user's records. Loaded once per screen from the
+  /// marks on the messages and from the records, so reopening the thread
+  /// still says "追加済み" (it used to live only in the card's state).
+  final Set<String> _importedIds = {};
+  bool _importedLoaded = false;
+
+  ShopDetailInboxService? get _inbox =>
+      widget.detailInbox ?? sl.tryGet<ShopDetailInboxService>();
 
   @override
   void initState() {
@@ -47,6 +69,40 @@ class _InquiryThreadScreenState extends State<InquiryThreadScreen> {
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// First time the messages arrive: find which details are already added,
+  /// and tell the shop the details reached the user (read).
+  void _onFirstMessages(List<InquiryMessage> messages) {
+    if (_importedLoaded) return;
+    _importedLoaded = true;
+    final inbox = _inbox;
+    final uid = context.read<AuthProvider>().firebaseUser?.uid;
+    if (inbox == null || uid == null) return;
+    if (!messages.any((m) => m.hasMaintenanceDetail)) return;
+    Future(() async {
+      final ids = await inbox.importedMessageIds(
+        userId: uid,
+        inquiryId: widget.inquiry.id,
+        messages: messages,
+      );
+      if (!mounted) return;
+      final found = ids.valueOrNull;
+      if (found != null && found.isNotEmpty) {
+        setState(() => _importedIds.addAll(found));
+      }
+      await inbox.markSeen(inquiryId: widget.inquiry.id, messages: messages);
+    });
+  }
+
+  void _onImported(String messageId) {
+    setState(() => _importedIds.add(messageId));
+    // The home card and the notifications count details not yet added.
+    try {
+      context.read<NotificationProvider>().refreshShopDetails();
+    } catch (_) {
+      // No NotificationProvider above this screen (tests): nothing to update.
+    }
   }
 
   Future<void> _sendMessage() async {
@@ -144,6 +200,7 @@ class _InquiryThreadScreenState extends State<InquiryThreadScreen> {
                     ),
                   );
                 }
+                _onFirstMessages(messages);
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.symmetric(
@@ -152,12 +209,17 @@ class _InquiryThreadScreenState extends State<InquiryThreadScreen> {
                   ),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
+                    final m = messages[index];
                     return _MessageBubble(
-                      message: messages[index],
+                      message: m,
+                      inquiry: widget.inquiry,
                       currentUserId:
                           context.read<AuthProvider>().firebaseUser?.uid ?? '',
-                      inquiryId: widget.inquiry.id,
-                      vehicleId: widget.inquiry.vehicleId,
+                      imported:
+                          m.isDetailImported || _importedIds.contains(m.id),
+                      highlighted: m.id == widget.focusMessageId,
+                      inbox: _inbox,
+                      onImported: () => _onImported(m.id),
                     );
                   },
                 );
@@ -186,15 +248,21 @@ class _InquiryThreadScreenState extends State<InquiryThreadScreen> {
 
 class _MessageBubble extends StatelessWidget {
   final InquiryMessage message;
+  final Inquiry inquiry;
   final String currentUserId;
-  final String inquiryId;
-  final String? vehicleId;
+  final bool imported;
+  final bool highlighted;
+  final ShopDetailInboxService? inbox;
+  final VoidCallback onImported;
 
   const _MessageBubble({
     required this.message,
+    required this.inquiry,
     required this.currentUserId,
-    required this.inquiryId,
-    required this.vehicleId,
+    required this.imported,
+    required this.highlighted,
+    required this.inbox,
+    required this.onImported,
   });
 
   @override
@@ -211,17 +279,21 @@ class _MessageBubble extends StatelessWidget {
       bottomLeft: Radius.circular(isMe ? AppSpacing.radiusMd : 4),
       bottomRight: Radius.circular(isMe ? 4 : AppSpacing.radiusMd),
     );
+    final shopName = inquiry.shopName?.trim();
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Column(
         crossAxisAlignment: alignment,
         children: [
+          // The sender by the shop's name: "工場" alone did not say who
+          // sent the detail (usability test 2026-10-09).
           if (!isMe)
             Padding(
               padding: const EdgeInsets.only(bottom: 4, left: 4),
               child: Text(
-                '工場',
+                (shopName == null || shopName.isEmpty) ? '工場' : shopName,
+                key: const Key('thread_shop_sender'),
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -260,9 +332,13 @@ class _MessageBubble extends StatelessWidget {
               payload: InquiryMaintenancePayload.fromMap(
                 message.maintenancePayload!,
               ),
-              vehicleId: vehicleId,
+              messageId: message.id,
+              inquiry: inquiry,
               userId: currentUserId,
-              inquiryId: inquiryId,
+              imported: imported,
+              highlighted: highlighted,
+              inbox: inbox,
+              onImported: onImported,
             ),
           Padding(
             padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
@@ -299,15 +375,26 @@ class _MessageBubble extends StatelessWidget {
 
 class _MaintenanceImportCard extends StatefulWidget {
   final InquiryMaintenancePayload payload;
-  final String? vehicleId;
+  final String messageId;
+  final Inquiry inquiry;
   final String userId;
-  final String inquiryId;
+
+  /// Already in the user's records (kept on the message / the record, so it
+  /// survives reopening the thread).
+  final bool imported;
+  final bool highlighted;
+  final ShopDetailInboxService? inbox;
+  final VoidCallback onImported;
 
   const _MaintenanceImportCard({
     required this.payload,
-    required this.vehicleId,
+    required this.messageId,
+    required this.inquiry,
     required this.userId,
-    required this.inquiryId,
+    required this.imported,
+    required this.highlighted,
+    required this.inbox,
+    required this.onImported,
   });
 
   @override
@@ -316,10 +403,20 @@ class _MaintenanceImportCard extends StatefulWidget {
 
 class _MaintenanceImportCardState extends State<_MaintenanceImportCard> {
   bool _importing = false;
-  bool _imported = false;
+  bool _importedHere = false;
   bool _noVehicles = false;
 
+  bool get _imported => widget.imported || _importedHere;
+
+  /// The car as the shop named it, or the car the user asked about.
+  String? get _vehicleText =>
+      widget.payload.vehicleDisplay ?? widget.inquiry.vehicleDisplay;
+
   /// どの車の明細かを決める。車が無ければ null（[_noVehicles] を立てる）。
+  ///
+  /// - 利用者がこの車について問い合わせたスレッドなら、その車
+  /// - 1台だけならその車
+  /// - それ以外は選んでもらう。店が車を指定していれば、その車を初期選択に
   Future<String?> _chooseVehicle() async {
     List<Vehicle> vehicles;
     try {
@@ -333,38 +430,36 @@ class _MaintenanceImportCardState extends State<_MaintenanceImportCard> {
     }
     _noVehicles = vehicles.isEmpty;
     if (vehicles.isEmpty) return null;
+
+    final asked = widget.inquiry.vehicleId;
+    if (asked != null && vehicles.any((v) => v.id == asked)) return asked;
     if (vehicles.length == 1) return vehicles.single.id;
-    return showModalBottomSheet<String>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(title: Text('どの車の整備明細ですか？')),
-            for (final v in vehicles)
-              ListTile(
-                key: Key('import_vehicle_${v.id}'),
-                leading: const Icon(Icons.directions_car),
-                title: Text(v.displayName),
-                subtitle: v.licensePlate == null ? null : Text(v.licensePlate!),
-                onTap: () => Navigator.pop(ctx, v.id),
-              ),
-          ],
-        ),
+
+    return showImportVehicleSheet(
+      context,
+      vehicles: vehicles,
+      initialVehicleId: suggestImportVehicleId(
+        payload: widget.payload,
+        vehicles: vehicles,
       ),
+      shopVehicleLabel: widget.payload.vehicleDisplay,
     );
   }
 
   Future<void> _import() async {
     if (_importing || _imported) return;
     final messenger = ScaffoldMessenger.of(context);
+    final inbox = widget.inbox;
+    if (inbox == null || widget.userId.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('整備記録の追加に失敗しました')),
+      );
+      return;
+    }
 
-    // 店から開いたスレッド（顧客台帳から明細を送ったもの）には、お客さんの
-    // 車の ID が入っていない。店はお客さんのアプリ側の車の ID を知らないため。
-    // そのときは、ここでどの車の明細かを決める（1台ならその車、複数なら選ぶ）。
-    final vehicleId = widget.vehicleId ?? await _chooseVehicle();
+    final vehicleId = await _chooseVehicle();
     if (vehicleId == null) {
-      if (mounted && widget.vehicleId == null && _noVehicles) {
+      if (mounted && _noVehicles) {
         messenger.showSnackBar(
           const SnackBar(content: Text('先に車両を登録してから取り込んでください')),
         );
@@ -374,25 +469,28 @@ class _MaintenanceImportCardState extends State<_MaintenanceImportCard> {
 
     setState(() => _importing = true);
     try {
-      final record = buildMaintenanceRecordFromPayload(
+      final result = await inbox.importDetail(
+        userId: widget.userId,
+        inquiryId: widget.inquiry.id,
+        messageId: widget.messageId,
         payload: widget.payload,
         vehicleId: vehicleId,
-        userId: widget.userId,
-        inquiryId: widget.inquiryId,
       );
-      final result =
-          await sl.get<FirebaseService>().addMaintenanceRecord(record);
       if (!mounted) return;
       result.when(
-        success: (_) {
-          setState(() => _imported = true);
+        success: (r) {
+          setState(() => _importedHere = true);
+          widget.onImported();
           messenger.showSnackBar(
-            const SnackBar(content: Text('整備記録に追加しました')),
+            SnackBar(
+              content: Text(
+                  r.alreadyImported ? 'この明細はすでに記録に追加してあります' : '整備記録に追加しました'),
+            ),
           );
         },
-        failure: (_) {
+        failure: (e) {
           messenger.showSnackBar(
-            const SnackBar(content: Text('整備記録の追加に失敗しました')),
+            SnackBar(content: Text('整備記録の追加に失敗しました（${e.userMessage}）')),
           );
         },
       );
@@ -406,19 +504,27 @@ class _MaintenanceImportCardState extends State<_MaintenanceImportCard> {
     final theme = Theme.of(context);
     final p = widget.payload;
     final typeLabel = MaintenanceType.fromString(p.typeKey).displayName;
+    final title = p.title.isEmpty ? '整備記録' : p.title;
+    // "12ヶ月点検・12ヶ月点検": do not repeat the same words.
+    final heading = title.contains(typeLabel) ? title : '$typeLabel・$title';
+    final vehicle = _vehicleText;
 
     return ConstrainedBox(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.sizeOf(context).width * 0.78,
       ),
       child: Container(
+        key: Key('detail_card_${widget.messageId}'),
         margin: const EdgeInsets.only(top: AppSpacing.xs),
         padding: const EdgeInsets.all(AppSpacing.sm),
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
           border: Border.all(
-            color: AppColors.primary.withValues(alpha: 0.35),
+            color: widget.highlighted
+                ? AppColors.primary
+                : AppColors.primary.withValues(alpha: 0.35),
+            width: widget.highlighted ? 2 : 1,
           ),
         ),
         child: Column(
@@ -438,20 +544,46 @@ class _MaintenanceImportCardState extends State<_MaintenanceImportCard> {
                 ),
               ],
             ),
+            if (vehicle != null) ...[
+              const SizedBox(height: 4),
+              Row(
+                key: const Key('detail_card_vehicle'),
+                children: [
+                  Icon(Icons.directions_car_outlined,
+                      size: 14, color: theme.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(vehicle, style: theme.textTheme.bodySmall),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 4),
             Text(
-              '$typeLabel・${p.title.isEmpty ? '整備記録' : p.title}',
+              heading,
               style: theme.textTheme.bodyMedium
                   ?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 2),
             Text(
               [
-                if (p.cost > 0) '¥${p.cost}',
-                if (p.mileageAtService != null) '${p.mileageAtService}km',
+                if (p.cost > 0) formatYen(p.cost),
+                if (p.mileageAtService != null)
+                  '${formatThousands(p.mileageAtService!)}km',
                 '${p.date.year}/${p.date.month}/${p.date.day}',
               ].join(' ・ '),
               style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            // Say before adding that the shop's record cannot be edited
+            // (the rules lock amount, date and work on shop records).
+            Text(
+              '店が出した記録です。記録に追加すると、金額・日付・作業内容は'
+              '変えられません（メモや写真は足せます）。',
+              key: const Key('detail_locked_notice'),
+              style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
@@ -460,6 +592,7 @@ class _MaintenanceImportCardState extends State<_MaintenanceImportCard> {
               width: double.infinity,
               child: _imported
                   ? OutlinedButton.icon(
+                      key: const Key('import_maintenance_done'),
                       onPressed: null,
                       icon: const Icon(Icons.check, size: 16),
                       label: const Text('追加済み'),

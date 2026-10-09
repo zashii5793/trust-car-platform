@@ -17,6 +17,9 @@ import 'package:trust_car_platform/models/inquiry.dart';
 import 'package:trust_car_platform/models/user.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:trust_car_platform/services/shop_detail_inbox_service.dart';
 
 // ---------------------------------------------------------------------------
 // Stub services
@@ -194,6 +197,7 @@ InquiryMessage _makeMessage({
   bool isFromShop = false,
   String content = 'テストメッセージ',
   Map<String, dynamic>? maintenancePayload,
+  DateTime? importedAt,
 }) {
   return InquiryMessage(
     id: id,
@@ -202,6 +206,7 @@ InquiryMessage _makeMessage({
     content: content,
     sentAt: DateTime(2025, 6, 1, 10, 0),
     maintenancePayload: maintenancePayload,
+    importedAt: importedAt,
   );
 }
 
@@ -213,6 +218,7 @@ Widget _buildScreen({
   required Inquiry inquiry,
   _StubInquiryService? inquiryStub,
   _FakeAuthProvider? authProvider,
+  ShopDetailInboxService? detailInbox,
 }) {
   final stub = inquiryStub ?? _StubInquiryService();
   return MultiProvider(
@@ -225,7 +231,7 @@ Widget _buildScreen({
       ),
     ],
     child: MaterialApp(
-      home: InquiryThreadScreen(inquiry: inquiry),
+      home: InquiryThreadScreen(inquiry: inquiry, detailInbox: detailInbox),
     ),
   );
 }
@@ -481,6 +487,149 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('import_maintenance_btn')), findsNothing);
+    });
+  });
+
+  // 使用感テスト 2026-10-09: 差出人が「工場」だけ・車名が無い・変えられない
+  // ことが書かれていない・開き直すと再び「記録に追加」が押せる。
+  group('InquiryThreadScreen — 店から届いた明細（2026-10-09）', () {
+    Map<String, dynamic> detail({String? vehicleLabel, String? plate}) => {
+          'typeKey': 'oilChange',
+          'title': 'オイル交換',
+          'date': DateTime(2026, 10, 8).toIso8601String(),
+          'cost': 16500,
+          'mileageAtService': 45100,
+          if (vehicleLabel != null) 'vehicleLabel': vehicleLabel,
+          if (plate != null) 'licensePlate': plate,
+        };
+
+    testWidgets('差出人は店の名前で出る', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+      stub.emitMessages([_makeMessage(isFromShop: true, content: 'こんにちは')]);
+      await tester.pump();
+
+      expect(find.byKey(const Key('thread_shop_sender')), findsOneWidget);
+      expect(find.text('テスト工場'), findsWidgets);
+      expect(find.text('工場'), findsNothing);
+    });
+
+    testWidgets('カードに車名・桁区切りの金額・変えられないことが出る', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+      stub.emitMessages([
+        _makeMessage(
+          isFromShop: true,
+          maintenancePayload:
+              detail(vehicleLabel: 'トヨタ ハイエース', plate: '岡山 400 な 44-44'),
+        ),
+      ]);
+      await tester.pump();
+
+      expect(find.text('トヨタ ハイエース・岡山 400 な 44-44'), findsOneWidget);
+      expect(find.textContaining('¥16,500'), findsOneWidget);
+      expect(find.textContaining('45,100km'), findsOneWidget);
+      expect(find.byKey(const Key('detail_locked_notice')), findsOneWidget);
+    });
+
+    testWidgets('同じ語を重ねない（オイル交換・オイル交換 にしない）', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+      stub.emitMessages([
+        _makeMessage(isFromShop: true, maintenancePayload: detail()),
+      ]);
+      await tester.pump();
+      expect(find.text('オイル交換'), findsOneWidget);
+      expect(find.text('オイル交換・オイル交換'), findsNothing);
+    });
+
+    testWidgets('取り込み済みの印があれば、開き直しても「追加済み」', (tester) async {
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+      ));
+      stub.emitMessages([
+        _makeMessage(
+          isFromShop: true,
+          maintenancePayload: detail(),
+          importedAt: DateTime(2026, 10, 9),
+        ),
+      ]);
+      await tester.pump();
+
+      expect(find.byKey(const Key('import_maintenance_done')), findsOneWidget);
+      expect(find.byKey(const Key('import_maintenance_btn')), findsNothing);
+    });
+
+    testWidgets('印の無い以前の取り込みも、記録から見つけて「追加済み」', (tester) async {
+      final fs = FakeFirebaseFirestore();
+      await fs.collection('maintenance_records').add({
+        'userId': 'user-1',
+        'inquiryId': 'inq-1',
+        'title': 'オイル交換',
+        'cost': 16500,
+        'date': Timestamp.fromDate(DateTime(2026, 10, 8)),
+      });
+      final stub = _StubInquiryService();
+      await tester.pumpWidget(_buildScreen(
+        inquiry: _makeInquiry(),
+        inquiryStub: stub,
+        detailInbox: ShopDetailInboxService(firestore: fs),
+      ));
+      stub.emitMessages([
+        _makeMessage(isFromShop: true, maintenancePayload: detail()),
+      ]);
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+
+      expect(find.byKey(const Key('import_maintenance_done')), findsOneWidget);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('店の名前が無いスレッドでは「工場」と出す', (tester) async {
+        final stub = _StubInquiryService();
+        await tester.pumpWidget(_buildScreen(
+          inquiry: Inquiry(
+            id: 'inq-1',
+            userId: 'user-1',
+            shopId: 'shop-1',
+            type: InquiryType.general,
+            subject: 's',
+            initialMessage: 'm',
+            createdAt: DateTime(2026),
+            updatedAt: DateTime(2026),
+          ),
+          inquiryStub: stub,
+        ));
+        stub.emitMessages([_makeMessage(isFromShop: true)]);
+        await tester.pump();
+        expect(find.text('工場'), findsOneWidget);
+      });
+
+      testWidgets('車の指定が無い明細でも出せる（車の行が無いだけ）', (tester) async {
+        final stub = _StubInquiryService();
+        await tester.pumpWidget(_buildScreen(
+          inquiry: _makeInquiry(),
+          inquiryStub: stub,
+        ));
+        stub.emitMessages([
+          _makeMessage(isFromShop: true, maintenancePayload: detail()),
+        ]);
+        await tester.pump();
+        expect(find.byKey(const Key('detail_card_vehicle')), findsNothing);
+        expect(find.byKey(const Key('import_maintenance_btn')), findsOneWidget);
+      });
     });
   });
 }

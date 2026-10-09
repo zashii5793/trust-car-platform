@@ -173,15 +173,18 @@ MaintenanceRecord buildMaintenanceRecordFromPayload({
 }
 
 /// Yen with thousands separators, e.g. `¥16,500`.
-String formatYen(int value) {
-  final negative = value < 0;
+String formatYen(int value) =>
+    '${value < 0 ? '-' : ''}¥${formatThousands(value.abs())}';
+
+/// Thousands separators, e.g. `45,100`.
+String formatThousands(int value) {
   final digits = value.abs().toString();
-  final buf = StringBuffer();
+  final buf = StringBuffer(value < 0 ? '-' : '');
   for (var i = 0; i < digits.length; i++) {
     if (i > 0 && (digits.length - i) % 3 == 0) buf.write(',');
     buf.write(digits[i]);
   }
-  return '${negative ? '-' : ''}¥$buf';
+  return buf.toString();
 }
 
 /// The user's car a shop-sent detail most likely belongs to, or null when it

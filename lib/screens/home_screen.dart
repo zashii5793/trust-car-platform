@@ -72,6 +72,7 @@ import '../core/constants/app_info.dart';
 import 'settings/shop_invite_screen.dart';
 import '../services/shop_invite_service.dart';
 import '../widgets/vehicle/maker_badge.dart';
+import '../widgets/home/shop_detail_inbox_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -635,6 +636,7 @@ class _VehicleTabState extends State<_VehicleTab> {
                   },
                   onDismiss: _dismissGettingStarted,
                 ),
+              const ShopDetailInboxCard(),
               _DashboardSummaryCard(vehicles: vehicles),
               // 記録する行為と、次に買うものへの入口。開いてすぐの高さに置く。
               _QuickActionsRow(vehicle: primaryVehicle),

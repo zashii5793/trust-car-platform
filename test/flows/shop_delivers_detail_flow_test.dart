@@ -141,6 +141,17 @@ Future<void> _shopDeliversDetailFlow(
   expect(records.single.isVerified, isTrue);
   expect(records.single.inquiryId, inquiry.id);
 
+  // ---- 山田さん: スレッドを開き直しても「追加済み」。二重に取り込めない ----
+  // （2026-10-09 使用感テスト: 画面の中でしか覚えていなかった）
+  await world.pumpAs(tester, yamada, InquiryThreadScreen(inquiry: inquiry));
+  expect(find.byKey(const Key('import_maintenance_done')), findsOneWidget);
+  expect(find.byKey(const Key('import_maintenance_btn')), findsNothing);
+  final again = await world
+      .firebaseFor(yamada)
+      .getVehicleMaintenanceRecords(car.id)
+      .first;
+  expect(again, hasLength(1));
+
   // ---- 店主: 操作の記録に、取込・閲覧・コード発行・明細送付が残っている ----
   await world.pumpAs(
       tester, owner, AuditLogScreen(service: audit, shopId: shopId));

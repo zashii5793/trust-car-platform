@@ -25,6 +25,7 @@ import 'package:trust_car_platform/providers/vehicle_provider.dart';
 import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/services/firebase_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
+import 'package:trust_car_platform/services/shop_detail_inbox_service.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/shop_subscription_service.dart';
 
@@ -152,6 +153,8 @@ class FlowWorld {
 
     final firebase = firebaseFor(actor);
     sl.override<FirebaseService>(firebase);
+    sl.override<ShopDetailInboxService>(
+        ShopDetailInboxService(firestore: fs, now: () => today));
 
     await tester.pumpWidget(const SizedBox());
     await tester.pumpWidget(
