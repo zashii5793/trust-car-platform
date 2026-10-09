@@ -73,6 +73,36 @@ void main() {
       expect((await service.ensureInspectionFields(shop)).valueOrNull, 0);
     });
 
+    test('車も伝票も多い店では伝票を区切って全部読み、後ろの方の車検も拾う', () async {
+      for (var i = 0; i < 301; i++) {
+        await legacyVehicle(
+            'v${i.toString().padLeft(3, '0')}', DateTime(2028, 3, 1));
+      }
+      for (var i = 0; i < 1001; i++) {
+        await fs
+            .collection('shops/$shop/service_records')
+            .doc('r${i.toString().padLeft(4, '0')}')
+            .set({
+          'customerVehicleId': 'v000',
+          'date':
+              Timestamp.fromDate(DateTime(2023, 1, 1).add(Duration(days: i))),
+          'type': 'オイル交換',
+        });
+      }
+      // The newest record: on the second page.
+      await fs.collection('shops/$shop/service_records').doc('zz_last').set({
+        'customerVehicleId': 'v300',
+        'date': Timestamp.fromDate(DateTime(2026, 3, 5)),
+        'type': '車検（継続検査）',
+      });
+
+      final r = await service.ensureInspectionFields(shop);
+      expect(r.valueOrNull, 301);
+      final d = await fs.doc('shops/$shop/customer_vehicles/v300').get();
+      expect((d.data()!['lastInspectionAt'] as Timestamp).toDate(),
+          DateTime(2026, 3, 5));
+    });
+
     group('Edge Cases', () {
       test('項目のある車は書き換えない（更新日時も動かさない）', () async {
         await fs.collection('shops/$shop/customer_vehicles').doc('v_new').set({

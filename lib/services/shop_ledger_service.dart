@@ -1469,6 +1469,7 @@ class ShopLedgerService {
   /// Above this many vehicles, read all records once instead of asking
   /// per vehicle (one query per 30 vehicles).
   static const int _readAllRecordsAbove = 300;
+  static const int _readPageSize = 1000;
 
   /// The latest inspection date per vehicle, from the stored records.
   /// Only used for vehicles without `lastInspectionAt` (older data).
@@ -1490,7 +1491,20 @@ class ShopLedgerService {
     }
 
     if (readAll) {
-      (await _records(shopId).get()).docs.forEach(take);
+      // Paged: one get() of the whole collection (15,000 records) on the
+      // web came back empty, and every vehicle was marked as never
+      // inspected (2026-10-09, emulator). Ordered by date: records
+      // without one are skipped by take() anyway.
+      final byDate = _records(shopId).orderBy('date');
+      var snap = await byDate.limit(_readPageSize).get();
+      while (true) {
+        snap.docs.forEach(take);
+        if (snap.docs.length < _readPageSize) break;
+        snap = await byDate
+            .startAfterDocument(snap.docs.last)
+            .limit(_readPageSize)
+            .get();
+      }
       return latest;
     }
     final ids = vehicleIds.toList();
