@@ -1382,6 +1382,60 @@ void main() {
   });
 
   group('HomeScreen — ナビゲーション', () {
+    // 使用感テスト（2026-10-09）: 390 幅で下のナビが2段になり、1段の高さは
+    // 約34px（目安 44px）。2段目は画面の下端に寄って見落とされた。
+    testWidgets('390 幅で4つのタブが1段に並び、どれも高さ 44px 以上', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_buildApp());
+      await tester.pump();
+
+      final tops = <double>{};
+      for (var i = 0; i < 4; i++) {
+        final cell = find.byKey(Key('nav_cell_$i'));
+        final rect = tester.getRect(cell);
+        expect(rect.height, greaterThanOrEqualTo(44),
+            reason: 'nav_cell_$i が低い');
+        expect(rect.left, greaterThanOrEqualTo(0));
+        expect(rect.right, lessThanOrEqualTo(390));
+        tops.add(rect.top);
+      }
+      expect(tops, hasLength(1), reason: '1段に並んでいない');
+      expect(tester.takeException(), isNull);
+    });
+
+    // 同: 3ステップ・ダッシュボード・近道・AI提案が縦に積まれ、登録した車は
+    // 2画面目だった。車カードを AI 提案より上に置く（大きく作り替えない）。
+    testWidgets('390×844 で、提案があっても車カードが1画面目に入る', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.reset);
+      final vp = _FakeVehicleProvider()
+        ..setVehicles([
+          _makeVehicle('v1').copyWith(
+            inspectionExpiryDate: DateTime.now().add(const Duration(days: 200)),
+          ),
+        ]);
+      final np = _FakeNotificationProvider()
+        ..setNotifications([_makeNotif(), _makeNotif()]);
+
+      await tester
+          .pumpWidget(_buildApp(vehicleProvider: vp, notificationProvider: np));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final card = find.byKey(const Key('vehicle_card_v1'));
+      expect(card, findsOneWidget);
+      final navTop = tester.getRect(find.byKey(const Key('nav_cell_0'))).top;
+      expect(tester.getRect(card).top, lessThan(navTop));
+      // The car comes before the AI suggestions.
+      final ai = find.text('AIからの提案');
+      if (ai.evaluate().isNotEmpty) {
+        expect(tester.getRect(card).top, lessThan(tester.getRect(ai).top));
+      }
+    });
+
     testWidgets('4つのナビゲーションセルが表示される', (tester) async {
       await tester.pumpWidget(_buildApp());
       await tester.pump();
@@ -1936,6 +1990,10 @@ void main() {
         ),
         _makeVehicle('v2'), // no inspection date
       ]);
+      // The car cards now come first, so the prompt sits further down.
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 2000);
+      addTearDown(tester.view.reset);
 
       await tester.pumpWidget(_buildApp(vehicleProvider: vp));
       await tester.pump();

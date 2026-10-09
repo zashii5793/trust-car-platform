@@ -369,13 +369,12 @@ class _HomeScreenState extends State<HomeScreen> {
   static bool _useTopNavigation(BuildContext context) =>
       MediaQuery.sizeOf(context).width >= 720;
 
-  /// 下段のメニュー。**2行2列**に置く。
-  ///
-  /// 横一列に5つ並べると、390px 幅では1項目あたり78pxしか取れず、
-  /// ラベルが小さくなって押し間違えやすい。2行に分けると倍の幅が取れる。
+  /// 下段のメニュー。4つを**1段**に置く。
   ///
   /// 通知はタブから外して AppBar のベルに寄せた（どのタブにいても見たい
-  /// ものなので、常設のほうが合う）。残る4つを 2×2 に置いている。
+  /// ものなので、常設のほうが合う）。残る4つなら 390px 幅でも1項目
+  /// 約97px 取れる。2×2 にしていた頃は1段が約34pxと低く、2段目が画面の
+  /// 下端に寄って見落とされた（2026-10-09 使用感テスト）。
   Widget _buildNavigation() {
     const items = <({IconData icon, IconData selectedIcon, String label})>[
       (
@@ -400,25 +399,22 @@ class _HomeScreenState extends State<HomeScreen> {
             horizontal: AppSpacing.sm,
             vertical: AppSpacing.xs,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          // One row of four. The 2x2 grid made each row about 34px tall
+          // (target 44px) and pushed the second row to the very bottom edge
+          // where it went unnoticed (usability test 2026-10-09). With the
+          // icon above the label, 「みんなの投稿」 fits a quarter of 390px.
+          child: Row(
             children: [
-              for (var row = 0; row < 2; row++)
-                Row(
-                  children: [
-                    for (var col = 0; col < 2; col++)
-                      Expanded(
-                        child: _NavCell(
-                          index: row * 2 + col,
-                          icon: items[row * 2 + col].icon,
-                          selectedIcon: items[row * 2 + col].selectedIcon,
-                          label: items[row * 2 + col].label,
-                          isSelected: _currentIndex == row * 2 + col,
-                          onTap: () =>
-                              setState(() => _currentIndex = row * 2 + col),
-                        ),
-                      ),
-                  ],
+              for (var i = 0; i < items.length; i++)
+                Expanded(
+                  child: _NavCell(
+                    index: i,
+                    icon: items[i].icon,
+                    selectedIcon: items[i].selectedIcon,
+                    label: items[i].label,
+                    isSelected: _currentIndex == i,
+                    onTap: () => setState(() => _currentIndex = i),
+                  ),
                 ),
             ],
           ),
@@ -640,12 +636,14 @@ class _VehicleTabState extends State<_VehicleTab> {
               _DashboardSummaryCard(vehicles: vehicles),
               // 記録する行為と、次に買うものへの入口。開いてすぐの高さに置く。
               _QuickActionsRow(vehicle: primaryVehicle),
+              // 自分の車は AI の提案より先に出す。提案が2枚あると、登録した
+              // 車が2画面目に押し出されていた（2026-10-09 使用感テスト）。
+              ...vehicles.map((v) => _VehicleCard(vehicle: v)),
               // ガイドを出している間は車検の催促を重ねない。同じことを二か所で
               // 言われると、どちらも読み飛ばされる。
               if (hasVehicleWithoutInspection && !showGettingStarted)
                 _InspectionSetupCard(vehicles: vehicles),
               _AiSuggestionSection(onSeeAll: widget.onNavigateToNotifications),
-              ...vehicles.map((v) => _VehicleCard(vehicle: v)),
               // たびの記録とおすすめパーツを、車両カードのすぐ下に置く。
               // どちらもプロフィールの奥・車両詳細のヘッダーにあって、
               // 1年使っても辿り着かない位置だった（2026-09-08）。
@@ -2154,15 +2152,21 @@ class _DashboardSummaryCard extends StatelessWidget {
             children: [
               Icon(icon, size: 14, color: iconColor),
               AppSpacing.horizontalXs,
-              Text(
-                '次の車検: '
-                '${vehicle.maker} '
-                '${vehicle.model} '
-                '— あと$days日',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white,
-                  fontWeight: fontWeight,
+              // Long maker/model names must not push the chip off a 390px
+              // screen.
+              Flexible(
+                child: Text(
+                  '次の車検: '
+                  '${vehicle.maker} '
+                  '${vehicle.model} '
+                  '— あと$days日',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: fontWeight,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -3873,8 +3877,8 @@ class _PartRow extends StatelessWidget {
 
 /// 下段メニューの1マス。
 ///
-/// アイコンと文字を横に並べる。縦積み（アイコンの下に文字）より1行ぶん
-/// 低く収まり、2行にしても画面を取りすぎない。
+/// アイコンの下に文字を置き、4つを1段に並べる。2行2列にしていた頃は
+/// 1段が約34pxで押しにくかった（2026-10-09 使用感テスト）。
 class _NavCell extends StatelessWidget {
   final int index;
   final IconData icon;
@@ -3907,9 +3911,11 @@ class _NavCell extends StatelessWidget {
         onTap: onTap,
         borderRadius: AppSpacing.borderRadiusSm,
         child: Container(
+          // At least 48px tall: comfortably above the 44px touch target.
+          constraints: const BoxConstraints(minHeight: 48),
           padding: const EdgeInsets.symmetric(
-            vertical: AppSpacing.xs,
-            horizontal: AppSpacing.xs,
+            vertical: AppSpacing.xxs,
+            horizontal: AppSpacing.xxs,
           ),
           decoration: BoxDecoration(
             color: isSelected
@@ -3917,11 +3923,12 @@ class _NavCell extends StatelessWidget {
                 : null,
             borderRadius: AppSpacing.borderRadiusSm,
           ),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(isSelected ? selectedIcon : icon, size: 20, color: color),
-              AppSpacing.horizontalXs,
+              Icon(isSelected ? selectedIcon : icon, size: 22, color: color),
+              const SizedBox(height: 2),
               Flexible(
                 child: Text(
                   label,
