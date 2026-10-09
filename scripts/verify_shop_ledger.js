@@ -27,7 +27,7 @@ const {
   query, where, orderBy, limit, getCountFromServer, Timestamp,
 } = require('firebase/firestore');
 
-const { nameKey, plateNumber } = require('./seed_shop_ledger_year.js');
+const { nameKey, plateNumber, searchDigits } = require('./seed_shop_ledger_year.js');
 
 const PASSWORD = 'password123';
 const SHOP_ID = 'shop_takaya_motor_okayama';
@@ -88,12 +88,21 @@ const today = (() => {
 })();
 const fmt = (t) => (t ? t.toDate().toLocaleDateString('ja-JP') : '-');
 
-// ShopLedgerService.listCustomers(search:) と同じ
+// ShopLedgerService.listCustomers(search:) と同じ（2026-10-09 から searchKeys の
+// array-contains。LedgerSearch.queryKey: 数字と区切りだけで5桁以上なら電話番号）
+const isPhoneQuery = (text) => searchDigits(text).length >= 5 && /^[0-9０-９\s\-‐－ー()（）+]+$/.test(text);
 const searchCustomers = (text) => {
-  const key = nameKey(text);
+  const key = isPhoneQuery(text) ? searchDigits(text) : nameKey(text);
   return getDocs(query(shopCol('customers'),
-    where('searchKey', '>=', key), where('searchKey', '<', key + RANGE_END),
+    where('searchKeys', 'array-contains', Array.from(key).slice(0, 20).join('')),
     orderBy('searchKey'), limit(PAGE + 1)));
+};
+// ShopLedgerService.findVehiclesByPlateNumber と同じ（2桁以上は plateTails）
+const searchPlates = (text) => {
+  const key = plateNumber(text);
+  return getDocs(query(shopCol('customer_vehicles'),
+    key.length === 1 ? where('plateNumber', '==', key) : where('plateTails', 'array-contains', key),
+    limit(PAGE)));
 };
 
 async function ownerChecks() {
@@ -143,15 +152,53 @@ async function ownerChecks() {
     return { n: s.docs.filter((d) => d.get('kind') === 'corporate').length, note: s.docs.slice(0, 2).map((d) => d.get('name')).join('・') };
   }, (n) => n > 0);
 
+  // ---- 漢字・名だけ・電話番号（2026-10-09） ----
+  await check('漢字の姓「青木」で、青木さんが全員（1ページ目）', async () => {
+    const s = await searchCustomers('青木');
+    const all = s.docs.every((d) => d.get('name').startsWith('青木'));
+    return { n: all ? s.size : -1, note: s.docs.slice(0, 4).map((d) => d.get('name')).join('・') };
+  }, (n) => n > 1);
+  await check('漢字の名だけ「太郎」→ ペルソナA を含む', async () => {
+    let found = false;
+    let s = await searchCustomers('太郎');
+    const n = s.size;
+    found = s.docs.some((d) => d.get('linkedUserId') === 'user-a');
+    if (!found) {
+      // 1ページに収まらないときは、名前の近い順の先まで見る
+      const all = await getDocs(query(shopCol('customers'), where('searchKeys', 'array-contains', '太郎')));
+      found = all.docs.some((d) => d.get('linkedUserId') === 'user-a');
+    }
+    return { n: found ? 1 : 0, note: `1ページ目 ${n}件` };
+  }, (n) => n === 1);
+  await check('名のフリガナだけ「たろう」', async () => (await searchCustomers('たろう')).size, (n) => n > 0);
+  await check('電話番号の先頭「090-0418」→ ペルソナA', async () => {
+    const s = await searchCustomers('090-0418');
+    return { n: s.docs.filter((d) => d.get('linkedUserId') === 'user-a').length, note: `${s.size}件` };
+  }, (n) => n === 1);
+  await check('検索用の項目が全員にある（searchVersion=2）', async () => {
+    const all = (await getCountFromServer(col)).data().count;
+    const ok = (await getCountFromServer(query(col, where('searchVersion', '==', 2)))).data().count;
+    return { n: all - ok, note: `${ok}/${all}` };
+  }, (n) => n === 0);
+
   // ---- ナンバー末尾（findVehiclesByPlateNumber） ----
   const vcol = shopCol('customer_vehicles');
   await check('ナンバー末尾「22-22」→ ペルソナAのハイエース', async () => {
-    const s = await getDocs(query(vcol, where('plateNumber', '==', plateNumber('22-22')), limit(PAGE)));
+    const s = await searchPlates('22-22');
     return { n: s.docs.filter((d) => d.get('customerName') === '個人 太郎').length, note: `${s.size}台が該当` };
   }, (n) => n === 1);
   await check('ナンバー末尾（全角「２２－２２」でも同じ車が引ける）', async () => {
-    const s = await getDocs(query(vcol, where('plateNumber', '==', plateNumber('２２－２２')), limit(PAGE)));
+    const s = await searchPlates('２２－２２');
     return { n: s.docs.filter((d) => d.get('customerName') === '個人 太郎').length, note: s.docs.map((d) => d.get('plate')).join(' / ') };
+  }, (n) => n === 1);
+  await check('ナンバー末尾2桁「35」（2026-10-09。末尾が35の車がすべて当たる）', async () => {
+    const s = await searchPlates('35');
+    const ok = s.docs.every((d) => plateNumber(d.get('plate')).endsWith('35'));
+    return { n: ok ? s.size : -1, note: s.docs.slice(0, 3).map((d) => d.get('plate')).join(' / ') };
+  }, (n) => n > 0);
+  await check('ナンバー末尾3桁「222」→ ペルソナAのハイエース', async () => {
+    const all = await getDocs(query(vcol, where('plateTails', 'array-contains', '222')));
+    return { n: all.docs.filter((d) => d.get('customerName') === '個人 太郎').length, note: `${all.size}台` };
   }, (n) => n === 1);
 
   // ---- 車検が近い順（listVehiclesByInspection） ----
@@ -199,6 +246,23 @@ async function ownerChecks() {
     const days = t ? Math.floor((today - t) / 86400000) : 999;
     return { n: days, note: `${t?.toLocaleString('ja-JP')}（30日を超えると率を出さない）` };
   }, (n) => n <= 30);
+  // lossReport は伝票を読まず、車の lastInspectionAt / lastInspectionDueAt で数える
+  // （2026-10-09）。満了日が進んだ車も「入庫した」に数え、率が 100% に張り付かないこと
+  await check('取りこぼし：直近12か月の率（車だけで数える）', async () => {
+    const from = new Date(today.getFullYear(), today.getMonth() - 11, 1);
+    const expired = await getDocs(query(vcol, where('inspectionExpiry', '>=', Timestamp.fromDate(from)), where('inspectionExpiry', '<', Timestamp.fromDate(today))));
+    const unknown = expired.docs.filter((d) => !('lastInspectionAt' in d.data())).length;
+    const lost = expired.docs.filter((d) => {
+      const last = d.get('lastInspectionAt');
+      const ws = new Date(d.get('inspectionExpiry').toDate()); ws.setDate(ws.getDate() - 60);
+      return !last || last.toDate() < ws;
+    }).length;
+    const renewed = (await getCountFromServer(query(vcol, where('lastInspectionDueAt', '>=', Timestamp.fromDate(from)), where('lastInspectionDueAt', '<', Timestamp.fromDate(today))))).data().count;
+    const overlap = expired.docs.filter((d) => { const t = d.get('lastInspectionDueAt')?.toMillis(); return t != null && t >= from.getTime() && t < today.getTime(); }).length;
+    const returned = renewed - overlap + (expired.size - lost);
+    const rate = Math.round((lost / (lost + returned)) * 100);
+    return { n: unknown === 0 ? rate : -1, note: `取りこぼし ${lost}台・入庫 ${returned}台・最後の車検日が無い車 ${unknown}台` };
+  }, (n) => n > 0 && n < 50);
   await check('整備履歴：直近1年', async () => {
     const from = new Date(today); from.setFullYear(from.getFullYear() - 1);
     return (await getCountFromServer(query(rcol, where('date', '>=', Timestamp.fromDate(from))))).data().count;

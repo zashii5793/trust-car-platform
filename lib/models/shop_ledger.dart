@@ -98,6 +98,120 @@ class LedgerSearch {
     return match?.group(1);
   }
 
+  /// Version of the search fields below. Documents written with an older
+  /// version (or none) are rewritten once by
+  /// `ShopLedgerService.ensureSearchFields`.
+  static const int version = 2;
+
+  /// Longest prefix stored per token. Longer queries are cut to this and
+  /// the page is filtered on the client.
+  static const int maxPrefixLength = 20;
+
+  /// Keys for finding a customer with `searchKeys array-contains <key>`.
+  ///
+  /// Firestore has no substring search, so every prefix of every token is
+  /// stored (2026-10-09). Tokens are the surname and the given name
+  /// (split on spaces) and the whole name, for both the name as written
+  /// (kanji) and the reading (kana), plus the contact person and the
+  /// phone number (digits only). So "青木", "和也", "かずや",
+  /// "あおきかずや" and "0861234" all hit "青木 和也 / アオキ カズヤ".
+  ///
+  /// A reading typed without a space ("アオキカズヤ") cannot be split, so
+  /// its given name alone does not hit; the kanji given name still does.
+  static List<String> customerKeys({
+    required String name,
+    String? nameKana,
+    String? contactPerson,
+    String? phone,
+  }) {
+    final keys = <String>{};
+    for (final text in [name, nameKana, contactPerson]) {
+      if (text == null) continue;
+      final parts = text
+          .replaceAll('\u3000', ' ')
+          .split(' ')
+          .map(nameKey)
+          .where((p) => p.isNotEmpty)
+          .toList();
+      for (final token in {...parts, parts.join()}) {
+        keys.addAll(_prefixes(token));
+      }
+    }
+    final digits = phone == null ? '' : _digits(phone);
+    if (digits.isNotEmpty) keys.addAll(_prefixes(digits));
+    // The rules accept up to 200 (firestore.rules validLedgerCustomer).
+    return keys.take(maxKeys).toList();
+  }
+
+  /// Upper bound of [customerKeys] (a long company name with many parts
+  /// must not make the customer impossible to save).
+  static const int maxKeys = 200;
+
+  /// Whether [key] (a [queryKey]) is a prefix of one of the customer's
+  /// tokens, without the [maxPrefixLength] cut. For queries longer than
+  /// the stored prefixes.
+  static bool customerMatches(LedgerCustomer c, String key) {
+    final tokens = <String>[];
+    for (final text in [c.name, c.nameKana, c.contactPerson]) {
+      if (text == null) continue;
+      final parts = text
+          .replaceAll('　', ' ')
+          .split(' ')
+          .map(nameKey)
+          .where((p) => p.isNotEmpty)
+          .toList();
+      tokens
+        ..addAll(parts)
+        ..add(parts.join());
+    }
+    if (c.phone != null) tokens.add(_digits(c.phone!));
+    return tokens.any((t) => t.startsWith(key));
+  }
+
+  /// The key to look up for what was typed in the search box: digits only
+  /// for a phone number, otherwise [nameKey].
+  static String queryKey(String input) =>
+      isPhoneQuery(input) ? _digits(input) : nameKey(input);
+
+  /// Digits (and separators) only, five or more: a phone number. Up to
+  /// four digits is the plate number (handled separately).
+  static bool isPhoneQuery(String input) {
+    final digits = _digits(input);
+    if (digits.length < 5) return false;
+    final rest = plateKey(input).replaceAll(RegExp(r'[0-9()（）+]'), '');
+    return rest.isEmpty;
+  }
+
+  /// The last 2 to 4 digits of the plate number, so "35", "335" and
+  /// "6335" all find "岡山 300 あ 63-35". A number of one or two digits
+  /// is kept as it is.
+  static List<String> plateTails(String plate) {
+    final number = plateNumber(plate);
+    if (number == null) return const [];
+    if (number.length <= 2) return [number];
+    return [
+      for (var n = 2; n <= number.length; n++)
+        number.substring(number.length - n),
+    ];
+  }
+
+  static List<String> _prefixes(String token) {
+    final runes = token.runes.toList();
+    final end = runes.length < maxPrefixLength ? runes.length : maxPrefixLength;
+    return [
+      for (var i = 1; i <= end; i++) String.fromCharCodes(runes.sublist(0, i)),
+    ];
+  }
+
+  static String _digits(String input) {
+    final b = StringBuffer();
+    for (final r in input.runes) {
+      if (r >= 0x30 && r <= 0x39) b.writeCharCode(r);
+      if (r >= 0xFF10 && r <= 0xFF19) b.writeCharCode(r - 0xFEE0);
+    }
+    return b.toString();
+  }
+
   static bool _isDigit(int r) => r >= 0x30 && r <= 0x39;
 
   static int _lastRune(StringBuffer b) {
@@ -293,6 +407,14 @@ class LedgerCustomer {
   /// 並べ替え用のキー。検索キーと同じだが、意味が違うので分けて持つ。
   String get sortKey => searchKey;
 
+  /// 漢字・フリガナの姓と名・担当者・電話番号の前方一致（[LedgerSearch.customerKeys]）。
+  List<String> get searchKeys => LedgerSearch.customerKeys(
+        name: name,
+        nameKana: _nonEmpty(nameKana),
+        contactPerson: _nonEmpty(contactPerson),
+        phone: _nonEmpty(phone),
+      );
+
   Map<String, dynamic> toMap() => {
         'kind': kind.name,
         'name': name.trim(),
@@ -305,6 +427,8 @@ class LedgerCustomer {
         'note': _nonEmpty(note),
         'externalId': _nonEmpty(externalId),
         'searchKey': searchKey,
+        'searchKeys': searchKeys,
+        'searchVersion': LedgerSearch.version,
         'vehicleCount': vehicleCount,
         'nextInspectionAt': nextInspectionAt != null
             ? Timestamp.fromDate(nextInspectionAt!)
@@ -411,6 +535,20 @@ class LedgerVehicle {
   /// そのとき案内した満了日。**車検を通して満了日が進んだら、次の案内の
   /// 対象に戻す**ために、案内した日と別に持つ。
   final DateTime? inspectionNoticeExpiry;
+
+  /// Date of the latest inspection (車検) service record for this car.
+  ///
+  /// Written by the service-record import so the loss report can tell
+  /// "came back for the inspection" from the vehicle alone, without
+  /// reading every service record. A stored `null` means "imported, and
+  /// there is no inspection record"; a missing field means "not known yet"
+  /// (data from before 2026-10-09).
+  final DateTime? lastInspectionAt;
+
+  /// The expiry that [lastInspectionAt] was for. Lets the loss report put
+  /// a car whose expiry has already moved two years ahead (the roster was
+  /// re-imported) back into the month it was due.
+  final DateTime? lastInspectionDueAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -430,6 +568,8 @@ class LedgerVehicle {
     this.externalId,
     this.inspectionNoticeAt,
     this.inspectionNoticeExpiry,
+    this.lastInspectionAt,
+    this.lastInspectionDueAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -450,6 +590,9 @@ class LedgerVehicle {
         'plate': _nonEmpty(plate),
         'plateKey': plate == null ? null : LedgerSearch.plateKey(plate!),
         'plateNumber': plate == null ? null : LedgerSearch.plateNumber(plate!),
+        'plateTails':
+            plate == null ? const <String>[] : LedgerSearch.plateTails(plate!),
+        'searchVersion': LedgerSearch.version,
         'maker': maker.trim(),
         'model': model.trim(),
         'year': year,
@@ -468,6 +611,12 @@ class LedgerVehicle {
           'inspectionNoticeAt': Timestamp.fromDate(inspectionNoticeAt!),
         if (inspectionNoticeExpiry != null)
           'inspectionNoticeExpiry': Timestamp.fromDate(inspectionNoticeExpiry!),
+        // Same as above: the roster import merges, so a null here would
+        // erase what the service-record import found.
+        if (lastInspectionAt != null)
+          'lastInspectionAt': Timestamp.fromDate(lastInspectionAt!),
+        if (lastInspectionDueAt != null)
+          'lastInspectionDueAt': Timestamp.fromDate(lastInspectionDueAt!),
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': Timestamp.fromDate(updatedAt),
       };
@@ -489,6 +638,8 @@ class LedgerVehicle {
       externalId: m['externalId'] as String?,
       inspectionNoticeAt: _date(m['inspectionNoticeAt']),
       inspectionNoticeExpiry: _date(m['inspectionNoticeExpiry']),
+      lastInspectionAt: _date(m['lastInspectionAt']),
+      lastInspectionDueAt: _date(m['lastInspectionDueAt']),
       createdAt:
           _date(m['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
       updatedAt:

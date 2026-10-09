@@ -70,6 +70,7 @@ import '../../services/model_cost_report_service.dart';
 import '../../services/vehicle_profile_service.dart';
 import '../../services/maintenance_history_import_service.dart';
 import '../../services/shop_staff_service.dart';
+import '../../services/shop_entry_service.dart';
 import '../../services/detail_delivery_service.dart';
 import '../../services/ledger_link_service.dart';
 import '../../services/shop_audit_service.dart';
@@ -332,6 +333,14 @@ class Injection {
     // 店のスタッフ（招待コードで参加）。顧客台帳を店主ひとりで回さないため。
     locator.registerLazySingleton<ShopStaffService>(
       () => ShopStaffService(firestore: FirebaseFirestore.instance),
+    );
+
+    // ログイン直後に、店主・スタッフなら顧客台帳を最初に開く（2026-10-09）。
+    locator.registerLazySingleton<ShopEntryService>(
+      () => ShopEntryService(
+        shopService: locator.get<ShopService>(),
+        staffService: locator.get<ShopStaffService>(),
+      ),
     );
 
     // 台帳の顧客とアプリの利用者をつなぎ、整備明細を送る。
