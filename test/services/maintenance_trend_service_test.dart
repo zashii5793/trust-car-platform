@@ -379,4 +379,50 @@ void main() {
       });
     });
   });
+
+  // 使用感テスト（2026-10-09）: 満了日は残149日なのに「車検 62日過ぎています」。
+  group('withInspectionDeadline — 車検は満了日で置き換える', () {
+    const service = MaintenanceTrendService();
+    MaintenanceTrendInsight insight(MaintenanceType type, DateTime next) =>
+        MaintenanceTrendInsight(
+          type: type,
+          predictedNextDate: next,
+          sampleCount: 2,
+          confidence: TrendConfidence.medium,
+        );
+
+    test('車検の予測日を満了日に置き換え、確度を上げる', () {
+      final result = service.withInspectionDeadline(
+        [
+          insight(MaintenanceType.carInspection, DateTime(2026, 8, 8)),
+          insight(MaintenanceType.oilChange, DateTime(2026, 11, 1)),
+        ],
+        DateTime(2027, 3, 7),
+      );
+      final inspection =
+          result.firstWhere((i) => i.type == MaintenanceType.carInspection);
+      expect(inspection.predictedNextDate, DateTime(2027, 3, 7));
+      expect(inspection.confidence, TrendConfidence.high);
+      final oil = result.firstWhere((i) => i.type == MaintenanceType.oilChange);
+      expect(oil.predictedNextDate, DateTime(2026, 11, 1));
+    });
+
+    group('Edge Cases', () {
+      test('満了日が無ければそのまま', () {
+        final input = [
+          insight(MaintenanceType.carInspection, DateTime(2026, 8, 8)),
+        ];
+        expect(
+            service
+                .withInspectionDeadline(input, null)
+                .single
+                .predictedNextDate,
+            DateTime(2026, 8, 8));
+      });
+
+      test('空のリストは空', () {
+        expect(service.withInspectionDeadline([], DateTime(2027)), isEmpty);
+      });
+    });
+  });
 }

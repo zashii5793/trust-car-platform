@@ -1142,6 +1142,55 @@ void main() {
     });
   });
 
+  // 使用感テスト（2026-10-09）: 車検満了日は残149日なのに、同じ画面の
+  // 「次の整備の目安」は「車検 62日過ぎています」と出た。車検は間隔からの
+  // 当て推量ではなく、満了日から出す。
+  group('次の整備の目安 — 車検は満了日から', () {
+    testWidgets('満了日があれば、車検の目安は満了日までの日数', (tester) async {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final vehicle = _testVehicle().copyWith(
+        inspectionExpiryDate: today.add(const Duration(days: 149)),
+      );
+      maintenanceProvider.listenToMaintenanceRecords('v1');
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_buildScreen(vehicle, maintenanceProvider));
+      // Two past inspections 440 days apart: the interval guess lands in
+      // the past even though the certificate runs for another 149 days.
+      mockFirebase.emitRecords([
+        _testRecord(
+          id: 'i2',
+          title: '車検',
+          type: MaintenanceType.carInspection,
+          date: today.subtract(const Duration(days: 460)),
+        ),
+        _testRecord(
+          id: 'i1',
+          title: '車検',
+          type: MaintenanceType.carInspection,
+          date: today.subtract(const Duration(days: 900)),
+        ),
+      ]);
+      await tester.pumpAndSettle(const Duration(seconds: 10));
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('maintenance_forecast_section')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      final section = find.byKey(const Key('maintenance_forecast_section'));
+      expect(
+        find.descendant(of: section, matching: find.text('あと149日')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: section, matching: find.textContaining('過ぎています')),
+        findsNothing,
+      );
+    });
+  });
+
   group('C4 — 工場裏書きバッジ & 検証済みサマリー', () {
     testWidgets('verificationSource=shopVerified のレコードにバッジが表示される',
         (tester) async {

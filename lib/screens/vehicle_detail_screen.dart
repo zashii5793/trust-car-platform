@@ -50,6 +50,7 @@ import '../models/model_cost_report.dart';
 import '../services/model_cost_report_service.dart';
 import 'vehicle/model_cost_report_screen.dart';
 import '../core/timeline/mileage_milestone.dart';
+import '../core/utils/calendar_days.dart';
 import '../models/year_in_review.dart';
 import 'year_in_review_screen.dart';
 import 'fuel/fuel_history_screen.dart';
@@ -1251,7 +1252,8 @@ class _VoluntaryInsuranceSection extends StatelessWidget {
     final insurance = vehicle.voluntaryInsurance;
     final money = NumberFormat('#,###');
 
-    final days = insurance?.expiryDate?.difference(DateTime.now()).inDays;
+    final expiry = insurance?.expiryDate;
+    final days = expiry == null ? null : calendarDaysUntil(expiry);
     final isExpired = days != null && days < 0;
     final isWarning = days != null && days <= 30 && days >= 0;
     final expiryColor = isExpired
@@ -1421,7 +1423,8 @@ class _LeaseInfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final days = leaseInfo.contractEndDate?.difference(DateTime.now()).inDays;
+    final end = leaseInfo.contractEndDate;
+    final days = end == null ? null : calendarDaysUntil(end);
     final isExpired = days != null && days < 0;
     final isWarning = days != null && days <= 60 && days >= 0;
     final endDateColor = isExpired
@@ -4310,7 +4313,10 @@ class _MaintenanceForecastSection extends StatelessWidget {
     const service = MaintenanceTrendService();
     final insights = service.sortByUrgency(
       service
-          .analyzeHistory(records, currentMileage: vehicle.mileage)
+          .withInspectionDeadline(
+            service.analyzeHistory(records, currentMileage: vehicle.mileage),
+            vehicle.inspectionExpiryDate,
+          )
           .where((i) => i.predictedNextDate != null)
           .toList(),
     );
@@ -4360,7 +4366,7 @@ class _ForecastRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final next = insight.predictedNextDate!;
-    final days = next.difference(DateTime.now()).inDays;
+    final days = calendarDaysUntil(next);
 
     // 過ぎているものを先に、色を変えて出す。
     final overdue = days < 0;

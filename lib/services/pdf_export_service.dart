@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../core/utils/calendar_days.dart';
 import '../models/shop_monthly_report.dart';
 import '../models/inquiry.dart';
 import 'package:pdf/pdf.dart';
@@ -275,7 +276,9 @@ class PdfExportService {
 
   pw.Widget _buildLegalSection(Vehicle vehicle, DateFormat dateFormat) {
     final now = DateTime.now();
-    final inspDays = vehicle.inspectionExpiryDate?.difference(now).inDays;
+    final inspExpiry = vehicle.inspectionExpiryDate;
+    final inspDays =
+        inspExpiry == null ? null : calendarDaysUntil(inspExpiry, now: now);
 
     String inspectionText;
     PdfColor inspectionColor;
