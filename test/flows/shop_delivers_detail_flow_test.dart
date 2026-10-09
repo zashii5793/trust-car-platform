@@ -152,6 +152,25 @@ Future<void> _shopDeliversDetailFlow(
       .first;
   expect(again, hasLength(1));
 
+  // 明細には店が選んだ車（台帳の1台）が入っている
+  final detailMessages = await world.fs
+      .collection('inquiries')
+      .doc(inquiry.id)
+      .collection('messages')
+      .get();
+  final payload = detailMessages.docs
+      .map((d) => d.data()['maintenancePayload'])
+      .firstWhere((p) => p != null) as Map;
+  expect(payload['licensePlate'], '品川300あ1234');
+  expect(payload['vehicleLabel'], 'MINI クーパー');
+
+  // ---- 店主: 顧客を開くと、送った明細が「記録に追加済み」----
+  await world.pumpAs(tester, owner, ledger());
+  await tester.tap(find.text('山田太郎'));
+  await tester.pumpAndSettle();
+  expect(find.byKey(const Key('sent_details_section')), findsOneWidget);
+  expect(find.textContaining('記録に追加済み'), findsOneWidget);
+
   // ---- 店主: 操作の記録に、取込・閲覧・コード発行・明細送付が残っている ----
   await world.pumpAs(
       tester, owner, AuditLogScreen(service: audit, shopId: shopId));

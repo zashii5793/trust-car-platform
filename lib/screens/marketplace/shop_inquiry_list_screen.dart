@@ -3,10 +3,13 @@ import '../../core/utils/odometer.dart';
 import 'package:provider/provider.dart';
 import '../../models/inquiry.dart';
 import '../../models/maintenance_record.dart';
+import '../../models/shop_ledger.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../services/inquiry_service.dart';
 import '../../services/inquiry_maintenance_importer.dart';
+import '../../services/detail_delivery_service.dart'
+    show SentDetail, SentDetailStatus;
 import '../../core/constants/colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../widgets/common/loading_indicator.dart';
@@ -166,7 +169,14 @@ class _ShopInquiryListScreenState extends State<ShopInquiryListScreen> {
 
 /// 店側の問い合わせスレッドを開く。顧客台帳から整備明細を送るときにも使う
 /// （明細の作成・送信はこのシートにある）。
-Future<void> openShopInquiryThread(BuildContext context, Inquiry inquiry) {
+///
+/// [vehicles] は台帳にあるその顧客の車。明細を作るときに、どの車の明細かを
+/// 選ばせる（2026-10-09 使用感テスト: 4台持ちの顧客で車が抜けていた）。
+Future<void> openShopInquiryThread(
+  BuildContext context,
+  Inquiry inquiry, {
+  List<LedgerVehicle> vehicles = const [],
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -178,6 +188,7 @@ Future<void> openShopInquiryThread(BuildContext context, Inquiry inquiry) {
       shopProvider: context.read<ShopProvider>(),
       senderId:
           context.read<AuthProvider>().firebaseUser?.uid ?? inquiry.shopId,
+      vehicles: vehicles,
     ),
   );
 }
@@ -474,10 +485,14 @@ class _InquiryDetailSheet extends StatefulWidget {
   /// ログイン中の人（店主またはスタッフ）の uid。返信の senderId になる。
   final String senderId;
 
+  /// 台帳にあるこの顧客の車（顧客台帳から開いたときだけ）。
+  final List<LedgerVehicle> vehicles;
+
   const _InquiryDetailSheet({
     required this.inquiry,
     required this.shopProvider,
     required this.senderId,
+    this.vehicles = const [],
   });
 
   @override
@@ -577,7 +592,12 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
   Future<void> _sendMaintenanceDetail() async {
     final payload = await showDialog<InquiryMaintenancePayload>(
       context: context,
-      builder: (_) => _MaintenanceDetailForm(shopName: _inquiry.shopName),
+      builder: (_) => _MaintenanceDetailForm(
+        shopName: _inquiry.shopName,
+        vehicles: widget.vehicles,
+        inquiryVehicleId: _inquiry.vehicleId,
+        inquiryVehicleLabel: _inquiry.vehicleDisplay,
+      ),
     );
     if (payload == null || !mounted) return;
 
@@ -810,6 +830,7 @@ class _InquiryDetailSheetState extends State<_InquiryDetailSheet> {
                                 content: msg.content,
                                 isFromShop: msg.isFromShop,
                                 sentAt: msg.sentAt,
+                                detail: msg.hasMaintenanceDetail ? msg : null,
                               ),
                             )
                             .toList(),
@@ -890,10 +911,15 @@ class _MessageBubble extends StatelessWidget {
   final bool isFromShop;
   final DateTime sentAt;
 
+  /// A maintenance detail this shop sent: shown with whether it reached the
+  /// user and was added to their records.
+  final InquiryMessage? detail;
+
   const _MessageBubble({
     required this.content,
     required this.isFromShop,
     required this.sentAt,
+    this.detail,
   });
 
   String _formatTime(DateTime dt) {
@@ -942,12 +968,83 @@ class _MessageBubble extends StatelessWidget {
             ),
             child: Text(content, style: TextStyle(color: textColor)),
           ),
+          if (detail != null) _SentDetailStatus(message: detail!),
           const SizedBox(height: 2),
           Text(
             _formatTime(sentAt),
             style: theme.textTheme.labelSmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sent detail status — did the detail reach the user / get added?
+// ---------------------------------------------------------------------------
+
+class _SentDetailStatus extends StatelessWidget {
+  final InquiryMessage message;
+
+  const _SentDetailStatus({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final p = InquiryMaintenancePayload.fromMap(message.maintenancePayload!);
+    final status = SentDetail.statusOf(message);
+    final imported = message.importedAt;
+    final color = switch (status) {
+      SentDetailStatus.imported => AppColors.success,
+      SentDetailStatus.seen => AppColors.info,
+      SentDetailStatus.delivered => AppColors.textSecondary,
+    };
+    final summary = [
+      p.vehicleDisplay,
+      p.title.isEmpty ? null : p.title,
+      if (p.cost > 0) formatYen(p.cost),
+    ].whereType<String>().join('・');
+
+    return Container(
+      key: Key('shop_detail_status_${message.id}'),
+      margin: const EdgeInsets.only(top: 4),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width * 0.75,
+      ),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (summary.isNotEmpty)
+            Text('整備明細: $summary', style: theme.textTheme.bodySmall),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                status == SentDetailStatus.imported
+                    ? Icons.check_circle
+                    : Icons.mark_email_read_outlined,
+                size: 14,
+                color: color,
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  status == SentDetailStatus.imported && imported != null
+                      ? '${status.label}（${imported.month}/${imported.day}）'
+                      : status.label,
+                  style: theme.textTheme.labelSmall?.copyWith(color: color),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1180,7 +1277,20 @@ class _ReplyInputBar extends StatelessWidget {
 class _MaintenanceDetailForm extends StatefulWidget {
   final String? shopName;
 
-  const _MaintenanceDetailForm({this.shopName});
+  /// The customer's cars in the ledger. With 2 or more, the shop must pick
+  /// one; with 1 it is used as is.
+  final List<LedgerVehicle> vehicles;
+
+  /// The user's car, when the user opened the thread about a specific car.
+  final String? inquiryVehicleId;
+  final String? inquiryVehicleLabel;
+
+  const _MaintenanceDetailForm({
+    this.shopName,
+    this.vehicles = const [],
+    this.inquiryVehicleId,
+    this.inquiryVehicleLabel,
+  });
 
   @override
   State<_MaintenanceDetailForm> createState() => _MaintenanceDetailFormState();
@@ -1197,6 +1307,26 @@ class _MaintenanceDetailFormState extends State<_MaintenanceDetailForm> {
   final _formKey = GlobalKey<FormState>();
   MaintenanceType _type = MaintenanceType.carInspection;
   DateTime _date = DateTime.now();
+
+  /// The ledger car the detail is for.
+  LedgerVehicle? _vehicle;
+
+  /// The car is already known (the user asked about it): no picker.
+  bool get _carFromInquiry => widget.inquiryVehicleId != null;
+
+  bool get _showsVehiclePicker =>
+      !_carFromInquiry && widget.vehicles.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.vehicles.length == 1) _vehicle = widget.vehicles.single;
+  }
+
+  static String _vehicleOption(LedgerVehicle v) {
+    final plate = v.plate?.trim() ?? '';
+    return plate.isEmpty ? v.displayName : '${v.displayName}（$plate）';
+  }
 
   // Common maintenance types a shop typically issues a detail for.
   static const _types = [
@@ -1243,6 +1373,14 @@ class _MaintenanceDetailFormState extends State<_MaintenanceDetailForm> {
       shopName: widget.shopName,
       partsCost: int.tryParse(_partsCostController.text.trim()),
       laborCost: int.tryParse(_laborCostController.text.trim()),
+      vehicleId: widget.inquiryVehicleId,
+      vehicleLabel: _carFromInquiry
+          ? widget.inquiryVehicleLabel
+          : (_vehicle == null || _vehicle!.displayName.isEmpty)
+              ? null
+              : _vehicle!.displayName,
+      licensePlate: _carFromInquiry ? null : _vehicle?.plate,
+      ledgerVehicleId: _carFromInquiry ? null : _vehicle?.id,
     );
     Navigator.pop(context, payload);
   }
@@ -1298,6 +1436,32 @@ class _MaintenanceDetailFormState extends State<_MaintenanceDetailForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Which car first: a detail without its car had to be guessed
+              // by the user (usability test 2026-10-09).
+              if (_showsVehiclePicker) ...[
+                DropdownButtonFormField<LedgerVehicle>(
+                  key: const Key('detail_vehicle_dropdown'),
+                  initialValue: _vehicle,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: '車両'),
+                  items: widget.vehicles
+                      .map((v) => DropdownMenuItem(
+                            value: v,
+                            child: Text(
+                              _vehicleOption(v),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => _vehicle = v),
+                  validator: (v) => v == null ? 'どの車の明細かを選んでください' : null,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ] else if (_carFromInquiry &&
+                  widget.inquiryVehicleLabel != null) ...[
+                Text('車両: ${widget.inquiryVehicleLabel}'),
+                const SizedBox(height: AppSpacing.sm),
+              ],
               DropdownButtonFormField<MaintenanceType>(
                 key: const Key('detail_type_dropdown'),
                 initialValue: _type,
@@ -1331,34 +1495,28 @@ class _MaintenanceDetailFormState extends State<_MaintenanceDetailForm> {
                 validator: _validateCost,
               ),
               const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      key: const Key('detail_parts_cost_field'),
-                      controller: _partsCostController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: '部品代（任意）',
-                        suffixText: '円',
-                      ),
-                      validator: _validateBreakdown,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: TextFormField(
-                      key: const Key('detail_labor_cost_field'),
-                      controller: _laborCostController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: '工賃（任意）',
-                        suffixText: '円',
-                      ),
-                      validator: _validateBreakdown,
-                    ),
-                  ),
-                ],
+              // One per line: side by side the labels were cut off
+              // ("部品代…", usability test 2026-10-09).
+              TextFormField(
+                key: const Key('detail_parts_cost_field'),
+                controller: _partsCostController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '部品代（任意）',
+                  suffixText: '円',
+                ),
+                validator: _validateBreakdown,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextFormField(
+                key: const Key('detail_labor_cost_field'),
+                controller: _laborCostController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '工賃（任意）',
+                  suffixText: '円',
+                ),
+                validator: _validateBreakdown,
               ),
               const SizedBox(height: AppSpacing.sm),
               TextFormField(

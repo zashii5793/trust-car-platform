@@ -37,6 +37,7 @@ import 'package:trust_car_platform/services/auth_service.dart';
 import 'package:trust_car_platform/services/shop_service.dart';
 import 'package:trust_car_platform/services/inquiry_service.dart';
 import 'package:trust_car_platform/models/inquiry.dart';
+import 'package:trust_car_platform/models/shop_ledger.dart';
 import 'package:trust_car_platform/models/user.dart';
 import 'package:trust_car_platform/core/result/result.dart';
 import 'package:trust_car_platform/core/error/app_error.dart';
@@ -111,11 +112,18 @@ class _FakeShopProvider extends ShopProvider {
   final bool _loading;
   final List<Inquiry> _inquiries;
 
+  final List<InquiryMessage> _messages;
+
+  /// The maintenance detail last sent from the sheet.
+  Map<String, dynamic>? lastPayload;
+
   _FakeShopProvider({
     bool loading = false,
     List<Inquiry> inquiries = const [],
+    List<InquiryMessage> messages = const [],
   })  : _loading = loading,
         _inquiries = List.of(inquiries),
+        _messages = messages,
         super(
           shopService: _StubShopService(),
           inquiryService: _StubInquiryService(),
@@ -123,7 +131,7 @@ class _FakeShopProvider extends ShopProvider {
 
   @override
   Stream<List<InquiryMessage>> streamInquiryMessages(String inquiryId) =>
-      Stream.value([]);
+      Stream.value(_messages);
 
   @override
   bool get isLoadingShopInquiries => _loading;
@@ -154,14 +162,16 @@ class _FakeShopProvider extends ShopProvider {
     required String content,
     List<String> attachmentUrls = const [],
     Map<String, dynamic>? maintenancePayload,
-  }) async =>
-      Result.success(InquiryMessage(
-        id: 'msg-sent',
-        senderId: senderId,
-        isFromShop: true,
-        content: content,
-        sentAt: DateTime(2026, 9, 22, 8, 0),
-      ));
+  }) async {
+    lastPayload = maintenancePayload;
+    return Result.success(InquiryMessage(
+      id: 'msg-sent',
+      senderId: senderId,
+      isFromShop: true,
+      content: content,
+      sentAt: DateTime(2026, 9, 22, 8, 0),
+    ));
+  }
 }
 
 class _FakeUser implements User {
@@ -643,6 +653,185 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 10));
 
       expect(find.text('クローズ済み問い合わせ'), findsOneWidget);
+    });
+  });
+
+  // 使用感テスト 2026-10-09 #9: 4台持ちの顧客に明細を送るとき、どの車の
+  // 明細かを選ぶ欄が無かった。#10: 送った明細の行方が店から見えなかった。
+  group('顧客台帳から開いたスレッド — 車を選んで送る', () {
+    LedgerVehicle car(String id, String maker, String model, String plate) =>
+        LedgerVehicle(
+          id: id,
+          customerId: 'c1',
+          customerName: '個人 太郎',
+          plate: plate,
+          maker: maker,
+          model: model,
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
+        );
+
+    final cars = [
+      car('v1', 'ホンダ', 'N-BOX', '岡山 580 あ 11-11'),
+      car('v2', 'マツダ', 'CX-5', '岡山 300 さ 22-22'),
+      car('v3', 'トヨタ', 'プリウス', '岡山 300 あ 33-33'),
+      car('v4', 'トヨタ', 'ハイエース', '岡山 400 な 44-44'),
+    ];
+
+    Future<_FakeShopProvider> openForm(
+      WidgetTester tester, {
+      List<LedgerVehicle> vehicles = const [],
+      Inquiry? inquiry,
+      List<InquiryMessage> messages = const [],
+      bool tapSend = true,
+    }) async {
+      tester.view.physicalSize = const Size(1209, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final provider = _FakeShopProvider(messages: messages);
+      await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider<ShopProvider>.value(value: provider),
+          ChangeNotifierProvider<AuthProvider>.value(
+              value: _FakeAuthProvider()),
+        ],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => openShopInquiryThread(
+                  context,
+                  inquiry ?? _makeInquiry(subject: '整備明細のお届け'),
+                  vehicles: vehicles,
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      if (tapSend) {
+        await tester.tap(find.byKey(const Key('send_maintenance_detail_btn')));
+        await tester.pumpAndSettle();
+      }
+      return provider;
+    }
+
+    testWidgets('車が2台以上なら、選ばないと送れない', (tester) async {
+      final provider = await openForm(tester, vehicles: cars);
+      expect(find.byKey(const Key('detail_vehicle_dropdown')), findsOneWidget);
+
+      await tester.enterText(
+          find.byKey(const Key('detail_cost_field')), '5500');
+      await tester.tap(find.byKey(const Key('detail_submit_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('detail_submit_btn')), findsOneWidget);
+      expect(find.text('どの車の明細かを選んでください'), findsOneWidget);
+      expect(provider.lastPayload, isNull);
+    });
+
+    testWidgets('選んだ車（車名・ナンバー・台帳の車）が明細に入る', (tester) async {
+      final provider = await openForm(tester, vehicles: cars);
+
+      await tester.tap(find.byKey(const Key('detail_vehicle_dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('トヨタ ハイエース（岡山 400 な 44-44）').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+          find.byKey(const Key('detail_cost_field')), '2640');
+      await tester.tap(find.byKey(const Key('detail_submit_btn')));
+      await tester.pumpAndSettle();
+
+      expect(provider.lastPayload?['vehicleLabel'], 'トヨタ ハイエース');
+      expect(provider.lastPayload?['licensePlate'], '岡山 400 な 44-44');
+      expect(provider.lastPayload?['ledgerVehicleId'], 'v4');
+    });
+
+    testWidgets('1台なら選ばずにその車で送れる', (tester) async {
+      final provider = await openForm(tester, vehicles: [cars.first]);
+
+      await tester.enterText(
+          find.byKey(const Key('detail_cost_field')), '5500');
+      await tester.tap(find.byKey(const Key('detail_submit_btn')));
+      await tester.pumpAndSettle();
+
+      expect(provider.lastPayload?['ledgerVehicleId'], 'v1');
+      expect(provider.lastPayload?['licensePlate'], '岡山 580 あ 11-11');
+    });
+
+    testWidgets('送った明細に「記録に追加済み」「届いています」が出る', (tester) async {
+      await openForm(
+        tester,
+        tapSend: false,
+        messages: [
+          InquiryMessage(
+            id: 'm1',
+            senderId: 'shop-1',
+            isFromShop: true,
+            content: '整備明細をお送りします。',
+            sentAt: DateTime(2026, 10, 8, 10),
+            maintenancePayload: const {'title': 'オイル交換', 'cost': 5500},
+            importedAt: DateTime(2026, 10, 9),
+          ),
+          InquiryMessage(
+            id: 'm2',
+            senderId: 'shop-1',
+            isFromShop: true,
+            content: '整備明細をお送りします。',
+            sentAt: DateTime(2026, 10, 8, 11),
+            maintenancePayload: const {'title': 'ワイパー交換', 'cost': 2640},
+          ),
+        ],
+      );
+
+      expect(find.byKey(const Key('shop_detail_status_m1')), findsOneWidget);
+      expect(find.textContaining('記録に追加済み'), findsOneWidget);
+      expect(find.textContaining('届いています（未読）'), findsOneWidget);
+      expect(find.textContaining('¥2,640'), findsOneWidget);
+    });
+
+    group('Edge Cases', () {
+      testWidgets('車の分からないスレッド（問い合わせ一覧から）では選ぶ欄を出さない', (tester) async {
+        final provider = await openForm(tester);
+        expect(find.byKey(const Key('detail_vehicle_dropdown')), findsNothing);
+
+        await tester.enterText(
+            find.byKey(const Key('detail_cost_field')), '5500');
+        await tester.tap(find.byKey(const Key('detail_submit_btn')));
+        await tester.pumpAndSettle();
+        expect(provider.lastPayload, isNotNull);
+        expect(provider.lastPayload?['licensePlate'], isNull);
+      });
+
+      testWidgets('お客さんが車を指定した問い合わせなら、その車で送る', (tester) async {
+        final provider = await openForm(
+          tester,
+          vehicles: cars,
+          inquiry: Inquiry(
+            id: 'inq-u',
+            userId: 'user-1',
+            shopId: 'shop-1',
+            vehicleId: 'app-car-9',
+            vehicleMaker: 'Toyota',
+            vehicleModel: 'Hiace',
+            type: InquiryType.estimate,
+            subject: '見積もり',
+            initialMessage: 'お願いします',
+            createdAt: DateTime(2026),
+            updatedAt: DateTime(2026),
+          ),
+        );
+        expect(find.byKey(const Key('detail_vehicle_dropdown')), findsNothing);
+        await tester.enterText(
+            find.byKey(const Key('detail_cost_field')), '5500');
+        await tester.tap(find.byKey(const Key('detail_submit_btn')));
+        await tester.pumpAndSettle();
+        expect(provider.lastPayload?['vehicleId'], 'app-car-9');
+        expect(provider.lastPayload?['vehicleLabel'], 'Toyota Hiace');
+      });
     });
   });
 }

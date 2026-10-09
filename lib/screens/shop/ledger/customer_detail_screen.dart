@@ -13,6 +13,7 @@ import '../../../services/ledger_link_service.dart';
 import '../../../services/shop_invite_service.dart';
 import '../../../services/shop_audit_service.dart';
 import '../../marketplace/shop_inquiry_list_screen.dart';
+import '../../../widgets/shop/sent_details_section.dart';
 
 /// 顧客1件の詳細。車両の追加・編集もここから行う。
 ///
@@ -56,6 +57,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
   bool _loading = true;
   String? _error;
   bool _changed = false;
+  int _sentRefresh = 0;
 
   DateTime get _today => widget.today ?? DateTime.now();
 
@@ -205,10 +207,12 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
           targetId: c.id, targetLabel: c.name, detail: 'スレッドを開いた');
     }
     await r.when(
-      success: (inquiry) => openShopInquiryThread(context, inquiry),
+      success: (inquiry) =>
+          openShopInquiryThread(context, inquiry, vehicles: _vehicles),
       failure: (e) async => ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(e.userMessage))),
     );
+    if (mounted) setState(() => _sentRefresh++);
   }
 
   Future<void> _delete() async {
@@ -354,6 +358,11 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
               icon: const Icon(Icons.qr_code_2),
               label: const Text('アプリとつなぐ（専用コードを出す）'),
             ),
+          if (c.isLinked && c.linkedUserId != null)
+            SentDetailsSection(
+                shopId: widget.shopId,
+                userId: c.linkedUserId!,
+                refreshToken: _sentRefresh),
         ],
         AppSpacing.verticalLg,
         Row(
